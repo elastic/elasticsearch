@@ -1538,6 +1538,31 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             );
         }
 
+        public TestCase withWarnings(List<String> warnings) {
+            String[] newWarnings;
+            if (expectedWarnings != null) {
+                newWarnings = Arrays.copyOf(expectedWarnings, expectedWarnings.length + warnings.size());
+                for (int i = 0; i < warnings.size(); i++) {
+                    newWarnings[expectedWarnings.length + i] = warnings.get(i);
+                }
+            } else {
+                newWarnings = warnings.toArray(String[]::new);
+            }
+
+            return new TestCase(
+                data,
+                evaluatorToString,
+                expectedType,
+                matcher,
+                newWarnings,
+                expectedBuildEvaluatorWarnings,
+                expectedTypeError,
+                foldingExceptionClass,
+                foldingExceptionMessage,
+                extra
+            );
+        }
+
         public TestCase withWarning(String warning) {
             return new TestCase(
                 data,

@@ -314,9 +314,6 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
         }
         final QueryRewriteContext context = queryRewriteContext.convertToIndexMetadataContext();
         if (context != null) {
-            // Even though we're still on the coordinator, this executes at the shard level.
-            // Any optimisations around skipping unavailable shards should be performed in {@link AbstractQueryBuilder#doCoordinatorRewrite}
-            // as that will execute for unavailable shards as well (which can be skipped if needed)
             return doIndexMetadataRewrite(context);
         }
         return this;

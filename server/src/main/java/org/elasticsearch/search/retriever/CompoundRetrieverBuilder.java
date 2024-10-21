@@ -11,6 +11,7 @@ package org.elasticsearch.search.retriever;
 
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.search.MultiSearchRequest;
@@ -21,6 +22,7 @@ import org.elasticsearch.action.search.TransportMultiSearchAction;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.StoredFieldsContext;
@@ -134,9 +136,32 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
                         }
                     }
                     if (false == failures.isEmpty()) {
-                        IllegalStateException ex = new IllegalStateException("Search failed - some nested retrievers returned errors.");
+                        boolean serverErrorFound = false;
+                        for (int i = 0; i < failures.size(); i++) {
+                            if (ExceptionsHelper.status(failures.get(i)).getStatus() >= RestStatus.INTERNAL_SERVER_ERROR.getStatus()) {
+                                serverErrorFound = true;
+                                break;
+                            }
+                        }
+                        Exception ex;
+                        if (false == serverErrorFound) {
+                            ex = new IllegalArgumentException(
+                                "["
+                                    + getName()
+                                    + "] search failed - some nested retrievers returned errors. "
+                                    + "All causes are attached as suppressed exceptions."
+                            );
+                        } else {
+                            ex = new IllegalStateException(
+                                "["
+                                    + getName()
+                                    + "] search failed - some nested retrievers returned 5xx errors. "
+                                    + "All causes are attached as suppressed exceptions."
+                            );
+                        }
                         failures.forEach(ex::addSuppressed);
                         listener.onFailure(ex);
+
                     } else {
                         results.set(combineInnerRetrieverResults(topDocs));
                         listener.onResponse(null);

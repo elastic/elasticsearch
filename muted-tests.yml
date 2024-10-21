@@ -389,6 +389,8 @@ tests:
 - class: org.elasticsearch.xpack.enrich.EnrichIT
   method: testImmutablePolicy
   issue: https://github.com/elastic/elasticsearch/issues/114839
+- class: org.elasticsearch.xpack.security.authc.ldap.GroupMappingIT
+  issue: https://github.com/elastic/elasticsearch/issues/115221
 
 # Examples:
 #

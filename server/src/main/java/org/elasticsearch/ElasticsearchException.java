@@ -1917,7 +1917,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             ResourceAlreadyUploadedException.class,
             ResourceAlreadyUploadedException::new,
             181,
-            TransportVersions.ADD_RESOURCE_ALREADY_UPLOADED_EXCEPTION
+            TransportVersions.V_8_15_0
         ),
         INGEST_PIPELINE_EXCEPTION(
             org.elasticsearch.ingest.IngestPipelineException.class,

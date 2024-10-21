@@ -30,6 +30,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataType.SEMANTIC_TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.booleanToUnsignedLong;
@@ -53,7 +54,8 @@ public class ToUnsignedLong extends AbstractConvertFunction {
         Map.entry(TEXT, ToUnsignedLongFromStringEvaluator.Factory::new),
         Map.entry(DOUBLE, ToUnsignedLongFromDoubleEvaluator.Factory::new),
         Map.entry(LONG, ToUnsignedLongFromLongEvaluator.Factory::new),
-        Map.entry(INTEGER, ToUnsignedLongFromIntEvaluator.Factory::new)
+        Map.entry(INTEGER, ToUnsignedLongFromIntEvaluator.Factory::new),
+        Map.entry(SEMANTIC_TEXT, ToUnsignedLongFromStringEvaluator.Factory::new)
     );
 
     @FunctionInfo(

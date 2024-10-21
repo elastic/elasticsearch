@@ -187,8 +187,24 @@ public class InTests extends AbstractFunctionTestCase {
             );
         }));
 
-        for (DataType type1 : new DataType[] { DataType.KEYWORD, DataType.TEXT }) {
-            for (DataType type2 : new DataType[] { DataType.KEYWORD, DataType.TEXT }) {
+        suppliers.add(new TestCaseSupplier("semantic_text", List.of(DataType.SEMANTIC_TEXT, DataType.SEMANTIC_TEXT), () -> {
+            List<Object> inlist = randomList(items, items, () -> randomLiteral(DataType.SEMANTIC_TEXT).value());
+            Object field = inlist.get(0);
+            List<TestCaseSupplier.TypedData> args = new ArrayList<>(inlist.size() + 1);
+            for (Object i : inlist) {
+                args.add(new TestCaseSupplier.TypedData(i, DataType.SEMANTIC_TEXT, "inlist" + i));
+            }
+            args.add(new TestCaseSupplier.TypedData(field, DataType.SEMANTIC_TEXT, "field"));
+            return new TestCaseSupplier.TestCase(
+                args,
+                matchesPattern("InBytesRefEvaluator.*"),
+                DataType.BOOLEAN,
+                equalTo(inlist.contains(field))
+            );
+        }));
+
+        for (DataType type1 : new DataType[] { DataType.KEYWORD, DataType.TEXT, DataType.SEMANTIC_TEXT }) {
+            for (DataType type2 : new DataType[] { DataType.KEYWORD, DataType.TEXT, DataType.SEMANTIC_TEXT }) {
                 if (type1 == type2 || items > 1) continue;
                 suppliers.add(new TestCaseSupplier(type1 + " " + type2, List.of(type1, type2), () -> {
                     List<Object> inlist = randomList(items, items, () -> randomLiteral(type1).value());

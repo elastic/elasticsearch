@@ -43,7 +43,8 @@ public class Equals extends EsqlBinaryComparison implements Negatable<EsqlBinary
         Map.entry(DataType.KEYWORD, EqualsKeywordsEvaluator.Factory::new),
         Map.entry(DataType.TEXT, EqualsKeywordsEvaluator.Factory::new),
         Map.entry(DataType.VERSION, EqualsKeywordsEvaluator.Factory::new),
-        Map.entry(DataType.IP, EqualsKeywordsEvaluator.Factory::new)
+        Map.entry(DataType.IP, EqualsKeywordsEvaluator.Factory::new),
+        Map.entry(DataType.SEMANTIC_TEXT, EqualsKeywordsEvaluator.Factory::new)
     );
 
     @FunctionInfo(

@@ -39,7 +39,7 @@ public class GetInferenceModelRequestTests extends AbstractWireSerializingTestCa
             case 2 -> new GetInferenceModelAction.Request(
                 instance.getInferenceEntityId(),
                 instance.getTaskType(),
-                instance.isDoNotPersistDefaultConfigs() == false
+                instance.isPersistDefaultConfig() == false
             );
             default -> throw new UnsupportedOperationException();
         };

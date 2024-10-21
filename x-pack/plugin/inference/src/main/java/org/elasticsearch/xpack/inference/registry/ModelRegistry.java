@@ -228,19 +228,19 @@ public class ModelRegistry {
     /**
      * Get all models.
      * If the defaults endpoint configurations have not been persisted then only
-     * persist them if {@code doNotPersistDefaultEndpoints == true}. Persisting the
+     * persist them if {@code persistDefaultEndpoints == true}. Persisting the
      * configs has the side effect of creating the index.
      *
      * Secret settings are not included
-     * @param doNotPersistDefaultEndpoints Don't persist the defaults endpoint configurations if
-     *                                     not already persisted. When true this avoids the creation
-     *                                     of the backing index.
+     * @param persistDefaultEndpoints Persist the defaults endpoint configurations if
+     *                                not already persisted. When false this avoids the creation
+     *                                of the backing index.
      * @param listener Models listener
      */
-    public void getAllModels(boolean doNotPersistDefaultEndpoints, ActionListener<List<UnparsedModel>> listener) {
+    public void getAllModels(boolean persistDefaultEndpoints, ActionListener<List<UnparsedModel>> listener) {
         ActionListener<SearchResponse> searchListener = listener.delegateFailureAndWrap((delegate, searchResponse) -> {
             var foundConfigs = parseHitsAsModels(searchResponse.getHits()).stream().map(ModelRegistry::unparsedModelFromMap).toList();
-            addAllDefaultConfigsIfMissing(doNotPersistDefaultEndpoints, foundConfigs, defaultConfigIds, delegate);
+            addAllDefaultConfigsIfMissing(persistDefaultEndpoints, foundConfigs, defaultConfigIds, delegate);
         });
 
         // In theory the index should only contain model config documents
@@ -259,7 +259,7 @@ public class ModelRegistry {
     }
 
     private void addAllDefaultConfigsIfMissing(
-        boolean doNotPersistDefaultEndpoints,
+        boolean persistDefaultEndpoints,
         List<UnparsedModel> foundConfigs,
         List<InferenceService.DefaultConfigId> matchedDefaults,
         ActionListener<List<UnparsedModel>> listener
@@ -282,13 +282,13 @@ public class ModelRegistry {
             );
 
             for (var required : missing) {
-                getDefaultConfig(doNotPersistDefaultEndpoints, required, groupedListener);
+                getDefaultConfig(persistDefaultEndpoints, required, groupedListener);
             }
         }
     }
 
     private void getDefaultConfig(
-        boolean doNotPersistDefaultEndpoints,
+        boolean persistDefaultEndpoints,
         InferenceService.DefaultConfigId defaultConfig,
         ActionListener<UnparsedModel> listener
     ) {
@@ -297,10 +297,10 @@ public class ModelRegistry {
             for (var m : models) {
                 if (m.getInferenceEntityId().equals(defaultConfig.inferenceId())) {
                     foundModel = true;
-                    if (doNotPersistDefaultEndpoints) {
-                        listener.onResponse(modelToUnparsedModel(m));
-                    } else {
+                    if (persistDefaultEndpoints) {
                         storeDefaultEndpoint(m, () -> listener.onResponse(modelToUnparsedModel(m)));
+                    } else {
+                        listener.onResponse(modelToUnparsedModel(m));
                     }
                     break;
                 }

@@ -15,6 +15,7 @@ import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Objects;
 
 public class ElserMlNodeTaskSettings implements TaskSettings {
@@ -26,6 +27,11 @@ public class ElserMlNodeTaskSettings implements TaskSettings {
     public ElserMlNodeTaskSettings() {}
 
     public ElserMlNodeTaskSettings(StreamInput in) {}
+
+    @Override
+    public boolean isEmpty() {
+        return true;
+    }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
@@ -59,5 +65,10 @@ public class ElserMlNodeTaskSettings implements TaskSettings {
         // TODO Class has no members all instances are equivalent
         // Return the hash of NAME to make the serialization tests pass
         return Objects.hash(NAME);
+    }
+
+    @Override
+    public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
+        return DEFAULT;
     }
 }

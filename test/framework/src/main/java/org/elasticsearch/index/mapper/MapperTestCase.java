@@ -1321,12 +1321,15 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             return mapper.fieldType(loaderFieldName).blockLoader(new MappedFieldType.BlockLoaderContext() {
                 @Override
                 public String indexName() {
-                    throw new UnsupportedOperationException();
+                    return "test_index";
                 }
 
                 @Override
                 public IndexSettings indexSettings() {
-                    throw new UnsupportedOperationException();
+                    var imd = IndexMetadata.builder(indexName())
+                        .settings(MapperTestCase.indexSettings(IndexVersion.current(), 1, 1).put(Settings.EMPTY))
+                        .build();
+                    return new IndexSettings(imd, Settings.EMPTY);
                 }
 
                 @Override
@@ -1570,7 +1573,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             b.endObject();
         }));
 
-        int elementCount = randomIntBetween(1, 5);
+        int elementCount = randomIntBetween(2, 5);
         CheckedConsumer<XContentBuilder, IOException> buildInput = (XContentBuilder builder) -> {
             example.buildInputArray(builder, elementCount);
         };
@@ -1580,7 +1583,8 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         buildInput.accept(builder);
         builder.endObject();
         String expected = Strings.toString(builder);
-        assertThat(syntheticSource(mapperAll, buildInput), equalTo(expected));
+        String actual = syntheticSource(mapperAll, buildInput);
+        assertThat(actual, equalTo(expected));
     }
 
     @Override

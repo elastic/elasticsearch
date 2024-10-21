@@ -77,33 +77,36 @@ public class GoogleAiStudioCompletionResponseEntity {
     public static ChatCompletionResults fromResponse(Request request, HttpResult response) throws IOException {
         var parserConfig = XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
         try (XContentParser jsonParser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, response.body())) {
-            moveToFirstToken(jsonParser);
-
-            XContentParser.Token token = jsonParser.currentToken();
-            ensureExpectedToken(XContentParser.Token.START_OBJECT, token, jsonParser);
-
-            positionParserAtTokenAfterField(jsonParser, "candidates", FAILED_TO_FIND_FIELD_TEMPLATE);
-
-            jsonParser.nextToken();
-            ensureExpectedToken(XContentParser.Token.START_OBJECT, jsonParser.currentToken(), jsonParser);
-
-            positionParserAtTokenAfterField(jsonParser, "content", FAILED_TO_FIND_FIELD_TEMPLATE);
-
-            token = jsonParser.currentToken();
-            ensureExpectedToken(XContentParser.Token.START_OBJECT, token, jsonParser);
-
-            positionParserAtTokenAfterField(jsonParser, "parts", FAILED_TO_FIND_FIELD_TEMPLATE);
-
-            jsonParser.nextToken();
-            ensureExpectedToken(XContentParser.Token.START_OBJECT, token, jsonParser);
-
-            positionParserAtTokenAfterField(jsonParser, "text", FAILED_TO_FIND_FIELD_TEMPLATE);
-
-            XContentParser.Token contentToken = jsonParser.currentToken();
-            ensureExpectedToken(XContentParser.Token.VALUE_STRING, contentToken, jsonParser);
-            String content = jsonParser.text();
-
-            return new ChatCompletionResults(List.of(new ChatCompletionResults.Result(content)));
+            return new ChatCompletionResults(List.of(new ChatCompletionResults.Result(content(jsonParser))));
         }
+    }
+
+    public static String content(XContentParser jsonParser) throws IOException {
+        moveToFirstToken(jsonParser);
+
+        XContentParser.Token token = jsonParser.currentToken();
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, token, jsonParser);
+
+        positionParserAtTokenAfterField(jsonParser, "candidates", FAILED_TO_FIND_FIELD_TEMPLATE);
+
+        jsonParser.nextToken();
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, jsonParser.currentToken(), jsonParser);
+
+        positionParserAtTokenAfterField(jsonParser, "content", FAILED_TO_FIND_FIELD_TEMPLATE);
+
+        token = jsonParser.currentToken();
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, token, jsonParser);
+
+        positionParserAtTokenAfterField(jsonParser, "parts", FAILED_TO_FIND_FIELD_TEMPLATE);
+
+        jsonParser.nextToken();
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, token, jsonParser);
+
+        positionParserAtTokenAfterField(jsonParser, "text", FAILED_TO_FIND_FIELD_TEMPLATE);
+
+        XContentParser.Token contentToken = jsonParser.currentToken();
+        ensureExpectedToken(XContentParser.Token.VALUE_STRING, contentToken, jsonParser);
+        return jsonParser.text();
+
     }
 }

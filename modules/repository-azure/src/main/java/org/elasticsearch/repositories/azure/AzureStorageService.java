@@ -91,7 +91,7 @@ public class AzureStorageService {
         String clientName,
         LocationMode locationMode,
         OperationPurpose purpose,
-        AzureClientProvider.SuccessfulRequestHandler successfulRequestHandler
+        AzureClientProvider.RequestMetricsHandler requestMetricsHandler
     ) {
         final AzureStorageSettings azureStorageSettings = getClientSettings(clientName);
 
@@ -102,7 +102,7 @@ public class AzureStorageService {
             locationMode,
             retryOptions,
             proxyOptions,
-            successfulRequestHandler,
+            requestMetricsHandler,
             purpose
         );
     }

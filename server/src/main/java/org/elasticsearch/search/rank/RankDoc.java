@@ -11,9 +11,11 @@ package org.elasticsearch.search.rank;
 
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.ScoreDoc;
-import org.elasticsearch.common.io.stream.NamedWriteable;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -24,7 +26,7 @@ import java.util.Objects;
  * {@code RankDoc} is the base class for all ranked results.
  * Subclasses should extend this with additional information required for their global ranking method.
  */
-public class RankDoc extends ScoreDoc implements NamedWriteable, ToXContentFragment, Comparable<RankDoc> {
+public class RankDoc extends ScoreDoc implements VersionedNamedWriteable, ToXContentFragment, Comparable<RankDoc> {
 
     public static final String NAME = "rank_doc";
 
@@ -38,6 +40,11 @@ public class RankDoc extends ScoreDoc implements NamedWriteable, ToXContentFragm
     @Override
     public String getWriteableName() {
         return NAME;
+    }
+
+    @Override
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.RANK_DOCS_RETRIEVER;
     }
 
     @Override

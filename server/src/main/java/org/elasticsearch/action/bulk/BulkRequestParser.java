@@ -23,7 +23,6 @@ import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.seqno.SequenceNumbers;
-import org.elasticsearch.rest.action.document.RestBulkAction;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContent;
@@ -257,7 +256,6 @@ public final class BulkRequestParser {
         private final Consumer<UpdateRequest> updateRequestConsumer;
         private final Consumer<DeleteRequest> deleteRequestConsumer;
 
-        private boolean typesDeprecationLogged = false;
         private int incrementalFromOffset = 0;
         private int line = 0;
 
@@ -407,23 +405,11 @@ public final class BulkRequestParser {
                                 }
                                 index = stringDeduplicator.computeIfAbsent(parser.text(), Function.identity());
                             } else if (TYPE.match(currentFieldName, parser.getDeprecationHandler())) {
-                                if (parser.getRestApiVersion().matches(RestApiVersion.equalTo(RestApiVersion.V_7))) {
-                                    // for bigger bulks, deprecation throttling might not be enough
-                                    if (deprecateOrErrorOnType && typesDeprecationLogged == false) {
-                                        try (Releasable ignore = loggingContext.get()) {
-                                            deprecationLogger.compatibleCritical(
-                                                "bulk_with_types",
-                                                RestBulkAction.TYPES_DEPRECATION_MESSAGE
-                                            );
-                                            typesDeprecationLogged = true;
-                                        }
-                                    }
-                                } else if (parser.getRestApiVersion().matches(RestApiVersion.onOrAfter(RestApiVersion.V_8))
-                                    && deprecateOrErrorOnType) {
-                                        throw new IllegalArgumentException(
-                                            "Action/metadata line [" + line + "] contains an unknown parameter [" + currentFieldName + "]"
-                                        );
-                                    }
+                                if (deprecateOrErrorOnType) {
+                                    throw new IllegalArgumentException(
+                                        "Action/metadata line [" + line + "] contains an unknown parameter [" + currentFieldName + "]"
+                                    );
+                                }
                                 currentType = stringDeduplicator.computeIfAbsent(parser.text(), Function.identity());
                             } else if (ID.match(currentFieldName, parser.getDeprecationHandler())) {
                                 id = parser.text();

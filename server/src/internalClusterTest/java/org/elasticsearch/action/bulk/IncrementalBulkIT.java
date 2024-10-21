@@ -90,7 +90,7 @@ public class IncrementalBulkIT extends ESIntegTestCase {
 
         assertResponse(prepareSearch(index).setQuery(QueryBuilders.matchAllQuery()), searchResponse -> {
             assertNoFailures(searchResponse);
-            assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) 1));
+            assertThat(searchResponse.getHits().getTotalHits().value(), equalTo((long) 1));
         });
 
         assertFalse(refCounted.hasReferences());
@@ -268,7 +268,7 @@ public class IncrementalBulkIT extends ESIntegTestCase {
 
             assertResponse(prepareSearch(index).setQuery(QueryBuilders.matchAllQuery()), searchResponse -> {
                 assertNoFailures(searchResponse);
-                assertThat(searchResponse.getHits().getTotalHits().value, equalTo(docs));
+                assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(docs));
             });
         }
     }
@@ -358,7 +358,7 @@ public class IncrementalBulkIT extends ESIntegTestCase {
 
             assertResponse(prepareSearch(index).setQuery(QueryBuilders.matchAllQuery()), searchResponse -> {
                 assertNoFailures(searchResponse);
-                assertThat(searchResponse.getHits().getTotalHits().value, equalTo(hits.get()));
+                assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(hits.get()));
             });
         }
     }

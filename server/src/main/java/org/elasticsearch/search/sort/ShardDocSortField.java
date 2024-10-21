@@ -64,7 +64,7 @@ public class ShardDocSortField extends SortField {
 
             @Override
             public Long value(int slot) {
-                return (((long) shardRequestIndex) << 32) | (delegate.value(slot) & 0xFFFFFFFFL);
+                return encodeShardAndDoc(shardRequestIndex, delegate.value(slot));
             }
 
             @Override
@@ -86,5 +86,9 @@ public class ShardDocSortField extends SortField {
      */
     public static int decodeShardRequestIndex(long value) {
         return (int) (value >> 32);
+    }
+
+    public static long encodeShardAndDoc(int shardIndex, int doc) {
+        return (((long) shardIndex) << 32) | (doc & 0xFFFFFFFFL);
     }
 }

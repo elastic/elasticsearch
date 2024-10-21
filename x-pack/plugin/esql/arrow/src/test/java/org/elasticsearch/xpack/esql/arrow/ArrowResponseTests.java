@@ -129,7 +129,7 @@ public class ArrowResponseTests extends ESTestCase {
     static final ValueType TEXT_VALUES = new ValueTypeImpl<BytesRefBlock.Builder, BytesRefBlock, VarCharVector>(
         "text",
         factory -> factory.newBytesRefBlockBuilder(0),
-        block -> block.appendBytesRef(new BytesRef("🚀" + randomAlphaOfLengthBetween(1, 20))),
+        block -> block.appendBytesRef(new BytesRef(randomUnicodeOfLengthBetween(1, 20))),
         (b, i, s) -> b.getBytesRef(i, s).utf8ToString(),
         (v, i) -> new String(v.get(i), StandardCharsets.UTF_8)
     );

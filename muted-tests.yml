@@ -256,9 +256,6 @@ tests:
 - class: org.elasticsearch.xpack.inference.services.cohere.CohereServiceTests
   method: testInfer_StreamRequest_ErrorResponse
   issue: https://github.com/elastic/elasticsearch/issues/114327
-- class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
-  method: test {yaml=cluster.stats/30_ccs_stats/cross-cluster search stats search}
-  issue: https://github.com/elastic/elasticsearch/issues/114371
 - class: org.elasticsearch.xpack.inference.services.cohere.CohereServiceTests
   method: testInfer_StreamRequest
   issue: https://github.com/elastic/elasticsearch/issues/114385
@@ -311,9 +308,6 @@ tests:
 - class: org.elasticsearch.packaging.test.EnrollmentProcessTests
   method: test20DockerAutoFormCluster
   issue: https://github.com/elastic/elasticsearch/issues/114885
-- class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
-  method: test {yaml=cluster.stats/30_ccs_stats/cross-cluster search stats search}
-  issue: https://github.com/elastic/elasticsearch/issues/114902
 - class: org.elasticsearch.xpack.inference.DefaultEndPointsIT
   method: testInferDeploysDefaultElser
   issue: https://github.com/elastic/elasticsearch/issues/114913
@@ -346,12 +340,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/115129
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
   issue: https://github.com/elastic/elasticsearch/issues/115135
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.string.ReverseTests
-  method: testEvaluateInManyThreads {TestCase=<long unicode TEXT>}
-  issue: https://github.com/elastic/elasticsearch/issues/115227
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.string.ReverseTests
-  method: testEvaluateInManyThreads {TestCase=<long unicode KEYWORD>}
-  issue: https://github.com/elastic/elasticsearch/issues/115228
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=esql/60_usage/Basic ESQL usage output (telemetry)}
   issue: https://github.com/elastic/elasticsearch/issues/115231

@@ -2,6 +2,7 @@
 === ELSER {infer} service
 
 Creates an {infer} endpoint to perform an {infer} task with the `elser` service.
+You can also deploy ELSER by using the <<infer-service-elasticsearch>>.
 
 NOTE: The API request will automatically download and deploy the ELSER model if
 it isn't already downloaded.

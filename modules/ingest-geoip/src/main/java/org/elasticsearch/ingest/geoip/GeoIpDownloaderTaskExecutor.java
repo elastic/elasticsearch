@@ -317,7 +317,7 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
     }
 
     /**
-     * Check if a processor config is has an on_failure clause containing at least a geoip processor.
+     * Check if a processor config has an on_failure clause containing at least a geoip processor.
      * @param processor Processor config.
      * @param downloadDatabaseOnPipelineCreation Should the download_database_on_pipeline_creation of the geoip processor be true or false.
      * @return true if a geoip processor is found in the processor list.

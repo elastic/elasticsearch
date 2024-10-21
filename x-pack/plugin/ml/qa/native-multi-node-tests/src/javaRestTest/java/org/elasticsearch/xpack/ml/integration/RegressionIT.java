@@ -164,7 +164,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
                     + testDocsWithEmptyFeatureImportance
                     + "] test docs with empty feature importance"
                     + " from "
-                    + sourceData.getHits().getTotalHits().value
+                    + sourceData.getHits().getTotalHits().value()
                     + " hits.\n"
                     + badDocuments,
                 trainingDocsWithEmptyFeatureImportance + testDocsWithEmptyFeatureImportance,

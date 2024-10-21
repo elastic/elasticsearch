@@ -308,8 +308,8 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
         verify(indicesClient, Mockito.only()).rolloverIndex(requestCaptor.capture(), Mockito.any());
 
         RolloverRequest request = requestCaptor.getValue();
-        assertThat(request.indicesOptions().failureStoreOptions().includeFailureIndices(), equalTo(failureStoreIndex));
-        assertThat(request.indicesOptions().failureStoreOptions().includeRegularIndices(), not(equalTo(failureStoreIndex)));
+        assertThat(request.indicesOptions().includeFailureIndices(), equalTo(failureStoreIndex));
+        assertThat(request.indicesOptions().includeRegularIndices(), not(equalTo(failureStoreIndex)));
     }
 
     public void testSkipRolloverIfDataStreamIsAlreadyRolledOver() {

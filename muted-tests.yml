@@ -275,12 +275,6 @@ tests:
 - class: org.elasticsearch.xpack.ml.integration.MlJobIT
   method: testGetJobs_GivenSingleJob
   issue: https://github.com/elastic/elasticsearch/issues/113655
-- class: org.elasticsearch.xpack.security.authz.interceptor.SearchRequestCacheDisablingInterceptorTests
-  method: testHasRemoteIndices
-  issue: https://github.com/elastic/elasticsearch/issues/113660
-- class: org.elasticsearch.xpack.security.authz.interceptor.SearchRequestCacheDisablingInterceptorTests
-  method: testRequestCacheWillBeDisabledWhenSearchRemoteIndices
-  issue: https://github.com/elastic/elasticsearch/issues/113659
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=range/20_synthetic_source/Date range}
   issue: https://github.com/elastic/elasticsearch/issues/113874
@@ -315,27 +309,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {categorize.Categorize ASYNC}
   issue: https://github.com/elastic/elasticsearch/issues/113721
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvPercentileTests
-  method: "testEvaluateBlockWithoutNulls {TestCase=field: <positive mv UNORDERED longs>, percentile: <small positive double>}"
-  issue: https://github.com/elastic/elasticsearch/issues/114585
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvPercentileTests
-  method: "testEvaluateBlockWithoutNulls {TestCase=field: <positive mv SORTED_ASCENDING longs>, percentile: <small positive double>}"
-  issue: https://github.com/elastic/elasticsearch/issues/114586
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvPercentileTests
-  method: "testEvaluateBlockWithoutNulls {TestCase=field: <positive mv DEDUPLICATED_AND_SORTED_ASCENDING longs>, percentile: <small positive double>}"
-  issue: https://github.com/elastic/elasticsearch/issues/114587
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvPercentileTests
-  method: "testEvaluateBlockWithoutNulls {TestCase=field: <positive mv DEDUPLICATED_UNORDERD longs>, percentile: <small positive double>}"
-  issue: https://github.com/elastic/elasticsearch/issues/114588
 - class: org.elasticsearch.action.search.SearchQueryThenFetchAsyncActionTests
   method: testMinimumVersionSameAsNewVersion
   issue: https://github.com/elastic/elasticsearch/issues/114593
-- class: org.elasticsearch.smoketest.SmokeTestIngestWithAllDepsClientYamlTestSuiteIT
-  method: test {yaml=ingest/80_ingest_simulate/Test ingest simulate with template substitutions for component templates}
-  issue: https://github.com/elastic/elasticsearch/issues/114602
-- class: org.elasticsearch.smoketest.SmokeTestIngestWithAllDepsClientYamlTestSuiteIT
-  method: test {yaml=ingest/80_ingest_simulate/Test ingest simulate with template substitutions for component templates removing pipelines}
-  issue: https://github.com/elastic/elasticsearch/issues/114603
 - class: org.elasticsearch.xpack.security.support.SecurityIndexManagerIntegTests
   method: testOnIndexAvailableForSearchIndexAlreadyAvailable
   issue: https://github.com/elastic/elasticsearch/issues/114608
@@ -354,9 +330,6 @@ tests:
 - class: org.elasticsearch.xpack.enrich.EnrichRestIT
   method: test {p0=enrich/40_synthetic_source/enrich documents over _bulk}
   issue: https://github.com/elastic/elasticsearch/issues/114825
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {p0=search.vectors/70_dense_vector_telemetry/Field mapping stats}
-  issue: https://github.com/elastic/elasticsearch/issues/114556
 - class: org.elasticsearch.threadpool.SimpleThreadPoolIT
   method: testThreadPoolMetrics
   issue: https://github.com/elastic/elasticsearch/issues/108320
@@ -384,6 +357,38 @@ tests:
 - class: org.elasticsearch.xpack.enrich.EnrichRestIT
   method: test {p0=enrich/20_standard_index/enrich documents over _bulk via an alias}
   issue: https://github.com/elastic/elasticsearch/issues/114763
+- class: org.elasticsearch.xpack.eql.EqlRestValidationIT
+  method: testAllowNoIndicesOption
+  issue: https://github.com/elastic/elasticsearch/issues/114789
+- class: org.elasticsearch.xpack.enrich.EnrichRestIT
+  method: test {p0=enrich/20_standard_index/enrich documents over _bulk}
+  issue: https://github.com/elastic/elasticsearch/issues/114768
+- class: org.elasticsearch.xpack.eql.EqlStatsIT
+  method: testEqlRestUsage
+  issue: https://github.com/elastic/elasticsearch/issues/114790
+- class: org.elasticsearch.xpack.eql.EqlRestIT
+  method: testBadRequests
+  issue: https://github.com/elastic/elasticsearch/issues/114752
+- class: org.elasticsearch.xpack.eql.EqlRestIT
+  method: testUnicodeChars
+  issue: https://github.com/elastic/elasticsearch/issues/114791
+- class: org.elasticsearch.xpack.rank.rrf.RRFRankClientYamlTestSuiteIT
+  method: test {yaml=rrf/800_rrf_with_text_similarity_reranker_retriever/explain using rrf retriever and text-similarity}
+  issue: https://github.com/elastic/elasticsearch/issues/114757
+- class: org.elasticsearch.xpack.enrich.EnrichIT
+  method: testEnrichSpecialTypes
+  issue: https://github.com/elastic/elasticsearch/issues/114773
+- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
+  method: test {string.ReverseGraphemeClusters}
+  issue: https://github.com/elastic/elasticsearch/issues/114560
+- class: org.elasticsearch.license.LicensingTests
+  issue: https://github.com/elastic/elasticsearch/issues/114865
+- class: org.elasticsearch.xpack.enrich.EnrichIT
+  method: testDeleteIsCaseSensitive
+  issue: https://github.com/elastic/elasticsearch/issues/114840
+- class: org.elasticsearch.xpack.enrich.EnrichIT
+  method: testImmutablePolicy
+  issue: https://github.com/elastic/elasticsearch/issues/114839
 
 # Examples:
 #

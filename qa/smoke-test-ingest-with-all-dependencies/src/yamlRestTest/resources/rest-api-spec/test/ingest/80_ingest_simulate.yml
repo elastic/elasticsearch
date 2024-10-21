@@ -375,7 +375,7 @@ setup:
 
   - do:
       allowed_warnings:
-        - "index template [test-composable-1] has index patterns [tsdb_templated_*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [test-composable-1] will take precedence during new index creation"
+        - "index template [test-composable-1] has index patterns [foo*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [test-composable-1] will take precedence during new index creation"
       indices.put_index_template:
         name: test-composable-1
         body:
@@ -527,7 +527,7 @@ setup:
 
   - do:
       allowed_warnings:
-        - "index template [test-composable-1] has index patterns [tsdb_templated_*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [test-composable-1] will take precedence during new index creation"
+        - "index template [test-composable-1] has index patterns [foo*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [test-composable-1] will take precedence during new index creation"
       indices.put_index_template:
         name: test-composable-1
         body:

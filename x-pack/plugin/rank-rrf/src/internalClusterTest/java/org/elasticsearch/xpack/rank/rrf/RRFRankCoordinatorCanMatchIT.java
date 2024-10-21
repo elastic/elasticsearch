@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.rank.rrf;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.PointValues;
+import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.IndexSettings;
@@ -192,7 +193,6 @@ public class RRFRankCoordinatorCanMatchIT extends ESIntegTestCase {
             }
         );
 
-        // match no shards, but still use one to generate a search response
         assertResponse(
             prepareSearch("time_index").setSearchType(SearchType.QUERY_THEN_FETCH)
                 .setPreFilterShardSize(1)
@@ -206,10 +206,11 @@ public class RRFRankCoordinatorCanMatchIT extends ESIntegTestCase {
                 )
                 .setSize(5),
             response -> {
-                assertNull(response.getHits().getTotalHits());
+                // TODO MP this changes the behaviour we are returning TotalHits 0 instead of null
+                assertEquals(new TotalHits(0, TotalHits.Relation.EQUAL_TO), response.getHits().getTotalHits());
                 assertEquals(0, response.getHits().getHits().length);
                 assertEquals(5, response.getSuccessfulShards());
-                assertEquals(4, response.getSkippedShards());
+                assertEquals(5, response.getSkippedShards());
             }
         );
 

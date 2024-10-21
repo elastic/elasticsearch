@@ -77,7 +77,7 @@ The name of the project to use for the {infer} task.
 
 `rate_limit`:::
 (Optional, object)
-By default, the `watsonxai` service sets the number of requests allowed per minute to `3000`.
+By default, the `watsonxai` service sets the number of requests allowed per minute to `120`.
 This helps to minimize the number of rate limit errors returned from Watsonx.
 To modify this, set the `requests_per_minute` setting of this object in your service settings:
 +

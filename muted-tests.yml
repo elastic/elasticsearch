@@ -275,12 +275,6 @@ tests:
 - class: org.elasticsearch.xpack.ml.integration.MlJobIT
   method: testGetJobs_GivenSingleJob
   issue: https://github.com/elastic/elasticsearch/issues/113655
-- class: org.elasticsearch.xpack.security.authz.interceptor.SearchRequestCacheDisablingInterceptorTests
-  method: testHasRemoteIndices
-  issue: https://github.com/elastic/elasticsearch/issues/113660
-- class: org.elasticsearch.xpack.security.authz.interceptor.SearchRequestCacheDisablingInterceptorTests
-  method: testRequestCacheWillBeDisabledWhenSearchRemoteIndices
-  issue: https://github.com/elastic/elasticsearch/issues/113659
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=range/20_synthetic_source/Date range}
   issue: https://github.com/elastic/elasticsearch/issues/113874
@@ -318,12 +312,6 @@ tests:
 - class: org.elasticsearch.action.search.SearchQueryThenFetchAsyncActionTests
   method: testMinimumVersionSameAsNewVersion
   issue: https://github.com/elastic/elasticsearch/issues/114593
-- class: org.elasticsearch.smoketest.SmokeTestIngestWithAllDepsClientYamlTestSuiteIT
-  method: test {yaml=ingest/80_ingest_simulate/Test ingest simulate with template substitutions for component templates}
-  issue: https://github.com/elastic/elasticsearch/issues/114602
-- class: org.elasticsearch.smoketest.SmokeTestIngestWithAllDepsClientYamlTestSuiteIT
-  method: test {yaml=ingest/80_ingest_simulate/Test ingest simulate with template substitutions for component templates removing pipelines}
-  issue: https://github.com/elastic/elasticsearch/issues/114603
 - class: org.elasticsearch.xpack.security.support.SecurityIndexManagerIntegTests
   method: testOnIndexAvailableForSearchIndexAlreadyAvailable
   issue: https://github.com/elastic/elasticsearch/issues/114608
@@ -393,8 +381,6 @@ tests:
 - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
   method: test {yaml=reference/esql/esql-across-clusters/line_197}
   issue: https://github.com/elastic/elasticsearch/issues/114947
-- class: org.elasticsearch.ingest.geoip.HttpClientTests
-  issue: https://github.com/elastic/elasticsearch/issues/112618
 - class: org.elasticsearch.xpack.enrich.EnrichRestIT
   method: test {p0=enrich/50_data_stream/enrich documents over _bulk via a data stream}
   issue: https://github.com/elastic/elasticsearch/issues/114769
@@ -415,6 +401,24 @@ tests:
 - class: org.elasticsearch.xpack.enrich.EnrichIT
   method: testDeleteExistingPipeline
   issue: https://github.com/elastic/elasticsearch/issues/114775
+- class: org.elasticsearch.compute.aggregation.blockhash.BlockHashRandomizedTests
+  method: test {forcePackedHash=false groups=1 maxValuesPerPosition=1 dups=2 allowedTypes=[Ordinals[dictionarySize=10]]}
+  issue: https://github.com/elastic/elasticsearch/issues/115105
+- class: org.elasticsearch.index.mapper.TextFieldMapperTests
+  method: testBlockLoaderFromRowStrideReaderWithSyntheticSource
+  issue: https://github.com/elastic/elasticsearch/issues/115066
+- class: org.elasticsearch.index.mapper.TextFieldMapperTests
+  method: testBlockLoaderFromColumnReaderWithSyntheticSource
+  issue: https://github.com/elastic/elasticsearch/issues/115073
+- class: org.elasticsearch.index.mapper.annotatedtext.AnnotatedTextFieldMapperTests
+  method: testBlockLoaderFromColumnReaderWithSyntheticSource
+  issue: https://github.com/elastic/elasticsearch/issues/115074
+- class: org.elasticsearch.index.mapper.annotatedtext.AnnotatedTextFieldMapperTests
+  method: testBlockLoaderFromRowStrideReaderWithSyntheticSource
+  issue: https://github.com/elastic/elasticsearch/issues/115076
+- class: org.elasticsearch.xpack.enrich.EnrichIT
+  method: testEnrichSpecialTypes
+  issue: https://github.com/elastic/elasticsearch/issues/114773
 
 # Examples:
 #

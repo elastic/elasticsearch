@@ -22,15 +22,10 @@ public class DocValuesForUtil {
     private static final int BITS_IN_SIX_BYTES = 6 * Byte.SIZE;
     private static final int BITS_IN_SEVEN_BYTES = 7 * Byte.SIZE;
     private final int blockSize;
-    private final byte[] encoded;
+    private final byte[] encoded = new byte[1024];
 
-    public DocValuesForUtil() {
-        this(ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE);
-    }
-
-    private DocValuesForUtil(int blockSize) {
-        this.blockSize = blockSize;
-        this.encoded = new byte[1024];
+    public DocValuesForUtil(int numericBlockSize) {
+        this.blockSize = numericBlockSize;
     }
 
     public static int roundBits(int bitsPerValue) {

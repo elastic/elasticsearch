@@ -48,6 +48,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.createParserNotCompressed;
 
@@ -827,15 +828,15 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
                 } else if (Fields.PRIVILEGES.match(currentFieldName, parser.getDeprecationHandler())) {
-                    //TODO: fix this!
                     privileges = readStringArray(roleName, parser, false);
-                    if (privileges.length > 2
-                        || RemoteClusterPermissions.getSupportedRemoteClusterPermissions()
-                            .contains(privileges[0].trim().toLowerCase(Locale.ROOT)) == false) {
+                    if (Collections.disjoint(
+                        RemoteClusterPermissions.getSupportedRemoteClusterPermissions(),
+                        Arrays.stream(privileges).map(String::toLowerCase).collect(Collectors.toSet())
+                    )) {
                         throw new ElasticsearchParseException(
                             "failed to parse remote_cluster for role [{}]. "
                                 + RemoteClusterPermissions.getSupportedRemoteClusterPermissions()
-                                + " are the only value allowed for [{}] within [remote_cluster]",
+                                + " are the only values allowed for [{}] within [remote_cluster]",
                             roleName,
                             currentFieldName
                         );

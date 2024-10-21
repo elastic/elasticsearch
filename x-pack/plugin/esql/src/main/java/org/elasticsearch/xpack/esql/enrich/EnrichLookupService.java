@@ -107,6 +107,7 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
         return switch (rangeType) {
             case INTEGER, LONG -> inputDataType.isWholeNumber();
             case IP -> inputDataType == DataType.IP;
+            case DATE -> inputDataType.isDate();
             default -> rangeType.isNumeric() == inputDataType.isNumeric();
         };
     }

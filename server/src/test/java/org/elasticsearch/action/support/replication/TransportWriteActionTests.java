@@ -22,6 +22,7 @@ import org.elasticsearch.client.internal.transport.NoNodeAvailableException;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -430,6 +431,7 @@ public class TransportWriteActionTests extends ESTestCase {
                 PrimaryActionExecution.RejectOnOverload,
                 new IndexingPressure(Settings.EMPTY),
                 EmptySystemIndices.INSTANCE,
+                TestProjectResolvers.singleProjectOnly(),
                 ReplicaActionExecution.SubjectToCircuitBreaker
             );
             this.withDocumentFailureOnPrimary = withDocumentFailureOnPrimary;
@@ -459,6 +461,7 @@ public class TransportWriteActionTests extends ESTestCase {
                 PrimaryActionExecution.RejectOnOverload,
                 new IndexingPressure(settings),
                 EmptySystemIndices.INSTANCE,
+                TestProjectResolvers.singleProjectOnly(),
                 ReplicaActionExecution.SubjectToCircuitBreaker
             );
             this.withDocumentFailureOnPrimary = false;

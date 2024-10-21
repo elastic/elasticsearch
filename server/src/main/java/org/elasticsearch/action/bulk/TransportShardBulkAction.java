@@ -33,6 +33,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -103,6 +104,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         ActionFilters actionFilters,
         IndexingPressure indexingPressure,
         SystemIndices systemIndices,
+        ProjectResolver projectResolver,
         DocumentParsingProvider documentParsingProvider
     ) {
         super(
@@ -120,6 +122,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             PrimaryActionExecution.RejectOnOverload,
             indexingPressure,
             systemIndices,
+            projectResolver,
             ReplicaActionExecution.SubjectToCircuitBreaker
         );
         this.updateHelper = updateHelper;

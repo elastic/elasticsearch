@@ -255,7 +255,7 @@ public class SearchShardRecoveryIT extends AbstractStatelessIntegTestCase {
         // Assert that a search returns all the documents
         assertResponse(prepareSearch(indexName).setQuery(matchAllQuery()), searchResponse -> {
             assertNoFailures(searchResponse);
-            assertEquals(totalDocs, searchResponse.getHits().getTotalHits().value);
+            assertEquals(totalDocs, searchResponse.getHits().getTotalHits().value());
         });
     }
 
@@ -292,7 +292,7 @@ public class SearchShardRecoveryIT extends AbstractStatelessIntegTestCase {
 
         assertResponse(prepareSearch(indexName).setQuery(matchAllQuery()), searchResponse -> {
             assertNoFailures(searchResponse);
-            assertEquals(totalDocs, searchResponse.getHits().getTotalHits().value);
+            assertEquals(totalDocs, searchResponse.getHits().getTotalHits().value());
         });
     }
 

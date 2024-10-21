@@ -331,7 +331,7 @@ public class StatelessRestoreIT extends AbstractStatelessIntegTestCase {
     private static void assertDocCount(String indexName, long numDocs) {
         assertResponse(prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()), searchResponse -> {
             assertNoFailures(searchResponse);
-            assertEquals(numDocs, searchResponse.getHits().getTotalHits().value);
+            assertEquals(numDocs, searchResponse.getHits().getTotalHits().value());
         });
     }
 }

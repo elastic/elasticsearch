@@ -306,7 +306,7 @@ public class StatelessTranslogIT extends AbstractStatelessIntegTestCase {
         refresh(indexName);
         assertResponse(prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()), searchResponse -> {
             assertNoFailures(searchResponse);
-            assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) docs));
+            assertThat(searchResponse.getHits().getTotalHits().value(), equalTo((long) docs));
         });
     }
 
@@ -637,7 +637,7 @@ public class StatelessTranslogIT extends AbstractStatelessIntegTestCase {
 
             SearchResponse response = prepareSearch(indexName).setQuery(QueryBuilders.idsQuery().addIds(failures.toArray(new String[0])))
                 .get();
-            long failureHits = response.getHits().getTotalHits().value;
+            long failureHits = response.getHits().getTotalHits().value();
             response.decRef();
             logger.info(
                 "Found ["
@@ -648,14 +648,14 @@ public class StatelessTranslogIT extends AbstractStatelessIntegTestCase {
 
             assertResponse(prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()), searchResponse -> {
                 assertNoFailures(searchResponse);
-                assertThat(searchResponse.getHits().getTotalHits().value, greaterThanOrEqualTo(minExpectedDocs.get()));
+                assertThat(searchResponse.getHits().getTotalHits().value(), greaterThanOrEqualTo(minExpectedDocs.get()));
             });
 
             assertResponse(
                 prepareSearch(indexName).setQuery(QueryBuilders.idsQuery().addIds(successes.toArray(new String[0]))),
                 searchResponse -> {
                     assertNoFailures(searchResponse);
-                    assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) successes.size()));
+                    assertThat(searchResponse.getHits().getTotalHits().value(), equalTo((long) successes.size()));
                 }
             );
         } finally {

@@ -281,7 +281,7 @@ public class CorruptionWhileRelocatingIT extends AbstractStatelessIntegTestCase 
 
         assertResponse(prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()), searchResponse -> {
             assertNoFailures(searchResponse);
-            assertEquals(2000, searchResponse.getHits().getTotalHits().value);
+            assertEquals(2000, searchResponse.getHits().getTotalHits().value());
         });
     }
 }

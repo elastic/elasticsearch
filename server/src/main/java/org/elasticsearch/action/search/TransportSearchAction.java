@@ -1259,6 +1259,23 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 indicesAndAliases,
                 concreteLocalIndices
             );
+
+            if (localShardIterators.isEmpty()
+                && clusters != SearchResponse.Clusters.EMPTY
+                && clusters.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY) != null) {
+                clusters.swapCluster(
+                    RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
+                    (alias, v) -> new SearchResponse.Cluster.Builder(v).setStatus(SearchResponse.Cluster.Status.SUCCESSFUL)
+                        .setTotalShards(0)
+                        .setSuccessfulShards(0)
+                        .setSkippedShards(0)
+                        .setFailedShards(0)
+                        .setFailures(Collections.emptyList())
+                        .setTook(TimeValue.timeValueMillis(0))
+                        .setTimedOut(false)
+                        .build()
+                );
+            }
         }
         final GroupShardsIterator<SearchShardIterator> shardIterators = mergeShardsIterators(localShardIterators, remoteShardIterators);
 

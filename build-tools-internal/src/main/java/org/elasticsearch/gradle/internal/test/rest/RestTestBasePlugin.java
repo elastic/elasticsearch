@@ -169,7 +169,7 @@ public class RestTestBasePlugin implements Plugin<Project> {
             nonInputSystemProperties.systemProperty(TESTS_MAX_PARALLEL_FORKS_SYSPROP, () -> String.valueOf(task.getMaxParallelForks()));
 
             // Disable test failure reporting since this stuff is now captured in build scans
-            task.getExtensions().getByType(ErrorReportingTestListener.class).setDumpOutputOnFailure(true);
+            task.getExtensions().getByType(ErrorReportingTestListener.class).setDumpOutputOnFailure(false);
 
             // Disable the security manager and syscall filter since the test framework needs to fork processes
             task.systemProperty("tests.security.manager", "false");

@@ -176,6 +176,9 @@ tests:
 - class: org.elasticsearch.packaging.test.WindowsServiceTests
   method: test81JavaOptsInJvmOptions
   issue: https://github.com/elastic/elasticsearch/issues/113313
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=mtermvectors/10_basic/Tests catching other exceptions per item}
+  issue: https://github.com/elastic/elasticsearch/issues/113325
 - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
   method: test {yaml=reference/ccr/apis/follow/post-resume-follow/line_84}
   issue: https://github.com/elastic/elasticsearch/issues/113343
@@ -343,8 +346,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/115129
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
   issue: https://github.com/elastic/elasticsearch/issues/115135
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  issue: https://github.com/elastic/elasticsearch/issues/115213
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=esql/60_usage/Basic ESQL usage output (telemetry)}
   issue: https://github.com/elastic/elasticsearch/issues/115231

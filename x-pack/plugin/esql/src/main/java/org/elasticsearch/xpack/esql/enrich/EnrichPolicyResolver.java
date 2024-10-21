@@ -261,6 +261,7 @@ public class EnrichPolicyResolver {
             if (remotePolicies.isEmpty() == false) {
                 for (String cluster : remoteClusters) {
                     ActionListener<LookupResponse> lookupListener = refs.acquire(resp -> lookupResponses.put(cluster, resp));
+                    // MP TODO: need to track how errors are handled here
                     getRemoteConnection(
                         cluster,
                         lookupListener.delegateFailureAndWrap(

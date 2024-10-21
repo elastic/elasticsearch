@@ -206,12 +206,6 @@ tests:
 - class: org.elasticsearch.smoketest.MlWithSecurityIT
   method: test {yaml=ml/3rd_party_deployment/Test start and stop multiple deployments}
   issue: https://github.com/elastic/elasticsearch/issues/101458
-- class: org.elasticsearch.xpack.security.authz.interceptor.SearchRequestCacheDisablingInterceptorTests
-  method: testHasRemoteIndices
-  issue: https://github.com/elastic/elasticsearch/issues/113660
-- class: org.elasticsearch.xpack.security.authz.interceptor.SearchRequestCacheDisablingInterceptorTests
-  method: testRequestCacheWillBeDisabledWhenSearchRemoteIndices
-  issue: https://github.com/elastic/elasticsearch/issues/113659
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {categorize.Categorize ASYNC}
   issue: https://github.com/elastic/elasticsearch/issues/113721
@@ -220,9 +214,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/113722
 - class: org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDateNanosTests
   issue: https://github.com/elastic/elasticsearch/issues/113661
-- class: org.elasticsearch.xpack.restart.MLModelDeploymentFullClusterRestartIT
-  method: testDeploymentSurvivesRestart {cluster=UPGRADED}
-  issue: https://github.com/elastic/elasticsearch/issues/112980
 - class: org.elasticsearch.ingest.geoip.DatabaseNodeServiceIT
   method: testNonGzippedDatabase
   issue: https://github.com/elastic/elasticsearch/issues/113821
@@ -318,8 +309,6 @@ tests:
 - class: org.elasticsearch.xpack.inference.rest.ServerSentEventsRestActionListenerTests
   method: testNoStream
   issue: https://github.com/elastic/elasticsearch/issues/114788
-- class: org.elasticsearch.ingest.geoip.HttpClientTests
-  issue: https://github.com/elastic/elasticsearch/issues/112618
 - class: org.elasticsearch.xpack.remotecluster.RemoteClusterSecurityWithApmTracingRestIT
   method: testTracingCrossCluster
   issue: https://github.com/elastic/elasticsearch/issues/112731
@@ -364,6 +353,14 @@ tests:
 - class: org.elasticsearch.index.mapper.annotatedtext.AnnotatedTextFieldMapperTests
   method: testBlockLoaderFromRowStrideReaderWithSyntheticSource
   issue: https://github.com/elastic/elasticsearch/issues/115076
+- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
+  method: test {string.ValuesGrouped}
+  issue: https://github.com/elastic/elasticsearch/issues/115126
+- class: org.elasticsearch.xpack.esql.action.CrossClustersQueryIT
+  method: testCCSExecutionOnSearchesWithLimit0
+  issue: https://github.com/elastic/elasticsearch/issues/115129
+- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
+  issue: https://github.com/elastic/elasticsearch/issues/115135
 
 # Examples:
 #

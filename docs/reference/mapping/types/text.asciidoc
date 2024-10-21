@@ -134,10 +134,6 @@ The following parameters are accepted by `text` fields:
 
     Whether the field value should be stored and retrievable separately from
     the <<mapping-source-field,`_source`>> field. Accepts `true` or `false` (default).
-    This parameter will be automatically set to `true` for TSDB indices
-    (indices that have `index.mode` set to `time_series`)
-    if there is no <<keyword-synthetic-source, `keyword`>>
-    sub-field that supports synthetic `_source`.
 
 <<search-analyzer,`search_analyzer`>>::
 

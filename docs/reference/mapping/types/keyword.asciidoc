@@ -178,11 +178,7 @@ be changed or removed in a future release. Elastic will work to fix
 any issues, but features in technical preview are not subject to the support SLA
 of official GA features.
 
-`keyword` fields support <<synthetic-source,synthetic `_source`>> in their
-default configuration. Synthetic `_source` cannot be used together with
-a <<normalizer,`normalizer`>> or <<copy-to,`copy_to`>>.
-
-By default, synthetic source sorts `keyword` fields and removes duplicates.
+Synthetic source may sort `keyword` fields and remove duplicates.
 For example:
 [source,console,id=synthetic-source-keyword-example-default]
 ----

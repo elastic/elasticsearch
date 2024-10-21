@@ -14,7 +14,6 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ToXContent;
@@ -158,13 +157,14 @@ public class BulkResponse extends ActionResponse implements Iterable<BulkItemRes
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-        return ChunkedToXContent.builder(params).object(ob -> {
-            ob.field(ERRORS, hasFailures());
-            ob.field(TOOK, tookInMillis);
+        return Iterators.concat(Iterators.single((builder, p) -> {
+            builder.startObject();
+            builder.field(ERRORS, hasFailures());
+            builder.field(TOOK, tookInMillis);
             if (ingestTookInMillis != BulkResponse.NO_INGEST_TOOK) {
-                ob.field(INGEST_TOOK, ingestTookInMillis);
+                builder.field(INGEST_TOOK, ingestTookInMillis);
             }
-            ob.array(ITEMS, Iterators.forArray(responses));
-        });
+            return builder.startArray(ITEMS);
+        }), Iterators.forArray(responses), Iterators.<ToXContent>single((builder, p) -> builder.endArray().endObject()));
     }
 }

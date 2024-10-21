@@ -1,0 +1,101 @@
+#Configuration for Enabling Security in elasticsearch.yml:
+# Enable ElasticSearch security
+xpack.security.enabled: true
+
+# Enable TLS for HTTP and Transport layers
+xpack.security.http.ssl.enabled: true
+xpack.security.transport.ssl.enabled: true
+
+# Provide paths to your SSL certificate and key
+xpack.security.http.ssl.keystore.path: "/path/to/keystore.p12"
+xpack.security.http.ssl.truststore.path: "/path/to/truststore.p12"
+
+# Require authentication for all requests
+xpack.security.authc.anonymous.username: "_anonymous"
+xpack.security.authc.anonymous.roles: ["read"]
+xpack.security.authc.anonymous.authz_exception: true
+# Create a new user with the elasticsearch-users tool
+bin/elasticsearch-users useradd <username> -p <password> -r <role>
+#Define Roles Using the Role API:
+curl -X POST "https://localhost:9200/_security/role/monitoring_user" -u elastic -H "Content-Type: application/json" -k -d'
+{
+  "cluster": ["monitor"],
+  "indices": [
+    {
+      "names": [ "metrics-*", "logs-*", "traces-*" ],
+      "privileges": [ "read" ]
+    }
+  ]
+}'
+#API Key Creation via API:
+curl -X POST "https://localhost:9200/_security/api_key" -u elastic -H "Content-Type: application/json" -k -d'
+{
+  "name": "my-api-key",
+  "role_descriptors": {
+    "custom_role": {
+      "cluster": ["monitor"],
+      "index": [
+        {
+          "names": ["*"],
+          "privileges": ["read"]
+        }
+      ]
+    }
+  }
+}'
+#Generate Certificates with elasticsearch-certutil
+bin/elasticsearch-certutil ca
+bin/elasticsearch-certutil cert --ca elastic-stack-ca.p12
+# configure certificates for transport and HTTP communications:
+# elasticsearch.yml
+xpack.security.transport.ssl.enabled: true
+xpack.security.transport.ssl.verification_mode: full
+xpack.security.transport.ssl.keystore.path: "elastic-certificates.p12"
+xpack.security.transport.ssl.truststore.path: "elastic-certificates.p12"
+#Configure Kibana for Security:
+#Edit kibana.yml to enable security settings:
+# Enable Kibana security
+elasticsearch.username: "kibana_system"
+elasticsearch.password: "password"
+
+# Enable TLS between Kibana and Elasticsearch
+elasticsearch.ssl.certificateAuthorities: [ "/path/to/ca.crt" ]
+elasticsearch.ssl.verificationMode: full
+
+xpack.security.enabled: true
+xpack.encryptedSavedObjects.encryptionKey: "something_at_least_32_characters"
+#Create Detection Rule (API)
+curl -X POST "https://localhost:5601/api/detection_engine/rules/_bulk_create" \
+  -H "kbn-xsrf: true" -u elastic -H "Content-Type: application/json" -k -d '
+[
+  {
+    "name": "Detect SSH brute force",
+    "description": "Detect multiple SSH authentication failures",
+    "risk_score": 50,
+    "severity": "medium",
+    "type": "query",
+    "query": "event.action: \"ssh-login-failed\"",
+    "enabled": true
+  }
+]'
+#Elastic Agent Deployment
+./elastic-agent install -f \
+  --url=https://<elasticsearch-host>:9200 \
+  --enrollment-token=<token> \
+  --insecure
+#Create an Alert (API):
+curl -X POST "https://localhost:5601/api/alerts/alert" \
+  -H "kbn-xsrf: true" -u elastic -H "Content-Type: application/json" -k -d '
+{
+  "alertTypeId": "siem.signals",
+  "name": "Detect failed login attempts",
+  "consumer": "siem",
+  "schedule": {
+    "interval": "5m"
+  },
+  "params": {
+    "severity": "high",
+    "threshold": 5,
+    "query": "event.action: \"login-failure\""
+  }
+}'

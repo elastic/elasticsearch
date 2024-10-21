@@ -78,7 +78,7 @@ public class CreateSnapshotRequestTests extends ESTestCase {
         if (randomBoolean()) {
             boolean defaultResolveAliasForThisRequest = original.indicesOptions().ignoreAliases() == false;
             original.indicesOptions(
-                IndicesOptions.builder()
+                IndicesOptions.builder(original.indicesOptions())
                     .concreteTargetOptions(new IndicesOptions.ConcreteTargetOptions(randomBoolean()))
                     .wildcardOptions(
                         new IndicesOptions.WildcardOptions(

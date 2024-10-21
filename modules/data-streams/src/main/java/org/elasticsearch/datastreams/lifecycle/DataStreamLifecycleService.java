@@ -946,7 +946,12 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                 UpdateSettingsRequest updateMergePolicySettingsRequest = new UpdateSettingsRequest();
                 updateMergePolicySettingsRequest.indicesOptions(
                     IndicesOptions.builder(updateMergePolicySettingsRequest.indicesOptions())
-                        .selectorOptions(IndicesOptions.SelectorOptions.DATA_AND_FAILURE)
+                        .selectorOptions(IndicesOptions.SelectorOptions.ALL_APPLICABLE)
+                        .gatekeeperOptions(
+                            updateMergePolicySettingsRequest.indicesOptions()
+                                .gatekeeperOptions()
+                                .applyUpdate(b -> b.allowFailureIndices(true))
+                        )
                         .build()
                 );
                 updateMergePolicySettingsRequest.indices(indexName);

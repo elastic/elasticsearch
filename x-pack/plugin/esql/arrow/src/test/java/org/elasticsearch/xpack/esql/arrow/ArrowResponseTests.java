@@ -752,7 +752,7 @@ public class ArrowResponseTests extends ESTestCase {
                 values.add(blockGetter.apply((BlockT) block, i, scratch));
                 scratch = new BytesRef(); // do not overwrite previous value
             }
-            return values.size() == 1 ? values.getFirst() : values;
+            return values.size() == 1 ? values.get(0) : values;
         }
 
         @Override
@@ -766,7 +766,7 @@ public class ArrowResponseTests extends ESTestCase {
                 for (int i = listVector.getElementStartIndex(position); i < listVector.getElementEndIndex(position); i++) {
                     values.add(vectorGetter.apply((VectorT) valueVec, i));
                 }
-                return values.size() == 1 ? values.getFirst() : values;
+                return values.size() == 1 ? values.get(0) : values;
             } else {
                 return vectorGetter.apply((VectorT) arrowVec, position);
             }

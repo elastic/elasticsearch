@@ -126,6 +126,21 @@ public class RoleMappingRestIT extends ESRestTestCase {
         {
             var ex = expectThrows(
                 ResponseException.class,
+                () -> putMapping(expressionRoleMapping("role-mapping-1-read-only-operator-mapping"))
+            );
+            assertThat(
+                ex.getMessage(),
+                containsString(
+                    "Invalid mapping name [role-mapping-4-read-only-operator-mapping]. "
+                        + "[-read-only-operator-mapping] is not an allowed suffix"
+                )
+            );
+        }
+
+        // Also fails even if a CS role mapping with that name does not exist
+        {
+            var ex = expectThrows(
+                ResponseException.class,
                 () -> putMapping(expressionRoleMapping("role-mapping-4-read-only-operator-mapping"))
             );
             assertThat(

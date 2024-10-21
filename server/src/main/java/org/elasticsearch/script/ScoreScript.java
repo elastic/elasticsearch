@@ -116,6 +116,11 @@ public abstract class ScoreScript extends DocBasedScript {
         this.docId = docid;
     }
 
+    /** Get the current document. */
+    public int docId() {
+        return docId;
+    }
+
     public void setScorer(Scorable scorer) {
         this.scoreSupplier = () -> {
             try {

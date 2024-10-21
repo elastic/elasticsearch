@@ -375,7 +375,7 @@ public class EsqlCapabilities {
         /**
          * Support named parameters for field names.
          */
-        NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES,
+        NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES(true),
 
         /**
          * Fix sorting not allowed on _source and counters.
@@ -385,7 +385,21 @@ public class EsqlCapabilities {
         /**
          * Allow filter per individual aggregation.
          */
-        PER_AGG_FILTERING;
+        PER_AGG_FILTERING,
+
+        /**
+         * Fix for https://github.com/elastic/elasticsearch/issues/114714
+         */
+        FIX_STATS_BY_FOLDABLE_EXPRESSION,
+
+        /**
+         * Adding stats for functions (stack telemetry)
+         */
+        FUNCTION_STATS,
+        /**
+         * Support for semantic_text field mapping
+         */
+        SEMANTIC_TEXT_TYPE(EsqlCorePlugin.SEMANTIC_TEXT_FEATURE_FLAG);
 
         private final boolean snapshotOnly;
         private final FeatureFlag featureFlag;

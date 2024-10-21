@@ -157,7 +157,8 @@ public final class BinaryRangeAggregator extends BucketsAggregator {
                 this.collector = (doc, bucket) -> {
                     if (values.advanceExact(doc)) {
                         int lo = 0;
-                        for (long ord = values.nextOrd(); ord != SortedSetDocValues.NO_MORE_ORDS; ord = values.nextOrd()) {
+                        for (int i = 0; i < values.docValueCount(); i++) {
+                            long ord = values.nextOrd();
                             lo = collect(doc, ord, bucket, lo);
                         }
                     }

@@ -17,6 +17,7 @@ import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
@@ -72,6 +73,11 @@ public class Pivot extends AbstractCompositeAggFunction {
 
     @Override
     public void validateConfig(ActionListener<Boolean> listener) {
+        if (config.getScriptConfig() != null && (config.getScriptConfig().getScript().getType() != ScriptType.INLINE)) {
+            listener.onFailure(new ValidationException().addValidationError("Only painless inline scripts are supported for now"));
+            return;
+        }
+
         for (AggregationBuilder agg : config.getAggregationConfig().getAggregatorFactories()) {
             if (TransformAggregations.isSupportedByTransform(agg.getType()) == false) {
                 listener.onFailure(new ValidationException().addValidationError("Unsupported aggregation type [" + agg.getType() + "]"));

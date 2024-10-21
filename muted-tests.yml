@@ -422,6 +422,9 @@ tests:
 - class: org.elasticsearch.xpack.inference.TextEmbeddingCrudIT
   method: testPutE5Small_withPlatformSpecificVariant
   issue: https://github.com/elastic/elasticsearch/issues/113950
+- class: org.elasticsearch.reservedstate.service.FileSettingsServiceTests
+  method: testProcessFileChanges
+  issue: https://github.com/elastic/elasticsearch/issues/115280
 
 # Examples:
 #

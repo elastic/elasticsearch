@@ -1,0 +1,5 @@
+pr: 114527
+summary: Verify Maxmind database types in the geoip processor
+area: Ingest Node
+type: enhancement
+issues: []

@@ -1,0 +1,5 @@
+pr: 115147
+summary: Fix IPinfo geolocation schema
+area: Ingest Node
+type: bug
+issues: []

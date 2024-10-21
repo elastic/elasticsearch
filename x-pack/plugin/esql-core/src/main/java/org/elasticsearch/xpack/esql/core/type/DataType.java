@@ -30,6 +30,8 @@ import java.util.function.Function;
 
 import static java.util.stream.Collectors.toMap;
 import static java.util.stream.Collectors.toUnmodifiableMap;
+import static org.elasticsearch.xpack.esql.core.util.PlanStreamInput.readCachedStringWithVersionCheck;
+import static org.elasticsearch.xpack.esql.core.util.PlanStreamOutput.writeCachedStringWithVersionCheck;
 
 public enum DataType {
     /**
@@ -192,7 +194,14 @@ public enum DataType {
      * inside alongside time-series aggregations. These fields are not parsable from the
      * mapping and should be hidden from users.
      */
-    PARTIAL_AGG(builder().esType("partial_agg").unknownSize());
+    PARTIAL_AGG(builder().esType("partial_agg").unknownSize()),
+    /**
+     * String fields that are split into chunks, where each chunk has attached embeddings
+     * used for semantic search. Generally ESQL only sees {@code semantic_text} fields when
+     * loaded from the index and ESQL will load these fields as strings without their attached
+     * chunks or embeddings.
+     */
+    SEMANTIC_TEXT(builder().esType("semantic_text").unknownSize());
 
     /**
      * Types that are actively being built. These types are not returned
@@ -201,7 +210,8 @@ public enum DataType {
      * check that sending them to a function produces a sane error message.
      */
     public static final Map<DataType, FeatureFlag> UNDER_CONSTRUCTION = Map.ofEntries(
-        Map.entry(DATE_NANOS, EsqlCorePlugin.DATE_NANOS_FEATURE_FLAG)
+        Map.entry(DATE_NANOS, EsqlCorePlugin.DATE_NANOS_FEATURE_FLAG),
+        Map.entry(SEMANTIC_TEXT, EsqlCorePlugin.SEMANTIC_TEXT_FEATURE_FLAG)
     );
 
     private final String typeName;
@@ -264,6 +274,8 @@ public enum DataType {
         .sorted(Comparator.comparing(DataType::typeName))
         .toList();
 
+    private static final Collection<DataType> STRING_TYPES = DataType.types().stream().filter(DataType::isString).toList();
+
     private static final Map<String, DataType> NAME_TO_TYPE = TYPES.stream().collect(toUnmodifiableMap(DataType::typeName, t -> t));
 
     private static final Map<String, DataType> ES_TO_TYPE;
@@ -288,6 +300,10 @@ public enum DataType {
 
     public static Collection<DataType> types() {
         return TYPES;
+    }
+
+    public static Collection<DataType> stringTypes() {
+        return STRING_TYPES;
     }
 
     /**
@@ -423,6 +439,10 @@ public enum DataType {
             && t.isCounter() == false;
     }
 
+    public static boolean isCounter(DataType t) {
+        return t == COUNTER_DOUBLE || t == COUNTER_INTEGER || t == COUNTER_LONG;
+    }
+
     public static boolean isSpatialPoint(DataType t) {
         return t == GEO_POINT || t == CARTESIAN_POINT;
     }
@@ -433,6 +453,10 @@ public enum DataType {
 
     public static boolean isSpatial(DataType t) {
         return t == GEO_POINT || t == CARTESIAN_POINT || t == GEO_SHAPE || t == CARTESIAN_SHAPE;
+    }
+
+    public static boolean isSortable(DataType t) {
+        return false == (t == SOURCE || isCounter(t) || isSpatial(t));
     }
 
     public String nameUpper() {
@@ -519,12 +543,12 @@ public enum DataType {
     }
 
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(typeName);
+        writeCachedStringWithVersionCheck(out, typeName);
     }
 
     public static DataType readFrom(StreamInput in) throws IOException {
         // TODO: Use our normal enum serialization pattern
-        return readFrom(in.readString());
+        return readFrom(readCachedStringWithVersionCheck(in));
     }
 
     /**

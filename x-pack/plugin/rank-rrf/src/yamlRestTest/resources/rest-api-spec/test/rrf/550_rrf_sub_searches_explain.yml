@@ -75,7 +75,14 @@ setup:
 ---
 "using a top level knn and query":
 
+  - requires:
+      cluster_features: ["gte_v8.16.0"]
+      reason: "deprecation added in 8.16"
+      test_runner_features: warnings
+
   - do:
+      warnings:
+        - "Deprecated field [rank] used, replaced by [retriever]"
       search:
         index: test
         body:
@@ -129,7 +136,15 @@ setup:
 ---
 "using sub_searches":
 
+  - requires:
+      cluster_features: [ "gte_v8.16.0" ]
+      reason: "deprecation added in 8.16"
+      test_runner_features: warnings
+
   - do:
+      warnings:
+        - "Deprecated field [rank] used, replaced by [retriever]"
+        - Deprecated field [sub_searches] used, replaced by [retriever]
       search:
         index: test
         body:
@@ -194,7 +209,14 @@ setup:
 ---
 "using named top level knn and query":
 
+  - requires:
+      cluster_features: ["gte_v8.16.0"]
+      reason: "deprecation added in 8.16"
+      test_runner_features: warnings
+
   - do:
+      warnings:
+        - "Deprecated field [rank] used, replaced by [retriever]"
       search:
         index: test
         body:
@@ -251,7 +273,15 @@ setup:
 ---
 "using named sub_searches":
 
+  - requires:
+      cluster_features: ["gte_v8.16.0"]
+      reason: "deprecation added in 8.16"
+      test_runner_features: warnings
+
   - do:
+      warnings:
+        - "Deprecated field [rank] used, replaced by [retriever]"
+        - Deprecated field [sub_searches] used, replaced by [retriever]
       search:
         index: test
         body:
@@ -320,7 +350,15 @@ setup:
 ---
 "using a mix of named and unnamed queries":
 
+  - requires:
+      cluster_features: ["gte_v8.16.0"]
+      reason: "deprecation added in 8.16"
+      test_runner_features: warnings
+
   - do:
+      warnings:
+        - "Deprecated field [rank] used, replaced by [retriever]"
+        - Deprecated field [sub_searches] used, replaced by [retriever]
       search:
         index: test
         body:

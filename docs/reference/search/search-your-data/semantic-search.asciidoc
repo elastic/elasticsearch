@@ -104,6 +104,7 @@ IMPORTANT: For the easiest way to perform semantic search in the {stack}, refer 
 
 
 include::semantic-search-semantic-text.asciidoc[]
+include::semantic-text-hybrid-search[]
 include::semantic-search-inference.asciidoc[]
 include::semantic-search-elser.asciidoc[]
 include::cohere-es.asciidoc[]

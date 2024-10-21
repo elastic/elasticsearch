@@ -42,9 +42,7 @@ public class BinaryRangeAggregatorTests extends ESTestCase {
 
         @Override
         public long nextOrd() {
-            if (i == ords.length) {
-                return NO_MORE_ORDS;
-            }
+            assert i < ords.length;
             return ords[i++];
         }
 

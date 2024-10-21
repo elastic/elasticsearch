@@ -9,6 +9,7 @@
 
 module org.elasticsearch.entitlement.runtime {
     requires org.elasticsearch.entitlement.bridge;
+    requires org.elasticsearch.xcontent;
     requires org.elasticsearch.server;
 
     exports org.elasticsearch.entitlement.runtime.api;

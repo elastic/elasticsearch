@@ -221,4 +221,5 @@ Notice that both the `semantic_text` field and the source field are updated in t
 `semantic_text` field types have the following limitations:
 
 * `semantic_text` fields are not currently supported as elements of <<nested,nested fields>>.
+* `semantic_text` fields can't currently be set as part of <<dynamic-templates>>.
 * `semantic_text` fields can't be defined as <<multi-fields,multi-fields>> of another field, nor can they contain other fields as multi-fields.

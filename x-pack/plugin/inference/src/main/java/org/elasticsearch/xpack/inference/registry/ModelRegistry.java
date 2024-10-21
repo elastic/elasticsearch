@@ -69,6 +69,17 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
 
+/**
+ * Class for persisting and reading inference endpoint configurations.
+ * Some inference services provide default configurations, the registry is
+ * made aware of these at start up via {@link #addDefaultIds(InferenceService.DefaultConfigId)}.
+ * Only the ids and service details are registered at this point
+ * as the full config definition may not be known at start up.
+ * The full config is lazily populated on read and persisted to the
+ * index. This has the effect of creating the backing index on reading
+ * the configs. {@link #getAllModels(boolean, ActionListener)} has an option
+ * to not write the default configs to index on read to avoid index creation.
+ */
 public class ModelRegistry {
     public record ModelConfigMap(Map<String, Object> config, Map<String, Object> secrets) {}
 
@@ -132,7 +143,7 @@ public class ModelRegistry {
             if (searchResponse.getHits().getHits().length == 0) {
                 var maybeDefault = idMatchedDefault(inferenceEntityId, defaultConfigIds);
                 if (maybeDefault.isPresent()) {
-                    getDefaultConfig(maybeDefault.get(), listener);
+                    getDefaultConfig(true, maybeDefault.get(), listener);
                 } else {
                     delegate.onFailure(inferenceNotFoundException(inferenceEntityId));
                 }
@@ -163,7 +174,7 @@ public class ModelRegistry {
             if (searchResponse.getHits().getHits().length == 0) {
                 var maybeDefault = idMatchedDefault(inferenceEntityId, defaultConfigIds);
                 if (maybeDefault.isPresent()) {
-                    getDefaultConfig(maybeDefault.get(), listener);
+                    getDefaultConfig(true, maybeDefault.get(), listener);
                 } else {
                     delegate.onFailure(inferenceNotFoundException(inferenceEntityId));
                 }
@@ -199,7 +210,7 @@ public class ModelRegistry {
         ActionListener<SearchResponse> searchListener = listener.delegateFailureAndWrap((delegate, searchResponse) -> {
             var modelConfigs = parseHitsAsModels(searchResponse.getHits()).stream().map(ModelRegistry::unparsedModelFromMap).toList();
             var defaultConfigsForTaskType = taskTypeMatchedDefaults(taskType, defaultConfigIds);
-            addAllDefaultConfigsIfMissing(modelConfigs, defaultConfigsForTaskType, delegate);
+            addAllDefaultConfigsIfMissing(true, modelConfigs, defaultConfigsForTaskType, delegate);
         });
 
         QueryBuilder queryBuilder = QueryBuilders.constantScoreQuery(QueryBuilders.termsQuery(TASK_TYPE_FIELD, taskType.toString()));
@@ -216,13 +227,20 @@ public class ModelRegistry {
 
     /**
      * Get all models.
+     * If the defaults endpoint configurations have not been persisted then only
+     * persist them if {@code persistDefaultEndpoints == true}. Persisting the
+     * configs has the side effect of creating the index.
+     *
      * Secret settings are not included
+     * @param persistDefaultEndpoints Persist the defaults endpoint configurations if
+     *                                not already persisted. When false this avoids the creation
+     *                                of the backing index.
      * @param listener Models listener
      */
-    public void getAllModels(ActionListener<List<UnparsedModel>> listener) {
+    public void getAllModels(boolean persistDefaultEndpoints, ActionListener<List<UnparsedModel>> listener) {
         ActionListener<SearchResponse> searchListener = listener.delegateFailureAndWrap((delegate, searchResponse) -> {
             var foundConfigs = parseHitsAsModels(searchResponse.getHits()).stream().map(ModelRegistry::unparsedModelFromMap).toList();
-            addAllDefaultConfigsIfMissing(foundConfigs, defaultConfigIds, delegate);
+            addAllDefaultConfigsIfMissing(persistDefaultEndpoints, foundConfigs, defaultConfigIds, delegate);
         });
 
         // In theory the index should only contain model config documents
@@ -241,6 +259,7 @@ public class ModelRegistry {
     }
 
     private void addAllDefaultConfigsIfMissing(
+        boolean persistDefaultEndpoints,
         List<UnparsedModel> foundConfigs,
         List<InferenceService.DefaultConfigId> matchedDefaults,
         ActionListener<List<UnparsedModel>> listener
@@ -263,18 +282,26 @@ public class ModelRegistry {
             );
 
             for (var required : missing) {
-                getDefaultConfig(required, groupedListener);
+                getDefaultConfig(persistDefaultEndpoints, required, groupedListener);
             }
         }
     }
 
-    private void getDefaultConfig(InferenceService.DefaultConfigId defaultConfig, ActionListener<UnparsedModel> listener) {
+    private void getDefaultConfig(
+        boolean persistDefaultEndpoints,
+        InferenceService.DefaultConfigId defaultConfig,
+        ActionListener<UnparsedModel> listener
+    ) {
         defaultConfig.service().defaultConfigs(listener.delegateFailureAndWrap((delegate, models) -> {
             boolean foundModel = false;
             for (var m : models) {
                 if (m.getInferenceEntityId().equals(defaultConfig.inferenceId())) {
                     foundModel = true;
-                    storeDefaultEndpoint(m, () -> listener.onResponse(modelToUnparsedModel(m)));
+                    if (persistDefaultEndpoints) {
+                        storeDefaultEndpoint(m, () -> listener.onResponse(modelToUnparsedModel(m)));
+                    } else {
+                        listener.onResponse(modelToUnparsedModel(m));
+                    }
                     break;
                 }
             }
@@ -287,7 +314,7 @@ public class ModelRegistry {
         }));
     }
 
-    public void storeDefaultEndpoint(Model preconfigured, Runnable runAfter) {
+    private void storeDefaultEndpoint(Model preconfigured, Runnable runAfter) {
         var responseListener = ActionListener.<Boolean>wrap(success -> {
             logger.debug("Added default inference endpoint [{}]", preconfigured.getInferenceEntityId());
         }, exception -> {

@@ -117,6 +117,9 @@ public class RoleMappingRestIT extends ESRestTestCase {
         expectMappings(List.of(clusterStateMapping1, clusterStateMapping3), "role-mapping-1", "role-mapping-3");
         expectMappings(List.of(clusterStateMapping1), clusterStateMapping1.getName());
         expectMappings(List.of(clusterStateMapping1), clusterStateMapping1.getName(), "role-mapping-1");
+
+        expect404(() -> getMappings("role-mapping-4"));
+        expect404(() -> getMappings("role-mapping-4-read-only-operator-mapping"));
     }
 
     public void testPutAndDeleteRoleMappings() throws IOException {
@@ -154,11 +157,13 @@ public class RoleMappingRestIT extends ESRestTestCase {
             )
         );
 
-        {
-            // 404 without warnings if no native mapping exists
-            var ex = expectThrows(ResponseException.class, () -> deleteMapping("role-mapping-1"));
-            assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(404));
-        }
+        // 404 without warnings if no native mapping exists
+        expect404(() -> deleteMapping("role-mapping-1"));
+    }
+
+    private static void expect404(ThrowingRunnable clientCall) {
+        var ex = expectThrows(ResponseException.class, clientCall);
+        assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(404));
     }
 
     private static Response putMapping(ExpressionRoleMapping roleMapping) throws IOException {
@@ -204,9 +209,7 @@ public class RoleMappingRestIT extends ESRestTestCase {
 
     @SuppressWarnings("unchecked")
     private static void expectMappings(List<ExpressionRoleMapping> expectedMappings, String... requestedMappingNames) throws IOException {
-        Map<String, Object> map = responseAsMap(
-            client().performRequest(new Request("GET", "/_security/role_mapping/" + String.join(",", requestedMappingNames)))
-        );
+        Map<String, Object> map = responseAsMap(getMappings(requestedMappingNames));
         assertThat(
             map.keySet(),
             containsInAnyOrder(expectedMappings.stream().map(ExpressionRoleMapping::getName).toList().toArray(new String[0]))
@@ -218,6 +221,10 @@ public class RoleMappingRestIT extends ESRestTestCase {
             actualMappings.add(actual);
         }
         assertThat(actualMappings, containsInAnyOrder(expectedMappings.toArray(new ExpressionRoleMapping[0])));
+    }
+
+    private static Response getMappings(String... requestedMappingNames) throws IOException {
+        return client().performRequest(new Request("GET", "/_security/role_mapping/" + String.join(",", requestedMappingNames)));
     }
 
     @Override

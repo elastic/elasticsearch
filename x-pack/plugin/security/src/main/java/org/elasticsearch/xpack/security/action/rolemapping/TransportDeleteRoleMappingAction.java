@@ -44,8 +44,9 @@ public class TransportDeleteRoleMappingAction extends HandledTransportAction<Del
 
     @Override
     protected void doExecute(Task task, DeleteRoleMappingRequest request, ActionListener<DeleteRoleMappingResponse> listener) {
+        String name = request.getName();
         roleMappingStore.deleteRoleMapping(request, listener.safeMap(found -> {
-            if (found && clusterStateMappingWithSameNameExists(request.getName())) {
+            if (found && clusterStateRoleMapper.hasMapping(name)) {
                 // Allow to delete a mapping with the same name in the native role mapping store as the file_settings namespace, but
                 // add a warning header to signal to the caller that this could be a problem.
                 HeaderWarning.addWarning(
@@ -57,9 +58,5 @@ public class TransportDeleteRoleMappingAction extends HandledTransportAction<Del
             }
             return new DeleteRoleMappingResponse(found);
         }));
-    }
-
-    private boolean clusterStateMappingWithSameNameExists(String name) {
-        return clusterStateRoleMapper.hasMapping(TransportClusterStateRoleMappingTranslator.removeReadOnlySuffixIfPresent(name));
     }
 }

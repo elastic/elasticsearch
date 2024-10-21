@@ -70,7 +70,7 @@ public class CrossClusterReindexIT extends AbstractMultiClustersTestCase {
             final TotalHits totalHits = SearchResponseUtils.getTotalHits(
                 client(LOCAL_CLUSTER).prepareSearch("desc-index-001").setQuery(new MatchAllQueryBuilder()).setSize(1000)
             );
-            return totalHits.relation == TotalHits.Relation.EQUAL_TO && totalHits.value == docsNumber;
+            return totalHits.relation() == TotalHits.Relation.EQUAL_TO && totalHits.value() == docsNumber;
         }));
     }
 
@@ -85,7 +85,7 @@ public class CrossClusterReindexIT extends AbstractMultiClustersTestCase {
             final TotalHits totalHits = SearchResponseUtils.getTotalHits(
                 client(LOCAL_CLUSTER).prepareSearch("test-index-001").setQuery(new MatchAllQueryBuilder()).setSize(1000)
             );
-            return totalHits.relation == TotalHits.Relation.EQUAL_TO && totalHits.value == docsNumber;
+            return totalHits.relation() == TotalHits.Relation.EQUAL_TO && totalHits.value() == docsNumber;
         }));
     }
 
@@ -114,7 +114,7 @@ public class CrossClusterReindexIT extends AbstractMultiClustersTestCase {
                 final TotalHits totalHits = SearchResponseUtils.getTotalHits(
                     client(LOCAL_CLUSTER).prepareSearch("test-index-001").setQuery(new MatchAllQueryBuilder()).setSize(1000)
                 );
-                return totalHits.relation == TotalHits.Relation.EQUAL_TO && totalHits.value == docsNumber;
+                return totalHits.relation() == TotalHits.Relation.EQUAL_TO && totalHits.value() == docsNumber;
             }));
         }
     }
@@ -146,7 +146,7 @@ public class CrossClusterReindexIT extends AbstractMultiClustersTestCase {
             final TotalHits totalHits = SearchResponseUtils.getTotalHits(
                 client(LOCAL_CLUSTER).prepareSearch("desc-index-001").setQuery(new MatchAllQueryBuilder()).setSize(1000)
             );
-            return totalHits.relation == TotalHits.Relation.EQUAL_TO && totalHits.value == docsNumber;
+            return totalHits.relation() == TotalHits.Relation.EQUAL_TO && totalHits.value() == docsNumber;
         }));
     }
 
@@ -162,7 +162,7 @@ public class CrossClusterReindexIT extends AbstractMultiClustersTestCase {
             final TotalHits totalHits = SearchResponseUtils.getTotalHits(
                 client(LOCAL_CLUSTER).prepareSearch("desc-index-001").setQuery(new MatchAllQueryBuilder()).setSize(1000)
             );
-            return totalHits.relation == TotalHits.Relation.EQUAL_TO && totalHits.value == docsNumber;
+            return totalHits.relation() == TotalHits.Relation.EQUAL_TO && totalHits.value() == docsNumber;
         }));
     }
 

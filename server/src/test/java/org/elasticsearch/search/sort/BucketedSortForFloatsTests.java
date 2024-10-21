@@ -121,17 +121,11 @@ public class BucketedSortForFloatsTests extends BucketedSortTestCase<BucketedSor
     }
 
     private class MockScorable extends Scorable {
-        private int doc;
         private float score;
 
         @Override
         public float score() throws IOException {
             return score;
-        }
-
-        @Override
-        public int docID() {
-            return doc;
         }
     }
 

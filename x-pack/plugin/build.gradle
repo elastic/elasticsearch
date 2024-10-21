@@ -82,7 +82,6 @@ tasks.named("precommit").configure {
 
 tasks.named("yamlRestCompatTestTransform").configure({ task ->
   task.skipTest("security/10_forbidden/Test bulk response with invalid credentials", "warning does not exist for compatibility")
-  task.skipTest("wildcard/30_ignore_above_synthetic_source/wildcard field type ignore_above", "Temporary until backported")
   task.skipTest("inference/inference_crud/Test get all", "Assertions on number of inference models break due to default configs")
   task.skipTest("esql/60_usage/Basic ESQL usage output (telemetry)", "The telemetry output changed. We dropped a column. That's safe.")
 })

@@ -180,6 +180,10 @@ public final class QueryRuleRetrieverBuilder extends CompoundRetrieverBuilder<Qu
         return Objects.hash(super.doHashCode(), rulesetIds, matchCriteria);
     }
 
+    /**
+     * We need to wrap the QueryRulesRetrieverBuilder in order to ensure that the top docs query that is generated
+     * by this retriever correctly generates and executes a Rule query.
+     */
     class QueryRuleRetrieverBuilderWrapper extends RetrieverBuilderWrapper<QueryRuleRetrieverBuilderWrapper> {
         protected QueryRuleRetrieverBuilderWrapper(RetrieverBuilder in) {
             super(in);

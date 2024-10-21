@@ -245,9 +245,7 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
             preFilterQueryBuilders.forEach(newQuery::filter);
             sourceBuilder.query(newQuery);
         }
-
         addSort(sourceBuilder);
-
         return sourceBuilder;
     }
 

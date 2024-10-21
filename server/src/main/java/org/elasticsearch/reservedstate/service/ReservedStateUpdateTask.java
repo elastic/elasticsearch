@@ -205,8 +205,8 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
                 namespace,
                 newVersion,
                 switch (versionCheck) {
-                    case ReservedStateVersionCheck.HIGHER_OR_SAME_VERSION -> "less than";
-                    case ReservedStateVersionCheck.HIGHER_VERSION_ONLY -> "less than or equal to";
+                    case HIGHER_OR_SAME_VERSION -> "less than";
+                    case HIGHER_VERSION_ONLY -> "less than or equal to";
                 },
                 currentVersion
             )

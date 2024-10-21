@@ -386,6 +386,9 @@ tests:
 - class: org.elasticsearch.xpack.enrich.EnrichIT
   method: testDeleteIsCaseSensitive
   issue: https://github.com/elastic/elasticsearch/issues/114840
+- class: org.elasticsearch.xpack.enrich.EnrichIT
+  method: testImmutablePolicy
+  issue: https://github.com/elastic/elasticsearch/issues/114839
 
 # Examples:
 #

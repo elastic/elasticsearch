@@ -33,7 +33,7 @@ public class RemoveCorruptedLuceneSegmentsAction {
 
         final CheckIndex.Status status;
         try (CheckIndex checker = new CheckIndex(indexDirectory, writeLock)) {
-            checker.setChecksumsOnly(true);
+            checker.setLevel(CheckIndex.Level.MIN_LEVEL_FOR_CHECKSUM_CHECKS);
             checker.setInfoStream(printStream, verbose);
 
             status = checker.checkIndex(null);
@@ -64,7 +64,7 @@ public class RemoveCorruptedLuceneSegmentsAction {
         final CheckIndex.Status status;
         try (CheckIndex checker = new CheckIndex(indexDirectory, writeLock)) {
 
-            checker.setChecksumsOnly(true);
+            checker.setLevel(CheckIndex.Level.MIN_LEVEL_FOR_CHECKSUM_CHECKS);
             checker.setInfoStream(printStream, verbose);
 
             status = checker.checkIndex(null);

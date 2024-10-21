@@ -78,6 +78,13 @@ public class IndexNameExpressionResolver {
     }
 
     /**
+     * @return If the specified string is a selector expression then this method returns the base expression and its selector part.
+     */
+    public static Tuple<String, String> splitSelectorExpression(String expression) {
+        return SelectorResolver.splitSelectorExpression(expression, Tuple::new);
+    }
+
+    /**
      * This contains the resolved expression in the form of the resource.
      * Soon it will facilitate the index component selector.
      * @param resource the resolved resolvedExpression

@@ -1469,6 +1469,14 @@ public record IndicesOptions(
     }
 
     /**
+     * @return indices option that requires every specified index to exist, expands wildcards to both open and closed indices, includes
+     * hidden indices, and allows that no indices are resolved from wildcard expressions (not returning an error). Selectors are no allowed.
+     */
+    public static IndicesOptions strictExpandHiddenNoSelectors() {
+        return STRICT_EXPAND_OPEN_CLOSED_HIDDEN_NO_SELECTORS;
+    }
+
+    /**
      * @return indices option that expands wildcards to both open and closed indices, includes failure store
      * (with data stream) and allows that indices can be missing and no indices are resolved from wildcard expressions
      * (not returning an error).

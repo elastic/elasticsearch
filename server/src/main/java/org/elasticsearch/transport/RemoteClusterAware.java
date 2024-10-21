@@ -10,11 +10,13 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.cluster.metadata.ClusterNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.node.Node;
 
 import java.util.ArrayList;
@@ -64,8 +66,11 @@ public abstract class RemoteClusterAware {
             // Thus, whatever it is, this is definitely not a remote index.
             return false;
         }
+        int idx = indexExpression.indexOf(RemoteClusterService.REMOTE_CLUSTER_INDEX_SEPARATOR);
+        // Check to make sure the remote cluster separator ':' isn't actually a selector separator '::'
+        boolean isSelector = indexExpression.startsWith(IndexNameExpressionResolver.SelectorResolver.SELECTOR_SEPARATOR, idx);
         // Note remote index name also can not start with ':'
-        return indexExpression.indexOf(RemoteClusterService.REMOTE_CLUSTER_INDEX_SEPARATOR) > 0;
+        return idx > 0 && isSelector == false;
     }
 
     /**
@@ -99,7 +104,8 @@ public abstract class RemoteClusterAware {
         if (i == 0) {
             throw new IllegalArgumentException("index name [" + indexExpression + "] is invalid because the remote part is empty");
         }
-        if (i < 0) {
+        // Either no colon present, or the colon was a part of a selector separator (::)
+        if (i < 0 || indexExpression.startsWith(IndexNameExpressionResolver.SelectorResolver.SELECTOR_SEPARATOR, i)) {
             return new String[] { null, indexExpression };
         } else {
             return new String[] { indexExpression.substring(0, i), indexExpression.substring(i + 1) };
@@ -144,11 +150,22 @@ public abstract class RemoteClusterAware {
                     isNegative ? remoteClusterName.substring(1) : remoteClusterName
                 );
                 if (isNegative) {
+                    Tuple<String, String> indexAndSelector = IndexNameExpressionResolver.splitSelectorExpression(indexName);
+                    indexName = indexAndSelector.v1();
+                    String selectorString = indexAndSelector.v2();
                     if (indexName.equals("*") == false) {
                         throw new IllegalArgumentException(
                             Strings.format(
                                 "To exclude a cluster you must specify the '*' wildcard for " + "the index expression, but found: [%s]",
                                 indexName
+                            )
+                        );
+                    }
+                    if (selectorString != null && selectorString.equals("*") == false) {
+                        throw new IllegalArgumentException(
+                            Strings.format(
+                                "To exclude a cluster you must specify the '::*' selector or leave it off, but found: [%s]",
+                                selectorString
                             )
                         );
                     }

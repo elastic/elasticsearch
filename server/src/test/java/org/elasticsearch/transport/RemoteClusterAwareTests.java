@@ -24,6 +24,28 @@ import static org.hamcrest.Matchers.not;
 
 public class RemoteClusterAwareTests extends ESTestCase {
 
+    public void testIsRemoteIndexName() {
+        assertThat(RemoteClusterAware.isRemoteIndexName("*:foo"), equalTo(true));
+        assertThat(RemoteClusterAware.isRemoteIndexName("*:foo::data"), equalTo(true));
+        assertThat(RemoteClusterAware.isRemoteIndexName("foo::data"), equalTo(false));
+        assertThat(RemoteClusterAware.isRemoteIndexName("<test-{now/M{yyyy.MM}}-000002>::*"), equalTo(false));
+        assertThat(RemoteClusterAware.isRemoteIndexName("-<test-{now/M{yyyy.MM}}-000002>::data"), equalTo(false));
+    }
+
+    public void testSplitIndexName() {
+        assertThat(RemoteClusterAware.splitIndexName("*:foo"), equalTo(new String[] { "*", "foo" }));
+        assertThat(RemoteClusterAware.splitIndexName("*:foo::data"), equalTo(new String[] { "*", "foo::data" }));
+        assertThat(RemoteClusterAware.splitIndexName("foo::data"), equalTo(new String[] { null, "foo::data" }));
+        assertThat(
+            RemoteClusterAware.splitIndexName("<test-{now/M{yyyy.MM}}-000002>::*"),
+            equalTo(new String[] { null, "<test-{now/M{yyyy.MM}}-000002>::*" })
+        );
+        assertThat(
+            RemoteClusterAware.splitIndexName("-<test-{now/M{yyyy.MM}}-000002>::data"),
+            equalTo(new String[] { null, "-<test-{now/M{yyyy.MM}}-000002>::data" })
+        );
+    }
+
     public void testBuildRemoteIndexName() {
         {
             String clusterAlias = randomAlphaOfLengthBetween(5, 10);
@@ -137,6 +159,12 @@ public class RemoteClusterAwareTests extends ESTestCase {
             new String[] { "*:*", "-cluster*:index1" },
             IllegalArgumentException.class,
             "To exclude a cluster you must specify the '*' wildcard"
+        );
+        // Cluster wildcard exclusion requires :*::* when selector is provided
+        mustThrowException(
+            new String[] { "*:*", "-cluster*:*::data" },
+            IllegalArgumentException.class,
+            "To exclude a cluster you must specify the '::*' selector or leave it off"
         );
         mustThrowException(
             new String[] { "*:*", "-cluster2:index1" },

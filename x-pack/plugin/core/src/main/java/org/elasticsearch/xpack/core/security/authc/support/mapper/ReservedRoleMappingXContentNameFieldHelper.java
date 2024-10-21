@@ -15,6 +15,21 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
+/**
+ * Helper class to avoid name erasure when cluster-state role mappings on disk.
+ * When cluster-state role mappings are written to disk, their XContent format is used.
+ * This format omits the role mapping's name.
+ * This means that if CS role mappings are ever recovered from disk (e.g., during a master-node restart), their names are erased.
+ * To address this, this class augments CS role mapping serialization to persist the name of a mapping in a reserved metadata field,
+ * and recover it from metadata during de-serialization.
+ * Storing the name in metadata allows us to persist the name without BWC-breaks in role mapping `XContent` format (as opposed to changing
+ * XContent serialization to persist the top-level name field).
+ * It also ensures that role mappings are re-written to cluster state in the new,
+ * name-preserving format the first time operator file settings are processed.
+ * {@link #copyWithNameInMetadata(ExpressionRoleMapping)}} is used to copy the name of a role mapping into its metadata field.
+ * This is called when the role mappings are read from operator file settings (at which point the correct name is still available).
+ * {@link #parseWithNameFromMetadata(XContentParser)} is used to parse a role mapping from XContent restoring the name from metadata.
+ */
 public final class ReservedRoleMappingXContentNameFieldHelper {
     private static final Logger logger = LogManager.getLogger(ReservedRoleMappingXContentNameFieldHelper.class);
 

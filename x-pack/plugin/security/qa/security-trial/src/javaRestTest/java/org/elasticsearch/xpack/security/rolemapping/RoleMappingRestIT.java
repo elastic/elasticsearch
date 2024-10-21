@@ -150,7 +150,7 @@ public class RoleMappingRestIT extends ESRestTestCase {
             assertThat(
                 ex.getMessage(),
                 containsString(
-                    "Invalid mapping name [role-mapping-4-read-only-operator-mapping]. "
+                    "Invalid mapping name [role-mapping-1-read-only-operator-mapping]. "
                         + "[-read-only-operator-mapping] is not an allowed suffix"
                 )
             );

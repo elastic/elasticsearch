@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.core.security.authz.permission;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -29,6 +28,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions.ROLE_REMOTE_CLUSTER_PRIVS;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -163,11 +163,11 @@ public class RemoteClusterPermissionsTests extends AbstractXContentSerializingTe
         // test monitor_enrich before, after and on monitor enrich version
         String[] privileges = randomBoolean() ? new String[] { "monitor_enrich" } : new String[] { "monitor_enrich", "foo", "bar" };
         String[] before = new RemoteClusterPermissions().addGroup(new RemoteClusterPermissionGroup(privileges, new String[] { "*" }))
-            .privilegeNames("*", TransportVersionUtils.getPreviousVersion(TransportVersions.ROLE_REMOTE_CLUSTER_PRIVS));
+            .privilegeNames("*", TransportVersionUtils.getPreviousVersion(ROLE_REMOTE_CLUSTER_PRIVS));
         // empty set since monitor_enrich is not allowed in the before version
         assertThat(Set.of(before), equalTo(Collections.emptySet()));
         String[] on = new RemoteClusterPermissions().addGroup(new RemoteClusterPermissionGroup(privileges, new String[] { "*" }))
-            .privilegeNames("*", TransportVersions.ROLE_REMOTE_CLUSTER_PRIVS);
+            .privilegeNames("*", ROLE_REMOTE_CLUSTER_PRIVS);
         // only monitor_enrich since the other values are not allowed
         assertThat(Set.of(on), equalTo(Set.of("monitor_enrich")));
         String[] after = new RemoteClusterPermissions().addGroup(new RemoteClusterPermissionGroup(privileges, new String[] { "*" }))

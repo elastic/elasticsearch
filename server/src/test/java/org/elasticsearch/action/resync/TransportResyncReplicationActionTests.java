@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.coordination.NoMasterBlockService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -174,7 +175,8 @@ public class TransportResyncReplicationActionTests extends ESTestCase {
                     shardStateAction,
                     new ActionFilters(new HashSet<>()),
                     new IndexingPressure(Settings.EMPTY),
-                    EmptySystemIndices.INSTANCE
+                    EmptySystemIndices.INSTANCE,
+                    TestProjectResolvers.singleProjectOnly()
                 );
 
                 assertThat(action.globalBlockLevel(), nullValue());

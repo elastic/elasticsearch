@@ -431,14 +431,14 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
 
         AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
         AtomicReference<List<UnparsedModel>> modelHolder = new AtomicReference<>();
-        blockingCall(listener -> modelRegistry.getAllModels(true, listener), modelHolder, exceptionHolder);
+        blockingCall(listener -> modelRegistry.getAllModels(false, listener), modelHolder, exceptionHolder);
         assertNull(exceptionHolder.get());
         assertThat(modelHolder.get(), hasSize(2));
 
         expectThrows(IndexNotFoundException.class, () -> client().admin().indices().prepareGetIndex().addIndices(".inference").get());
 
         // this time check the index is created
-        blockingCall(listener -> modelRegistry.getAllModels(false, listener), modelHolder, exceptionHolder);
+        blockingCall(listener -> modelRegistry.getAllModels(true, listener), modelHolder, exceptionHolder);
         assertNull(exceptionHolder.get());
         assertThat(modelHolder.get(), hasSize(2));
         assertInferenceIndexExists();

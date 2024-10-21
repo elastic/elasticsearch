@@ -1,0 +1,5 @@
+pr: 115181
+summary: Always check the parent breaker with zero bytes in `PreallocatedCircuitBreakerService`
+area: Aggregations
+type: bug
+issues: []

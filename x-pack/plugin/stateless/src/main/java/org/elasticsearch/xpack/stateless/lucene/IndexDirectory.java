@@ -204,7 +204,7 @@ public class IndexDirectory extends ByteSizeDirectory {
                     // Index inputs opened with READONCE IO context are expected to be read and closed within the same thread
                     // (see https://github.com/apache/lucene/pull/13535). This is not the case for ReopeningIndexInput that can be closed
                     // by the uploading thread.
-                    var ctx = context == IOContext.READONCE ? IOContext.READ : context;
+                    var ctx = context == IOContext.READONCE ? IOContext.DEFAULT : context;
                     return new ReopeningIndexInput(name, context, super.openInput(name, ctx), localFile);
                 } finally {
                     localFile.decRef();

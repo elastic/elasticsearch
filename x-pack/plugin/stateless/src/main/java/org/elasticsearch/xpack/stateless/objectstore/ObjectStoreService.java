@@ -529,7 +529,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
         var prewarmingDirectory = directory.createPreWarmingInstance();
         prewarmingDirectory.updateMetadata(Map.of(blobMetadata.name(), blobFileRanges), 0L);
         return BatchedCompoundCommit.readFromStore(blobMetadata.name(), blobMetadata.length(), (ignored, offset, length) -> {
-            var input = prewarmingDirectory.openInput(blobMetadata.name(), IOContext.READ);
+            var input = prewarmingDirectory.openInput(blobMetadata.name(), IOContext.DEFAULT);
             try {
                 input.seek(offset);
                 return new InputStreamStreamInput(new InputStreamIndexInput(input, length) {

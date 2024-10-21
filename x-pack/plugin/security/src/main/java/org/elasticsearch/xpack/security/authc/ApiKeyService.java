@@ -831,6 +831,8 @@ public class ApiKeyService implements Closeable {
                             + ". Remote cluster privileges are not supported by all nodes in the cluster."
                     );
                 }
+                // TODO: support the additional cases where we are trying to send to somethign like 8.16 that understands remote cluster,
+                // but does not support the new privilege
             }
             return result;
         }

@@ -295,7 +295,7 @@ public class RevertModelSnapshotIT extends MlNativeAutodetectIntegTestCase {
             prepareSearch(".ml-state*").setQuery(QueryBuilders.idsQuery().addIds(Quantiles.documentId(jobId))).setSize(1),
             response -> {
                 SearchHits hits = response.getHits();
-                assertThat(hits.getTotalHits().value, equalTo(1L));
+                assertThat(hits.getTotalHits().value(), equalTo(1L));
                 try (
                     XContentParser parser = JsonXContent.jsonXContent.createParser(
                         XContentParserConfiguration.EMPTY,

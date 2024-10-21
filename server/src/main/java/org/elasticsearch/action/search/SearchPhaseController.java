@@ -892,8 +892,8 @@ public final class SearchPhaseController {
 
         void add(TopDocsAndMaxScore topDocs, boolean timedOut, Boolean terminatedEarly) {
             if (trackTotalHitsUpTo != SearchContext.TRACK_TOTAL_HITS_DISABLED) {
-                totalHits += topDocs.topDocs.totalHits.value;
-                if (topDocs.topDocs.totalHits.relation == Relation.GREATER_THAN_OR_EQUAL_TO) {
+                totalHits += topDocs.topDocs.totalHits.value();
+                if (topDocs.topDocs.totalHits.relation() == Relation.GREATER_THAN_OR_EQUAL_TO) {
                     totalHitsRelation = TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO;
                 }
             }

@@ -437,7 +437,7 @@ public class DlsFlsRequestCacheTests extends SecuritySingleNodeTestCase {
         var searchResponse = requestBuilder.get();
         try {
             assertThat(searchResponse.getFailedShards(), equalTo(0));
-            assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) docIds.size()));
+            assertThat(searchResponse.getHits().getTotalHits().value(), equalTo((long) docIds.size()));
             final SearchHit[] hits = searchResponse.getHits().getHits();
             assertThat(Arrays.stream(hits).map(SearchHit::getId).collect(Collectors.toUnmodifiableSet()), equalTo(docIds));
             if (fieldNames != null) {

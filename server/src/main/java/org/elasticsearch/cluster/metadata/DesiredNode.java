@@ -345,10 +345,6 @@ public final class DesiredNode implements Writeable, ToXContentObject, Comparabl
             + '}';
     }
 
-    public boolean hasVersion() {
-        return false;
-    }
-
     public record ProcessorsRange(Processors min, @Nullable Processors max) implements Writeable, ToXContentObject {
 
         private static final ParseField MIN_FIELD = new ParseField("min");

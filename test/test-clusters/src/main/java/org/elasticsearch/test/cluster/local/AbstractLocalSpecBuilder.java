@@ -24,6 +24,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
@@ -43,6 +44,7 @@ public abstract class AbstractLocalSpecBuilder<T extends LocalSpecBuilder<?>> im
     private final Map<String, String> systemProperties = new HashMap<>();
     private final List<SystemPropertyProvider> systemPropertyProviders = new ArrayList<>();
     private final List<String> jvmArgs = new ArrayList<>();
+    private Function<Map<String, String>, Map<String, String>> settingsModifier = null;
     private DistributionType distributionType;
     private Version version;
     private String keystorePassword;
@@ -241,6 +243,16 @@ public abstract class AbstractLocalSpecBuilder<T extends LocalSpecBuilder<?>> im
 
     public List<String> getJvmArgs() {
         return inherit(() -> parent.getJvmArgs(), jvmArgs);
+    }
+
+    @Override
+    public T settingsModifier(Function<Map<String, String>, Map<String, String>> settingsModifier) {
+        this.settingsModifier = settingsModifier;
+        return cast(this);
+    }
+
+    public Function<Map<String, String>, Map<String, String>> getSettingsModifier() {
+        return inherit(() -> parent.getSettingsModifier(), settingsModifier);
     }
 
     @Override

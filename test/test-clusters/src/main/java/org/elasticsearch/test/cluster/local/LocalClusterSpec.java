@@ -23,6 +23,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 public class LocalClusterSpec implements ClusterSpec {
@@ -102,6 +103,7 @@ public class LocalClusterSpec implements ClusterSpec {
         private final List<SystemPropertyProvider> systemPropertyProviders;
         private final Map<String, String> systemProperties;
         private final List<String> jvmArgs;
+        private final Function<Map<String, String>, Map<String, String>> settingsModifier;
         private Version version;
 
         public LocalNodeSpec(
@@ -123,7 +125,8 @@ public class LocalClusterSpec implements ClusterSpec {
             Map<String, Resource> extraConfigFiles,
             List<SystemPropertyProvider> systemPropertyProviders,
             Map<String, String> systemProperties,
-            List<String> jvmArgs
+            List<String> jvmArgs,
+            Function<Map<String, String>, Map<String, String>> settingsModifier
         ) {
             this.cluster = cluster;
             this.name = name;
@@ -144,6 +147,7 @@ public class LocalClusterSpec implements ClusterSpec {
             this.systemPropertyProviders = systemPropertyProviders;
             this.systemProperties = systemProperties;
             this.jvmArgs = jvmArgs;
+            this.settingsModifier = settingsModifier;
         }
 
         void setVersion(Version version) {
@@ -200,6 +204,10 @@ public class LocalClusterSpec implements ClusterSpec {
 
         public List<String> getJvmArgs() {
             return jvmArgs;
+        }
+
+        public Function<Map<String, String>, Map<String, String>> getSettingsModifier() {
+            return settingsModifier;
         }
 
         public boolean isSecurityEnabled() {
@@ -338,7 +346,8 @@ public class LocalClusterSpec implements ClusterSpec {
                         n.extraConfigFiles,
                         n.systemPropertyProviders,
                         n.systemProperties,
-                        n.jvmArgs
+                        n.jvmArgs,
+                        n.settingsModifier
                     )
                 )
                 .toList();

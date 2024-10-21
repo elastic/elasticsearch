@@ -138,8 +138,8 @@ public final class QueryRuleRetrieverBuilder extends CompoundRetrieverBuilder<Qu
             return;
         }
 
-        if (sortBuilders.get(0) instanceof ScoreSortBuilder == false) {
-            throw new IllegalArgumentException("Rule retrievers can only sort documents by relevance score, got: " + sortBuilders);
+        if (sortBuilders.getFirst() instanceof ScoreSortBuilder == false) {
+            throw new IllegalArgumentException("[" + NAME + "] retriever only supports sort by score, got: " + sortBuilders);
         }
     }
 

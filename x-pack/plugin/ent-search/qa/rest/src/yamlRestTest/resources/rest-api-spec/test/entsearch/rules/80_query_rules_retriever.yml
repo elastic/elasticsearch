@@ -210,3 +210,82 @@ setup:
                   }
                 }
               ]
+
+---
+"query rules retriever supports explicit sort on score":
+
+  - do:
+      search:
+        index: test-index1
+        body:
+          retriever:
+            rule:
+              match_criteria:
+                foo: foo
+                bar: bar
+              ruleset_ids:
+                test-ruleset
+              retriever:
+                standard:
+                  query:
+                    query_string:
+                      query: bar
+                  sort: [ "_score" ]
+
+  - match: { hits.total.value: 3 }
+  - match: { hits.hits.0._id: foo }
+  - match: { hits.hits.1._id: foo2 }
+  - match: { hits.hits.2._id: bar_no_rule }
+
+---
+"query rules will error if sorting by anything other than score":
+
+  - do:
+      catch: /\[rule\] retriever only supports sort by score/
+      search:
+        index: test-index1
+        body:
+          retriever:
+            rule:
+              match_criteria:
+                foo: foo
+                bar: bar
+              ruleset_ids:
+                test-ruleset
+              retriever:
+                standard:
+                  query:
+                    query_string:
+                      query: bar
+                  sort: [ { "_id": "desc" } ]
+
+---
+"query rules retriever explains pinned documents as constant score queries":
+
+  - do:
+      search:
+        index: test-index1
+        body:
+          retriever:
+            rule:
+              match_criteria:
+                foo: foo
+                bar: bar
+              ruleset_ids:
+                test-ruleset
+              retriever:
+                standard:
+                  query:
+                    query_string:
+                      query: bar
+          explain: true
+
+  - match: { hits.hits.0._id: foo }
+  - match: { hits.hits.0._explanation.value: 1 }
+  - match: { hits.hits.0._explanation.description: "doc [0] with an original score of [1.7014124E38] is at rank [1] from the following source queries." }
+  - match: { hits.hits.0._explanation.details.0.value: 1 }
+  - match: { hits.hits.0._explanation.details.0.description: "doc [0] with an original score of [1.7014124E38] is at rank [1] from the following source queries." }
+  - match: { hits.hits.0._explanation.details.0.details.0.description: "sum of:" }
+  - match: { hits.hits.0._explanation.details.0.details.0.details.0.description: "max of:" }
+  - match: { hits.hits.0._explanation.details.0.details.0.details.0.details.0.description: "max of:" }
+  - match: { hits.hits.0._explanation.details.0.details.0.details.0.details.0.details.0.description: "ConstantScore(_id:([7e 8a]))^1.7014124E38" }

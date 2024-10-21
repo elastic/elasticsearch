@@ -461,10 +461,7 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            BlockLoader blockLoaderFromSource(
-                SourceValueFetcher sourceValueFetcher,
-                BlockSourceReader.LeafIteratorLookup lookup
-            ) {
+            BlockLoader blockLoaderFromSource(SourceValueFetcher sourceValueFetcher, BlockSourceReader.LeafIteratorLookup lookup) {
                 return new BlockSourceReader.DoublesBlockLoader(sourceValueFetcher, lookup);
             }
         },
@@ -648,10 +645,7 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            BlockLoader blockLoaderFromSource(
-                SourceValueFetcher sourceValueFetcher,
-                BlockSourceReader.LeafIteratorLookup lookup
-            ) {
+            BlockLoader blockLoaderFromSource(SourceValueFetcher sourceValueFetcher, BlockSourceReader.LeafIteratorLookup lookup) {
                 return new BlockSourceReader.DoublesBlockLoader(sourceValueFetcher, lookup);
             }
         },
@@ -801,10 +795,7 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            BlockLoader blockLoaderFromSource(
-                SourceValueFetcher sourceValueFetcher,
-                BlockSourceReader.LeafIteratorLookup lookup
-            ) {
+            BlockLoader blockLoaderFromSource(SourceValueFetcher sourceValueFetcher, BlockSourceReader.LeafIteratorLookup lookup) {
                 return new BlockSourceReader.DoublesBlockLoader(sourceValueFetcher, lookup);
             }
         },
@@ -917,10 +908,7 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            BlockLoader blockLoaderFromSource(
-                SourceValueFetcher sourceValueFetcher,
-                BlockSourceReader.LeafIteratorLookup lookup
-            ) {
+            BlockLoader blockLoaderFromSource(SourceValueFetcher sourceValueFetcher, BlockSourceReader.LeafIteratorLookup lookup) {
                 return new BlockSourceReader.IntsBlockLoader(sourceValueFetcher, lookup);
             }
 
@@ -1033,10 +1021,7 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            BlockLoader blockLoaderFromSource(
-                SourceValueFetcher sourceValueFetcher,
-                BlockSourceReader.LeafIteratorLookup lookup
-            ) {
+            BlockLoader blockLoaderFromSource(SourceValueFetcher sourceValueFetcher, BlockSourceReader.LeafIteratorLookup lookup) {
                 return new BlockSourceReader.IntsBlockLoader(sourceValueFetcher, lookup);
             }
 
@@ -1223,10 +1208,7 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            BlockLoader blockLoaderFromSource(
-                SourceValueFetcher sourceValueFetcher,
-                BlockSourceReader.LeafIteratorLookup lookup
-            ) {
+            BlockLoader blockLoaderFromSource(SourceValueFetcher sourceValueFetcher, BlockSourceReader.LeafIteratorLookup lookup) {
                 return new BlockSourceReader.IntsBlockLoader(sourceValueFetcher, lookup);
             }
         },
@@ -1373,10 +1355,7 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            BlockLoader blockLoaderFromSource(
-                SourceValueFetcher sourceValueFetcher,
-                BlockSourceReader.LeafIteratorLookup lookup
-            ) {
+            BlockLoader blockLoaderFromSource(SourceValueFetcher sourceValueFetcher, BlockSourceReader.LeafIteratorLookup lookup) {
                 return new BlockSourceReader.LongsBlockLoader(sourceValueFetcher, lookup);
             }
 
@@ -1655,10 +1634,7 @@ public class NumberFieldMapper extends FieldMapper {
 
         abstract BlockLoader blockLoaderFromDocValues(String fieldName);
 
-        abstract BlockLoader blockLoaderFromSource(
-            SourceValueFetcher sourceValueFetcher,
-            BlockSourceReader.LeafIteratorLookup lookup
-        );
+        abstract BlockLoader blockLoaderFromSource(SourceValueFetcher sourceValueFetcher, BlockSourceReader.LeafIteratorLookup lookup);
     }
 
     public static class NumberFieldType extends SimpleMappedFieldType {

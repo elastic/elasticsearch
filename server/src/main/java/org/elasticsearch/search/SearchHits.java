@@ -289,10 +289,12 @@ public final class SearchHits implements Writeable, ChunkedToXContent, RefCounte
             if (totalHitAsInt) {
                 ob.field(Fields.TOTAL, totalHits == null ? -1 : totalHits.value());
             } else if (totalHits != null) {
-                ob.object(
-                    Fields.TOTAL,
-                    tb -> tb.field("value", totalHits.value()).field("relation", totalHits.relation() == Relation.EQUAL_TO ? "eq" : "gte")
-                );
+                ob.append((b, p) -> {
+                    b.startObject(Fields.TOTAL);
+                    b.field("value", totalHits.value());
+                    b.field("relation", totalHits.relation() == Relation.EQUAL_TO ? "eq" : "gte");
+                    return b.endObject();
+                });
             }
 
             ob.field(Fields.MAX_SCORE, Float.isNaN(maxScore) ? null : maxScore);

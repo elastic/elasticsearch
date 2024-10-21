@@ -362,7 +362,7 @@ teardown:
   - match: {values.0.0: "2024-02-12T10:31:00.000Z"}
   - match: {values.0.1: "bar"}
   - match: {values.0.2: "Do. Or do not. There is no try."}
-  # TODO: this should be fixed:
+  # Note that isn't related to synthetic source. For both stored and synthetic source null is returned:
 #  - match: {values.0.3: "Do. Or do not. There is no try."}
 
   - do:

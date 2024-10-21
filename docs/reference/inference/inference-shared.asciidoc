@@ -32,3 +32,24 @@ end::task-settings[]
 tag::task-type[]
 The type of the {infer} task that the model will perform.
 end::task-type[]
+
+tag::chunking-settings[]
+Chunking configuration object.
+end::chunking-settings[]
+
+tag::chunking-settings-strategy[]
+Specifies the chunking strategy.
+It could be either `sentence` or `word`.
+end::chunking-settings-strategy[]
+
+tag::chunking-settings-max-chunking-size[]
+
+end::chunking-settings-max-chunking-size[]
+
+tag::chunking-settings-sentence-overlap[]
+
+end::chunking-settings-sentence-overlap[]
+
+tag::chunking-settings-overlap[]
+
+end::chunking-settings-overlap[]

@@ -58,7 +58,7 @@ setup:
       cluster.health:
         index: .synonyms-2
         level: shards
-        imeout: 60s
+        timeout: 60s
         wait_for_status: yellow
         wait_for_no_initializing_shards: true        t
 

@@ -158,12 +158,6 @@ tests:
 - class: org.elasticsearch.xpack.inference.rest.ServerSentEventsRestActionListenerTests
   method: testErrorMidStream
   issue: https://github.com/elastic/elasticsearch/issues/113179
-- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
-  method: test {categorize.Categorize SYNC}
-  issue: https://github.com/elastic/elasticsearch/issues/113054
-- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
-  method: test {categorize.Categorize ASYNC}
-  issue: https://github.com/elastic/elasticsearch/issues/113055
 - class: org.elasticsearch.smoketest.MlWithSecurityIT
   method: test {yaml=ml/sparse_vector_search/Test sparse_vector search with query vector and pruning config}
   issue: https://github.com/elastic/elasticsearch/issues/108997
@@ -206,12 +200,6 @@ tests:
 - class: org.elasticsearch.smoketest.MlWithSecurityIT
   method: test {yaml=ml/3rd_party_deployment/Test start and stop multiple deployments}
   issue: https://github.com/elastic/elasticsearch/issues/101458
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
-  method: test {categorize.Categorize ASYNC}
-  issue: https://github.com/elastic/elasticsearch/issues/113721
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
-  method: test {categorize.Categorize SYNC}
-  issue: https://github.com/elastic/elasticsearch/issues/113722
 - class: org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDateNanosTests
   issue: https://github.com/elastic/elasticsearch/issues/113661
 - class: org.elasticsearch.ingest.geoip.DatabaseNodeServiceIT

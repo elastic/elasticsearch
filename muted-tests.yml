@@ -363,6 +363,9 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/115135
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   issue: https://github.com/elastic/elasticsearch/issues/115213
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.string.ReverseTests
+  method: testEvaluateInManyThreads {TestCase=<long unicode TEXT>}
+  issue: https://github.com/elastic/elasticsearch/issues/115227
 
 # Examples:
 #

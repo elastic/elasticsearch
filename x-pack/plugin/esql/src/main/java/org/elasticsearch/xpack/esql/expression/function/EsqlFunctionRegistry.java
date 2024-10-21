@@ -388,17 +388,18 @@ public class EsqlFunctionRegistry {
                 def(MvSlice.class, MvSlice::new, "mv_slice"),
                 def(MvZip.class, MvZip::new, "mv_zip"),
                 def(MvSum.class, MvSum::new, "mv_sum"),
-                def(Split.class, Split::new, "split") },
-            // fulltext functions
-            new FunctionDefinition[] { def(Match.class, Match::new, "match"), def(QueryString.class, QueryString::new, "qstr") } };
+                def(Split.class, Split::new, "split") } };
 
     }
 
     private static FunctionDefinition[][] snapshotFunctions() {
         return new FunctionDefinition[][] {
             new FunctionDefinition[] {
+                def(Rate.class, Rate::withUnresolvedTimestamp, "rate"),
                 def(Categorize.class, Categorize::new, "categorize"),
-                def(Rate.class, Rate::withUnresolvedTimestamp, "rate") } };
+                // Full text functions
+                def(QueryString.class, QueryString::new, "qstr"),
+                def(Match.class, Match::new, "match") } };
     }
 
     public EsqlFunctionRegistry snapshotRegistry() {

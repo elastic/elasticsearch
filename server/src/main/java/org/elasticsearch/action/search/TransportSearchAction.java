@@ -1260,7 +1260,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 concreteLocalIndices
             );
 
-            if (localShardIterators.isEmpty() && clusters != SearchResponse.Clusters.EMPTY) {
+            if (localShardIterators.isEmpty()
+                && clusters != SearchResponse.Clusters.EMPTY
+                && clusters.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY) != null) {
                 clusters.swapCluster(
                     RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
                     (alias, v) -> new SearchResponse.Cluster.Builder(v).setStatus(SearchResponse.Cluster.Status.SUCCESSFUL)

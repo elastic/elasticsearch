@@ -201,9 +201,18 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
 
     @Override
     protected QueryBuilder doIndexMetadataRewrite(QueryRewriteContext context) throws IOException {
+        return maybeRewriteBasedOnConstantFields(context);
+    }
+
+    @Override
+    protected QueryBuilder doCoordinatorRewrite(CoordinatorRewriteContext coordinatorRewriteContext) {
+        return maybeRewriteBasedOnConstantFields(coordinatorRewriteContext);
+    }
+
+    private QueryBuilder maybeRewriteBasedOnConstantFields(QueryRewriteContext context) {
         MappedFieldType fieldType = context.getFieldType(this.fieldName);
         if (fieldType == null) {
-            return new MatchNoneQueryBuilder("The \"" + getName() + "\" query  is against a field that does not exist");
+            return new MatchNoneQueryBuilder("The \"" + getName() + "\" query is against a field that does not exist");
         } else if (fieldType instanceof ConstantFieldType constantFieldType) {
             // This logic is correct for all field types, but by only applying it to constant
             // fields we also have the guarantee that it doesn't perform I/O, which is important

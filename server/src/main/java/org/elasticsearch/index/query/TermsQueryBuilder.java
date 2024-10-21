@@ -347,6 +347,11 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         return fieldType.termsQuery(values, context);
     }
 
+    @Override
+    protected QueryBuilder doCoordinatorRewrite(CoordinatorRewriteContext coordinatorRewriteContext) {
+        return maybeRewriteBasedOnConstantFields(coordinatorRewriteContext);
+    }
+
     private static void fetch(TermsLookup termsLookup, Client client, ActionListener<List<Object>> actionListener) {
         GetRequest getRequest = new GetRequest(termsLookup.index(), termsLookup.id());
         getRequest.preference("_local").routing(termsLookup.routing());
@@ -394,6 +399,10 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
 
     @Override
     protected QueryBuilder doIndexMetadataRewrite(QueryRewriteContext context) throws IOException {
+        return maybeRewriteBasedOnConstantFields(context);
+    }
+
+    private QueryBuilder maybeRewriteBasedOnConstantFields(QueryRewriteContext context) {
         MappedFieldType fieldType = context.getFieldType(this.fieldName);
         if (fieldType == null) {
             return new MatchNoneQueryBuilder("The \"" + getName() + "\" query is against a field that does not exist");

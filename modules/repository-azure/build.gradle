@@ -30,6 +30,7 @@ dependencies {
   api "com.azure:azure-identity:1.13.2"
   api "com.azure:azure-json:1.2.0"
   api "com.azure:azure-storage-blob:12.27.1"
+  api "com.azure:azure-storage-blob-batch:12.23.1"
   api "com.azure:azure-storage-common:12.26.1"
   api "com.azure:azure-storage-internal-avro:12.12.1"
   api "com.azure:azure-xml:1.1.0"

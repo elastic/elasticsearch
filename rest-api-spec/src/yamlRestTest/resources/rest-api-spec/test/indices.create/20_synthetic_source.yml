@@ -1,3 +1,4 @@
+---
 object with unmapped fields:
   - requires:
       cluster_features: ["mapper.track_ignored_source"]

@@ -599,3 +599,107 @@ end time not allowed in logs mode:
   - match: { error.root_cause.0.type: "illegal_argument_exception" }
   - match: { error.type: "illegal_argument_exception" }
   - match: { error.reason: "[index.time_series.end_time] requires [index.mode=time_series]" }
+
+---
+ignore dynamic beyond limit logsdb default value:
+  - requires:
+      cluster_features: [ "mapper.logsdb_default_ignore_dynamic_beyond_limit" ]
+      reason: requires logsdb default value for `index.mapping.total_fields.ignore_dynamic_beyond_limit`
+
+  - do:
+      indices.create:
+        index: test-ignore-dynamic-default
+        body:
+          settings:
+            index:
+              mode: logsdb
+
+  - do:
+      indices.get_settings:
+        index: test-ignore-dynamic-default
+        include_defaults: true
+
+  - match: { test-ignore-dynamic-default.settings.index.mode: "logsdb" }
+  - match: { test-ignore-dynamic-default.defaults.index.mapping.total_fields.limit: "1000" }
+  - match: { test-ignore-dynamic-default.defaults.index.mapping.total_fields.ignore_dynamic_beyond_limit: "true" }
+
+---
+ignore dynamic beyond limit logsdb override value:
+  - requires:
+      cluster_features: [ "mapper.logsdb_default_ignore_dynamic_beyond_limit" ]
+      reason: requires logsdb default value for `index.mapping.total_fields.ignore_dynamic_beyond_limit`
+
+  - do:
+      indices.create:
+        index: test-ignore-dynamic-override
+        body:
+          settings:
+            index:
+              mode: logsdb
+              mapping:
+                total_fields:
+                  ignore_dynamic_beyond_limit: false
+
+  - do:
+      indices.get_settings:
+        index: test-ignore-dynamic-override
+
+  - match: { test-ignore-dynamic-override.settings.index.mode: "logsdb" }
+  - match: { test-ignore-dynamic-override.settings.index.mapping.total_fields.ignore_dynamic_beyond_limit: "false" }
+
+---
+logsdb with default ignore_dynamic beyond limit:
+  - requires:
+      cluster_features: ["mapper.logsdb_default_ignore_dynamic_beyond_limit"]
+      reason: requires default value for ignore_dynamic_beyond_limit
+
+  - do:
+      indices.create:
+        index: test-logsdb
+        body:
+          settings:
+            index:
+              mode: logsdb
+              mapping:
+                total_fields:
+                  limit: 1
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              name:
+                type: keyword
+
+  - do:
+      indices.get_settings:
+        index: test-logsdb
+
+  - match: { test-logsdb.settings.index.mode: "logsdb" }
+
+  - do:
+      bulk:
+        index: test-logsdb
+        refresh: true
+        body:
+          - '{ "index": { } }'
+          - '{ "@timestamp": "2024-08-13T12:30:00Z", "name": "foo", "value": 10, "message": "the quick brown fox" }'
+          - '{ "create": { } }'
+          - '{ "@timestamp": "2024-08-13T12:01:00Z", "name": "bar", "value": 20, "message": "jumps over the lazy dog" }'
+  - match: { errors: false }
+
+  - do:
+      search:
+        index: test-logsdb
+        body:
+          query:
+            match_all: {}
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._source.name: "bar" }
+  - match: { hits.hits.0._source.value: 20 }
+  - match: { hits.hits.0._source.message: "jumps over the lazy dog" }
+  - match: { hits.hits.0._ignored: [ "message", "value" ] }
+  - match: { hits.hits.1._source.name: "foo" }
+  - match: { hits.hits.1._source.value: 10 }
+  - match: { hits.hits.1._source.message: "the quick brown fox" }
+  - match: { hits.hits.1._ignored: [ "message", "value" ] }

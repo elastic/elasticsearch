@@ -137,6 +137,22 @@ codec for faster compression at the expense of slightly larger storage footprint
 `logsdb` mode adopts specialized codecs for `doc_values` fields that are crafted to optimize storage usage.
 Users can rely on these specialized codecs being applied by default when using `logsdb` mode.
 
+Doc values encoding in `logsdb` applies the following methods sequentially:
+
+* **Delta encoding**:
+  A compression method that stores the difference between consecutive values instead of the actual values.
+
+* **Offset encoding**:
+  A compression method that stores the difference from a base value rather than between consecutive values.
+
+* **Greatest Common Divisor (GCD) encoding**:
+  A compression method that finds the greatest common divisor of a set of numbers and stores the differences
+  as multiples of the GCD.
+
+* **Frame Of Reference (FOR) encoding**:
+  A compression method that stores differences from a reference (minimum value) in fixed-length blocks, reducing
+  the bits needed to represent values in a limited range.
+
 [discrete]
 [[logsdb-ignored-settings]]
 === `ignore_malformed` and `ignore_above` settings

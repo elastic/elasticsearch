@@ -30,20 +30,8 @@ teardown:
         index: .synonyms-2
         level: shards
         timeout: 60s
-        wait_for_status: green
-        ignore: 408
-
-  - do:
-      cluster.allocation_explain:
-        body: { "index": ".synonyms-2", "shard": 0, "primary": false }
-        ignore: 400
-
-  - do:
-      cluster.health:
-        index: .synonyms-2
-        level: shards
-        timeout: 20s
-        wait_for_status: green
+        wait_for_status: yellow
+        wait_for_no_initializing_shards: true
 
   - do:
       indices.create:

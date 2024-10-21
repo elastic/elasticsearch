@@ -274,7 +274,7 @@ public class SourceOnlySnapshotIT extends AbstractSnapshotIntegTestCase {
         };
         assertResponse(prepareSearch(index).addSort(SeqNoFieldMapper.NAME, SortOrder.ASC).setSize(numDocsExpected), searchResponse -> {
             assertConsumer.accept(searchResponse, sourceHadDeletions);
-            assertEquals(numDocsExpected, searchResponse.getHits().getTotalHits().value);
+            assertEquals(numDocsExpected, searchResponse.getHits().getTotalHits().value());
         });
         SearchResponse searchResponse = prepareSearch(index).addSort(SeqNoFieldMapper.NAME, SortOrder.ASC)
             .setScroll(TimeValue.timeValueMinutes(1))

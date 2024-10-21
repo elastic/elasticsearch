@@ -398,9 +398,8 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             "long",
             // TODO: https://github.com/elastic/elasticsearch/issues/102935
             // "unsigned_long",
-            // TODO: https://github.com/elastic/elasticsearch/issues/100130
-            // "half_float",
-            // "float",
+            "half_float",
+            "float",
             "double",
             "scaled_float"
         );

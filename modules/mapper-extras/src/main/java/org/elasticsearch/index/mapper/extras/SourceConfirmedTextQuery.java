@@ -34,6 +34,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.search.TwoPhaseIterator;
@@ -266,7 +267,7 @@ public final class SourceConfirmedTextQuery extends Query {
 
             @Override
             public Explanation explain(LeafReaderContext context, int doc) throws IOException {
-                RuntimePhraseScorer scorer = scorer(context);
+                RuntimePhraseScorer scorer = (RuntimePhraseScorer) scorerSupplier(context).get(0);
                 if (scorer == null) {
                     return Explanation.noMatch("No matching phrase");
                 }
@@ -286,15 +287,26 @@ public final class SourceConfirmedTextQuery extends Query {
             }
 
             @Override
-            public RuntimePhraseScorer scorer(LeafReaderContext context) throws IOException {
-                final Scorer approximationScorer = approximationWeight != null ? approximationWeight.scorer(context) : null;
-                if (approximationScorer == null) {
+            public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
+                ScorerSupplier approximationSupplier = approximationWeight != null ? approximationWeight.scorerSupplier(context) : null;
+                if (approximationSupplier == null) {
                     return null;
                 }
-                final DocIdSetIterator approximation = approximationScorer.iterator();
-                final LeafSimScorer leafSimScorer = new LeafSimScorer(simScorer, context.reader(), field, scoreMode.needsScores());
-                final CheckedIntFunction<List<Object>, IOException> valueFetcher = valueFetcherProvider.apply(context);
-                return new RuntimePhraseScorer(this, approximation, leafSimScorer, valueFetcher, field, in);
+                return new ScorerSupplier() {
+                    @Override
+                    public Scorer get(long leadCost) throws IOException {
+                        final Scorer approximationScorer = approximationSupplier.get(leadCost);
+                        final DocIdSetIterator approximation = approximationScorer.iterator();
+                        final LeafSimScorer leafSimScorer = new LeafSimScorer(simScorer, context.reader(), field, scoreMode.needsScores());
+                        final CheckedIntFunction<List<Object>, IOException> valueFetcher = valueFetcherProvider.apply(context);
+                        return new RuntimePhraseScorer(approximation, leafSimScorer, valueFetcher, field, in);
+                    }
+
+                    @Override
+                    public long cost() {
+                        return approximationSupplier.cost();
+                    }
+                };
             }
 
             @Override
@@ -310,7 +322,7 @@ public final class SourceConfirmedTextQuery extends Query {
                     Weight innerWeight = in.createWeight(searcher, ScoreMode.COMPLETE_NO_SCORES, 1);
                     return innerWeight.matches(context, doc);
                 }
-                RuntimePhraseScorer scorer = scorer(context);
+                RuntimePhraseScorer scorer = (RuntimePhraseScorer) scorerSupplier(context).get(0L);
                 if (scorer == null) {
                     return null;
                 }
@@ -336,14 +348,12 @@ public final class SourceConfirmedTextQuery extends Query {
         private float freq;
 
         private RuntimePhraseScorer(
-            Weight weight,
             DocIdSetIterator approximation,
             LeafSimScorer scorer,
             CheckedIntFunction<List<Object>, IOException> valueFetcher,
             String field,
             Query query
         ) {
-            super(weight);
             this.scorer = scorer;
             this.valueFetcher = valueFetcher;
             this.field = field;

@@ -137,7 +137,7 @@ codec for faster compression at the expense of slightly larger storage footprint
 `logsdb` mode adopts specialized codecs for `doc_values` fields that are crafted to optimize storage usage.
 Users can rely on these specialized codecs being applied by default when using `logsdb` mode.
 
-Doc values encoding in `logsdb` applies the following methods sequentially:
+Doc values encoding for numeric values in `logsdb` applies the following methods sequentially:
 
 * **Delta encoding**:
   A compression method that stores the difference between consecutive values instead of the actual values.
@@ -152,6 +152,9 @@ Doc values encoding in `logsdb` applies the following methods sequentially:
 * **Frame Of Reference (FOR) encoding**:
   A compression method that stores differences from a reference (minimum value) in fixed-length blocks, reducing
   the bits needed to represent values in a limited range.
+
+For keyword fields, Run Length Encoding (RLE) is applied to the ordinals, which are indices in the Lucene segment-level
+keyword lookup table.
 
 [discrete]
 [[logsdb-ignored-settings]]

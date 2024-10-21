@@ -80,7 +80,7 @@ public class DotPrefixValidatorTests extends ESTestCase {
         nonOpV.validateIndices(indices);
         assertWarnings(
             "Index ["
-                + indices.stream().filter(i -> i.startsWith(".") || i.startsWith("<.")).toList().getFirst()
+                + indices.stream().filter(i -> i.startsWith(".") || i.startsWith("<.")).toList().get(0)
                 + "] name begins with a dot (.), which is deprecated, and will not be allowed in a future Elasticsearch version."
         );
     }

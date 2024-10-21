@@ -8,8 +8,10 @@
 package org.elasticsearch.xpack.ql.planner;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
@@ -267,14 +269,17 @@ public final class ExpressionTranslators {
         }
 
         public static void checkBinaryComparison(BinaryComparison bc) {
-            Check.isTrue(
-                bc.right().foldable(),
-                "Line {}:{}: Comparisons against fields are not (currently) supported; offender [{}] in [{}]",
-                bc.right().sourceLocation().getLineNumber(),
-                bc.right().sourceLocation().getColumnNumber(),
-                Expressions.name(bc.right()),
-                bc.symbol()
-            );
+            if (bc.right().foldable() == false) {
+                throw new XContentParseException(
+                    LoggerMessageFormat.format(
+                        "Line {}:{}: Comparisons against fields are not (currently) supported; offender [{}] in [{}]",
+                        bc.right().sourceLocation().getLineNumber(),
+                        bc.right().sourceLocation().getColumnNumber(),
+                        Expressions.name(bc.right()),
+                        bc.symbol()
+                    )
+                );
+            }
         }
 
         public static Query doTranslate(BinaryComparison bc, TranslatorHandler handler) {

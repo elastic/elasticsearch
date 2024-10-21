@@ -569,7 +569,11 @@ public class StatelessClusterIntegrityStressIT extends AbstractStatelessIntegTes
                 final int expectedNumberOfDocs = trackedIndex.docIds.size();
                 SearchResponse searchResponse = null;
                 try {
-                    final SearchRequestBuilder searchRequest = client().prepareSearch(indexName).setTrackTotalHits(true);
+                    // TODO: ESIntegTestCase randomize `search.low_level_cancellation` which could trip
+                    // MockSearchService#assertNoInFlightContext when it is set to `false` and coordinating node is stopped
+                    // while a search is ongoing. For now, use the master node as the coordinating node to avoid shutdown
+                    // See also https://github.com/elastic/elasticsearch/issues/115199
+                    final SearchRequestBuilder searchRequest = client(masterNodeName()).prepareSearch(indexName).setTrackTotalHits(true);
                     if (randomBoolean()) {
                         searchRequest.setSize(between(0, expectedNumberOfDocs));
                     }
@@ -746,7 +750,9 @@ public class StatelessClusterIntegrityStressIT extends AbstractStatelessIntegTes
                 if (between(1, 1000) > nodeMovementChance) {
                     return;
                 }
-                final boolean restartIndexingNode = randomBoolean();
+                // TODO: Restarting the search node while a search is ongoing can leak resources
+                // See also https://github.com/elastic/elasticsearch/issues/115056
+                final boolean restartIndexingNode = true || randomBoolean();
                 Supplier<NamedReleasable> permitSupplier = restartIndexingNode
                     ? this::acquirePermitsForClusterAndIndexingNode
                     : this::acquirePermitsForClusterAndSearchNode;
@@ -794,7 +800,7 @@ public class StatelessClusterIntegrityStressIT extends AbstractStatelessIntegTes
                     return;
                 }
                 final boolean isolateFromMaster = randomBoolean();
-                final MockTransportService masterTransportService = MockTransportService.getInstance(internalCluster().getMasterName());
+                final MockTransportService masterTransportService = MockTransportService.getInstance(masterNodeName());
                 try (var namedReleasable = acquirePermitsForClusterAndIndexingNode()) {
                     if (namedReleasable == NamedReleasable.EMPTY) {
                         return;

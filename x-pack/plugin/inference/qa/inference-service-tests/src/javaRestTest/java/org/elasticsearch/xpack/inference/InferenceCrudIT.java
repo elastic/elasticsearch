@@ -24,6 +24,7 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.equalToIgnoringCase;
 import static org.hamcrest.Matchers.hasSize;
@@ -325,5 +326,10 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
         } finally {
             deleteModel(modelId);
         }
+    }
+
+    public void testGetZeroModels() throws IOException {
+        var models = getModels("_all", TaskType.RERANK);
+        assertThat(models, empty());
     }
 }

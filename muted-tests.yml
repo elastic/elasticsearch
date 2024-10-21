@@ -275,12 +275,6 @@ tests:
 - class: org.elasticsearch.xpack.ml.integration.MlJobIT
   method: testGetJobs_GivenSingleJob
   issue: https://github.com/elastic/elasticsearch/issues/113655
-- class: org.elasticsearch.xpack.security.authz.interceptor.SearchRequestCacheDisablingInterceptorTests
-  method: testHasRemoteIndices
-  issue: https://github.com/elastic/elasticsearch/issues/113660
-- class: org.elasticsearch.xpack.security.authz.interceptor.SearchRequestCacheDisablingInterceptorTests
-  method: testRequestCacheWillBeDisabledWhenSearchRemoteIndices
-  issue: https://github.com/elastic/elasticsearch/issues/113659
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=range/20_synthetic_source/Date range}
   issue: https://github.com/elastic/elasticsearch/issues/113874
@@ -318,12 +312,6 @@ tests:
 - class: org.elasticsearch.action.search.SearchQueryThenFetchAsyncActionTests
   method: testMinimumVersionSameAsNewVersion
   issue: https://github.com/elastic/elasticsearch/issues/114593
-- class: org.elasticsearch.smoketest.SmokeTestIngestWithAllDepsClientYamlTestSuiteIT
-  method: test {yaml=ingest/80_ingest_simulate/Test ingest simulate with template substitutions for component templates}
-  issue: https://github.com/elastic/elasticsearch/issues/114602
-- class: org.elasticsearch.smoketest.SmokeTestIngestWithAllDepsClientYamlTestSuiteIT
-  method: test {yaml=ingest/80_ingest_simulate/Test ingest simulate with template substitutions for component templates removing pipelines}
-  issue: https://github.com/elastic/elasticsearch/issues/114603
 - class: org.elasticsearch.xpack.security.support.SecurityIndexManagerIntegTests
   method: testOnIndexAvailableForSearchIndexAlreadyAvailable
   issue: https://github.com/elastic/elasticsearch/issues/114608
@@ -375,9 +363,6 @@ tests:
 - class: org.elasticsearch.xpack.enrich.EnrichRestIT
   method: test {p0=enrich/20_standard_index/enrich documents over _bulk}
   issue: https://github.com/elastic/elasticsearch/issues/114768
-- class: org.elasticsearch.datastreams.LazyRolloverDuringDisruptionIT
-  method: testRolloverIsExecutedOnce
-  issue: https://github.com/elastic/elasticsearch/issues/112634
 - class: org.elasticsearch.xpack.eql.EqlStatsIT
   method: testEqlRestUsage
   issue: https://github.com/elastic/elasticsearch/issues/114790
@@ -390,6 +375,20 @@ tests:
 - class: org.elasticsearch.xpack.rank.rrf.RRFRankClientYamlTestSuiteIT
   method: test {yaml=rrf/800_rrf_with_text_similarity_reranker_retriever/explain using rrf retriever and text-similarity}
   issue: https://github.com/elastic/elasticsearch/issues/114757
+- class: org.elasticsearch.xpack.enrich.EnrichIT
+  method: testEnrichSpecialTypes
+  issue: https://github.com/elastic/elasticsearch/issues/114773
+- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
+  method: test {string.ReverseGraphemeClusters}
+  issue: https://github.com/elastic/elasticsearch/issues/114560
+- class: org.elasticsearch.license.LicensingTests
+  issue: https://github.com/elastic/elasticsearch/issues/114865
+- class: org.elasticsearch.xpack.enrich.EnrichIT
+  method: testDeleteIsCaseSensitive
+  issue: https://github.com/elastic/elasticsearch/issues/114840
+- class: org.elasticsearch.xpack.enrich.EnrichIT
+  method: testImmutablePolicy
+  issue: https://github.com/elastic/elasticsearch/issues/114839
 
 # Examples:
 #

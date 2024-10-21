@@ -295,9 +295,7 @@ public final class MappingLookup {
     }
 
     void checkLimits(IndexSettings settings) {
-        if (settings.isIgnoreDynamicFieldsBeyondLimit() == false) {
-            checkFieldLimit(settings.getMappingTotalFieldsLimit());
-        }
+        checkFieldLimit(settings.getMappingTotalFieldsLimit());
         checkObjectDepthLimit(settings.getMappingDepthLimit());
         checkFieldNameLengthLimit(settings.getMappingFieldNameLengthLimit());
         checkNestedLimit(settings.getMappingNestedFieldsLimit());

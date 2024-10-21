@@ -648,21 +648,32 @@ ignore dynamic beyond limit logsdb override value:
   - match: { test-ignore-dynamic-override.settings.index.mapping.total_fields.ignore_dynamic_beyond_limit: "false" }
 
 ---
-logsdb with default ignore_dynamic beyond limit:
+logsdb with default ignore dynamic beyond limit and default sorting:
   - requires:
       cluster_features: ["mapper.logsdb_default_ignore_dynamic_beyond_limit"]
       reason: requires default value for ignore_dynamic_beyond_limit
 
   - do:
       indices.create:
-        index: test-logsdb
+        index: test-logsdb-default-sort
         body:
           settings:
             index:
               mode: logsdb
               mapping:
+                # NOTE: When the index mode is set to `logsdb`, the `host.name` field is automatically injected if
+                # sort settings are not overridden.
+                # With `subobjects` set to `true` (default), this creates a `host` object field and a nested `name`
+                # keyword field (`host.name`).
+                #
+                # As a result, there are always at least 4 statically mapped fields (`@timestamp`, `host`, `host.name`
+                # and `name`). We cannot use a field limit lower than 4 because these fields are always present.
+                #
+                # Indeed, if `index.mapping.total_fields.ignore_dynamic_beyond_limit` is `true`, any dynamically
+                # mapped fields beyond the limit `index.mapping.total_fields.limit` are ignored, but the statically
+                # mapped fields are always counted.
                 total_fields:
-                  limit: 1
+                  limit: 4
           mappings:
             properties:
               "@timestamp":
@@ -672,24 +683,24 @@ logsdb with default ignore_dynamic beyond limit:
 
   - do:
       indices.get_settings:
-        index: test-logsdb
+        index: test-logsdb-default-sort
 
-  - match: { test-logsdb.settings.index.mode: "logsdb" }
+  - match: { test-logsdb-default-sort.settings.index.mode: "logsdb" }
 
   - do:
       bulk:
-        index: test-logsdb
+        index: test-logsdb-default-sort
         refresh: true
         body:
           - '{ "index": { } }'
-          - '{ "@timestamp": "2024-08-13T12:30:00Z", "name": "foo", "value": 10, "message": "the quick brown fox" }'
-          - '{ "create": { } }'
-          - '{ "@timestamp": "2024-08-13T12:01:00Z", "name": "bar", "value": 20, "message": "jumps over the lazy dog" }'
+          - '{ "@timestamp": "2024-08-13T12:30:00Z", "name": "foo", "host.name": "92f4a67c", "value": 10, "message": "the quick brown fox", "region": "us-west", "pid": 153462 }'
+          - '{ "index": { } }'
+          - '{ "@timestamp": "2024-08-13T12:01:00Z", "name": "bar", "host.name": "24eea278", "value": 20, "message": "jumps over the lazy dog", "region": "us-central", "pid": 674972 }'
   - match: { errors: false }
 
   - do:
       search:
-        index: test-logsdb
+        index: test-logsdb-default-sort
         body:
           query:
             match_all: {}
@@ -698,8 +709,174 @@ logsdb with default ignore_dynamic beyond limit:
   - match: { hits.hits.0._source.name: "bar" }
   - match: { hits.hits.0._source.value: 20 }
   - match: { hits.hits.0._source.message: "jumps over the lazy dog" }
-  - match: { hits.hits.0._ignored: [ "message", "value" ] }
+  - match: { hits.hits.0._ignored: [ "message", "pid", "region", "value" ] }
   - match: { hits.hits.1._source.name: "foo" }
   - match: { hits.hits.1._source.value: 10 }
   - match: { hits.hits.1._source.message: "the quick brown fox" }
-  - match: { hits.hits.1._ignored: [ "message", "value" ] }
+  - match: { hits.hits.1._ignored: [ "message", "pid", "region", "value" ] }
+
+---
+logsdb with default ignore dynamic beyond limit and non-default sorting:
+  - requires:
+      cluster_features: ["mapper.logsdb_default_ignore_dynamic_beyond_limit"]
+      reason: requires default value for ignore_dynamic_beyond_limit
+
+  - do:
+      indices.create:
+        index: test-logsdb-non-default-sort
+        body:
+          settings:
+            index:
+              sort.field: [ "name" ]
+              sort.order: [ "desc" ]
+              mode: logsdb
+              mapping:
+                # NOTE: Here sort settings are overridden and we do not have any additional statically mapped field other
+                # than `name` and `timestamp`. As a result, there are only 2 statically mapped fields.
+                total_fields:
+                  limit: 2
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              name:
+                type: keyword
+
+  - do:
+      indices.get_settings:
+        index: test-logsdb-non-default-sort
+
+  - match: { test-logsdb-non-default-sort.settings.index.mode: "logsdb" }
+
+  - do:
+      bulk:
+        index: test-logsdb-non-default-sort
+        refresh: true
+        body:
+          - '{ "index": { } }'
+          - '{ "@timestamp": "2024-08-13T12:30:00Z", "name": "foo", "host.name": "92f4a67c", "value": 10, "message": "the quick brown fox", "region": "us-west", "pid": 153462 }'
+          - '{ "index": { } }'
+          - '{ "@timestamp": "2024-08-13T12:01:00Z", "name": "bar", "host.name": "24eea278", "value": 20, "message": "jumps over the lazy dog", "region": "us-central", "pid": 674972 }'
+  - match: { errors: false }
+
+  - do:
+      search:
+        index: test-logsdb-non-default-sort
+        body:
+          query:
+            match_all: {}
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._source.name: "foo" }
+  - match: { hits.hits.0._source.value: 10 }
+  - match: { hits.hits.0._source.message: "the quick brown fox" }
+  - match: { hits.hits.0._ignored: [ "host", "message", "pid", "region", "value" ] }
+  - match: { hits.hits.1._source.name: "bar" }
+  - match: { hits.hits.1._source.value: 20 }
+  - match: { hits.hits.1._source.message: "jumps over the lazy dog" }
+  - match: { hits.hits.1._ignored: [ "host", "message", "pid", "region", "value" ] }
+
+---
+logsdb with default ignore dynamic beyond limit and too low limit:
+  - requires:
+      cluster_features: ["mapper.logsdb_default_ignore_dynamic_beyond_limit"]
+      reason: requires default value for ignore_dynamic_beyond_limit
+
+  - do:
+      catch: bad_request
+      indices.create:
+        index: test-logsdb-low-limit
+        body:
+          settings:
+            index:
+              mode: logsdb
+              mapping:
+                # NOTE: When the index mode is set to `logsdb`, the `host.name` field is automatically injected if
+                # sort settings are not overridden.
+                # With `subobjects` set to `true` (default), this creates a `host` object field and a nested `name`
+                # keyword field (`host.name`).
+                #
+                # As a result, there are always at least 4 statically mapped fields (`@timestamp`, `host`, `host.name`
+                # and `name`). We cannot use a field limit lower than 4 because these fields are always present.
+                #
+                # Indeed, if `index.mapping.total_fields.ignore_dynamic_beyond_limit` is `true`, any dynamically
+                # mapped fields beyond the limit `index.mapping.total_fields.limit` are ignored, but the statically
+                # mapped fields are always counted.
+                total_fields:
+                  limit: 3
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              name:
+                type: keyword
+  - match: { error.type: "illegal_argument_exception" }
+  - match: { error.reason: "Limit of total fields [3] has been exceeded" }
+
+---
+logsdb with default ignore dynamic beyond limit and subobjects false:
+  - requires:
+      cluster_features: ["mapper.logsdb_default_ignore_dynamic_beyond_limit"]
+      reason: requires default value for ignore_dynamic_beyond_limit
+
+  - do:
+      indices.create:
+        index: test-logsdb-subobjects-false
+        body:
+          settings:
+            index:
+              mode: logsdb
+              mapping:
+                # NOTE: When the index mode is set to `logsdb`, the `host.name` field is automatically injected if
+                # sort settings are not overridden.
+                # With `subobjects` set to `false` anyway, a single `host.name` keyword field is automatically mapped.
+                #
+                # As a result, there are just 3 statically mapped fields (`@timestamp`, `host.name` and `name`).
+                # We cannot use a field limit lower than 3 because these fields are always present.
+                #
+                # Indeed, if `index.mapping.total_fields.ignore_dynamic_beyond_limit` is `true`, any dynamically
+                # mapped fields beyond the limit `index.mapping.total_fields.limit` are ignored, but the statically
+                # mapped fields are always counted.
+                total_fields:
+                  limit: 3
+          mappings:
+            subobjects: false
+            properties:
+              "@timestamp":
+                type: date
+              name:
+                type: keyword
+
+  - do:
+      indices.get_settings:
+        index: test-logsdb-subobjects-false
+
+  - match: { test-logsdb-subobjects-false.settings.index.mode: "logsdb" }
+
+  - do:
+      bulk:
+        index: test-logsdb-subobjects-false
+        refresh: true
+        body:
+          - '{ "index": { } }'
+          - '{ "@timestamp": "2024-08-13T12:30:00Z", "name": "foo", "host.name": "92f4a67c", "value": 10, "message": "the quick brown fox", "region": "us-west", "pid": 153462 }'
+          - '{ "index": { } }'
+          - '{ "@timestamp": "2024-08-13T12:01:00Z", "name": "bar", "host.name": "24eea278", "value": 20, "message": "jumps over the lazy dog", "region": "us-central", "pid": 674972 }'
+  - match: { errors: false }
+
+  - do:
+      search:
+        index: test-logsdb-subobjects-false
+        body:
+          query:
+            match_all: {}
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._source.name: "bar" }
+  - match: { hits.hits.0._source.value: 20 }
+  - match: { hits.hits.0._source.message: "jumps over the lazy dog" }
+  - match: { hits.hits.0._ignored: [ "message", "pid", "region", "value" ] }
+  - match: { hits.hits.1._source.name: "foo" }
+  - match: { hits.hits.1._source.value: 10 }
+  - match: { hits.hits.1._source.message: "the quick brown fox" }
+  - match: { hits.hits.1._ignored: [ "message", "pid", "region", "value" ] }

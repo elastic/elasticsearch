@@ -635,9 +635,33 @@ public final class KeywordFieldMapper extends FieldMapper {
             if (isStored()) {
                 return new BlockStoredFieldsReader.BytesFromBytesRefsBlockLoader(name());
             }
-            SourceValueFetcher fetcher = sourceValueFetcher(blContext.sourcePaths(name()));
+            String parentField = blContext.parentField(name());
+            String field = parentField != null ? parentField : name();
+            SourceValueFetcher fetcher = sourceValueFetcher(blContext.sourcePaths(field));
+            return sourceBlockLoader(blContext, fetcher, sourceBlockLoaderLookup(blContext));
+        }
+
+        public BlockLoader sourceBlockLoader(
+            BlockLoaderContext blContext,
+            SourceValueFetcher fetcher,
+            BlockSourceReader.LeafIteratorLookup leafIteratorLookup
+        ) {
             var sourceMode = blContext.indexSettings().getIndexMappingSourceMode();
-            return new BlockSourceReader.BytesRefsBlockLoader(fetcher, sourceBlockLoaderLookup(blContext), sourceMode);
+            if (sourceMode == SourceFieldMapper.Mode.SYNTHETIC && ignoreAbove() != Integer.MAX_VALUE) {
+                // Can't just read the original field, because only when ignore_above threshold is exceeded,
+                // then this stored fields gets added. In other cases this field does not exist. But we do need to include the field name:
+                String originalName = name() + "._original";
+                Set<String> requiredStoredFields;
+                if (isStored()) {
+                    // in case field is stored and ignore_above is configured:
+                    requiredStoredFields = Set.of(name(), originalName);
+                } else {
+                    requiredStoredFields = Set.of(originalName);
+                }
+                return new BlockSourceReader.BytesRefsBlockLoader(fetcher, leafIteratorLookup, requiredStoredFields);
+            } else {
+                return new BlockSourceReader.BytesRefsBlockLoader(fetcher, leafIteratorLookup, sourceMode);
+            }
         }
 
         private BlockSourceReader.LeafIteratorLookup sourceBlockLoaderLookup(BlockLoaderContext blContext) {

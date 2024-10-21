@@ -393,10 +393,14 @@ public class NodeStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestCa
 
         // Os
         final OsStats.Cpu osCpu = new OsStats.Cpu((short) no, new double[] { ++iota, ++iota, ++iota });
-        final OsStats.Cgroup.CpuStat osCpuStat = new OsStats.Cgroup.CpuStat(++iota, ++iota, ++iota);
+        final OsStats.Cgroup.CpuStat osCpuStat = new OsStats.Cgroup.CpuStat(
+            Long.toString(++iota),
+            Long.toString(++iota),
+            Long.toString(++iota)
+        );
         final OsStats.Cgroup osCgroup = new OsStats.Cgroup(
             "_cpu_acct_ctrl_group",
-            ++iota,
+            Long.toString(++iota),
             "_cpu_ctrl_group",
             ++iota,
             ++iota,

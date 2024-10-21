@@ -40,6 +40,7 @@ import org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.BooleanSupplier;
@@ -595,6 +596,15 @@ public enum IndexMode {
             case LOOKUP -> out.getTransportVersion().onOrAfter(TransportVersions.INDEX_MODE_LOOKUP) ? 3 : 0;
         };
         out.writeByte((byte) code);
+    }
+
+    public static IndexMode getIndexMode(Settings.Builder settings) {
+        final String indexMode = settings.get(IndexSettings.MODE.getKey());
+        if (indexMode != null) {
+            return IndexMode.valueOf(indexMode.toUpperCase(Locale.ROOT));
+        } else {
+            return IndexMode.STANDARD;
+        }
     }
 
     @Override

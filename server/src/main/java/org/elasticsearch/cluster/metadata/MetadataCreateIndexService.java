@@ -1104,13 +1104,10 @@ public class MetadataCreateIndexService {
             );
         }
         // add default settings provided by the index mode
-        final String indexMode = indexSettingsBuilder.get(IndexSettings.MODE.getKey());
-        if (indexMode != null) {
-            final Settings indexModeSettings = IndexMode.valueOf(indexMode.toUpperCase(Locale.ROOT)).defaultIndexSettings();
-            for (String k : indexModeSettings.keySet()) {
-                if (indexSettingsBuilder.get(k) == null) {
-                    indexSettingsBuilder.put(k, indexModeSettings.get(k));
-                }
+        final Settings indexModeSettings = IndexMode.getIndexMode(indexSettingsBuilder).defaultIndexSettings();
+        for (String k : indexModeSettings.keySet()) {
+            if (indexSettingsBuilder.get(k) == null) {
+                indexSettingsBuilder.put(k, indexModeSettings.get(k));
             }
         }
         Settings indexSettings = indexSettingsBuilder.build();

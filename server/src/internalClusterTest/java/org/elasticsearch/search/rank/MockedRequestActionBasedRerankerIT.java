@@ -424,7 +424,7 @@ public class MockedRequestActionBasedRerankerIT extends AbstractRerankerIT {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.RANK_FEATURE_PHASE_ADDED;
+            return TransportVersions.V_8_15_0;
         }
     }
 

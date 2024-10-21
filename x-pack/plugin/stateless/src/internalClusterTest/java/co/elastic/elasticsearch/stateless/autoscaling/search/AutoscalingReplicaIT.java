@@ -407,7 +407,7 @@ public class AutoscalingReplicaIT extends AbstractStatelessIntegTestCase {
             expectedIndices.add(getDefaultBackingIndexName(dataStream, k));
         }
         assertResponse(prepareSearch(dataStream).setSize((int) expectedNumHits), resp -> {
-            assertThat(resp.getHits().getTotalHits().value, equalTo(expectedNumHits));
+            assertThat(resp.getHits().getTotalHits().value(), equalTo(expectedNumHits));
             Arrays.stream(resp.getHits().getHits()).forEach(hit -> assertTrue(expectedIndices.contains(hit.getIndex())));
         });
     }

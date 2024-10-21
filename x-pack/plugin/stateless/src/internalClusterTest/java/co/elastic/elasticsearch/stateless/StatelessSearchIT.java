@@ -737,7 +737,7 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
                 searchResponse -> assertEquals(
                     "Failed search hit count refresh test for bulk refresh policy: " + refreshPolicy,
                     finalTotalDocs,
-                    searchResponse.getHits().getTotalHits().value
+                    searchResponse.getHits().getTotalHits().value()
                 )
             );
         }
@@ -766,7 +766,7 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
 
         assertNoFailuresAndResponse(
             prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()),
-            searchResponse -> assertEquals(docsToIndex, searchResponse.getHits().getTotalHits().value)
+            searchResponse -> assertEquals(docsToIndex, searchResponse.getHits().getTotalHits().value())
         );
     }
 
@@ -785,7 +785,7 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
 
         assertNoFailuresAndResponse(
             prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()),
-            searchResponse -> assertEquals(numDocs, searchResponse.getHits().getTotalHits().value)
+            searchResponse -> assertEquals(numDocs, searchResponse.getHits().getTotalHits().value())
         );
     }
 
@@ -823,7 +823,7 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
 
         assertNoFailuresAndResponse(
             prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()),
-            searchResponse -> assertEquals(docsToIndex, searchResponse.getHits().getTotalHits().value)
+            searchResponse -> assertEquals(docsToIndex, searchResponse.getHits().getTotalHits().value())
         );
     }
 
@@ -850,7 +850,7 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
         assertNoFailuresAndResponse(
             prepareSearch().setQuery(QueryBuilders.matchAllQuery()).setSize(scrollSize).setScroll(TimeValue.timeValueMinutes(2)),
             scrollSearchResponse -> {
-                assertThat(scrollSearchResponse.getHits().getTotalHits().value, equalTo((long) bulk1DocsToIndex));
+                assertThat(scrollSearchResponse.getHits().getTotalHits().value(), equalTo((long) bulk1DocsToIndex));
                 Arrays.stream(scrollSearchResponse.getHits().getHits()).map(SearchHit::getId).forEach(scrollSearchDocsSeen::add);
                 currentScrollId.set(scrollSearchResponse.getScrollId());
             }
@@ -871,13 +871,13 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
                 final long expectedDocs = docsIndexed - docsDeleted;
                 assertNoFailuresAndResponse(
                     prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()),
-                    searchResponse -> assertEquals(expectedDocs, searchResponse.getHits().getTotalHits().value)
+                    searchResponse -> assertEquals(expectedDocs, searchResponse.getHits().getTotalHits().value())
                 );
                 // fetch next scroll
                 assertNoFailuresAndResponse(
                     client().prepareSearchScroll(currentScrollId.get()).setScroll(TimeValue.timeValueMinutes(2)),
                     scrollSearchResponse -> {
-                        assertThat(scrollSearchResponse.getHits().getTotalHits().value, equalTo((long) bulk1DocsToIndex));
+                        assertThat(scrollSearchResponse.getHits().getTotalHits().value(), equalTo((long) bulk1DocsToIndex));
                         scrollSearchDocsSeen.addAll(
                             Arrays.stream(scrollSearchResponse.getHits().getHits()).map(SearchHit::getId).collect(Collectors.toSet())
                         );
@@ -927,7 +927,7 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
 
         final AtomicReference<String> firstScrollId = new AtomicReference<>();
         assertNoFailuresAndResponse(prepareSearch().setScroll(TimeValue.timeValueHours(1L)), firstScroll -> {
-            assertThat(firstScroll.getHits().getTotalHits().value, equalTo(100L));
+            assertThat(firstScroll.getHits().getTotalHits().value(), equalTo(100L));
             firstScrollId.set(firstScroll.getScrollId());
         });
 
@@ -939,7 +939,7 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
 
         final AtomicReference<String> secondScrollId = new AtomicReference<>();
         assertNoFailuresAndResponse(prepareSearch().setScroll(TimeValue.timeValueHours(1L)), secondScroll -> {
-            assertThat(secondScroll.getHits().getTotalHits().value, equalTo(200L));
+            assertThat(secondScroll.getHits().getTotalHits().value(), equalTo(200L));
             secondScrollId.set(secondScroll.getScrollId());
         });
 
@@ -954,7 +954,7 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
         flushAndRefresh(indexName);
 
         assertNoFailuresAndResponse(prepareSearch().setScroll(TimeValue.timeValueHours(1L)), thirdScroll -> {
-            assertThat(thirdScroll.getHits().getTotalHits().value, equalTo(300L));
+            assertThat(thirdScroll.getHits().getTotalHits().value(), equalTo(300L));
 
             var thirdScrollPrimaryTermAndGenerations = latestPrimaryTermAndGenerationDependencies.get();
             assertThat(secondScrollPrimaryTermAndGenerations, everyItem(is(in(searchEngine.getAcquiredPrimaryTermAndGenerations()))));
@@ -1012,7 +1012,7 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
         client(coordinatingSearchNode).prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()).execute(new ActionListener<>() {
             @Override
             public void onResponse(SearchResponse searchResponse) {
-                assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) bulk1DocsToIndex));
+                assertThat(searchResponse.getHits().getTotalHits().value(), equalTo((long) bulk1DocsToIndex));
                 searchFinished.countDown();
             }
 
@@ -1030,7 +1030,7 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
                 .setSize(0)  // Avoid a FETCH phase
                 .setQuery(QueryBuilders.matchAllQuery()),
             search2Response -> {
-                assertEquals(bulk1DocsToIndex + bulk2DocsToIndex, search2Response.getHits().getTotalHits().value);
+                assertEquals(bulk1DocsToIndex + bulk2DocsToIndex, search2Response.getHits().getTotalHits().value());
                 secondBulkIndexed.countDown();
             }
         );
@@ -1064,7 +1064,7 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
         int max = Collections.max(data);
         var cacheMiss = countDocsInRange(client, indexName, min, max);
         try {
-            assertThat(cacheMiss.getHits().getTotalHits().value, equalTo((long) data.size()));
+            assertThat(cacheMiss.getHits().getTotalHits().value(), equalTo((long) data.size()));
         } finally {
             cacheMiss.decRef();
         }
@@ -1074,7 +1074,7 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
         for (int i = 0; i < nbSearchesWithCacheHits; i++) {
             var cacheHit = countDocsInRange(client, indexName, min, max);
             try {
-                assertThat(cacheHit.getHits().getTotalHits().value, equalTo((long) data.size()));
+                assertThat(cacheHit.getHits().getTotalHits().value(), equalTo((long) data.size()));
                 assertRequestCacheStats(client, indexName, greaterThan(0L), i + 1, 1);
             } finally {
                 cacheHit.decRef();
@@ -1091,7 +1091,7 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
 
         var cacheMissDueRefresh = countDocsInRange(client, indexName, min, max);
         try {
-            assertThat(cacheMissDueRefresh.getHits().getTotalHits().value, equalTo((long) (data.size() + moreData.size())));
+            assertThat(cacheMissDueRefresh.getHits().getTotalHits().value(), equalTo((long) (data.size() + moreData.size())));
         } finally {
             cacheMissDueRefresh.decRef();
         }
@@ -1253,7 +1253,7 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
 
         assertNoFailuresAndResponse(
             prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()),
-            searchResponse -> assertEquals(docsToIndex, searchResponse.getHits().getTotalHits().value)
+            searchResponse -> assertEquals(docsToIndex, searchResponse.getHits().getTotalHits().value())
         );
     }
 

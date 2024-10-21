@@ -321,7 +321,7 @@ public class StatelessClusterIntegrityStressIT extends AbstractStatelessIntegTes
                         .setTrackTotalHits(true),
                     searchResponse -> {
                         assertNoFailures(searchResponse);
-                        assertThat(searchResponse.getHits().getTotalHits().value, greaterThanOrEqualTo((long) docIds.size()));
+                        assertThat(searchResponse.getHits().getTotalHits().value(), greaterThanOrEqualTo((long) docIds.size()));
                     }
                 );
             }
@@ -587,7 +587,7 @@ public class StatelessClusterIntegrityStressIT extends AbstractStatelessIntegTes
                     searchResponse = searchRequest.get(defaultTestTimeout);
                     // For simplicity, only assert response size if there is no failed shards
                     if (searchResponse.getFailedShards() == 0) {
-                        assertThat(searchResponse.getHits().getTotalHits().value, greaterThanOrEqualTo((long) expectedNumberOfDocs));
+                        assertThat(searchResponse.getHits().getTotalHits().value(), greaterThanOrEqualTo((long) expectedNumberOfDocs));
                     }
                 } catch (Exception e) {
                     // Failure can happen the shard is failed or node restart/replace/isolated concurrently. Just ignore them

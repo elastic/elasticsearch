@@ -42,7 +42,7 @@ public class Lucene90CompoundEntriesReader {
 
     public static Map<String, FileEntry> readEntries(Directory directory, String filename) throws IOException {
         assert LuceneFilesExtensions.fromFile(filename) == LuceneFilesExtensions.CFE : filename;
-        try (var input = directory.openInput(filename, IOContext.READ)) {
+        try (var input = directory.openInput(filename, IOContext.READONCE)) {
             return Lucene90CompoundEntriesReader.readEntries(input);
         }
     }

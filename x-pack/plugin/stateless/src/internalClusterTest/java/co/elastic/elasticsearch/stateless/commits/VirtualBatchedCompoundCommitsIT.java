@@ -369,8 +369,8 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
     static Consumer<SearchResponse> getSearchResponseValidator(TestSearchType testSearchType, IndexedDocs indexedDocs) {
         // We avoid setSize(0) with the below statements, because we want the searches to fetch some chunks.
         return switch (testSearchType) {
-            case MATCH_ALL -> searchResponse -> assertEquals(indexedDocs.numDocs, searchResponse.getHits().getTotalHits().value);
-            case MATCH_CUSTOM -> searchResponse -> assertEquals(indexedDocs.customDocs, searchResponse.getHits().getTotalHits().value);
+            case MATCH_ALL -> searchResponse -> assertEquals(indexedDocs.numDocs, searchResponse.getHits().getTotalHits().value());
+            case MATCH_CUSTOM -> searchResponse -> assertEquals(indexedDocs.customDocs, searchResponse.getHits().getTotalHits().value());
             case SUM -> searchResponse -> {
                 Sum sum = searchResponse.getAggregations().get("sum");
                 assertEquals(indexedDocs.sum, sum.value(), 0.001);

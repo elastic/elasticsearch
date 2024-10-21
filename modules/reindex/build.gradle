@@ -42,7 +42,6 @@ dependencies {
   // for parent/child testing
   testImplementation project(':modules:parent-join')
   testImplementation project(':modules:rest-root')
-  testImplementation project(':x-pack:plugin:shutdown')
 }
 
 restResources {

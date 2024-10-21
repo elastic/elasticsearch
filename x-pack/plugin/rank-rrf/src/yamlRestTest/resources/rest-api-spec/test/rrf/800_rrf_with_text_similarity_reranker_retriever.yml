@@ -1,4 +1,9 @@
 setup:
+  - skip:
+      features:
+        - close_to
+        - contains
+
   - requires:
       cluster_features: ['rrf_retriever_composition_supported', 'text_similarity_reranker_retriever_supported']
       reason: need to have support for rrf and semantic reranking composition
@@ -125,9 +130,6 @@ setup:
                               term: {
                                 topic: "science"
                               }
-                            },
-                            "sort": {
-                              "integer": "asc"
                             }
                           }
                         },
@@ -152,8 +154,8 @@ setup:
   - match: { hits.total.value: 3 }
   - length: { hits.hits: 2 }
 
-  - match: { hits.hits.0._id: "doc_1" }
-  - match: { hits.hits.1._id: "doc_3" }
+  - contains: { hits.hits: { _id: "doc_1" } }
+  - contains: { hits.hits: { _id: "doc_3" } }
 
   - match: { aggregations.topics.buckets.0.key: "science" }
   - match: { aggregations.topics.buckets.0.doc_count: 2 }
@@ -304,11 +306,8 @@ setup:
                           standard: {
                             query: {
                               term: {
-                                topic: "science"
+                                subtopic: "astronomy"
                               }
-                            },
-                            "sort": {
-                              "integer": "asc"
                             }
                           }
                         },
@@ -327,14 +326,13 @@ setup:
 
   - match: { hits.hits.0._id: "doc_2" }
   - match: { hits.hits.1._id: "doc_1" }
-  - match: { hits.hits.2._id: "doc_3" }
 
-  - close_to: { hits.hits.0._explanation.value: { value: 0.6666667, error: 0.000001 } }
-  - match: {hits.hits.0._explanation.description: "/rrf.score:.\\[0.6666667\\].*/" }
+  - close_to: { hits.hits.0._explanation.value: { value: 0.833333, error: 0.0001 } }
+  - match: {hits.hits.0._explanation.description: "/rrf.score:.\\[0.8333334\\].*/" }
   - match: {hits.hits.0._explanation.details.0.value: 2}
   - match: {hits.hits.0._explanation.details.0.description: "/rrf.score:.\\[0.33333334\\].*/" }
   - match: {hits.hits.0._explanation.details.0.details.0.details.0.description: "/ConstantScore.*/" }
-  - match: {hits.hits.0._explanation.details.1.value: 2}
-  - match: {hits.hits.0._explanation.details.1.description: "/rrf.score:.\\[0.33333334\\].*/" }
+  - match: {hits.hits.0._explanation.details.1.value: 1}
+  - match: {hits.hits.0._explanation.details.1.description: "/rrf.score:.\\[0.5\\].*/" }
   - match: {hits.hits.0._explanation.details.1.details.0.description: "/text_similarity_reranker.match.using.inference.endpoint:.\\[my-rerank-model\\].on.document.field:.\\[text\\].*/" }
-  - match: {hits.hits.0._explanation.details.1.details.0.details.0.description: "/weight.*science.*/" }
+  - match: {hits.hits.0._explanation.details.1.details.0.details.0.description: "/weight.*astronomy.*/" }

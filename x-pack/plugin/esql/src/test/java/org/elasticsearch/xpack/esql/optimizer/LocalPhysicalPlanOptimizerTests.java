@@ -144,7 +144,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
 
         return new Analyzer(
             new AnalyzerContext(config, new EsqlFunctionRegistry(), getIndexResult, enrichResolution),
-            new Verifier(new Metrics())
+            new Verifier(new Metrics(new EsqlFunctionRegistry()))
         );
     }
 

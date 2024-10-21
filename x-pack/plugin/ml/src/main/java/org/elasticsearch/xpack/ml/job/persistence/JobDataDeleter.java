@@ -352,7 +352,7 @@ public class JobDataDeleter {
                     }
                 }
                 SearchResponse searchResponse = item.getResponse();
-                if (searchResponse.getHits().getTotalHits().value > 0 || indexNames.get()[i].equals(defaultSharedIndex)) {
+                if (searchResponse.getHits().getTotalHits().value() > 0 || indexNames.get()[i].equals(defaultSharedIndex)) {
                     needToRunDBQTemp = true;
                 } else {
                     indicesToDelete.add(indexNames.get()[i]);

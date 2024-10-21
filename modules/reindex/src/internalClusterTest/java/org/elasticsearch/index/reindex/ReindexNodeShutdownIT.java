@@ -45,6 +45,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 public class ReindexNodeShutdownIT extends ESIntegTestCase {
 
     protected static final String INDEX = "reindex-shutdown-index";
+    protected static final String DEST_INDEX = "dest-index";
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -55,31 +56,9 @@ public class ReindexNodeShutdownIT extends ESIntegTestCase {
         return new ReindexRequestBuilder(internalCluster().client(nodeName));
     }
 
-    public void testReindexWithShutdown() throws Exception {
-        final String masterNodeName = internalCluster().startMasterOnlyNode();
-        final String dataNodeName = internalCluster().startDataOnlyNode();
-
-        final Settings COORD_SETTINGS = Settings.builder()
-            .put(MAXIMUM_REINDEXING_TIMEOUT_SETTING.getKey(), TimeValue.timeValueSeconds(10))
-            .build();
-        final String coordNodeName = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
-
-        ensureStableCluster(3);
-
-        createReindexTask(dataNodeName, coordNodeName, masterNodeName);
-    }
-
-    private void createReindexTask(final String dataNodeName, final String coordNodeName, final String masterNodeName) throws Exception {
-
+    private void createIndex(int numDocs) {
         // INDEX will be created on the dataNode
         createIndex(INDEX);
-
-        AbstractBulkByScrollRequestBuilder<?, ?> builder = reindex(coordNodeName).source(INDEX).destination("dest");
-        AbstractBulkByScrollRequest<?> reindexRequest = builder.request();
-        ShutdownFenceService shutdownFenceService = internalCluster().getInstance(ShutdownFenceService.class, coordNodeName);
-
-        TaskManager taskManager = internalCluster().getInstance(TransportService.class, coordNodeName).getTaskManager();
-        int numDocs = 20000;
 
         logger.debug("setting up [{}] docs", numDocs);
         indexRandom(
@@ -93,6 +72,43 @@ public class ReindexNodeShutdownIT extends ESIntegTestCase {
 
         // Checks that the all documents have been indexed and correctly counted
         assertHitCount(prepareSearch(INDEX).setSize(0).setTrackTotalHits(true), numDocs);
+    }
+
+    private void checkDestinationIndex(String dataNodeName, int numDocs) {
+        assertTrue(indexExists(DEST_INDEX));
+        flushAndRefresh(DEST_INDEX);
+        assertTrue("Number of documents in source and dest indexes does not match", waitUntil(() -> {
+            final TotalHits totalHits = SearchResponseUtils.getTotalHits(
+                client(dataNodeName).prepareSearch(DEST_INDEX).setSize(0).setTrackTotalHits(true)
+            );
+            return totalHits.relation == TotalHits.Relation.EQUAL_TO && totalHits.value == numDocs;
+        }, 10, TimeUnit.SECONDS));
+    }
+
+    public void testReindexWithShutdown() throws Exception {
+        final String masterNodeName = internalCluster().startMasterOnlyNode();
+        final String dataNodeName = internalCluster().startDataOnlyNode();
+
+        final Settings COORD_SETTINGS = Settings.builder()
+            .put(MAXIMUM_REINDEXING_TIMEOUT_SETTING.getKey(), TimeValue.timeValueSeconds(10))
+            .build();
+        final String coordNodeName = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
+
+        ensureStableCluster(3);
+
+        int numDocs = 20000;
+        createIndex(numDocs);
+        createReindexTaskAndShutdown(coordNodeName);
+        checkDestinationIndex(dataNodeName, numDocs);
+    }
+
+    private void createReindexTaskAndShutdown(final String coordNodeName) throws Exception {
+
+        AbstractBulkByScrollRequestBuilder<?, ?> builder = reindex(coordNodeName).source(INDEX).destination(DEST_INDEX);
+        AbstractBulkByScrollRequest<?> reindexRequest = builder.request();
+        ShutdownFenceService shutdownFenceService = internalCluster().getInstance(ShutdownFenceService.class, coordNodeName);
+
+        TaskManager taskManager = internalCluster().getInstance(TransportService.class, coordNodeName).getTaskManager();
 
         // Now execute the reindex action...
         ActionListener<BulkByScrollResponse> reindexListener = new ActionListener<BulkByScrollResponse>() {
@@ -110,21 +126,12 @@ public class ReindexNodeShutdownIT extends ESIntegTestCase {
         internalCluster().client(coordNodeName).execute(ReindexAction.INSTANCE, reindexRequest, reindexListener);
 
         // Check for reindex task to appear in the tasks list and Immediately stop coordinating node
-        TaskInfo mainTask = findTask(ReindexAction.INSTANCE.name(), reindexRequest.getSlices(), coordNodeName);
+        TaskInfo mainTask = findTask(ReindexAction.INSTANCE.name(), coordNodeName);
         shutdownFenceService.prepareForShutdown(taskManager);
         internalCluster().stopNode(coordNodeName);
-
-        assertTrue(indexExists("dest"));
-        flushAndRefresh("dest");
-        assertTrue("Number of documents in source and dest indexes does not match", waitUntil(() -> {
-            final TotalHits totalHits = SearchResponseUtils.getTotalHits(
-                client(dataNodeName).prepareSearch("dest").setSize(0).setTrackTotalHits(true)
-            );
-            return totalHits.relation == TotalHits.Relation.EQUAL_TO && totalHits.value == numDocs;
-        }, 10, TimeUnit.SECONDS));
     }
 
-    private static TaskInfo findTask(String actionName, int workerCount, String nodeName) {
+    private static TaskInfo findTask(String actionName, String nodeName) {
         ListTasksResponse tasks;
         long start = System.nanoTime();
         do {

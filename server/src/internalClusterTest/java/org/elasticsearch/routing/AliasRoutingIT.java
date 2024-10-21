@@ -296,7 +296,7 @@ public class AliasRoutingIT extends ESIntegTestCase {
             prepareSearch("index_*").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(1).setQuery(QueryBuilders.matchAllQuery()),
             response -> {
                 logger.info("--> search all on index_* should find two");
-                assertThat(response.getHits().getTotalHits().value, equalTo(2L));
+                assertThat(response.getHits().getTotalHits().value(), equalTo(2L));
                 // Let's make sure that, even though 2 docs are available, only one is returned according to the size we set in the request
                 // Therefore the reduce phase has taken place, which proves that the QUERY_AND_FETCH search type wasn't erroneously forced.
                 assertThat(response.getHits().getHits().length, equalTo(1));

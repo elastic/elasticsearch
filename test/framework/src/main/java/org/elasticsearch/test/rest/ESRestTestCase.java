@@ -1896,7 +1896,11 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     protected static boolean indexExists(String index) throws IOException {
-        Response response = client().performRequest(new Request("HEAD", "/" + index));
+        return indexExists(client(), index);
+    }
+
+    protected static boolean indexExists(RestClient client, String index) throws IOException {
+        Response response = client.performRequest(new Request("HEAD", "/" + index));
         return RestStatus.OK.getStatus() == response.getStatusLine().getStatusCode();
     }
 

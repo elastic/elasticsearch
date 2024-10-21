@@ -338,14 +338,6 @@ tests:
 - class: org.elasticsearch.index.mapper.annotatedtext.AnnotatedTextFieldMapperTests
   method: testBlockLoaderFromRowStrideReaderWithSyntheticSource
   issue: https://github.com/elastic/elasticsearch/issues/115076
-- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
-  method: test {string.ValuesGrouped}
-  issue: https://github.com/elastic/elasticsearch/issues/115126
-- class: org.elasticsearch.xpack.esql.action.CrossClustersQueryIT
-  method: testCCSExecutionOnSearchesWithLimit0
-  issue: https://github.com/elastic/elasticsearch/issues/115129
-- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
-  issue: https://github.com/elastic/elasticsearch/issues/115135
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=esql/60_usage/Basic ESQL usage output (telemetry)}
   issue: https://github.com/elastic/elasticsearch/issues/115231

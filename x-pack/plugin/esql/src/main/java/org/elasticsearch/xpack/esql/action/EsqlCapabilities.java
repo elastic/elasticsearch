@@ -393,6 +393,10 @@ public class EsqlCapabilities {
         FIX_STATS_BY_FOLDABLE_EXPRESSION,
 
         /**
+         * Adding stats for functions (stack telemetry)
+         */
+        FUNCTION_STATS,
+        /**
          * Support for semantic_text field mapping
          */
         SEMANTIC_TEXT_TYPE(EsqlCorePlugin.SEMANTIC_TEXT_FEATURE_FLAG);

@@ -287,11 +287,11 @@ public final class SearchHits implements Writeable, ChunkedToXContent, RefCounte
         return ChunkedToXContent.builder(params).object(Fields.HITS, ob -> {
             boolean totalHitAsInt = ob.params().paramAsBoolean(RestSearchAction.TOTAL_HITS_AS_INT_PARAM, false);
             if (totalHitAsInt) {
-                ob.field(Fields.TOTAL, totalHits == null ? -1 : totalHits.value);
+                ob.field(Fields.TOTAL, totalHits == null ? -1 : totalHits.value());
             } else if (totalHits != null) {
                 ob.object(
                     Fields.TOTAL,
-                    tb -> tb.field("value", totalHits.value).field("relation", totalHits.relation == Relation.EQUAL_TO ? "eq" : "gte")
+                    tb -> tb.field("value", totalHits.value()).field("relation", totalHits.relation() == Relation.EQUAL_TO ? "eq" : "gte")
                 );
             }
 

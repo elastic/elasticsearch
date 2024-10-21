@@ -108,6 +108,14 @@ POST /_ingest/_simulate
       "index_patterns": ["my-index-*"],
       "composed_of": ["component_template_1", "component_template_2"]
     }
+  },
+  "mapping_addition": { <4>
+    "dynamic": "strict",
+    "properties": {
+      "foo": {
+        "type": "keyword"
+      }
+    }
   }
 }
 ----
@@ -117,6 +125,7 @@ POST /_ingest/_simulate
 These templates can be used to change the pipeline(s) used, or to modify the mapping that will be used to validate the result.
 <3> This replaces the existing `my-index-template` index template with the contents given here for the duration of this request.
 These templates can be used to change the pipeline(s) used, or to modify the mapping that will be used to validate the result.
+<4> This mapping is merged into the index's final mapping just before validation. It is used only for the duration of this request.
 
 [[simulate-ingest-api-request]]
 ==== {api-request-title}
@@ -245,6 +254,10 @@ Map of index template names to substitute index template definition objects.
 include::{es-ref-dir}/indices/put-index-template.asciidoc[tag=request-body]
 
 ====
+
+`mapping_addition`::
+(Optional, <<mapping,mapping object>>)
+Definition of a mapping that will be merged into the index's mapping for validation during the course of this request.
 
 [[simulate-ingest-api-example]]
 ==== {api-examples-title}

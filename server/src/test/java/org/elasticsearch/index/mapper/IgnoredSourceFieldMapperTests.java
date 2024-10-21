@@ -999,6 +999,57 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
             {"path":{"to":{"obj":{"id":[1,20,3,10]}}}}""", syntheticSource);
     }
 
+    public void testObjectArrayWithinNestedObjectsArray() throws IOException {
+        DocumentMapper documentMapper = createMapperService(syntheticSourceMapping(b -> {
+            b.startObject("path").startObject("properties");
+            {
+                b.startObject("to").field("type", "nested").startObject("properties");
+                {
+                    b.startObject("obj").startObject("properties");
+                    {
+                        b.startObject("id").field("type", "integer").field("synthetic_source_keep", "arrays").endObject();
+                    }
+                    b.endObject().endObject();
+                }
+                b.endObject().endObject();
+            }
+            b.endObject().endObject();
+        })).documentMapper();
+
+        var syntheticSource = syntheticSource(documentMapper, b -> {
+            b.startObject("path");
+            {
+                b.startArray("to");
+                {
+                    b.startObject();
+                    {
+                        b.startArray("obj");
+                        {
+                            b.startObject().array("id", 1, 20, 3).endObject();
+                            b.startObject().field("id", 10).endObject();
+                        }
+                        b.endArray();
+                    }
+                    b.endObject();
+                    b.startObject();
+                    {
+                        b.startArray("obj");
+                        {
+                            b.startObject().array("id", 200, 300, 500).endObject();
+                            b.startObject().field("id", 100).endObject();
+                        }
+                        b.endArray();
+                    }
+                    b.endObject();
+                }
+                b.endArray();
+            }
+            b.endObject();
+        });
+        assertEquals("""
+            {"path":{"to":[{"obj":{"id":[1,20,3,10]},{"obj":{"id":[200,300,500,100]}]}}}""", syntheticSource);
+    }
+
     public void testArrayWithinArray() throws IOException {
         DocumentMapper documentMapper = createMapperService(syntheticSourceMapping(b -> {
             b.startObject("path");

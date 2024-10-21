@@ -277,11 +277,13 @@ class KibanaOwnedReservedRoleDescriptors {
                     )
                     .build(),
                 // Endpoint specific action responses. Kibana reads and writes (for third party
-                // agents) to the index
-                // to display action responses to the user.
+                // agents) to the index to display action responses to the user.
+                // `create_index`: is necessary in order to ensure that the DOT datastream index is
+                // created by Kibana in order to avoid errors on the Elastic Defend side when streaming
+                // documents to it.
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(".logs-endpoint.action.responses-*")
-                    .privileges("auto_configure", "read", "write")
+                    .privileges("auto_configure", "read", "write", "create_index")
                     .build(),
                 // Endpoint specific actions. Kibana reads and writes to this index to track new
                 // actions and display them.

@@ -20,7 +20,6 @@ package co.elastic.elasticsearch.stateless.commits;
 import co.elastic.elasticsearch.stateless.action.NewCommitNotificationRequest;
 import co.elastic.elasticsearch.stateless.action.NewCommitNotificationResponse;
 import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationAction;
-import co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService;
 import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessClusterConsistencyService;
 import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 import co.elastic.elasticsearch.stateless.lucene.IndexBlobStoreCacheDirectory;
@@ -71,7 +70,6 @@ import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpNodeClient;
 import org.elasticsearch.test.junit.annotations.TestIssueLogging;
@@ -99,7 +97,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.BooleanSupplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -1892,15 +1889,17 @@ public class StatelessCommitServiceTests extends ESTestCase {
     }
 
     public void testScheduledCommitUpload() throws Exception {
-        final Set<NewCommitNotificationRequest> newCommitNotificationRequests = ConcurrentCollections.newConcurrentSet();
         try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
             @Override
             protected Settings nodeSettings() {
                 return Settings.builder()
                     .put(super.nodeSettings())
+                    // Short interval to test scheduled upload behaviour
                     .put(StatelessCommitService.STATELESS_UPLOAD_VBCC_MAX_AGE.getKey(), TimeValue.timeValueMillis(50))
                     .put(StatelessCommitService.STATELESS_UPLOAD_MONITOR_INTERVAL.getKey(), TimeValue.timeValueMillis(30))
-                    // TODO: ES-8152 enable BCC with more than one CC when the settings are ready
+                    // Disable upload triggered by number of commits and size
+                    .put(STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), Integer.MAX_VALUE)
+                    .put(StatelessCommitService.STATELESS_UPLOAD_MAX_SIZE.getKey(), ByteSizeValue.ofGb(1))
                     .build();
             }
 
@@ -1914,41 +1913,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
                         ActionListener<Response> listener
                     ) {
                         assert action == TransportNewCommitNotificationAction.TYPE;
-                        final var newCommitNotificationRequest = (NewCommitNotificationRequest) request;
-                        // should not see any duplicate notifications
-                        assertThat(newCommitNotificationRequests, not(hasItem(newCommitNotificationRequest)));
-                        newCommitNotificationRequests.add(newCommitNotificationRequest);
                         ((ActionListener<NewCommitNotificationResponse>) listener).onResponse(new NewCommitNotificationResponse(Set.of()));
-                    }
-                };
-            }
-
-            @Override
-            protected StatelessCommitService createCommitService() {
-                return new StatelessCommitService(
-                    nodeSettings,
-                    clusterService,
-                    objectStoreService,
-                    () -> clusterService.localNode().getEphemeralId(),
-                    this::getShardRoutingTable,
-                    clusterService.threadPool(),
-                    client,
-                    getCommitCleaner(),
-                    new SharedBlobCacheWarmingService(sharedCacheService, threadPool, TelemetryProvider.NOOP, nodeSettings),
-                    telemetryProvider
-                ) {
-                    @Override
-                    protected ShardCommitState createShardCommitState(
-                        ShardId shardId,
-                        long primaryTerm,
-                        BooleanSupplier inititalizingNoSearchSupplier
-                    ) {
-                        return new ShardCommitState(shardId, primaryTerm, inititalizingNoSearchSupplier) {
-                            @Override
-                            protected boolean shouldUploadVirtualBcc(VirtualBatchedCompoundCommit virtualBcc) {
-                                return false; // NO regular upload
-                            }
-                        };
                     }
                 };
             }

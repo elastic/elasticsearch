@@ -1161,7 +1161,6 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             createAndRunCommitUpload(this, expectedVirtualBcc, blobReference);
         }
 
-        // TODO: expand for more criteria such as size, time interval
         protected boolean shouldUploadVirtualBcc(VirtualBatchedCompoundCommit virtualBcc) {
             return virtualBcc.getTotalSizeInBytes() >= bccUploadMaxSizeInBytes
                 || virtualBcc.getPendingCompoundCommits().size() >= bccMaxAmountOfCommits;

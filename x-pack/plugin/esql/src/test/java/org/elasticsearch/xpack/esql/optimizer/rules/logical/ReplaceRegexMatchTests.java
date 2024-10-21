@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLike;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLikePattern;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardLike;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
+import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 
 import static java.util.Arrays.asList;
@@ -46,15 +47,16 @@ public class ReplaceRegexMatchTests extends ESTestCase {
     }
 
     public void testExactMatchWildcardLike() {
-        String s = "ab";
-        WildcardPattern pattern = new WildcardPattern(s);
-        FieldAttribute fa = getFieldAttribute();
-        WildcardLike l = new WildcardLike(EMPTY, fa, pattern);
-        Expression e = new ReplaceRegexMatch().rule(l);
-        assertEquals(Equals.class, e.getClass());
-        Equals eq = (Equals) e;
-        assertEquals(fa, eq.left());
-        assertEquals(s, eq.right().fold());
+        for (String s : asList("ab", "ab\\*", "ab\\?c")) {
+            WildcardPattern pattern = new WildcardPattern(s);
+            FieldAttribute fa = getFieldAttribute();
+            WildcardLike l = new WildcardLike(EMPTY, fa, pattern);
+            Expression e = new ReplaceRegexMatch().rule(l);
+            assertEquals(Equals.class, e.getClass());
+            Equals eq = (Equals) e;
+            assertEquals(fa, eq.left());
+            assertEquals(s.replace("\\", StringUtils.EMPTY), eq.right().fold());
+        }
     }
 
     public void testExactMatchRLike() {

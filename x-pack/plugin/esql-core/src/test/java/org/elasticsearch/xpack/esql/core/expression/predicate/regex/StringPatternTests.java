@@ -39,13 +39,13 @@ public class StringPatternTests extends ESTestCase {
 
     public void testWildcardMatchAll() {
         assertTrue(likeMatchesAll("*"));
-        assertTrue(likeMatchesAll("*"));
+        assertTrue(likeMatchesAll("**"));
 
         assertFalse(likeMatchesAll("a*"));
-        assertFalse(likeMatchesAll("*_"));
-        assertFalse(likeMatchesAll("*_*_*"));
-        assertFalse(likeMatchesAll("_*"));
-        assertFalse(likeMatchesAll("0%"));
+        assertFalse(likeMatchesAll("*?"));
+        assertFalse(likeMatchesAll("*?*?*"));
+        assertFalse(likeMatchesAll("?*"));
+        assertFalse(likeMatchesAll("\\*"));
     }
 
     public void testRegexMatchAll() {
@@ -64,8 +64,8 @@ public class StringPatternTests extends ESTestCase {
         assertTrue(likeExactMatch("\\*"));
         assertTrue(likeExactMatch("\\?"));
         assertTrue(likeExactMatch("123"));
-        assertTrue(likeExactMatch("1230_"));
-        assertTrue(likeExactMatch("1230_321"));
+        assertTrue(likeExactMatch("123\\?"));
+        assertTrue(likeExactMatch("123\\?321"));
 
         assertFalse(likeExactMatch("*"));
         assertFalse(likeExactMatch("**"));

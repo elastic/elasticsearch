@@ -7,13 +7,12 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-import org.elasticsearch.entitlement.instrumentation.InstrumentationService;
+package org.elasticsearch.entitlement.spi;
 
-module org.elasticsearch.entitlement.agent {
-    requires java.instrument;
-    requires org.elasticsearch.base; // for @SuppressForbidden
+import java.util.List;
 
-    exports org.elasticsearch.entitlement.instrumentation to org.elasticsearch.entitlement.agent.impl;
-
-    uses InstrumentationService;
-}
+/**
+ *
+ * @param className the "internal name" of the class: includes the package info, but with periods replaced by slashes
+ */
+public record MethodKey(String className, String methodName, List<String> parameterTypes, boolean isStatic) {}

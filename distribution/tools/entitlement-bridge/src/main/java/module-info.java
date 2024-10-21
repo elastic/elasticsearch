@@ -11,4 +11,5 @@ module org.elasticsearch.entitlement.bridge {
     uses org.elasticsearch.entitlement.api.EntitlementChecks;
 
     exports org.elasticsearch.entitlement.api;
+    exports org.elasticsearch.entitlement.spi;
 }

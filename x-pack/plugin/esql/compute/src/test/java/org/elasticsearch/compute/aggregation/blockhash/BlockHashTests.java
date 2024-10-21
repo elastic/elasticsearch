@@ -1147,7 +1147,7 @@ public class BlockHashTests extends ESTestCase {
                 } else {
                     assertThat(
                         ordsAndKeys.description,
-                        equalTo("BytesRefLongBlockHash{keys=[BytesRefKey[channel=1], LongKey[channel=0]], entries=9, size=491b}")
+                        equalTo("BytesRefLongBlockHash{keys=[BytesRefKey[channel=1], LongKey[channel=0]], entries=9, size=483b}")
                     );
                     assertOrds(
                         ordsAndKeys.ords,

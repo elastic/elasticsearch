@@ -31,7 +31,6 @@ import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -46,7 +45,6 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -162,55 +160,14 @@ public class JoinValidationService {
             return;
         }
 
-        if (connection.getTransportVersion().onOrAfter(TransportVersions.V_8_3_0)) {
-            if (executeRefs.tryIncRef()) {
-                try {
-                    execute(new JoinValidation(discoveryNode, connection, listener));
-                } finally {
-                    executeRefs.decRef();
-                }
-            } else {
-                listener.onFailure(new NodeClosedException(transportService.getLocalNode()));
+        if (executeRefs.tryIncRef()) {
+            try {
+                execute(new JoinValidation(discoveryNode, connection, listener));
+            } finally {
+                executeRefs.decRef();
             }
         } else {
-            legacyValidateJoin(discoveryNode, listener, connection);
-        }
-    }
-
-    @UpdateForV9(owner = UpdateForV9.Owner.DISTRIBUTED_COORDINATION)
-    private void legacyValidateJoin(DiscoveryNode discoveryNode, ActionListener<Void> listener, Transport.Connection connection) {
-        final var responseHandler = TransportResponseHandler.empty(responseExecutor, listener.delegateResponse((l, e) -> {
-            logger.warn(() -> "failed to validate incoming join request from node [" + discoveryNode + "]", e);
-            listener.onFailure(
-                new IllegalStateException(
-                    String.format(
-                        Locale.ROOT,
-                        "failure when sending a join validation request from [%s] to [%s]",
-                        transportService.getLocalNode().descriptionWithoutAttributes(),
-                        discoveryNode.descriptionWithoutAttributes()
-                    ),
-                    e
-                )
-            );
-        }));
-        final var clusterState = clusterStateSupplier.get();
-        if (clusterState != null) {
-            assert clusterState.nodes().isLocalNodeElectedMaster();
-            transportService.sendRequest(
-                connection,
-                JOIN_VALIDATE_ACTION_NAME,
-                new ValidateJoinRequest(clusterState),
-                REQUEST_OPTIONS,
-                responseHandler
-            );
-        } else {
-            transportService.sendRequest(
-                connection,
-                JoinHelper.JOIN_PING_ACTION_NAME,
-                new JoinHelper.JoinPingRequest(),
-                REQUEST_OPTIONS,
-                responseHandler
-            );
+            listener.onFailure(new NodeClosedException(transportService.getLocalNode()));
         }
     }
 

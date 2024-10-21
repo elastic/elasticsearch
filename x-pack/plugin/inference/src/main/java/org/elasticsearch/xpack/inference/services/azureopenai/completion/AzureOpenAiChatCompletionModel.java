@@ -48,7 +48,7 @@ public class AzureOpenAiChatCompletionModel extends AzureOpenAiModel {
             inferenceEntityId,
             taskType,
             service,
-            AzureOpenAiCompletionServiceSettings.fromMap(serviceSettings, context),
+            AzureOpenAiChatCompletionServiceSettings.fromMap(serviceSettings, context),
             AzureOpenAiChatCompletionTaskSettings.fromMap(taskSettings),
             AzureOpenAiSecretSettings.fromMap(secrets)
         );
@@ -59,7 +59,7 @@ public class AzureOpenAiChatCompletionModel extends AzureOpenAiModel {
         String inferenceEntityId,
         TaskType taskType,
         String service,
-        AzureOpenAiCompletionServiceSettings serviceSettings,
+        AzureOpenAiChatCompletionServiceSettings serviceSettings,
         AzureOpenAiChatCompletionTaskSettings taskSettings,
         @Nullable AzureOpenAiSecretSettings secrets
     ) {
@@ -77,7 +77,7 @@ public class AzureOpenAiChatCompletionModel extends AzureOpenAiModel {
 
     public AzureOpenAiChatCompletionModel(
         AzureOpenAiChatCompletionModel originalModel,
-        AzureOpenAiCompletionServiceSettings serviceSettings
+        AzureOpenAiChatCompletionServiceSettings serviceSettings
     ) {
         super(originalModel, serviceSettings);
     }
@@ -90,8 +90,8 @@ public class AzureOpenAiChatCompletionModel extends AzureOpenAiModel {
     }
 
     @Override
-    public AzureOpenAiCompletionServiceSettings getServiceSettings() {
-        return (AzureOpenAiCompletionServiceSettings) super.getServiceSettings();
+    public AzureOpenAiChatCompletionServiceSettings getServiceSettings() {
+        return (AzureOpenAiChatCompletionServiceSettings) super.getServiceSettings();
     }
 
     @Override

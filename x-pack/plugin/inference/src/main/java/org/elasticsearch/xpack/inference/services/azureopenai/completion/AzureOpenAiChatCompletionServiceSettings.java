@@ -32,7 +32,7 @@ import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAi
 import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiServiceFields.DEPLOYMENT_ID;
 import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiServiceFields.RESOURCE_NAME;
 
-public class AzureOpenAiCompletionServiceSettings extends FilteredXContentObject
+public class AzureOpenAiChatCompletionServiceSettings extends FilteredXContentObject
     implements
         ServiceSettings,
         AzureOpenAiRateLimitServiceSettings {
@@ -57,7 +57,7 @@ public class AzureOpenAiCompletionServiceSettings extends FilteredXContentObject
      */
     private static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(120);
 
-    public static AzureOpenAiCompletionServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
+    public static AzureOpenAiChatCompletionServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         ValidationException validationException = new ValidationException();
 
         var settings = fromMap(map, validationException, context);
@@ -66,10 +66,10 @@ public class AzureOpenAiCompletionServiceSettings extends FilteredXContentObject
             throw validationException;
         }
 
-        return new AzureOpenAiCompletionServiceSettings(settings);
+        return new AzureOpenAiChatCompletionServiceSettings(settings);
     }
 
-    private static AzureOpenAiCompletionServiceSettings.CommonFields fromMap(
+    private static AzureOpenAiChatCompletionServiceSettings.CommonFields fromMap(
         Map<String, Object> map,
         ValidationException validationException,
         ConfigurationParseContext context
@@ -85,7 +85,7 @@ public class AzureOpenAiCompletionServiceSettings extends FilteredXContentObject
             context
         );
 
-        return new AzureOpenAiCompletionServiceSettings.CommonFields(resourceName, deploymentId, apiVersion, rateLimitSettings);
+        return new AzureOpenAiChatCompletionServiceSettings.CommonFields(resourceName, deploymentId, apiVersion, rateLimitSettings);
     }
 
     private record CommonFields(String resourceName, String deploymentId, String apiVersion, RateLimitSettings rateLimitSettings) {}
@@ -96,7 +96,7 @@ public class AzureOpenAiCompletionServiceSettings extends FilteredXContentObject
 
     private final RateLimitSettings rateLimitSettings;
 
-    public AzureOpenAiCompletionServiceSettings(
+    public AzureOpenAiChatCompletionServiceSettings(
         String resourceName,
         String deploymentId,
         String apiVersion,
@@ -108,14 +108,14 @@ public class AzureOpenAiCompletionServiceSettings extends FilteredXContentObject
         this.rateLimitSettings = Objects.requireNonNullElse(rateLimitSettings, DEFAULT_RATE_LIMIT_SETTINGS);
     }
 
-    public AzureOpenAiCompletionServiceSettings(StreamInput in) throws IOException {
+    public AzureOpenAiChatCompletionServiceSettings(StreamInput in) throws IOException {
         resourceName = in.readString();
         deploymentId = in.readString();
         apiVersion = in.readString();
         rateLimitSettings = new RateLimitSettings(in);
     }
 
-    private AzureOpenAiCompletionServiceSettings(AzureOpenAiCompletionServiceSettings.CommonFields fields) {
+    private AzureOpenAiChatCompletionServiceSettings(AzureOpenAiChatCompletionServiceSettings.CommonFields fields) {
         this(fields.resourceName, fields.deploymentId, fields.apiVersion, fields.rateLimitSettings);
     }
 
@@ -183,7 +183,7 @@ public class AzureOpenAiCompletionServiceSettings extends FilteredXContentObject
     public boolean equals(Object object) {
         if (this == object) return true;
         if (object == null || getClass() != object.getClass()) return false;
-        AzureOpenAiCompletionServiceSettings that = (AzureOpenAiCompletionServiceSettings) object;
+        AzureOpenAiChatCompletionServiceSettings that = (AzureOpenAiChatCompletionServiceSettings) object;
         return Objects.equals(resourceName, that.resourceName)
             && Objects.equals(deploymentId, that.deploymentId)
             && Objects.equals(apiVersion, that.apiVersion)

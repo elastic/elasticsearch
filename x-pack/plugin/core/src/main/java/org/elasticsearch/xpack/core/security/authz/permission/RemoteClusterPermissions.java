@@ -29,6 +29,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.stream.Collectors;
 
 /**
@@ -70,13 +71,15 @@ public class RemoteClusterPermissions implements NamedWriteable, ToXContentObjec
     // package private non-final for testing
     static Map<TransportVersion, Set<String>> allowedRemoteClusterPermissions = Map.of(
         ROLE_REMOTE_CLUSTER_PRIVS,
-        Set.of(ClusterPrivilegeResolver.MONITOR_ENRICH.name())
+        Set.of(ClusterPrivilegeResolver.MONITOR_ENRICH.name()),
+        TransportVersions.ROLE_MONITOR_STATS,
+        Set.of(ClusterPrivilegeResolver.MONITOR_STATS.name())
     );
 
     public static final RemoteClusterPermissions NONE = new RemoteClusterPermissions();
 
     public static Set<String> getSupportedRemoteClusterPermissions() {
-        return allowedRemoteClusterPermissions.values().stream().flatMap(Set::stream).collect(Collectors.toSet());
+        return allowedRemoteClusterPermissions.values().stream().flatMap(Set::stream).collect(Collectors.toCollection(TreeSet::new));
     }
 
     public RemoteClusterPermissions(StreamInput in) throws IOException {

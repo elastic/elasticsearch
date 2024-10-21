@@ -111,6 +111,7 @@ A successful call returns an object with "cluster", "index", and "remote_cluster
     "monitor_ml",
     "monitor_rollup",
     "monitor_snapshot",
+    "monitor_stats",
     "monitor_text_structure",
     "monitor_transform",
     "monitor_watcher",

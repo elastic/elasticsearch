@@ -233,7 +233,6 @@ public class TaskManager implements ClusterStateApplier {
         CancellableTask cancellableTask = (CancellableTask) task;
         CancellableTaskHolder holder = new CancellableTaskHolder(cancellableTask);
         cancellableTasks.put(task, requestId, holder);
-
         if (traceRequest) {
             startTrace(threadPool.getThreadContext(), task);
         }

@@ -1,4 +1,5 @@
 import org.elasticsearch.gradle.internal.info.BuildParams
+import static org.elasticsearch.gradle.util.PlatformUtils.normalize
 
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'

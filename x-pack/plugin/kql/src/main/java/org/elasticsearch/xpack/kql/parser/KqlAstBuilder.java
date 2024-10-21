@@ -8,18 +8,20 @@
 package org.elasticsearch.xpack.kql.parser;
 
 import org.antlr.v4.runtime.ParserRuleContext;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.query.SearchExecutionContext;
+
+import java.util.function.BiConsumer;
 
 class KqlAstBuilder extends KqlBaseBaseVisitor<QueryBuilder> {
-    private final SearchExecutionContext searchExecutionContext;
+    private final KqlParserExecutionContext kqlParserExecutionContext;
 
-    KqlAstBuilder(SearchExecutionContext searchExecutionContext) {
-        this.searchExecutionContext = searchExecutionContext;
+    KqlAstBuilder(KqlParserExecutionContext kqlParserExecutionContext) {
+        this.kqlParserExecutionContext = kqlParserExecutionContext;
     }
 
     public QueryBuilder toQueryBuilder(ParserRuleContext ctx) {
@@ -92,8 +94,15 @@ class KqlAstBuilder extends KqlBaseBaseVisitor<QueryBuilder> {
 
     @Override
     public QueryBuilder visitExistsQuery(KqlBaseParser.ExistsQueryContext ctx) {
-        // TODO: implementation
-        return new MatchNoneQueryBuilder();
+        BoolQueryBuilder boolQueryBuilder = QueryBuilders.boolQuery().minimumShouldMatch(1);
+
+        withFields(ctx.fieldName(), (fieldName, mappedFieldType) -> {
+            if (kqlParserExecutionContext.isRuntimeField(mappedFieldType) == false) {
+                boolQueryBuilder.should(QueryBuilders.existsQuery(fieldName));
+            }
+        });
+
+        return boolQueryBuilder;
     }
 
     @Override
@@ -120,5 +129,9 @@ class KqlAstBuilder extends KqlBaseBaseVisitor<QueryBuilder> {
 
     private static boolean isOrQuery(KqlBaseParser.BooleanQueryContext ctx) {
         return ctx.operator.getType() == KqlBaseParser.OR;
+    }
+
+    private void withFields(KqlBaseParser.FieldNameContext ctx, BiConsumer<String, MappedFieldType> fieldConsummer) {
+        kqlParserExecutionContext.resolveFields(ctx).forEach(fieldDef -> fieldConsummer.accept(fieldDef.v1(), fieldDef.v2()));
     }
 }

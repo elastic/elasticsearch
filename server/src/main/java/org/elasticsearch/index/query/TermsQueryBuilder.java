@@ -30,7 +30,6 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.ConstantFieldType;
-import org.elasticsearch.index.mapper.DataTierFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.indices.TermsLookup;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -350,23 +349,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
 
     @Override
     protected QueryBuilder doCoordinatorRewrite(CoordinatorRewriteContext coordinatorRewriteContext) {
-        if (fieldName.equals(DataTierFieldMapper.NAME) == false) {
-            return this;
-        }
-        final MappedFieldType fieldType = coordinatorRewriteContext.getFieldType(DataTierFieldMapper.NAME);
-        if (fieldType instanceof final DataTierFieldMapper.DataTierFieldType tierFieldType) {
-            for (Object value : values) {
-                Query tierFieldQuery = tierFieldType.internalTermQueryCaseInsensitive(value, coordinatorRewriteContext);
-                if (tierFieldQuery instanceof MatchNoDocsQuery) {
-                    return new MatchNoneQueryBuilder("The \"" + getName() + "\" query was rewritten to a \"match_none\" query.");
-                } else if (tierFieldQuery instanceof MatchAllDocsQuery) {
-                    return new MatchAllQueryBuilder();
-                } else {
-                    assert false : "Constant fields must produce match-all or match-none queries, got " + tierFieldQuery;
-                }
-            }
-        }
-        return this;
+        return maybeRewriteBasedOnConstantFields(coordinatorRewriteContext);
     }
 
     private static void fetch(TermsLookup termsLookup, Client client, ActionListener<List<Object>> actionListener) {
@@ -416,6 +399,10 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
 
     @Override
     protected QueryBuilder doIndexMetadataRewrite(QueryRewriteContext context) throws IOException {
+        return maybeRewriteBasedOnConstantFields(context);
+    }
+
+    private QueryBuilder maybeRewriteBasedOnConstantFields(QueryRewriteContext context) {
         MappedFieldType fieldType = context.getFieldType(this.fieldName);
         if (fieldType == null) {
             return new MatchNoneQueryBuilder("The \"" + getName() + "\" query is against a field that does not exist");

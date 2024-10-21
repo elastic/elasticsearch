@@ -11,6 +11,8 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.search.FuzzyQuery;
+import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
@@ -22,6 +24,7 @@ import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.mapper.ConstantFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.support.QueryParsers;
 import org.elasticsearch.index.search.MatchQueryParser;
@@ -387,7 +390,39 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
 
     @Override
     protected QueryBuilder doCoordinatorRewrite(CoordinatorRewriteContext coordinatorRewriteContext) {
-        return tierFieldTermQueryCoordinatorRewriteIfPresent(this, true, fieldName, value, coordinatorRewriteContext);
+        // if the query (can and) will be rewritten to a term query, we can try and do a coordinator rewrite based on constant fields
+        if (fuzziness != null || lenient) {
+            // Term queries can be neither fuzzy nor lenient, so don't rewrite under these conditions
+            return this;
+        }
+        // If we're using a keyword analyzer then we can rewrite this to a TermQueryBuilder
+        // and possibly shortcut
+        NamedAnalyzer configuredAnalyzer = configuredAnalyzer(coordinatorRewriteContext);
+        if (configuredAnalyzer != null && configuredAnalyzer.analyzer() instanceof KeywordAnalyzer) {
+            // this will be rewritten as a term query
+            return maybeRewriteBasedOnConstantFields(coordinatorRewriteContext);
+        }
+        return this;
+    }
+
+    private QueryBuilder maybeRewriteBasedOnConstantFields(QueryRewriteContext context) {
+        MappedFieldType fieldType = context.getFieldType(this.fieldName);
+        if (fieldType == null) {
+            return new MatchNoneQueryBuilder("The \"" + getName() + "\" query is against a field that does not exist");
+        } else if (fieldType instanceof ConstantFieldType constantFieldType) {
+            // This logic is correct for all field types, but by only applying it to constant
+            // fields we also have the guarantee that it doesn't perform I/O, which is important
+            // since rewrites might happen on a network thread.
+            Query query = constantFieldType.internalTermQuery(value, context);
+            if (query instanceof MatchAllDocsQuery) {
+                return new MatchAllQueryBuilder();
+            } else if (query instanceof MatchNoDocsQuery) {
+                return new MatchNoneQueryBuilder("The \"" + getName() + "\" query was rewritten to a \"match_none\" query.");
+            } else {
+                assert false : "Constant fields must produce match-all or match-none queries, got " + query;
+            }
+        }
+        return this;
     }
 
     private NamedAnalyzer configuredAnalyzer(QueryRewriteContext context) {

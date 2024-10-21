@@ -1089,16 +1089,9 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
         }
 
         {
-            // bool query string, prefix, wildcard, or simple query string
+            // bool prefix, wildcard
             BoolQueryBuilder boolQueryBuilder = QueryBuilders.boolQuery()
-                .mustNot(
-                    randomFrom(
-                        QueryBuilders.queryStringQuery("data_frozen").field("_tier"),
-                        QueryBuilders.simpleQueryStringQuery("data_frozen").field("_tier"),
-                        QueryBuilders.wildcardQuery("_tier", "dat*ozen"),
-                        QueryBuilders.prefixQuery("_tier", "data_fro")
-                    )
-                );
+                .mustNot(randomFrom(QueryBuilders.wildcardQuery("_tier", "dat*ozen"), QueryBuilders.prefixQuery("_tier", "data_fro")));
             List<String> indicesToSearch = List.of(regularIndex, partiallyMountedIndex);
             SearchRequest request = new SearchRequest().indices(indicesToSearch.toArray(new String[0]))
                 .source(new SearchSourceBuilder().query(boolQueryBuilder));

@@ -170,7 +170,16 @@ public class TermQueryBuilder extends BaseTermQueryBuilder<TermQueryBuilder> {
     }
 
     @Override
-    protected QueryBuilder doIndexMetadataRewrite(QueryRewriteContext context) throws IOException {
+    protected QueryBuilder doIndexMetadataRewrite(QueryRewriteContext context) {
+        return maybeRewriteBasedOnConstantFields(context);
+    }
+
+    @Override
+    protected QueryBuilder doCoordinatorRewrite(CoordinatorRewriteContext coordinatorRewriteContext) {
+        return maybeRewriteBasedOnConstantFields(coordinatorRewriteContext);
+    }
+
+    private QueryBuilder maybeRewriteBasedOnConstantFields(QueryRewriteContext context) {
         MappedFieldType fieldType = context.getFieldType(this.fieldName);
         if (fieldType == null) {
             return new MatchNoneQueryBuilder("The \"" + getName() + "\" query is against a field that does not exist");
@@ -216,11 +225,6 @@ public class TermQueryBuilder extends BaseTermQueryBuilder<TermQueryBuilder> {
     @Override
     protected final int doHashCode() {
         return Objects.hash(super.doHashCode(), caseInsensitive);
-    }
-
-    @Override
-    protected QueryBuilder doCoordinatorRewrite(CoordinatorRewriteContext coordinatorRewriteContext) {
-        return tierFieldTermQueryCoordinatorRewriteIfPresent(this, caseInsensitive, fieldName, value, coordinatorRewriteContext);
     }
 
     @Override

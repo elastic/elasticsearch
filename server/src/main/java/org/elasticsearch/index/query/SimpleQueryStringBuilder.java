@@ -20,7 +20,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.index.mapper.DataTierFieldMapper;
 import org.elasticsearch.index.search.QueryParserHelper;
 import org.elasticsearch.index.search.SimpleQueryStringQueryParser;
 import org.elasticsearch.index.search.SimpleQueryStringQueryParser.Settings;
@@ -608,21 +607,6 @@ public final class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQ
         qb.fuzzyTranspositions(fuzzyTranspositions);
         qb.type(type);
         return qb;
-    }
-
-    @Override
-    protected QueryBuilder doCoordinatorRewrite(CoordinatorRewriteContext coordinatorRewriteContext) {
-        if (fieldsAndWeights.containsKey(DataTierFieldMapper.NAME)) {
-            return tierFieldTermQueryCoordinatorRewriteIfPresent(
-                this,
-                true,
-                DataTierFieldMapper.NAME,
-                queryText,
-                coordinatorRewriteContext
-            );
-        } else {
-            return this;
-        }
     }
 
     @Override

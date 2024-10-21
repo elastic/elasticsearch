@@ -36,7 +36,6 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
-import org.elasticsearch.index.KnownIndexVersions;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.FinalizeSnapshotContext;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -368,15 +367,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
      */
     protected void maybeInitWithOldSnapshotVersion(String repoName, Path repoPath) throws Exception {
         if (randomBoolean() && randomBoolean()) {
-            initWithSnapshotVersion(
-                repoName,
-                repoPath,
-                IndexVersionUtils.randomVersionBetween(
-                    random(),
-                    IndexVersions.MINIMUM_COMPATIBLE,
-                    KnownIndexVersions.ALL_VERSIONS.getLast()
-                )
-            );
+            initWithSnapshotVersion(repoName, repoPath, IndexVersionUtils.randomVersion());
         }
     }
 

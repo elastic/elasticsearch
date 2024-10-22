@@ -63,7 +63,7 @@ TaskProvider createKey = tasks.register("createKey", LoggedExec) {
     keystore.parentFile.mkdirs()
   }
   outputs.file(keystore).withPropertyName('keystoreFile')
-  executable = "${buildParams.runtimeJavaHome}/bin/keytool"
+  executable = "${buildParams.runtimeJavaHome.get()}/bin/keytool"
   getStandardInput().set('FirstName LastName\nUnit\nOrganization\nCity\nState\nNL\nyes\n\n')
   args '-genkey',
     '-alias', 'test-node',

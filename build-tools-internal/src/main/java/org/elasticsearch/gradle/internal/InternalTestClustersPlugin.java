@@ -9,6 +9,7 @@
 
 package org.elasticsearch.gradle.internal;
 
+import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.internal.info.BuildParameterExtension;
 import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
@@ -17,20 +18,12 @@ import org.elasticsearch.gradle.testclusters.TestClustersPlugin;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
-import org.gradle.api.provider.ProviderFactory;
 
-import javax.inject.Inject;
+import java.util.List;
 
 import static org.elasticsearch.gradle.internal.util.ParamsUtils.loadBuildParams;
 
 public class InternalTestClustersPlugin implements Plugin<Project> {
-
-    private ProviderFactory providerFactory;
-
-    @Inject
-    public InternalTestClustersPlugin(ProviderFactory providerFactory) {
-        this.providerFactory = providerFactory;
-    }
 
     @Override
     public void apply(Project project) {
@@ -40,7 +33,7 @@ public class InternalTestClustersPlugin implements Plugin<Project> {
         BuildParameterExtension buildParams = loadBuildParams(project).get();
         project.getRootProject().getPluginManager().apply(InternalReaperPlugin.class);
         TestClustersPlugin testClustersPlugin = project.getPlugins().apply(TestClustersPlugin.class);
-        testClustersPlugin.setRuntimeJava(providerFactory.provider(() -> buildParams.getRuntimeJavaHome()));
+        testClustersPlugin.setRuntimeJava(buildParams.getRuntimeJavaHome());
         testClustersPlugin.setIsReleasedVersion(
             version -> (version.equals(VersionProperties.getElasticsearchVersion()) && buildParams.isSnapshotBuild() == false)
                 || buildParams.getBwcVersions().unreleasedInfo(version) == null

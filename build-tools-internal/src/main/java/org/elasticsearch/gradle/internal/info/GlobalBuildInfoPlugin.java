@@ -11,6 +11,7 @@ package org.elasticsearch.gradle.internal.info;
 import org.apache.commons.io.IOUtils;
 import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.internal.BwcVersions;
+import org.elasticsearch.gradle.internal.conventions.GUtils;
 import org.elasticsearch.gradle.internal.conventions.info.GitInfo;
 import org.elasticsearch.gradle.internal.conventions.info.ParallelDetector;
 import org.elasticsearch.gradle.internal.conventions.util.Util;
@@ -55,8 +56,9 @@ import java.util.Random;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-
 import javax.inject.Inject;
+
+import static org.elasticsearch.gradle.internal.conventions.GUtils.elvis;
 
 public class GlobalBuildInfoPlugin implements Plugin<Project> {
     private static final Logger LOGGER = Logging.getLogger(GlobalBuildInfoPlugin.class);
@@ -67,6 +69,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
     private final JvmMetadataDetector metadataDetector;
     private final ProviderFactory providers;
     private JavaToolchainService toolChainService;
+    private Project project;
 
     @Inject
     public GlobalBuildInfoPlugin(
@@ -87,6 +90,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         if (project != project.getRootProject()) {
             throw new IllegalStateException(this.getClass().getName() + " can only be applied to the root project.");
         }
+        this.project = project;
         project.getPlugins().apply(JvmToolchainsPlugin.class);
         toolChainService = project.getExtensions().getByType(JavaToolchainService.class);
         GradleVersion minimumGradleVersion = GradleVersion.version(getResourceContents("/minimumGradleVersion"));
@@ -110,7 +114,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         );
         AtomicReference<BwcVersions> cache = new AtomicReference<>();
         Provider<BwcVersions> bwcVersionsProvider = providers.provider(
-            () -> cache.updateAndGet(val -> val == null ? resolveBwcVersions(Util.locateElasticsearchWorkspace(project.getGradle())) : val)
+            () -> cache.updateAndGet(val -> val == null ? resolveBwcVersions() : val)
         );
         BuildParameterExtension buildParams = project.getExtensions()
             .create(
@@ -212,9 +216,12 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
     /* Introspect all versions of ES that may be tested against for backwards
      * compatibility. It is *super* important that this logic is the same as the
      * logic in VersionUtils.java. */
-    private static BwcVersions resolveBwcVersions(File root) {
-        File versionsFile = new File(root, DEFAULT_VERSION_JAVA_FILE_PATH);
-        try (var is = new FileInputStream(versionsFile)) {
+    private BwcVersions resolveBwcVersions() {
+        String versionsFilePath = elvis(
+            System.getProperty("BWC_VERSION_SOURCE"),
+            new File(Util.locateElasticsearchWorkspace(project.getGradle()), DEFAULT_VERSION_JAVA_FILE_PATH).getPath()
+        );
+        try (var is = new FileInputStream(versionsFilePath)) {
             List<String> versionLines = IOUtils.readLines(is, "UTF-8");
             return new BwcVersions(versionLines);
         } catch (IOException e) {
@@ -235,13 +242,13 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         LOGGER.quiet("  Gradle Version        : " + GradleVersion.current().getVersion());
         LOGGER.quiet("  OS Info               : " + osName + " " + osVersion + " (" + osArch + ")");
         if (buildParams.getIsRuntimeJavaHomeSet()) {
-            JvmInstallationMetadata runtimeJvm = metadataDetector.getMetadata(getJavaInstallation(buildParams.getRuntimeJavaHome()));
+            JvmInstallationMetadata runtimeJvm = metadataDetector.getMetadata(getJavaInstallation(buildParams.getRuntimeJavaHome().get()));
             final String runtimeJvmVendorDetails = runtimeJvm.getVendor().getDisplayName();
             final String runtimeJvmImplementationVersion = runtimeJvm.getJvmVersion();
             final String runtimeVersion = runtimeJvm.getRuntimeVersion();
             final String runtimeExtraDetails = runtimeJvmVendorDetails + ", " + runtimeVersion;
             LOGGER.quiet("  Runtime JDK Version   : " + runtimeJvmImplementationVersion + " (" + runtimeExtraDetails + ")");
-            LOGGER.quiet("  Runtime java.home     : " + buildParams.getRuntimeJavaHome());
+            LOGGER.quiet("  Runtime java.home     : " + buildParams.getRuntimeJavaHome().get());
             LOGGER.quiet("  Gradle JDK Version    : " + gradleJvmImplementationVersion + " (" + gradleJvmVendorDetails + ")");
             LOGGER.quiet("  Gradle java.home      : " + gradleJvm.getJavaHome());
         } else {

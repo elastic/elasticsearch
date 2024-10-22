@@ -98,7 +98,7 @@ if (OS.current() == OS.WINDOWS) {
 
     TaskProvider<AntFixture> fixture = tasks.register("oldES${versionNoDots}Fixture", AntFixture) {
       dependsOn project.configurations.oldesFixture, jdks.legacy, config
-      executable = "${buildParams.runtimeJavaHome}/bin/java"
+      executable = "${buildParams.runtimeJavaHome.get()}/bin/java"
       env 'CLASSPATH', "${-> project.configurations.oldesFixture.asPath}"
       // old versions of Elasticsearch need JAVA_HOME
       env 'JAVA_HOME', jdks.legacy.javaHomePath

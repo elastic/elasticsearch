@@ -13,6 +13,7 @@ import org.elasticsearch.gradle.internal.BwcVersions;
 import org.gradle.api.Action;
 import org.gradle.api.JavaVersion;
 import org.gradle.api.Task;
+import org.gradle.api.provider.Property;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.provider.ProviderFactory;
 import org.gradle.jvm.toolchain.JavaToolchainSpec;
@@ -24,7 +25,7 @@ import java.util.List;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicReference;
 
-public class BuildParameterExtension {
+public abstract class BuildParameterExtension {
     private final Provider<Boolean> inFipsJvm;
     private final Provider<File> runtimeJavaHome;
     private final Boolean isRuntimeJavaHomeSet;
@@ -42,7 +43,6 @@ public class BuildParameterExtension {
     private final Boolean isCi;
     private final Integer defaultParallel;
     private final Boolean isSnapshotBuild;
-    private final Provider<BwcVersions> bwcVersions;
 
     public BuildParameterExtension(
         ProviderFactory providers,
@@ -80,7 +80,7 @@ public class BuildParameterExtension {
         this.isCi = isCi;
         this.defaultParallel = defaultParallel;
         this.isSnapshotBuild = isSnapshotBuild;
-        this.bwcVersions = bwcVersions;
+        this.getBwcVersionsProperty().set(bwcVersions);
     }
 
     private static boolean parseBoolean(String s) {
@@ -94,8 +94,8 @@ public class BuildParameterExtension {
         return inFipsJvm.getOrElse(false);
     }
 
-    public File getRuntimeJavaHome() {
-        return runtimeJavaHome.get();
+    public Provider<File> getRuntimeJavaHome() {
+        return runtimeJavaHome;
     }
 
     public void withFipsEnabledOnly(Task task) {
@@ -171,8 +171,10 @@ public class BuildParameterExtension {
     }
 
     public BwcVersions getBwcVersions() {
-        return bwcVersions.get();
+        return getBwcVersionsProperty().get();
     }
+
+    public abstract Property<BwcVersions> getBwcVersionsProperty();
 
     public Random getRandom() {
         return new Random(Long.parseUnsignedLong(testSeed.split(":")[0], 16));

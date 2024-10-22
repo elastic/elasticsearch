@@ -32,7 +32,7 @@ restResources {
 def gceFixtureProvider = tasks.register("gceFixture", AntFixture) {
   dependsOn project.sourceSets.yamlRestTest.runtimeClasspath
   env 'CLASSPATH', "${-> project.sourceSets.yamlRestTest.runtimeClasspath.asPath}"
-  executable = "${buildParams.runtimeJavaHome}/bin/java"
+  executable = "${buildParams.runtimeJavaHome.get()}/bin/java"
   args 'org.elasticsearch.cloud.gce.GCEFixture', baseDir, "${buildDir}/testclusters/yamlRestTest-1/config/unicast_hosts.txt"
 }
 

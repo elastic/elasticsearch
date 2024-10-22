@@ -399,7 +399,11 @@ public class EsqlCapabilities {
         /**
          * Support for semantic_text field mapping
          */
-        SEMANTIC_TEXT_TYPE(EsqlCorePlugin.SEMANTIC_TEXT_FEATURE_FLAG);
+        SEMANTIC_TEXT_TYPE(EsqlCorePlugin.SEMANTIC_TEXT_FEATURE_FLAG),
+        /**
+         * Fix for an optimization that caused wrong results
+         */
+        FIX_FILTER_PUSHDOWN_PAST_STATS;
 
         private final boolean snapshotOnly;
         private final FeatureFlag featureFlag;

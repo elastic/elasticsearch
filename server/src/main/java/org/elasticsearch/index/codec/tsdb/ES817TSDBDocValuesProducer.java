@@ -51,20 +51,27 @@ import static org.elasticsearch.index.codec.tsdb.ES817TSDBDocValuesFormat.SKIP_I
 import static org.elasticsearch.index.codec.tsdb.ES817TSDBDocValuesFormat.TERMS_DICT_BLOCK_LZ4_SHIFT;
 
 public class ES817TSDBDocValuesProducer extends DocValuesProducer {
-    private final Map<String, NumericEntry> numerics = new HashMap<>();
-    private final Map<String, ES817TSDBCompressingBinaryDocValues.Entry> binaries = new HashMap<>();
-    private final Map<String, SortedEntry> sorted = new HashMap<>();
-    private final Map<String, SortedSetEntry> sortedSets = new HashMap<>();
-    private final Map<String, SortedNumericEntry> sortedNumerics = new HashMap<>();
-    private final Map<String, DocValuesSkipperEntry> skippers = new HashMap<>();
+    private final Map<String, NumericEntry> numerics;
+    private final Map<String, ES817TSDBCompressingBinaryDocValues.Entry> binaries;
+    private final Map<String, SortedEntry> sorted;
+    private final Map<String, SortedSetEntry> sortedSets;
+    private final Map<String, SortedNumericEntry> sortedNumerics;
+    private final Map<String, DocValuesSkipperEntry> skippers;
     private final IndexInput data;
     private final int maxDoc;
+    private final boolean merging;
 
     ES817TSDBDocValuesProducer(SegmentReadState state, String dataCodec, String dataExtension, String metaCodec, String metaExtension)
         throws IOException {
         String metaName = IndexFileNames.segmentFileName(state.segmentInfo.name, state.segmentSuffix, metaExtension);
         this.maxDoc = state.segmentInfo.maxDoc();
-
+        this.numerics = new HashMap<>();
+        this.binaries = new HashMap<>();
+        this.sorted = new HashMap<>();
+        this.sortedSets = new HashMap<>();
+        this.sortedNumerics = new HashMap<>();
+        this.skippers = new HashMap<>();
+        this.merging = false;
         // read in the entries from the metadata file.
         int version = -1;
         try (ChecksumIndexInput in = state.directory.openChecksumInput(metaName)) {
@@ -119,6 +126,23 @@ public class ES817TSDBDocValuesProducer extends DocValuesProducer {
         }
     }
 
+    private ES817TSDBDocValuesProducer(ES817TSDBDocValuesProducer reader, boolean merging) {
+        this.numerics = reader.numerics;
+        this.binaries = reader.binaries;
+        this.sorted = reader.sorted;
+        this.sortedSets = reader.sortedSets;
+        this.sortedNumerics = reader.sortedNumerics;
+        this.skippers = reader.skippers;
+        this.data = reader.data.clone();
+        this.maxDoc = reader.maxDoc;
+        this.merging = merging;
+    }
+
+    @Override
+    public DocValuesProducer getMergeInstance() {
+        return new ES817TSDBDocValuesProducer(this, true);
+    }
+
     @Override
     public NumericDocValues getNumeric(FieldInfo field) throws IOException {
         NumericEntry entry = numerics.get(field.name);
@@ -131,7 +155,7 @@ public class ES817TSDBDocValuesProducer extends DocValuesProducer {
         if (entry.indexedDISIOffset == -2) {
             return DocValues.emptyBinary();
         }
-        var compressingReader = new ES817TSDBCompressingBinaryDocValues.Reader(entry, data);
+        final var compressingReader = new ES817TSDBCompressingBinaryDocValues.Reader(entry, data, merging);
         if (entry.indexedDISIOffset == -1) {
             return new DenseBinaryDocValues(maxDoc) {
                 @Override

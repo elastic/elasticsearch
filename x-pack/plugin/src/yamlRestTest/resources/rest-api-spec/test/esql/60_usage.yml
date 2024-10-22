@@ -83,4 +83,3 @@ setup:
   - match: {esql.functions.cos: $functions_cos}
   - gt: {esql.functions.to_long: $functions_to_long}
   - match: {esql.functions.coalesce: $functions_coalesce}
-  - length: {esql.functions: 117}

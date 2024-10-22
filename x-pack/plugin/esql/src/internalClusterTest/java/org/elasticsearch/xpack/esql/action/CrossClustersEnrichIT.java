@@ -470,6 +470,45 @@ public class CrossClustersEnrichIT extends AbstractMultiClustersTestCase {
         }
     }
 
+    public void testEnrichRemoteWithVendorNoSort() {
+        Tuple<Boolean, Boolean> includeCCSMetadata = randomIncludeCCSMetadata();
+        Boolean requestIncludeMeta = includeCCSMetadata.v1();
+        boolean responseExpectMeta = includeCCSMetadata.v2();
+
+        for (Enrich.Mode hostMode : List.of(Enrich.Mode.ANY, Enrich.Mode.REMOTE)) {
+            var query = String.format(Locale.ROOT, """
+                FROM *:events,events
+                | LIMIT 100
+                | eval ip= TO_STR(host)
+                | %s
+                | %s
+                | stats c = COUNT(*) by vendor
+                """, enrichHosts(hostMode), enrichVendors(Enrich.Mode.REMOTE));
+            try (EsqlQueryResponse resp = runQuery(query, requestIncludeMeta)) {
+                var values = getValuesList(resp);
+                values.sort(Comparator.comparing(o -> (String) o.get(1), Comparator.nullsLast(Comparator.naturalOrder())));
+                assertThat(
+                    values,
+                    equalTo(
+                        List.of(
+                            List.of(6L, "Apple"),
+                            List.of(7L, "Microsoft"),
+                            List.of(1L, "Redhat"),
+                            List.of(2L, "Samsung"),
+                            List.of(1L, "Sony"),
+                            List.of(2L, "Suse"),
+                            Arrays.asList(3L, (String) null)
+                        )
+                    )
+                );
+                EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
+                assertThat(executionInfo.includeCCSMetadata(), equalTo(responseExpectMeta));
+                assertThat(executionInfo.clusterAliases(), equalTo(Set.of("", "c1", "c2")));
+                assertCCSExecutionInfoDetails(executionInfo);
+            }
+        }
+    }
+
     public void testTopNThenEnrichRemote() {
         Tuple<Boolean, Boolean> includeCCSMetadata = randomIncludeCCSMetadata();
         Boolean requestIncludeMeta = includeCCSMetadata.v1();

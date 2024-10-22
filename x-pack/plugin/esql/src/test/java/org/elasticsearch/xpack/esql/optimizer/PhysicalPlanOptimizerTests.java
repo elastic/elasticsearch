@@ -172,7 +172,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
-// @TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
+// @TestLogging(value = "org.elasticsearch.xpack.esql:DEBUG", reason = "debug")
 public class PhysicalPlanOptimizerTests extends ESTestCase {
 
     private static final String PARAM_FORMATTING = "%1$s";
@@ -5851,8 +5851,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 | EVAL employee_id = to_str(emp_no)
                 | ENRICH _remote:departments
                 | LIMIT 10""");
-            var eval = as(plan, EvalExec.class);
-            var finalLimit = as(eval.child(), LimitExec.class);
+            var finalLimit = as(plan, LimitExec.class);
             var exchange = as(finalLimit.child(), ExchangeExec.class);
             var fragment = as(exchange.child(), FragmentExec.class);
             var enrich = as(fragment.fragment(), Enrich.class);
@@ -5908,8 +5907,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             | EVAL employee_id = to_str(emp_no)
             | ENRICH _remote:departments
             """);
-        var eval = as(plan, EvalExec.class);
-        var finalLimit = as(eval.child(), LimitExec.class);
+        var finalLimit = as(plan, LimitExec.class);
         var exchange = as(finalLimit.child(), ExchangeExec.class);
         var fragment = as(exchange.child(), FragmentExec.class);
         var enrich = as(fragment.fragment(), Enrich.class);
@@ -6035,8 +6033,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 | EVAL employee_id = to_str(emp_no)
                 | ENRICH _remote:departments
                 """);
-            var eval = as(plan, EvalExec.class);
-            var topN = as(eval.child(), TopNExec.class);
+            var topN = as(plan, TopNExec.class);
             var exchange = as(topN.child(), ExchangeExec.class);
             var fragment = as(exchange.child(), FragmentExec.class);
             var enrich = as(fragment.fragment(), Enrich.class);

@@ -17,6 +17,7 @@ import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -77,7 +78,7 @@ public class GoogleVertexAiEmbeddingsTaskSettings implements TaskSettings {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ML_INFERENCE_GOOGLE_VERTEX_AI_EMBEDDINGS_ADDED;
+        return TransportVersions.V_8_15_0;
     }
 
     @Override
@@ -106,5 +107,13 @@ public class GoogleVertexAiEmbeddingsTaskSettings implements TaskSettings {
     @Override
     public int hashCode() {
         return Objects.hash(autoTruncate);
+    }
+
+    @Override
+    public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
+        GoogleVertexAiEmbeddingsRequestTaskSettings requestSettings = GoogleVertexAiEmbeddingsRequestTaskSettings.fromMap(
+            new HashMap<>(newSettings)
+        );
+        return of(this, requestSettings);
     }
 }

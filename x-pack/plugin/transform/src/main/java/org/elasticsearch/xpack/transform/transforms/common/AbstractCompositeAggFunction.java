@@ -207,7 +207,7 @@ public abstract class AbstractCompositeAggFunction implements Function {
 
     @Override
     public void getInitialProgressFromResponse(SearchResponse response, ActionListener<TransformProgress> progressListener) {
-        progressListener.onResponse(new TransformProgress(response.getHits().getTotalHits().value, 0L, 0L));
+        progressListener.onResponse(new TransformProgress(response.getHits().getTotalHits().value(), 0L, 0L));
     }
 
 }

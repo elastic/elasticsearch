@@ -281,6 +281,9 @@ public final class Messages {
     public static final String FIELD_CANNOT_BE_NULL = "Field [{0}] cannot be null";
     public static final String MODEL_ID_MATCHES_EXISTING_MODEL_IDS_BUT_MUST_NOT =
         "Model IDs must be unique. Requested model ID [{}] matches existing model IDs but must not.";
+    public static final String MODEL_ID_DOES_NOT_MATCH_EXISTING_MODEL_IDS_BUT_MUST_FOR_IN_CLUSTER_SERVICE =
+        "Requested model ID [{}] does not have a matching trained model and thus cannot be updated.";
+    public static final String INFERENCE_ENTITY_NON_EXISTANT_NO_UPDATE = "The inference endpoint [{}] does not exist and cannot be updated";
 
     private Messages() {}
 

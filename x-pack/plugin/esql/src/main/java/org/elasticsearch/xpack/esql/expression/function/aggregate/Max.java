@@ -18,6 +18,7 @@ import org.elasticsearch.compute.aggregation.MaxIpAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MaxLongAggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -32,6 +33,7 @@ import org.elasticsearch.xpack.esql.planner.ToAggregator;
 import java.io.IOException;
 import java.util.List;
 
+import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isRepresentable;
@@ -61,7 +63,11 @@ public class Max extends AggregateFunction implements ToAggregator, SurrogateExp
             type = { "boolean", "double", "integer", "long", "date", "ip", "keyword", "text", "long", "version" }
         ) Expression field
     ) {
-        super(source, field);
+        this(source, field, Literal.TRUE);
+    }
+
+    public Max(Source source, Expression field, Expression filter) {
+        super(source, field, filter, emptyList());
     }
 
     private Max(StreamInput in) throws IOException {
@@ -74,13 +80,18 @@ public class Max extends AggregateFunction implements ToAggregator, SurrogateExp
     }
 
     @Override
+    public Max withFilter(Expression filter) {
+        return new Max(source(), field(), filter);
+    }
+
+    @Override
     protected NodeInfo<Max> info() {
-        return NodeInfo.create(this, Max::new, field());
+        return NodeInfo.create(this, Max::new, field(), filter());
     }
 
     @Override
     public Max replaceChildren(List<Expression> newChildren) {
-        return new Max(source(), newChildren.get(0));
+        return new Max(source(), newChildren.get(0), newChildren.get(1));
     }
 
     @Override
@@ -117,7 +128,7 @@ public class Max extends AggregateFunction implements ToAggregator, SurrogateExp
         if (type == DataType.IP) {
             return new MaxIpAggregatorFunctionSupplier(inputChannels);
         }
-        if (type == DataType.VERSION || type == DataType.KEYWORD || type == DataType.TEXT) {
+        if (type == DataType.VERSION || DataType.isString(type)) {
             return new MaxBytesRefAggregatorFunctionSupplier(inputChannels);
         }
         throw EsqlIllegalArgumentException.illegalDataType(type);

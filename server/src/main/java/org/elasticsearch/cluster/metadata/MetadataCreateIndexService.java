@@ -983,6 +983,7 @@ public class MetadataCreateIndexService {
             final Settings templateAndRequestSettings = Settings.builder().put(combinedTemplateSettings).put(request.settings()).build();
 
             final IndexMode templateIndexMode = Optional.of(request)
+                .filter(r -> r.isFailureIndex() == false)
                 .map(CreateIndexClusterStateUpdateRequest::matchingTemplate)
                 .map(metadata::retrieveIndexModeFromTemplate)
                 .orElse(null);
@@ -1038,11 +1039,13 @@ public class MetadataCreateIndexService {
 
             // Finally, we actually add the explicit defaults prior to the template settings and the
             // request settings, so that the precedence goes:
-            // Explicit Defaults -> Template -> Request -> Necessary Settings (# of shards, uuid, etc)
+            // Explicit Defaults -> Template -> Request -> Filter out failure store settings -> Necessary Settings (# of shards, uuid, etc)
             indexSettingsBuilder.put(additionalIndexSettings.build());
             indexSettingsBuilder.put(templateSettings.build());
         }
-
+        if (request.isFailureIndex()) {
+            DataStreamFailureStoreDefinition.filterUserDefinedSettings(indexSettingsBuilder);
+        }
         // now, put the request settings, so they override templates
         indexSettingsBuilder.put(requestSettings.build());
 
@@ -1306,7 +1309,7 @@ public class MetadataCreateIndexService {
     ) {
         IndexMetadata.Builder indexMetadataBuilder = createIndexMetadataBuilder(indexName, sourceMetadata, indexSettings, routingNumShards);
         indexMetadataBuilder.system(isSystem);
-        if (minClusterTransportVersion.before(TransportVersions.EVENT_INGESTED_RANGE_IN_CLUSTER_STATE)) {
+        if (minClusterTransportVersion.before(TransportVersions.V_8_15_0)) {
             // promote to UNKNOWN for older versions since they don't know how to handle event.ingested in cluster state
             indexMetadataBuilder.eventIngestedRange(IndexLongFieldRange.UNKNOWN, minClusterTransportVersion);
         }
@@ -1373,7 +1376,7 @@ public class MetadataCreateIndexService {
         MapperService mapperService = indexService.mapperService();
         IndexMode indexMode = indexService.getIndexSettings() != null ? indexService.getIndexSettings().getMode() : IndexMode.STANDARD;
         List<CompressedXContent> allMappings = new ArrayList<>();
-        final CompressedXContent defaultMapping = indexMode.getDefaultMapping();
+        final CompressedXContent defaultMapping = indexMode.getDefaultMapping(indexService.getIndexSettings());
         if (defaultMapping != null) {
             allMappings.add(defaultMapping);
         }

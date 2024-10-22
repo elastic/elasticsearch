@@ -1,0 +1,41 @@
+
+// Incomplete expressions
+foo_field :
+foo_field <
+foo_field >
+foo_field >=
+foo_field <=
+
+// Parentheses mismatch
+foo_field: (foo bar
+foo_field: foo bar)
+NOT foo_field:foo OR foo_field:foo bar)
+NOT (foo_field:foo AND) foo_field:foo bar
+
+// Quotes mismatch
+foo_field: "foo bar
+foo_field: foo bar"
+
+
+// Invalid boolean queries
+foo AND
+AND foo
+foo OR
+OR foo
+NOT foo:
+
+// Can't nest grouping terms parentheses
+foo_field:(foo (bar))
+
+// Bad syntax for nested fields:
+nested_field { foo: bar }
+
+// Missing escape sequences:
+foo_field: foo:bar
+foo_field: (foo and bar)
+foo_field: (foo or bar)
+foo_field: foo not bar
+foo_field: foo { bar }
+foo_field: foo (bar)
+foo_field: foo "bar"
+foo_field: "foo "bar""

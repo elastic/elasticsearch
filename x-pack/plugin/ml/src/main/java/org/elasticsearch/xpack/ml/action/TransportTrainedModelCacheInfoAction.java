@@ -95,7 +95,7 @@ public class TransportTrainedModelCacheInfoAction extends TransportNodesAction<
 
         public NodeModelCacheInfoRequest(StreamInput in) throws IOException {
             super(in);
-            skipLegacyNodesRequestHeader(TransportVersions.DROP_UNUSED_NODES_REQUESTS, in);
+            skipLegacyNodesRequestHeader(TransportVersions.V_8_15_0, in);
         }
 
         @Override
@@ -106,7 +106,7 @@ public class TransportTrainedModelCacheInfoAction extends TransportNodesAction<
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            sendLegacyNodesRequestHeader(TransportVersions.DROP_UNUSED_NODES_REQUESTS, out);
+            sendLegacyNodesRequestHeader(TransportVersions.V_8_15_0, out);
         }
     }
 }

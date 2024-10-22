@@ -11,7 +11,8 @@ For detailed information about this release, see the <<es-release-notes>> and
 // Add previous release to the list
 Other versions:
 
-{ref-bare}/8.15/release-highlights.html[8.15]
+{ref-bare}/8.16/release-highlights.html[8.16]
+| {ref-bare}/8.15/release-highlights.html[8.15]
 | {ref-bare}/8.14/release-highlights.html[8.14]
 | {ref-bare}/8.13/release-highlights.html[8.13]
 | {ref-bare}/8.12/release-highlights.html[8.12]
@@ -102,6 +103,31 @@ index codec best compression. (#112665)
 
 {es-pull}112857[#112857]
 
+[discrete]
+[[esql_introduce_per_agg_filter]]
+=== ESQL: Introduce per agg filter
+Add support for aggregation scoped filters that work dynamically on the
+data in each group.
+
+[source,esql]
+----
+| STATS success = COUNT(*) WHERE 200 <= code AND code < 300,
+        redirect = COUNT(*) WHERE 300 <= code AND code < 400,
+        client_err = COUNT(*) WHERE 400 <= code AND code < 500,
+        server_err = COUNT(*) WHERE 500 <= code AND code < 600,
+        total_count = COUNT(*)
+----
+
+Implementation wise, the base AggregateFunction has been extended to 
+allow a filter to be passed on. This is required to incorporate the
+filter as part of the aggregate equality/identity which would fail with 
+the filter as an external component.
+As part of the process, the serialization for the existing aggregations
+had to be fixed so AggregateFunction implementations so that it
+delegates to their parent first.
+
+{es-pull}113735[#113735]
+
 // end::notable-highlights[]
 
 
@@ -130,4 +156,45 @@ field is first combined into a single geometry before performing the predicate c
 * `ST_WITHIN(field, shape)` - true if the combined geometry is within the shape
 
 {es-pull}112063[#112063]
+
+[discrete]
+[[enhance_sort_push_down_to_lucene_to_cover_references_to_fields_st_distance_function]]
+=== Enhance SORT push-down to Lucene to cover references to fields and ST_DISTANCE function
+The most used and likely most valuable geospatial search query in Elasticsearch is the sorted proximity search,
+finding items within a certain distance of a point of interest and sorting the results by distance.
+This has been possible in ES|QL since 8.15.0, but the sorting was done in-memory, not pushed down to Lucene.
+Now the sorting is pushed down to Lucene, which results in a significant performance improvement.
+
+Queries that perform both filtering and sorting on distance are supported. For example:
+
+[source,esql]
+----
+FROM test
+| EVAL distance = ST_DISTANCE(location, TO_GEOPOINT("POINT(37.7749, -122.4194)"))
+| WHERE distance < 1000000
+| SORT distance ASC, name DESC
+| LIMIT 10
+----
+
+In addition, the support for sorting on EVAL expressions has been extended to cover references to fields:
+
+[source,esql]
+----
+FROM test
+| EVAL ref = field
+| SORT ref ASC
+| LIMIT 10
+----
+
+{es-pull}112938[#112938]
+
+[discrete]
+[[cross_cluster_search_telemetry]]
+=== Cross-cluster search telemetry
+The cross-cluster search telemetry is collected when cross-cluster searches
+are performed, and is returned as "ccs" field in `_cluster/stats` output.
+It also add a new parameter `include_remotes=true` to the `_cluster/stats` API
+which will collect data from connected remote clusters.
+
+{es-pull}113825[#113825]
 

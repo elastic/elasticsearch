@@ -18,7 +18,6 @@ import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.TransportMultiSearchAction;
-import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
@@ -164,6 +163,11 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
     }
 
     @Override
+    public final QueryBuilder explainQuery() {
+        throw new IllegalStateException("Should not be called, missing a rewrite?");
+    }
+
+    @Override
     public final void extractToSearchSourceBuilder(SearchSourceBuilder searchSourceBuilder, boolean compoundUsed) {
         throw new IllegalStateException("Should not be called, missing a rewrite?");
     }
@@ -194,6 +198,9 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
                 validationException
             );
         }
+        for (RetrieverSource innerRetriever : innerRetrievers) {
+            validationException = innerRetriever.retriever().validate(source, validationException, allowPartialSearchResults);
+        }
         return validationException;
     }
 
@@ -213,21 +220,11 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
             .trackTotalHits(false)
             .storedFields(new StoredFieldsContext(false))
             .size(rankWindowSize);
+        // apply the pre-filters downstream once
         if (preFilterQueryBuilders.isEmpty() == false) {
             retrieverBuilder.getPreFilterQueryBuilders().addAll(preFilterQueryBuilders);
         }
         retrieverBuilder.extractToSearchSourceBuilder(sourceBuilder, true);
-
-        // apply the pre-filters
-        if (preFilterQueryBuilders.size() > 0) {
-            QueryBuilder query = sourceBuilder.query();
-            BoolQueryBuilder newQuery = new BoolQueryBuilder();
-            if (query != null) {
-                newQuery.must(query);
-            }
-            preFilterQueryBuilders.forEach(newQuery::filter);
-            sourceBuilder.query(newQuery);
-        }
 
         // Record the shard id in the sort result
         List<SortBuilder<?>> sortBuilders = sourceBuilder.sorts() != null ? new ArrayList<>(sourceBuilder.sorts()) : new ArrayList<>();

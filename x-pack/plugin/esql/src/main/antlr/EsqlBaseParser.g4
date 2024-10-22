@@ -86,7 +86,7 @@ matchOptions
     ;
 
 fuzzinessExpression
-    : TILDE fuzzinessValue?
+    : DEV_TILDE fuzzinessValue?
     ;
 
 fuzzinessValue
@@ -95,7 +95,7 @@ fuzzinessValue
     ;
 
 boostExpression
-    : CARET decimalValue;
+    : DEV_CARET decimalValue;
 
 valueExpression
     : operatorExpression                                                                      #valueExpressionDefault

@@ -27,6 +27,7 @@ import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -129,7 +130,12 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     );
     public static final Setting<Boolean> INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_LIMIT_SETTING = Setting.boolSetting(
         "index.mapping.total_fields.ignore_dynamic_beyond_limit",
-        settings -> String.valueOf(IndexSettings.MODE.get(settings) == IndexMode.LOGSDB),
+        settings -> {
+            boolean isLogsDBIndexMode = IndexSettings.MODE.get(settings) == IndexMode.LOGSDB;
+            boolean isNewIndexVersion = IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings)
+                .onOrAfter(IndexVersions.LOGSDB_DEFAULT_IGNORE_DYNAMIC_BEYOND_LIMIT);
+            return String.valueOf(isLogsDBIndexMode && isNewIndexVersion);
+        },
         Property.Dynamic,
         Property.IndexScope,
         Property.ServerlessPublic

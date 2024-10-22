@@ -1,0 +1,5 @@
+pr: 115363
+summary: Avoid use of `GroupedActionListener` when the group size is zero
+area: Machine Learning
+type: bug
+issues: []

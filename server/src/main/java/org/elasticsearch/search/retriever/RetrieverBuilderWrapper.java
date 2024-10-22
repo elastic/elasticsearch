@@ -59,9 +59,10 @@ public abstract class RetrieverBuilderWrapper<T extends RetrieverBuilder> extend
     public ActionRequestValidationException validate(
         SearchSourceBuilder source,
         ActionRequestValidationException validationException,
+        boolean isScroll,
         boolean allowPartialSearchResults
     ) {
-        return in.validate(source, validationException, allowPartialSearchResults);
+        return in.validate(source, validationException, isScroll, allowPartialSearchResults);
     }
 
     @Override

@@ -1,0 +1,36 @@
+[[migrating-9.0]]
+== Migrating to 9.0
+++++
+<titleabbrev>9.0</titleabbrev>
+++++
+
+// see https://www.elastic.co/guide/en/elasticsearch/reference/8.0/migrating-8.0.html for example formatting
+This section discusses the changes that you need to be aware of when migrating
+your application to {es} 9.0.
+
+See also <<release-highlights>> and <<es-release-notes>>.
+
+[discrete]
+[[breaking-changes-9.0]]
+=== Breaking changes
+
+The following changes in {es} 9.0 might affect your applications
+and prevent them from operating normally.
+Before upgrading to 9.0, review these changes and take the described steps
+to mitigate the impact.
+
+
+[discrete]
+[[deprecated-8.0]]
+=== Deprecations
+
+The following functionality has been deprecated in {es} 9.0
+and will be removed in a future version.
+While this won't have an immediate impact on your applications,
+we strongly encourage you take the described steps to update your code
+after upgrading to 9.0.
+
+To find out if you are using any deprecated functionality,
+enable <<deprecation-logging, deprecation logging>>.
+
+

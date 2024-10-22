@@ -2502,3 +2502,68 @@ FROM employees | eval x = [1,2,3], y = 5 + 6 | stats m = max(y) by y+1
 m:integer | y+1:integer
 11        | 12
 ;
+
+filterIsAlwaysTrue
+required_capability: per_agg_filtering
+FROM employees
+| STATS max = max(salary) WHERE salary > 0
+;
+
+max:integer
+74999
+;
+
+filterIsAlwaysFalse
+required_capability: per_agg_filtering
+FROM employees
+| STATS max = max(salary) WHERE first_name == ""
+;
+
+max:integer
+null
+;
+
+groupingFilterIsAlwaysTrue
+required_capability: per_agg_filtering
+FROM employees
+| STATS max = max(salary) WHERE salary > 0 BY job_positions
+| SORT job_positions
+| LIMIT 4
+;
+
+max:integer | job_positions:keyword
+74970       | Accountant
+69904       | Architect
+58121       | Business Analyst
+74999       | Data Scientist
+;
+
+groupingFilterIsAlwaysFalse
+required_capability: per_agg_filtering
+FROM employees
+| STATS max = max(salary) WHERE first_name == "" BY job_positions
+| SORT job_positions
+| LIMIT 4
+;
+
+max:integer | job_positions:keyword
+null        | Accountant
+null        | Architect
+null        | Business Analyst
+null        | Data Scientist
+;
+
+groupingFilterSometimesMatches
+required_capability: per_agg_filtering
+FROM employees
+| STATS max = max(salary) WHERE first_name IS NULL BY job_positions
+| SORT job_positions
+| LIMIT 4
+;
+
+max:integer | job_positions:keyword
+39878       | Accountant
+62233       | Architect
+39878       | Business Analyst
+67492       | Data Scientist
+;

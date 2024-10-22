@@ -195,7 +195,6 @@ public class ClientYamlTestClient implements Closeable {
             Response response = getRestClient(nodeSelector).performRequest(request);
             return new ClientYamlTestResponse(response);
         } catch (ResponseException e) {
-            logger.error("error calling api [{}], nodeSelector {}", apiName, nodeSelector);
             throw new ClientYamlTestResponseException(e);
         }
     }

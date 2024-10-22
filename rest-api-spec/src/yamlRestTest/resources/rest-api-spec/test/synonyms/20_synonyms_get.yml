@@ -2,8 +2,6 @@ setup:
   - requires:
       cluster_features: ["gte_v8.10.0"]
       reason: Introduced in 8.10.0
-
-
   - do:
       synonyms.put_synonym:
         id: test-get-synonyms

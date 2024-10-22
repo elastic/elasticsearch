@@ -2,8 +2,6 @@ setup:
   - requires:
       cluster_features: ["gte_v8.10.0"]
       reason: Introduced in 8.10.0
-
-
   - do:
       synonyms.put_synonym:
         id: test-synonyms-3
@@ -31,18 +29,6 @@ setup:
         body:
           synonyms_set:
             - synonyms: "pc, computer"
-  # set logging to debug for issue: https://github.com/elastic/elasticsearch/issues/102261
-  - do:
-      cluster.put_settings:
-        body:
-          persistent:
-            logger.org.elasticsearch.synonyms: DEBUG
-
-  # This is to ensure that all index shards (write and read) are available. In serverless this can take some time.
-  - do:
-      cluster.health:
-        timeout: 30s
-        wait_for_no_initializing_shards: true
 
 ---
 "List synonyms set":

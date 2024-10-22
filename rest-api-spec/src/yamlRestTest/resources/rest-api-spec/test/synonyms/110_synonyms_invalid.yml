@@ -2,7 +2,6 @@ setup:
   - requires:
       cluster_features: ["gte_v8.16.0"]
       reason: Lenient handling of updateable synonyms by default is introduced in 8.16.0
-
 ---
 "Load index with an invalid synonym rule":
   - do:

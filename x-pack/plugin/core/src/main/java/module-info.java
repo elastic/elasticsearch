@@ -34,7 +34,6 @@ module org.elasticsearch.xcore {
     exports org.elasticsearch.protocol.xpack;
     exports org.elasticsearch.snapshots.sourceonly;
     exports org.elasticsearch.xpack.cluster.action;
-    exports org.elasticsearch.xpack.cluster.routing.allocation.mapper;
     exports org.elasticsearch.xpack.cluster.routing.allocation;
     exports org.elasticsearch.xpack.core;
     exports org.elasticsearch.xpack.core.action.util;

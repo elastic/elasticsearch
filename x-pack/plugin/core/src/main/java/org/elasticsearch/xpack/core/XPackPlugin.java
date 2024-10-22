@@ -37,7 +37,6 @@ import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineFactory;
-import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.license.ClusterStateLicenseService;
 import org.elasticsearch.license.GetBasicStatusAction;
@@ -87,7 +86,6 @@ import org.elasticsearch.snapshots.sourceonly.SourceOnlySnapshotRepository;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
-import org.elasticsearch.xpack.cluster.routing.allocation.mapper.DataTierFieldMapper;
 import org.elasticsearch.xpack.core.action.DataStreamInfoTransportAction;
 import org.elasticsearch.xpack.core.action.DataStreamLifecycleUsageTransportAction;
 import org.elasticsearch.xpack.core.action.DataStreamUsageTransportAction;
@@ -301,11 +299,6 @@ public class XPackPlugin extends XPackClientPlugin
             || RoleMappingMetadata.getFromClusterState(clusterState).isEmpty() == false
             || clusterState.custom(TokenMetadata.TYPE) != null
             || metadata.custom(TransformMetadata.TYPE) != null;
-    }
-
-    @Override
-    public Map<String, MetadataFieldMapper.TypeParser> getMetadataMappers() {
-        return Map.of(DataTierFieldMapper.NAME, DataTierFieldMapper.PARSER);
     }
 
     @Override

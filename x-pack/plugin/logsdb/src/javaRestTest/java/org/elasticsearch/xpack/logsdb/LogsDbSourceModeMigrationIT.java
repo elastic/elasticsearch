@@ -33,6 +33,7 @@ import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.is;
 
 public class LogsDbSourceModeMigrationIT extends LogsIndexModeRestTestIT {
     public static final String INDEX_TEMPLATE = """
@@ -111,6 +112,7 @@ public class LogsDbSourceModeMigrationIT extends LogsIndexModeRestTestIT {
         .setting("xpack.otel_data.registry.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
         .setting("cluster.logsdb.enabled", "true")
+        .setting("stack.templates.enabled", "false")
         .build();
 
     @Override
@@ -154,7 +156,9 @@ public class LogsDbSourceModeMigrationIT extends LogsIndexModeRestTestIT {
         assertThat(entityAsMap(storedSourceBulkResponse).get("errors"), Matchers.equalTo(false));
 
         assertOK(putComponentTemplate(client, "my-logs-migrated-source", SYNTHETIC_SOURCE_COMPONENT_TEMPLATE));
-        assertOK(rolloverDataStream(client, "my-logs-ds-test"));
+        var rolloverResponse = rolloverDataStream(client, "my-logs-ds-test");
+        assertOK(rolloverResponse);
+        assertThat(entityAsMap(rolloverResponse).get("rolled_over"), is(true));
 
         var finalSourceMode = (String) getSetting(
             client,
@@ -170,7 +174,6 @@ public class LogsDbSourceModeMigrationIT extends LogsIndexModeRestTestIT {
         var allDocs = Stream.concat(indexedWithStoredSource.stream(), indexedWithSyntheticSource.stream()).toList();
 
         var sourceList = search(new SearchSourceBuilder().query(QueryBuilders.matchAllQuery()).size(allDocs.size()), "my-logs-ds-test");
-        assertThat(sourceList.size(), equalTo(allDocs.size()));
         assertThat(sourceList.size(), equalTo(allDocs.size()));
 
         for (int i = 0; i < sourceList.size(); i++) {
@@ -207,7 +210,9 @@ public class LogsDbSourceModeMigrationIT extends LogsIndexModeRestTestIT {
         assertThat(entityAsMap(syntheticSourceBulkResponse).get("errors"), Matchers.equalTo(false));
 
         assertOK(putComponentTemplate(client, "my-logs-migrated-source", STORED_SOURCE_COMPONENT_TEMPLATE));
-        assertOK(rolloverDataStream(client, "my-logs-ds-test"));
+        var rolloverResponse = rolloverDataStream(client, "my-logs-ds-test");
+        assertOK(rolloverResponse);
+        assertThat(entityAsMap(rolloverResponse).get("rolled_over"), is(true));
 
         var finalSourceMode = (String) getSetting(
             client,

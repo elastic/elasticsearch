@@ -94,7 +94,7 @@ public class AssociatedIndexDescriptor implements IndexPatternMatcher {
         String output = pattern;
         output = output.replace(".", "\\.");
         output = output.replace("*", ".*");
-        return new RegExp(output).toAutomaton();
+        return new RegExp(output, RegExp.ALL | RegExp.ALL).toAutomaton();
     }
 
     /**

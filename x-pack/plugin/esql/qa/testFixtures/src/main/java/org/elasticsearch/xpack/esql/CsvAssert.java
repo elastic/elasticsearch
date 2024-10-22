@@ -134,7 +134,11 @@ public final class CsvAssert {
                         || expectedType == UNSIGNED_LONG)) {
                     continue;
                 }
-                if (blockType == Type.KEYWORD && (expectedType == Type.IP || expectedType == Type.VERSION || expectedType == Type.TEXT)) {
+                if (blockType == Type.KEYWORD
+                    && (expectedType == Type.IP
+                        || expectedType == Type.VERSION
+                        || expectedType == Type.TEXT
+                        || expectedType == Type.SEMANTIC_TEXT)) {
                     // Type.asType translates all bytes references into keywords
                     continue;
                 }

@@ -34,6 +34,7 @@ Elastic –, then create an {infer} endpoint by the <<put-inference-api>>.
 Now use <<semantic-search-semantic-text, semantic text>> to perform
 <<semantic-search, semantic search>> on your data.
 
+
 [discrete]
 [[infer-chunking-config]]
 === Configuring chunking
@@ -52,15 +53,40 @@ Overlapping ensures continuity and prevents vital contextual information in the 
 
 Two strategies are available for chunking: `sentence` and `word`.
 
-The `sentence` strategy considers sentences when chunking.
+The `sentence` strategy splits the input text at sentence boundaries.
+Each chunk contains one or more complete sentences -  except if the sentence is longer than the value of `max_chunk_size` -, ensuring that the integrity of sentence-level context is preserved.
 
+The `word` strategy splits the input text based on individual words.
 For `word` strategy, {es} uses the https://unicode-org.github.io/icu-docs/[ICU4J] library to detect word boundaries.
 https://unicode-org.github.io/icu/userguide/boundaryanalysis/#word-boundary[Word boundaries] are identified by following a series of rules, not just the presence of a whitespace character.
 For written languages that do use whitespace such as Chinese or Japanese dictionary lookups are used to detect word boundaries.
 
+The default chunking strategy is `sentence`.
 
+NOTE: The default chunking strategy for {infer} endpoint created before 8.16 is `word`.
 
+[discrete]
+==== Example of configuring the chunking behavior
 
+The following example creates an {infer} endpoint with the `elasticsearch` service that deploys the ELSER model by default and configures the chunking behavior.
+
+[source,console]
+------------------------------------------------------------
+PUT _inference/sparse_embedding/small_chunk_size
+{
+  "service": "elasticsearch",
+  "service_settings": {
+    "num_allocations": 1,
+    "num_threads": 1
+  },
+  "chunking_settings": {
+    "strategy": "sentence",
+    "max_chunk_size": 100,
+    "sentence_overlap": 0
+  }
+}
+------------------------------------------------------------
+// TEST[skip:TBD]
 
 
 include::delete-inference.asciidoc[]

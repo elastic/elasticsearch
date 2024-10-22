@@ -78,7 +78,7 @@ public class ValuesTests extends AbstractAggregationTestCase {
             return new TestCaseSupplier.TestCase(
                 List.of(fieldTypedData),
                 "Values[field=Attribute[channel=0]]",
-                fieldSupplier.type() == DataType.TEXT ? DataType.KEYWORD : fieldSupplier.type(),
+                fieldSupplier.type().noText(),
                 expected.isEmpty() ? nullValue() : valuesInAnyOrder(expected)
             );
         });

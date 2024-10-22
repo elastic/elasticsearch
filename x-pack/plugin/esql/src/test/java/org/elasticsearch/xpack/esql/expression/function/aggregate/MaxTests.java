@@ -172,7 +172,7 @@ public class MaxTests extends AbstractAggregationTestCase {
             return new TestCaseSupplier.TestCase(
                 List.of(fieldTypedData),
                 "Max[field=Attribute[channel=0]]",
-                fieldSupplier.type() == DataType.TEXT ? DataType.KEYWORD : fieldSupplier.type(),
+                fieldSupplier.type().noText(),
                 equalTo(expected)
             );
         });

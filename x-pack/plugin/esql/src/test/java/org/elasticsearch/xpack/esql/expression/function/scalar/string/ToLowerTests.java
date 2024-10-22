@@ -87,12 +87,7 @@ public class ToLowerTests extends AbstractConfigurationFunctionTestCase {
             values.add(new TestCaseSupplier.TypedData(new BytesRef(value), type, "0"));
 
             String expectedValue = value.toLowerCase(EsqlTestUtils.TEST_CFG.locale());
-            return new TestCaseSupplier.TestCase(
-                values,
-                expectedToString,
-                type == DataType.TEXT ? DataType.KEYWORD : type,
-                equalTo(new BytesRef(expectedValue))
-            );
+            return new TestCaseSupplier.TestCase(values, expectedToString, type.noText(), equalTo(new BytesRef(expectedValue)));
         });
     }
 }

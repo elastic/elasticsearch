@@ -30,13 +30,7 @@ public class MvLastTests extends AbstractMultivalueFunctionTestCase {
     public static Iterable<Object[]> parameters() {
         List<TestCaseSupplier> cases = new ArrayList<>();
         booleans(cases, "mv_last", "MvLast", DataType.BOOLEAN, (size, values) -> equalTo(values.reduce((f, s) -> s).get()));
-        bytesRefs(
-            cases,
-            "mv_last",
-            "MvLast",
-            x -> x == DataType.TEXT ? DataType.KEYWORD : x,
-            (size, values) -> equalTo(values.reduce((f, s) -> s).get())
-        );
+        bytesRefs(cases, "mv_last", "MvLast", DataType::noText, (size, values) -> equalTo(values.reduce((f, s) -> s).get()));
         doubles(cases, "mv_last", "MvLast", DataType.DOUBLE, (size, values) -> equalTo(values.reduce((f, s) -> s).getAsDouble()));
         ints(cases, "mv_last", "MvLast", DataType.INTEGER, (size, values) -> equalTo(values.reduce((f, s) -> s).getAsInt()));
         longs(cases, "mv_last", "MvLast", DataType.LONG, (size, values) -> equalTo(values.reduce((f, s) -> s).getAsLong()));

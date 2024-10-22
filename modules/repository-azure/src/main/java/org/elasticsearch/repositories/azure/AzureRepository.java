@@ -97,6 +97,11 @@ public class AzureRepository extends MeteredBlobStoreRepository {
             1,
             AzureBlobStore.MAX_ELEMENTS_PER_BATCH
         );
+
+        /**
+         * The maximum number of concurrent batch deletes
+         */
+        static final Setting<Integer> MAXIMUM_CONCURRENT_BATCH_DELETES = Setting.intSetting("max_concurrent_batch_deletes", 10, 1);
     }
 
     private final ByteSizeValue chunkSize;

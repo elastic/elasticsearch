@@ -21,6 +21,7 @@ import com.azure.core.http.rest.ResponseBase;
 import com.azure.core.util.BinaryData;
 import com.azure.storage.blob.BlobAsyncClient;
 import com.azure.storage.blob.BlobClient;
+import com.azure.storage.blob.BlobContainerAsyncClient;
 import com.azure.storage.blob.BlobContainerClient;
 import com.azure.storage.blob.BlobServiceAsyncClient;
 import com.azure.storage.blob.BlobServiceClient;
@@ -87,6 +88,8 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Spliterator;
+import java.util.Spliterators;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
@@ -96,6 +99,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.BiPredicate;
 import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -114,7 +118,8 @@ public class AzureBlobStore implements BlobStore {
     private final String container;
     private final LocationMode locationMode;
     private final ByteSizeValue maxSinglePartUploadSize;
-    private final int maxDeletesPerBatch;
+    private final int deletionBatchSize;
+    private final int maxConcurrentBatchDeletes;
 
     private final RequestMetricsRecorder requestMetricsRecorder;
     private final AzureClientProvider.RequestMetricsHandler requestMetricsHandler;
@@ -134,7 +139,8 @@ public class AzureBlobStore implements BlobStore {
         // locationMode is set per repository, not per client
         this.locationMode = Repository.LOCATION_MODE_SETTING.get(metadata.settings());
         this.maxSinglePartUploadSize = Repository.MAX_SINGLE_PART_UPLOAD_SIZE_SETTING.get(metadata.settings());
-        this.maxDeletesPerBatch = Repository.DELETION_BATCH_SIZE_SETTING.get(metadata.settings());
+        this.deletionBatchSize = Repository.DELETION_BATCH_SIZE_SETTING.get(metadata.settings());
+        this.maxConcurrentBatchDeletes = Repository.MAXIMUM_CONCURRENT_BATCH_DELETES.get(metadata.settings());
 
         List<RequestMatcher> requestMatchers = List.of(
             new RequestMatcher((httpMethod, url) -> httpMethod == HttpMethod.HEAD, Operation.GET_BLOB_PROPERTIES),
@@ -241,24 +247,18 @@ public class AzureBlobStore implements BlobStore {
     public DeleteResult deleteBlobDirectory(OperationPurpose purpose, String path) throws IOException {
         final AtomicInteger blobsDeleted = new AtomicInteger(0);
         final AtomicLong bytesDeleted = new AtomicLong(0);
-        final List<String> blobNames = new ArrayList<>();
 
         SocketAccess.doPrivilegedVoidExceptionExplicit(IOException.class, () -> {
             final AzureBlobServiceClient client = getAzureBlobServiceClientClient(purpose);
-            final BlobContainerClient blobContainerClient = client.getSyncClient().getBlobContainerClient(container);
+            final BlobContainerAsyncClient blobContainerAsyncClient = client.getAsyncClient().getBlobContainerAsyncClient(container);
             final ListBlobsOptions options = new ListBlobsOptions().setPrefix(path)
                 .setDetails(new BlobListDetails().setRetrieveMetadata(true));
-            for (BlobItem blobItem : blobContainerClient.listBlobs(options, null)) {
-                if (blobItem.isPrefix()) {
-                    continue;
-                }
-                blobNames.add(blobItem.getName());
-                bytesDeleted.addAndGet(blobItem.getProperties().getContentLength());
+            Flux<String> blobsFlux = blobContainerAsyncClient.listBlobs(options).filter(bi -> bi.isPrefix() == false).map(bi -> {
+                bytesDeleted.addAndGet(bi.getProperties().getContentLength());
                 blobsDeleted.incrementAndGet();
-            }
-            if (blobNames.isEmpty() == false) {
-                deleteListOfBlobs(client, blobNames.iterator());
-            }
+                return bi.getName();
+            });
+            deleteListOfBlobs(client, blobsFlux);
         });
 
         return new DeleteResult(blobsDeleted.get(), bytesDeleted.get());
@@ -271,46 +271,37 @@ public class AzureBlobStore implements BlobStore {
         }
         SocketAccess.doPrivilegedVoidExceptionExplicit(
             IOException.class,
-            () -> deleteListOfBlobs(getAzureBlobServiceClientClient(purpose), blobNames)
+            () -> deleteListOfBlobs(
+                getAzureBlobServiceClientClient(purpose),
+                Flux.fromStream(StreamSupport.stream(Spliterators.spliteratorUnknownSize(blobNames, Spliterator.ORDERED), false))
+            )
         );
     }
 
-    private void deleteListOfBlobs(AzureBlobServiceClient azureBlobServiceClient, Iterator<String> blobNames) throws IOException {
+    private void deleteListOfBlobs(AzureBlobServiceClient azureBlobServiceClient, Flux<String> blobNames) throws IOException {
         // We need to use a container-scoped BlobBatchClient, so the restype=container parameter
         // is sent, and we can support all SAS token types
         // See https://learn.microsoft.com/en-us/rest/api/storageservices/blob-batch?tabs=shared-access-signatures#authorization
         final BlobBatchAsyncClient batchAsyncClient = new BlobBatchClientBuilder(
             azureBlobServiceClient.getAsyncClient().getBlobContainerAsyncClient(container)
         ).buildAsyncClient();
-        final List<Mono<Void>> batchResponses = new ArrayList<>();
-        while (blobNames.hasNext()) {
-            final BlobBatch currentBatch = batchAsyncClient.getBlobBatch();
-            int counter = 0;
-            while (counter < maxDeletesPerBatch && blobNames.hasNext()) {
-                currentBatch.deleteBlob(container, blobNames.next());
-                counter++;
-            }
-            batchResponses.add(batchAsyncClient.submitBatch(currentBatch));
-        }
-        waitForCompletion(batchResponses);
-    }
-
-    /**
-     * This is in preference to using e.g. <code>Mono.whenDelayError(...).block()</code> because it
-     * adds some noise to the suppressed exceptions. (see reactor.core.publisher.BlockingSingleSubscriber:100)
-     *
-     * @param deleteTasks A list of Mono objects representing the delete batches
-     * @throws IOException With all thrown exceptions as suppressed, if any of the delete batches fail
-     */
-    private void waitForCompletion(List<Mono<Void>> deleteTasks) throws IOException {
-        final CountDownLatch allRequestsFinished = new CountDownLatch(deleteTasks.size());
         final List<Throwable> errors = new CopyOnWriteArrayList<>();
-        deleteTasks.stream()
-            .map(m -> m.onErrorResume(AzureBlobStore::isIgnorableBatchDeleteException, t -> Mono.empty()))
-            .forEach(m -> m.subscribe(v -> {}, error -> {
-                errors.add(error);
-                allRequestsFinished.countDown();
-            }, allRequestsFinished::countDown));
+        final CountDownLatch allRequestsFinished = new CountDownLatch(1);
+        blobNames.buffer(deletionBatchSize).flatMap(blobs -> {
+            BlobBatch blobBatch = batchAsyncClient.getBlobBatch();
+            blobs.forEach(blob -> blobBatch.deleteBlob(container, blob));
+            return batchAsyncClient.submitBatch(blobBatch).then(Mono.fromCallable(() -> (Throwable) null)).onErrorResume(t -> {
+                // Ignore errors that are just 404s, send other errors downstream as values
+                if (AzureBlobStore.isIgnorableBatchDeleteException(t)) {
+                    return Mono.empty();
+                } else {
+                    return Mono.just(t);
+                }
+            });
+        }, maxConcurrentBatchDeletes).subscribe(errors::add, throwable -> {
+            assert false : "We should be suppressing all errors, got:" + throwable;
+            errors.add(throwable);
+        }, allRequestsFinished::countDown);
         try {
             allRequestsFinished.await();
         } catch (InterruptedException e) {

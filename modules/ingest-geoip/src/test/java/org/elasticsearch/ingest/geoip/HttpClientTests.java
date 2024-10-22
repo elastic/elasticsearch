@@ -47,6 +47,7 @@ public class HttpClientTests extends ESTestCase {
         server.createContext("/404/", exchange -> {
             try {
                 exchange.sendResponseHeaders(404, 0);
+                exchange.close();
             } catch (Exception e) {
                 fail(e);
             }
@@ -102,6 +103,7 @@ public class HttpClientTests extends ESTestCase {
                     exchange.getResponseHeaders().add("Location", "/" + destination + "/");
                 }
                 exchange.sendResponseHeaders(302, 0);
+                exchange.close();
             } catch (Exception e) {
                 fail(e);
             }

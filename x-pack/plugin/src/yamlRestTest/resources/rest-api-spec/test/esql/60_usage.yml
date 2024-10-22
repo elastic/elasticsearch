@@ -5,7 +5,7 @@ setup:
         - method: POST
           path: /_query
           parameters: [ method, path, parameters, capabilities ]
-          capabilities: [ no_meta ]
+          capabilities: [ function_stats ]
       reason: "META command removed which changes the count of the data returned"
       test_runner_features: [capabilities]
 
@@ -51,11 +51,16 @@ setup:
   - set: {esql.queries.kibana.failed: kibana_failed_counter}
   - set: {esql.queries._all.total: all_total_counter}
   - set: {esql.queries._all.failed: all_failed_counter}
+  - set: {esql.functions.max: functions_max}
+  - set: {esql.functions.min: functions_min}
+  - set: {esql.functions.cos: functions_cos}
+  - set: {esql.functions.to_long: functions_to_long}
+  - set: {esql.functions.coalesce: functions_coalesce}
 
   - do:
       esql.query:
         body:
-          query: 'from test | where data > 2 | sort count desc | limit 5 | stats m = max(data)'
+          query: 'from test | where data > 2 and to_long(data) > 2 | sort count desc | limit 5 | stats m = max(data)'
 
   - do: {xpack.usage: {}}
   - match: { esql.available: true }
@@ -73,3 +78,8 @@ setup:
   - match: {esql.queries.kibana.failed: $kibana_failed_counter}
   - gt: {esql.queries._all.total: $all_total_counter}
   - match: {esql.queries._all.failed: $all_failed_counter}
+  - gt: {esql.functions.max: $functions_max}
+  - match: {esql.functions.min: $functions_min}
+  - match: {esql.functions.cos: $functions_cos}
+  - gt: {esql.functions.to_long: $functions_to_long}
+  - match: {esql.functions.coalesce: $functions_coalesce}

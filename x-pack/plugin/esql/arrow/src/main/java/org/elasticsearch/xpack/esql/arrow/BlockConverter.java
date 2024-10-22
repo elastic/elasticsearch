@@ -71,10 +71,11 @@ public abstract class BlockConverter {
     /**
      * Convert a block into Arrow buffers.
      * @param block the ESQL block
+     * @param multivalued is this column multivalued? This block may not, but some blocks in that column are.
      * @param bufs arrow buffers, used to track sizes
      * @param bufWriters buffer writers, that will do the actual work of writing the data
      */
-    public abstract void convert(Block block, List<ArrowBuf> bufs, List<BufWriter> bufWriters);
+    public abstract void convert(Block block, boolean multivalued, List<ArrowBuf> bufs, List<BufWriter> bufWriters);
 
     /**
      * Conversion of Double blocks
@@ -86,28 +87,31 @@ public abstract class BlockConverter {
         }
 
         @Override
-        public void convert(Block b, List<ArrowBuf> bufs, List<BufWriter> bufWriters) {
+        public void convert(Block b, boolean multivalued, List<ArrowBuf> bufs, List<BufWriter> bufWriters) {
             DoubleBlock block = (DoubleBlock) b;
 
-            accumulateVectorValidity(bufs, bufWriters, block);
+            if (multivalued) {
+                addListOffsets(bufs, bufWriters, block);
+            }
+            accumulateVectorValidity(bufs, bufWriters, block, multivalued);
 
-            bufs.add(dummyArrowBuf(vectorLength(block)));
+            bufs.add(dummyArrowBuf(vectorByteSize(block)));
             bufWriters.add(out -> {
                 if (block.areAllValuesNull()) {
-                    return BlockConverter.writeZeroes(out, vectorLength(block));
+                    return BlockConverter.writeZeroes(out, vectorByteSize(block));
                 }
 
                 // TODO could we "just" get the memory of the array and dump it?
-                int count = block.getPositionCount();
+                int count = BlockConverter.valueCount(block);
                 for (int i = 0; i < count; i++) {
                     out.writeDoubleLE(block.getDouble(i));
                 }
-                return vectorLength(block);
+                return (long) count * Double.BYTES;
             });
         }
 
-        private static int vectorLength(DoubleBlock b) {
-            return Double.BYTES * b.getPositionCount();
+        private static int vectorByteSize(DoubleBlock b) {
+            return Double.BYTES * BlockConverter.valueCount(b);
         }
     }
 
@@ -121,28 +125,31 @@ public abstract class BlockConverter {
         }
 
         @Override
-        public void convert(Block b, List<ArrowBuf> bufs, List<BufWriter> bufWriters) {
+        public void convert(Block b, boolean multivalued, List<ArrowBuf> bufs, List<BufWriter> bufWriters) {
             IntBlock block = (IntBlock) b;
 
-            accumulateVectorValidity(bufs, bufWriters, block);
+            if (multivalued) {
+                addListOffsets(bufs, bufWriters, block);
+            }
+            accumulateVectorValidity(bufs, bufWriters, block, multivalued);
 
-            bufs.add(dummyArrowBuf(vectorLength(block)));
+            bufs.add(dummyArrowBuf(vectorByteSize(block)));
             bufWriters.add(out -> {
                 if (block.areAllValuesNull()) {
-                    return BlockConverter.writeZeroes(out, vectorLength(block));
+                    return BlockConverter.writeZeroes(out, vectorByteSize(block));
                 }
 
                 // TODO could we "just" get the memory of the array and dump it?
-                int count = block.getPositionCount();
+                int count = BlockConverter.valueCount(block);
                 for (int i = 0; i < count; i++) {
                     out.writeIntLE(block.getInt(i));
                 }
-                return vectorLength(block);
+                return (long) count * Integer.BYTES;
             });
         }
 
-        private static int vectorLength(IntBlock b) {
-            return Integer.BYTES * b.getPositionCount();
+        private static int vectorByteSize(Block b) {
+            return Integer.BYTES * BlockConverter.valueCount(b);
         }
     }
 
@@ -159,27 +166,31 @@ public abstract class BlockConverter {
         }
 
         @Override
-        public void convert(Block b, List<ArrowBuf> bufs, List<BufWriter> bufWriters) {
+        public void convert(Block b, boolean multivalued, List<ArrowBuf> bufs, List<BufWriter> bufWriters) {
             LongBlock block = (LongBlock) b;
-            accumulateVectorValidity(bufs, bufWriters, block);
 
-            bufs.add(dummyArrowBuf(vectorLength(block)));
+            if (multivalued) {
+                addListOffsets(bufs, bufWriters, block);
+            }
+            accumulateVectorValidity(bufs, bufWriters, block, multivalued);
+
+            bufs.add(dummyArrowBuf(vectorByteSize(block)));
             bufWriters.add(out -> {
                 if (block.areAllValuesNull()) {
-                    return BlockConverter.writeZeroes(out, vectorLength(block));
+                    return BlockConverter.writeZeroes(out, vectorByteSize(block));
                 }
 
                 // TODO could we "just" get the memory of the array and dump it?
-                int count = block.getPositionCount();
+                int count = BlockConverter.valueCount(block);
                 for (int i = 0; i < count; i++) {
                     out.writeLongLE(block.getLong(i));
                 }
-                return vectorLength(block);
+                return (long) count * Long.BYTES;
             });
         }
 
-        private static int vectorLength(LongBlock b) {
-            return Long.BYTES * b.getPositionCount();
+        private static int vectorByteSize(LongBlock b) {
+            return Long.BYTES * BlockConverter.valueCount(b);
         }
     }
 
@@ -192,13 +203,17 @@ public abstract class BlockConverter {
         }
 
         @Override
-        public void convert(Block b, List<ArrowBuf> bufs, List<BufWriter> bufWriters) {
+        public void convert(Block b, boolean multivalued, List<ArrowBuf> bufs, List<BufWriter> bufWriters) {
             BooleanBlock block = (BooleanBlock) b;
-            accumulateVectorValidity(bufs, bufWriters, block);
 
-            bufs.add(dummyArrowBuf(vectorLength(block)));
+            if (multivalued) {
+                addListOffsets(bufs, bufWriters, block);
+            }
+            accumulateVectorValidity(bufs, bufWriters, block, multivalued);
+
+            bufs.add(dummyArrowBuf(vectorByteSize(block)));
             bufWriters.add(out -> {
-                int count = block.getPositionCount();
+                int count = BlockConverter.valueCount(block);
                 BitSet bits = new BitSet();
 
                 // Only set the bits that are true, writeBitSet will take
@@ -215,8 +230,8 @@ public abstract class BlockConverter {
             });
         }
 
-        private static int vectorLength(BooleanBlock b) {
-            return BlockConverter.bitSetLength(b.getPositionCount());
+        private static int vectorByteSize(BooleanBlock b) {
+            return BlockConverter.bitSetLength(BlockConverter.valueCount(b));
         }
     }
 
@@ -230,27 +245,30 @@ public abstract class BlockConverter {
         }
 
         @Override
-        public void convert(Block b, List<ArrowBuf> bufs, List<BufWriter> bufWriters) {
+        public void convert(Block b, boolean multivalued, List<ArrowBuf> bufs, List<BufWriter> bufWriters) {
             BytesRefBlock block = (BytesRefBlock) b;
 
-            BlockConverter.accumulateVectorValidity(bufs, bufWriters, block);
+            if (multivalued) {
+                addListOffsets(bufs, bufWriters, block);
+            }
+            accumulateVectorValidity(bufs, bufWriters, block, multivalued);
 
             // Offsets vector
-            bufs.add(dummyArrowBuf(offsetVectorLength(block)));
+            bufs.add(dummyArrowBuf(offsetvectorByteSize(block)));
 
             bufWriters.add(out -> {
                 if (block.areAllValuesNull()) {
-                    var count = block.getPositionCount() + 1;
+                    var count = valueCount(block) + 1;
                     for (int i = 0; i < count; i++) {
                         out.writeIntLE(0);
                     }
-                    return offsetVectorLength(block);
+                    return offsetvectorByteSize(block);
                 }
 
                 // TODO could we "just" get the memory of the array and dump it?
                 BytesRef scratch = new BytesRef();
                 int offset = 0;
-                for (int i = 0; i < block.getPositionCount(); i++) {
+                for (int i = 0; i < valueCount(block); i++) {
                     out.writeIntLE(offset);
                     // FIXME: add a ByteRefsVector.getLength(position): there are some cases
                     // where getBytesRef will allocate, which isn't needed here.
@@ -259,11 +277,11 @@ public abstract class BlockConverter {
                     offset += v.length;
                 }
                 out.writeIntLE(offset);
-                return offsetVectorLength(block);
+                return offsetvectorByteSize(block);
             });
 
             // Data vector
-            bufs.add(BlockConverter.dummyArrowBuf(dataVectorLength(block)));
+            bufs.add(BlockConverter.dummyArrowBuf(dataVectorByteSize(block)));
 
             bufWriters.add(out -> {
                 if (block.areAllValuesNull()) {
@@ -273,7 +291,7 @@ public abstract class BlockConverter {
                 // TODO could we "just" get the memory of the array and dump it?
                 BytesRef scratch = new BytesRef();
                 long length = 0;
-                for (int i = 0; i < block.getPositionCount(); i++) {
+                for (int i = 0; i < valueCount(block); i++) {
                     BytesRef v = block.getBytesRef(i, scratch);
 
                     out.write(v.bytes, v.offset, v.length);
@@ -283,11 +301,11 @@ public abstract class BlockConverter {
             });
         }
 
-        private static int offsetVectorLength(BytesRefBlock block) {
-            return Integer.BYTES * (block.getPositionCount() + 1);
+        private static int offsetvectorByteSize(BytesRefBlock block) {
+            return Integer.BYTES * (valueCount(block) + 1);
         }
 
-        private int dataVectorLength(BytesRefBlock block) {
+        private int dataVectorByteSize(BytesRefBlock block) {
             if (block.areAllValuesNull()) {
                 return 0;
             }
@@ -296,7 +314,7 @@ public abstract class BlockConverter {
 
             int length = 0;
             BytesRef scratch = new BytesRef();
-            for (int i = 0; i < block.getPositionCount(); i++) {
+            for (int i = 0; i < valueCount(block); i++) {
                 BytesRef v = block.getBytesRef(i, scratch);
                 length += v.length;
             }
@@ -323,10 +341,10 @@ public abstract class BlockConverter {
         }
 
         @Override
-        public void convert(Block b, List<ArrowBuf> bufs, List<BufWriter> bufWriters) {
+        public void convert(Block b, boolean multivalued, List<ArrowBuf> bufs, List<BufWriter> bufWriters) {
             BytesRefBlock block = (BytesRefBlock) b;
             try (BytesRefBlock transformed = transformValues(block)) {
-                super.convert(transformed, bufs, bufWriters);
+                super.convert(transformed, multivalued, bufs, bufWriters);
             }
         }
 
@@ -336,19 +354,39 @@ public abstract class BlockConverter {
         private BytesRefBlock transformValues(BytesRefBlock block) {
             try (BytesRefBlock.Builder builder = block.blockFactory().newBytesRefBlockBuilder(block.getPositionCount())) {
                 BytesRef scratch = new BytesRef();
-                for (int i = 0; i < block.getPositionCount(); i++) {
-                    if (block.isNull(i)) {
-                        builder.appendNull();
-                    } else {
-                        BytesRef bytes = block.getBytesRef(i, scratch);
-                        if (bytes.length != 0) {
-                            bytes = valueConverter.apply(bytes, scratch);
+                if (block.mayHaveMultivaluedFields() == false) {
+                    for (int pos = 0; pos < valueCount(block); pos++) {
+                        if (block.isNull(pos)) {
+                            builder.appendNull();
+                        } else {
+                            convertAndAppend(builder, block, pos, scratch);
                         }
-                        builder.appendBytesRef(bytes);
+                    }
+                } else {
+                    for (int pos = 0; pos < block.getPositionCount(); pos++) {
+                        if (block.isNull(pos)) {
+                            builder.appendNull();
+                        } else {
+                            builder.beginPositionEntry();
+                            int startPos = block.getFirstValueIndex(pos);
+                            int lastPos = block.getFirstValueIndex(pos + 1);
+                            for (int valuePos = startPos; valuePos < lastPos; valuePos++) {
+                                convertAndAppend(builder, block, valuePos, scratch);
+                            }
+                            builder.endPositionEntry();
+                        }
                     }
                 }
                 return builder.build();
             }
+        }
+
+        private void convertAndAppend(BytesRefBlock.Builder builder, BytesRefBlock block, int position, BytesRef scratch) {
+            BytesRef bytes = block.getBytesRef(position, scratch);
+            if (bytes.length != 0) {
+                bytes = valueConverter.apply(bytes, scratch);
+            }
+            builder.appendBytesRef(bytes);
         }
     }
 
@@ -370,7 +408,7 @@ public abstract class BlockConverter {
         }
 
         @Override
-        public void convert(Block block, List<ArrowBuf> bufs, List<BufWriter> bufWriters) {
+        public void convert(Block block, boolean multivalued, List<ArrowBuf> bufs, List<BufWriter> bufWriters) {
             // Null vector in arrow has no associated buffers
             // See https://arrow.apache.org/docs/format/Columnar.html#null-layout
         }
@@ -386,15 +424,38 @@ public abstract class BlockConverter {
         return (totalValues + 7) / 8;
     }
 
-    private static void accumulateVectorValidity(List<ArrowBuf> bufs, List<BufWriter> bufWriters, Block b) {
-        bufs.add(dummyArrowBuf(bitSetLength(b.getPositionCount())));
+    /**
+     * Get the value count for a block. For single-valued blocks this is the same as the position count.
+     * For multivalued blocks, this is the flattened number of items.
+     */
+    static int valueCount(Block block) {
+        int result = block.getFirstValueIndex(block.getPositionCount());
+
+        // firstValueIndex is always zero for all-null blocks.
+        if (result == 0 && block.areAllValuesNull()) {
+            result = block.getPositionCount();
+        }
+
+        return result;
+    }
+
+    private static void accumulateVectorValidity(List<ArrowBuf> bufs, List<BufWriter> bufWriters, Block b, boolean multivalued) {
+        // If that block is in a multivalued-column, validities are output in the parent Arrow List buffer (values themselves
+        // do not contain nulls per docvalues limitations).
+        if (multivalued || b.mayHaveNulls() == false) {
+            // Arrow IPC allows a compact form for "all true" validities using an empty buffer.
+            bufs.add(dummyArrowBuf(0));
+            bufWriters.add(w -> 0);
+            return;
+        }
+
+        int valueCount = b.getPositionCount();
+        bufs.add(dummyArrowBuf(bitSetLength(valueCount)));
         bufWriters.add(out -> {
-            if (b.mayHaveNulls() == false) {
-                return writeAllTrueValidity(out, b.getPositionCount());
-            } else if (b.areAllValuesNull()) {
-                return writeAllFalseValidity(out, b.getPositionCount());
+            if (b.areAllValuesNull()) {
+                return writeAllFalseValidity(out, valueCount);
             } else {
-                return writeValidities(out, b);
+                return writeValidities(out, b, valueCount);
             }
         });
     }
@@ -420,10 +481,10 @@ public abstract class BlockConverter {
         return count;
     }
 
-    private static long writeValidities(RecyclerBytesStreamOutput out, Block block) {
-        int valueCount = block.getPositionCount();
+    private static long writeValidities(RecyclerBytesStreamOutput out, Block block, int valueCount) {
         BitSet bits = new BitSet(valueCount);
         for (int i = 0; i < block.getPositionCount(); i++) {
+            // isNull is value indices, not multi-value positions
             if (block.isNull(i) == false) {
                 bits.set(i);
             }
@@ -448,5 +509,30 @@ public abstract class BlockConverter {
             out.writeByte((byte) 0);
         }
         return byteCount;
+    }
+
+    private static void addListOffsets(List<ArrowBuf> bufs, List<BufWriter> bufWriters, Block block) {
+        // Add validity buffer
+        accumulateVectorValidity(bufs, bufWriters, block, false);
+
+        // Add offsets buffer
+        int bufferLen = Integer.BYTES * (block.getPositionCount() + 1);
+
+        bufs.add(dummyArrowBuf(bufferLen));
+        bufWriters.add(out -> {
+            if (block.mayHaveMultivaluedFields()) {
+                // '<=' is intentional to write the end position of the last item
+                for (int i = 0; i <= block.getPositionCount(); i++) {
+                    // TODO could we get the block's firstValueIndexes and dump it?
+                    out.writeIntLE(block.getFirstValueIndex(i));
+                }
+            } else {
+                for (int i = 0; i <= block.getPositionCount(); i++) {
+                    out.writeIntLE(i);
+                }
+            }
+
+            return bufferLen;
+        });
     }
 }

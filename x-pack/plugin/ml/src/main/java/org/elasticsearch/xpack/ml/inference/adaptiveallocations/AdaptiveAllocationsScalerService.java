@@ -41,6 +41,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
@@ -205,13 +206,11 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
     private Long lastInferenceStatsTimestampMillis;
     private final Map<String, AdaptiveAllocationsScaler> scalers;
     private final Map<String, Long> lastScaleUpTimesMillis;
-
     private volatile Scheduler.Cancellable cancellable;
     private final AtomicBoolean busy;
-
     private final long scaleToZeroAfterNoRequestsSeconds;
-
     private final Set<String> deploymentIdsWithInFlightScaleFromZeroRequests = new ConcurrentSkipListSet<>();
+    private final Map<String, String> lastWarningMessages = new ConcurrentHashMap<>();
 
     public AdaptiveAllocationsScalerService(
         ThreadPool threadPool,
@@ -475,7 +474,8 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
         int numberOfAllocations
     ) {
         return ActionListener.wrap(updateResponse -> {
-            logger.debug("adaptive allocations scaler: scaled [{}] to [{}] allocations.", deploymentId, numberOfAllocations);
+            lastWarningMessages.remove(deploymentId);
+            logger.info("adaptive allocations scaler: scaled [{}] to [{}] allocations.", deploymentId, numberOfAllocations);
             threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME)
                 .execute(
                     () -> inferenceAuditor.info(
@@ -484,20 +484,24 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
                     )
                 );
         }, e -> {
-            logger.atLevel(Level.WARN)
+            Level level = e.getMessage().equals(lastWarningMessages.get(deploymentId)) ? Level.DEBUG : Level.WARN;
+            lastWarningMessages.put(deploymentId, e.getMessage());
+            logger.atLevel(level)
                 .withThrowable(e)
                 .log("adaptive allocations scaler: scaling [{}] to [{}] allocations failed.", deploymentId, numberOfAllocations);
-            threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME)
-                .execute(
-                    () -> inferenceAuditor.warning(
-                        deploymentId,
-                        Strings.format(
-                            "adaptive allocations scaler: scaling [%s] to [%s] allocations failed.",
+            if (level == Level.WARN) {
+                threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME)
+                    .execute(
+                        () -> inferenceAuditor.warning(
                             deploymentId,
-                            numberOfAllocations
+                            Strings.format(
+                                "adaptive allocations scaler: scaling [%s] to [%s] allocations failed.",
+                                deploymentId,
+                                numberOfAllocations
+                            )
                         )
-                    )
-                );
+                    );
+            }
         });
     }
 }

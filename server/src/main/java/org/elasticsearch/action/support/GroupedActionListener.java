@@ -35,8 +35,9 @@ public final class GroupedActionListener<T> extends DelegatingActionListener<T, 
      * Creates a new listener
      * @param groupSize the group size
      * @param delegate the delegate listener
+     * @throws IllegalArgumentException if groupSize is less than or equal to 0
      */
-    public GroupedActionListener(int groupSize, ActionListener<Collection<T>> delegate) {
+    public GroupedActionListener(int groupSize, ActionListener<Collection<T>> delegate) throws IllegalArgumentException {
         super(delegate);
         if (groupSize <= 0) {
             assert false : "illegal group size [" + groupSize + "]";

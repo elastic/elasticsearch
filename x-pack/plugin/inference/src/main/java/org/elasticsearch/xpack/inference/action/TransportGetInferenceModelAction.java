@@ -16,6 +16,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.inference.Model;
+import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.injection.guice.Inject;
@@ -148,25 +149,32 @@ public class TransportGetInferenceModelAction extends HandledTransportAction<
                 );
             }
 
-            var groupedListener = new GroupedActionListener<List<Model>>(
-                parsedModelsByService.entrySet().size(),
-                listener.delegateFailureAndWrap((delegate, listOfListOfModels) -> {
-                    var modifiable = new ArrayList<Model>();
-                    for (var l : listOfListOfModels) {
-                        modifiable.addAll(l);
-                    }
-                    modifiable.sort(Comparator.comparing(Model::getInferenceEntityId));
-                    delegate.onResponse(
-                        new GetInferenceModelAction.Response(modifiable.stream().map(Model::getConfigurations).collect(Collectors.toList()))
-                    );
-                })
-            );
+            if (parsedModelsByService.isEmpty() == false) {
+                var groupedListener = new GroupedActionListener<List<Model>>(
+                    parsedModelsByService.entrySet().size(),
+                    listener.delegateFailureAndWrap((delegate, listOfListOfModels) -> {
+                        var modifiable = new ArrayList<Model>();
+                        for (var l : listOfListOfModels) {
+                            modifiable.addAll(l);
+                        }
+                        modifiable.sort(Comparator.comparing(Model::getInferenceEntityId));
+                        delegate.onResponse(
+                            new GetInferenceModelAction.Response(
+                                modifiable.stream().map(Model::getConfigurations).collect(Collectors.toList())
+                            )
+                        );
+                    })
+                );
 
-            for (var entry : parsedModelsByService.entrySet()) {
-                serviceRegistry.getService(entry.getKey())
-                    .get()  // must be non-null to get this far
-                    .updateModelsWithDynamicFields(entry.getValue(), groupedListener);
+                for (var entry : parsedModelsByService.entrySet()) {
+                    serviceRegistry.getService(entry.getKey())
+                        .get()  // must be non-null to get this far
+                        .updateModelsWithDynamicFields(entry.getValue(), groupedListener);
+                }
+            } else {
+                listener.onResponse(new GetInferenceModelAction.Response(new ArrayList<ModelConfigurations>(0)));
             }
+
         } catch (Exception e) {
             listener.onFailure(e);
         }

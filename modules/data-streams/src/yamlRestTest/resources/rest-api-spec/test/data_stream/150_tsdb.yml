@@ -184,9 +184,13 @@ index without timestamp:
 
 ---
 TSDB failures go to failure store:
-  - method: POST
-    path: /_index_template/{template}
-    capabilities: [ 'failure_store_in_template' ]
+  - requires:
+      reason: "Data stream failure stores config in templates was added in 8.16+"
+      test_runner_features: [ capabilities, allowed_warnings ]
+      capabilities:
+        - method: POST
+          path: /_index_template/{template}
+          capabilities: [ 'failure_store_in_template' ]
 
   - do:
       allowed_warnings:

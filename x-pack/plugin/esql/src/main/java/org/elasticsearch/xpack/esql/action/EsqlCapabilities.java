@@ -401,7 +401,11 @@ public class EsqlCapabilities {
         /**
          * Adding stats for functions (stack telemetry)
          */
-        FUNCTION_STATS;
+        FUNCTION_STATS,
+        /**
+         * Support for semantic_text field mapping
+         */
+        SEMANTIC_TEXT_TYPE(EsqlCorePlugin.SEMANTIC_TEXT_FEATURE_FLAG);
 
         private final boolean enabled;
 

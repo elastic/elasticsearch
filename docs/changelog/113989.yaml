@@ -1,0 +1,5 @@
+pr: 113989
+summary: Add `max_multipart_parts` setting to S3 repository
+area: Snapshot/Restore
+type: enhancement
+issues: []

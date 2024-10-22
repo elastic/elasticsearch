@@ -238,12 +238,16 @@ public class AsyncSearchResponse extends ActionResponse implements ChunkedToXCon
             }
             builder.field("is_partial", isPartial);
             builder.field("is_running", isRunning);
-            builder.timeField("start_time_in_millis", "start_time", startTimeMillis);
-            builder.timeField("expiration_time_in_millis", "expiration_time", expirationTimeMillis);
+            builder.timestampFieldsFromUnixEpochMillis("start_time_in_millis", "start_time", startTimeMillis);
+            builder.timestampFieldsFromUnixEpochMillis("expiration_time_in_millis", "expiration_time", expirationTimeMillis);
             if (searchResponse != null) {
                 if (isRunning == false) {
                     TimeValue took = searchResponse.getTook();
-                    builder.timeField("completion_time_in_millis", "completion_time", startTimeMillis + took.millis());
+                    builder.timestampFieldsFromUnixEpochMillis(
+                        "completion_time_in_millis",
+                        "completion_time",
+                        startTimeMillis + took.millis()
+                    );
                 }
                 builder.field("response");
             }

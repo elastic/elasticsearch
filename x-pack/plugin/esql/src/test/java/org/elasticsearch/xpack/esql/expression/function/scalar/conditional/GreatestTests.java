@@ -100,6 +100,21 @@ public class GreatestTests extends AbstractScalarFunctionTestCase {
                 )
             )
         );
+        suppliers.add(
+            new TestCaseSupplier(
+                "(a, b)",
+                List.of(DataType.DATETIME, DataType.DATETIME),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(1727877348000L, DataType.DATETIME, "a"),
+                        new TestCaseSupplier.TypedData(1727790948000L, DataType.DATETIME, "b")
+                    ),
+                    "GreatestLongEvaluator[values=[MvMax[field=Attribute[channel=0]], MvMax[field=Attribute[channel=1]]]]",
+                    DataType.DATETIME,
+                    equalTo(1727877348000L)
+                )
+            )
+        );
         return parameterSuppliersFromTypedData(anyNullIsNull(false, suppliers));
     }
 

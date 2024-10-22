@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.security.rest.action.privilege;
 
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -44,10 +43,7 @@ public class RestPutPrivilegesAction extends SecurityBaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            Route.builder(PUT, "/_security/privilege/").replaces(PUT, "/_xpack/security/privilege/", RestApiVersion.V_7).build(),
-            Route.builder(POST, "/_security/privilege/").replaces(POST, "/_xpack/security/privilege/", RestApiVersion.V_7).build()
-        );
+        return List.of(new Route(PUT, "/_security/privilege/"), new Route(POST, "/_security/privilege/"));
     }
 
     @Override

@@ -18,7 +18,6 @@ import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.TransportMultiSearchAction;
-import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
@@ -160,7 +159,12 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
 
     @Override
     public final QueryBuilder topDocsQuery() {
-        throw new IllegalStateException(getName() + " cannot be nested");
+        throw new IllegalStateException("Should not be called, missing a rewrite?");
+    }
+
+    @Override
+    public final QueryBuilder explainQuery() {
+        throw new IllegalStateException("Should not be called, missing a rewrite?");
     }
 
     @Override
@@ -172,9 +176,10 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
     public ActionRequestValidationException validate(
         SearchSourceBuilder source,
         ActionRequestValidationException validationException,
+        boolean isScroll,
         boolean allowPartialSearchResults
     ) {
-        validationException = super.validate(source, validationException, allowPartialSearchResults);
+        validationException = super.validate(source, validationException, isScroll, allowPartialSearchResults);
         if (source.size() > rankWindowSize) {
             validationException = addValidationError(
                 "["
@@ -190,9 +195,15 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
         }
         if (allowPartialSearchResults) {
             validationException = addValidationError(
-                "cannot specify a compound retriever and [allow_partial_search_results]",
+                "cannot specify [" + getName() + "] and [allow_partial_search_results]",
                 validationException
             );
+        }
+        if (isScroll) {
+            validationException = addValidationError("cannot specify [" + getName() + "] and [scroll]", validationException);
+        }
+        for (RetrieverSource innerRetriever : innerRetrievers) {
+            validationException = innerRetriever.retriever().validate(source, validationException, isScroll, allowPartialSearchResults);
         }
         return validationException;
     }
@@ -208,26 +219,16 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
         return Objects.hash(innerRetrievers);
     }
 
-    private SearchSourceBuilder createSearchSourceBuilder(PointInTimeBuilder pit, RetrieverBuilder retrieverBuilder) {
+    protected SearchSourceBuilder createSearchSourceBuilder(PointInTimeBuilder pit, RetrieverBuilder retrieverBuilder) {
         var sourceBuilder = new SearchSourceBuilder().pointInTimeBuilder(pit)
             .trackTotalHits(false)
             .storedFields(new StoredFieldsContext(false))
             .size(rankWindowSize);
+        // apply the pre-filters downstream once
         if (preFilterQueryBuilders.isEmpty() == false) {
             retrieverBuilder.getPreFilterQueryBuilders().addAll(preFilterQueryBuilders);
         }
         retrieverBuilder.extractToSearchSourceBuilder(sourceBuilder, true);
-
-        // apply the pre-filters
-        if (preFilterQueryBuilders.size() > 0) {
-            QueryBuilder query = sourceBuilder.query();
-            BoolQueryBuilder newQuery = new BoolQueryBuilder();
-            if (query != null) {
-                newQuery.must(query);
-            }
-            preFilterQueryBuilders.forEach(newQuery::filter);
-            sourceBuilder.query(newQuery);
-        }
 
         // Record the shard id in the sort result
         List<SortBuilder<?>> sortBuilders = sourceBuilder.sorts() != null ? new ArrayList<>(sourceBuilder.sorts()) : new ArrayList<>();

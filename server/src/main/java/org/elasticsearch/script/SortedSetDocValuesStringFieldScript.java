@@ -46,9 +46,8 @@ public class SortedSetDocValuesStringFieldScript extends StringFieldScript {
     public void execute() {
         try {
             if (hasValue) {
-                long ord;
-                while ((ord = sortedSetDocValues.nextOrd()) != SortedSetDocValues.NO_MORE_ORDS) {
-                    BytesRef bytesRef = sortedSetDocValues.lookupOrd(ord);
+                for (int i = 0; i < sortedSetDocValues.docValueCount(); i++) {
+                    BytesRef bytesRef = sortedSetDocValues.lookupOrd(sortedSetDocValues.nextOrd());
                     emit(bytesRef.utf8ToString());
                 }
             }

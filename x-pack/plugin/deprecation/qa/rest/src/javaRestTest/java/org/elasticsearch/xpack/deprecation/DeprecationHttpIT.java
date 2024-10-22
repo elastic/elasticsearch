@@ -477,6 +477,111 @@ public class DeprecationHttpIT extends ESRestTestCase {
 
     }
 
+    public void testDeprecateAndKeep() throws Exception {
+        final Request request = new Request("GET", "/_test_cluster/deprecated_but_dont_remove");
+        request.setEntity(buildSettingsRequest(Collections.singletonList(TEST_NOT_DEPRECATED_SETTING), "settings"));
+        Response response = performScopedRequest(request);
+
+        final List<String> deprecatedWarnings = getWarningHeaders(response.getHeaders());
+        assertThat(
+            extractWarningValuesFromWarningHeaders(deprecatedWarnings),
+            containsInAnyOrder("[/_test_cluster/deprecated_but_dont_remove] is deprecated, but no plans to remove quite yet")
+        );
+
+        assertBusy(() -> {
+            List<Map<String, Object>> documents = DeprecationTestUtils.getIndexedDeprecations(client(), xOpaqueId());
+
+            logger.warn(documents);
+
+            // only assert the relevant fields: level, message, and category
+            assertThat(
+                documents,
+                containsInAnyOrder(
+                    allOf(
+                        hasEntry("elasticsearch.event.category", "api"),
+                        hasEntry("log.level", "WARN"),
+                        hasEntry("message", "[/_test_cluster/deprecated_but_dont_remove] is deprecated, but no plans to remove quite yet")
+                    )
+                )
+            );
+        }, 30, TimeUnit.SECONDS);
+    }
+
+    public void testReplacesInCurrentVersion() throws Exception {
+        final Request request = new Request("GET", "/_test_cluster/old_name1"); // deprecated in current version
+        request.setEntity(buildSettingsRequest(Collections.singletonList(TEST_NOT_DEPRECATED_SETTING), "settings"));
+        Response response = performScopedRequest(request);
+
+        final List<String> deprecatedWarnings = getWarningHeaders(response.getHeaders());
+        assertThat(
+            extractWarningValuesFromWarningHeaders(deprecatedWarnings),
+            containsInAnyOrder("[GET /_test_cluster/old_name1] is deprecated! Use [GET /_test_cluster/new_name1] instead.")
+        );
+
+        assertBusy(() -> {
+            List<Map<String, Object>> documents = DeprecationTestUtils.getIndexedDeprecations(client(), xOpaqueId());
+
+            logger.warn(documents);
+
+            // only assert the relevant fields: level, message, and category
+            assertThat(
+                documents,
+                containsInAnyOrder(
+                    allOf(
+                        hasEntry("elasticsearch.event.category", "api"),
+                        hasEntry("log.level", "WARN"),
+                        hasEntry("message", "[GET /_test_cluster/old_name1] is deprecated! Use [GET /_test_cluster/new_name1] instead.")
+                    )
+                )
+            );
+        }, 30, TimeUnit.SECONDS);
+    }
+
+    public void testReplacesInCompatibleVersion() throws Exception {
+        final Request request = new Request("GET", "/_test_cluster/old_name2"); // deprecated in minimum supported version
+        request.setEntity(buildSettingsRequest(Collections.singletonList(TEST_DEPRECATED_SETTING_TRUE1), "deprecated_settings"));
+        final RequestOptions compatibleOptions = request.getOptions()
+            .toBuilder()
+            .addHeader("Accept", "application/vnd.elasticsearch+json;compatible-with=" + RestApiVersion.minimumSupported().major)
+            .addHeader("Content-Type", "application/vnd.elasticsearch+json;compatible-with=" + RestApiVersion.minimumSupported().major)
+            .build();
+        request.setOptions(compatibleOptions);
+        Response response = performScopedRequest(request);
+
+        final List<String> deprecatedWarnings = getWarningHeaders(response.getHeaders());
+        assertThat(
+            extractWarningValuesFromWarningHeaders(deprecatedWarnings),
+            containsInAnyOrder(
+                "[GET /_test_cluster/old_name2] is deprecated! Use [GET /_test_cluster/new_name2] instead.",
+                "You are using a compatible API for this request"
+            )
+        );
+        assertBusy(() -> {
+            List<Map<String, Object>> documents = DeprecationTestUtils.getIndexedDeprecations(client(), xOpaqueId());
+
+            logger.warn(documents);
+
+            // only assert the relevant fields: level, message, and category
+            assertThat(
+                documents,
+                containsInAnyOrder(
+                    allOf(
+
+                        hasEntry("elasticsearch.event.category", "compatible_api"),
+                        hasEntry("log.level", "CRITICAL"),
+                        hasEntry("message", "[GET /_test_cluster/old_name2] is deprecated! Use [GET /_test_cluster/new_name2] instead.")
+                    ),
+                    allOf(
+                        hasEntry("elasticsearch.event.category", "compatible_api"),
+                        hasEntry("log.level", "CRITICAL"),
+                        // this message comes from the test, not production code. this is the message for setting the deprecated setting
+                        hasEntry("message", "You are using a compatible API for this request")
+                    )
+                )
+            );
+        }, 30, TimeUnit.SECONDS);
+    }
+
     /**
      * Check that log messages about REST API compatibility are recorded to an index
      */

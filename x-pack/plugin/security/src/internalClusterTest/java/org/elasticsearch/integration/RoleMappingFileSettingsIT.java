@@ -148,22 +148,23 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
              }
         }""";
 
-    @Override
-    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-        Settings.Builder builder = Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal, otherSettings))
-            // some tests make use of cluster-state based role mappings
-            .put("xpack.security.authc.cluster_state_role_mappings.enabled", true);
-        return builder.build();
-    }
-
     @After
     public void cleanUp() {
         updateClusterSettings(Settings.builder().putNull("indices.recovery.max_bytes_per_sec"));
     }
 
     public static void writeJSONFile(String node, String json, Logger logger, AtomicLong versionCounter) throws Exception {
-        long version = versionCounter.incrementAndGet();
+        writeJSONFile(node, json, logger, versionCounter, true);
+    }
+
+    public static void writeJSONFileWithoutVersionIncrement(String node, String json, Logger logger, AtomicLong versionCounter)
+        throws Exception {
+        writeJSONFile(node, json, logger, versionCounter, false);
+    }
+
+    private static void writeJSONFile(String node, String json, Logger logger, AtomicLong versionCounter, boolean incrementVersion)
+        throws Exception {
+        long version = incrementVersion ? versionCounter.incrementAndGet() : versionCounter.get();
 
         FileSettingsService fileSettingsService = internalCluster().getInstance(FileSettingsService.class, node);
         assertTrue(fileSettingsService.watching());

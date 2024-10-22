@@ -31,6 +31,7 @@ import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.ingest.EnterpriseGeoIpTask.EnterpriseGeoIpTaskParams;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.Processor;
+import org.elasticsearch.ingest.geoip.direct.DatabaseConfiguration;
 import org.elasticsearch.ingest.geoip.direct.DeleteDatabaseConfigurationAction;
 import org.elasticsearch.ingest.geoip.direct.GetDatabaseConfigurationAction;
 import org.elasticsearch.ingest.geoip.direct.PutDatabaseConfigurationAction;
@@ -70,6 +71,7 @@ import java.util.Map;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
+import static java.util.Map.entry;
 import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.ingest.EnterpriseGeoIpTask.ENTERPRISE_GEOIP_DOWNLOADER;
 import static org.elasticsearch.ingest.IngestService.INGEST_ORIGIN;
@@ -110,7 +112,8 @@ public class IngestGeoIpPlugin extends Plugin
             GeoIpDownloaderTaskExecutor.ENABLED_SETTING,
             GeoIpDownloader.ENDPOINT_SETTING,
             GeoIpDownloaderTaskExecutor.POLL_INTERVAL_SETTING,
-            EnterpriseGeoIpDownloaderTaskExecutor.MAXMIND_LICENSE_KEY_SETTING
+            EnterpriseGeoIpDownloaderTaskExecutor.MAXMIND_LICENSE_KEY_SETTING,
+            EnterpriseGeoIpDownloaderTaskExecutor.IPINFO_TOKEN_SETTING
         );
     }
 
@@ -128,7 +131,10 @@ public class IngestGeoIpPlugin extends Plugin
             parameters.ingestService.getClusterService()
         );
         databaseRegistry.set(registry);
-        return Map.of(GeoIpProcessor.TYPE, new GeoIpProcessor.Factory(registry));
+        return Map.ofEntries(
+            entry(GeoIpProcessor.GEOIP_TYPE, new GeoIpProcessor.Factory(GeoIpProcessor.GEOIP_TYPE, registry)),
+            entry(GeoIpProcessor.IP_LOCATION_TYPE, new GeoIpProcessor.Factory(GeoIpProcessor.IP_LOCATION_TYPE, registry))
+        );
     }
 
     @Override
@@ -232,7 +238,27 @@ public class IngestGeoIpPlugin extends Plugin
             new NamedWriteableRegistry.Entry(PersistentTaskParams.class, GEOIP_DOWNLOADER, GeoIpTaskParams::new),
             new NamedWriteableRegistry.Entry(PersistentTaskState.class, ENTERPRISE_GEOIP_DOWNLOADER, EnterpriseGeoIpTaskState::new),
             new NamedWriteableRegistry.Entry(PersistentTaskParams.class, ENTERPRISE_GEOIP_DOWNLOADER, EnterpriseGeoIpTaskParams::new),
-            new NamedWriteableRegistry.Entry(Task.Status.class, GEOIP_DOWNLOADER, GeoIpDownloaderStats::new)
+            new NamedWriteableRegistry.Entry(Task.Status.class, GEOIP_DOWNLOADER, GeoIpDownloaderStats::new),
+            new NamedWriteableRegistry.Entry(
+                DatabaseConfiguration.Provider.class,
+                DatabaseConfiguration.Maxmind.NAME,
+                DatabaseConfiguration.Maxmind::new
+            ),
+            new NamedWriteableRegistry.Entry(
+                DatabaseConfiguration.Provider.class,
+                DatabaseConfiguration.Ipinfo.NAME,
+                DatabaseConfiguration.Ipinfo::new
+            ),
+            new NamedWriteableRegistry.Entry(
+                DatabaseConfiguration.Provider.class,
+                DatabaseConfiguration.Local.NAME,
+                DatabaseConfiguration.Local::new
+            ),
+            new NamedWriteableRegistry.Entry(
+                DatabaseConfiguration.Provider.class,
+                DatabaseConfiguration.Web.NAME,
+                DatabaseConfiguration.Web::new
+            )
         );
     }
 

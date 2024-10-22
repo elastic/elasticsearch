@@ -1,0 +1,5 @@
+pr: 114358
+summary: "ESQL: Use less memory in listener"
+area: ES|QL
+type: enhancement
+issues: []

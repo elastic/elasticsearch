@@ -35,6 +35,7 @@ import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
+import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.core.inference.results.ErrorChunkedInferenceResults;
@@ -211,9 +212,9 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
             final Releasable onFinish
         ) {
             if (inferenceProvider == null) {
-                ActionListener<ModelRegistry.UnparsedModel> modelLoadingListener = new ActionListener<>() {
+                ActionListener<UnparsedModel> modelLoadingListener = new ActionListener<>() {
                     @Override
-                    public void onResponse(ModelRegistry.UnparsedModel unparsedModel) {
+                    public void onResponse(UnparsedModel unparsedModel) {
                         var service = inferenceServiceRegistry.getService(unparsedModel.service());
                         if (service.isEmpty() == false) {
                             var provider = new InferenceProvider(
@@ -396,7 +397,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                     ),
                     indexRequest.getContentType()
                 );
-                newDocMap.put(fieldName, result);
+                SemanticTextFieldMapper.insertValue(fieldName, newDocMap, result);
             }
             indexRequest.source(newDocMap, indexRequest.getContentType());
         }

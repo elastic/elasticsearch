@@ -40,6 +40,7 @@ import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.cluster.service.MasterService;
+import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -159,23 +160,22 @@ class S3BlobContainer extends AbstractBlobContainer {
     ) throws IOException {
         assert purpose != OperationPurpose.SNAPSHOT_DATA && BlobContainer.assertPurposeConsistency(purpose, blobName) : purpose;
         final String absoluteBlobKey = buildKey(blobName);
-        try (
-            AmazonS3Reference clientReference = blobStore.clientReference();
-            ChunkedBlobOutputStream<PartETag> out = new ChunkedBlobOutputStream<>(blobStore.bigArrays(), blobStore.bufferSizeInBytes()) {
+        try (ChunkedBlobOutputStream<PartETag> out = new ChunkedBlobOutputStream<>(blobStore.bigArrays(), blobStore.bufferSizeInBytes()) {
 
-                private final SetOnce<String> uploadId = new SetOnce<>();
+            private final SetOnce<String> uploadId = new SetOnce<>();
 
-                @Override
-                protected void flushBuffer() throws IOException {
-                    flushBuffer(false);
+            @Override
+            protected void flushBuffer() throws IOException {
+                flushBuffer(false);
+            }
+
+            private void flushBuffer(boolean lastPart) throws IOException {
+                if (buffer.size() == 0) {
+                    return;
                 }
-
-                private void flushBuffer(boolean lastPart) throws IOException {
-                    if (buffer.size() == 0) {
-                        return;
-                    }
-                    if (flushedBytes == 0L) {
-                        assert lastPart == false : "use single part upload if there's only a single part";
+                if (flushedBytes == 0L) {
+                    assert lastPart == false : "use single part upload if there's only a single part";
+                    try (AmazonS3Reference clientReference = blobStore.clientReference()) {
                         uploadId.set(
                             SocketAccess.doPrivileged(
                                 () -> clientReference.client()
@@ -183,51 +183,54 @@ class S3BlobContainer extends AbstractBlobContainer {
                                     .getUploadId()
                             )
                         );
-                        if (Strings.isEmpty(uploadId.get())) {
-                            throw new IOException("Failed to initialize multipart upload " + absoluteBlobKey);
-                        }
                     }
-                    assert lastPart == false || successful : "must only write last part if successful";
-                    final UploadPartRequest uploadRequest = createPartUploadRequest(
-                        purpose,
-                        buffer.bytes().streamInput(),
-                        uploadId.get(),
-                        parts.size() + 1,
-                        absoluteBlobKey,
-                        buffer.size(),
-                        lastPart
-                    );
-                    final UploadPartResult uploadResponse = SocketAccess.doPrivileged(
-                        () -> clientReference.client().uploadPart(uploadRequest)
-                    );
-                    finishPart(uploadResponse.getPartETag());
+                    if (Strings.isEmpty(uploadId.get())) {
+                        throw new IOException("Failed to initialize multipart upload " + absoluteBlobKey);
+                    }
                 }
+                assert lastPart == false || successful : "must only write last part if successful";
+                final UploadPartRequest uploadRequest = createPartUploadRequest(
+                    purpose,
+                    buffer.bytes().streamInput(),
+                    uploadId.get(),
+                    parts.size() + 1,
+                    absoluteBlobKey,
+                    buffer.size(),
+                    lastPart
+                );
+                final UploadPartResult uploadResponse;
+                try (AmazonS3Reference clientReference = blobStore.clientReference()) {
+                    uploadResponse = SocketAccess.doPrivileged(() -> clientReference.client().uploadPart(uploadRequest));
+                }
+                finishPart(uploadResponse.getPartETag());
+            }
 
-                @Override
-                protected void onCompletion() throws IOException {
-                    if (flushedBytes == 0L) {
-                        writeBlob(purpose, blobName, buffer.bytes(), failIfAlreadyExists);
-                    } else {
-                        flushBuffer(true);
-                        final CompleteMultipartUploadRequest complRequest = new CompleteMultipartUploadRequest(
-                            blobStore.bucket(),
-                            absoluteBlobKey,
-                            uploadId.get(),
-                            parts
-                        );
-                        S3BlobStore.configureRequestForMetrics(complRequest, blobStore, Operation.PUT_MULTIPART_OBJECT, purpose);
+            @Override
+            protected void onCompletion() throws IOException {
+                if (flushedBytes == 0L) {
+                    writeBlob(purpose, blobName, buffer.bytes(), failIfAlreadyExists);
+                } else {
+                    flushBuffer(true);
+                    final CompleteMultipartUploadRequest complRequest = new CompleteMultipartUploadRequest(
+                        blobStore.bucket(),
+                        absoluteBlobKey,
+                        uploadId.get(),
+                        parts
+                    );
+                    S3BlobStore.configureRequestForMetrics(complRequest, blobStore, Operation.PUT_MULTIPART_OBJECT, purpose);
+                    try (AmazonS3Reference clientReference = blobStore.clientReference()) {
                         SocketAccess.doPrivilegedVoid(() -> clientReference.client().completeMultipartUpload(complRequest));
                     }
                 }
+            }
 
-                @Override
-                protected void onFailure() {
-                    if (Strings.hasText(uploadId.get())) {
-                        abortMultiPartUpload(purpose, uploadId.get(), absoluteBlobKey);
-                    }
+            @Override
+            protected void onFailure() {
+                if (Strings.hasText(uploadId.get())) {
+                    abortMultiPartUpload(purpose, uploadId.get(), absoluteBlobKey);
                 }
             }
-        ) {
+        }) {
             writer.accept(out);
             out.markSuccess();
         }
@@ -359,12 +362,9 @@ class S3BlobContainer extends AbstractBlobContainer {
 
     @Override
     public Map<String, BlobMetadata> listBlobsByPrefix(OperationPurpose purpose, @Nullable String blobNamePrefix) throws IOException {
-        try (AmazonS3Reference clientReference = blobStore.clientReference()) {
-            return executeListing(
-                purpose,
-                clientReference,
-                listObjectsRequest(purpose, blobNamePrefix == null ? keyPath : buildKey(blobNamePrefix))
-            ).stream()
+        try {
+            return executeListing(purpose, listObjectsRequest(purpose, blobNamePrefix == null ? keyPath : buildKey(blobNamePrefix)))
+                .stream()
                 .flatMap(listing -> listing.getObjectSummaries().stream())
                 .map(summary -> new BlobMetadata(summary.getKey().substring(keyPath.length()), summary.getSize()))
                 .collect(Collectors.toMap(BlobMetadata::name, Function.identity()));
@@ -380,8 +380,8 @@ class S3BlobContainer extends AbstractBlobContainer {
 
     @Override
     public Map<String, BlobContainer> children(OperationPurpose purpose) throws IOException {
-        try (AmazonS3Reference clientReference = blobStore.clientReference()) {
-            return executeListing(purpose, clientReference, listObjectsRequest(purpose, keyPath)).stream().flatMap(listing -> {
+        try {
+            return executeListing(purpose, listObjectsRequest(purpose, keyPath)).stream().flatMap(listing -> {
                 assert listing.getObjectSummaries().stream().noneMatch(s -> {
                     for (String commonPrefix : listing.getCommonPrefixes()) {
                         if (s.getKey().substring(keyPath.length()).startsWith(commonPrefix)) {
@@ -402,21 +402,19 @@ class S3BlobContainer extends AbstractBlobContainer {
         }
     }
 
-    private List<ObjectListing> executeListing(
-        OperationPurpose purpose,
-        AmazonS3Reference clientReference,
-        ListObjectsRequest listObjectsRequest
-    ) {
+    private List<ObjectListing> executeListing(OperationPurpose purpose, ListObjectsRequest listObjectsRequest) {
         final List<ObjectListing> results = new ArrayList<>();
         ObjectListing prevListing = null;
         while (true) {
             ObjectListing list;
-            if (prevListing != null) {
-                final var listNextBatchOfObjectsRequest = new ListNextBatchOfObjectsRequest(prevListing);
-                S3BlobStore.configureRequestForMetrics(listNextBatchOfObjectsRequest, blobStore, Operation.LIST_OBJECTS, purpose);
-                list = SocketAccess.doPrivileged(() -> clientReference.client().listNextBatchOfObjects(listNextBatchOfObjectsRequest));
-            } else {
-                list = SocketAccess.doPrivileged(() -> clientReference.client().listObjects(listObjectsRequest));
+            try (AmazonS3Reference clientReference = blobStore.clientReference()) {
+                if (prevListing != null) {
+                    final var listNextBatchOfObjectsRequest = new ListNextBatchOfObjectsRequest(prevListing);
+                    S3BlobStore.configureRequestForMetrics(listNextBatchOfObjectsRequest, blobStore, Operation.LIST_OBJECTS, purpose);
+                    list = SocketAccess.doPrivileged(() -> clientReference.client().listNextBatchOfObjects(listNextBatchOfObjectsRequest));
+                } else {
+                    list = SocketAccess.doPrivileged(() -> clientReference.client().listObjects(listObjectsRequest));
+                }
             }
             results.add(list);
             if (list.isTruncated()) {
@@ -503,13 +501,14 @@ class S3BlobContainer extends AbstractBlobContainer {
         final SetOnce<String> uploadId = new SetOnce<>();
         final String bucketName = s3BlobStore.bucket();
         boolean success = false;
-        try (AmazonS3Reference clientReference = s3BlobStore.clientReference()) {
-
-            uploadId.set(
-                SocketAccess.doPrivileged(
-                    () -> clientReference.client().initiateMultipartUpload(initiateMultiPartUpload(purpose, blobName)).getUploadId()
-                )
-            );
+        try {
+            try (AmazonS3Reference clientReference = s3BlobStore.clientReference()) {
+                uploadId.set(
+                    SocketAccess.doPrivileged(
+                        () -> clientReference.client().initiateMultipartUpload(initiateMultiPartUpload(purpose, blobName)).getUploadId()
+                    )
+                );
+            }
             if (Strings.isEmpty(uploadId.get())) {
                 throw new IOException("Failed to initialize multipart upload " + blobName);
             }
@@ -530,8 +529,12 @@ class S3BlobContainer extends AbstractBlobContainer {
                 );
                 bytesCount += uploadRequest.getPartSize();
 
-                final UploadPartResult uploadResponse = SocketAccess.doPrivileged(() -> clientReference.client().uploadPart(uploadRequest));
-                parts.add(uploadResponse.getPartETag());
+                try (AmazonS3Reference clientReference = s3BlobStore.clientReference()) {
+                    final UploadPartResult uploadResponse = SocketAccess.doPrivileged(
+                        () -> clientReference.client().uploadPart(uploadRequest)
+                    );
+                    parts.add(uploadResponse.getPartETag());
+                }
             }
 
             if (bytesCount != blobSize) {
@@ -547,7 +550,9 @@ class S3BlobContainer extends AbstractBlobContainer {
                 parts
             );
             S3BlobStore.configureRequestForMetrics(complRequest, blobStore, Operation.PUT_MULTIPART_OBJECT, purpose);
-            SocketAccess.doPrivilegedVoid(() -> clientReference.client().completeMultipartUpload(complRequest));
+            try (AmazonS3Reference clientReference = s3BlobStore.clientReference()) {
+                SocketAccess.doPrivilegedVoid(() -> clientReference.client().completeMultipartUpload(complRequest));
+            }
             success = true;
 
         } catch (final AmazonClientException e) {
@@ -910,21 +915,44 @@ class S3BlobContainer extends AbstractBlobContainer {
     @Override
     public void getRegister(OperationPurpose purpose, String key, ActionListener<OptionalBytesReference> listener) {
         ActionListener.completeWith(listener, () -> {
-            final var getObjectRequest = new GetObjectRequest(blobStore.bucket(), buildKey(key));
-            S3BlobStore.configureRequestForMetrics(getObjectRequest, blobStore, Operation.GET_OBJECT, purpose);
-            try (
-                var clientReference = blobStore.clientReference();
-                var s3Object = SocketAccess.doPrivileged(() -> clientReference.client().getObject(getObjectRequest));
-                var stream = s3Object.getObjectContent()
-            ) {
-                return OptionalBytesReference.of(getRegisterUsingConsistentRead(stream, keyPath, key));
-            } catch (AmazonS3Exception e) {
-                logger.trace(() -> Strings.format("[%s]: getRegister failed", key), e);
-                if (e.getStatusCode() == 404) {
-                    return OptionalBytesReference.EMPTY;
-                } else {
-                    throw e;
+            final var backoffPolicy = purpose == OperationPurpose.REPOSITORY_ANALYSIS
+                ? BackoffPolicy.noBackoff()
+                : BackoffPolicy.constantBackoff(blobStore.getGetRegisterRetryDelay(), blobStore.getMaxRetries());
+            final var retryDelayIterator = backoffPolicy.iterator();
+
+            Exception finalException = null;
+            while (true) {
+                final var getObjectRequest = new GetObjectRequest(blobStore.bucket(), buildKey(key));
+                S3BlobStore.configureRequestForMetrics(getObjectRequest, blobStore, Operation.GET_OBJECT, purpose);
+                try (
+                    var clientReference = blobStore.clientReference();
+                    var s3Object = SocketAccess.doPrivileged(() -> clientReference.client().getObject(getObjectRequest));
+                    var stream = s3Object.getObjectContent()
+                ) {
+                    return OptionalBytesReference.of(getRegisterUsingConsistentRead(stream, keyPath, key));
+                } catch (Exception attemptException) {
+                    logger.trace(() -> Strings.format("[%s]: getRegister failed", key), attemptException);
+                    if (attemptException instanceof AmazonS3Exception amazonS3Exception && amazonS3Exception.getStatusCode() == 404) {
+                        return OptionalBytesReference.EMPTY;
+                    } else if (finalException == null) {
+                        finalException = attemptException;
+                    } else if (finalException != attemptException) {
+                        finalException.addSuppressed(attemptException);
+                    }
                 }
+                if (retryDelayIterator.hasNext()) {
+                    try {
+                        // noinspection BusyWait
+                        Thread.sleep(retryDelayIterator.next().millis());
+                        continue;
+                    } catch (InterruptedException interruptedException) {
+                        Thread.currentThread().interrupt();
+                        finalException.addSuppressed(interruptedException);
+                        // fall through and throw the exception
+                    }
+                }
+
+                throw finalException;
             }
         });
     }

@@ -24,6 +24,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.ingest.DeletePipelineRequest;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.support.ActionTestUtils;
+import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.internal.Client;
@@ -32,26 +33,23 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
-import org.elasticsearch.cluster.metadata.ComponentTemplate;
-import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.ClusterStateTaskExecutorUtils;
 import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -77,7 +75,6 @@ import org.junit.Before;
 import org.mockito.ArgumentMatcher;
 import org.mockito.invocation.InvocationOnMock;
 
-import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -429,7 +426,7 @@ public class IngestServiceTests extends ESTestCase {
 
     public void testValidateNoIngestInfo() throws Exception {
         IngestService ingestService = createWithProcessors();
-        PutPipelineRequest putRequest = putJsonPipelineRequest("_id", """
+        PutPipelineRequest putRequest = putJsonPipelineRequest("pipeline-id", """
             {"processors": [{"set" : {"field": "_field", "value": "_value"}}]}""");
 
         var pipelineConfig = XContentHelper.convertToMap(putRequest.getSource(), false, putRequest.getXContentType()).v2();
@@ -970,7 +967,7 @@ public class IngestServiceTests extends ESTestCase {
 
     public void testValidateProcessorTypeOnAllNodes() throws Exception {
         IngestService ingestService = createWithProcessors();
-        PutPipelineRequest putRequest = putJsonPipelineRequest("_id", """
+        PutPipelineRequest putRequest = putJsonPipelineRequest("pipeline-id", """
             {
               "processors": [
                 {
@@ -1014,7 +1011,7 @@ public class IngestServiceTests extends ESTestCase {
             // ordinary validation issues happen at processor construction time
             throw newConfigurationException("fail_validation", tag, "no_property_name", "validation failure reason");
         }));
-        PutPipelineRequest putRequest = putJsonPipelineRequest("_id", """
+        PutPipelineRequest putRequest = putJsonPipelineRequest("pipeline-id", """
             {
               "processors": [
                 {
@@ -1048,7 +1045,7 @@ public class IngestServiceTests extends ESTestCase {
                 }
             };
         }));
-        PutPipelineRequest putRequest = putJsonPipelineRequest("_id", """
+        PutPipelineRequest putRequest = putJsonPipelineRequest("pipeline-id", """
             {
               "processors": [
                 {
@@ -1070,6 +1067,32 @@ public class IngestServiceTests extends ESTestCase {
         );
         assertEquals("[no_property_name] extra validation failure reason", e.getMessage());
         assertEquals("fail_extra_validation", e.getMetadata("es.processor_type").get(0));
+    }
+
+    public void testValidatePipelineName() throws Exception {
+        IngestService ingestService = createWithProcessors();
+        for (Character badChar : List.of('\\', '/', '*', '?', '"', '<', '>', '|', ' ', ',')) {
+            PutPipelineRequest putRequest = new PutPipelineRequest(
+                TimeValue.timeValueSeconds(10),
+                AcknowledgedRequest.DEFAULT_ACK_TIMEOUT,
+                "_id",
+                new BytesArray("""
+                    {"description":"test processor","processors":[{"set":{"field":"_field","value":"_value"}}]}"""),
+                XContentType.JSON
+            );
+            var pipelineConfig = XContentHelper.convertToMap(putRequest.getSource(), false, putRequest.getXContentType()).v2();
+            DiscoveryNode node1 = DiscoveryNodeUtils.create("_node_id1", buildNewFakeTransportAddress(), Map.of(), Set.of());
+            Map<DiscoveryNode, IngestInfo> ingestInfos = new HashMap<>();
+            ingestInfos.put(node1, new IngestInfo(List.of(new ProcessorInfo("set"))));
+            final String name = randomAlphaOfLength(5) + badChar + randomAlphaOfLength(5);
+            ingestService.validatePipeline(ingestInfos, name, pipelineConfig);
+            assertCriticalWarnings(
+                "Pipeline name ["
+                    + name
+                    + "] will be disallowed in a future version for the following reason: must not contain the following characters"
+                    + " [' ','\"','*',',','/','<','>','?','\\','|']"
+            );
+        }
     }
 
     public void testExecuteIndexPipelineExistsButFailedParsing() {
@@ -2493,7 +2516,7 @@ public class IngestServiceTests extends ESTestCase {
 
         // index name matches with IDM:
         IndexRequest indexRequest = new IndexRequest("<idx-{now/d}>");
-        IngestService.resolvePipelinesAndUpdateIndexRequest(indexRequest, indexRequest, metadata, epochMillis, Map.of());
+        IngestService.resolvePipelinesAndUpdateIndexRequest(indexRequest, indexRequest, metadata, epochMillis);
         assertTrue(hasPipeline(indexRequest));
         assertTrue(indexRequest.isPipelineResolved());
         assertThat(indexRequest.getPipeline(), equalTo("_none"));
@@ -2855,83 +2878,6 @@ public class IngestServiceTests extends ESTestCase {
             assertTrue(indexRequest.isPipelineResolved());
             assertThat(indexRequest.getPipeline(), equalTo("pipeline1"));
             assertThat(indexRequest.getFinalPipeline(), equalTo(NOOP_PIPELINE_NAME));
-        }
-    }
-
-    public void testResolvePipelinesAndUpdateIndexRequestWithComponentTemplateSubstitutions() throws IOException {
-        final String componentTemplateName = "test-component-template";
-        final String indexName = "my-index-1";
-        final String indexPipeline = "index-pipeline";
-        final String realTemplatePipeline = "template-pipeline";
-        final String substitutePipeline = "substitute-pipeline";
-
-        Metadata metadata;
-        {
-            // Build up cluster state metadata
-            IndexMetadata.Builder builder = IndexMetadata.builder(indexName)
-                .settings(settings(IndexVersion.current()))
-                .numberOfShards(1)
-                .numberOfReplicas(0);
-            ComponentTemplate realComponentTemplate = new ComponentTemplate(
-                new Template(
-                    Settings.builder().put("index.default_pipeline", realTemplatePipeline).build(),
-                    CompressedXContent.fromJSON("{}"),
-                    null
-                ),
-                null,
-                null
-            );
-            ComposableIndexTemplate composableIndexTemplate = ComposableIndexTemplate.builder()
-                .indexPatterns(List.of("my-index-*"))
-                .componentTemplates(List.of(componentTemplateName))
-                .build();
-            metadata = Metadata.builder()
-                .put(builder)
-                .indexTemplates(Map.of("my-index-template", composableIndexTemplate))
-                .componentTemplates(Map.of("test-component-template", realComponentTemplate))
-                .build();
-        }
-
-        Map<String, ComponentTemplate> componentTemplateSubstitutions;
-        {
-            ComponentTemplate simulatedComponentTemplate = new ComponentTemplate(
-                new Template(
-                    Settings.builder().put("index.default_pipeline", substitutePipeline).build(),
-                    CompressedXContent.fromJSON("{}"),
-                    null
-                ),
-                null,
-                null
-            );
-            componentTemplateSubstitutions = Map.of(componentTemplateName, simulatedComponentTemplate);
-        }
-
-        {
-            /*
-             * Here there is a pipeline in the request. This takes precedence over anything in the index or templates or component template
-             * substitutions.
-             */
-            IndexRequest indexRequest = new IndexRequest(indexName).setPipeline(indexPipeline);
-            IngestService.resolvePipelinesAndUpdateIndexRequest(indexRequest, indexRequest, metadata, 0, componentTemplateSubstitutions);
-            assertThat(indexRequest.getPipeline(), equalTo(indexPipeline));
-        }
-        {
-            /*
-             * Here there is no pipeline in the request, but there is one in the substitute component template. So it takes precedence.
-             */
-            IndexRequest indexRequest = new IndexRequest(indexName);
-            IngestService.resolvePipelinesAndUpdateIndexRequest(indexRequest, indexRequest, metadata, 0, componentTemplateSubstitutions);
-            assertThat(indexRequest.getPipeline(), equalTo(substitutePipeline));
-        }
-        {
-            /*
-             * This one is tricky. Since the index exists and there are no component template substitutions, we're going to use the actual
-             * index in this case rather than its template. The index does not have a default pipeline set, so it's "_none" instead of
-             * realTemplatePipeline.
-             */
-            IndexRequest indexRequest = new IndexRequest(indexName);
-            IngestService.resolvePipelinesAndUpdateIndexRequest(indexRequest, indexRequest, metadata, 0, Map.of());
-            assertThat(indexRequest.getPipeline(), equalTo("_none"));
         }
     }
 

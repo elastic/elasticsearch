@@ -251,6 +251,7 @@ public abstract class RetrieverBuilder implements Rewriteable<RetrieverBuilder>,
     public ActionRequestValidationException validate(
         SearchSourceBuilder source,
         ActionRequestValidationException validationException,
+        boolean isScroll,
         boolean allowPartialSearchResults
     ) {
         return validationException;

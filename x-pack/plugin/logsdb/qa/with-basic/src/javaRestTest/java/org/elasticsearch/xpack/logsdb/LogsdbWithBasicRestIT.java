@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.logsdb;
 
+import org.elasticsearch.client.Request;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
@@ -19,7 +20,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-public class LogsdbRestIT extends ESRestTestCase {
+public class LogsdbWithBasicRestIT extends ESRestTestCase {
 
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
@@ -96,7 +97,7 @@ public class LogsdbRestIT extends ESRestTestCase {
         assertEquals(SourceFieldMapper.Mode.STORED.toString(), settings.get("index.mapping.source.mode"));
     }
 
-    public void testLogsdbNoOverrideSyntheticSourceSetting() throws IOException {
+    public void testLogsdbOverrideSyntheticSourceSetting() throws IOException {
         final String index = "test-index";
         createIndex(
             index,
@@ -104,6 +105,70 @@ public class LogsdbRestIT extends ESRestTestCase {
         );
         var settings = (Map<?, ?>) ((Map<?, ?>) getIndexSettings(index).get(index)).get("settings");
         assertEquals("logsdb", settings.get("index.mode"));
-        assertEquals(SourceFieldMapper.Mode.SYNTHETIC.toString(), settings.get("index.mapping.source.mode"));
+        assertEquals(SourceFieldMapper.Mode.STORED.toString(), settings.get("index.mapping.source.mode"));
+    }
+
+    public void testLogsdbOverrideNullSyntheticSourceSetting() throws IOException {
+        final String index = "test-index";
+        createIndex(index, Settings.builder().put("index.mode", "logsdb").putNull("index.mapping.source.mode").build());
+        var settings = (Map<?, ?>) ((Map<?, ?>) getIndexSettings(index).get(index)).get("settings");
+        assertEquals("logsdb", settings.get("index.mode"));
+        assertEquals(SourceFieldMapper.Mode.STORED.toString(), settings.get("index.mapping.source.mode"));
+    }
+
+    public void testLogsdbOverrideSyntheticSourceSettingInTemplate() throws IOException {
+        var request = new Request("POST", "/_index_template/1");
+        request.setJsonEntity("""
+            {
+                "index_patterns": ["test-*"],
+                "template": {
+                    "settings":{
+                        "index": {
+                            "mode": "logsdb",
+                            "mapping": {
+                              "source": {
+                                "mode": "synthetic"
+                              }
+                            }
+                        }
+                    }
+                }
+            }
+            """);
+        assertOK(client().performRequest(request));
+
+        final String index = "test-index";
+        createIndex(index);
+        var settings = (Map<?, ?>) ((Map<?, ?>) getIndexSettings(index).get(index)).get("settings");
+        assertEquals("logsdb", settings.get("index.mode"));
+        assertEquals(SourceFieldMapper.Mode.STORED.toString(), settings.get("index.mapping.source.mode"));
+    }
+
+    public void testLogsdbOverrideNullInTemplate() throws IOException {
+        var request = new Request("POST", "/_index_template/1");
+        request.setJsonEntity("""
+            {
+                "index_patterns": ["test-*"],
+                "template": {
+                    "settings":{
+                        "index": {
+                            "mode": "logsdb",
+                            "mapping": {
+                              "source": {
+                                "mode": null
+                              }
+                            }
+                        }
+                    }
+                }
+            }
+            """);
+        assertOK(client().performRequest(request));
+
+        final String index = "test-index";
+        createIndex(index);
+        var settings = (Map<?, ?>) ((Map<?, ?>) getIndexSettings(index).get(index)).get("settings");
+        assertEquals("logsdb", settings.get("index.mode"));
+        assertEquals(SourceFieldMapper.Mode.STORED.toString(), settings.get("index.mapping.source.mode"));
     }
 }

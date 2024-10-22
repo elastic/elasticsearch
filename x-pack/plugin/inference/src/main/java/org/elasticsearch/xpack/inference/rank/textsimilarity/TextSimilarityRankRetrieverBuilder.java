@@ -162,6 +162,7 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
             .trackTotalHits(false)
             .storedFields(new StoredFieldsContext(false))
             .size(rankWindowSize);
+        // apply the pre-filters downstream once
         if (preFilterQueryBuilders.isEmpty() == false) {
             retrieverBuilder.getPreFilterQueryBuilders().addAll(preFilterQueryBuilders);
         }

@@ -2179,7 +2179,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         boolean allowPartialSearchResults
     ) {
         if (retriever() != null) {
-            validationException = retriever().validate(this, validationException, allowPartialSearchResults);
+            validationException = retriever().validate(this, validationException, isScroll, allowPartialSearchResults);
             List<String> specified = new ArrayList<>();
             if (subSearches().isEmpty() == false) {
                 specified.add(QUERY_FIELD.getPreferredName());

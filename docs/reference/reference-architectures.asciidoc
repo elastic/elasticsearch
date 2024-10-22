@@ -6,20 +6,8 @@ Elasticsearch Reference Architectures serve as essential blueprints for deployin
 TIP: You can host {es} on your own hardware or send your data to {es} on {ecloud} or serverless. 
 
 [discrete]
-[[reference-architectures-general]]
-=== Time Series
-* <<multi-region-two-datacenter-architecture,Time Series HA Architecture: Multi-Region With Two Datacenters>>
-* Two Availability Zone with ... Architecture
-* Three Availability Zone with ... Architecture
-
-[discrete]
-[[reference-architectures-cloud]]
-=== Cloud Architectures
-* <<elastic-cloud-architecture,Elastic Cloud Hot-Frozen Architecture>>
-
-[discrete]
 [[reference-architectures-time-series-2]]
-=== Time Series - Option 2
+=== Architectures
 
 [cols="50, 50"]
 |===

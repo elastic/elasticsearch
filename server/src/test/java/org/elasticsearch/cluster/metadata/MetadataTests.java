@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.coordination.CoordinationMetadata;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfigExclusion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -58,6 +59,7 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
@@ -87,6 +89,7 @@ import static org.elasticsearch.cluster.metadata.Metadata.CONTEXT_MODE_API;
 import static org.elasticsearch.cluster.metadata.Metadata.CONTEXT_MODE_PARAM;
 import static org.elasticsearch.cluster.metadata.ProjectMetadata.Builder.assertDataStreams;
 import static org.elasticsearch.test.LambdaMatchers.transformedItemsMatch;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anEmptyMap;
@@ -2532,14 +2535,124 @@ public class MetadataTests extends ESTestCase {
             Map.of("multi-project", "true", Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_GATEWAY)
         );
 
-        XContentBuilder builder = JsonXContent.contentBuilder();
-        builder.startObject();
-        ChunkedToXContent.wrapAsToXContent(originalMeta).toXContent(builder, p);
-        builder.endObject();
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
+        final BytesReference bytes = toXContentBytes(originalMeta, p);
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, bytes)) {
             Metadata fromXContentMeta = Metadata.fromXContent(parser);
             assertEquals(originalMeta.projects().size(), fromXContentMeta.projects().size());
         }
+    }
+
+    public void testSingleNonDefaultProjectXContent() throws IOException {
+        // When ClusterStateAction acts in a project scope, it returns cluster state metadata that has a single project that may
+        // not have the default project-id. We need to be able to convert this to XContent in the Rest response
+        final ProjectMetadata project = ProjectMetadata.builder(new ProjectId("c8af967d644b3219"))
+            .put(IndexMetadata.builder("index-1").settings(indexSettings(IndexVersion.current(), 1, 1)).build(), false)
+            .put(IndexMetadata.builder("index-2").settings(indexSettings(IndexVersion.current(), 2, 2)).build(), false)
+            .build();
+        final Metadata metadata = Metadata.builder().clusterUUID("afSSOgAAQAC8BuQTAAAAAA").clusterUUIDCommitted(true).put(project).build();
+        final ToXContent.Params p = new ToXContent.MapParams(
+            Map.ofEntries(Map.entry("multi-project", "false"), Map.entry(Metadata.CONTEXT_MODE_PARAM, CONTEXT_MODE_API))
+        );
+        var expected = Strings.format("""
+            {
+              "metadata": {
+                "cluster_uuid": "afSSOgAAQAC8BuQTAAAAAA",
+                "cluster_uuid_committed":true,
+                "cluster_coordination": {
+                  "term":0,
+                  "last_committed_config":[],
+                  "last_accepted_config":[],
+                  "voting_config_exclusions": []
+                },
+                "templates": {},
+                "indices": {
+                  "index-1": {
+                    "version": 1,
+                    "mapping_version": 1,
+                    "settings_version": 1,
+                    "aliases_version": 1,
+                    "routing_num_shards": 1,
+                    "state": "open",
+                    "settings": {
+                      "index": {
+                        "number_of_shards": "1",
+                        "number_of_replicas": "1",
+                        "version": {
+                          "created": "%s"
+                        }
+                      }
+                    },
+                    "mappings": {},
+                    "aliases": [],
+                    "primary_terms": {
+                      "0": 0
+                    },
+                    "in_sync_allocations": {
+                      "0": []
+                    },
+                    "rollover_info": {},
+                    "mappings_updated_version": %s,
+                    "system": false,
+                    "timestamp_range": {
+                      "shards": []
+                    },
+                    "event_ingested_range": {
+                      "shards": []
+                    }
+                  },
+                  "index-2": {
+                    "version": 1,
+                    "mapping_version": 1,
+                    "settings_version": 1,
+                    "aliases_version": 1,
+                    "routing_num_shards": 2,
+                    "state": "open",
+                    "settings": {
+                      "index": {
+                        "number_of_shards": "2",
+                        "number_of_replicas": "2",
+                        "version": {
+                          "created": "%s"
+                        }
+                      }
+                    },
+                    "mappings": {},
+                    "aliases": [],
+                    "primary_terms": {
+                      "0": 0,
+                      "1": 0
+                    },
+                    "in_sync_allocations": {
+                      "1": [],
+                      "0": []
+                    },
+                    "rollover_info": {},
+                    "mappings_updated_version": %s,
+                    "system": false,
+                    "timestamp_range": {
+                      "shards": []
+                    },
+                    "event_ingested_range": {
+                      "shards": []
+                    }
+                  }
+                },
+                "index-graveyard": {
+                  "tombstones": []
+                },
+                "reserved_state": {}
+              }
+            }
+            """, IndexVersion.current(), IndexVersion.current(), IndexVersion.current(), IndexVersion.current());
+        assertToXContentEquivalent(new BytesArray(expected), toXContentBytes(metadata, p), XContentType.JSON);
+    }
+
+    private static BytesReference toXContentBytes(Metadata metadata, ToXContent.Params params) throws IOException {
+        XContentBuilder builder = JsonXContent.contentBuilder();
+        builder.startObject();
+        ChunkedToXContent.wrapAsToXContent(metadata).toXContent(builder, params);
+        builder.endObject();
+        return BytesReference.bytes(builder);
     }
 
     public void testChunkedToXContent() {

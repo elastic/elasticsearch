@@ -97,9 +97,7 @@ public class MatchQueryPredicate extends FullTextPredicate {
     public boolean equals(Object obj) {
         if (super.equals(obj)) {
             MatchQueryPredicate other = (MatchQueryPredicate) obj;
-            return Objects.equals(field, other.field)
-                && Objects.equals(boost, other.boost)
-                && Objects.equals(fuzziness, other.fuzziness);
+            return Objects.equals(field, other.field) && Objects.equals(boost, other.boost) && Objects.equals(fuzziness, other.fuzziness);
         }
         return false;
     }

@@ -116,8 +116,11 @@ public class MatchQuery extends Query {
         }
 
         MatchQuery other = (MatchQuery) obj;
-        return Objects.equals(text, other.text) && Objects.equals(name, other.name) && Objects.equals(options, other.options)
-            && Objects.equals(boost, other.boost) && Objects.equals(fuzziness, other.fuzziness);
+        return Objects.equals(text, other.text)
+            && Objects.equals(name, other.name)
+            && Objects.equals(options, other.options)
+            && Objects.equals(boost, other.boost)
+            && Objects.equals(fuzziness, other.fuzziness);
     }
 
     @Override

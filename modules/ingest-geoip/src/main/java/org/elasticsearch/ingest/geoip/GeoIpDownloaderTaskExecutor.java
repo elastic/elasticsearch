@@ -43,13 +43,14 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteTransportException;
 
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.ingest.geoip.GeoIpDownloader.DATABASES_INDEX;
 import static org.elasticsearch.ingest.geoip.GeoIpDownloader.GEOIP_DOWNLOADER;
@@ -264,10 +265,15 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
     @SuppressWarnings("unchecked")
     private static Set<String> pipelinesWithGeoIpProcessor(ClusterState clusterState, boolean downloadDatabaseOnPipelineCreation) {
         List<PipelineConfiguration> configurations = IngestService.getPipelines(clusterState);
-        return configurations.stream().filter(configuration -> {
+        Set<String> ids = new HashSet<>();
+        // note: this loop is unrolled rather than streaming-style because it's hot enough to show up in a flamegraph
+        for (PipelineConfiguration configuration : configurations) {
             List<Map<String, Object>> processors = (List<Map<String, Object>>) configuration.getConfigAsMap().get(Pipeline.PROCESSORS_KEY);
-            return hasAtLeastOneGeoipProcessor(processors, downloadDatabaseOnPipelineCreation);
-        }).map(PipelineConfiguration::getId).collect(Collectors.toSet());
+            if (hasAtLeastOneGeoipProcessor(processors, downloadDatabaseOnPipelineCreation)) {
+                ids.add(configuration.getId());
+            }
+        }
+        return Collections.unmodifiableSet(ids);
     }
 
     /**
@@ -277,7 +283,15 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
      * @return true if a geoip processor is found in the processor list.
      */
     private static boolean hasAtLeastOneGeoipProcessor(List<Map<String, Object>> processors, boolean downloadDatabaseOnPipelineCreation) {
-        return processors != null && processors.stream().anyMatch(p -> hasAtLeastOneGeoipProcessor(p, downloadDatabaseOnPipelineCreation));
+        if (processors != null) {
+            // note: this loop is unrolled rather than streaming-style because it's hot enough to show up in a flamegraph
+            for (Map<String, Object> processor : processors) {
+                if (hasAtLeastOneGeoipProcessor(processor, downloadDatabaseOnPipelineCreation)) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     /**
@@ -321,16 +335,17 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
         Map<String, Object> processor,
         boolean downloadDatabaseOnPipelineCreation
     ) {
-        return processor != null
-            && processor.values()
-                .stream()
-                .anyMatch(
-                    value -> value instanceof Map
-                        && hasAtLeastOneGeoipProcessor(
-                            ((Map<String, List<Map<String, Object>>>) value).get("on_failure"),
-                            downloadDatabaseOnPipelineCreation
-                        )
-                );
+        // note: this loop is unrolled rather than streaming-style because it's hot enough to show up in a flamegraph
+        for (Object value : processor.values()) {
+            if (value instanceof Map
+                && hasAtLeastOneGeoipProcessor(
+                    ((Map<String, List<Map<String, Object>>>) value).get("on_failure"),
+                    downloadDatabaseOnPipelineCreation
+                )) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

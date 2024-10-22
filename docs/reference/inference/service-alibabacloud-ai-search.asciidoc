@@ -38,6 +38,18 @@ Available task types:
 (Optional, object)
 include::inference-shared.asciidoc[tag=chunking-settings]
 
+`max_chunking_size`:::
+(Optional, integer)
+include::inference-shared.asciidoc[tag=chunking-settings-max-chunking-size]
+
+`overlap`:::
+(Optional, integer)
+include::inference-shared.asciidoc[tag=chunking-settings-overlap]
+
+`sentence_overlap`:::
+(Optional, integer)
+include::inference-shared.asciidoc[tag=chunking-settings-sentence-overlap]
+
 `strategy`:::
 (Optional, string)
 include::inference-shared.asciidoc[tag=chunking-settings-strategy]

@@ -16,6 +16,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -36,14 +37,20 @@ public class DataStreamFailureStore implements SimpleDiffable<DataStreamFailureS
     public static final ConstructingObjectParser<DataStreamFailureStore, Void> PARSER = new ConstructingObjectParser<>(
         "failure_store",
         false,
-        (args, unused) -> new DataStreamFailureStore((Boolean) args[0])
+        (args, unused) -> new DataStreamFailureStore((DataStreamOptions.NullableFlag) args[0])
     );
 
     @Nullable
-    private final Boolean enabled;
+    private final DataStreamOptions.NullableFlag enabled;
 
     static {
-        PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), ENABLED_FIELD);
+        PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> {
+            if (p.isBooleanValue() == false) {
+                return DataStreamOptions.NullableFlag.NULL_VALUE;
+            } else {
+                return p.booleanValue() ? DataStreamOptions.NullableFlag.TRUE : DataStreamOptions.NullableFlag.FALSE;
+            }
+        }, ENABLED_FIELD, ObjectParser.ValueType.BOOLEAN_OR_NULL);
     }
 
     /**
@@ -58,15 +65,24 @@ public class DataStreamFailureStore implements SimpleDiffable<DataStreamFailureS
      *                 null value is not supported because there are no other arguments
      * @throws IllegalArgumentException when all the constructor arguments are null
      */
-    public DataStreamFailureStore(Boolean enabled) {
-        if (enabled == null) {
+    public DataStreamFailureStore(@Nullable Boolean enabled) {
+        this(DataStreamOptions.NullableFlag.fromBoolean(enabled));
+    }
+
+    /**
+     * @param enabled, the flag configuration, that can be true, false and implicit or explicit null. Currently,
+     *                 null value is not supported because there are no other arguments
+     * @throws IllegalArgumentException when all the constructor arguments are null
+     */
+    public DataStreamFailureStore(@Nullable DataStreamOptions.NullableFlag enabled) {
+        if (DataStreamOptions.NullableFlag.isDefined(enabled) == false) {
             throw new IllegalArgumentException("Failure store configuration should have at least one non-null configuration value.");
         }
         this.enabled = enabled;
     }
 
     public static DataStreamFailureStore read(StreamInput in) throws IOException {
-        var enabled = in.readOptionalBoolean();
+        var enabled = in.readOptionalWriteable(DataStreamOptions.NullableFlag::read);
         if (enabled == null) {
             return NULL;
         }
@@ -88,13 +104,24 @@ public class DataStreamFailureStore implements SimpleDiffable<DataStreamFailureS
      * @return exposes the value of the enabled flag
      */
     @Nullable
-    public Boolean enabled() {
+    public DataStreamOptions.NullableFlag enabled() {
         return enabled;
+    }
+
+    /**
+     * @return failure store configuration that replaces explicit null value with null.
+     */
+    @Nullable
+    public static DataStreamFailureStore resolveExplicitNullValues(DataStreamFailureStore failureStore) {
+        if (failureStore == null || failureStore.enabled == DataStreamOptions.NullableFlag.NULL_VALUE || failureStore.isNullified()) {
+            return null;
+        }
+        return failureStore;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeOptionalBoolean(enabled);
+        out.writeOptionalWriteable(enabled);
     }
 
     @Override
@@ -109,7 +136,8 @@ public class DataStreamFailureStore implements SimpleDiffable<DataStreamFailureS
         } else {
             builder.startObject();
             if (enabled != null) {
-                builder.field(ENABLED_FIELD.getPreferredName(), enabled);
+                builder.field(ENABLED_FIELD.getPreferredName());
+                enabled.toXContent(builder, params);
             }
             builder.endObject();
         }

@@ -184,9 +184,9 @@ index without timestamp:
 
 ---
 TSDB failures go to failure store:
-  - requires:
-      cluster_features: ["data_stream.failure_store.tsdb_fix"]
-      reason: "tests tsdb failure store fixes in 8.16.0 that catch timestamp errors that happen earlier in the process and redirect them to the failure store."
+  - method: POST
+    path: /_index_template/{template}
+    capabilities: [ 'failure_store_in_template' ]
 
   - do:
       allowed_warnings:
@@ -195,9 +195,11 @@ TSDB failures go to failure store:
         name: my-template2
         body:
           index_patterns: [ "fs-k8s*" ]
-          data_stream:
-            failure_store: true
+          data_stream: {}
           template:
+            data_stream_options:
+              failure_store:
+                enabled: true
             settings:
               index:
                 mode: time_series

@@ -137,7 +137,13 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             case 10 -> failureIndices = randomValueOtherThan(failureIndices, DataStreamTestHelper::randomIndexInstances);
             case 11 -> dataStreamOptions = dataStreamOptions.isEmpty() ? new DataStreamOptions(new DataStreamFailureStore(randomBoolean()))
                 : randomBoolean() ? (randomBoolean() ? null : DataStreamOptions.EMPTY)
-                : new DataStreamOptions(new DataStreamFailureStore(dataStreamOptions.failureStore().enabled() == false));
+                : new DataStreamOptions(
+                    new DataStreamFailureStore(
+                        dataStreamOptions.failureStore().enabled() == DataStreamOptions.NullableFlag.FALSE
+                            ? DataStreamOptions.NullableFlag.TRUE
+                            : DataStreamOptions.NullableFlag.FALSE
+                    )
+                );
             case 12 -> {
                 rolloverOnWrite = rolloverOnWrite == false;
                 isReplicated = rolloverOnWrite == false && isReplicated;

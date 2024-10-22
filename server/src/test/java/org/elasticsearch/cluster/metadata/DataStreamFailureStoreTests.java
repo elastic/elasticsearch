@@ -16,6 +16,8 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 public class DataStreamFailureStoreTests extends AbstractXContentSerializingTestCase<DataStreamFailureStore> {
 
@@ -32,7 +34,7 @@ public class DataStreamFailureStoreTests extends AbstractXContentSerializingTest
     @Override
     protected DataStreamFailureStore mutateInstance(DataStreamFailureStore instance) throws IOException {
         // We know the enabled is not null because in this test we do not include the DataStreamFailureStore.NULL
-        return new DataStreamFailureStore(instance.enabled() == false);
+        return new DataStreamFailureStore(instance.enabled() == DataStreamOptions.NullableFlag.FALSE);
     }
 
     @Override
@@ -45,7 +47,20 @@ public class DataStreamFailureStoreTests extends AbstractXContentSerializingTest
     }
 
     public void testInvalidEmptyConfiguration() {
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> new DataStreamFailureStore(null));
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> new DataStreamFailureStore((Boolean) null));
         assertThat(exception.getMessage(), containsString("at least one non-null configuration value"));
+
+        exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> new DataStreamFailureStore(DataStreamOptions.NullableFlag.NULL_VALUE)
+        );
+        assertThat(exception.getMessage(), containsString("at least one non-null configuration value"));
+    }
+
+    public void testExplicitNullValueResolution() {
+        assertThat(DataStreamFailureStore.resolveExplicitNullValues(null), nullValue());
+        assertThat(DataStreamFailureStore.resolveExplicitNullValues(DataStreamFailureStore.NULL), nullValue());
+        DataStreamFailureStore nonNull = randomFailureStore();
+        assertThat(DataStreamFailureStore.resolveExplicitNullValues(nonNull), equalTo(nonNull));
     }
 }

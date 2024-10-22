@@ -733,9 +733,9 @@ setup:
 
 ---
 "Delete data stream with failure store uninitialized":
-  - requires:
-      cluster_features: ["gte_v8.15.0"]
-      reason: "data stream failure stores REST structure changed in 8.15+"
+  - method: POST
+    path: /_index_template/{template}
+    capabilities: [ 'failure_store_in_template' ]
 
   - do:
       allowed_warnings:
@@ -744,8 +744,11 @@ setup:
         name: my-template4
         body:
           index_patterns: [ failure-data-stream1 ]
-          data_stream:
-            failure_store: true
+          data_stream: {}
+          template:
+            data_stream_options:
+              failure_store:
+                enabled: true
 
   - do:
       indices.create_data_stream:

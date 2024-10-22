@@ -59,8 +59,11 @@ public interface IndexSettingProvider {
     }
 
     /**
-     * @return Whether the additional settings that this provider returns can overrule the settings defined
-     *         in matching template or in create index request.
+     * Indicates whether the additional settings that this provider returns can overrule the settings defined in matching template
+     * or in create index request.
+     *
+     * Note that this is not used during index template validation, to avoid overruling template settings that may apply to
+     * different contexts (e.g. the provider is not used, or it returns different setting values).
      */
     default boolean overrulesTemplateAndRequestSettings() {
         return false;

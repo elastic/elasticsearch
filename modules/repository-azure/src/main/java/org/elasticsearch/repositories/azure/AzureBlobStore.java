@@ -91,8 +91,6 @@ import java.util.Objects;
 import java.util.Spliterator;
 import java.util.Spliterators;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -253,7 +251,7 @@ public class AzureBlobStore implements BlobStore {
             final BlobContainerAsyncClient blobContainerAsyncClient = client.getAsyncClient().getBlobContainerAsyncClient(container);
             final ListBlobsOptions options = new ListBlobsOptions().setPrefix(path)
                 .setDetails(new BlobListDetails().setRetrieveMetadata(true));
-            Flux<String> blobsFlux = blobContainerAsyncClient.listBlobs(options).filter(bi -> bi.isPrefix() == false).map(bi -> {
+            final Flux<String> blobsFlux = blobContainerAsyncClient.listBlobs(options).filter(bi -> bi.isPrefix() == false).map(bi -> {
                 bytesDeleted.addAndGet(bi.getProperties().getContentLength());
                 blobsDeleted.incrementAndGet();
                 return bi.getName();
@@ -285,31 +283,25 @@ public class AzureBlobStore implements BlobStore {
         final BlobBatchAsyncClient batchAsyncClient = new BlobBatchClientBuilder(
             azureBlobServiceClient.getAsyncClient().getBlobContainerAsyncClient(container)
         ).buildAsyncClient();
-        final List<Throwable> errors = new CopyOnWriteArrayList<>();
-        final CountDownLatch allRequestsFinished = new CountDownLatch(1);
-        blobNames.buffer(deletionBatchSize).flatMap(blobs -> {
-            BlobBatch blobBatch = batchAsyncClient.getBlobBatch();
-            blobs.forEach(blob -> blobBatch.deleteBlob(container, blob));
-            return batchAsyncClient.submitBatch(blobBatch).then(Mono.fromCallable(() -> (Throwable) null)).onErrorResume(t -> {
-                // Ignore errors that are just 404s, send other errors downstream as values
-                if (AzureBlobStore.isIgnorableBatchDeleteException(t)) {
-                    return Mono.empty();
-                } else {
-                    return Mono.just(t);
-                }
-            });
-        }, maxConcurrentBatchDeletes).subscribe(errors::add, throwable -> {
-            assert false : "We should be suppressing all errors, got:" + throwable;
-            errors.add(throwable);
-        }, allRequestsFinished::countDown);
+        final List<Throwable> errors;
         try {
-            allRequestsFinished.await();
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            errors.add(e);
+            errors = blobNames.buffer(deletionBatchSize).flatMap(blobs -> {
+                final BlobBatch blobBatch = batchAsyncClient.getBlobBatch();
+                blobs.forEach(blob -> blobBatch.deleteBlob(container, blob));
+                return batchAsyncClient.submitBatch(blobBatch).then(Mono.<Throwable>empty()).onErrorResume(t -> {
+                    // Ignore errors that are just 404s, send other errors downstream as values
+                    if (AzureBlobStore.isIgnorableBatchDeleteException(t)) {
+                        return Mono.empty();
+                    } else {
+                        return Mono.just(t);
+                    }
+                });
+            }, maxConcurrentBatchDeletes).collectList().block();
+        } catch (RuntimeException e) {
+            throw new IOException("Error deleting batches", e);
         }
         if (errors.isEmpty() == false) {
-            IOException ex = new IOException("Error deleting batches");
+            final IOException ex = new IOException("Error deleting batches");
             errors.forEach(ex::addSuppressed);
             throw ex;
         }

@@ -281,8 +281,8 @@ setup:
           explain: true
 
   - match: { hits.hits.0._id: foo }
-  - match: { hits.hits.0._explanation.value: 1 }
-  - match: { hits.hits.0._explanation.description: "doc [0] with an original score of [1.7014124E38] is at rank [1] from the following source queries." }
+  - match: { hits.hits.0._explanation.value: 1.7014124430769804E38 }
+  - match: { hits.hits.0._explanation.description: "query rules evaluated rules from rulesets [test-ruleset] and match criteria {bar=bar, foo=foo}" }
   - match: { hits.hits.0._explanation.details.0.value: 1 }
   - match: { hits.hits.0._explanation.details.0.description: "doc [0] with an original score of [1.7014124E38] is at rank [1] from the following source queries." }
   - match: { hits.hits.0._explanation.details.0.details.0.description: "sum of:" }

@@ -33,6 +33,8 @@ import org.apache.lucene.tests.index.BaseDocValuesFormatTestCase;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.logging.LogConfigurator;
+import org.elasticsearch.test.MockLog;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -49,6 +51,12 @@ public class ES817TSDBDocValuesFormatTests extends BaseDocValuesFormatTestCase {
     private static final int NUM_DOCS = 10;
 
     private final Codec codec = TestUtil.alwaysDocValuesFormat(new ES817TSDBDocValuesFormat());
+
+    static {
+        LogConfigurator.loadLog4jPlugins();
+        LogConfigurator.configureESLogging();
+        MockLog.init();
+    }
 
     @Override
     protected Codec getCodec() {

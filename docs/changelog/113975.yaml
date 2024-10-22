@@ -15,5 +15,5 @@ breaking:
 
     Starting in version 8.15.2, Elasticsearch will log deprecation warnings if you are using date format specifiers that might change on upgrading to JDK 23. These warnings are visible in Kibana.
 
-    For detailed guidance, refer to the https://ela.st/jdk-23-locales[Elastic blog].
+    For detailed guidance, refer to <<custom-date-format-locales,Differences in locale information between JDK versions>>.
   notable: true

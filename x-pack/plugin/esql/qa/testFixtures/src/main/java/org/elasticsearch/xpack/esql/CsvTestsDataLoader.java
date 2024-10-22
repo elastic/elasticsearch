@@ -19,6 +19,7 @@ import org.apache.http.impl.client.BasicCredentialsProvider;
 import org.apache.logging.log4j.core.config.plugins.util.PluginManager;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.common.Strings;
@@ -36,9 +37,11 @@ import java.io.InputStream;
 import java.net.URI;
 import java.net.URL;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.COMMA_ESCAPING_REGEX;
@@ -81,6 +84,7 @@ public class CsvTestsDataLoader {
     private static final TestsDataset K8S = new TestsDataset("k8s", "k8s-mappings.json", "k8s.csv").withSetting("k8s-settings.json");
     private static final TestsDataset ADDRESSES = new TestsDataset("addresses");
     private static final TestsDataset BOOKS = new TestsDataset("books");
+    private static final TestsDataset SEMANTIC_TEXT = new TestsDataset("semantic_text").withInferenceEndpoint(true);
 
     public static final Map<String, TestsDataset> CSV_DATASET_MAP = Map.ofEntries(
         Map.entry(EMPLOYEES.indexName, EMPLOYEES),
@@ -112,7 +116,8 @@ public class CsvTestsDataLoader {
         Map.entry(K8S.indexName, K8S),
         Map.entry(DISTANCES.indexName, DISTANCES),
         Map.entry(ADDRESSES.indexName, ADDRESSES),
-        Map.entry(BOOKS.indexName, BOOKS)
+        Map.entry(BOOKS.indexName, BOOKS),
+        Map.entry(SEMANTIC_TEXT.indexName, SEMANTIC_TEXT)
     );
 
     private static final EnrichConfig LANGUAGES_ENRICH = new EnrichConfig("languages_policy", "enrich-policy-languages.json");
@@ -219,8 +224,13 @@ public class CsvTestsDataLoader {
         }
     }
 
-    private static void loadDataSetIntoEs(RestClient client, IndexCreator indexCreator) throws IOException {
-        loadDataSetIntoEs(client, LogManager.getLogger(CsvTestsDataLoader.class), indexCreator);
+    public static Set<TestsDataset> availableDatasetsForEs(RestClient client) throws IOException {
+        boolean inferenceEnabled = clusterHasInferenceEndpoint(client);
+
+        return CSV_DATASET_MAP.values()
+            .stream()
+            .filter(d -> d.requiresInferenceEndpoint == false || inferenceEnabled)
+            .collect(Collectors.toCollection(HashSet::new));
     }
 
     public static void loadDataSetIntoEs(RestClient client) throws IOException {
@@ -229,20 +239,59 @@ public class CsvTestsDataLoader {
         });
     }
 
-    public static void loadDataSetIntoEs(RestClient client, Logger logger) throws IOException {
-        loadDataSetIntoEs(client, logger, (restClient, indexName, indexMapping, indexSettings) -> {
-            ESRestTestCase.createIndex(restClient, indexName, indexSettings, indexMapping, null);
-        });
-    }
+    private static void loadDataSetIntoEs(RestClient client, IndexCreator indexCreator) throws IOException {
+        Logger logger = LogManager.getLogger(CsvTestsDataLoader.class);
 
-    private static void loadDataSetIntoEs(RestClient client, Logger logger, IndexCreator indexCreator) throws IOException {
-        for (var dataset : CSV_DATASET_MAP.values()) {
+        Set<String> loadedDatasets = new HashSet<>();
+        for (var dataset : availableDatasetsForEs(client)) {
             load(client, dataset, logger, indexCreator);
+            loadedDatasets.add(dataset.indexName);
         }
-        forceMerge(client, CSV_DATASET_MAP.keySet(), logger);
+        forceMerge(client, loadedDatasets, logger);
         for (var policy : ENRICH_POLICIES) {
             loadEnrichPolicy(client, policy.policyName, policy.policyFileName, logger);
         }
+    }
+
+    /** The semantic_text mapping type require an inference endpoint that needs to be setup before creating the index. */
+    public static void createInferenceEndpoint(RestClient client) throws IOException {
+        Request request = new Request("PUT", "_inference/sparse_embedding/test_sparse_inference");
+        request.setJsonEntity("""
+                  {
+                   "service": "test_service",
+                   "service_settings": {
+                     "model": "my_model",
+                     "api_key": "abc64"
+                   },
+                   "task_settings": {
+                   }
+                 }
+            """);
+        client.performRequest(request);
+    }
+
+    public static void deleteInferenceEndpoint(RestClient client) throws IOException {
+        try {
+            client.performRequest(new Request("DELETE", "_inference/test_sparse_inference"));
+        } catch (ResponseException e) {
+            // 404 here means the endpoint was not created
+            if (e.getResponse().getStatusLine().getStatusCode() != 404) {
+                throw e;
+            }
+        }
+    }
+
+    public static boolean clusterHasInferenceEndpoint(RestClient client) throws IOException {
+        Request request = new Request("GET", "_inference/sparse_embedding/test_sparse_inference");
+        try {
+            client.performRequest(request);
+        } catch (ResponseException e) {
+            if (e.getResponse().getStatusLine().getStatusCode() == 404) {
+                return false;
+            }
+            throw e;
+        }
+        return true;
     }
 
     private static void loadEnrichPolicy(RestClient client, String policyName, String policyFileName, Logger logger) throws IOException {
@@ -511,34 +560,79 @@ public class CsvTestsDataLoader {
         String dataFileName,
         String settingFileName,
         boolean allowSubFields,
-        Map<String, String> typeMapping
+        Map<String, String> typeMapping,
+        boolean requiresInferenceEndpoint
     ) {
         public TestsDataset(String indexName, String mappingFileName, String dataFileName) {
-            this(indexName, mappingFileName, dataFileName, null, true, null);
+            this(indexName, mappingFileName, dataFileName, null, true, null, false);
         }
 
         public TestsDataset(String indexName) {
-            this(indexName, "mapping-" + indexName + ".json", indexName + ".csv", null, true, null);
+            this(indexName, "mapping-" + indexName + ".json", indexName + ".csv", null, true, null, false);
         }
 
         public TestsDataset withIndex(String indexName) {
-            return new TestsDataset(indexName, mappingFileName, dataFileName, settingFileName, allowSubFields, typeMapping);
+            return new TestsDataset(
+                indexName,
+                mappingFileName,
+                dataFileName,
+                settingFileName,
+                allowSubFields,
+                typeMapping,
+                requiresInferenceEndpoint
+            );
         }
 
         public TestsDataset withData(String dataFileName) {
-            return new TestsDataset(indexName, mappingFileName, dataFileName, settingFileName, allowSubFields, typeMapping);
+            return new TestsDataset(
+                indexName,
+                mappingFileName,
+                dataFileName,
+                settingFileName,
+                allowSubFields,
+                typeMapping,
+                requiresInferenceEndpoint
+            );
         }
 
         public TestsDataset withSetting(String settingFileName) {
-            return new TestsDataset(indexName, mappingFileName, dataFileName, settingFileName, allowSubFields, typeMapping);
+            return new TestsDataset(
+                indexName,
+                mappingFileName,
+                dataFileName,
+                settingFileName,
+                allowSubFields,
+                typeMapping,
+                requiresInferenceEndpoint
+            );
         }
 
         public TestsDataset noSubfields() {
-            return new TestsDataset(indexName, mappingFileName, dataFileName, settingFileName, false, typeMapping);
+            return new TestsDataset(
+                indexName,
+                mappingFileName,
+                dataFileName,
+                settingFileName,
+                false,
+                typeMapping,
+                requiresInferenceEndpoint
+            );
         }
 
         public TestsDataset withTypeMapping(Map<String, String> typeMapping) {
-            return new TestsDataset(indexName, mappingFileName, dataFileName, settingFileName, allowSubFields, typeMapping);
+            return new TestsDataset(
+                indexName,
+                mappingFileName,
+                dataFileName,
+                settingFileName,
+                allowSubFields,
+                typeMapping,
+                requiresInferenceEndpoint
+            );
+        }
+
+        public TestsDataset withInferenceEndpoint(boolean needsInference) {
+            return new TestsDataset(indexName, mappingFileName, dataFileName, settingFileName, allowSubFields, typeMapping, needsInference);
         }
     }
 

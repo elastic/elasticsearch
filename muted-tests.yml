@@ -309,6 +309,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {categorize.Categorize ASYNC}
   issue: https://github.com/elastic/elasticsearch/issues/113721
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {categorize.Categorize SYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/113722
 - class: org.elasticsearch.action.search.SearchQueryThenFetchAsyncActionTests
   method: testMinimumVersionSameAsNewVersion
   issue: https://github.com/elastic/elasticsearch/issues/114593
@@ -371,6 +374,11 @@ tests:
 - class: org.elasticsearch.reservedstate.service.FileSettingsServiceTests
   method: testProcessFileChanges
   issue: https://github.com/elastic/elasticsearch/issues/115280
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  issue: https://github.com/elastic/elasticsearch/issues/115315
+- class: org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT
+  method: test {p0=mixed_cluster/80_transform_jobs_crud/Test GET, start, and stop old cluster batch transforms}
+  issue: https://github.com/elastic/elasticsearch/issues/115319
 
 # Examples:
 #

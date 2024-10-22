@@ -334,11 +334,6 @@ public class EsqlCapabilities {
         CATEGORIZE(true),
 
         /**
-         * Support the "METADATA _score" directive to enable _score column
-         */
-        METADATA_SCORE(true),
-
-        /**
          * QSTR function
          */
         QSTR_FUNCTION(true),
@@ -352,7 +347,12 @@ public class EsqlCapabilities {
         /**
          * Compute year differences in full calendar years.
          */
-        DATE_DIFF_YEAR_CALENDARIAL;
+        DATE_DIFF_YEAR_CALENDARIAL,
+
+        /**
+         * Support the "METADATA _score" directive to enable _score column.
+         */
+        METADATA_SCORE(true);
 
         private final boolean snapshotOnly;
         private final FeatureFlag featureFlag;

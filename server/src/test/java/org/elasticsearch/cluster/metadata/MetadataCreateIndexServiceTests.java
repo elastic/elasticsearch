@@ -770,7 +770,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                     String indexName,
                     String dataStreamName,
                     IndexMode templateIndexMode,
-                    Metadata metadata,
+                    ProjectMetadata projectMetadata,
                     Instant resolvedAt,
                     Settings indexTemplateAndCreateRequestSettings,
                     List<CompressedXContent> combinedTemplateMappings
@@ -813,7 +813,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                     String indexName,
                     String dataStreamName,
                     IndexMode templateIndexMode,
-                    Metadata metadata,
+                    ProjectMetadata projectMetadata,
                     Instant resolvedAt,
                     Settings indexTemplateAndCreateRequestSettings,
                     List<CompressedXContent> combinedTemplateMappings
@@ -856,7 +856,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                     String indexName,
                     String dataStreamName,
                     IndexMode templateIndexMode,
-                    Metadata metadata,
+                    ProjectMetadata projectMetadata,
                     Instant resolvedAt,
                     Settings indexTemplateAndCreateRequestSettings,
                     List<CompressedXContent> combinedTemplateMappings
@@ -899,7 +899,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                     String indexName,
                     String dataStreamName,
                     IndexMode templateIndexMode,
-                    Metadata metadata,
+                    ProjectMetadata projectMetadata,
                     Instant resolvedAt,
                     Settings indexTemplateAndCreateRequestSettings,
                     List<CompressedXContent> combinedTemplateMappings

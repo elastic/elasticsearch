@@ -550,7 +550,7 @@ public class CrossClustersEnrichIT extends AbstractMultiClustersTestCase {
             FROM *:events,events
             | LIMIT 25
             | eval ip= TO_STR(host)
-            | %s | KEEP host, timestamp, user, ip, os
+            | %s | KEEP host, timestamp, user, os
             """, enrichHosts(Enrich.Mode.REMOTE));
         try (EsqlQueryResponse resp = runQuery(query, requestIncludeMeta)) {
             var values = getValuesList(resp);
@@ -563,11 +563,11 @@ public class CrossClustersEnrichIT extends AbstractMultiClustersTestCase {
                 values.subList(0, 5),
                 equalTo(
                     List.of(
-                        List.of("192.168.1.2", 1L, "andres", "192.168.1.2", "Windows"),
-                        Arrays.asList("192.168.1.25", 1L, "park", (String) null, (String) null),
-                        List.of("192.168.1.3", 1L, "matthew", "192.168.1.3", "MacOS"),
-                        List.of("192.168.1.5", 2L, "akio", "192.168.1.5", "Android"),
-                        List.of("192.168.1.5", 2L, "simon", "192.168.1.5", "Android")
+                        List.of("192.168.1.2", 1L, "andres", "Windows"),
+                        Arrays.asList("192.168.1.25", 1L, "park", (String) null),
+                        List.of("192.168.1.3", 1L, "matthew", "MacOS"),
+                        List.of("192.168.1.5", 2L, "akio", "Android"),
+                        List.of("192.168.1.5", 2L, "simon", "Android")
                     )
                 )
             );

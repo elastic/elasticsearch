@@ -424,6 +424,9 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/115280
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   issue: https://github.com/elastic/elasticsearch/issues/115315
+- class: org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT
+  method: test {p0=mixed_cluster/80_transform_jobs_crud/Test GET, start, and stop old cluster batch transforms}
+  issue: https://github.com/elastic/elasticsearch/issues/115319
 
 # Examples:
 #

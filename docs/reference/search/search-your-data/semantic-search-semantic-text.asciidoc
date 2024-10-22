@@ -24,6 +24,8 @@ This tutorial uses the <<inference-example-elser,`elser` service>> for demonstra
 To use the `semantic_text` field type with an {infer} service other than ELSER, you must have an {infer} endpoint deployed in your cluster using the <<put-inference-api>>.
 If you use ELSER, the {infer} endpoint will be created automatically, when you set up the index with the `semantic_text` field.
 
+NOTE: In Serverless, you must create an {infer} endpoint using the <<put-inference-api>> and reference it when setting up `semantic_text` even if you use the ELSER service. 
+
 
 [discrete]
 [[semantic-text-index-mapping]]

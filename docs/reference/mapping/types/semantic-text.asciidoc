@@ -34,6 +34,8 @@ PUT my-index-000001
 }
 ------------------------------------------------------------
 
+NOTE: In Serverless, you must create an {infer} endpoint using the <<put-inference-api>> and reference it when setting up `semantic_text` even if you use the ELSER service. 
+
 If you use a service other than ELSER, you must create an {infer} endpoint using the <<put-inference-api>> and reference it when setting up `semantic_text` as the following example demonstrates:
 
 [source,console]

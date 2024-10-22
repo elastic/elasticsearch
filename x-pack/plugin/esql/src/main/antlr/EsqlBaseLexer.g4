@@ -174,6 +174,7 @@ BY : 'by';
 AND : 'and';
 ASC : 'asc';
 ASSIGN : '=';
+AUTO : {this.isDevVersion()}? 'auto';
 CAST_OP : '::';
 COMMA : ',';
 DESC : 'desc';
@@ -207,8 +208,10 @@ MINUS : '-';
 ASTERISK : '*';
 SLASH : '/';
 PERCENT : '%';
+DEV_CARET : {this.isDevVersion()}? '^';
+COLON : {this.isDevVersion()}? ':';
+DEV_TILDE : {this.isDevVersion()}? '~';
 
-MATCH : 'match';
 NESTED_WHERE : WHERE -> type(WHERE);
 
 NAMED_OR_POSITIONAL_PARAM
@@ -477,7 +480,7 @@ SHOW_WS
 mode SETTING_MODE;
 SETTING_CLOSING_BRACKET : CLOSING_BRACKET -> type(CLOSING_BRACKET), popMode;
 
-COLON : ':';
+SETTING_COLON : COLON -> type(COLON);
 
 SETTING
     : (ASPERAND | DIGIT| DOT | LETTER | UNDERSCORE)+

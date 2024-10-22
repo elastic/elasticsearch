@@ -15,9 +15,10 @@ import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
-import org.elasticsearch.Build;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -614,9 +615,6 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
 
     @Override
     public String visitFunctionName(EsqlBaseParser.FunctionNameContext ctx) {
-        if (ctx.MATCH() != null) {
-            return ctx.MATCH().getText();
-        }
         return visitIdentifierOrParameter(ctx.identifierOrParameter());
     }
 
@@ -927,14 +925,42 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
 
     @Override
     public Expression visitMatchBooleanExpression(EsqlBaseParser.MatchBooleanExpressionContext ctx) {
-        if (Build.current().isSnapshot() == false) {
-            throw new ParsingException(source(ctx), "MATCH operator currently requires a snapshot build");
-        }
+        Double boost = visitBoostExpression(ctx.boostExpression());
+        Fuzziness fuzziness = visitFuzzinessExpression(ctx.fuzzinessExpression());
+
         return new MatchQueryPredicate(
             source(ctx),
             expression(ctx.valueExpression()),
             visitString(ctx.queryString).fold().toString(),
-            null
+            boost,
+            fuzziness
         );
+    }
+
+    @Override
+    public Double visitBoostExpression(EsqlBaseParser.BoostExpressionContext ctx) {
+        if (ctx == null) {
+            return null;
+        }
+        return (Double) visitDecimalValue(ctx.decimalValue()).value();
+    }
+
+    @Override
+    public Fuzziness visitFuzzinessExpression(EsqlBaseParser.FuzzinessExpressionContext ctx) {
+        if (ctx == null) {
+            return null;
+        }
+
+        if (ctx.fuzzinessValue() == null) {
+            // Default value for query string query
+            return Fuzziness.TWO;
+        } else {
+            try {
+                return Fuzziness.fromString(ctx.fuzzinessValue().getText());
+            } catch (IllegalArgumentException | ElasticsearchParseException e) {
+                throw new ParsingException(source(ctx), "Invalid fuzziness value: [{}]", ctx.fuzzinessValue().getText());
+            }
+        }
+
     }
 }

@@ -77,8 +77,20 @@ regexBooleanExpression
     ;
 
 matchBooleanExpression
-    : valueExpression MATCH queryString=string
+    : valueExpression (boostExpression)? COLON queryString=string (fuzzinessExpression)?
     ;
+
+fuzzinessExpression
+    : DEV_TILDE fuzzinessValue?
+    ;
+
+fuzzinessValue
+    : distance=INTEGER_LITERAL
+    | auto=AUTO(COLON INTEGER_LITERAL (COMMA INTEGER_LITERAL)?)?
+    ;
+
+boostExpression
+    : DEV_CARET decimalValue;
 
 valueExpression
     : operatorExpression                                                                      #valueExpressionDefault
@@ -105,9 +117,7 @@ functionExpression
     ;
 
 functionName
-    // Additional function identifiers that are already a reserved word in the language
-    : MATCH
-    | identifierOrParameter
+    : identifierOrParameter
     ;
 
 dataType

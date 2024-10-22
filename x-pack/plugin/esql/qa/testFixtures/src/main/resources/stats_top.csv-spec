@@ -264,7 +264,7 @@ topText
 required_capability: agg_top
 required_capability: agg_top_string_support
 # we don't need MATCH, but the loader for books.csv is busted in CsvTests
-required_capability: match_operator
+required_capability: match_operator_colon
 
 FROM books
 | EVAL calc = TRIM(SUBSTRING(title, 2, 5))
@@ -281,7 +281,7 @@ topTextGrouping
 required_capability: agg_top
 required_capability: agg_top_string_support
 # we don't need MATCH, but the loader for books.csv is busted in CsvTests
-required_capability: match_operator
+required_capability: match_operator_colon
 
 FROM books
 | EVAL calc = TRIM(SUBSTRING(title, 2, 5))

@@ -46,7 +46,7 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
     public void testSimpleWhereMatch() {
         var query = """
             FROM test
-            | WHERE content MATCH "fox"
+            | WHERE content:"fox"
             | KEEP id
             | SORT id
             """;
@@ -63,7 +63,7 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
     public void testCombinedWhereMatch() {
         var query = """
             FROM test
-            | WHERE content MATCH "fox" AND id > 5
+            | WHERE content:"fox" AND id > 5
             | KEEP id
             | SORT id
             """;
@@ -80,7 +80,7 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
     public void testMultipleMatch() {
         var query = """
             FROM test
-            | WHERE content MATCH "fox" OR content MATCH "brown"
+            | WHERE content:"fox" AND content:"brown"
             | KEEP id
             | SORT id
             """;
@@ -90,31 +90,31 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
             assertThat(resp.columns().stream().map(ColumnInfoImpl::type).map(DataType::toString).toList(), equalTo(List.of(("INTEGER"))));
             // values
             List<List<Object>> values = getValuesList(resp);
-            assertThat(values.size(), equalTo(5));
-            assertMap(values, matchesList().item(List.of(1)).item(List.of(2)).item(List.of(3)).item(List.of(4)).item(List.of(6)));
+            assertThat(values.size(), equalTo(2));
+            assertMap(values, matchesList().item(List.of(1)).item(List.of(6)));
         }
     }
 
     public void testMultipleWhereMatch() {
         var query = """
             FROM test
-            | WHERE content MATCH "fox" OR content MATCH "brown"
+            | WHERE content:"fox" AND content:"brown"
             | EVAL summary = CONCAT("document with id: ", to_str(id), "and content: ", content)
             | SORT summary
             | LIMIT 4
-            | WHERE content MATCH "brown fox"
+            | WHERE content:"brown fox"
             | KEEP id
             """;
 
         // TODO: this should not raise an error;
         var error = expectThrows(ElasticsearchException.class, () -> run(query));
-        assertThat(error.getMessage(), containsString("Unsupported expression [content MATCH \"brown fox\"]"));
+        assertThat(error.getMessage(), containsString("[:] operator cannot be used after LIMIT"));
     }
 
     public void testNotWhereMatch() {
         var query = """
             FROM test
-            | WHERE NOT content MATCH "brown fox"
+            | WHERE NOT content:"brown fox"
             | KEEP id
             | SORT id
             """;
@@ -131,7 +131,7 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
     public void testNonExistingColumn() {
         var query = """
             FROM test
-            | WHERE something MATCH "fox"
+            | WHERE something:"fox"
             """;
 
         var error = expectThrows(VerificationException.class, () -> run(query));
@@ -142,12 +142,12 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
         var query = """
             FROM test
             | EVAL upper_content = to_upper(content)
-            | WHERE upper_content MATCH "FOX"
+            | WHERE upper_content:"FOX"
             | KEEP id
             """;
 
         var error = expectThrows(VerificationException.class, () -> run(query));
-        assertThat(error.getMessage(), containsString("MATCH requires a mapped index field, found [upper_content]"));
+        assertThat(error.getMessage(), containsString("[:] operator requires a mapped index field, found [upper_content]"));
     }
 
     public void testWhereMatchOverWrittenColumn() {
@@ -155,18 +155,18 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
             FROM test
             | DROP content
             | EVAL content = CONCAT("document with ID ", to_str(id))
-            | WHERE content MATCH "document"
+            | WHERE content:"document"
             """;
 
         var error = expectThrows(VerificationException.class, () -> run(query));
-        assertThat(error.getMessage(), containsString("MATCH requires a mapped index field, found [content]"));
+        assertThat(error.getMessage(), containsString("[:] operator requires a mapped index field, found [content]"));
     }
 
     public void testWhereMatchAfterStats() {
         var query = """
             FROM test
             | STATS count(*)
-            | WHERE content match "fox"
+            | WHERE content:"fox"
             """;
 
         var error = expectThrows(VerificationException.class, () -> run(query));
@@ -176,40 +176,46 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
     public void testWhereMatchWithFunctions() {
         var query = """
             FROM test
-            | WHERE content MATCH "fox" OR to_upper(content) == "FOX"
+            | WHERE content:"fox" OR to_upper(content) == "FOX"
             """;
         var error = expectThrows(ElasticsearchException.class, () -> run(query));
-        assertThat(error.getMessage(), containsString(" Invalid condition using MATCH"));
+        assertThat(
+            error.getMessage(),
+            containsString(
+                "Invalid condition [content:\"fox\" OR to_upper(content) == \"FOX\"]. "
+                    + "[:] operator can't be used as part of an or condition"
+            )
+        );
     }
 
     public void testWhereMatchWithRow() {
         var query = """
             ROW content = "a brown fox"
-            | WHERE content MATCH "fox"
+            | WHERE content:"fox"
             """;
 
         var error = expectThrows(ElasticsearchException.class, () -> run(query));
-        assertThat(error.getMessage(), containsString("MATCH requires a mapped index field, found [content]"));
+        assertThat(error.getMessage(), containsString("[:] operator requires a mapped index field, found [content]"));
     }
 
     public void testMatchWithinEval() {
         var query = """
             FROM test
-            | EVAL matches_query = content MATCH "fox"
+            | EVAL matches_query = content:"fox"
             """;
 
         var error = expectThrows(VerificationException.class, () -> run(query));
-        assertThat(error.getMessage(), containsString("EVAL does not support MATCH expressions"));
+        assertThat(error.getMessage(), containsString("[:] operator is only supported in WHERE commands"));
     }
 
     public void testMatchWithNonTextField() {
         var query = """
             FROM test
-            | WHERE id MATCH "fox"
+            | WHERE id:"fox"
             """;
 
         var error = expectThrows(VerificationException.class, () -> run(query));
-        assertThat(error.getMessage(), containsString(" MATCH requires a text or keyword field, but [id] has type [integer]"));
+        assertThat(error.getMessage(), containsString("[:] operator requires a text or keyword field, but [id] has type [integer]"));
     }
 
     private void createAndPopulateIndex() {

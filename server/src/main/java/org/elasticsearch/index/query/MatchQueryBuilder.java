@@ -22,6 +22,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.ConstantFieldType;
@@ -399,17 +400,17 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
         // and possibly shortcut
         NamedAnalyzer configuredAnalyzer = configuredAnalyzer(coordinatorRewriteContext);
         if (configuredAnalyzer != null && configuredAnalyzer.analyzer() instanceof KeywordAnalyzer) {
-            // this will be rewritten as a term query
-            return maybeRewriteBasedOnConstantFields(coordinatorRewriteContext);
+            // this will be rewritten as a term query so we can try to do a coordinator rewrite (like we'd do for a term query)
+            MappedFieldType fieldType = coordinatorRewriteContext.getFieldType(this.fieldName);
+            // we don't rewrite a null field type to `match_none` on the coordinator because the coordinator has access
+            // to only a subset of fields see {@link CoordinatorRewriteContext#getFieldType}
+            return maybeRewriteBasedOnConstantFields(fieldType, coordinatorRewriteContext);
         }
         return this;
     }
 
-    private QueryBuilder maybeRewriteBasedOnConstantFields(QueryRewriteContext context) {
-        MappedFieldType fieldType = context.getFieldType(this.fieldName);
-        if (fieldType == null) {
-            return new MatchNoneQueryBuilder("The \"" + getName() + "\" query is against a field that does not exist");
-        } else if (fieldType instanceof ConstantFieldType constantFieldType) {
+    private QueryBuilder maybeRewriteBasedOnConstantFields(@Nullable MappedFieldType fieldType, QueryRewriteContext context) {
+        if (fieldType instanceof ConstantFieldType constantFieldType) {
             // This logic is correct for all field types, but by only applying it to constant
             // fields we also have the guarantee that it doesn't perform I/O, which is important
             // since rewrites might happen on a network thread.

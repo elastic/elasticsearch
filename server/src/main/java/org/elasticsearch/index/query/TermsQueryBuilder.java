@@ -347,11 +347,6 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         return fieldType.termsQuery(values, context);
     }
 
-    @Override
-    protected QueryBuilder doCoordinatorRewrite(CoordinatorRewriteContext coordinatorRewriteContext) {
-        return maybeRewriteBasedOnConstantFields(coordinatorRewriteContext);
-    }
-
     private static void fetch(TermsLookup termsLookup, Client client, ActionListener<List<Object>> actionListener) {
         GetRequest getRequest = new GetRequest(termsLookup.index(), termsLookup.id());
         getRequest.preference("_local").routing(termsLookup.routing());
@@ -398,15 +393,24 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
     }
 
     @Override
-    protected QueryBuilder doIndexMetadataRewrite(QueryRewriteContext context) throws IOException {
-        return maybeRewriteBasedOnConstantFields(context);
-    }
-
-    private QueryBuilder maybeRewriteBasedOnConstantFields(QueryRewriteContext context) {
+    protected QueryBuilder doIndexMetadataRewrite(QueryRewriteContext context) {
         MappedFieldType fieldType = context.getFieldType(this.fieldName);
         if (fieldType == null) {
             return new MatchNoneQueryBuilder("The \"" + getName() + "\" query is against a field that does not exist");
-        } else if (fieldType instanceof ConstantFieldType constantFieldType) {
+        }
+        return maybeRewriteBasedOnConstantFields(fieldType, context);
+    }
+
+    @Override
+    protected QueryBuilder doCoordinatorRewrite(CoordinatorRewriteContext coordinatorRewriteContext) {
+        MappedFieldType fieldType = coordinatorRewriteContext.getFieldType(this.fieldName);
+        // we don't rewrite a null field type to `match_none` on the coordinator because the coordinator has access
+        // to only a subset of fields see {@link CoordinatorRewriteContext#getFieldType}
+        return maybeRewriteBasedOnConstantFields(fieldType, coordinatorRewriteContext);
+    }
+
+    private QueryBuilder maybeRewriteBasedOnConstantFields(@Nullable MappedFieldType fieldType, QueryRewriteContext context) {
+        if (fieldType instanceof ConstantFieldType constantFieldType) {
             // This logic is correct for all field types, but by only applying it to constant
             // fields we also have the guarantee that it doesn't perform I/O, which is important
             // since rewrites might happen on a network thread.

@@ -24,6 +24,7 @@ However, if you do not plan to use the {infer} APIs to use these models or if yo
 
 * Requires the `monitor_inference` <<privileges-list-cluster,cluster privilege>>
 (the built-in `inference_admin` and `inference_user` roles grant this privilege)
+* You must use a client that supports streaming.
 
 [discrete]
 [[stream-inference-api-desc]]
@@ -79,7 +80,7 @@ The following example performs a completion on the example question.
 
 [source,console]
 ------------------------------------------------------------
-POST _inference/completion/openai_chat_completions
+POST _inference/completion/openai-completion/_stream
 {
   "input": "What is Elastic?"
 }
@@ -92,12 +93,31 @@ The API returns the following response:
 
 [source,console-result]
 ------------------------------------------------------------
-{
-  "completion": [
+event: message
+data: {
+  "completion":[{
+    "delta":"Elastic"
+  }]
+}
+event: message
+data: {
+  "completion":[{
+    "delta":" is"
+    },
     {
-      "result": "Elastic is a company that provides a range of software solutions for search, logging, security, and analytics. Their flagship product is Elasticsearch, an open-source, distributed search engine that allows users to search, analyze, and visualize large volumes of data in real-time. Elastic also offers products such as Kibana, a data visualization tool, and Logstash, a log management and pipeline tool, as well as various other tools and solutions for data analysis and management."
+    "delta":" a"
     }
   ]
 }
+event: message
+data: {
+  "completion":[{
+    "delta":" software"
+  },
+  {
+    "delta":" company"
+  }]
+}
+(...)
 ------------------------------------------------------------
 // NOTCONSOLE

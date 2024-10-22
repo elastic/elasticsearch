@@ -1104,6 +1104,10 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             return false;
         }
 
+        default boolean ignoreAbove() {
+            return false;
+        }
+
         /**
          * Examples that should work when source is generated from doc values.
          */
@@ -1360,7 +1364,16 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
     private void testBlockLoader(boolean syntheticSource, boolean columnReader) throws IOException {
         // TODO if we're not using synthetic source use a different sort of example. Or something.
-        SyntheticSourceExample example = syntheticSourceSupport(false, columnReader).example(5);
+        var syntheticSourceSupport = syntheticSourceSupport(false, columnReader);
+        SyntheticSourceExample example = syntheticSourceSupport.example(5);
+        if (syntheticSource && columnReader == false) {
+            // The synthetic source testing support can't always handle now the difference between stored and synthetic source mode.
+            // In case of ignore above, the ignored values are always appended after the valid values
+            // (both if field has doc values or stored field). While stored source just reads original values (from _source) and there
+            // is no notion of values that are ignored.
+            // TODO: fix this by improving block loader support: https://github.com/elastic/elasticsearch/issues/115257
+            assumeTrue("inconsistent synthetic source testing support with ignore above", syntheticSourceSupport.ignoreAbove() == false);
+        }
         // TODO: only rely index.mapping.source.mode setting
         XContentBuilder mapping = syntheticSource ? syntheticSourceFieldMapping(example.mapping) : fieldMapping(example.mapping);
         MapperService mapper = syntheticSource ? createSytheticSourceMapperService(mapping) : createMapperService(mapping);

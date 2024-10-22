@@ -46,7 +46,11 @@ public class Reverse extends UnaryScalarFunction {
                 file = "string",
                 tag = "reverseEmoji",
                 description = "`REVERSE` works with unicode, too! It keeps unicode grapheme clusters together during reversal."
-            ) }
+            ) },
+        note = """
+            If Elasticsearch is running with a JDK version less than 20 then this will not properly reverse Grapheme Clusters.
+            Elastic Cloud and the JDK bundled with Elasticsearch all use newer JDKs. But if you've explicitly shifted to an older jdk
+            then you'll see things like "👍🏽😊" be reversed to  "🏽👍😊" instead of the correct "😊👍🏽"."""
     )
     public Reverse(
         Source source,

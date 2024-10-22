@@ -30,6 +30,7 @@ import com.amazonaws.services.securitytoken.AWSSecurityTokenServiceClientBuilder
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatService;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -334,9 +335,16 @@ class S3Service implements Closeable {
 
         private static final String STS_HOSTNAME = "https://sts.amazonaws.com";
 
-        private STSAssumeRoleWithWebIdentitySessionCredentialsProvider credentialsProvider;
-        private AWSSecurityTokenService stsClient;
+        private volatile STSAssumeRoleWithWebIdentitySessionCredentialsProvider credentialsProvider;
+        private volatile AWSSecurityTokenService stsClient;
+
         private String stsRegion;
+        private Path webIdentityTokenFileSymlink;
+        private String roleArn;
+        private String roleSessionName;
+        private String customStsEndpoint;
+
+        private boolean stsClientIsBroken;
 
         CustomWebIdentityTokenCredentialsProvider(
             Environment environment,
@@ -352,7 +360,7 @@ class S3Service implements Closeable {
             }
             // Make sure that a readable symlink to the token file exists in the plugin config directory
             // AWS_WEB_IDENTITY_TOKEN_FILE exists but we only use Web Identity Tokens if a corresponding symlink exists and is readable
-            Path webIdentityTokenFileSymlink = environment.configFile().resolve("repository-s3/aws-web-identity-token-file");
+            webIdentityTokenFileSymlink = environment.configFile().resolve("repository-s3/aws-web-identity-token-file");
             if (Files.exists(webIdentityTokenFileSymlink) == false) {
                 LOGGER.warn(
                     "Cannot use AWS Web Identity Tokens: AWS_WEB_IDENTITY_TOKEN_FILE is defined but no corresponding symlink exists "
@@ -363,7 +371,7 @@ class S3Service implements Closeable {
             if (Files.isReadable(webIdentityTokenFileSymlink) == false) {
                 throw new IllegalStateException("Unable to read a Web Identity Token symlink in the config directory");
             }
-            String roleArn = systemEnvironment.getEnv(AWS_ROLE_ARN_ENV_VAR);
+            roleArn = systemEnvironment.getEnv(AWS_ROLE_ARN_ENV_VAR);
             if (roleArn == null) {
                 LOGGER.warn(
                     "Unable to use a web identity token for authentication. The AWS_WEB_IDENTITY_TOKEN_FILE environment "
@@ -371,29 +379,58 @@ class S3Service implements Closeable {
                 );
                 return;
             }
-            String roleSessionName = Objects.requireNonNullElseGet(
+            roleSessionName = Objects.requireNonNullElseGet(
                 systemEnvironment.getEnv(AWS_ROLE_SESSION_NAME_ENV_VAR),
                 // Mimic the default behaviour of the AWS SDK in case the session name is not set
                 // See `com.amazonaws.auth.WebIdentityTokenCredentialsProvider#45`
                 () -> "aws-sdk-java-" + clock.millis()
             );
-            AWSSecurityTokenServiceClientBuilder stsClientBuilder = AWSSecurityTokenServiceClient.builder();
-
             // Check if we need to use regional STS endpoints
             // https://docs.aws.amazon.com/sdkref/latest/guide/feature-sts-regionalized-endpoints.html
             if ("regional".equalsIgnoreCase(systemEnvironment.getEnv("AWS_STS_REGIONAL_ENDPOINTS"))) {
                 // AWS_REGION should be injected by the EKS pod identity webhook:
                 // https://github.com/aws/amazon-eks-pod-identity-webhook/pull/41
                 stsRegion = systemEnvironment.getEnv(SDKGlobalConfiguration.AWS_REGION_ENV_VAR);
-                if (stsRegion != null) {
-                    SocketAccess.doPrivilegedVoid(() -> stsClientBuilder.withRegion(stsRegion));
-                } else {
+                if (stsRegion == null) {
                     LOGGER.warn("Unable to use regional STS endpoints because the AWS_REGION environment variable is not set");
                 }
             }
-            if (stsRegion == null) {
-                // Custom system property used for specifying a mocked version of the STS for testing
-                String customStsEndpoint = jvmEnvironment.getProperty("com.amazonaws.sdk.stsMetadataServiceEndpointOverride", STS_HOSTNAME);
+            // Custom system property used for specifying a mocked version of the STS for testing
+            customStsEndpoint = jvmEnvironment.getProperty("com.amazonaws.sdk.stsMetadataServiceEndpointOverride", STS_HOSTNAME);
+
+            initCredenitalsProvider();
+            var watcher = new FileWatcher(webIdentityTokenFileSymlink);
+            watcher.addListener(new FileChangesListener() {
+
+                @Override
+                public void onFileCreated(Path file) {
+                    onFileChanged(file);
+                }
+
+                @Override
+                public void onFileChanged(Path file) {
+                    if (file.equals(webIdentityTokenFileSymlink)) {
+                        LOGGER.debug("WS web identity token file [{}] changed, updating credentials", file);
+                        credentialsProvider.refresh();
+                    }
+                }
+            });
+            try {
+                resourceWatcherService.add(watcher, ResourceWatcherService.Frequency.LOW);
+            } catch (IOException e) {
+                throw new ElasticsearchException(
+                    "failed to start watching AWS web identity token file [{}]",
+                    e,
+                    webIdentityTokenFileSymlink
+                );
+            }
+        }
+
+        private void initCredenitalsProvider() {
+            AWSSecurityTokenServiceClientBuilder stsClientBuilder = AWSSecurityTokenServiceClient.builder();
+            if (stsRegion != null) {
+                SocketAccess.doPrivilegedVoid(() -> stsClientBuilder.withRegion(stsRegion));
+            } else {
                 // Set the region explicitly via the endpoint URL, so the AWS SDK doesn't make any guesses internally.
                 stsClientBuilder.withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(customStsEndpoint, null));
             }
@@ -405,31 +442,6 @@ class S3Service implements Closeable {
                     roleSessionName,
                     webIdentityTokenFileSymlink.toString()
                 ).withStsClient(stsClient).build();
-                var watcher = new FileWatcher(webIdentityTokenFileSymlink);
-                watcher.addListener(new FileChangesListener() {
-
-                    @Override
-                    public void onFileCreated(Path file) {
-                        onFileChanged(file);
-                    }
-
-                    @Override
-                    public void onFileChanged(Path file) {
-                        if (file.equals(webIdentityTokenFileSymlink)) {
-                            LOGGER.debug("WS web identity token file [{}] changed, updating credentials", file);
-                            credentialsProvider.refresh();
-                        }
-                    }
-                });
-                try {
-                    resourceWatcherService.add(watcher, ResourceWatcherService.Frequency.LOW);
-                } catch (IOException e) {
-                    throw new ElasticsearchException(
-                        "failed to start watching AWS web identity token file [{}]",
-                        e,
-                        webIdentityTokenFileSymlink
-                    );
-                }
             } catch (Exception e) {
                 stsClient.shutdown();
                 throw e;
@@ -447,7 +459,30 @@ class S3Service implements Closeable {
         @Override
         public AWSCredentials getCredentials() {
             Objects.requireNonNull(credentialsProvider, "credentialsProvider is not set");
-            return credentialsProvider.getCredentials();
+            var localCredentialsProvider = credentialsProvider;
+            try {
+                return localCredentialsProvider.getCredentials();
+            } catch (Exception e) {
+                Throwable cause = ExceptionsHelper.unwrapCause(e);
+                // Work around a bug in the AWS SDK https://github.com/aws/aws-sdk-java/issues/2337 where the underlying Apache HTTP client
+                // silently shuts down on recoverable JDK errors like an OOM error. The only way to recover seems to be to create
+                // a new credentials provider and retry.
+                if (cause instanceof IllegalStateException && cause.getMessage().startsWith("Connection pool shut down")) {
+                    synchronized (this) {
+                        if (localCredentialsProvider == credentialsProvider) {
+                            try {
+                                shutdown();
+                            } catch (IOException ex) {
+                                LOGGER.warn("Unable to shutdown web identity credential provider", ex);
+                            }
+                            initCredenitalsProvider();
+                        }
+                    }
+                    // Retry with a freshy created credentials provider
+                    return credentialsProvider.getCredentials();
+                }
+                throw e;
+            }
         }
 
         @Override

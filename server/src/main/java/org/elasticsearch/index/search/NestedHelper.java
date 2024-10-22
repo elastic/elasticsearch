@@ -24,8 +24,6 @@ import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
 
-import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.function.Predicate;
 
 /** Utility class to filter parent and children clauses when building nested
@@ -55,15 +53,10 @@ public final class NestedHelper {
             // cover a high majority of use-cases
             return mightMatchNestedDocs(((TermQuery) query).getTerm().field());
         } else if (query instanceof TermInSetQuery tis) {
-            try {
-                if (tis.getTermsCount() > 0) {
-                    return mightMatchNestedDocs(tis.getField());
-                } else {
-                    return false;
-                }
-            } catch (IOException e) {
-                // this handling isn't needed any more once we move to Lucene 10
-                throw new UncheckedIOException("We are not doing IO here, this should never happen.", e);
+            if (tis.getTermsCount() > 0) {
+                return mightMatchNestedDocs(tis.getField());
+            } else {
+                return false;
             }
         } else if (query instanceof PointRangeQuery) {
             return mightMatchNestedDocs(((PointRangeQuery) query).getField());
@@ -75,13 +68,13 @@ public final class NestedHelper {
                 return bq.clauses()
                     .stream()
                     .filter(BooleanClause::isRequired)
-                    .map(BooleanClause::getQuery)
+                    .map(BooleanClause::query)
                     .allMatch(this::mightMatchNestedDocs);
             } else {
                 return bq.clauses()
                     .stream()
-                    .filter(c -> c.getOccur() == Occur.SHOULD)
-                    .map(BooleanClause::getQuery)
+                    .filter(c -> c.occur() == Occur.SHOULD)
+                    .map(BooleanClause::query)
                     .anyMatch(this::mightMatchNestedDocs);
             }
         } else if (query instanceof ESToParentBlockJoinQuery) {
@@ -122,15 +115,10 @@ public final class NestedHelper {
         } else if (query instanceof TermQuery) {
             return mightMatchNonNestedDocs(((TermQuery) query).getTerm().field(), nestedPath);
         } else if (query instanceof TermInSetQuery tis) {
-            try {
-                if (tis.getTermsCount() > 0) {
-                    return mightMatchNonNestedDocs(tis.getField(), nestedPath);
-                } else {
-                    return false;
-                }
-            } catch (IOException e) {
-                // this handling isn't needed any more once we move to Lucene 10
-                throw new UncheckedIOException("We are not doing IO here, this should never happen.", e);
+            if (tis.getTermsCount() > 0) {
+                return mightMatchNonNestedDocs(tis.getField(), nestedPath);
+            } else {
+                return false;
             }
         } else if (query instanceof PointRangeQuery) {
             return mightMatchNonNestedDocs(((PointRangeQuery) query).getField(), nestedPath);
@@ -142,13 +130,13 @@ public final class NestedHelper {
                 return bq.clauses()
                     .stream()
                     .filter(BooleanClause::isRequired)
-                    .map(BooleanClause::getQuery)
+                    .map(BooleanClause::query)
                     .allMatch(q -> mightMatchNonNestedDocs(q, nestedPath));
             } else {
                 return bq.clauses()
                     .stream()
-                    .filter(c -> c.getOccur() == Occur.SHOULD)
-                    .map(BooleanClause::getQuery)
+                    .filter(c -> c.occur() == Occur.SHOULD)
+                    .map(BooleanClause::query)
                     .anyMatch(q -> mightMatchNonNestedDocs(q, nestedPath));
             }
         } else {
@@ -183,5 +171,4 @@ public final class NestedHelper {
         }
         return true;
     }
-
 }

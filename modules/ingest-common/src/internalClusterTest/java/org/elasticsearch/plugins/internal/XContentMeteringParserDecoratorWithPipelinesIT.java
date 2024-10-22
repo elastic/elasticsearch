@@ -9,7 +9,6 @@
 
 package org.elasticsearch.plugins.internal;
 
-import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.ingest.common.IngestCommonPlugin;
@@ -86,9 +85,9 @@ public class XContentMeteringParserDecoratorWithPipelinesIT extends ESIntegTestC
             // returns a static instance, because we want to assert that the wrapping is called only once
             return new DocumentParsingProvider() {
                 @Override
-                public <T> XContentMeteringParserDecorator newMeteringParserDecorator(DocWriteRequest<T> request) {
-                    if (request instanceof IndexRequest indexRequest && indexRequest.getNormalisedBytesParsed() > 0) {
-                        long normalisedBytesParsed = indexRequest.getNormalisedBytesParsed();
+                public <T> XContentMeteringParserDecorator newMeteringParserDecorator(IndexRequest request) {
+                    if (request.getNormalisedBytesParsed() > 0) {
+                        long normalisedBytesParsed = request.getNormalisedBytesParsed();
                         providedFixedSize.set(normalisedBytesParsed);
                         return new TestXContentMeteringParserDecorator(normalisedBytesParsed);
                     }

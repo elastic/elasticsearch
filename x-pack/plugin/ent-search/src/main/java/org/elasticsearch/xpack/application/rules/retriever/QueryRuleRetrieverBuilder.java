@@ -121,11 +121,6 @@ public final class QueryRuleRetrieverBuilder extends CompoundRetrieverBuilder<Qu
     }
 
     @Override
-    public boolean isAllowedAsChildRetriever() {
-        return false;
-    }
-
-    @Override
     protected SearchSourceBuilder createSearchSourceBuilder(PointInTimeBuilder pit, RetrieverBuilder retrieverBuilder) {
         var ret = super.createSearchSourceBuilder(pit, retrieverBuilder);
         checkValidSort(ret.sorts());

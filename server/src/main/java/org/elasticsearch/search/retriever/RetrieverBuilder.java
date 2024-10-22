@@ -182,14 +182,6 @@ public abstract class RetrieverBuilder implements Rewriteable<RetrieverBuilder>,
         return false;
     }
 
-    /**
-     * Determines if this retriever is allowed as a child retriever, or if it must be used
-     * as a top level or standalone retriever only
-     */
-    public boolean isAllowedAsChildRetriever() {
-        return true;
-    }
-
     protected RankDoc[] rankDocs = null;
 
     public RetrieverBuilder() {}

@@ -38,7 +38,7 @@ public class IndexSettingProviderTests extends ESSingleNodeTestCase {
         assertTrue(indexService.getIndexSettings().getSettings().hasValue("index.refresh_interval"));
         assertEquals("100", indexService.getIndexSettings().getSettings().get("index.mapping.depth.limit"));
 
-        INDEX_SETTING_OVERRULING.set(false);
+        INDEX_SETTING_DEPTH_ENABLED.set(false);
         INDEX_SETTING_PROVIDER2_ENABLED.set(true);
         var e = expectThrows(IllegalArgumentException.class, () -> createIndex("my-index4", settings));
         assertEquals(
@@ -71,6 +71,7 @@ public class IndexSettingProviderTests extends ESSingleNodeTestCase {
 
     private static final AtomicBoolean INDEX_SETTING_PROVIDER1_ENABLED = new AtomicBoolean(false);
     private static final AtomicBoolean INDEX_SETTING_PROVIDER2_ENABLED = new AtomicBoolean(false);
+    private static final AtomicBoolean INDEX_SETTING_DEPTH_ENABLED = new AtomicBoolean(true);
     private static final AtomicBoolean INDEX_SETTING_OVERRULING = new AtomicBoolean(false);
 
     static class TestIndexSettingsProvider implements IndexSettingProvider {
@@ -94,7 +95,11 @@ public class IndexSettingProviderTests extends ESSingleNodeTestCase {
             List<CompressedXContent> combinedTemplateMappings
         ) {
             if (enabled.get()) {
-                return Settings.builder().put("index.refresh_interval", intervalValue).put("index.mapping.depth.limit", 100).build();
+                var builder = Settings.builder().put("index.refresh_interval", intervalValue);
+                if (INDEX_SETTING_DEPTH_ENABLED.get()) {
+                    builder.put("index.mapping.depth.limit", 100);
+                }
+                return builder.build();
             } else {
                 return Settings.EMPTY;
             }

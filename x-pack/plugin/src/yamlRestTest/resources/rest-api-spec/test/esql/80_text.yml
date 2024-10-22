@@ -594,3 +594,19 @@ setup:
   - length: { values: 2 }
   - match: { values.0: [ "baz", [ "Other", "Payroll Specialist" ] ] }
   - match: { values.1: [ "foo bar", "IT Director" ] }
+
+---
+"remove text typecast":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ method, path, parameters, capabilities ]
+          capabilities: [ functions_never_emit_text ]
+      reason: "Disabling ::text was done in 8.17 as part of removing all possibilities to emit text"
+
+  - do:
+      catch: /Unsupported conversion to type \[TEXT\]/
+      esql.query:
+        body:
+          query: 'FROM test | EVAL tag = name::text | KEEP name'

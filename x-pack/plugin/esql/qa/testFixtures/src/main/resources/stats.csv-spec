@@ -2523,7 +2523,65 @@ max:integer
 null
 ;
 
+filterSometimesMatches
+required_capability: per_agg_filtering
+FROM employees
+| STATS max = max(salary) WHERE first_name IS NULL
+;
+
+max:integer
+70011
+;
+
 groupingFilterIsAlwaysTrue
+required_capability: per_agg_filtering
+FROM employees
+| MV_EXPAND job_positions
+| STATS max = max(salary) WHERE salary > 0 BY job_positions = SUBSTRING(job_positions, 1, 1)
+| SORT job_positions
+| LIMIT 4
+;
+
+max:integer | job_positions:keyword
+74970       | A
+58121       | B
+74999       | D
+58715       | H
+;
+
+groupingFilterIsAlwaysFalse
+required_capability: per_agg_filtering
+FROM employees
+| MV_EXPAND job_positions
+| STATS max = max(salary) WHERE first_name == "" BY job_positions = SUBSTRING(job_positions, 1, 1)
+| SORT job_positions
+| LIMIT 4
+;
+
+max:integer | job_positions:keyword
+null        | A
+null        | B
+null        | D
+null        | H
+;
+
+groupingFilterSometimesMatches
+required_capability: per_agg_filtering
+FROM employees
+| MV_EXPAND job_positions
+| STATS max = max(salary) WHERE first_name IS NULL BY job_positions = SUBSTRING(job_positions, 1, 1)
+| SORT job_positions
+| LIMIT 4
+;
+
+max:integer | job_positions:keyword
+62233       | A
+39878       | B
+67492       | D
+null        | H
+;
+
+groupingByOrdinalsFilterIsAlwaysTrue
 required_capability: per_agg_filtering
 required_capability: per_agg_filtering_ords
 FROM employees
@@ -2539,7 +2597,7 @@ max:integer | job_positions:keyword
 74999       | Data Scientist
 ;
 
-groupingFilterIsAlwaysFalse
+groupingByOrdinalsFilterIsAlwaysFalse
 required_capability: per_agg_filtering
 required_capability: per_agg_filtering_ords
 FROM employees
@@ -2555,7 +2613,7 @@ null        | Business Analyst
 null        | Data Scientist
 ;
 
-groupingFilterSometimesMatches
+groupingByOrdinalsFilterSometimesMatches
 required_capability: per_agg_filtering
 required_capability: per_agg_filtering_ords
 FROM employees

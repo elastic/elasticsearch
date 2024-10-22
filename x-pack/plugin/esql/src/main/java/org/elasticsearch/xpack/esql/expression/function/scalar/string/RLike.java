@@ -35,7 +35,7 @@ public class RLike extends org.elasticsearch.xpack.esql.core.expression.predicat
             Use `RLIKE` to filter data based on string patterns using using
             <<regexp-syntax,regular expressions>>. `RLIKE` usually acts on a field placed on
             the left-hand side of the operator, but it can also act on a constant (literal)
-            expression. The right-hand side of the operator represents the pattern, as a <<string-literals,string literal>>.""",
+            expression. The right-hand side of the operator represents the pattern, as a <<string-literals, string literal>>.""",
         detailedDescription = """
             Matching special characters (eg. `.`, `*`, `(`...) will require escaping.
             The escape character is backslash `\\`. Since also backslash is a special character in string literals,

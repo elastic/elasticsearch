@@ -90,8 +90,7 @@ The following settings are applied by default when using the `logsdb` mode for i
 
 * `index.sort.field`: `["host.name", "@timestamp"]`
   In `logsdb` mode, indices are sorted by `host.name` and `@timestamp` fields by default. For data streams, the
-  `@timestamp` field is automatically injected if it is not present. For `logsdb` indices also the `host.name` field
-  is automatically injected if using default sort settings.
+  `@timestamp` field is automatically injected if it is not present.
 
 * `index.sort.order`: `["desc", "desc"]`
   The default sort order for both fields is descending (`desc`), prioritizing the latest data.
@@ -118,14 +117,14 @@ a new index must be created with the desired settings.
 
 If the default sort settings do not suit your use case, consider adjusting them. Keep in mind that sort settings
 will affect indexing throughput and query latency, as well as potentially impacting compression effectiveness
-due to how data is distributed for sorting.
+due to how data is distributed after sorting.
 
 [discrete]
 [[logsdb-specialized-codecs]]
 === Specialized codecs
 
-`logsdb` index mode uses the `best_compression` codec by default, which applies {wikipedia}/Zstd[ZSTD] compression to stored
-fields.
+`logsdb` index mode uses the `best_compression` codec by default, which applies {wikipedia}/Zstd[ZSTD] compression to
+stored fields.
 
 Users are allowed to override the default compression codec. If desired, they can switch to the `best_speed`
 codec for faster compression at the expense of slightly larger storage footprint.
@@ -159,7 +158,7 @@ The following methods are applied sequentially:
   A compression method that stores the difference from a base value rather than between consecutive values.
 
 * **Greatest Common Divisor (GCD) encoding**:
-  A compression method that finds the greatest common divisor of a set of numbers and stores the differences
+  A compression method that finds the greatest common divisor of a set of values and stores the differences
   as multiples of the GCD.
 
 * **Frame Of Reference (FOR) encoding**:
@@ -184,30 +183,28 @@ In `logsdb` index mode, the `index.mapping.ignore_above` setting is applied by d
 efficient storage and indexing of large text fields.The index-level default for `ignore_above` is set to 8191
 **characters**. If using UTF-8 encoding, this results in a limit of 32764 bytes, depending on character encoding.
 The mapping-level `ignore_above` setting still takes precedence. If a specific field has an `ignore_above` value
-defined in its mapping, that value will override the index-level `index.mapping.ignore_above` default.
-
-This default behavior helps to optimize indexing performance by preventing excessively large string values from being
-indexed, while still allowing users to customize the limit overriding it at the mapping level or changing the index
-level default setting.
+defined in its mapping, that value will override the index-level `index.mapping.ignore_above` default. This default
+behavior helps to optimize indexing performance by preventing excessively large string values from being indexed, while
+still allowing users to customize the limit overriding it at the mapping level or changing the index level default
+setting.
 
 In `logsdb` index mode, the setting `index.mapping.total_fields.ignore_dynamic_beyond_limit` is set to `true` by
 default. This allows dynamically mapped fields to be added on top of statically defined fields without causing document
-rejection, even after the total number of fields exceeds the limit defined by `index.mapping.total_fields.limit`.
+rejection, even after the total number of fields exceeds the limit defined by `index.mapping.total_fields.limit`. Th
+`index.mapping.total_fields.limit` setting specifies the maximum number of fields an index can have (static, dynamic
+and runtime). When the limit is reached, new dynamically mapped fields will be ignored instead of failing the document
+indexing, ensuring continued log ingestion without errors.
 
-The `index.mapping.total_fields.limit` setting specifies the maximum number of fields an index can have
-(static, dynamic and runtime). When the limit is reached, new dynamically mapped fields will be ignored instead of
-failing the document indexing, ensuring continued log ingestion without errors.
-
-NOTE: when automatically injected `host.name` and `timestamp` contribute to the count of fields. When `host.name` is
-mapped with `subobjects: true` it consists of two fields. When `host.name` is mapped with `subobjects: false` it only
-consists of one field.
+NOTE: when automatically injected, `host.name` and `timestamp` contribute to the limit of mapped fields. When
+`host.name` is mapped with `subobjects: true` it consists of two fields. When `host.name` is mapped with
+`subobjects: false` it only consists of one field.
 
 `logsdb` index mode uses a special field named `_ignored_source` that allows retrieving values for fields that have been
 ignored for various reasons (e.g., due to malformed data or indexing rules). This field ensures that even ignored
 field values can be accessed if needed. The `_ignored_source` field is not returned by default and must be explicitly
-requested via the field or stored fields API using `_ignored_source` as the field name. Additionally, the field is
-encoded, and the encoding format may change over time, so users should not rely on the encoding or the field name
-remaining the same.
+requested via <<retrieve-selected-fields,the fields or stored fields>> API using `_ignored_source` as the field name.
+Additionally, the field is encoded, and the encoding format may change over time, so users should not rely on the
+encoding or the field name remaining the same.
 
 [discrete]
 [[logsdb-nodocvalue-fields]]

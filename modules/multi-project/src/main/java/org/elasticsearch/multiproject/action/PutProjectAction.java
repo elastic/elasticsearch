@@ -151,7 +151,7 @@ public class PutProjectAction extends ActionType<AcknowledgedResponse> {
                 validationException = ValidateActions.addValidationError("project id is missing", validationException);
             } else if (VALID_PROJECT_ID_PATTERN.matcher(projectId.id()).matches() == false) {
                 validationException = ValidateActions.addValidationError(
-                    "project id may only contain alpha numeric characters",
+                    "project id may only contain alpha numeric characters (received [" + projectId + "])",
                     validationException
                 );
             }

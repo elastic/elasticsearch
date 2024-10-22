@@ -328,6 +328,9 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/115231
 - class: org.elasticsearch.xpack.analytics.rate.TimeSeriesRateAggregatorTests
   issue: https://github.com/elastic/elasticsearch/issues/115334
+- class: org.elasticsearch.xpack.watcher.trigger.schedule.engine.TickerScheduleEngineTests
+  method: testAddWithNoLastCheckedTimeButHasActivationTimeExecutesBeforeInitialInterval
+  issue: https://github.com/elastic/elasticsearch/issues/115339
 
 # Examples:
 #

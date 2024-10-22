@@ -83,27 +83,25 @@ public class ClusterStateRoleMapper extends AbstractRoleMapperClearRealmCache im
     }
 
     public boolean hasMapping(String name) {
-        return getMappings().stream().map(ExpressionRoleMapping::getName).anyMatch(name::equals);
+        if (enabled == false) {
+            return false;
+        }
+        return false == getMappings(Set.of(name)).isEmpty();
+    }
+
+    public Set<ExpressionRoleMapping> getMappings() {
+        return getMappings(null);
     }
 
     public Set<ExpressionRoleMapping> getMappings(@Nullable Set<String> names) {
         if (enabled == false) {
             return Set.of();
         }
-        final Set<ExpressionRoleMapping> mappings = getMappings();
+        final Set<ExpressionRoleMapping> mappings = RoleMappingMetadata.getFromClusterState(clusterService.state()).getRoleMappings();
+        logger.trace("Retrieved [{}] mapping(s) from cluster state", mappings.size());
         if (names == null || names.isEmpty()) {
             return mappings;
         }
-        return mappings.stream().filter(it -> names.contains(it.getName())).collect(Collectors.toSet());
-    }
-
-    public Set<ExpressionRoleMapping> getMappings() {
-        if (enabled == false) {
-            return Set.of();
-        } else {
-            final Set<ExpressionRoleMapping> mappings = RoleMappingMetadata.getFromClusterState(clusterService.state()).getRoleMappings();
-            logger.trace("Retrieved [{}] mapping(s) from cluster state", mappings.size());
-            return mappings;
-        }
+        return mappings.stream().filter(roleMapping -> names.contains(roleMapping.getName())).collect(Collectors.toSet());
     }
 }

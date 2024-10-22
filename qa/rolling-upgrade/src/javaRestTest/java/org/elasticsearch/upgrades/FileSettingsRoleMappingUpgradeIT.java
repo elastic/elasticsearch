@@ -112,7 +112,7 @@ public class FileSettingsRoleMappingUpgradeIT extends ParameterizedRollingUpgrad
             assertThat(roleMappings, is(instanceOf(Map.class)));
             @SuppressWarnings("unchecked")
             Map<String, Object> roleMapping = (Map<String, Object>) roleMappings;
-            assertThat(roleMapping.keySet(), contains("everyone_kibana"));
+            assertThat(roleMapping.keySet(), contains("everyone_kibana-read-only-operator-mapping"));
         }
     }
 }

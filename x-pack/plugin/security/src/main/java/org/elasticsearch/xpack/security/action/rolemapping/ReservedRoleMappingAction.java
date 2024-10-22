@@ -15,7 +15,6 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingRequest;
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingRequestBuilder;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping;
-import org.elasticsearch.xpack.core.security.authc.support.mapper.ReservedRoleMappingXContentNameFieldHelper;
 import org.elasticsearch.xpack.core.security.authz.RoleMappingMetadata;
 
 import java.io.IOException;
@@ -87,7 +86,7 @@ public class ReservedRoleMappingAction implements ReservedClusterStateHandler<Li
             throw illegalArgumentException;
         }
         return roleMappings.stream()
-            .map(r -> ReservedRoleMappingXContentNameFieldHelper.copyWithNameInMetadata(r.getMapping()))
+            .map(r -> RoleMappingMetadata.copyWithNameInMetadata(r.getMapping()))
             .collect(Collectors.toUnmodifiableSet());
     }
 }

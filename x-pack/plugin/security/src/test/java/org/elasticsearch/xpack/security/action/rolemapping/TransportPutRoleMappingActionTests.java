@@ -110,7 +110,7 @@ public class TransportPutRoleMappingActionTests extends ESTestCase {
 
     public void testInvalidSuffix() {
         final FieldExpression expression = new FieldExpression("username", Collections.singletonList(new FieldExpression.FieldValue("*")));
-        String name = TransportClusterStateRoleMappingTranslator.addReadOnlySuffix("anarchy");
+        String name = ExpressionRoleMapping.addReadOnlySuffix("anarchy");
         final var ex = expectThrows(IllegalArgumentException.class, () -> {
             put(name, expression, "superuser", Collections.singletonMap("dumb", true));
         });
@@ -120,7 +120,7 @@ public class TransportPutRoleMappingActionTests extends ESTestCase {
                 "Invalid mapping name ["
                     + name
                     + "]. ["
-                    + TransportClusterStateRoleMappingTranslator.READ_ONLY_ROLE_MAPPING_SUFFIX
+                    + ExpressionRoleMapping.READ_ONLY_ROLE_MAPPING_SUFFIX
                     + "] is not an allowed suffix"
             )
         );

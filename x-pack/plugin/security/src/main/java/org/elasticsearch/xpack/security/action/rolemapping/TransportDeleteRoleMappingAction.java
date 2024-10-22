@@ -49,10 +49,11 @@ public class TransportDeleteRoleMappingAction extends HandledTransportAction<Del
                 // Allow to delete a mapping with the same name in the native role mapping store as the file_settings namespace, but
                 // add a warning header to signal to the caller that this could be a problem.
                 HeaderWarning.addWarning(
-                    "A read only role mapping with the same name ["
+                    "A read-only role mapping with the same name ["
                         + request.getName()
                         + "] has previously been defined in a configuration file. "
-                        + "The read only role mapping will not be deleted and will remain active."
+                        + "The native role mapping was deleted, but the read-only mapping will remain active "
+                        + "and will be used to determine role assignments."
                 );
             }
             return new DeleteRoleMappingResponse(found);

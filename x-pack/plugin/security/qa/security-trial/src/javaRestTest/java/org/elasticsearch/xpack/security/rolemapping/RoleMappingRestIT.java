@@ -122,13 +122,7 @@ public class RoleMappingRestIT extends ESRestTestCase {
         expect404(() -> getMappings("role-mapping-4-read-only-operator-mapping"));
 
         ExpressionRoleMapping nativeMapping1 = expressionRoleMapping("role-mapping-1");
-        putMapping(
-            nativeMapping1,
-            "A read only role mapping with the same name ["
-                + "role-mapping-1"
-                + "] has been previously defined in a configuration file. "
-                + "Both role mappings will be used to determine role assignments."
-        );
+        putMapping(nativeMapping1, createOrUpdateWarning(nativeMapping1.getName()));
 
         ExpressionRoleMapping nativeMapping4 = expressionRoleMapping("role-mapping-4");
         putMapping(nativeMapping4);
@@ -171,25 +165,9 @@ public class RoleMappingRestIT extends ESRestTestCase {
             );
         }
 
-        assertOK(
-            putMapping(
-                expressionRoleMapping("role-mapping-1"),
-                "A read only role mapping with the same name ["
-                    + "role-mapping-1"
-                    + "] has been previously defined in a configuration file. "
-                    + "Both role mappings will be used to determine role assignments."
-            )
-        );
+        assertOK(putMapping(expressionRoleMapping("role-mapping-1"), createOrUpdateWarning("role-mapping-1")));
 
-        assertOK(
-            deleteMapping(
-                "role-mapping-1",
-                "A read only role mapping with the same name ["
-                    + "role-mapping-1"
-                    + "] has previously been defined in a configuration file. "
-                    + "The read only role mapping will not be deleted and will remain active."
-            )
-        );
+        assertOK(deleteMapping("role-mapping-1", deletionWarning("role-mapping-1")));
 
         // 404 without warnings if no native mapping exists
         expect404(() -> deleteMapping("role-mapping-1"));
@@ -273,4 +251,18 @@ public class RoleMappingRestIT extends ESRestTestCase {
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
+    private static String createOrUpdateWarning(String mappingName) {
+        return "A read-only role mapping with the same name ["
+            + mappingName
+            + "] has been previously defined in a configuration file. "
+            + "Both role mappings will be used to determine role assignments.";
+    }
+
+    private static String deletionWarning(String mappingName) {
+        return "A read-only role mapping with the same name ["
+            + mappingName
+            + "] has previously been defined in a configuration file. "
+            + "The native role mapping was deleted, but the read-only mapping will remain active "
+            + "and will be used to determine role assignments.";
+    };
 }

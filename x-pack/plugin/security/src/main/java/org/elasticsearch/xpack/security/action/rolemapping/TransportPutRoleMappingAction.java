@@ -20,7 +20,7 @@ import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingRe
 import org.elasticsearch.xpack.security.authc.support.mapper.ClusterStateRoleMapper;
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
 
-import static org.elasticsearch.xpack.security.action.rolemapping.TransportClusterStateRoleMappingTranslator.validateNoReadOnlySuffix;
+import static org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping.validateNoReadOnlySuffix;
 
 public class TransportPutRoleMappingAction extends HandledTransportAction<PutRoleMappingRequest, PutRoleMappingResponse> {
 
@@ -46,7 +46,7 @@ public class TransportPutRoleMappingAction extends HandledTransportAction<PutRol
             // Allow to define a mapping with the same name in the native role mapping store as the file_settings namespace, but add a
             // warning header to signal to the caller that this could be a problem.
             HeaderWarning.addWarning(
-                "A read only role mapping with the same name ["
+                "A read-only role mapping with the same name ["
                     + request.getName()
                     + "] has been previously defined in a configuration file. "
                     + "Both role mappings will be used to determine role assignments."

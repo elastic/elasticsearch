@@ -30,7 +30,7 @@ import static org.elasticsearch.integration.RoleMappingFileSettingsIT.setupClust
 import static org.elasticsearch.integration.RoleMappingFileSettingsIT.setupClusterStateListenerForCleanup;
 import static org.elasticsearch.integration.RoleMappingFileSettingsIT.writeJSONFile;
 import static org.elasticsearch.integration.RoleMappingFileSettingsIT.writeJSONFileWithoutVersionIncrement;
-import static org.elasticsearch.xpack.core.security.authc.support.mapper.ReservedRoleMappingXContentNameFieldHelper.METADATA_NAME_FIELD;
+import static org.elasticsearch.xpack.core.security.authz.RoleMappingMetadata.METADATA_NAME_FIELD;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, autoManageMasterNodes = false)

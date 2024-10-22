@@ -80,9 +80,6 @@ tests:
 - class: org.elasticsearch.xpack.restart.CoreFullClusterRestartIT
   method: testSnapshotRestore {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/111799
-- class: org.elasticsearch.xpack.inference.InferenceRestIT
-  method: test {p0=inference/80_random_rerank_retriever/Random rerank retriever predictably shuffles results}
-  issue: https://github.com/elastic/elasticsearch/issues/111999
 - class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
   issue: https://github.com/elastic/elasticsearch/issues/112147
 - class: org.elasticsearch.smoketest.WatcherYamlRestIT
@@ -94,12 +91,6 @@ tests:
 - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
   method: test {yaml=reference/rest-api/watcher/put-watch/line_120}
   issue: https://github.com/elastic/elasticsearch/issues/99517
-- class: org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroidTests
-  method: "testAggregateIntermediate {TestCase=<geo_point> #2}"
-  issue: https://github.com/elastic/elasticsearch/issues/112461
-- class: org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroidTests
-  method: testAggregateIntermediate {TestCase=<geo_point>}
-  issue: https://github.com/elastic/elasticsearch/issues/112463
 - class: org.elasticsearch.xpack.esql.action.ManyShardsIT
   method: testRejection
   issue: https://github.com/elastic/elasticsearch/issues/112406
@@ -215,12 +206,6 @@ tests:
 - class: org.elasticsearch.smoketest.MlWithSecurityIT
   method: test {yaml=ml/3rd_party_deployment/Test start and stop multiple deployments}
   issue: https://github.com/elastic/elasticsearch/issues/101458
-- class: org.elasticsearch.xpack.security.authz.interceptor.SearchRequestCacheDisablingInterceptorTests
-  method: testHasRemoteIndices
-  issue: https://github.com/elastic/elasticsearch/issues/113660
-- class: org.elasticsearch.xpack.security.authz.interceptor.SearchRequestCacheDisablingInterceptorTests
-  method: testRequestCacheWillBeDisabledWhenSearchRemoteIndices
-  issue: https://github.com/elastic/elasticsearch/issues/113659
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {categorize.Categorize ASYNC}
   issue: https://github.com/elastic/elasticsearch/issues/113721
@@ -229,9 +214,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/113722
 - class: org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDateNanosTests
   issue: https://github.com/elastic/elasticsearch/issues/113661
-- class: org.elasticsearch.xpack.restart.MLModelDeploymentFullClusterRestartIT
-  method: testDeploymentSurvivesRestart {cluster=UPGRADED}
-  issue: https://github.com/elastic/elasticsearch/issues/112980
 - class: org.elasticsearch.ingest.geoip.DatabaseNodeServiceIT
   method: testNonGzippedDatabase
   issue: https://github.com/elastic/elasticsearch/issues/113821
@@ -265,12 +247,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.expression.function.aggregate.AvgTests
   method: "testFold {TestCase=<double> #7}"
   issue: https://github.com/elastic/elasticsearch/issues/114175
-- class: org.elasticsearch.action.bulk.IncrementalBulkIT
-  method: testMultipleBulkPartsWithBackoff
-  issue: https://github.com/elastic/elasticsearch/issues/114181
-- class: org.elasticsearch.action.bulk.IncrementalBulkIT
-  method: testIncrementalBulkLowWatermarkBackOff
-  issue: https://github.com/elastic/elasticsearch/issues/114182
 - class: org.elasticsearch.xpack.ilm.ExplainLifecycleIT
   method: testStepInfoPreservedOnAutoRetry
   issue: https://github.com/elastic/elasticsearch/issues/114220
@@ -280,9 +256,6 @@ tests:
 - class: org.elasticsearch.xpack.inference.services.cohere.CohereServiceTests
   method: testInfer_StreamRequest_ErrorResponse
   issue: https://github.com/elastic/elasticsearch/issues/114327
-- class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
-  method: test {yaml=cluster.stats/30_ccs_stats/cross-cluster search stats search}
-  issue: https://github.com/elastic/elasticsearch/issues/114371
 - class: org.elasticsearch.xpack.inference.services.cohere.CohereServiceTests
   method: testInfer_StreamRequest
   issue: https://github.com/elastic/elasticsearch/issues/114385
@@ -298,9 +271,6 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test022InstallPluginsFromLocalArchive
   issue: https://github.com/elastic/elasticsearch/issues/111063
-- class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
-  method: test {yaml=reference/esql/esql-across-clusters/line_196}
-  issue: https://github.com/elastic/elasticsearch/issues/114488
 - class: org.elasticsearch.gradle.internal.PublishPluginFuncTest
   issue: https://github.com/elastic/elasticsearch/issues/114492
 - class: org.elasticsearch.xpack.inference.DefaultElserIT
@@ -321,76 +291,41 @@ tests:
 - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
   method: test {yaml=reference/rest-api/usage/line_38}
   issue: https://github.com/elastic/elasticsearch/issues/113694
-- class: org.elasticsearch.xpack.enrich.EnrichRestIT
-  method: test {p0=enrich/10_basic/Test using the deprecated elasticsearch_version field results in a warning}
-  issue: https://github.com/elastic/elasticsearch/issues/114748
-- class: org.elasticsearch.xpack.eql.EqlRestIT
-  method: testIndexWildcardPatterns
-  issue: https://github.com/elastic/elasticsearch/issues/114749
-- class: org.elasticsearch.xpack.eql.EqlRestIT
-  method: testBadRequests
-  issue: https://github.com/elastic/elasticsearch/issues/114752
-- class: org.elasticsearch.xpack.enrich.EnrichRestIT
-  method: test {p0=enrich/20_standard_index/enrich stats REST response structure}
-  issue: https://github.com/elastic/elasticsearch/issues/114753
-- class: org.elasticsearch.xpack.enrich.EnrichRestIT
-  method: test {p0=enrich/30_tsdb_index/enrich documents over _bulk}
-  issue: https://github.com/elastic/elasticsearch/issues/114761
-- class: org.elasticsearch.xpack.enrich.EnrichRestIT
-  method: test {p0=enrich/20_standard_index/enrich documents over _bulk via an alias}
-  issue: https://github.com/elastic/elasticsearch/issues/114763
-- class: org.elasticsearch.xpack.enrich.EnrichRestIT
-  method: test {p0=enrich/10_basic/Test enrich crud apis}
-  issue: https://github.com/elastic/elasticsearch/issues/114766
-- class: org.elasticsearch.xpack.enrich.EnrichRestIT
-  method: test {p0=enrich/20_standard_index/enrich documents over _bulk}
-  issue: https://github.com/elastic/elasticsearch/issues/114768
-- class: org.elasticsearch.xpack.enrich.EnrichRestIT
-  method: test {p0=enrich/50_data_stream/enrich documents over _bulk via a data stream}
-  issue: https://github.com/elastic/elasticsearch/issues/114769
-- class: org.elasticsearch.xpack.eql.EqlRestValidationIT
-  method: testDefaultIndicesOptions
-  issue: https://github.com/elastic/elasticsearch/issues/114771
-- class: org.elasticsearch.xpack.enrich.EnrichIT
-  method: testEnrichSpecialTypes
-  issue: https://github.com/elastic/elasticsearch/issues/114773
 - class: org.elasticsearch.xpack.security.operator.OperatorPrivilegesIT
   method: testEveryActionIsEitherOperatorOnlyOrNonOperator
   issue: https://github.com/elastic/elasticsearch/issues/102992
-- class: org.elasticsearch.xpack.enrich.EnrichIT
-  method: testDeleteExistingPipeline
-  issue: https://github.com/elastic/elasticsearch/issues/114775
 - class: org.elasticsearch.xpack.inference.rest.ServerSentEventsRestActionListenerTests
   method: testNoStream
   issue: https://github.com/elastic/elasticsearch/issues/114788
-- class: org.elasticsearch.xpack.eql.EqlRestValidationIT
-  method: testAllowNoIndicesOption
-  issue: https://github.com/elastic/elasticsearch/issues/114789
-- class: org.elasticsearch.xpack.eql.EqlStatsIT
-  method: testEqlRestUsage
-  issue: https://github.com/elastic/elasticsearch/issues/114790
-- class: org.elasticsearch.xpack.eql.EqlRestIT
-  method: testUnicodeChars
-  issue: https://github.com/elastic/elasticsearch/issues/114791
-- class: org.elasticsearch.ingest.geoip.HttpClientTests
-  issue: https://github.com/elastic/elasticsearch/issues/112618
 - class: org.elasticsearch.xpack.remotecluster.RemoteClusterSecurityWithApmTracingRestIT
   method: testTracingCrossCluster
   issue: https://github.com/elastic/elasticsearch/issues/112731
-- class: org.elasticsearch.xpack.enrich.EnrichIT
-  method: testImmutablePolicy
-  issue: https://github.com/elastic/elasticsearch/issues/114839
 - class: org.elasticsearch.license.LicensingTests
   issue: https://github.com/elastic/elasticsearch/issues/114865
-- class: org.elasticsearch.datastreams.logsdb.qa.LogsDbVersusLogsDbReindexedIntoStandardModeChallengeRestIT
-  method: testTermsQuery
-  issue: https://github.com/elastic/elasticsearch/issues/114873
-- class: org.elasticsearch.xpack.enrich.EnrichIT
-  method: testDeleteIsCaseSensitive
-  issue: https://github.com/elastic/elasticsearch/issues/114840
 - class: org.elasticsearch.packaging.test.EnrollmentProcessTests
   method: test20DockerAutoFormCluster
   issue: https://github.com/elastic/elasticsearch/issues/114885
+- class: org.elasticsearch.xpack.inference.DefaultEndPointsIT
+  method: testInferDeploysDefaultElser
+  issue: https://github.com/elastic/elasticsearch/issues/114913
+- class: org.elasticsearch.upgrades.MultiVersionRepositoryAccessIT
+  method: testCreateAndRestoreSnapshot
+  issue: https://github.com/elastic/elasticsearch/issues/114998
+- class: org.elasticsearch.index.mapper.TextFieldMapperTests
+  method: testBlockLoaderFromRowStrideReaderWithSyntheticSource
+  issue: https://github.com/elastic/elasticsearch/issues/115066
+- class: org.elasticsearch.index.mapper.TextFieldMapperTests
+  method: testBlockLoaderFromColumnReaderWithSyntheticSource
+  issue: https://github.com/elastic/elasticsearch/issues/115073
+- class: org.elasticsearch.index.mapper.annotatedtext.AnnotatedTextFieldMapperTests
+  method: testBlockLoaderFromColumnReaderWithSyntheticSource
+  issue: https://github.com/elastic/elasticsearch/issues/115074
+- class: org.elasticsearch.index.mapper.annotatedtext.AnnotatedTextFieldMapperTests
+  method: testBlockLoaderFromRowStrideReaderWithSyntheticSource
+  issue: https://github.com/elastic/elasticsearch/issues/115076
+- class: org.elasticsearch.xpack.test.rest.XPackRestIT
+  method: test {p0=esql/60_usage/Basic ESQL usage output (telemetry)}
+  issue: https://github.com/elastic/elasticsearch/issues/115231
 
 # Examples:
 #

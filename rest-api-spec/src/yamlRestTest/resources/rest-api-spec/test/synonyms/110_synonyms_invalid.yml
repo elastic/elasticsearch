@@ -3,18 +3,6 @@ setup:
       cluster_features: ["gte_v8.16.0"]
       reason: Lenient handling of updateable synonyms by default is introduced in 8.16.0
 
-  - do:
-      cluster.put_settings:
-        body:
-          persistent:
-            logger.org.elasticsearch: DEBUG
----
-teardown:
-  - do:
-      cluster.put_settings:
-        body:
-          persistent:
-            logger.org.elasticsearch: INFO
 ---
 "Load index with an invalid synonym rule":
   - do:

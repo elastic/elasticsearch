@@ -3,11 +3,6 @@ setup:
       cluster_features: ["gte_v8.10.0"]
       reason: Introduced in 8.10.0
 
-  - do:
-      cluster.put_settings:
-        body:
-          persistent:
-            logger.org.elasticsearch: DEBUG
 
   - do:
       synonyms.put_synonym:
@@ -42,13 +37,6 @@ setup:
           id: "test-id-2"
         - synonyms: "test => check"
           id: "test-id-3"
----
-teardown:
-  - do:
-      cluster.put_settings:
-        body:
-          persistent:
-            logger.org.elasticsearch: INFO
 ---
 "Get synonyms set - not found":
   - do:

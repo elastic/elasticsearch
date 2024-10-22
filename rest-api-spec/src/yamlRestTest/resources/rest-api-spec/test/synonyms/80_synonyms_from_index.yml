@@ -2,11 +2,6 @@ setup:
   - requires:
       cluster_features: ["gte_v8.10.0"]
       reason: Loading synonyms from index is introduced in 8.10.0
-  - do:
-      cluster.put_settings:
-        body:
-          persistent:
-            logger.org.elasticsearch: DEBUG
   # Create a new synonyms set
   - do:
       synonyms.put_synonym:
@@ -56,13 +51,6 @@ setup:
           - '{"my_field": "hello"}'
           - '{"index": {"_index": "my_index", "_id": "2"}}'
           - '{"my_field": "goodbye"}'
----
-teardown:
-  - do:
-      cluster.put_settings:
-        body:
-          persistent:
-            logger.org.elasticsearch: INFO
 ---
 "Load synonyms from index for an analyzer":
 

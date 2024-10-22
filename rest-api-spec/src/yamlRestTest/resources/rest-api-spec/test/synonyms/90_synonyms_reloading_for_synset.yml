@@ -3,11 +3,6 @@
   - requires:
       cluster_features: ["gte_v8.10.0"]
       reason: Reloading analyzers for specific synonym set is introduced in 8.10.0
-  - do:
-      cluster.put_settings:
-        body:
-          persistent:
-            logger.org.elasticsearch: DEBUG
   # Create synonyms_set1
   - do:
       synonyms.put_synonym:
@@ -141,10 +136,3 @@
               my_field:
                 query: salute
   - match: { hits.total.value: 0 }
----
-teardown:
-  - do:
-      cluster.put_settings:
-        body:
-          persistent:
-            logger.org.elasticsearch: INFO

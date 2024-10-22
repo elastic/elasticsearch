@@ -447,6 +447,7 @@ public final class CsvTestUtils {
         SCALED_FLOAT(s -> s == null ? null : scaledFloat(s, "100"), Double.class),
         KEYWORD(Object::toString, BytesRef.class),
         TEXT(Object::toString, BytesRef.class),
+        SEMANTIC_TEXT(Object::toString, BytesRef.class),
         IP(
             StringUtils::parseIP,
             (l, r) -> l instanceof String maybeIP

@@ -636,13 +636,13 @@ public class ServiceUtilsTests extends ESTestCase {
     }
 
     public void testExtractRequiredIntBetween_AddsErrorForValueBelowMin() {
-        var minValue = randomInt();
+        var minValue = randomNonNegativeInt();
         var maxValue = randomIntBetween(minValue, minValue + 10);
         testExtractRequiredIntBetween_Unsuccessful(minValue, maxValue, minValue - 1);
     }
 
     public void testExtractRequiredIntBetween_AddsErrorForValueAboveMax() {
-        var minValue = randomInt();
+        var minValue = randomNonNegativeInt();
         var maxValue = randomIntBetween(minValue, minValue + 10);
         testExtractRequiredIntBetween_Unsuccessful(minValue, maxValue, maxValue + 1);
     }
@@ -650,8 +650,8 @@ public class ServiceUtilsTests extends ESTestCase {
     private void testExtractRequiredIntBetween_Unsuccessful(int minValue, int maxValue, int actualValue) {
         var validation = new ValidationException();
         validation.addValidationError("previous error");
-        Map<String, Object> map = modifiableMap(Map.of("key", 0));
-        var parsedInt = ServiceUtils.extractRequiredPositiveIntegerBetween(map, "key", 1, 5, "scope", validation);
+        Map<String, Object> map = modifiableMap(Map.of("key", actualValue));
+        var parsedInt = ServiceUtils.extractRequiredPositiveIntegerBetween(map, "key", minValue, maxValue, "scope", validation);
 
         assertThat(validation.validationErrors(), hasSize(2));
         assertNull(parsedInt);

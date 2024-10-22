@@ -449,11 +449,13 @@ public final class ServiceUtils {
             validationException.addValidationError(
                 ServiceUtils.mustBeGreaterThanOrEqualNumberErrorMessage(settingName, scope, field, minValue)
             );
+            return null;
         }
         if (field != null && field > maxValue) {
             validationException.addValidationError(
                 ServiceUtils.mustBeLessThanOrEqualNumberErrorMessage(settingName, scope, field, maxValue)
             );
+            return null;
         }
 
         return field;

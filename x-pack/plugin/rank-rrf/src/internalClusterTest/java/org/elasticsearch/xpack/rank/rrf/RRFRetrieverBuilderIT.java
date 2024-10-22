@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.rank.rrf;
 
 import org.apache.lucene.search.TotalHits;
+import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequestBuilder;
@@ -18,6 +20,7 @@ import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -615,14 +618,15 @@ public class RRFRetrieverBuilderIT extends ESIntegTestCase {
             )
         );
         SearchRequestBuilder req = client().prepareSearch(INDEX).setSource(source);
-        Exception ex = expectThrows(IllegalArgumentException.class, req::get);
-        assertThat(ex, instanceOf(IllegalArgumentException.class));
+        Exception ex = expectThrows(ElasticsearchStatusException.class, req::get);
+        assertThat(ex, instanceOf(ElasticsearchStatusException.class));
         assertThat(
             ex.getMessage(),
             containsString(
                 "[rrf] search failed - retrievers '[standard]' returned errors. All failures are attached as suppressed exceptions."
             )
         );
+        assertThat(ExceptionsHelper.status(ex), equalTo(RestStatus.BAD_REQUEST));
         assertThat(ex.getSuppressed().length, greaterThan(0));
     }
 
@@ -652,14 +656,15 @@ public class RRFRetrieverBuilderIT extends ESIntegTestCase {
             )
         );
         SearchRequestBuilder req = client().prepareSearch(INDEX).setSource(source);
-        Exception ex = expectThrows(IllegalStateException.class, req::get);
-        assertThat(ex, instanceOf(IllegalStateException.class));
+        Exception ex = expectThrows(ElasticsearchStatusException.class, req::get);
+        assertThat(ex, instanceOf(ElasticsearchStatusException.class));
         assertThat(
             ex.getMessage(),
             containsString(
                 "[rrf] search failed - retrievers '[standard, test]' returned errors. All failures are attached as suppressed exceptions."
             )
         );
+        assertThat(ExceptionsHelper.status(ex), equalTo(RestStatus.INTERNAL_SERVER_ERROR));
         assertThat(ex.getSuppressed().length, greaterThan(0));
     }
 

@@ -11,6 +11,7 @@ package org.elasticsearch.search.retriever;
 
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -138,11 +139,11 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
                         }
                     }
                     if (false == failures.isEmpty()) {
-                        boolean serverErrorFound = false;
+                        // capture the max status code returned by any of the responses
+                        int statusCode = RestStatus.OK.getStatus();
                         for (Exception failure : failures) {
-                            if (ExceptionsHelper.status(failure).getStatus() >= RestStatus.INTERNAL_SERVER_ERROR.getStatus()) {
-                                serverErrorFound = true;
-                                break;
+                            if (ExceptionsHelper.status(failure).getStatus() > statusCode) {
+                                statusCode = ExceptionsHelper.status(failure).getStatus();
                             }
                         }
                         final String errMessage = "["
@@ -151,12 +152,9 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
                             + retrieversWithFailures
                             + "' returned errors. "
                             + "All failures are attached as suppressed exceptions.";
-                        Exception ex = false == serverErrorFound
-                            ? new IllegalArgumentException(errMessage)
-                            : new IllegalStateException(errMessage);
+                        Exception ex = new ElasticsearchStatusException(errMessage, RestStatus.fromCode(statusCode));
                         failures.forEach(ex::addSuppressed);
                         listener.onFailure(ex);
-
                     } else {
                         results.set(combineInnerRetrieverResults(topDocs));
                         listener.onResponse(null);

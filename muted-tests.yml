@@ -308,9 +308,6 @@ tests:
 - class: org.elasticsearch.xpack.inference.DefaultEndPointsIT
   method: testInferDeploysDefaultElser
   issue: https://github.com/elastic/elasticsearch/issues/114913
-- class: org.elasticsearch.upgrades.MultiVersionRepositoryAccessIT
-  method: testCreateAndRestoreSnapshot
-  issue: https://github.com/elastic/elasticsearch/issues/114998
 - class: org.elasticsearch.index.mapper.TextFieldMapperTests
   method: testBlockLoaderFromRowStrideReaderWithSyntheticSource
   issue: https://github.com/elastic/elasticsearch/issues/115066

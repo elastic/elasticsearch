@@ -87,7 +87,7 @@ public class TransportSimulateIndexTemplateActionTests extends ESTestCase {
                 String indexName,
                 String dataStreamName,
                 IndexMode templateIndexMode,
-                Metadata metadata,
+                ProjectMetadata projectMetadata,
                 Instant resolvedAt,
                 Settings indexTemplateAndCreateRequestSettings,
                 List<CompressedXContent> combinedTemplateMappings

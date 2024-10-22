@@ -273,7 +273,8 @@ public class EsqlQueryRequestTests extends ESTestCase {
         String paramsString1 = """
             "params":[ {"n1" : {"v" : "v1"}}, {"n2" : {"identifier" : "v2", "pattern" : "v2"}}, {"n3" : {}},
             {"n4" : {"value" : ["x", "y"]}}, {"n5" : {"identifier" : ["x", "y"]}}, {"n6" : {"pattern" : ["x*", "y*"]}},
-            {"n7" : {"identifier" : 1}}, {"n8" : {"pattern" : true}}, {"n9" : {"identifier" : null}}, {"n10" : {"pattern" : "v11"}}]""";
+            {"n7" : {"identifier" : 1}}, {"n8" : {"pattern" : true}}, {"n9" : {"identifier" : null}}, {"n10" : {"pattern" : "v10"}},
+            {"n11" : {"pattern" : "v11*"}, "n12" : {"identifier" : "v12"}}]""";
         String json1 = String.format(Locale.ROOT, """
             {
                 %s
@@ -303,8 +304,9 @@ public class EsqlQueryRequestTests extends ESTestCase {
                     + "[4:30] [true] is not a valid value for PATTERN parameter, "
                     + "a valid value for PATTERN parameter is a string and contains *; "
                     + "[4:59] [null] is not a valid value for IDENTIFIER parameter, a valid value for IDENTIFIER parameter is a string; "
-                    + "[4:91] [v11] is not a valid value for PATTERN parameter, "
-                    + "a valid value for PATTERN parameter is a string and contains *"
+                    + "[4:91] [v10] is not a valid value for PATTERN parameter, "
+                    + "a valid value for PATTERN parameter is a string and contains *; "
+                    + "[5:1] Cannot parse more than one key:value pair as parameter, found [{n12:{identifier=v12}}, {n11:{pattern=v11*}}]"
             )
         );
     }

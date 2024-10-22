@@ -444,8 +444,9 @@ public class IndexDirectoryTests extends ESTestCase {
                 recoveryCommit.nodeEphemeralId(),
                 recoveryCommit.translogRecoveryStartFile(),
                 recoveryCommit.sizeInBytes(),
-                BlobFileRanges.computeLastCommitBlobFileRanges(
+                BlobFileRanges.computeBlobFileRanges(
                     new BatchedCompoundCommit(recoveryCommit.primaryTermAndGeneration(), List.of(recoveryCommit)),
+                    files,
                     randomBoolean()
                 )
             );

@@ -83,20 +83,28 @@ public record BatchedCompoundCommit(PrimaryTermAndGeneration primaryTermAndGener
     }
 
     /**
-     * Reads a {@link BatchedCompoundCommit} from the blob store, for that it materializes the headers
-     * for all the {@link StatelessCompoundCommit} contained in the batched compound commit.
+     * Reads a maximum of {@code maxBlobLength} bytes of a {@link BatchedCompoundCommit} from the blob store. For that it materializes the
+     * headers for all the {@link StatelessCompoundCommit} contained in the batched compound commit that are located before the maximum blob
+     * length.
      *
-     * @param blobName the blob name where the batched compound commit is store
-     * @param blobLength the batched compound commit blob length in bytes
-     * @param blobReader a blob reader
+     * @param blobName          the blob name where the batched compound commit is stored
+     * @param maxBlobLength     the maximum number of bytes to read for the blob (not expected to be in the middle of a header or internal
+     *                          replicated range bytes)
+     * @param blobReader        a blob reader
+     * @param exactBlobLength   a flag indicating that the max. blob length is equal to the real blob length in the object store (flag is
+     *                          {@code true}) or not (flag is {@code false}) in which case we are OK to not read the blob fully. This flag
+     *                          is used in assertions only.
+     * @return                  the {@link BatchedCompoundCommit} containing all the commits before {@code maxBlobLength}
+     * @throws IOException      if an I/O exception is thrown while reading the blob
      */
-    public static BatchedCompoundCommit readFromStore(String blobName, long blobLength, BlobReader blobReader) throws IOException {
+    public static BatchedCompoundCommit readFromStore(String blobName, long maxBlobLength, BlobReader blobReader, boolean exactBlobLength)
+        throws IOException {
         List<StatelessCompoundCommit> compoundCommits = new ArrayList<>();
         long offset = 0;
         PrimaryTermAndGeneration primaryTermAndGeneration = null;
-        while (offset < blobLength) {
+        while (offset < maxBlobLength) {
             assert offset == BlobCacheUtils.toPageAlignedSize(offset) : "should only read page-aligned compound commits but got: " + offset;
-            try (StreamInput streamInput = blobReader.readBlobAtOffset(blobName, offset, blobLength - offset)) {
+            try (StreamInput streamInput = blobReader.readBlobAtOffset(blobName, offset, maxBlobLength - offset)) {
                 var compoundCommit = StatelessCompoundCommit.readFromStoreAtOffset(
                     streamInput,
                     offset,
@@ -107,12 +115,16 @@ public record BatchedCompoundCommit(PrimaryTermAndGeneration primaryTermAndGener
                     primaryTermAndGeneration = compoundCommit.primaryTermAndGeneration();
                 }
                 compoundCommits.add(compoundCommit);
-                assert assertPaddingComposedOfZeros(blobName, blobLength, blobReader, offset, compoundCommit);
+                assert assertPaddingComposedOfZeros(blobName, maxBlobLength, blobReader, offset, compoundCommit);
                 offset += BlobCacheUtils.toPageAlignedSize(compoundCommit.sizeInBytes());
             }
         }
-        assert offset == BlobCacheUtils.toPageAlignedSize(blobLength)
-            : "offset " + offset + " != page-aligned blobLength " + BlobCacheUtils.toPageAlignedSize(blobLength);
+        assert offset == BlobCacheUtils.toPageAlignedSize(maxBlobLength) || exactBlobLength == false
+            : "offset "
+                + offset
+                + " != page-aligned blobLength "
+                + BlobCacheUtils.toPageAlignedSize(maxBlobLength)
+                + " with exact blob length flag [true]";
         return new BatchedCompoundCommit(primaryTermAndGeneration, Collections.unmodifiableList(compoundCommits));
     }
 

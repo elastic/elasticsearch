@@ -24,25 +24,33 @@ import co.elastic.elasticsearch.stateless.cache.reader.MeteringCacheBlobReader;
 import co.elastic.elasticsearch.stateless.cache.reader.ObjectStoreCacheBlobReader;
 import co.elastic.elasticsearch.stateless.commits.BlobFileRanges;
 import co.elastic.elasticsearch.stateless.commits.BlobLocation;
-import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.CachePopulationSource;
 import org.elasticsearch.common.blobstore.BlobContainer;
-import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Map;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.LongAdder;
 
 public class IndexBlobStoreCacheDirectory extends BlobStoreCacheDirectory {
 
     public IndexBlobStoreCacheDirectory(StatelessSharedBlobCacheService cacheService, ShardId shardId) {
         super(cacheService, shardId);
+    }
+
+    private IndexBlobStoreCacheDirectory(
+        StatelessSharedBlobCacheService cacheService,
+        ShardId shardId,
+        LongAdder totalBytesRead,
+        LongAdder totalBytesWarmed
+    ) {
+        super(cacheService, shardId, totalBytesRead, totalBytesWarmed);
     }
 
     public void updateMetadata(Map<String, BlobFileRanges> metadata, long dataSetSizeInBytes) {
@@ -57,31 +65,40 @@ public class IndexBlobStoreCacheDirectory extends BlobStoreCacheDirectory {
 
     @Override
     protected CacheBlobReader getCacheBlobReader(BlobLocation location) {
-        return doGetCacheBlobReader(getBlobContainer(location.primaryTerm()), location.blobName());
-    }
-
-    private MeteringCacheBlobReader doGetCacheBlobReader(BlobContainer blobContainer, String blobName) {
-        return new MeteringCacheBlobReader(
-            new ObjectStoreCacheBlobReader(
-                blobContainer,
-                blobName,
-                getCacheService().getRangeSize(),
-                getCacheService().getShardReadThreadPoolExecutor()
-            ),
-            createReadCompleteCallback(totalBytesReadFromObjectStore, BlobCacheMetrics.CachePopulationReason.CacheMiss)
+        return createCacheBlobReader(
+            getBlobContainer(location.primaryTerm()),
+            location.blobName(),
+            getCacheService().getShardReadThreadPoolExecutor(),
+            totalBytesReadFromObjectStore,
+            BlobCacheMetrics.CachePopulationReason.CacheMiss
         );
     }
 
     @Override
     public CacheBlobReader getCacheBlobReaderForWarming(BlobLocation location) {
-        return doGetCacheBlobReaderForWarming(getBlobContainer(location.primaryTerm()), location.blobName());
+        return createCacheBlobReader(
+            getBlobContainer(location.primaryTerm()),
+            location.blobName(),
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            totalBytesWarmedFromObjectStore,
+            BlobCacheMetrics.CachePopulationReason.Warming,
+            Stateless.PREWARM_THREAD_POOL,
+            ThreadPool.Names.GENERIC
+        );
     }
 
-    private MeteringCacheBlobReader doGetCacheBlobReaderForWarming(BlobContainer blobContainer, String blobName) {
-        assert ThreadPool.assertCurrentThreadPool(Stateless.PREWARM_THREAD_POOL, ThreadPool.Names.GENERIC);
+    private MeteringCacheBlobReader createCacheBlobReader(
+        BlobContainer blobContainer,
+        String blobName,
+        Executor fetchExecutor,
+        LongAdder bytesReadAdder,
+        BlobCacheMetrics.CachePopulationReason cachePopulationReason,
+        String... expectedThreadPoolNames
+    ) {
+        assert expectedThreadPoolNames.length == 0 || ThreadPool.assertCurrentThreadPool(expectedThreadPoolNames);
         return new MeteringCacheBlobReader(
-            new ObjectStoreCacheBlobReader(blobContainer, blobName, getCacheService().getRangeSize(), EsExecutors.DIRECT_EXECUTOR_SERVICE),
-            createReadCompleteCallback(totalBytesWarmedFromObjectStore, BlobCacheMetrics.CachePopulationReason.Warming)
+            new ObjectStoreCacheBlobReader(blobContainer, blobName, getCacheService().getRangeSize(), fetchExecutor),
+            createReadCompleteCallback(bytesReadAdder, cachePopulationReason)
         );
     }
 
@@ -103,48 +120,37 @@ public class IndexBlobStoreCacheDirectory extends BlobStoreCacheDirectory {
         };
     }
 
-    public BlobStoreCacheDirectory createBlobStoreCacheDirectoryForWarming(StatelessCompoundCommit preWarmCommit) {
-        var preWarmDirectory = new BlobStoreCacheDirectory(cacheService, shardId) {
+    @Override
+    public IndexBlobStoreCacheDirectory createNewInstance() {
+        var instance = new IndexBlobStoreCacheDirectory(
+            cacheService,
+            shardId,
+            totalBytesReadFromObjectStore,
+            totalBytesWarmedFromObjectStore
+        ) {
+
             @Override
-            protected CacheBlobReader getCacheBlobReader(BlobLocation blobLocation) {
-                return doGetCacheBlobReader(getBlobContainer(blobLocation.primaryTerm()), blobLocation.blobName());
+            protected CacheBlobReader getCacheBlobReader(BlobLocation location) {
+                return createCacheBlobReader(
+                    getBlobContainer(location.primaryTerm()),
+                    location.blobName(),
+                    getCacheService().getShardReadThreadPoolExecutor(),
+                    // account for warming instead of cache miss when doing regular reads with a "prewarming" instance
+                    totalBytesWarmedFromObjectStore,
+                    BlobCacheMetrics.CachePopulationReason.Warming
+                );
             }
 
             @Override
             public CacheBlobReader getCacheBlobReaderForWarming(BlobLocation location) {
-                return doGetCacheBlobReaderForWarming(getBlobContainer(location.primaryTerm()), location.blobName());
-            }
-        };
-        // preWarmDirectory accesses the main blob location of the files only and does not prewarm replicated ranges like headers/footers
-        preWarmDirectory.currentMetadata = Maps.transformValues(preWarmCommit.commitFiles(), BlobFileRanges::new);
-        preWarmDirectory.currentDataSetSizeInBytes = preWarmCommit.getAllFilesSizeInBytes();
-        return preWarmDirectory;
-    }
-
-    @Override
-    public IndexBlobStoreCacheDirectory createPreWarmingInstance() {
-        var instance = new IndexBlobStoreCacheDirectory(cacheService, shardId) {
-
-            @Override
-            protected CacheBlobReader getCacheBlobReader(BlobLocation blobLocation) {
-                return getCacheBlobReaderForWarming(blobLocation);
-            }
-
-            @Override
-            public CacheBlobReader getCacheBlobReaderForWarming(BlobLocation blobLocation) {
-                assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
-                var blobContainer = getBlobContainer(blobLocation.primaryTerm());
-                return new MeteringCacheBlobReader(
-                    new ObjectStoreCacheBlobReader(
-                        blobContainer,
-                        blobLocation.blobName(),
-                        getCacheService().getRangeSize(),
-                        getCacheService().getShardReadThreadPoolExecutor()
-                    ),
-                    createReadCompleteCallback(
-                        IndexBlobStoreCacheDirectory.this.totalBytesWarmedFromObjectStore,
-                        BlobCacheMetrics.CachePopulationReason.Warming
-                    )
+                return createCacheBlobReader(
+                    getBlobContainer(location.primaryTerm()),
+                    location.blobName(),
+                    EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                    totalBytesWarmedFromObjectStore,
+                    BlobCacheMetrics.CachePopulationReason.Warming,
+                    Stateless.PREWARM_THREAD_POOL, // when fetching blob regions in warming service
+                    ThreadPool.Names.GENERIC
                 );
             }
         };

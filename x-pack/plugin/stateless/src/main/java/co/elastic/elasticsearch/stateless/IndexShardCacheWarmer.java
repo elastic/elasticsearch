@@ -18,16 +18,17 @@
 package co.elastic.elasticsearch.stateless;
 
 import co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService;
-import co.elastic.elasticsearch.stateless.commits.BatchedCompoundCommit;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.lucene.IndexDirectory;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardNotRecoveringException;
 import org.elasticsearch.index.shard.IndexShardState;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
@@ -46,15 +47,18 @@ public class IndexShardCacheWarmer {
     private final ObjectStoreService objectStoreService;
     private final SharedBlobCacheWarmingService warmingService;
     private final ThreadPool threadPool;
+    private final boolean useReplicatedRanges;
 
     public IndexShardCacheWarmer(
         ObjectStoreService objectStoreService,
         SharedBlobCacheWarmingService warmingService,
-        ThreadPool threadPool
+        ThreadPool threadPool,
+        boolean useReplicatedRanges
     ) {
         this.objectStoreService = objectStoreService;
         this.warmingService = warmingService;
         this.threadPool = threadPool;
+        this.useReplicatedRanges = useReplicatedRanges;
     }
 
     /**
@@ -79,41 +83,55 @@ public class IndexShardCacheWarmer {
         assert indexShard.routingEntry().isPromotableToPrimary();
         final Store store = indexShard.store();
         if (store.tryIncRef()) {
+            boolean success = false;
             try {
                 final var blobStore = objectStoreService.blobStore();
                 final var shardBasePath = objectStoreService.shardBasePath(indexShard.shardId());
                 var indexDirectory = IndexDirectory.unwrapDirectory(store.directory());
-                var prewarmingDirectory = indexDirectory.getPreWarmingInstance();
+                // Recovery hasn't even started yet, so we need to set the blob container here in a copied prewarming instance. This
+                // instance will also be copied when reading the last BCC and other referenced blobs, so it is OK to use it for warming
+                // purpose once the last BCC is known.
+                var prewarmingDirectory = indexDirectory.createNewInstance();
                 prewarmingDirectory.setBlobContainer(
                     primaryTerm -> blobStore.blobContainer(shardBasePath.add(String.valueOf(primaryTerm)))
                 );
-                final BatchedCompoundCommit batchedCompoundCommit = ObjectStoreService.readIndexingShardState(
+                ObjectStoreService.readIndexingShardState(
                     prewarmingDirectory,
                     blobStore.blobContainer(shardBasePath),
-                    indexShard.getOperationPrimaryTerm()
-                ).latestCommit();
-                if (batchedCompoundCommit != null) {
-                    StatelessCompoundCommit last = batchedCompoundCommit.lastCompoundCommit();
-                    // We do not want to update the internal directory metadata this early as this gets dispatched
-                    // into the GENERIC thread pool and, it can make the directory to go backwards if the recovery
-                    // makes progress before this task gets executed, for that reason we create a new directory that
-                    // will be used _only_ during pre-warming.
-                    var preWarmingBlobStoreCacheDirectory = indexDirectory.getBlobStoreCacheDirectory()
-                        .createBlobStoreCacheDirectoryForWarming(last);
-                    preWarmingBlobStoreCacheDirectory.setBlobContainer(
-                        primaryTerm -> blobStore.blobContainer(shardBasePath.add(String.valueOf(primaryTerm)))
-                    );
-                    warmingService.warmCacheForShardRecovery(INDEXING_EARLY, indexShard, last, preWarmingBlobStoreCacheDirectory);
-                }
-            } catch (Exception e) {
-                logger.log(
-                    e instanceof FileNotFoundException || e instanceof NoSuchFileException ? Level.DEBUG : Level.INFO,
-                    () -> Strings.format("%s early indexing cache prewarming failed", indexShard.shardId()),
-                    e
+                    indexShard.getOperationPrimaryTerm(),
+                    threadPool,
+                    useReplicatedRanges,
+                    ActionListener.releaseAfter(ActionListener.wrap(state -> {
+                        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
+
+                        var batchedCompoundCommit = state.latestCommit();
+                        if (batchedCompoundCommit != null) {
+                            StatelessCompoundCommit last = batchedCompoundCommit.lastCompoundCommit();
+                            // We do not want to update the internal directory metadata this early as this gets dispatched
+                            // into the GENERIC thread pool and, it can make the directory to go backwards if the recovery
+                            // makes progress before this task gets executed, for that reason we reuse the copied directory
+                            // instance that will be used _only_ during pre-warming.
+                            prewarmingDirectory.updateMetadata(state.blobFileRanges(), last.getAllFilesSizeInBytes());
+                            warmingService.warmCacheForShardRecovery(INDEXING_EARLY, indexShard, last, prewarmingDirectory);
+                        }
+                    }, e -> logException(indexShard.shardId(), e)), store::decRef)
                 );
+                success = true;
+            } catch (Exception e) {
+                logException(indexShard.shardId(), e);
             } finally {
-                store.decRef();
+                if (success == false) {
+                    store.decRef();
+                }
             }
         }
+    }
+
+    private static void logException(ShardId shardId, Exception e) {
+        logger.log(
+            e instanceof FileNotFoundException || e instanceof NoSuchFileException ? Level.DEBUG : Level.INFO,
+            () -> Strings.format("%s early indexing cache prewarming failed", shardId),
+            e
+        );
     }
 }

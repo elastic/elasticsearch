@@ -279,8 +279,8 @@ public class IndexDirectory extends ByteSizeDirectory {
         }
     }
 
-    public IndexBlobStoreCacheDirectory getPreWarmingInstance() {
-        return cacheDirectory.createPreWarmingInstance();
+    public IndexBlobStoreCacheDirectory createNewInstance() {
+        return cacheDirectory.createNewInstance();
     }
 
     public IndexBlobStoreCacheDirectory getBlobStoreCacheDirectory() {

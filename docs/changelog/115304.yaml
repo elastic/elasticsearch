@@ -1,5 +1,0 @@
-pr: 115304
-summary: "[s3-repository] Recover in case a broken AWS HTTP client"
-area: Snapshot/Restore
-type: bug
-issues: []

@@ -180,7 +180,6 @@ public class TransportVersions {
     public static final TransportVersion INFERENCE_DONT_PERSIST_ON_READ = def(8_776_00_0);
     public static final TransportVersion SIMULATE_MAPPING_ADDITION = def(8_777_00_0);
 
-
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _

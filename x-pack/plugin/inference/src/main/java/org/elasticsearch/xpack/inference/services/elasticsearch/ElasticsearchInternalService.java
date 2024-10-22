@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.core.inference.ChunkingSettingsFeatureFlag;
 import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
+import org.elasticsearch.xpack.core.ml.action.GetDeploymentStatsAction;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
@@ -56,6 +57,7 @@ import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -786,11 +788,50 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         );
     }
 
-    /**
-     * Default configurations that can be out of the box without creating an endpoint first.
-     * @param defaultsListener Config listener
-     */
     @Override
+    public void updateModelsWithDynamicFields(List<Model> models, ActionListener<List<Model>> listener) {
+
+        if (models.isEmpty()) {
+            listener.onResponse(models);
+            return;
+        }
+
+        var modelsByDeploymentIds = new HashMap<String, ElasticsearchInternalModel>();
+        for (var model : models) {
+            assert model instanceof ElasticsearchInternalModel;
+
+            if (model instanceof ElasticsearchInternalModel esModel) {
+                modelsByDeploymentIds.put(esModel.mlNodeDeploymentId(), esModel);
+            } else {
+                listener.onFailure(
+                    new ElasticsearchStatusException(
+                        "Cannot update model [{}] as it is not an Elasticsearch service model",
+                        RestStatus.INTERNAL_SERVER_ERROR,
+                        model.getInferenceEntityId()
+                    )
+                );
+                return;
+            }
+        }
+
+        String deploymentIds = String.join(",", modelsByDeploymentIds.keySet());
+        client.execute(
+            GetDeploymentStatsAction.INSTANCE,
+            new GetDeploymentStatsAction.Request(deploymentIds),
+            ActionListener.wrap(stats -> {
+                for (var deploymentStats : stats.getStats().results()) {
+                    var model = modelsByDeploymentIds.get(deploymentStats.getDeploymentId());
+                    model.updateNumAllocations(deploymentStats.getNumberOfAllocations());
+                }
+                listener.onResponse(new ArrayList<>(modelsByDeploymentIds.values()));
+            }, e -> {
+                logger.warn("Get deployment stats failed, cannot update the endpoint's number of allocations", e);
+                // continue with the original response
+                listener.onResponse(models);
+            })
+        );
+    }
+
     public void defaultConfigs(ActionListener<List<Model>> defaultsListener) {
         preferredModelVariantFn.accept(defaultsListener.delegateFailureAndWrap((delegate, preferredModelVariant) -> {
             if (PreferredModelVariant.LINUX_X86_OPTIMIZED.equals(preferredModelVariant)) {

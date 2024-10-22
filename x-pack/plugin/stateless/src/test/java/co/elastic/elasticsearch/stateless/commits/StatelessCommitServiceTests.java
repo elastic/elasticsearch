@@ -656,11 +656,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
 
             uploadedBlobs.clear();
 
-            var indexingShardState = ObjectStoreService.readIndexingShardState(
-                IndexBlobStoreCacheDirectory.unwrapDirectory(testHarness.indexingDirectory),
-                testHarness.objectStoreService.getBlobContainer(testHarness.shardId),
-                primaryTerm
-            );
+            var indexingShardState = readIndexingShardState(testHarness, primaryTerm);
 
             testHarness.commitService.closeShard(testHarness.shardId);
             testHarness.commitService.unregister(testHarness.shardId);
@@ -1255,11 +1251,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
             commitService.ensureMaxGenerationToUploadForFlush(shardId, recoveryCommit.getGeneration());
             waitUntilBCCIsUploaded(commitService, shardId, recoveryCommit.getGeneration());
 
-            var indexingShardState = ObjectStoreService.readIndexingShardState(
-                IndexBlobStoreCacheDirectory.unwrapDirectory(testHarness.indexingDirectory),
-                testHarness.objectStoreService.getBlobContainer(testHarness.shardId),
-                primaryTerm
-            );
+            var indexingShardState = readIndexingShardState(testHarness, primaryTerm);
 
             testHarness.commitService.closeShard(testHarness.shardId);
             testHarness.commitService.unregister(testHarness.shardId);
@@ -1397,11 +1389,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
             testHarness.commitService.closeShard(testHarness.shardId);
             testHarness.commitService.unregister(testHarness.shardId);
 
-            var indexingShardState = ObjectStoreService.readIndexingShardState(
-                IndexBlobStoreCacheDirectory.unwrapDirectory(testHarness.indexingDirectory),
-                testHarness.objectStoreService.getBlobContainer(testHarness.shardId),
-                primaryTerm
-            );
+            var indexingShardState = readIndexingShardState(testHarness, primaryTerm);
 
             testHarness.commitService.register(testHarness.shardId, primaryTerm, () -> false);
             testHarness.commitService.markRecoveredBcc(
@@ -1941,7 +1929,8 @@ public class StatelessCommitServiceTests extends ESTestCase {
                                 blobMetadata.length(),
                                 (blobName, offset, length) -> new InputStreamStreamInput(
                                     blobContainer.readBlob(OperationPurpose.INDICES, blobName, offset, length)
-                                )
+                                ),
+                                true
                             );
                         } catch (IOException e) {
                             throw new UncheckedIOException(e);
@@ -2234,7 +2223,8 @@ public class StatelessCommitServiceTests extends ESTestCase {
                 blobMedata.length(),
                 (blobName, offset, length) -> new InputStreamStreamInput(
                     shardContainer.readBlob(OperationPurpose.INDICES, blobName, offset, length)
-                )
+                ),
+                true
             );
             assertThat(
                 batchedCompoundCommit.compoundCommits().stream().map(StatelessCompoundCommit::generation).toList(),
@@ -2609,5 +2599,18 @@ public class StatelessCommitServiceTests extends ESTestCase {
             testHarness.commitService.unregister(testHarness.shardId);
             testHarness.commitService.register(testHarness.shardId, primaryTerm, () -> true);
         }
+    }
+
+    private static ObjectStoreService.IndexingShardState readIndexingShardState(FakeStatelessNode node, long primaryTerm) {
+        var future = new PlainActionFuture<ObjectStoreService.IndexingShardState>();
+        ObjectStoreService.readIndexingShardState(
+            IndexBlobStoreCacheDirectory.unwrapDirectory(node.indexingDirectory),
+            node.objectStoreService.getBlobContainer(node.shardId),
+            primaryTerm,
+            node.threadPool,
+            randomBoolean(),
+            future
+        );
+        return safeGet(future);
     }
 }

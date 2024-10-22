@@ -27,6 +27,7 @@ import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 import co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicator;
 import co.elastic.elasticsearch.stateless.lucene.BlobStoreCacheDirectory;
+import co.elastic.elasticsearch.stateless.lucene.IndexBlobStoreCacheDirectory;
 import co.elastic.elasticsearch.stateless.lucene.IndexDirectory;
 import co.elastic.elasticsearch.stateless.lucene.SearchDirectory;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
@@ -34,6 +35,7 @@ import co.elastic.elasticsearch.stateless.recovery.RecoveryCommitRegistrationHan
 
 import org.apache.lucene.index.SegmentInfos;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.index.IndexSettings;
@@ -48,6 +50,7 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.Set;
@@ -55,13 +58,13 @@ import java.util.stream.Collectors;
 
 import static co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService.Type.INDEXING;
 import static co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService.Type.SEARCH;
-import static co.elastic.elasticsearch.stateless.commits.BlobFileRanges.computeLastCommitBlobFileRanges;
 import static org.elasticsearch.index.shard.StoreRecovery.bootstrap;
 
 class StatelessIndexEventListener implements IndexEventListener {
 
     private static final Logger logger = LogManager.getLogger(StatelessIndexEventListener.class);
 
+    private final ThreadPool threadPool;
     private final StatelessCommitService statelessCommitService;
     private final ObjectStoreService objectStoreService;
     private final TranslogReplicator translogReplicator;
@@ -69,12 +72,14 @@ class StatelessIndexEventListener implements IndexEventListener {
     private final SharedBlobCacheWarmingService warmingService;
 
     StatelessIndexEventListener(
+        ThreadPool threadPool,
         StatelessCommitService statelessCommitService,
         ObjectStoreService objectStoreService,
         TranslogReplicator translogReplicator,
         RecoveryCommitRegistrationHandler recoveryCommitRegistrationHandler,
         SharedBlobCacheWarmingService warmingService
     ) {
+        this.threadPool = threadPool;
         this.statelessCommitService = statelessCommitService;
         this.objectStoreService = objectStoreService;
         this.translogReplicator = translogReplicator;
@@ -155,32 +160,43 @@ class StatelessIndexEventListener implements IndexEventListener {
             : recoveryState.getRecoverySource().toString();
     }
 
-    private void beforeRecoveryOnIndexingShard(IndexShard indexShard, BlobContainer shardContainer, ActionListener<Void> listener)
-        throws IOException {
+    private void beforeRecoveryOnIndexingShard(IndexShard indexShard, BlobContainer shardContainer, ActionListener<Void> listener) {
         assert indexShard.store().refCount() > 0 : indexShard.shardId();
         assert indexShard.routingEntry().isPromotableToPrimary();
-
-        final Store store = indexShard.store();
-        final var indexDirectory = IndexDirectory.unwrapDirectory(store.directory());
-        final ObjectStoreService.IndexingShardState indexingShardState;
-        if (shardContainer != null) {
-            indexingShardState = ObjectStoreService.readIndexingShardState(
-                indexDirectory.getPreWarmingInstance(),
+        SubscribableListener.<ObjectStoreService.IndexingShardState>newForked(l -> {
+            if (shardContainer == null) {
+                ActionListener.completeWith(l, () -> ObjectStoreService.IndexingShardState.EMPTY);
+                return;
+            }
+            ObjectStoreService.readIndexingShardState(
+                IndexBlobStoreCacheDirectory.unwrapDirectory(indexShard.store().directory()),
                 shardContainer,
-                indexShard.getOperationPrimaryTerm()
+                indexShard.getOperationPrimaryTerm(),
+                threadPool,
+                statelessCommitService.useReplicatedRanges(),
+                l
             );
-        } else {
-            indexingShardState = ObjectStoreService.IndexingShardState.EMPTY;
-        }
-        logBootstrapping(indexShard, indexingShardState.latestCommit());
+        }).<Void>andThen((l, state) -> recoverBatchedCompoundCommitOnIndexShard(indexShard, state, l)).addListener(listener);
+    }
 
+    private void recoverBatchedCompoundCommitOnIndexShard(
+        IndexShard indexShard,
+        ObjectStoreService.IndexingShardState indexingShardState,
+        ActionListener<Void> listener
+    ) {
         ActionListener.completeWith(listener, () -> {
-            final var batchedCompoundCommit = indexingShardState.latestCommit();
+            assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
+
+            var store = indexShard.store();
+            var indexDirectory = IndexDirectory.unwrapDirectory(store.directory());
+            var batchedCompoundCommit = indexingShardState.latestCommit();
+            logBootstrapping(indexShard, batchedCompoundCommit);
+
             if (batchedCompoundCommit != null) {
                 var recoveryCommit = batchedCompoundCommit.lastCompoundCommit();
-                // Build a map of BlobFileRanges that includes replicated ranges (ES-9344)
-                var blobFileRanges = computeLastCommitBlobFileRanges(batchedCompoundCommit, statelessCommitService.useReplicatedRanges());
-                assert blobFileRanges.keySet().containsAll(recoveryCommit.commitFiles().keySet());
+                var blobFileRanges = indexingShardState.blobFileRanges();
+                assert blobFileRanges.keySet().containsAll(recoveryCommit.commitFiles().keySet())
+                    || statelessCommitService.useReplicatedRanges() == false;
 
                 indexDirectory.updateRecoveryCommit(
                     recoveryCommit.generation(),
@@ -189,7 +205,10 @@ class StatelessIndexEventListener implements IndexEventListener {
                     recoveryCommit.getAllFilesSizeInBytes(),
                     blobFileRanges
                 );
-                warmingService.warmCacheForShardRecovery(INDEXING, indexShard, recoveryCommit, indexDirectory.getBlobStoreCacheDirectory());
+                // We must use a copied instance for warming as the index directory will move forward with new commits
+                var warmingDirectory = indexDirectory.createNewInstance();
+                warmingDirectory.updateMetadata(blobFileRanges, recoveryCommit.getAllFilesSizeInBytes());
+                warmingService.warmCacheForShardRecovery(INDEXING, indexShard, recoveryCommit, warmingDirectory);
             }
             final var segmentInfos = SegmentInfos.readLatestCommit(indexDirectory);
             final var translogUUID = segmentInfos.userData.get(Translog.TRANSLOG_UUID_KEY);

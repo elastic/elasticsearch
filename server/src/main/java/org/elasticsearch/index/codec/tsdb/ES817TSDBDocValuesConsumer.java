@@ -13,7 +13,6 @@ import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.codecs.DocValuesConsumer;
 import org.apache.lucene.codecs.DocValuesProducer;
 import org.apache.lucene.codecs.lucene90.IndexedDISI;
-import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.DocValuesSkipIndexType;
 import org.apache.lucene.index.EmptyDocValuesProducer;
@@ -53,6 +52,7 @@ import static org.elasticsearch.index.codec.tsdb.ES817TSDBDocValuesFormat.SORTED
 
 final class ES817TSDBDocValuesConsumer extends DocValuesConsumer {
 
+    final SegmentWriteState state;
     IndexOutput data, meta;
     final int maxDoc;
     private byte[] termsDictBuffer;
@@ -66,6 +66,7 @@ final class ES817TSDBDocValuesConsumer extends DocValuesConsumer {
         String metaCodec,
         String metaExtension
     ) throws IOException {
+        this.state = state;
         this.termsDictBuffer = new byte[1 << 14];
         boolean success = false;
         try {
@@ -213,67 +214,8 @@ final class ES817TSDBDocValuesConsumer extends DocValuesConsumer {
     public void addBinaryField(FieldInfo field, DocValuesProducer valuesProducer) throws IOException {
         meta.writeInt(field.number);
         meta.writeByte(ES817TSDBDocValuesFormat.BINARY);
-
-        BinaryDocValues values = valuesProducer.getBinary(field);
-        long start = data.getFilePointer();
-        meta.writeLong(start); // dataOffset
-        int numDocsWithField = 0;
-        int minLength = Integer.MAX_VALUE;
-        int maxLength = 0;
-        for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
-            numDocsWithField++;
-            BytesRef v = values.binaryValue();
-            int length = v.length;
-            data.writeBytes(v.bytes, v.offset, v.length);
-            minLength = Math.min(length, minLength);
-            maxLength = Math.max(length, maxLength);
-        }
-        assert numDocsWithField <= maxDoc;
-        meta.writeLong(data.getFilePointer() - start); // dataLength
-
-        if (numDocsWithField == 0) {
-            meta.writeLong(-2); // docsWithFieldOffset
-            meta.writeLong(0L); // docsWithFieldLength
-            meta.writeShort((short) -1); // jumpTableEntryCount
-            meta.writeByte((byte) -1); // denseRankPower
-        } else if (numDocsWithField == maxDoc) {
-            meta.writeLong(-1); // docsWithFieldOffset
-            meta.writeLong(0L); // docsWithFieldLength
-            meta.writeShort((short) -1); // jumpTableEntryCount
-            meta.writeByte((byte) -1); // denseRankPower
-        } else {
-            long offset = data.getFilePointer();
-            meta.writeLong(offset); // docsWithFieldOffset
-            values = valuesProducer.getBinary(field);
-            final short jumpTableEntryCount = IndexedDISI.writeBitSet(values, data, IndexedDISI.DEFAULT_DENSE_RANK_POWER);
-            meta.writeLong(data.getFilePointer() - offset); // docsWithFieldLength
-            meta.writeShort(jumpTableEntryCount);
-            meta.writeByte(IndexedDISI.DEFAULT_DENSE_RANK_POWER);
-        }
-
-        meta.writeInt(numDocsWithField);
-        meta.writeInt(minLength);
-        meta.writeInt(maxLength);
-        if (maxLength > minLength) {
-            start = data.getFilePointer();
-            meta.writeLong(start);
-            meta.writeVInt(ES817TSDBDocValuesFormat.DIRECT_MONOTONIC_BLOCK_SHIFT);
-
-            final DirectMonotonicWriter writer = DirectMonotonicWriter.getInstance(
-                meta,
-                data,
-                numDocsWithField + 1,
-                ES817TSDBDocValuesFormat.DIRECT_MONOTONIC_BLOCK_SHIFT
-            );
-            long addr = 0;
-            writer.add(addr);
-            values = valuesProducer.getBinary(field);
-            for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
-                addr += values.binaryValue().length;
-                writer.add(addr);
-            }
-            writer.finish();
-            meta.writeLong(data.getFilePointer() - start);
+        try (var w = new ES817TSDBCompressingBinaryDocValues.Writer(state, data, meta)) {
+            w.add(field, valuesProducer);
         }
     }
 

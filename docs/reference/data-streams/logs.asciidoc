@@ -137,7 +137,7 @@ codec for faster compression at the expense of slightly larger storage footprint
   If faster indexing performance is required, users can opt for `best_speed` compression, which sacrifices some storage
   efficiency for higher indexing throughput.
 
-`logsdb` index mode adopts specialized codecs for `doc_values` fields that are crafted to optimize storage usage.
+`logsdb` index mode adopts specialized codecs for numeric doc values that are crafted to optimize storage usage.
 Users can rely on these specialized codecs being applied by default when using `logsdb` index mode.
 
 Doc values encoding for numeric fields in `logsdb` follows a static sequence of codecs, applying each one in the
@@ -152,17 +152,17 @@ may use a different encoding compared to the original Lucene segments, based on 
 The following methods are applied sequentially:
 
 * **Delta encoding**:
-  A compression method that stores the difference between consecutive values instead of the actual values.
+  a compression method that stores the difference between consecutive values instead of the actual values.
 
 * **Offset encoding**:
-  A compression method that stores the difference from a base value rather than between consecutive values.
+  a compression method that stores the difference from a base value rather than between consecutive values.
 
 * **Greatest Common Divisor (GCD) encoding**:
-  A compression method that finds the greatest common divisor of a set of values and stores the differences
+  a compression method that finds the greatest common divisor of a set of values and stores the differences
   as multiples of the GCD.
 
 * **Frame Of Reference (FOR) encoding**:
-  A compression method that determines the smallest number of bits required to encode a block of values and uses
+  a compression method that determines the smallest number of bits required to encode a block of values and uses
   bit-packing to fit such values into larger 64-bit blocks.
 
 For keyword fields, Run Length Encoding (RLE) is applied to the ordinals, which represent positions in the Lucene
@@ -183,26 +183,26 @@ In `logsdb` index mode, the `index.mapping.ignore_above` setting is applied by d
 efficient storage and indexing of large text fields.The index-level default for `ignore_above` is set to 8191
 **characters**. If using UTF-8 encoding, this results in a limit of 32764 bytes, depending on character encoding.
 The mapping-level `ignore_above` setting still takes precedence. If a specific field has an `ignore_above` value
-defined in its mapping, that value will override the index-level `index.mapping.ignore_above` default. This default
+defined in its mapping, that value will override the index-level `index.mapping.ignore_above` value. This default
 behavior helps to optimize indexing performance by preventing excessively large string values from being indexed, while
-still allowing users to customize the limit overriding it at the mapping level or changing the index level default
+still allowing users to customize the limit, overriding it at the mapping level or changing the index level default
 setting.
 
 In `logsdb` index mode, the setting `index.mapping.total_fields.ignore_dynamic_beyond_limit` is set to `true` by
 default. This allows dynamically mapped fields to be added on top of statically defined fields without causing document
-rejection, even after the total number of fields exceeds the limit defined by `index.mapping.total_fields.limit`. Th
+rejection, even after the total number of fields exceeds the limit defined by `index.mapping.total_fields.limit`. The
 `index.mapping.total_fields.limit` setting specifies the maximum number of fields an index can have (static, dynamic
 and runtime). When the limit is reached, new dynamically mapped fields will be ignored instead of failing the document
 indexing, ensuring continued log ingestion without errors.
 
-NOTE: when automatically injected, `host.name` and `timestamp` contribute to the limit of mapped fields. When
+NOTE: When automatically injected, `host.name` and `timestamp` contribute to the limit of mapped fields. When
 `host.name` is mapped with `subobjects: true` it consists of two fields. When `host.name` is mapped with
 `subobjects: false` it only consists of one field.
 
 `logsdb` index mode uses a special field named `_ignored_source` that allows retrieving values for fields that have been
 ignored for various reasons (e.g., due to malformed data or indexing rules). This field ensures that even ignored
 field values can be accessed if needed. The `_ignored_source` field is not returned by default and must be explicitly
-requested via <<retrieve-selected-fields,the fields or stored fields>> API using `_ignored_source` as the field name.
+requested via the <<search-fields,fields or stored fields>> API using `_ignored_source` as the field name.
 Additionally, the field is encoded, and the encoding format may change over time, so users should not rely on the
 encoding or the field name remaining the same.
 

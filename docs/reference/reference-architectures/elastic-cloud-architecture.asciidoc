@@ -41,7 +41,7 @@ The following table shows the recommended Elastic Cloud instance types and under
 Elastic Cloud allows you to deploy clusters in AWS, Azure and Google Cloud.   Available hardware types and configurations vary across all three cloud providers but each provides instance types that meet our recommendations for the node types used in this architecture:
 
 * **Data - Hot:** since the hot tier is responsible for ingest, search and force-merge (when creating the searchable snapshots to roll data over to the frozen tier), cpu-optimized nodes with solid state drives are strongly recommended.   Hot nodes should have a disk:memory ratio no higher than 45:1 and the vCPU:RAM ratio should be a minimum of 0.500.
-* **Data - Frozen:** the frozen tier uses a local cache to hold data from the Snapshot Store in the cloud providers’ object store.   For the best query performance in the frozen tier, frozen nodes should use solid state drives with a disk:memory ratio of at least 75:1 and a vCPU:RAM ratio of at least 0.133.
+* **Data - Frozen:** the frozen tier uses a local cache to hold data from the Snapshot Store in the cloud providers' object store.   For the best query performance in the frozen tier, frozen nodes should use solid state drives with a disk:memory ratio of at least 75:1 and a vCPU:RAM ratio of at least 0.133.
 * **Machine Learning:** Storage is not a key factor for ML nodes, however CPU and memory are important considerations.   Each of our recommended instance types for machine learning have a vCPU:RAM ratio of at least 0.250.
 * **Master:**  Storage is not a key factor for master nodes, however CPU and memory are important considerations.   Each of our recommended instance types for master nodes have a vCPU:RAM ratio of at least  0.500.
 * **Kibana:** Storage is not a key factor for kibana nodes, however CPU and memory are important considerations.   Each of our recommended instance types for kibana nodes have a vCPU:RAM ratio of at least  0.500.
@@ -51,20 +51,12 @@ The following table shows our specific recommendations for nodes in this archite
 [cols="25, 25, 25, 25"]
 |===
 | *Type* | *AWS Instance/Type* | *Azure Instance/Type* | *GCP Instance/Type*
-a|image::images/hot.jpg["An Elastic Cloud Architecture"] 
-
-| aws.es.datahot.c6gd
-
-c6gd |
-azure.es.datahot.fsv2
-
-f32sv2
-|
-gcp.es.datahot.n2.68x32x45
+|image:images/hot.png["An Elastic Cloud Architecture"] | aws.es.datahot.c6gd
+c6gd |azure.es.datahot.fsv2
+f32sv2|gcp.es.datahot.n2.68x32x45
 
 N2
-a|image::images/frozen.png["An Elastic Cloud Architecture"] 
-
+|image:images/frozen.png["An Elastic Cloud Architecture"] 
 | aws.es.datafrozen.i3en
 
 i3en
@@ -72,67 +64,46 @@ i3en
 azure.es.datafrozen.edsv4
 
 e8dsv4
-
 |
 gcp.es.datafrozen.n2.68x10x95
 
 N2
-
-a|image::images/machine-learning.png["An Elastic Cloud Architecture"] 
-
+|image:images/machine-learning.png["An Elastic Cloud Architecture"] 
 | aws.es.ml.m6gd
 
 m6gd
-
- |
+|
 azure.es.ml.fsv2
 
 f32sv2
-
-
 |
 gcp.es.ml.n2.68x32x45
 
 N2
-
-
-a|image::images/master.png["An Elastic Cloud Architecture"] 
-
+|image:images/master.png["An Elastic Cloud Architecture"] 
 | aws.es.master.c6gd
 
 c6gd
-
- |
+|
 azure.es.master.fsv2
 
 f32sv2
-
-
 |
 gcp.es.master.n2.68x32x45
 
 N2
-
-
-a|image::images/kibana.png["An Elastic Cloud Architecture"] 
-
+|image:images/kibana.png["An Elastic Cloud Architecture"] 
 | aws.kibana.c6gd
 
 c6gd
-
- |
+|
 azure.kibana.fsv2
 
 f32sv2
-
-
 |
 gcp.kibana.n2.68x32x45
 
-N2
-
-
- |
+N2|
 |===
 
 [discrete]
@@ -187,7 +158,7 @@ The following list are important conderations for this architecture:
 *** *Distribution:* In a distributed system, any distributed process is only as fast as the slowest node. As a result, it is optimal to maintain indexes with a primary shard count that is a multiple of the node count in a given tier. This creates even distribution of processing and prevents hotspots.
 **** Shard distribution should be enforced using the https://www.elastic.co/guide/en/elasticsearch/reference/current/size-your-shards.html#avoid-node-hotspots[‘total shards per node’] index level setting 
 **** Note: For consistent index level settings is it easiest to use index lifecycle management with index templates, please see the section below for more detail.
-*** *Shard allocation awareness:* To prevent both a primary and a replica from being copied to the same zone, or in this case the same pod, you can use https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-cluster.html#shard-allocation-awareness[shard allocation awareness] and define a simple attribute in the elaticsearch.yaml file on a per-node basis to make Elasticsearch aware of the physical topology and route shards appropriately. In deployment models with multiple availability zones, AZ’s would be used in place of pod location.
+*** *Shard allocation awareness:* To prevent both a primary and a replica from being copied to the same zone, or in this case the same pod, you can use https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-cluster.html#shard-allocation-awareness[shard allocation awareness] and define a simple attribute in the elaticsearch.yaml file on a per-node basis to make Elasticsearch aware of the physical topology and route shards appropriately. In deployment models with multiple availability zones, AZ's would be used in place of pod location.
 * **Limitations of this architecture.**
 ** This architecture is a high-availability Elasticsearch architecture.  It is not intended as a Disaster Recovery architecture since it is deployed across Availability Zones in a single cloud region.   This architecture can be enhanced for Disaster Recovery by adding a second deployment in another cloud region.   Details on Disaster Recovery for Elasticsearch can be found here.
 

@@ -1,8 +1,6 @@
 [[reference-architectures]]
 = Reference Architectures
 
-[partintro]
---
 Elasticsearch Reference Architectures serve as essential blueprints for deploying, managing, and optimizing Elasticsearch clusters tailored to different use cases. These architectures provide standardized, proven solutions that help users with best practices for infrastructure setup, data ingestion, indexing, search performance, and high availability. Whether you're handling logs, metrics, or sophisticated search applications, these reference architectures ensure scalability, reliability, and efficient resource utilization. By leveraging these guidelines, organizations can confidently deploy Elasticsearch, achieving optimal performance while minimizing risks and complexities.
 
 TIP: You can host {es} on your own hardware or send your data to {es} on {ecloud} or serverless. 
@@ -47,6 +45,17 @@ You want to:
 * Ipsum lorem 
 * Lorem ipsum
 
+| <<self-managed-single-datacenter>>
+
+image:reference-architectures/images/single-datacenter.png[Image showing a single datacenter architecture]
+
+a| 
+You want to:
+
+* TBD
+* TBD.
+
+|
 |===
 
 [discrete]
@@ -54,11 +63,7 @@ You want to:
 === Ingest Architectures
 
 Additionally, we have architectures specifically tailored to the ingestion portion of your architecture and these can be found at, https://www.elastic.co/guide/en/ingest/current/use-case-arch.html[Ingest Architectures]
---
-
-
-
-
 
 include::reference-architectures/multi-region-two-datacenter-architecture.asciidoc[]
 include::reference-architectures/elastic-cloud-architecture.asciidoc[]
+include::reference-architectures/self-managed-single-datacenter.asciidoc[]

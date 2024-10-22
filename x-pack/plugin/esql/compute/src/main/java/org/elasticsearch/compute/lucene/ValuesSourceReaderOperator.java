@@ -389,20 +389,20 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
                 FieldWork field = fields[f];
                 rowStride[f] = field.rowStride(ctx);
                 storedFieldsSpec = storedFieldsSpec.merge(field.loader.rowStrideStoredFieldSpec());
-                SourceLoader sourceLoader = null;
-                if (storedFieldsSpec.requiresSource()) {
-                    sourceLoader = shardContexts.get(shard).newSourceLoader.get();
-                    storedFieldsSpec = storedFieldsSpec.merge(
-                        new StoredFieldsSpec(true, storedFieldsSpec.requiresMetadata(), sourceLoader.requiredStoredFields())
-                    );
-                }
-                storedFields = new BlockLoaderStoredFieldsFromLeafLoader(
-                    StoredFieldLoader.fromSpec(storedFieldsSpec).getLoader(ctx, null),
-                    sourceLoader != null ? sourceLoader.leaf(ctx.reader(), null) : null
+            }
+            SourceLoader sourceLoader = null;
+            if (storedFieldsSpec.requiresSource()) {
+                sourceLoader = shardContexts.get(shard).newSourceLoader.get();
+                storedFieldsSpec = storedFieldsSpec.merge(
+                    new StoredFieldsSpec(true, storedFieldsSpec.requiresMetadata(), sourceLoader.requiredStoredFields())
                 );
-                if (false == storedFieldsSpec.equals(StoredFieldsSpec.NO_REQUIREMENTS)) {
-                    trackStoredFields(storedFieldsSpec, false);
-                }
+            }
+            storedFields = new BlockLoaderStoredFieldsFromLeafLoader(
+                StoredFieldLoader.fromSpec(storedFieldsSpec).getLoader(ctx, null),
+                sourceLoader != null ? sourceLoader.leaf(ctx.reader(), null) : null
+            );
+            if (false == storedFieldsSpec.equals(StoredFieldsSpec.NO_REQUIREMENTS)) {
+                trackStoredFields(storedFieldsSpec, false);
             }
         }
 

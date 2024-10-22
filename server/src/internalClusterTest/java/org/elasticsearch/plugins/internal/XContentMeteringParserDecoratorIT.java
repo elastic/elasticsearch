@@ -9,7 +9,6 @@
 
 package org.elasticsearch.plugins.internal;
 
-import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineFactory;
@@ -126,7 +125,7 @@ public class XContentMeteringParserDecoratorIT extends ESIntegTestCase {
         public DocumentParsingProvider getDocumentParsingProvider() {
             return new DocumentParsingProvider() {
                 @Override
-                public <T> XContentMeteringParserDecorator newMeteringParserDecorator(DocWriteRequest<T> request) {
+                public <T> XContentMeteringParserDecorator newMeteringParserDecorator(IndexRequest request) {
                     return new TestXContentMeteringParserDecorator(0L);
                 }
 

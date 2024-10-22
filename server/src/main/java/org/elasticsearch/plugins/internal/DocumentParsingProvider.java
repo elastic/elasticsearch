@@ -9,7 +9,6 @@
 
 package org.elasticsearch.plugins.internal;
 
-import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.index.mapper.MapperService;
 

@@ -411,7 +411,12 @@ public class EsqlCapabilities {
         /**
          * Support for semantic_text field mapping
          */
-        SEMANTIC_TEXT_TYPE(EsqlCorePlugin.SEMANTIC_TEXT_FEATURE_FLAG);
+        SEMANTIC_TEXT_TYPE(EsqlCorePlugin.SEMANTIC_TEXT_FEATURE_FLAG),
+
+        /**
+         * Support simplified syntax for named parameters for field and function names.
+         */
+        NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES_SIMPLIFIED_SYNTAX(Build.current().isSnapshot());
 
         private final boolean enabled;
 

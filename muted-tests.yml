@@ -309,12 +309,6 @@ tests:
   method: testInferDeploysDefaultElser
   issue: https://github.com/elastic/elasticsearch/issues/114913
 - class: org.elasticsearch.upgrades.MultiVersionRepositoryAccessIT
-  method: testUpgradeMovesRepoToNewMetaVersion
-  issue: https://github.com/elastic/elasticsearch/issues/114994
-- class: org.elasticsearch.upgrades.MultiVersionRepositoryAccessIT
-  method: testReadOnlyRepo
-  issue: https://github.com/elastic/elasticsearch/issues/114997
-- class: org.elasticsearch.upgrades.MultiVersionRepositoryAccessIT
   method: testCreateAndRestoreSnapshot
   issue: https://github.com/elastic/elasticsearch/issues/114998
 - class: org.elasticsearch.index.mapper.TextFieldMapperTests

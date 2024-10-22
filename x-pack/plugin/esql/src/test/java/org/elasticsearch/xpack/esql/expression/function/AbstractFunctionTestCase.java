@@ -752,6 +752,12 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         assertEquals(returnFromSignature, returnTypes);
     }
 
+    /**
+     * Asserts the result of a test case matches the expected result and warnings.
+     * <p>
+     * The {@code result} parameter should be an object as returned by {@link #toJavaObjectUnsignedLongAware}.
+     * </p>
+     */
     @SuppressWarnings("unchecked")
     protected final void assertTestCaseResultAndWarnings(Object result) {
         if (result instanceof Iterable<?>) {
@@ -760,6 +766,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             assertThat(collectionResult, not(hasItem(Double.POSITIVE_INFINITY)));
             assertThat(collectionResult, not(hasItem(Double.NEGATIVE_INFINITY)));
         }
+
         assert testCase.getMatcher().matches(Double.NaN) == false;
         assertThat(result, not(equalTo(Double.NaN)));
         assert testCase.getMatcher().matches(Double.POSITIVE_INFINITY) == false;
@@ -767,6 +774,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         assert testCase.getMatcher().matches(Double.NEGATIVE_INFINITY) == false;
         assertThat(result, not(equalTo(Double.NEGATIVE_INFINITY)));
         assertThat(result, testCase.getMatcher());
+
         if (testCase.getExpectedWarnings() != null) {
             assertWarnings(testCase.getExpectedWarnings());
         }

@@ -49,11 +49,11 @@ import java.util.Set;
 
 public class SinglePassGroupingCollectorTests extends ESTestCase {
     private static class SegmentSearcher extends IndexSearcher {
-        private final List<LeafReaderContext> ctx;
+        private final LeafReaderContextPartition[] ctx;
 
         SegmentSearcher(LeafReaderContext ctx, IndexReaderContext parent) {
             super(parent);
-            this.ctx = Collections.singletonList(ctx);
+            this.ctx = new LeafReaderContextPartition[] { IndexSearcher.LeafReaderContextPartition.createForEntireSegment(ctx) };
         }
 
         public void search(Weight weight, Collector collector) throws IOException {
@@ -62,7 +62,7 @@ public class SinglePassGroupingCollectorTests extends ESTestCase {
 
         @Override
         public String toString() {
-            return "ShardSearcher(" + ctx.get(0) + ")";
+            return "ShardSearcher(" + ctx[0] + ")";
         }
     }
 
@@ -140,10 +140,10 @@ public class SinglePassGroupingCollectorTests extends ESTestCase {
         TopFieldGroups collapseTopFieldDocs = collapsingCollector.getTopGroups(0);
         assertEquals(collapseField.getField(), collapseTopFieldDocs.field);
         assertEquals(expectedNumGroups, collapseTopFieldDocs.scoreDocs.length);
-        assertEquals(totalHits, collapseTopFieldDocs.totalHits.value);
-        assertEquals(TotalHits.Relation.EQUAL_TO, collapseTopFieldDocs.totalHits.relation);
+        assertEquals(totalHits, collapseTopFieldDocs.totalHits.value());
+        assertEquals(TotalHits.Relation.EQUAL_TO, collapseTopFieldDocs.totalHits.relation());
         assertEquals(totalHits, topDocs.scoreDocs.length);
-        assertEquals(totalHits, topDocs.totalHits.value);
+        assertEquals(totalHits, topDocs.totalHits.value());
 
         Set<Object> seen = new HashSet<>();
         // collapse field is the last sort

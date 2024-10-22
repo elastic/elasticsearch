@@ -12,7 +12,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
-import org.elasticsearch.compute.aggregation.Warnings;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -21,8 +20,7 @@ import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.ml.aggs.categorization.TokenListCategorizer;
 import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzer;
@@ -34,17 +32,18 @@ public class CategorizeRawBlockHash extends AbstractCategorizeBlockHash {
 
     CategorizeRawBlockHash(
         BlockFactory blockFactory,
+        int channel,
         boolean outputPartial,
-        TokenListCategorizer.CloseableTokenListCategorizer categorizer,
-        CategorizeEvaluator evaluator
+        CategorizationAnalyzer analyzer,
+        TokenListCategorizer.CloseableTokenListCategorizer categorizer
     ) {
-        super(blockFactory, outputPartial, categorizer);
-        this.evaluator = evaluator;
+        super(blockFactory, channel, outputPartial, categorizer);
+        this.evaluator = new CategorizeEvaluator(analyzer, categorizer, blockFactory);
     }
 
     @Override
     public void add(Page page, GroupingAggregatorFunction.AddInput addInput) {
-        IntBlock result = (IntBlock) evaluator.eval(page);
+        IntBlock result = (IntBlock) evaluator.eval(page.getBlock(channel()));
         addInput.add(0, result);
     }
 
@@ -66,18 +65,14 @@ public class CategorizeRawBlockHash extends AbstractCategorizeBlockHash {
     }
 
     /**
-     * NOCOMMIT: Super-duper copy-pasted.
+     * NOCOMMIT: Super-duper copy-pasted from the actually generated evaluator; needs cleanup.
      */
-    public static final class CategorizeEvaluator implements EvalOperator.ExpressionEvaluator {
-        private final Warnings warnings;
-
-        private final EvalOperator.ExpressionEvaluator v;
-
+    public static final class CategorizeEvaluator implements Releasable {
         private final CategorizationAnalyzer analyzer;
 
         private final TokenListCategorizer.CloseableTokenListCategorizer categorizer;
 
-        private final DriverContext driverContext;
+        private final BlockFactory blockFactory;
 
         static int process(
             BytesRef v,
@@ -93,31 +88,25 @@ public class CategorizeRawBlockHash extends AbstractCategorizeBlockHash {
         }
 
         public CategorizeEvaluator(
-            EvalOperator.ExpressionEvaluator v,
             CategorizationAnalyzer analyzer,
             TokenListCategorizer.CloseableTokenListCategorizer categorizer,
-            DriverContext driverContext
+            BlockFactory blockFactory
         ) {
-            this.v = v;
             this.analyzer = analyzer;
             this.categorizer = categorizer;
-            this.driverContext = driverContext;
-            this.warnings = Warnings.createWarnings(driverContext.warningsMode(), -1, -1, "");
+            this.blockFactory = blockFactory;
         }
 
-        @Override
-        public Block eval(Page page) {
-            try (BytesRefBlock vBlock = (BytesRefBlock) v.eval(page)) {
-                BytesRefVector vVector = vBlock.asVector();
-                if (vVector == null) {
-                    return eval(page.getPositionCount(), vBlock);
-                }
-                return eval(page.getPositionCount(), vVector).asBlock();
+        public Block eval(BytesRefBlock vBlock) {
+            BytesRefVector vVector = vBlock.asVector();
+            if (vVector == null) {
+                return eval(vBlock.getPositionCount(), vBlock);
             }
+            return eval(vBlock.getPositionCount(), vVector).asBlock();
         }
 
         public IntBlock eval(int positionCount, BytesRefBlock vBlock) {
-            try (IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
+            try (IntBlock.Builder result = blockFactory.newIntBlockBuilder(positionCount)) {
                 BytesRef vScratch = new BytesRef();
                 position: for (int p = 0; p < positionCount; p++) {
                     if (vBlock.isNull(p)) {
@@ -126,7 +115,7 @@ public class CategorizeRawBlockHash extends AbstractCategorizeBlockHash {
                     }
                     if (vBlock.getValueCount(p) != 1) {
                         if (vBlock.getValueCount(p) > 1) {
-                            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+                            // TODO: handle multi-values
                         }
                         result.appendNull();
                         continue position;
@@ -138,7 +127,7 @@ public class CategorizeRawBlockHash extends AbstractCategorizeBlockHash {
         }
 
         public IntVector eval(int positionCount, BytesRefVector vVector) {
-            try (IntVector.FixedBuilder result = driverContext.blockFactory().newIntVectorFixedBuilder(positionCount)) {
+            try (IntVector.FixedBuilder result = blockFactory.newIntVectorFixedBuilder(positionCount)) {
                 BytesRef vScratch = new BytesRef();
                 position: for (int p = 0; p < positionCount; p++) {
                     result.appendInt(p, process(vVector.getBytesRef(p, vScratch), this.analyzer, this.categorizer));
@@ -149,12 +138,12 @@ public class CategorizeRawBlockHash extends AbstractCategorizeBlockHash {
 
         @Override
         public String toString() {
-            return "CategorizeEvaluator[" + "v=" + v + "]";
+            return "CategorizeEvaluator";
         }
 
         @Override
         public void close() {
-            Releasables.closeExpectNoException(v, analyzer, categorizer);
+            Releasables.closeExpectNoException(analyzer, categorizer);
         }
     }
 }

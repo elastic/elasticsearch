@@ -29,7 +29,6 @@ import java.util.Map;
 
 public class CategorizedIntermediateBlockHash extends AbstractCategorizeBlockHash {
     private final IntBlockHash hash;
-    private final int channel;
 
     CategorizedIntermediateBlockHash(
         BlockFactory blockFactory,
@@ -38,13 +37,12 @@ public class CategorizedIntermediateBlockHash extends AbstractCategorizeBlockHas
         IntBlockHash hash,
         int channel
     ) {
-        super(blockFactory, outputPartial, categorizer);
+        super(blockFactory, channel, outputPartial, categorizer);
         this.hash = hash;
-        this.channel = channel;
     }
 
     public void add(Page page, GroupingAggregatorFunction.AddInput addInput) {
-        CompositeBlock block = page.getBlock(channel);
+        CompositeBlock block = page.getBlock(channel());
         BytesRefBlock groupingState = block.getBlock(0);
         BytesRefBlock groups = block.getBlock(0);
         Map<Integer, Integer> idMap;

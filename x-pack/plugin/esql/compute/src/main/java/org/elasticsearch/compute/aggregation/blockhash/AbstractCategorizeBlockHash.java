@@ -20,17 +20,25 @@ import org.elasticsearch.xpack.ml.aggs.categorization.TokenListCategorizer;
 import java.io.IOException;
 
 public abstract class AbstractCategorizeBlockHash extends BlockHash {
+    // TODO: this should probably also take an emitBatchSize
+    private final int channel;
     private final boolean outputPartial;
     protected final TokenListCategorizer.CloseableTokenListCategorizer categorizer;
 
     AbstractCategorizeBlockHash(
         BlockFactory blockFactory,
+        int channel,
         boolean outputPartial,
         TokenListCategorizer.CloseableTokenListCategorizer categorizer
     ) {
         super(blockFactory);
+        this.channel = channel;
         this.outputPartial = outputPartial;
         this.categorizer = categorizer;
+    }
+
+    protected int channel() {
+        return channel;
     }
 
     @Override

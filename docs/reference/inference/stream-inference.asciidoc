@@ -86,7 +86,7 @@ POST _inference/completion/openai-completion/_stream
 The API returns the following response:
 
 
-[source,console-result]
+[source,txt]
 ------------------------------------------------------------
 event: message
 data: {

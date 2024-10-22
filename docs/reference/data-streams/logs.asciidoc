@@ -58,11 +58,14 @@ DELETE _index_template/my-index-template
 === Synthetic source
 
 By default, `logsdb` mode uses  <<synthetic-source,synthetic `_source`>>, which omits storing the original `_source`
-field and synthesizes it from doc values or stored fields upon document retrieval.
+field and synthesizes it from doc values or stored fields upon document retrieval. Synthetic source comes with a few
+restrictions which you can read more about in the <<synthetic-source,documentation>> section dedicated to it.
 
-The `index.mapping.synthetic_source_keep` setting controls how field values are preserved for
-<<synthetic-source,synthetic `_source`>> reconstruction. The default value in `logsdb` is `arrays`, meaning that array
-values are kept to preserve the structure of arrays.
+NOTE: When dealing with multi-value fields, the `index.mapping.synthetic_source_keep` setting controls how field values
+are preserved for <<synthetic-source,synthetic `_source`>> reconstruction. In `logsdb`, the default value is `arrays`,
+which retains both duplicate values and the order of entries but not necessarily the exact structure when it comes to
+array elements or objects. Preserving duplicates and ordering could be critical for some log fields. This could be the
+case, for instance, for DNS A records, HTTP headers, or log entries that represent sequential or repeated events.
 
 [discrete]
 [[logsdb-data-streams]]
@@ -72,7 +75,7 @@ In Elasticsearch, `logsdb` mode is applied by default for data streams whose nam
 This pattern identifies a logs data stream, and Elasticsearch automatically configures the data stream to use LogsDB.
 We recommend using `logsdb` index mode for data streams by means of standard or custom (component) templates.
 
-Users are allowed to opt out of `logsdb` mode by overriding the `index.mode` setting in the index settings or by
+Users are allowed to opt out of `logsdb` index mode by overriding the `index.mode` setting in the index settings or by
 using composable or index templates to customize the indexing configuration. This allows for flexibility in choosing
 the appropriate indexing mode for different data streams if LogsDB is not desired.
 
@@ -87,7 +90,8 @@ The following settings are applied by default when using the `logsdb` mode for i
 
 * `index.sort.field`: `["host.name", "@timestamp"]`
   In `logsdb` mode, indices are sorted by `host.name` and `@timestamp` fields by default. For data streams, the
-  `@timestamp` field is automatically injected if it is not present.
+  `@timestamp` field is automatically injected if it is not present. For `logsdb` indices also the `host.name` field
+  is automatically injected if using default sort settings.
 
 * `index.sort.order`: `["desc", "desc"]`
   The default sort order for both fields is descending (`desc`), prioritizing the latest data.
@@ -96,16 +100,16 @@ The following settings are applied by default when using the `logsdb` mode for i
   The default sort mode is `min`, ensuring that indices are sorted by the minimum value of multi-valued fields.
 
 * `index.sort.missing`: `["_first", "_first"]`
-  Missing values are sorted to appear first (`_first`) in `logsdb` mode.
+  Missing values are sorted to appear first (`_first`) in `logsdb` index mode.
 
-`logsdb` mode allows users to override the default sort settings. For instance, users can specify their own fields
+`logsdb` index mode allows users to override the default sort settings. For instance, users can specify their own fields
 and order for sorting by modifying the `index.sort.field` and `index.sort.order`.
 
-If no custom sort settings are used, the `host.name` field is automatically injected into the mappings of the
+When using default sort settings, the `host.name` field is automatically injected into the mappings of the
 index as a `keyword` field to ensure that sorting can be applied. This guarantees that logs are efficiently sorted and
 retrieved based on the `host.name` and `@timestamp` fields.
 
-If `subobjects` is set to `true` (which is the default), the `host.name` field will be mapped as an object field
+NOTE: If `subobjects` is set to `true` (which is the default), the `host.name` field will be mapped as an object field
 named `host`, containing a `name` child field of type `keyword`. On the other hand, if `subobjects` is set to `false`,
 a single `host.name` field will be mapped as a `keyword` field.
 
@@ -120,7 +124,7 @@ due to how data is distributed for sorting.
 [[logsdb-specialized-codecs]]
 === Specialized codecs
 
-`logsdb` mode uses the `best_compression` codec by default, which applies {wikipedia}/Zstd[ZSTD] compression to stored
+`logsdb` index mode uses the `best_compression` codec by default, which applies {wikipedia}/Zstd[ZSTD] compression to stored
 fields.
 
 Users are allowed to override the default compression codec. If desired, they can switch to the `best_speed`
@@ -134,10 +138,19 @@ codec for faster compression at the expense of slightly larger storage footprint
   If faster indexing performance is required, users can opt for `best_speed` compression, which sacrifices some storage
   efficiency for higher indexing throughput.
 
-`logsdb` mode adopts specialized codecs for `doc_values` fields that are crafted to optimize storage usage.
-Users can rely on these specialized codecs being applied by default when using `logsdb` mode.
+`logsdb` index mode adopts specialized codecs for `doc_values` fields that are crafted to optimize storage usage.
+Users can rely on these specialized codecs being applied by default when using `logsdb` index mode.
 
-Doc values encoding for numeric values in `logsdb` applies the following methods sequentially:
+Doc values encoding for numeric fields in `logsdb` follows a static sequence of codecs, applying each one in the
+following order: delta encoding, offset encoding, GCD encoding, and finally Frame Of Reference (FOR) encoding.
+The decision to apply each encoding is based on heuristics determined by the data distribution. For example, before
+applying delta encoding, the algorithm checks if the data is monotonically non-decreasing or non-increasing. If the data
+fits this pattern, delta encoding is applied; otherwise, the next encoding is considered.
+
+The encoding is specific to each Lucene segment and is also re-applied at segment merging time. The merged Lucene segment
+may use a different encoding compared to the original Lucene segments, based on the characteristics of the merged data.
+
+The following methods are applied sequentially:
 
 * **Delta encoding**:
   A compression method that stores the difference between consecutive values instead of the actual values.
@@ -150,55 +163,59 @@ Doc values encoding for numeric values in `logsdb` applies the following methods
   as multiples of the GCD.
 
 * **Frame Of Reference (FOR) encoding**:
-  A compression method that stores differences from a reference (minimum value) in fixed-length blocks, reducing
-  the bits needed to represent values in a limited range.
+  A compression method that determines the smallest number of bits required to encode a block of values and uses
+  bit-packing to fit such values into larger 64-bit blocks.
 
-For keyword fields, Run Length Encoding (RLE) is applied to the ordinals, which are indices in the Lucene segment-level
-keyword lookup table.
+For keyword fields, Run Length Encoding (RLE) is applied to the ordinals, which represent positions in the Lucene
+segment-level keyword dictionary. This compression is used when multiple consecutive documents share the same keyword.
 
 [discrete]
 [[logsdb-ignored-settings]]
-=== `ignore_malformed` and `ignore_above` settings
+=== `ignore_malformed`, `ignore_above`, `ignore_dynamic_beyond_limit` and `_ignored_source`
 
-By default, `logsdb` mode sets `ignore_malformed` to `true`. This setting allows documents with malformed fields to be
-indexed without causing indexing failures, ensuring that log data ingestion continues smoothly even when some fields
-contain invalid or improperly formatted data.
-
-* `index.mapping.ignore_malformed`: `true`
-  This setting ensures that malformed fields are ignored during indexing.
+By default, `logsdb` index mode sets `ignore_malformed` to `true`. This setting allows documents with malformed fields
+to be indexed without causing indexing failures, ensuring that log data ingestion continues smoothly even when some
+fields contain invalid or improperly formatted data.
 
 Users can override this setting by setting `ignore_malformed` to `false`. However, this is not recommended as it might
 result in documents with malformed fields being rejected and not indexed at all.
 
-In `logsdb` mode, the `index.mapping.ignore_above` setting is applied by default at the index level to ensure efficient
-storage and indexing of large text fields.
+In `logsdb` index mode, the `index.mapping.ignore_above` setting is applied by default at the index level to ensure
+efficient storage and indexing of large text fields.The index-level default for `ignore_above` is set to 8191
+**characters**. If using UTF-8 encoding, this results in a limit of 32764 bytes, depending on character encoding.
 The mapping-level `ignore_above` setting still takes precedence. If a specific field has an `ignore_above` value
-defined in its mapping, that value will override the index-level `index.mapping.ignore_above` default. The index-level
-default for `ignore_above` is set to 8191 **characters**. If using UTF-8 encoding, this results
-in a limit of 32764 bytes, depending on character encoding.
+defined in its mapping, that value will override the index-level `index.mapping.ignore_above` default.
 
 This default behavior helps to optimize indexing performance by preventing excessively large string values from being
 indexed, while still allowing users to customize the limit overriding it at the mapping level or changing the index
 level default setting.
 
-`logsdb` mode uses a special field named `_ignored_source` that allows retrieving values for fields that have been
-ignored for various reasons (e.g., due to malformed data or indexing rules). This field ensures that even ignored
-field values can be accessed if needed.
+In `logsdb` index mode, the setting `index.mapping.total_fields.ignore_dynamic_beyond_limit` is set to `true` by
+default. This allows dynamically mapped fields to be added on top of statically defined fields without causing document
+rejection, even after the total number of fields exceeds the limit defined by `index.mapping.total_fields.limit`.
 
-The `_ignored_source` field is not returned by default and must be explicitly requested. Additionally, the field is
+The `index.mapping.total_fields.limit` setting specifies the maximum number of fields an index can have
+(static, dynamic and runtime). When the limit is reached, new dynamically mapped fields will be ignored instead of
+failing the document indexing, ensuring continued log ingestion without errors.
+
+NOTE: when automatically injected `host.name` and `timestamp` contribute to the count of fields. When `host.name` is
+mapped with `subobjects: true` it consists of two fields. When `host.name` is mapped with `subobjects: false` it only
+consists of one field.
+
+`logsdb` index mode uses a special field named `_ignored_source` that allows retrieving values for fields that have been
+ignored for various reasons (e.g., due to malformed data or indexing rules). This field ensures that even ignored
+field values can be accessed if needed. The `_ignored_source` field is not returned by default and must be explicitly
+requested via the field or stored fields API using `_ignored_source` as the field name. Additionally, the field is
 encoded, and the encoding format may change over time, so users should not rely on the encoding or the field name
 remaining the same.
-
-To retrieve this field, it must be explicitly requested either via the field or stored fields API using
-`_ignored_source` as the field name.
 
 [discrete]
 [[logsdb-nodocvalue-fields]]
 === Fields without doc values
 
-When `logsdb` mode uses synthetic `_source`, and `doc_values` are disabled for a field in the mapping, Elasticsearch
-automatically sets the `store` setting to `true` for that field. This ensures that the field's data is still available
-for reconstructing the document’s source when retrieving it via <<synthetic-source,synthetic `_source`>>.
+When `logsdb` index mode uses synthetic `_source`, and `doc_values` are disabled for a field in the mapping,
+Elasticsearch automatically sets the `store` setting to `true` for that field. This ensures that the field's data is
+still available for reconstructing the document’s source when retrieving it via <<synthetic-source,synthetic `_source`>>.
 This automatic adjustment allows synthetic source to work correctly, even when doc values are not enabled for certain
 fields.
 
@@ -206,48 +223,26 @@ fields.
 [[logsdb-settings-summary]]
 === LogsDB settings summary
 
-The following is a summary of key settings that apply when using `logsdb` mode in Elasticsearch:
+The following is a summary of key settings that apply when using `logsdb` index mode in Elasticsearch:
 
 * **`index.mode`**: `"logsdb"`
-  Controls the use of `logsdb` mode for indices or data streams, optimizing them for efficient storage and query
-  performance.
 
 * **`index.mapping.synthetic_source_keep`**: `"arrays"`
-  Controls how array values are preserved for <<synthetic-source,synthetic `_source`>> reconstruction.
 
 * **`index.sort.field`**: `["host.name", "@timestamp"]`
-  Controls the default fields for sorting in `logsdb` mode (`host.name` and `@timestamp`).
 
 * **`index.sort.order`**: `["desc", "desc"]`
-  Controls the default sort order for `host.name` and `@timestamp`, prioritizing descending values for the latest logs.
 
 * **`index.sort.mode`**: `["min", "min"]`
-  Controls the default sort mode for multi-valued fields, sorting by the minimum value.
 
 * **`index.sort.missing`**: `["_first", "_first"]`
-  Controls how missing values are sorted, ensuring they appear first by default.
 
 * **`index.codec`**: `"best_compression"`
-  Controls the default compression codec for `logsdb` mode, applying {wikipedia}/Zstd[ZSTD] compression to
-  stored fields.
 
 * **`index.mapping.ignore_malformed`**: `true`
-  Controls indexing of malformed fields to prevent ingestion failures.
 
 * **`index.mapping.ignore_above`**: `8191`
-  Controls the maximum number of characters allowed for text fields, including <<text-field-type,`text`>> and
-  <<wildcard-field-type,`wildcard`>>.
-
-* **`_ignored_source`**
-  `logsdb` index mode provides access to values for fields ignored due to applying `ignore_malformed`, `ignore_above`,
-  and `ignore_dynamic_beyond_limit`.
 
 * **`index.mapping.total_fields.limit`**: 1000 (same as `"standard"` index mode)
-  Controls the maximum number of field mappings allowed in an index.
 
 * **`index.mapping.total_fields.ignore_dynamic_beyond_limit`**: `true`
-  Controls ignoring values for dynamically mapped fields beyond the field limit without failing document indexing.
-
-* **Fields without `doc_values`**
-  `logsdb` index mode changes the value of `store` to `true` if `doc_values` are disabled for any field, ensuring that
-  <<synthetic-source,synthetic `_source`>> can still reconstruct the field contents.

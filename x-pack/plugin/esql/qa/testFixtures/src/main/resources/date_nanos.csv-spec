@@ -38,9 +38,10 @@ nanos:date_nanos
 mv_min on date nanos
 required_capability: date_nanos_type
 
-FROM date_nanos | SORT millis ASC | EVAL nanos = MV_MIN(nanos) | KEEP nanos | LIMIT 1;
+FROM date_nanos | SORT millis ASC | WHERE millis < "2000-01-01" | EVAL nanos = MV_MIN(nanos) |  KEEP nanos; 
 
 nanos:date_nanos
+2023-03-23T12:15:03.360103847Z
 2023-01-23T13:55:01.543123456Z
 ;
 
@@ -56,9 +57,10 @@ ct:integer
 mv_first on date nanos
 required_capability: date_nanos_type
 
-FROM date_nanos | SORT millis ASC | EVAL nanos = MV_FIRST(nanos) | KEEP nanos | LIMIT 1;
+FROM date_nanos | SORT millis ASC | WHERE millis < "2000-01-01" | EVAL nanos = MV_FIRST(nanos) |  KEEP nanos;
 
 nanos:date_nanos
+2023-03-23T12:15:03.360103847Z
 2023-01-23T13:55:01.543123456Z
 ;
 
@@ -262,4 +264,70 @@ ROW a = TO_DATE_NANOS(null), b = TO_DATE_NANOS(null + 1::long), c = TO_DATE_NANO
 
 a:date_nanos | b:date_nanos | c:date_nanos
 null         | null         | null
+;
+
+Coalasce date nanos
+required_capability: to_date_nanos
+
+ROW a = COALESCE(null, TO_DATE_NANOS(1698069301543123456));
+
+a:date_nanos
+2023-10-23T13:55:01.543123456Z
+;
+
+Case date nanos result
+required_capability: to_date_nanos
+
+ROW a = CASE(false, TO_DATE_NANOS(0::long), TO_DATE_NANOS(1698069301543123456));
+
+a:date_nanos
+2023-10-23T13:55:01.543123456Z
+;
+
+Greatest date nanos
+required_capability: least_greatest_for_datenanos
+
+ROW a = GREATEST(TO_DATE_NANOS("2023-10-23T13:55:01.543123456"), TO_DATE_NANOS("2023-10-23T13:53:55.832987654"));
+
+a:date_nanos
+2023-10-23T13:55:01.543123456Z
+;
+
+Least date nanos
+required_capability: least_greatest_for_datenanos
+
+ROW a = LEAST(TO_DATE_NANOS("2023-10-23T13:55:01.543123456"), TO_DATE_NANOS("2023-10-23T13:53:55.832987654"));
+
+a:date_nanos
+2023-10-23T13:53:55.832987654Z
+;
+
+mv_dedup over date nanos
+required_capability: date_nanos_type
+
+FROM date_nanos | WHERE millis < "2000-01-01" | EVAL a = MV_DEDUPE(nanos) | SORT millis DESC | KEEP a;
+
+a:date_nanos
+[2023-01-23T13:55:01.543123456Z, 2023-02-23T13:33:34.937193000Z, 2023-03-23T12:15:03.360103847Z]
+2023-03-23T12:15:03.360103847Z
+;
+
+mv_sort over date nanos
+required_capability: date_nanos_type
+
+FROM date_nanos | WHERE millis < "2000-01-01" | EVAL a = MV_SORT(nanos, "asc") | SORT millis DESC | KEEP a;
+
+a:date_nanos
+[2023-01-23T13:55:01.543123456Z, 2023-02-23T13:33:34.937193000Z, 2023-03-23T12:15:03.360103847Z]
+[2023-03-23T12:15:03.360103847Z, 2023-03-23T12:15:03.360103847Z, 2023-03-23T12:15:03.360103847Z]
+;
+
+mv_slice over date nanos
+required_capability: date_nanos_type
+
+FROM date_nanos | WHERE millis < "2000-01-01" | EVAL a = MV_SLICE(MV_SORT(nanos, "asc"), 1, 2) | SORT millis DESC | KEEP a;
+
+a:date_nanos
+[2023-02-23T13:33:34.937193000Z, 2023-03-23T12:15:03.360103847Z]
+[2023-03-23T12:15:03.360103847Z, 2023-03-23T12:15:03.360103847Z]
 ;

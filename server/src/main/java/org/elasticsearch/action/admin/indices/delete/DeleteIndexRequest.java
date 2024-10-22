@@ -44,7 +44,7 @@ public class DeleteIndexRequest extends AcknowledgedRequest<DeleteIndexRequest> 
                 .allowClosedIndices(true)
                 .ignoreThrottled(false)
                 .allowFailureIndices(true)
-                .allowSelectors(false)
+                .allowSelectors(true)
                 .build()
         )
         .build();

@@ -292,9 +292,6 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test022InstallPluginsFromLocalArchive
   issue: https://github.com/elastic/elasticsearch/issues/111063
-- class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
-  method: test {yaml=reference/esql/esql-across-clusters/line_196}
-  issue: https://github.com/elastic/elasticsearch/issues/114488
 - class: org.elasticsearch.gradle.internal.PublishPluginFuncTest
   issue: https://github.com/elastic/elasticsearch/issues/114492
 - class: org.elasticsearch.xpack.inference.DefaultElserIT
@@ -381,9 +378,6 @@ tests:
 - class: org.elasticsearch.xpack.rank.rrf.RRFRankClientYamlTestSuiteIT
   method: test {yaml=rrf/800_rrf_with_text_similarity_reranker_retriever/explain using rrf retriever and text-similarity}
   issue: https://github.com/elastic/elasticsearch/issues/114757
-- class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
-  method: test {yaml=reference/esql/esql-across-clusters/line_197}
-  issue: https://github.com/elastic/elasticsearch/issues/114947
 - class: org.elasticsearch.xpack.enrich.EnrichRestIT
   method: test {p0=enrich/50_data_stream/enrich documents over _bulk via a data stream}
   issue: https://github.com/elastic/elasticsearch/issues/114769

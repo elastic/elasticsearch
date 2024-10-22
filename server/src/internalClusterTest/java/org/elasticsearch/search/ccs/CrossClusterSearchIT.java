@@ -759,7 +759,7 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
         assertNotNull(cluster);
         assertThat(cluster.getStatus(), equalTo(Cluster.Status.PARTIAL));
         assertThat(cluster.getTotalShards(), equalTo(totalShards));
-        assertThat(cluster.getSuccessfulShards(), equalTo(totalShards));
+        assertThat(cluster.getSuccessfulShards(), equalTo(totalShards - 1));
         assertThat(cluster.getSkippedShards(), equalTo(0));
         assertThat(cluster.getFailedShards(), equalTo(1));
         assertThat(cluster.getFailures().size(), equalTo(1));

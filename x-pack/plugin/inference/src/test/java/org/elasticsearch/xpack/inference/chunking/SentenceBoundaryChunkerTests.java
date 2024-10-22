@@ -318,7 +318,8 @@ public class SentenceBoundaryChunkerTests extends ESTestCase {
     }
 
     public void testInvalidChunkingSettingsProvided() {
-        ChunkingSettings chunkingSettings = new WordBoundaryChunkingSettings(randomNonNegativeInt(), randomNonNegativeInt());
+        var maxChunkSize = randomIntBetween(10, 300);
+        ChunkingSettings chunkingSettings = new WordBoundaryChunkingSettings(maxChunkSize, randomIntBetween(1, maxChunkSize / 2));
         assertThrows(IllegalArgumentException.class, () -> { new SentenceBoundaryChunker().chunk(TEST_TEXT, chunkingSettings); });
     }
 

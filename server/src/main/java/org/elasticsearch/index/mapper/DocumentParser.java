@@ -811,9 +811,8 @@ public final class DocumentParser {
             if (mapper instanceof ObjectMapper objectMapper) {
                 mode = getSourceKeepMode(context, objectMapper.sourceKeepMode());
                 objectWithFallbackSyntheticSource = mode == Mapper.SourceKeepMode.ALL
-                    || (mode == Mapper.SourceKeepMode.ARRAYS && objectMapper instanceof NestedObjectMapper == false)
                     // Inside nested objects we always store object arrays as a workaround for #115261.
-                    || context.inNestedScope();
+                    || ((context.inNestedScope() || mode == Mapper.SourceKeepMode.ARRAYS) && objectMapper instanceof NestedObjectMapper == false);
             }
             boolean fieldWithFallbackSyntheticSource = false;
             boolean fieldWithStoredArraySource = false;

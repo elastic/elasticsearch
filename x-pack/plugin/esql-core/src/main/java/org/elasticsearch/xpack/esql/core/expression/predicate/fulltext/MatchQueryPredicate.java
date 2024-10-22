@@ -6,8 +6,10 @@
  */
 package org.elasticsearch.xpack.esql.core.expression.predicate.fulltext;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -30,15 +32,21 @@ public class MatchQueryPredicate extends FullTextPredicate {
     );
 
     private final Expression field;
+    private final Double boost;
+    private final Fuzziness fuzziness;
 
     public MatchQueryPredicate(Source source, Expression field, String query, String options) {
         super(source, query, options, singletonList(field));
         this.field = field;
+        this.boost = null;
+        this.fuzziness = null;
     }
 
     public MatchQueryPredicate(Source source, Expression field, String query, Double boost, Fuzziness fuzziness) {
         super(source, query, createOptions(boost, fuzziness), singletonList(field));
         this.field = field;
+        this.boost = boost;
+        this.fuzziness = fuzziness;
     }
 
     private static String createOptions(Double boost, Fuzziness fuzziness) {
@@ -59,6 +67,27 @@ public class MatchQueryPredicate extends FullTextPredicate {
         super(in);
         assert super.children().size() == 1;
         field = super.children().get(0);
+        if (TransportVersions.MATCH_OPERATOR_FUZZINESS_BOOSTING.onOrAfter(in.getTransportVersion())) {
+            boost = in.readOptionalDouble();
+            fuzziness = in.readOptionalWriteable(Fuzziness::new);
+        } else {
+            boost = null;
+            fuzziness = null;
+        }
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        if (TransportVersions.MATCH_OPERATOR_FUZZINESS_BOOSTING.onOrAfter(out.getTransportVersion())) {
+            out.writeOptionalDouble(boost);
+            out.writeOptionalWriteable(fuzziness);
+        }
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
     }
 
     @Override
@@ -77,20 +106,25 @@ public class MatchQueryPredicate extends FullTextPredicate {
 
     @Override
     public int hashCode() {
-        return Objects.hash(field, super.hashCode());
+        return Objects.hash(field, super.hashCode(), boost, fuzziness);
     }
 
     @Override
     public boolean equals(Object obj) {
         if (super.equals(obj)) {
             MatchQueryPredicate other = (MatchQueryPredicate) obj;
-            return Objects.equals(field, other.field);
+            return Objects.equals(field, other.field)
+                && Objects.equals(boost, other.boost)
+                && Objects.equals(fuzziness, other.fuzziness);
         }
         return false;
     }
 
-    @Override
-    public String getWriteableName() {
-        return ENTRY.name;
+    public Double boost() {
+        return boost;
+    }
+
+    public Fuzziness fuzziness() {
+        return fuzziness;
     }
 }

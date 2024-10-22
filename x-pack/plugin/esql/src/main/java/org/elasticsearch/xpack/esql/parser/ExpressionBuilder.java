@@ -15,6 +15,7 @@ import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.Fuzziness;
@@ -956,7 +957,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         } else {
             try {
                 return Fuzziness.fromString(ctx.fuzzinessValue().getText());
-            } catch (IllegalArgumentException e) {
+            } catch (IllegalArgumentException | ElasticsearchParseException e) {
                 throw new ParsingException(source(ctx), "Invalid fuzziness value: [{}]", ctx.fuzzinessValue().getText());
             }
         }

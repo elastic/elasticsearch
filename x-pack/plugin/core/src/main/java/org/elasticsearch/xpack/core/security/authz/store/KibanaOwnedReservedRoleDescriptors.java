@@ -152,8 +152,11 @@ class KibanaOwnedReservedRoleDescriptors {
                 // Data telemetry reads mappings, metadata and stats of indices
                 RoleDescriptor.IndicesPrivileges.builder().indices("*").privileges("view_index_metadata", "monitor").build(),
                 // Endpoint diagnostic information. Kibana reads from these indices to send
-                // telemetry
-                RoleDescriptor.IndicesPrivileges.builder().indices(".logs-endpoint.diagnostic.collection-*").privileges("read").build(),
+                // telemetry and also creates the index when policies are first created
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".logs-endpoint.diagnostic.collection-*")
+                    .privileges("read", "crated_index")
+                    .build(),
                 // Fleet secrets. Kibana can only write to this index.
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(".fleet-secrets*")
@@ -477,7 +480,10 @@ class KibanaOwnedReservedRoleDescriptors {
                 RoleDescriptor.IndicesPrivileges.builder().indices(".slo-observability.*").privileges("all").build(),
                 // Endpoint heartbeat. Kibana reads from these to determine metering/billing for
                 // endpoints.
-                RoleDescriptor.IndicesPrivileges.builder().indices(".logs-endpoint.heartbeat-*").privileges("read").build(),
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".logs-endpoint.heartbeat-*")
+                    .privileges("read", "create_index")
+                    .build(),
                 // For connectors telemetry. Will be removed once we switched to connectors API
                 RoleDescriptor.IndicesPrivileges.builder().indices(".elastic-connectors*").privileges("read").build() },
             null,

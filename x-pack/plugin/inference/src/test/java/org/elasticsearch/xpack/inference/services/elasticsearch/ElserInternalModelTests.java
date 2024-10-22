@@ -21,10 +21,10 @@ public class ElserInternalModelTests extends ESTestCase {
             null
         );
 
-        model.updateNumAllocation(1);
+        model.updateNumAllocations(1);
         assertEquals(1, model.getServiceSettings().getNumAllocations().intValue());
 
-        model.updateNumAllocation(null);
+        model.updateNumAllocations(null);
         assertNull(model.getServiceSettings().getNumAllocations());
     }
 }

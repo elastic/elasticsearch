@@ -164,9 +164,6 @@ tests:
 - class: org.elasticsearch.packaging.test.WindowsServiceTests
   method: test80JavaOptsInEnvVar
   issue: https://github.com/elastic/elasticsearch/issues/113219
-- class: org.elasticsearch.xpack.esql.expression.function.aggregate.AvgTests
-  method: "testFold {TestCase=<double> #2}"
-  issue: https://github.com/elastic/elasticsearch/issues/113225
 - class: org.elasticsearch.packaging.test.WindowsServiceTests
   method: test81JavaOptsInJvmOptions
   issue: https://github.com/elastic/elasticsearch/issues/113313
@@ -236,9 +233,6 @@ tests:
 - class: org.elasticsearch.xpack.inference.InferenceCrudIT
   method: testGet
   issue: https://github.com/elastic/elasticsearch/issues/114135
-- class: org.elasticsearch.xpack.esql.expression.function.aggregate.AvgTests
-  method: "testFold {TestCase=<double> #7}"
-  issue: https://github.com/elastic/elasticsearch/issues/114175
 - class: org.elasticsearch.xpack.ilm.ExplainLifecycleIT
   method: testStepInfoPreservedOnAutoRetry
   issue: https://github.com/elastic/elasticsearch/issues/114220

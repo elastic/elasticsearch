@@ -326,6 +326,8 @@ tests:
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=esql/60_usage/Basic ESQL usage output (telemetry)}
   issue: https://github.com/elastic/elasticsearch/issues/115231
+- class: org.elasticsearch.xpack.analytics.rate.TimeSeriesRateAggregatorTests
+  issue: https://github.com/elastic/elasticsearch/issues/115334
 
 # Examples:
 #

@@ -29,12 +29,9 @@ public final class AmazonBedrockInferenceClientCache implements AmazonBedrockCli
     // not final for testing
     private Clock clock;
 
-    public AmazonBedrockInferenceClientCache(
-        BiFunction<AmazonBedrockModel, TimeValue, AmazonBedrockBaseClient> creator,
-        @Nullable Clock clock
-    ) {
+    public AmazonBedrockInferenceClientCache(BiFunction<AmazonBedrockModel, TimeValue, AmazonBedrockBaseClient> creator, Clock clock) {
         this.creator = Objects.requireNonNull(creator);
-        this.clock = Objects.requireNonNullElse(clock, Clock.systemUTC());
+        this.clock = Objects.requireNonNull(clock);
     }
 
     public AmazonBedrockBaseClient getOrCreateClient(AmazonBedrockModel model, @Nullable TimeValue timeout) {

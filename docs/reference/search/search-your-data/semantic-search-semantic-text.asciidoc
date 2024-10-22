@@ -21,8 +21,8 @@ This tutorial uses the <<inference-example-elser,`elser` service>> for demonstra
 [[semantic-text-requirements]]
 ==== Requirements
 
-To use the `semantic_text` field type with an {infer} service other than ELSER, you must have an {infer} endpoint deployed in your cluster using the <<put-inference-api>>.
-If you use ELSER, the {infer} endpoint will be created automatically, when you set up the index with the `semantic_text` field.
+This tutorial uses the <<infer-service-elser,ELSER service>> for demonstration, which is created automatically as needed. 
+To use the `semantic_text` field type with an {infer} service other than ELSER, you must create an inference endpoint using the <<put-inference-api>>.
 
 NOTE: In Serverless, you must create an {infer} endpoint using the <<put-inference-api>> and reference it when setting up `semantic_text` even if you use the ELSER service. 
 
@@ -50,8 +50,8 @@ PUT semantic-embeddings
 // TEST[skip:TBD]
 <1> The name of the field to contain the generated embeddings.
 <2> The field to contain the embeddings is a `semantic_text` field.
-As there is no `inference_id` provided, the <<infer-service-elser,ELSER serive>> will be used by default.
-If you use a different {infer} service, you must create an {infer} endpoint first and then reference it in the `semantic_text` field mapping.
+Since no `inference_id` is provided, the <<infer-service-elser,ELSER service>> is used by default.
+To use a different {infer} service, you must create an {infer} endpoint first using the <<put-inference-api>> and then specify it in the `semantic_text` field mapping using the `inference_id` parameter.
 
 [NOTE]
 ====
@@ -245,6 +245,8 @@ query from the `semantic-embedding` index:
 
 [discrete]
 [[semantic-text-further-examples]]
-==== Further examples
+==== Further examples and reading
 
-If you want to use `semantic_text` in hybrid search, refer to https://colab.research.google.com/github/elastic/elasticsearch-labs/blob/main/notebooks/search/09-semantic-text.ipynb[this notebook] for a step-by-step guide.
+* If you want to use `semantic_text` in hybrid search, refer to https://colab.research.google.com/github/elastic/elasticsearch-labs/blob/main/notebooks/search/09-semantic-text.ipynb[this notebook] for a step-by-step guide.
+* For more information on how to optimize your ELSER endpoints, refer to {ml-docs}/ml-nlp-elser.html#elser-recommendations[the ELSER recommendations] section in the model documentation.
+* To learn more about model autoscaling, refer to the {ml-docs}/ml-nlp-auto-scale.html[trained model autoscaling] page.

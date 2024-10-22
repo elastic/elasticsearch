@@ -881,7 +881,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         );
         assertThat(
             eBadSettings.getMessage(),
-            containsString("partition size [6] should be a positive number less than the number of shards [5]")
+            containsString("partition size [6] should be a positive number less than the number of routing shards [5]")
         );
 
         // provide an invalid mapping for a partitioned index
@@ -913,7 +913,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
 
         assertThat(
             eBadIndex.getMessage(),
-            containsString("partition size [6] should be a positive number less than the number of shards [5]")
+            containsString("partition size [6] should be a positive number less than the number of routing shards [5]")
         );
 
         // finally, create a valid index

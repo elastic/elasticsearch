@@ -29,6 +29,8 @@ import org.apache.lucene.index.SegmentWriteState;
 
 import java.io.IOException;
 
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MAX_DIMS_COUNT;
+
 /**
  * Copied from Lucene, replace with Lucene's implementation sometime after Lucene 10
  */
@@ -66,6 +68,11 @@ public class ES816BinaryQuantizedVectorsFormat extends FlatVectorsFormat {
     @Override
     public FlatVectorsReader fieldsReader(SegmentReadState state) throws IOException {
         return new ES816BinaryQuantizedVectorsReader(state, rawVectorFormat.fieldsReader(state), scorer);
+    }
+
+    @Override
+    public int getMaxDimensions(String fieldName) {
+        return MAX_DIMS_COUNT;
     }
 
     @Override

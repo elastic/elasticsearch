@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.inference.action;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
@@ -36,6 +37,13 @@ public class GetInferenceModelAction extends ActionType<GetInferenceModelAction.
 
         private static boolean PERSIST_DEFAULT_CONFIGS = true;
 
+        public static boolean shouldReadPersistDefault(TransportVersion transportVersion) {
+            // This constant is defined on future branches but we need to know about it here
+            final TransportVersion INFERENCE_DONT_PERSIST_ON_READ = new TransportVersion(8_776_00_0);
+            return transportVersion.onOrAfter(INFERENCE_DONT_PERSIST_ON_READ) ||
+                transportVersion.isPatchFrom(TransportVersions.INFERENCE_DONT_PERSIST_ON_READ_BACKPORT_8_16);
+        }
+
         private final String inferenceEntityId;
         private final TaskType taskType;
         // Default endpoint configurations are persisted on first read.
@@ -62,12 +70,11 @@ public class GetInferenceModelAction extends ActionType<GetInferenceModelAction.
             super(in);
             this.inferenceEntityId = in.readString();
             this.taskType = TaskType.fromStream(in);
-            if (in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_DONT_PERSIST_ON_READ)) {
+            if (shouldReadPersistDefault(in.getTransportVersion())) {
                 this.persistDefaultConfig = in.readBoolean();
             } else {
                 this.persistDefaultConfig = PERSIST_DEFAULT_CONFIGS;
             }
-
         }
 
         public String getInferenceEntityId() {
@@ -87,7 +94,7 @@ public class GetInferenceModelAction extends ActionType<GetInferenceModelAction.
             super.writeTo(out);
             out.writeString(inferenceEntityId);
             taskType.writeTo(out);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_DONT_PERSIST_ON_READ)) {
+            if (shouldReadPersistDefault(out.getTransportVersion())) {
                 out.writeBoolean(this.persistDefaultConfig);
             }
         }

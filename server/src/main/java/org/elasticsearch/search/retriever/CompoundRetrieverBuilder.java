@@ -172,9 +172,10 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
     public ActionRequestValidationException validate(
         SearchSourceBuilder source,
         ActionRequestValidationException validationException,
+        boolean isScroll,
         boolean allowPartialSearchResults
     ) {
-        validationException = super.validate(source, validationException, allowPartialSearchResults);
+        validationException = super.validate(source, validationException, isScroll, allowPartialSearchResults);
         if (source.size() > rankWindowSize) {
             validationException = addValidationError(
                 "["
@@ -190,12 +191,15 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
         }
         if (allowPartialSearchResults) {
             validationException = addValidationError(
-                "cannot specify a compound retriever and [allow_partial_search_results]",
+                "cannot specify [" + getName() + "] and [allow_partial_search_results]",
                 validationException
             );
         }
+        if (isScroll) {
+            validationException = addValidationError("cannot specify [" + getName() + "] and [scroll]", validationException);
+        }
         for (RetrieverSource innerRetriever : innerRetrievers) {
-            validationException = innerRetriever.retriever().validate(source, validationException, allowPartialSearchResults);
+            validationException = innerRetriever.retriever().validate(source, validationException, isScroll, allowPartialSearchResults);
         }
         return validationException;
     }

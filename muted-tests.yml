@@ -321,6 +321,9 @@ tests:
 - class: org.elasticsearch.xpack.inference.DefaultEndPointsIT
   method: testInferDeploysDefaultE5
   issue: https://github.com/elastic/elasticsearch/issues/115361
+- class: org.elasticsearch.xpack.watcher.trigger.schedule.engine.TickerScheduleEngineTests
+  method: testWatchWithNoLastCheckedTimeButHasActivationTimeExecutesBeforeInitialInterval
+  issue: https://github.com/elastic/elasticsearch/issues/115368
 
 # Examples:
 #

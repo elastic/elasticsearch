@@ -10,6 +10,7 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
@@ -25,8 +26,8 @@ import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.xpack.core.ml.MachineLearningField.DEPRECATED_ALLOW_NO_JOBS_PARAM;
+import static org.elasticsearch.xpack.core.ml.job.config.Job.ID;
 import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
-import static org.elasticsearch.xpack.ml.MachineLearning.PRE_V7_BASE_PATH;
 import static org.elasticsearch.xpack.ml.rest.RestCompatibilityChecker.checkAndSetDeprecatedParam;
 
 @ServerlessScope(Scope.PUBLIC)
@@ -35,12 +36,8 @@ public class RestGetJobStatsAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            Route.builder(GET, BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/_stats")
-                .replaces(GET, PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/_stats", RestApiVersion.V_7)
-                .build(),
-            Route.builder(GET, BASE_PATH + "anomaly_detectors/_stats")
-                .replaces(GET, PRE_V7_BASE_PATH + "anomaly_detectors/_stats", RestApiVersion.V_7)
-                .build()
+            new Route(GET, BASE_PATH + "anomaly_detectors/{" + ID + "}/_stats"),
+            new Route(GET, BASE_PATH + "anomaly_detectors/_stats")
         );
     }
 
@@ -55,6 +52,7 @@ public class RestGetJobStatsAction extends BaseRestHandler {
         if (Strings.isNullOrEmpty(jobId)) {
             jobId = Metadata.ALL;
         }
+        @UpdateForV9(owner = UpdateForV9.Owner.MACHINE_LEARNING) // v7 REST API no longer exists: eliminate ref to RestApiVersion.V_7
         Request request = new Request(jobId);
         checkAndSetDeprecatedParam(
             DEPRECATED_ALLOW_NO_JOBS_PARAM,

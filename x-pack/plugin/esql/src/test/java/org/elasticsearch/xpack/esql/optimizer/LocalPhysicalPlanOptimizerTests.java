@@ -21,11 +21,11 @@ import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.EsqlTestUtils.TestSearchStats;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
@@ -144,8 +144,12 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
 
         return new Analyzer(
             new AnalyzerContext(config, new EsqlFunctionRegistry(), getIndexResult, enrichResolution),
-            new Verifier(new Metrics())
+            new Verifier(new Metrics(new EsqlFunctionRegistry()))
         );
+    }
+
+    private Analyzer makeAnalyzer(String mappingFileName) {
+        return makeAnalyzer(mappingFileName, new EnrichResolution());
     }
 
     /**
@@ -384,7 +388,6 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
      *       \_EsQueryExec[test], indexMode[standard], query[{"query_string":{"query":"last_name: Smith","fields":[]}}]
      */
     public void testQueryStringFunction() {
-        assumeTrue("skipping because QSTR_FUNCTION is not enabled", EsqlCapabilities.Cap.QSTR_FUNCTION.isEnabled());
         var plan = plannerOptimizer.plan("""
             from test
             | where qstr("last_name: Smith")
@@ -413,7 +416,6 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
      *        "boost":1.0}}][_doc{f}#1423], limit[1000], sort[] estimatedRowSize[324]
      */
     public void testQueryStringFunctionConjunctionWhereOperands() {
-        assumeTrue("skipping because QSTR_FUNCTION is not enabled", EsqlCapabilities.Cap.QSTR_FUNCTION.isEnabled());
         String queryText = """
             from test
             | where qstr("last_name: Smith") and emp_no > 10010
@@ -448,12 +450,11 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
      *       "source":"cidr_match(ip, \"127.0.0.1/32\")@2:38"}}],"boost":1.0}}][_doc{f}#21], limit[1000], sort[] estimatedRowSize[354]
      */
     public void testQueryStringFunctionWithFunctionsPushedToLucene() {
-        assumeTrue("skipping because QSTR_FUNCTION is not enabled", EsqlCapabilities.Cap.QSTR_FUNCTION.isEnabled());
         String queryText = """
             from test
             | where qstr("last_name: Smith") and cidr_match(ip, "127.0.0.1/32")
             """;
-        var analyzer = makeAnalyzer("mapping-all-types.json", new EnrichResolution());
+        var analyzer = makeAnalyzer("mapping-all-types.json");
         var plan = plannerOptimizer.plan(queryText, IS_SV_STATS, analyzer);
 
         var limit = as(plan, LimitExec.class);
@@ -484,7 +485,6 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
      *       "boost":1.0}}][_doc{f}#1167], limit[1000], sort[] estimatedRowSize[324]
      */
     public void testQueryStringFunctionMultipleWhereClauses() {
-        assumeTrue("skipping because QSTR_FUNCTION is not enabled", EsqlCapabilities.Cap.QSTR_FUNCTION.isEnabled());
         String queryText = """
             from test
             | where qstr("last_name: Smith")
@@ -519,7 +519,6 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
      *       {"query_string":{"query":"emp_no: [10010 TO *]","fields":[]}}],"boost":1.0}}]
      */
     public void testQueryStringFunctionMultipleQstrClauses() {
-        assumeTrue("skipping because QSTR_FUNCTION is not enabled", EsqlCapabilities.Cap.QSTR_FUNCTION.isEnabled());
         String queryText = """
             from test
             | where qstr("last_name: Smith") and qstr("emp_no: [10010 TO *]")
@@ -550,7 +549,6 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
      *       \_EsQueryExec[test], indexMode[standard], query[{"match":{"last_name":{"query":"Smith"}}}]
      */
     public void testMatchFunction() {
-        assumeTrue("skipping because MATCH function is not enabled", EsqlCapabilities.Cap.MATCH_FUNCTION.isEnabled());
         var plan = plannerOptimizer.plan("""
             from test
             | where match(last_name, "Smith")
@@ -579,7 +577,6 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
      *       "source":"emp_no > 10010@2:39"}}],"boost":1.0}}][_doc{f}#14], limit[1000], sort[] estimatedRowSize[324]
      */
     public void testMatchFunctionConjunctionWhereOperands() {
-        assumeTrue("skipping because MATCH function is not enabled", EsqlCapabilities.Cap.MATCH_FUNCTION.isEnabled());
         String queryText = """
             from test
             | where match(last_name, "Smith") and emp_no > 10010
@@ -614,12 +611,11 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
      *       "source":"cidr_match(ip, \"127.0.0.1/32\")@2:33"}}],"boost":1.0}}][_doc{f}#22], limit[1000], sort[] estimatedRowSize[354]
      */
     public void testMatchFunctionWithFunctionsPushedToLucene() {
-        assumeTrue("skipping because MATCH function is not enabled", EsqlCapabilities.Cap.MATCH_FUNCTION.isEnabled());
         String queryText = """
             from test
             | where match(text, "beta") and cidr_match(ip, "127.0.0.1/32")
             """;
-        var analyzer = makeAnalyzer("mapping-all-types.json", new EnrichResolution());
+        var analyzer = makeAnalyzer("mapping-all-types.json");
         var plan = plannerOptimizer.plan(queryText, IS_SV_STATS, analyzer);
 
         var limit = as(plan, LimitExec.class);
@@ -649,7 +645,6 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
      *       "source":"emp_no > 10010@3:9"}}],"boost":1.0}}][_doc{f}#14], limit[1000], sort[] estimatedRowSize[324]
      */
     public void testMatchFunctionMultipleWhereClauses() {
-        assumeTrue("skipping because MATCH function is not enabled", EsqlCapabilities.Cap.MATCH_FUNCTION.isEnabled());
         String queryText = """
             from test
             | where match(last_name, "Smith")
@@ -683,7 +678,6 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
      *       {"match":{"first_name":{"query":"John"}}}],"boost":1.0}}][_doc{f}#14], limit[1000], sort[] estimatedRowSize[324]
      */
     public void testMatchFunctionMultipleQstrClauses() {
-        assumeTrue("skipping because MATCH function is not enabled", EsqlCapabilities.Cap.MATCH_FUNCTION.isEnabled());
         String queryText = """
             from test
             | where match(last_name, "Smith") and match(first_name, "John")
@@ -903,8 +897,15 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
 
     private record OutOfRangeTestCase(String fieldName, String tooLow, String tooHigh) {};
 
+    private static final String LT = "<";
+    private static final String LTE = "<=";
+    private static final String GT = ">";
+    private static final String GTE = ">=";
+    private static final String EQ = "==";
+    private static final String NEQ = "!=";
+
     public void testOutOfRangeFilterPushdown() {
-        var allTypeMappingAnalyzer = makeAnalyzer("mapping-all-types.json", new EnrichResolution());
+        var allTypeMappingAnalyzer = makeAnalyzer("mapping-all-types.json");
 
         String largerThanInteger = String.valueOf(randomLongBetween(Integer.MAX_VALUE + 1L, Long.MAX_VALUE));
         String smallerThanInteger = String.valueOf(randomLongBetween(Long.MIN_VALUE, Integer.MIN_VALUE - 1L));
@@ -921,15 +922,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
             new OutOfRangeTestCase("integer", smallerThanInteger, largerThanInteger),
             new OutOfRangeTestCase("long", smallerThanLong, largerThanLong)
             // TODO: add unsigned_long https://github.com/elastic/elasticsearch/issues/102935
-            // TODO: add half_float, float https://github.com/elastic/elasticsearch/issues/100130
         );
-
-        final String LT = "<";
-        final String LTE = "<=";
-        final String GT = ">";
-        final String GTE = ">=";
-        final String EQ = "==";
-        final String NEQ = "!=";
 
         for (OutOfRangeTestCase testCase : cases) {
             List<String> trueForSingleValuesPredicates = List.of(
@@ -979,6 +972,51 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
 
                 var expectedInnerQuery = QueryBuilders.boolQuery().mustNot(QueryBuilders.matchAllQuery());
                 assertThat(actualLuceneQuery.next(), equalTo(expectedInnerQuery));
+            }
+        }
+    }
+
+    public void testOutOfRangeFilterPushdownWithFloatAndHalfFloat() {
+        var allTypeMappingAnalyzer = makeAnalyzer("mapping-all-types.json");
+
+        String smallerThanFloat = String.valueOf(randomDoubleBetween(-Double.MAX_VALUE, -Float.MAX_VALUE - 1d, true));
+        String largerThanFloat = String.valueOf(randomDoubleBetween(Float.MAX_VALUE + 1d, Double.MAX_VALUE, true));
+
+        List<OutOfRangeTestCase> cases = List.of(
+            new OutOfRangeTestCase("float", smallerThanFloat, largerThanFloat),
+            new OutOfRangeTestCase("half_float", smallerThanFloat, largerThanFloat)
+        );
+
+        for (OutOfRangeTestCase testCase : cases) {
+            for (var value : List.of(testCase.tooHigh, testCase.tooLow)) {
+                for (String predicate : List.of(LT, LTE, GT, GTE, EQ, NEQ)) {
+                    String comparison = testCase.fieldName + predicate + value;
+                    var query = "from test | where " + comparison;
+
+                    Source expectedSource = new Source(1, 18, comparison);
+
+                    logger.info("Query: " + query);
+                    EsQueryExec actualQueryExec = doTestOutOfRangeFilterPushdown(query, allTypeMappingAnalyzer);
+
+                    assertThat(actualQueryExec.query(), is(instanceOf(SingleValueQuery.Builder.class)));
+                    var actualLuceneQuery = (SingleValueQuery.Builder) actualQueryExec.query();
+                    assertThat(actualLuceneQuery.field(), equalTo(testCase.fieldName));
+                    assertThat(actualLuceneQuery.source(), equalTo(expectedSource));
+
+                    QueryBuilder actualInnerLuceneQuery = actualLuceneQuery.next();
+
+                    if (predicate.equals(EQ)) {
+                        QueryBuilder expectedInnerQuery = QueryBuilders.termQuery(testCase.fieldName, Double.parseDouble(value));
+                        assertThat(actualInnerLuceneQuery, equalTo(expectedInnerQuery));
+                    } else if (predicate.equals(NEQ)) {
+                        QueryBuilder expectedInnerQuery = QueryBuilders.boolQuery()
+                            .mustNot(QueryBuilders.termQuery(testCase.fieldName, Double.parseDouble(value)));
+                        assertThat(actualInnerLuceneQuery, equalTo(expectedInnerQuery));
+                    } else { // one of LT, LTE, GT, GTE
+                        assertTrue(actualInnerLuceneQuery instanceof RangeQueryBuilder);
+                        assertThat(((RangeQueryBuilder) actualInnerLuceneQuery).fieldName(), equalTo(testCase.fieldName));
+                    }
+                }
             }
         }
     }

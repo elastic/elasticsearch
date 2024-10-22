@@ -17,9 +17,6 @@ setup:
 
   - do:
       cluster.health:
-        index: .synonyms-2
-        level: shards
-        timeout: 60s
         wait_for_no_initializing_shards: true
 
   - do:
@@ -67,9 +64,6 @@ setup:
 
   - do:
       cluster.health:
-        index: .synonyms-2
-        level: shards
-        timeout: 60s
         wait_for_no_initializing_shards: true
 
   - do:

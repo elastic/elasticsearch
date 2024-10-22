@@ -620,7 +620,7 @@ public class RRFRetrieverBuilderIT extends ESIntegTestCase {
         assertThat(
             ex.getMessage(),
             containsString(
-                "[rrf] search failed - some nested retrievers returned errors. All causes are attached as suppressed exceptions."
+                "[rrf] search failed - retrievers '[standard]' returned errors. All failures are attached as suppressed exceptions."
             )
         );
         assertThat(ex.getSuppressed().length, greaterThan(0));
@@ -657,7 +657,7 @@ public class RRFRetrieverBuilderIT extends ESIntegTestCase {
         assertThat(
             ex.getMessage(),
             containsString(
-                "[rrf] search failed - some nested retrievers returned 5xx errors. All causes are attached as suppressed exceptions."
+                "[rrf] search failed - retrievers '[standard, test]' returned errors. All failures are attached as suppressed exceptions."
             )
         );
         assertThat(ex.getSuppressed().length, greaterThan(0));

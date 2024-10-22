@@ -124,10 +124,12 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
                 public void onResponse(MultiSearchResponse items) {
                     List<ScoreDoc[]> topDocs = new ArrayList<>();
                     List<Exception> failures = new ArrayList<>();
+                    List<String> retrieversWithFailures = new ArrayList<>();
                     for (int i = 0; i < items.getResponses().length; i++) {
                         var item = items.getResponses()[i];
                         if (item.isFailure()) {
                             failures.add(item.getFailure());
+                            retrieversWithFailures.add(innerRetrievers.get(i).retriever().getName());
                         } else {
                             assert item.getResponse() != null;
                             var rankDocs = getRankDocs(item.getResponse());
@@ -137,28 +139,21 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
                     }
                     if (false == failures.isEmpty()) {
                         boolean serverErrorFound = false;
-                        for (int i = 0; i < failures.size(); i++) {
-                            if (ExceptionsHelper.status(failures.get(i)).getStatus() >= RestStatus.INTERNAL_SERVER_ERROR.getStatus()) {
+                        for (Exception failure : failures) {
+                            if (ExceptionsHelper.status(failure).getStatus() >= RestStatus.INTERNAL_SERVER_ERROR.getStatus()) {
                                 serverErrorFound = true;
                                 break;
                             }
                         }
-                        Exception ex;
-                        if (false == serverErrorFound) {
-                            ex = new IllegalArgumentException(
-                                "["
-                                    + getName()
-                                    + "] search failed - some nested retrievers returned errors. "
-                                    + "All causes are attached as suppressed exceptions."
-                            );
-                        } else {
-                            ex = new IllegalStateException(
-                                "["
-                                    + getName()
-                                    + "] search failed - some nested retrievers returned 5xx errors. "
-                                    + "All causes are attached as suppressed exceptions."
-                            );
-                        }
+                        final String errMessage = "["
+                            + getName()
+                            + "] search failed - retrievers '"
+                            + retrieversWithFailures
+                            + "' returned errors. "
+                            + "All failures are attached as suppressed exceptions.";
+                        Exception ex = false == serverErrorFound
+                            ? new IllegalArgumentException(errMessage)
+                            : new IllegalStateException(errMessage);
                         failures.forEach(ex::addSuppressed);
                         listener.onFailure(ex);
 

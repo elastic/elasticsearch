@@ -121,9 +121,8 @@ public class LogsDbSourceModeMigrationIT extends LogsIndexModeRestTestIT {
     }
 
     @Before
-    public void setup() throws Exception {
+    public void setup() {
         client = client();
-        waitForLogs(client);
     }
 
     private RestClient client;

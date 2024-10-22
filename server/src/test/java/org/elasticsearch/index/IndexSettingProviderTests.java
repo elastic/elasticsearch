@@ -38,10 +38,11 @@ public class IndexSettingProviderTests extends ESSingleNodeTestCase {
         assertTrue(indexService.getIndexSettings().getSettings().hasValue("index.refresh_interval"));
         assertEquals("100", indexService.getIndexSettings().getSettings().get("index.mapping.depth.limit"));
 
+        INDEX_SETTING_OVERRULING.set(false);
         INDEX_SETTING_PROVIDER2_ENABLED.set(true);
         var e = expectThrows(IllegalArgumentException.class, () -> createIndex("my-index4", settings));
         assertEquals(
-            "additional index setting [index.mapping.depth.limit] added by [TestIndexSettingsProvider] is already present",
+            "additional index setting [index.refresh_interval] added by [TestIndexSettingsProvider] is already present",
             e.getMessage()
         );
     }

@@ -1039,7 +1039,8 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
                 // as we excluded the frozen tier we shouldn't get any failures
                 assertThat(searchResponse.getFailedShards(), equalTo(0));
                 // we should be receiving all the hits from the index that's in the data_content tier
-                assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) numDocsRegularIndex));
+                assertNotNull(searchResponse.getHits().getTotalHits());
+                assertThat(searchResponse.getHits().getTotalHits().value(), equalTo((long) numDocsRegularIndex));
             });
         }
 
@@ -1054,7 +1055,8 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
                 // as we excluded the frozen tier we shouldn't get any failures
                 assertThat(searchResponse.getFailedShards(), equalTo(0));
                 // we should be receiving all the hits from the index that's in the data_content tier
-                assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) numDocsRegularIndex));
+                assertNotNull(searchResponse.getHits().getTotalHits());
+                assertThat(searchResponse.getHits().getTotalHits().value(), equalTo((long) numDocsRegularIndex));
             });
         }
 
@@ -1069,7 +1071,8 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
                 // as we excluded the frozen tier we shouldn't get any failures
                 assertThat(searchResponse.getFailedShards(), equalTo(0));
                 // we should be receiving all the hits from the index that's in the data_content tier
-                assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) numDocsRegularIndex));
+                assertNotNull(searchResponse.getHits().getTotalHits());
+                assertThat(searchResponse.getHits().getTotalHits().value(), equalTo((long) numDocsRegularIndex));
             });
         }
 
@@ -1084,7 +1087,8 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
                 // as we excluded the frozen tier we shouldn't get any failures
                 assertThat(searchResponse.getFailedShards(), equalTo(0));
                 // we should be receiving all the hits from the index that's in the data_content tier
-                assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) numDocsRegularIndex));
+                assertNotNull(searchResponse.getHits().getTotalHits());
+                assertThat(searchResponse.getHits().getTotalHits().value(), equalTo((long) numDocsRegularIndex));
             });
         }
 
@@ -1100,7 +1104,8 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
                 // as we excluded the frozen tier we shouldn't get any failures
                 assertThat(searchResponse.getFailedShards(), equalTo(0));
                 // we should be receiving all the hits from the index that's in the data_content tier
-                assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) numDocsRegularIndex));
+                assertNotNull(searchResponse.getHits().getTotalHits());
+                assertThat(searchResponse.getHits().getTotalHits().value(), equalTo((long) numDocsRegularIndex));
             });
         }
     }

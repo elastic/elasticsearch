@@ -1099,7 +1099,7 @@ class NodeConstruction {
             telemetryProvider.getTracer()
         );
 
-        final ShutdownFenceService shutdownFenceService = new ShutdownFenceService(settings, httpServerTransport, terminationHandler);
+        final ShutdownPrepareService shutdownPrepareService = new ShutdownPrepareService(settings, httpServerTransport, terminationHandler);
 
         modules.add(
             loadPersistentTasksService(
@@ -1202,7 +1202,7 @@ class NodeConstruction {
             b.bind(CompatibilityVersions.class).toInstance(compatibilityVersions);
             b.bind(DataStreamAutoShardingService.class).toInstance(dataStreamAutoShardingService);
             b.bind(FailureStoreMetrics.class).toInstance(failureStoreMetrics);
-            b.bind(ShutdownFenceService.class).toInstance(shutdownFenceService);
+            b.bind(ShutdownPrepareService.class).toInstance(shutdownPrepareService);
         });
 
         if (ReadinessService.enabled(environment)) {

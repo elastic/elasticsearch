@@ -602,7 +602,8 @@ public class Node implements Closeable {
      * logic should use Node Shutdown, see {@link org.elasticsearch.cluster.metadata.NodesShutdownMetadata}.
      */
     public void prepareForClose() {
-        injector.getInstance(ShutdownFenceService.class).prepareForShutdown(injector.getInstance(TransportService.class).getTaskManager());
+        injector.getInstance(ShutdownPrepareService.class)
+            .prepareForShutdown(injector.getInstance(TransportService.class).getTaskManager());
     }
 
     /**

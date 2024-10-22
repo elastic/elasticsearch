@@ -33,17 +33,23 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.core.Strings.format;
 
 /**
- * Extracted out the logic from {@link Node#prepareForClose()} to facilitate testing.
+ * This class was created to extract out the logic from {@link Node#prepareForClose()} to facilitate testing.
+ * <p>
+ * Invokes hooks to prepare this node to be closed. This should be called when Elasticsearch receives a request to shut down
+ * gracefully from the underlying operating system, before system resources are closed.
+ * <p>
+ * Note that this class is part of infrastructure to react to signals from the operating system - most graceful shutdown
+ * logic should use Node Shutdown, see {@link org.elasticsearch.cluster.metadata.NodesShutdownMetadata}.
  */
-public class ShutdownFenceService {
+public class ShutdownPrepareService {
 
-    private final Logger logger = LogManager.getLogger(ShutdownFenceService.class);
+    private final Logger logger = LogManager.getLogger(ShutdownPrepareService.class);
     Settings settings;
     HttpServerTransport httpServerTransport;
     TerminationHandler terminationHandler;
     private volatile boolean hasBeenShutdown = false;
 
-    public ShutdownFenceService(Settings settings, HttpServerTransport httpServerTransport, TerminationHandler terminationHandler) {
+    public ShutdownPrepareService(Settings settings, HttpServerTransport httpServerTransport, TerminationHandler terminationHandler) {
         this.settings = settings;
         this.httpServerTransport = httpServerTransport;
         this.terminationHandler = terminationHandler;

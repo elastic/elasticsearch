@@ -14,7 +14,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.node.ShutdownFenceService;
+import org.elasticsearch.node.ShutdownPrepareService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.search.SearchResponseUtils;
@@ -81,7 +81,7 @@ public class ReindexNodeShutdownIT extends ESIntegTestCase {
             final TotalHits totalHits = SearchResponseUtils.getTotalHits(
                 client(dataNodeName).prepareSearch(DEST_INDEX).setSize(0).setTrackTotalHits(true)
             );
-            return totalHits.relation == TotalHits.Relation.EQUAL_TO && totalHits.value == numDocs;
+            return totalHits.relation() == TotalHits.Relation.EQUAL_TO && totalHits.value() == numDocs;
         }, 10, TimeUnit.SECONDS));
     }
 
@@ -106,7 +106,7 @@ public class ReindexNodeShutdownIT extends ESIntegTestCase {
 
         AbstractBulkByScrollRequestBuilder<?, ?> builder = reindex(coordNodeName).source(INDEX).destination(DEST_INDEX);
         AbstractBulkByScrollRequest<?> reindexRequest = builder.request();
-        ShutdownFenceService shutdownFenceService = internalCluster().getInstance(ShutdownFenceService.class, coordNodeName);
+        ShutdownPrepareService shutdownPrepareService = internalCluster().getInstance(ShutdownPrepareService.class, coordNodeName);
 
         TaskManager taskManager = internalCluster().getInstance(TransportService.class, coordNodeName).getTaskManager();
 
@@ -127,7 +127,7 @@ public class ReindexNodeShutdownIT extends ESIntegTestCase {
 
         // Check for reindex task to appear in the tasks list and Immediately stop coordinating node
         TaskInfo mainTask = findTask(ReindexAction.INSTANCE.name(), coordNodeName);
-        shutdownFenceService.prepareForShutdown(taskManager);
+        shutdownPrepareService.prepareForShutdown(taskManager);
         internalCluster().stopNode(coordNodeName);
     }
 

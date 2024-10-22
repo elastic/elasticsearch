@@ -155,7 +155,7 @@ class KibanaOwnedReservedRoleDescriptors {
                 // telemetry and also creates the index when policies are first created
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(".logs-endpoint.diagnostic.collection-*")
-                    .privileges("read", "created_index")
+                    .privileges("read", "create_index")
                     .build(),
                 // Fleet secrets. Kibana can only write to this index.
                 RoleDescriptor.IndicesPrivileges.builder()

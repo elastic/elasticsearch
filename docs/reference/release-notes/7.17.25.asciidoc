@@ -1,0 +1,22 @@
+[[release-notes-7.17.25]]
+== {es} version 7.17.25
+
+coming[7.17.25]
+
+Also see <<breaking-changes-7.17,Breaking changes in 7.17>>.
+
+[[enhancement-7.17.25]]
+[float]
+=== Enhancements
+
+Infra/Scripting::
+* Add a `mustache.max_output_size_bytes` setting to limit the length of results from mustache scripts {es-pull}114002[#114002]
+
+[[upgrade-7.17.25]]
+[float]
+=== Upgrades
+
+Snapshot/Restore::
+* Upgrade protobufer to 3.25.5 {es-pull}113869[#113869]
+
+

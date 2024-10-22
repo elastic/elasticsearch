@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.security.authc;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
-import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -18,7 +17,6 @@ import org.elasticsearch.xpack.core.security.user.User;
 import static org.elasticsearch.test.SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.is;
 

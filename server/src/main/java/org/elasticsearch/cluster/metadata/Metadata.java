@@ -650,11 +650,14 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
                 (b, e) -> b.object(ob -> ob.field("id", e.getKey()).append(e.getValue()))
             );
         } else {
-            // Even if we need to keep this one-project in XContent case, this isn't the right way to get it
-            // - we need to use the resolver or have the project id passed in as a param, or something
-            @FixForMultiProject
-            final ProjectMetadata project = getSingleProject();
-            builder.append(project);
+            if (projectMetadata.size() == 1) {
+                // Need to rethink what to do here. This might be right, but maybe not...
+                @FixForMultiProject
+                final ProjectMetadata project = projectMetadata.values().iterator().next();
+                builder.append(project);
+            } else {
+                throw new MultiProjectPendingException("There are multiple projects " + projectMetadata.keySet());
+            }
         }
 
         return builder.forEach(customs.entrySet().iterator(), (b, e) -> {

@@ -331,7 +331,7 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
                 // no skipped shards locally when DFS_QUERY_THEN_FETCH is used
                 assertThat(localClusterSearchInfo.getSkippedShards(), equalTo(0));
             } else {
-                assertThat(localClusterSearchInfo.getSkippedShards(), equalTo(localNumShards - 1));
+                assertThat(localClusterSearchInfo.getSkippedShards(), equalTo(localNumShards));
             }
             assertThat(localClusterSearchInfo.getFailedShards(), equalTo(0));
             assertThat(localClusterSearchInfo.getFailures().size(), equalTo(0));
@@ -341,7 +341,7 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
             assertThat(remoteClusterSearchInfo.getTotalShards(), equalTo(remoteNumShards));
             assertThat(remoteClusterSearchInfo.getSuccessfulShards(), equalTo(remoteNumShards));
             if (minimizeRoundtrips) {
-                assertThat(remoteClusterSearchInfo.getSkippedShards(), equalTo(remoteNumShards - 1));
+                assertThat(remoteClusterSearchInfo.getSkippedShards(), equalTo(remoteNumShards));
             } else {
                 assertThat(remoteClusterSearchInfo.getSkippedShards(), equalTo(remoteNumShards));
             }
@@ -377,7 +377,7 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
                 // no skipped shards locally when DFS_QUERY_THEN_FETCH is used
                 assertThat(localClusterSearchInfo.getSkippedShards(), equalTo(0));
             } else {
-                assertThat(localClusterSearchInfo.getSkippedShards(), equalTo(localNumShards - 1));
+                assertThat(localClusterSearchInfo.getSkippedShards(), equalTo(localNumShards));
             }
             assertThat(localClusterSearchInfo.getFailedShards(), equalTo(0));
             assertThat(localClusterSearchInfo.getFailures().size(), equalTo(0));
@@ -387,7 +387,7 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
             assertThat(remoteClusterSearchInfo.getTotalShards(), equalTo(remoteNumShards));
             assertThat(remoteClusterSearchInfo.getSuccessfulShards(), equalTo(remoteNumShards));
             if (minimizeRoundtrips) {
-                assertThat(remoteClusterSearchInfo.getSkippedShards(), equalTo(remoteNumShards - 1));
+                assertThat(remoteClusterSearchInfo.getSkippedShards(), equalTo(remoteNumShards));
             } else {
                 assertThat(remoteClusterSearchInfo.getSkippedShards(), equalTo(remoteNumShards));
             }

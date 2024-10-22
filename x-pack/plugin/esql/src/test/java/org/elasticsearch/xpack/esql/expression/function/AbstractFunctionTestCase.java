@@ -1288,13 +1288,6 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     /**
-     * All string types (keyword, text, match_only_text, etc).
-     */
-    protected static DataType[] strings() {
-        return DataType.types().stream().filter(DataType::isString).toArray(DataType[]::new);
-    }
-
-    /**
      * Validate that we know the types for all the test cases already created
      * @param suppliers - list of suppliers before adding in the illegal type combinations
      */
@@ -1320,10 +1313,9 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
      */
     private static boolean shouldHideSignature(List<DataType> argTypes, DataType returnType) {
         for (DataType dt : DataType.UNDER_CONSTRUCTION.keySet()) {
-            if (returnType == dt) {
+            if (returnType == dt || argTypes.contains(dt)) {
                 return true;
             }
-            return argTypes.contains(dt);
         }
         return false;
     }

@@ -211,8 +211,8 @@ public class DirectCandidateGeneratorTests extends ESTestCase {
                     )
                 );
                 assertThat(candidateSet.candidates.length, equalTo(1));
-                assertThat(candidateSet.candidates[0].termStats.docFreq, equalTo(numDocs - 1));
-                assertThat(candidateSet.candidates[0].termStats.totalTermFreq, equalTo((long) numDocs - 1));
+                assertThat(candidateSet.candidates[0].termStats.docFreq(), equalTo(numDocs - 1));
+                assertThat(candidateSet.candidates[0].termStats.totalTermFreq(), equalTo((long) numDocs - 1));
 
                 // test that it doesn't overflow
                 assertThat(generator.thresholdTermFrequency(Integer.MAX_VALUE), equalTo(Integer.MAX_VALUE));
@@ -227,8 +227,8 @@ public class DirectCandidateGeneratorTests extends ESTestCase {
                     )
                 );
                 assertThat(candidateSet.candidates.length, equalTo(1));
-                assertThat(candidateSet.candidates[0].termStats.docFreq, equalTo(numDocs - 1));
-                assertThat(candidateSet.candidates[0].termStats.totalTermFreq, equalTo((long) numDocs - 1));
+                assertThat(candidateSet.candidates[0].termStats.docFreq(), equalTo(numDocs - 1));
+                assertThat(candidateSet.candidates[0].termStats.totalTermFreq(), equalTo((long) numDocs - 1));
 
                 // test that it doesn't overflow
                 assertThat(generator.thresholdTermFrequency(Integer.MAX_VALUE), equalTo(Integer.MAX_VALUE));

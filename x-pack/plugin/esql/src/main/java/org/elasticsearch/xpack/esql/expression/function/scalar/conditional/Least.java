@@ -154,11 +154,7 @@ public class Least extends EsqlScalarFunction implements OptionalArgument {
         if (dataType == DataType.LONG || dataType == DataType.DATETIME || dataType == DataType.DATE_NANOS) {
             return new LeastLongEvaluator.Factory(source(), factories);
         }
-        if (dataType == DataType.KEYWORD
-            || dataType == DataType.TEXT
-            || dataType == DataType.IP
-            || dataType == DataType.VERSION
-            || dataType == DataType.UNSUPPORTED) {
+        if (DataType.isString(dataType) || dataType == DataType.IP || dataType == DataType.VERSION || dataType == DataType.UNSUPPORTED) {
 
             return new LeastBytesRefEvaluator.Factory(source(), factories);
         }

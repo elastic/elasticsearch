@@ -12,7 +12,6 @@ package org.elasticsearch.plugins.internal;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.ingest.common.IngestCommonPlugin;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -129,8 +128,8 @@ public class XContentMeteringParserDecoratorWithPipelinesIT extends ESIntegTestC
         }
 
         @Override
-        public ParsedDocument.DocumentSize meteredDocumentSize() {
-            return new ParsedDocument.DocumentSize(mapCounter, 0);
+        public long meteredDocumentSize() {
+            return mapCounter;
         }
     }
 

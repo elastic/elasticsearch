@@ -109,6 +109,10 @@ public class CoordinatorRewriteContext extends QueryRewriteContext {
         return this;
     }
 
+    /**
+     * We're holding on to the index tier in the context as otherwise we'd need
+     * to re-parse it from the index settings when evaluating the _tier field.
+     */
     public String tier() {
         return tier;
     }

@@ -787,7 +787,6 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
             assertNotNull(response);
 
             Clusters clusters = response.getClusters();
-            System.err.println(clusters.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY));
             assertFalse("search cluster results should BE successful", clusters.hasPartialResults());
             assertThat(clusters.getTotal(), equalTo(2));
             assertThat(clusters.getClusterStateCount(Cluster.Status.SUCCESSFUL), equalTo(2));

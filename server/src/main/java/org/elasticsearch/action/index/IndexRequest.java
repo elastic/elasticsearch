@@ -147,6 +147,8 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
      */
     private Object rawTimestamp;
     private long normalisedBytesParsed = -1;
+
+    // FIXME remove flags
     private boolean originatesFromUpdateByScript;
     private boolean originatesFromUpdateByDoc;
 
@@ -975,23 +977,5 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         } else {
             return Collections.unmodifiableList(executedPipelines);
         }
-    }
-
-    public IndexRequest setOriginatesFromUpdateByScript(boolean originatesFromUpdateByScript) {
-        this.originatesFromUpdateByScript = originatesFromUpdateByScript;
-        return this;
-    }
-
-    public boolean originatesFromUpdateByScript() {
-        return originatesFromUpdateByScript;
-    }
-
-    public boolean originatesFromUpdateByDoc() {
-        return originatesFromUpdateByDoc;
-    }
-
-    public IndexRequest setOriginatesFromUpdateByDoc(boolean originatesFromUpdateByDoc) {
-        this.originatesFromUpdateByDoc = originatesFromUpdateByDoc;
-        return this;
     }
 }

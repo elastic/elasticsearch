@@ -1635,6 +1635,7 @@ public class CohereServiceTests extends ESTestCase {
         assertEquals(SimilarityMeasure.DOT_PRODUCT, CohereService.defaultSimilarity());
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/114385")
     public void testInfer_StreamRequest() throws Exception {
         String responseJson = """
             {"event_type":"text-generation", "text":"hello"}
@@ -1668,6 +1669,7 @@ public class CohereServiceTests extends ESTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/114385")
     public void testInfer_StreamRequest_ErrorResponse() throws Exception {
         String responseJson = """
             { "event_type":"stream-end", "finish_reason":"ERROR", "response":{ "text": "how dare you" } }

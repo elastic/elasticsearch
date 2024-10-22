@@ -208,6 +208,7 @@ index can be <<indices-delete-index,removed>>. You may then consider setting
 <<indices-add-alias,Create Alias>> against the destination index for the source 
 index's name to point to it for continuity. 
 
+See this https://www.youtube.com/watch?v=sHyNYnwbYro[fixing shard sizes video] for an example troubleshooting walkthrough.
 
 [discrete]
 [[shard-count-recommendation]]
@@ -570,6 +571,8 @@ PUT _cluster/settings
   }
 }
 ----
+
+For more information, see <<troubleshooting-shards-capacity-issues,Troubleshooting shards capacity>>.
 
 [discrete]
 [[troubleshooting-max-docs-limit]]

@@ -32,6 +32,7 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -128,6 +129,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         private Boolean keepOnCompletion = null;
 
         private Boolean profile = null;
+        private Boolean includeCCSMetadata = null;
 
         private CheckedConsumer<XContentBuilder, IOException> filter;
 
@@ -197,6 +199,11 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             return this;
         }
 
+        public RequestObjectBuilder includeCCSMetadata(boolean includeCCSMetadata) {
+            this.includeCCSMetadata = includeCCSMetadata;
+            return this;
+        }
+
         public RequestObjectBuilder filter(CheckedConsumer<XContentBuilder, IOException> filter) {
             this.filter = filter;
             return this;
@@ -219,6 +226,9 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
                 }
                 if (profile != null) {
                     builder.field("profile", profile);
+                }
+                if (includeCCSMetadata != null) {
+                    builder.field("include_ccs_metadata", includeCCSMetadata);
                 }
                 if (filter != null) {
                     builder.startObject("filter");
@@ -388,9 +398,8 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             "long",
             // TODO: https://github.com/elastic/elasticsearch/issues/102935
             // "unsigned_long",
-            // TODO: https://github.com/elastic/elasticsearch/issues/100130
-            // "half_float",
-            // "float",
+            "half_float",
+            "float",
             "double",
             "scaled_float"
         );
@@ -661,6 +670,10 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
     }
 
     public void testNamedParamsForIdentifierAndIdentifierPatterns() throws IOException {
+        assumeTrue(
+            "named parameters for identifiers and patterns require snapshot build",
+            EsqlCapabilities.Cap.NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES.isEnabled()
+        );
         bulkLoadTestData(10);
         // positive
         var query = requestObjectBuilder().query(

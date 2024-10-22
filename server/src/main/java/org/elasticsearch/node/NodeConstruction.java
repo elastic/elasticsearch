@@ -268,7 +268,14 @@ class NodeConstruction {
             constructor.loadLoggingDataProviders();
             TelemetryProvider telemetryProvider = constructor.createTelemetryProvider(settings);
             ThreadPool threadPool = constructor.createThreadPool(settings, telemetryProvider.getMeterRegistry());
-            SettingsModule settingsModule = constructor.validateSettings(initialEnvironment.settings(), settings, threadPool);
+
+            final SettingsModule settingsModule;
+            try (var ignored = threadPool.getThreadContext().newStoredContext()) {
+                // If any deprecated settings are in use then we add warnings to the thread context response headers, but we're not
+                // computing a response here so these headers aren't relevant and eventually just get dropped after possibly leaking into
+                // places they shouldn't. Best to explicitly drop them now to protect against such leakage.
+                settingsModule = constructor.validateSettings(initialEnvironment.settings(), settings, threadPool);
+            }
 
             SearchModule searchModule = constructor.createSearchModule(settingsModule.getSettings(), threadPool, telemetryProvider);
             constructor.createClientAndRegistries(settingsModule.getSettings(), threadPool, searchModule);
@@ -408,8 +415,8 @@ class NodeConstruction {
             Constants.OS_ARCH,
             Constants.JVM_VENDOR,
             Constants.JVM_NAME,
-            Constants.JAVA_VERSION,
-            Constants.JVM_VERSION
+            System.getProperty("java.version"),
+            Runtime.version().toString()
         );
         logger.info("JVM home [{}], using bundled JDK [{}]", System.getProperty("java.home"), jvmInfo.getUsingBundledJdk());
         logger.info("JVM arguments {}", Arrays.toString(jvmInfo.getInputArguments()));

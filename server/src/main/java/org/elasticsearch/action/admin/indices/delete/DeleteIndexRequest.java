@@ -28,16 +28,25 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  */
 public class DeleteIndexRequest extends AcknowledgedRequest<DeleteIndexRequest> implements IndicesRequest.Replaceable {
 
-    public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.fromOptions(
-        false,
-        true,
-        true,
-        true,
-        false,
-        false,
-        true,
-        false
-    );
+    public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.builder()
+        .concreteTargetOptions(IndicesOptions.ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
+        .wildcardOptions(
+            IndicesOptions.WildcardOptions.builder()
+                .matchOpen(true)
+                .matchClosed(true)
+                .allowEmptyExpressions(true)
+                .resolveAliases(false)
+                .build()
+        )
+        .gatekeeperOptions(
+            IndicesOptions.GatekeeperOptions.builder()
+                .allowAliasToMultipleIndices(false)
+                .allowClosedIndices(true)
+                .ignoreThrottled(false)
+                .allowFailureIndices(true)
+                .build()
+        )
+        .build();
 
     private String[] indices;
     // Delete index should work by default on both open and closed indices.

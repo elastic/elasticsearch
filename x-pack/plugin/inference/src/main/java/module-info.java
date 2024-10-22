@@ -23,10 +23,16 @@ module org.elasticsearch.inference {
     requires com.google.auth;
     requires com.google.api.client;
     requires com.google.gson;
-    requires aws.java.sdk.bedrockruntime;
-    requires aws.java.sdk.core;
-    requires com.fasterxml.jackson.databind;
-    requires org.joda.time;
+    requires software.amazon.awssdk.services.bedrockruntime;
+    requires software.amazon.awssdk.utils;
+    requires software.amazon.awssdk.core;
+    requires software.amazon.awssdk.auth;
+    requires software.amazon.awssdk.regions;
+    requires software.amazon.awssdk.http.nio.netty;
+    requires software.amazon.awssdk.profiles;
+    requires org.slf4j;
+    requires software.amazon.awssdk.retries.api;
+    requires org.reactivestreams;
 
     exports org.elasticsearch.xpack.inference.action;
     exports org.elasticsearch.xpack.inference.registry;

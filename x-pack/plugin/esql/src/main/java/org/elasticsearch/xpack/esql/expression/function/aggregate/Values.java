@@ -17,6 +17,7 @@ import org.elasticsearch.compute.aggregation.ValuesIntAggregatorFunctionSupplier
 import org.elasticsearch.compute.aggregation.ValuesLongAggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -31,6 +32,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
+import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 
 public class Values extends AggregateFunction implements ToAggregator {
@@ -70,7 +72,11 @@ public class Values extends AggregateFunction implements ToAggregator {
         Source source,
         @Param(name = "field", type = { "boolean", "date", "double", "integer", "ip", "keyword", "long", "text", "version" }) Expression v
     ) {
-        super(source, v);
+        this(source, v, Literal.TRUE);
+    }
+
+    public Values(Source source, Expression field, Expression filter) {
+        super(source, field, filter, emptyList());
     }
 
     private Values(StreamInput in) throws IOException {
@@ -84,12 +90,17 @@ public class Values extends AggregateFunction implements ToAggregator {
 
     @Override
     protected NodeInfo<Values> info() {
-        return NodeInfo.create(this, Values::new, field());
+        return NodeInfo.create(this, Values::new, field(), filter());
     }
 
     @Override
     public Values replaceChildren(List<Expression> newChildren) {
-        return new Values(source(), newChildren.get(0));
+        return new Values(source(), newChildren.get(0), newChildren.get(1));
+    }
+
+    @Override
+    public Values withFilter(Expression filter) {
+        return new Values(source(), field(), filter);
     }
 
     @Override

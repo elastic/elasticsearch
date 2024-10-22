@@ -402,6 +402,7 @@ public class EsqlCapabilities {
         SEMANTIC_TEXT_TYPE(EsqlCorePlugin.SEMANTIC_TEXT_FEATURE_FLAG),
         /**
          * Fix for an optimization that caused wrong results
+         * https://github.com/elastic/elasticsearch/issues/115281
          */
         FIX_FILTER_PUSHDOWN_PAST_STATS;
 

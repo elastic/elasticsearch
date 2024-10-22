@@ -2525,6 +2525,7 @@ null
 
 groupingFilterIsAlwaysTrue
 required_capability: per_agg_filtering
+required_capability: per_agg_filtering_ords
 FROM employees
 | STATS max = max(salary) WHERE salary > 0 BY job_positions
 | SORT job_positions
@@ -2540,6 +2541,7 @@ max:integer | job_positions:keyword
 
 groupingFilterIsAlwaysFalse
 required_capability: per_agg_filtering
+required_capability: per_agg_filtering_ords
 FROM employees
 | STATS max = max(salary) WHERE first_name == "" BY job_positions
 | SORT job_positions
@@ -2555,6 +2557,7 @@ null        | Data Scientist
 
 groupingFilterSometimesMatches
 required_capability: per_agg_filtering
+required_capability: per_agg_filtering_ords
 FROM employees
 | STATS max = max(salary) WHERE first_name IS NULL BY job_positions
 | SORT job_positions

@@ -20,8 +20,6 @@ import java.util.List;
 import java.util.Objects;
 
 import static java.util.Collections.singletonList;
-import static org.elasticsearch.xpack.esql.core.querydsl.query.MatchQuery.BOOST_OPTION;
-import static org.elasticsearch.xpack.esql.core.querydsl.query.MatchQuery.FUZZINESS_OPTION;
 
 public class MatchQueryPredicate extends FullTextPredicate {
 
@@ -43,24 +41,10 @@ public class MatchQueryPredicate extends FullTextPredicate {
     }
 
     public MatchQueryPredicate(Source source, Expression field, String query, Double boost, Fuzziness fuzziness) {
-        super(source, query, createOptions(boost, fuzziness), singletonList(field));
+        super(source, query, null, singletonList(field));
         this.field = field;
         this.boost = boost;
         this.fuzziness = fuzziness;
-    }
-
-    private static String createOptions(Double boost, Fuzziness fuzziness) {
-        StringBuilder options = new StringBuilder();
-        if (boost != null) {
-            options.append(BOOST_OPTION).append("=").append(boost);
-        }
-        if (fuzziness != null) {
-            if (boost != null) {
-                options.append(";");
-            }
-            options.append(FUZZINESS_OPTION).append("=").append(fuzziness.asString());
-        }
-        return options.toString();
     }
 
     MatchQueryPredicate(StreamInput in) throws IOException {
@@ -97,7 +81,7 @@ public class MatchQueryPredicate extends FullTextPredicate {
 
     @Override
     public MatchQueryPredicate replaceChildren(List<Expression> newChildren) {
-        return new MatchQueryPredicate(source(), newChildren.get(0), query(), options());
+        return new MatchQueryPredicate(source(), newChildren.get(0), query(), boost(), fuzziness());
     }
 
     public Expression field() {

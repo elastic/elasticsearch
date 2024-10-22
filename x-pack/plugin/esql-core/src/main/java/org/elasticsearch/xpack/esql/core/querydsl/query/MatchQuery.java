@@ -12,7 +12,6 @@ import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.xpack.esql.core.expression.predicate.fulltext.MatchQueryPredicate;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 import java.util.Collections;
@@ -51,19 +50,31 @@ public class MatchQuery extends Query {
 
     private final String name;
     private final Object text;
-    private final MatchQueryPredicate predicate;
+    private final Double boost;
+    private final Fuzziness fuzziness;
     private final Map<String, String> options;
 
     public MatchQuery(Source source, String name, Object text) {
-        this(source, name, text, null);
+        this(source, name, text, Map.of());
     }
 
-    public MatchQuery(Source source, String name, Object text, MatchQueryPredicate predicate) {
+    public MatchQuery(Source source, String name, Object text, Map<String, String> options) {
+        super(source);
+        assert options != null;
+        this.name = name;
+        this.text = text;
+        this.options = options;
+        this.boost = null;
+        this.fuzziness = null;
+    }
+
+    public MatchQuery(Source source, String name, Object text, Double boost, Fuzziness fuzziness) {
         super(source);
         this.name = name;
         this.text = text;
-        this.predicate = predicate;
-        this.options = predicate == null ? Collections.emptyMap() : predicate.optionMap();
+        this.options = Collections.emptyMap();
+        this.boost = boost;
+        this.fuzziness = fuzziness;
     }
 
     @Override
@@ -76,6 +87,12 @@ public class MatchQuery extends Query {
                 throw new IllegalArgumentException("illegal match option [" + k + "]");
             }
         });
+        if (boost != null) {
+            queryBuilder.boost(boost.floatValue());
+        }
+        if (fuzziness != null) {
+            queryBuilder.fuzziness(fuzziness);
+        }
         return queryBuilder;
     }
 
@@ -87,13 +104,9 @@ public class MatchQuery extends Query {
         return text;
     }
 
-    MatchQueryPredicate predicate() {
-        return predicate;
-    }
-
     @Override
     public int hashCode() {
-        return Objects.hash(text, name, predicate);
+        return Objects.hash(text, name, options, boost, fuzziness);
     }
 
     @Override
@@ -103,11 +116,24 @@ public class MatchQuery extends Query {
         }
 
         MatchQuery other = (MatchQuery) obj;
-        return Objects.equals(text, other.text) && Objects.equals(name, other.name) && Objects.equals(predicate, other.predicate);
+        return Objects.equals(text, other.text) && Objects.equals(name, other.name) && Objects.equals(options, other.options)
+            && Objects.equals(boost, other.boost) && Objects.equals(fuzziness, other.fuzziness);
     }
 
     @Override
     protected String innerToString() {
         return name + ":" + text;
+    }
+
+    public Double boost() {
+        return boost;
+    }
+
+    public Fuzziness fuzziness() {
+        return fuzziness;
+    }
+
+    public Map<String, String> options() {
+        return options;
     }
 }

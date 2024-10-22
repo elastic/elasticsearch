@@ -32,7 +32,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
@@ -285,12 +284,14 @@ public class TickerScheduleEngineTests extends ESTestCase {
         assertThat(engine.getSchedules().get("_id"), not(is(activeSchedule)));
     }
 
+    /**
+     * This test verifies that a watch with a valid lastCheckedTime executes before the interval time to ensure the job resumes waiting
+     * from the same point it left off before the reallocation / restart
+     */
     public void testWatchWithLastCheckedTimeExecutesBeforeInitialInterval() throws Exception {
         final var firstLatch = new CountDownLatch(1);
         final var secondLatch = new CountDownLatch(1);
 
-        var firstExecuted = new AtomicBoolean(false);
-
         Watch watch = new Watch(
             "watch",
             new ScheduleTrigger(interval("1s")),
@@ -307,16 +308,18 @@ public class TickerScheduleEngineTests extends ESTestCase {
 
         var watches = Collections.singletonList(watch);
 
+        var runCount = new AtomicInteger(0);
+
         engine.register(events -> {
             for (TriggerEvent ignored : events) {
-                if (firstExecuted.get() == false) {
+                if (runCount.get() == 0) {
                     logger.info("job first fire");
-                    firstExecuted.set(true);
                     firstLatch.countDown();
                 } else {
                     logger.info("job second fire");
                     secondLatch.countDown();
                 }
+                runCount.incrementAndGet();
             }
         });
 
@@ -330,15 +333,20 @@ public class TickerScheduleEngineTests extends ESTestCase {
         if (secondLatch.await(3, TimeUnit.SECONDS) == false) {
             fail("waiting too long for all watches to be triggered");
         }
+
+        assertThat(runCount.get(), is(2));
+
         engine.stop();
     }
 
+    /**
+     * This test verifies that a watch without a lastCheckedTime but with a valid activationTime executes before the interval time to
+     * ensure the job resumes waiting from the same point it left off before the reallocation / restart
+     */
     public void testWatchWithNoLastCheckedTimeButHasActivationTimeExecutesBeforeInitialInterval() throws Exception {
         final var firstLatch = new CountDownLatch(1);
         final var secondLatch = new CountDownLatch(1);
 
-        var firstExecuted = new AtomicBoolean(false);
-
         Watch watch = new Watch(
             "watch",
             new ScheduleTrigger(interval("1s")),
@@ -363,16 +371,18 @@ public class TickerScheduleEngineTests extends ESTestCase {
 
         var watches = Collections.singletonList(watch);
 
+        var runCount = new AtomicInteger(0);
+
         engine.register(events -> {
             for (TriggerEvent ignored : events) {
-                if (firstExecuted.get() == false) {
+                if (runCount.get() == 0) {
                     logger.info("job first fire");
-                    firstExecuted.set(true);
                     firstLatch.countDown();
                 } else {
                     logger.info("job second fire");
                     secondLatch.countDown();
                 }
+                runCount.incrementAndGet();
             }
         });
 
@@ -386,14 +396,19 @@ public class TickerScheduleEngineTests extends ESTestCase {
         if (secondLatch.await(3, TimeUnit.SECONDS) == false) {
             fail("waiting too long for all watches to be triggered");
         }
+
+        assertThat(runCount.get(), is(2));
+
         engine.stop();
     }
 
+    /**
+     * This test verifies that a watch added after service start with a lastCheckedTime executes before the interval time to ensure the job
+     * resumes waiting from the same point it left off before the reallocation / restart
+     */
     public void testAddWithLastCheckedTimeExecutesBeforeInitialInterval() throws Exception {
         final var firstLatch = new CountDownLatch(1);
         final var secondLatch = new CountDownLatch(1);
-
-        var firstExecuted = new AtomicBoolean(false);
 
         Watch watch = new Watch(
             "watch",
@@ -409,16 +424,18 @@ public class TickerScheduleEngineTests extends ESTestCase {
             SequenceNumbers.UNASSIGNED_PRIMARY_TERM
         );
 
+        var runCount = new AtomicInteger(0);
+
         engine.register(events -> {
             for (TriggerEvent ignored : events) {
-                if (firstExecuted.get() == false) {
+                if (runCount.get() == 0) {
                     logger.info("job first fire");
-                    firstExecuted.set(true);
                     firstLatch.countDown();
                 } else {
                     logger.info("job second fire");
                     secondLatch.countDown();
                 }
+                runCount.incrementAndGet();
             }
         });
 
@@ -435,14 +452,19 @@ public class TickerScheduleEngineTests extends ESTestCase {
         if (secondLatch.await(3, TimeUnit.SECONDS) == false) {
             fail("waiting too long for all watches to be triggered");
         }
+
+        assertThat(runCount.get(), is(2));
+
         engine.stop();
     }
 
+    /**
+     * This test verifies that a watch added after service start without a lastCheckedTime but with a valid activationTime executes before
+     * the interval time to ensure the job resumes waiting from the same point it left off before the reallocation / restart
+     */
     public void testAddWithNoLastCheckedTimeButHasActivationTimeExecutesBeforeInitialInterval() throws Exception {
         final var firstLatch = new CountDownLatch(1);
         final var secondLatch = new CountDownLatch(1);
-
-        var firstExecuted = new AtomicBoolean(false);
 
         Watch watch = new Watch(
             "watch",
@@ -466,16 +488,18 @@ public class TickerScheduleEngineTests extends ESTestCase {
             SequenceNumbers.UNASSIGNED_PRIMARY_TERM
         );
 
+        var runCount = new AtomicInteger(0);
+
         engine.register(events -> {
             for (TriggerEvent ignored : events) {
-                if (firstExecuted.get() == false) {
+                if (runCount.get() == 0) {
                     logger.info("job first fire");
-                    firstExecuted.set(true);
                     firstLatch.countDown();
                 } else {
                     logger.info("job second fire");
                     secondLatch.countDown();
                 }
+                runCount.incrementAndGet();
             }
         });
 
@@ -492,6 +516,9 @@ public class TickerScheduleEngineTests extends ESTestCase {
         if (secondLatch.await(3, TimeUnit.SECONDS) == false) {
             fail("waiting too long for all watches to be triggered");
         }
+
+        assertThat(runCount.get(), is(2));
+
         engine.stop();
     }
 

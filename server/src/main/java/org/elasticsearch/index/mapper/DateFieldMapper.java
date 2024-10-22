@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.document.Field;
 import org.apache.lucene.document.LongField;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
@@ -687,7 +688,7 @@ public final class DateFieldMapper extends FieldMapper {
             long pivotLong = resolution.convert(pivotTime);
             // As we already apply boost in AbstractQueryBuilder::toQuery, we always passing a boost of 1.0 to distanceFeatureQuery
             if (isIndexed()) {
-                return LongPoint.newDistanceFeatureQuery(name(), 1.0f, originLong, pivotLong);
+                return LongField.newDistanceFeatureQuery(name(), 1.0f, originLong, pivotLong);
             } else {
                 return new LongScriptFieldDistanceFeatureQuery(
                     new Script(""),
@@ -959,7 +960,7 @@ public final class DateFieldMapper extends FieldMapper {
         }
 
         if (indexed && hasDocValues) {
-            context.doc().add(new LongField(fieldType().name(), timestamp));
+            context.doc().add(new LongField(fieldType().name(), timestamp, Field.Store.NO));
         } else if (hasDocValues) {
             context.doc().add(new SortedNumericDocValuesField(fieldType().name(), timestamp));
         } else if (indexed) {

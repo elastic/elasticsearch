@@ -30,6 +30,7 @@ import org.elasticsearch.reservedstate.service.ReservedStateChunk;
 import org.elasticsearch.reservedstate.service.ReservedStateUpdateTask;
 import org.elasticsearch.reservedstate.service.ReservedStateUpdateTaskExecutor;
 import org.elasticsearch.reservedstate.service.ReservedStateVersion;
+import org.elasticsearch.reservedstate.service.ReservedStateVersionCheck;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
@@ -363,7 +364,7 @@ public class ReservedLifecycleStateServiceTests extends ESTestCase {
         AtomicReference<Exception> x = new AtomicReference<>();
 
         try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, testJSON)) {
-            controller.process("operator", parser, x::set);
+            controller.process("operator", parser, randomFrom(ReservedStateVersionCheck.values()), x::set);
 
             assertThat(x.get(), instanceOf(IllegalStateException.class));
             assertThat(x.get().getMessage(), containsString("Error processing state change request for operator"));
@@ -384,7 +385,7 @@ public class ReservedLifecycleStateServiceTests extends ESTestCase {
         );
 
         try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, testJSON)) {
-            controller.process("operator", parser, Assert::assertNull);
+            controller.process("operator", parser, randomFrom(ReservedStateVersionCheck.values()), Assert::assertNull);
         }
     }
 
@@ -421,7 +422,7 @@ public class ReservedLifecycleStateServiceTests extends ESTestCase {
             new ReservedStateVersion(123L, Version.CURRENT)
         );
 
-        controller.process("operator", pack, x::set);
+        controller.process("operator", pack, randomFrom(ReservedStateVersionCheck.values()), x::set);
 
         assertThat(x.get(), instanceOf(IllegalStateException.class));
         assertThat(x.get().getMessage(), containsString("Error processing state change request for operator"));
@@ -440,6 +441,6 @@ public class ReservedLifecycleStateServiceTests extends ESTestCase {
             )
         );
 
-        controller.process("operator", pack, Assert::assertNull);
+        controller.process("operator", pack, randomFrom(ReservedStateVersionCheck.values()), Assert::assertNull);
     }
 }

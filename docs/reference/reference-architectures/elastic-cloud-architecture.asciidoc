@@ -153,7 +153,9 @@ The following list are important conderations for this architecture:
 *** *Sizing:* Maintain shard sizes within https://www.elastic.co/guide/en/elasticsearch/reference/current/size-your-shards.html#shard-size-recommendation[recommended ranges] and aim for an optimal number of shards.
 *** *Distribution:* In a distributed system, any distributed process is only as fast as the slowest node. As a result, it is optimal to maintain indexes with a primary shard count that is a multiple of the node count in a given tier. This creates even distribution of processing and prevents hotspots.
 **** Shard distribution should be enforced using the https://www.elastic.co/guide/en/elasticsearch/reference/current/size-your-shards.html#avoid-node-hotspots[‘total shards per node’] index level setting 
-**** Note: For consistent index level settings is it easiest to use index lifecycle management with index templates, please see the section below for more detail.
+
+TIP: For consistent index level settings is it easiest to use index lifecycle management with index templates, please see the section below for more detail.
+
 *** *Shard allocation awareness:* To prevent both a primary and a replica from being copied to the same zone, or in this case the same pod, you can use https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-cluster.html#shard-allocation-awareness[shard allocation awareness] and define a simple attribute in the elaticsearch.yaml file on a per-node basis to make Elasticsearch aware of the physical topology and route shards appropriately. In deployment models with multiple availability zones, AZ's would be used in place of pod location.
 * **Limitations of this architecture.**
 ** This architecture is a high-availability Elasticsearch architecture.  It is not intended as a Disaster Recovery architecture since it is deployed across Availability Zones in a single cloud region.   This architecture can be enhanced for Disaster Recovery by adding a second deployment in another cloud region.   Details on Disaster Recovery for Elasticsearch can be found here.

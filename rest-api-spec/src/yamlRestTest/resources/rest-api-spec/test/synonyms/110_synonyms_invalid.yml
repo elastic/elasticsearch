@@ -30,7 +30,6 @@ teardown:
         index: .synonyms-2
         level: shards
         timeout: 60s
-        wait_for_status: yellow
         wait_for_no_initializing_shards: true
 
   - do:

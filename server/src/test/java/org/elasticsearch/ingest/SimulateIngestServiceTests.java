@@ -64,7 +64,7 @@ public class SimulateIngestServiceTests extends ESTestCase {
         ingestService.innerUpdatePipelines(ingestMetadata);
         {
             // First we make sure that if there are no substitutions that we get our original pipeline back:
-            SimulateBulkRequest simulateBulkRequest = new SimulateBulkRequest(null, null, null);
+            SimulateBulkRequest simulateBulkRequest = new SimulateBulkRequest(Map.of(), Map.of(), Map.of(), Map.of());
             SimulateIngestService simulateIngestService = new SimulateIngestService(ingestService, simulateBulkRequest);
             Pipeline pipeline = simulateIngestService.getPipeline("pipeline1");
             assertThat(pipeline.getProcessors(), contains(transformedMatch(Processor::getType, equalTo("processor1"))));
@@ -82,7 +82,7 @@ public class SimulateIngestServiceTests extends ESTestCase {
             );
             pipelineSubstitutions.put("pipeline2", newHashMap("processors", List.of(newHashMap("processor3", Collections.emptyMap()))));
 
-            SimulateBulkRequest simulateBulkRequest = new SimulateBulkRequest(pipelineSubstitutions, null, null);
+            SimulateBulkRequest simulateBulkRequest = new SimulateBulkRequest(pipelineSubstitutions, Map.of(), Map.of(), Map.of());
             SimulateIngestService simulateIngestService = new SimulateIngestService(ingestService, simulateBulkRequest);
             Pipeline pipeline1 = simulateIngestService.getPipeline("pipeline1");
             assertThat(
@@ -102,7 +102,7 @@ public class SimulateIngestServiceTests extends ESTestCase {
              */
             Map<String, Map<String, Object>> pipelineSubstitutions = new HashMap<>();
             pipelineSubstitutions.put("pipeline2", newHashMap("processors", List.of(newHashMap("processor3", Collections.emptyMap()))));
-            SimulateBulkRequest simulateBulkRequest = new SimulateBulkRequest(pipelineSubstitutions, null, null);
+            SimulateBulkRequest simulateBulkRequest = new SimulateBulkRequest(pipelineSubstitutions, Map.of(), Map.of(), Map.of());
             SimulateIngestService simulateIngestService = new SimulateIngestService(ingestService, simulateBulkRequest);
             Pipeline pipeline1 = simulateIngestService.getPipeline("pipeline1");
             assertThat(pipeline1.getProcessors(), contains(transformedMatch(Processor::getType, equalTo("processor1"))));

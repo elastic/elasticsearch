@@ -10,7 +10,6 @@
 package org.elasticsearch.reindex;
 
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.reindex.UpdateByQueryAction;
 import org.elasticsearch.index.reindex.UpdateByQueryRequest;
@@ -55,9 +54,6 @@ public class RestUpdateByQueryAction extends AbstractBulkByQueryRestHandler<Upda
 
     @Override
     protected UpdateByQueryRequest buildRequest(RestRequest request) throws IOException {
-        if (request.getRestApiVersion() == RestApiVersion.V_7 && request.hasParam("type")) {
-            request.param("type");
-        }
         /*
          * Passing the search request through UpdateByQueryRequest first allows
          * it to set its own defaults which differ from SearchRequest's

@@ -95,6 +95,8 @@ class S3BlobStore implements BlobStore {
     private final int bulkDeletionBatchSize;
     private final BackoffPolicy retryThrottledDeleteBackoffPolicy;
 
+    private final TimeValue getRegisterRetryDelay;
+
     S3BlobStore(
         S3Service service,
         String bucket,
@@ -121,6 +123,7 @@ class S3BlobStore implements BlobStore {
         this.s3RepositoriesMetrics = s3RepositoriesMetrics;
         this.bulkDeletionBatchSize = S3Repository.DELETION_BATCH_SIZE_SETTING.get(repositoryMetadata.settings());
         this.retryThrottledDeleteBackoffPolicy = retryThrottledDeleteBackoffPolicy;
+        this.getRegisterRetryDelay = S3Repository.GET_REGISTER_RETRY_DELAY.get(repositoryMetadata.settings());
     }
 
     RequestMetricCollector getMetricCollector(Operation operation, OperationPurpose purpose) {
@@ -466,6 +469,10 @@ class S3BlobStore implements BlobStore {
 
     public StorageClass getStorageClass() {
         return storageClass;
+    }
+
+    public TimeValue getGetRegisterRetryDelay() {
+        return getRegisterRetryDelay;
     }
 
     public static StorageClass initStorageClass(String storageClass) {

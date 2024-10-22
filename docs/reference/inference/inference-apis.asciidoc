@@ -2,8 +2,6 @@
 [[inference-apis]]
 == {infer-cap} APIs
 
-experimental[]
-
 IMPORTANT: The {infer} APIs enable you to use certain services, such as built-in
 {ml} models (ELSER, E5), models uploaded through Eland, Cohere, OpenAI, Azure,
 Google AI Studio or Hugging Face. For built-in models and models uploaded
@@ -21,10 +19,11 @@ the following APIs to manage {infer} models and perform {infer}:
 * <<get-inference-api>>
 * <<post-inference-api>>
 * <<put-inference-api>>
+* <<update-inference-api>>
 
 [[inference-landscape]]
 .A representation of the Elastic inference landscape
-image::images/inference-landscape.png[A representation of the Elastic inference landscape,align="center"]
+image::images/inference-landscape.jpg[A representation of the Elastic inference landscape,align="center"]
 
 An {infer} endpoint enables you to use the corresponding {ml} model without
 manual deployment and apply it to your data at ingestion time through
@@ -39,6 +38,7 @@ include::delete-inference.asciidoc[]
 include::get-inference.asciidoc[]
 include::post-inference.asciidoc[]
 include::put-inference.asciidoc[]
+include::update-inference.asciidoc[]
 include::service-alibabacloud-ai-search.asciidoc[]
 include::service-amazon-bedrock.asciidoc[]
 include::service-anthropic.asciidoc[]
@@ -52,3 +52,4 @@ include::service-google-vertex-ai.asciidoc[]
 include::service-hugging-face.asciidoc[]
 include::service-mistral.asciidoc[]
 include::service-openai.asciidoc[]
+include::service-watsonx-ai.asciidoc[]

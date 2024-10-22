@@ -1,4 +1,23 @@
 ---
+synthetic _source is default:
+  - requires:
+      cluster_features: ["mapper.source.remove_synthetic_source_only_validation"]
+      reason: requires new validation logic
+
+  - do:
+      indices.create:
+        index: test-default-source
+        body:
+          settings:
+            index:
+              mode: logsdb
+  - do:
+      indices.get:
+        index: test-default-source
+
+  - match: { test-default-source.mappings._source.mode: "synthetic" }
+
+---
 stored _source mode is supported:
   - requires:
       cluster_features: ["mapper.source.remove_synthetic_source_only_validation"]
@@ -57,3 +76,77 @@ disabled _source is not supported:
   - match: { error.type: "mapper_parsing_exception" }
   - match: { error.root_cause.0.type: "mapper_parsing_exception" }
   - match: { error.reason: "Failed to parse mapping: _source can not be disabled in index using [logsdb] index mode" }
+
+---
+include/exclude is not supported with synthetic _source:
+  - requires:
+      cluster_features: ["mapper.source.remove_synthetic_source_only_validation"]
+      reason: requires new validation logic
+
+  - do:
+      catch: '/filtering the stored _source is incompatible with synthetic source/'
+      indices.create:
+        index: test-includes
+        body:
+          settings:
+            index:
+              mode: logsdb
+          mappings:
+            _source:
+              includes: [a]
+
+  - do:
+      catch: '/filtering the stored _source is incompatible with synthetic source/'
+      indices.create:
+        index: test-excludes
+        body:
+          settings:
+            index:
+              mode: logsdb
+          mappings:
+            _source:
+              excludes: [b]
+
+---
+include/exclude is supported with stored _source:
+  - requires:
+      cluster_features: ["mapper.source.remove_synthetic_source_only_validation"]
+      reason: requires new validation logic
+
+  - do:
+      indices.create:
+        index: test-includes
+        body:
+          settings:
+            index:
+              mode: logsdb
+          mappings:
+            _source:
+              mode: stored
+              includes: [a]
+
+  - do:
+      indices.get:
+        index: test-includes
+
+  - match: { test-includes.mappings._source.mode: "stored" }
+  - match: { test-includes.mappings._source.includes: ["a"] }
+
+  - do:
+      indices.create:
+        index: test-excludes
+        body:
+          settings:
+            index:
+              mode: logsdb
+          mappings:
+            _source:
+              mode: stored
+              excludes: [b]
+
+  - do:
+      indices.get:
+        index: test-excludes
+
+  - match: { test-excludes.mappings._source.mode: "stored" }
+  - match: { test-excludes.mappings._source.excludes: ["b"] }

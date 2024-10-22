@@ -46,6 +46,7 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
             DataType.TEXT,
             DataType.BOOLEAN,
             DataType.DATETIME,
+            DataType.DATE_NANOS,
             DataType.DOUBLE,
             DataType.INTEGER,
             DataType.LONG,
@@ -59,7 +60,7 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
             DataType.NULL
         ).collect(Collectors.toList());
         if (Build.current().isSnapshot()) {
-            t.addAll(DataType.UNDER_CONSTRUCTION.keySet());
+            t.add(DataType.DATE_NANOS);
         }
         TYPES = unmodifiableList(t);
     }

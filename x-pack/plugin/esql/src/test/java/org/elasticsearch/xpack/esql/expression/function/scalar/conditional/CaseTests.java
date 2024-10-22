@@ -60,6 +60,7 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
         ).collect(Collectors.toList());
         if (Build.current().isSnapshot()) {
             t.add(DataType.DATE_NANOS);
+            t.add(DataType.SEMANTIC_TEXT);
         }
         TYPES = unmodifiableList(t);
     }

@@ -68,6 +68,10 @@
     },
     "value": {
       "type": "long"
+    },
+    "st_base64": {
+      "type": "semantic_text",
+      "inference_id": "test_sparse_inference"
     }
   }
 }

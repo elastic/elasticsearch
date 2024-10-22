@@ -1,0 +1,5 @@
+pr: 114774
+summary: "ESQL: Add support for multivalue fields in Arrow output"
+area: ES|QL
+type: enhancement
+issues: []

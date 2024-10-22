@@ -67,15 +67,10 @@ single string as input.
 
 
 [discrete]
-[[post-inference-api-example]]
+[[stream-inference-api-example]]
 ==== {api-examples-title}
 
-
-[discrete]
-[[inference-example-stream]]
-===== Completion example
-
-The following example performs a completion on the example question.
+The following example performs a completion on the example question with streaming.
 
 
 [source,console]

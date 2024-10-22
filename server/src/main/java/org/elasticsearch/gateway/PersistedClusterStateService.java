@@ -42,7 +42,6 @@ import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.InfoStream;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
@@ -853,7 +852,7 @@ public class PersistedClusterStateService {
             final Map<String, String> commitData = Maps.newMapWithExpectedSize(COMMIT_DATA_SIZE);
             commitData.put(CURRENT_TERM_KEY, Long.toString(currentTerm));
             commitData.put(LAST_ACCEPTED_VERSION_KEY, Long.toString(lastAcceptedVersion));
-            commitData.put(NODE_VERSION_KEY, Integer.toString(Version.CURRENT.id));
+            commitData.put(NODE_VERSION_KEY, Integer.toString(BuildVersion.current().id()));
             commitData.put(OLDEST_INDEX_VERSION_KEY, Integer.toString(oldestIndexVersion.id()));
             commitData.put(NODE_ID_KEY, nodeId);
             commitData.put(CLUSTER_UUID_KEY, clusterUUID);

@@ -77,7 +77,7 @@ tasks.register("copyPainless", Copy) {
 }
 
 tasks.named("run").configure {
-  executable = "${buildParams.runtimeJavaHome}/bin/java"
+  executable = "${buildParams.runtimeJavaHome.get()}/bin/java"
   args << "-Dplugins.dir=${buildDir}/plugins" << "-Dtests.index=${buildDir}/index"
   dependsOn "copyExpression", "copyPainless", configurations.nativeLib
   systemProperty 'es.nativelibs.path', TestUtil.getTestLibraryPath(file("../libs/native/libraries/build/platform/").toString())

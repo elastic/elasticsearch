@@ -1409,13 +1409,9 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                     }
                 } else {
                     StoredFieldsSpec storedFieldsSpec = loader.rowStrideStoredFieldSpec();
-                    if (loader.rowStrideStoredFieldSpec().requiresSource()) {
+                    if (storedFieldsSpec.requiresSource()) {
                         storedFieldsSpec = storedFieldsSpec.merge(
-                            new StoredFieldsSpec(
-                                storedFieldsSpec.requiresSource(),
-                                storedFieldsSpec.requiresMetadata(),
-                                sourceLoader.requiredStoredFields()
-                            )
+                            new StoredFieldsSpec(true, storedFieldsSpec.requiresMetadata(), sourceLoader.requiredStoredFields())
                         );
                     }
                     BlockLoaderStoredFieldsFromLeafLoader storedFieldsLoader = new BlockLoaderStoredFieldsFromLeafLoader(

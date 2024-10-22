@@ -244,7 +244,9 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
             SourceLoader sourceLoader = null;
             if (storedFieldsSpec.requiresSource()) {
                 sourceLoader = shardContexts.get(shard).newSourceLoader.get();
-                storedFieldsSpec = storedFieldsSpec.merge(new StoredFieldsSpec(true, true, sourceLoader.requiredStoredFields()));
+                storedFieldsSpec = storedFieldsSpec.merge(
+                    new StoredFieldsSpec(true, storedFieldsSpec.requiresMetadata(), sourceLoader.requiredStoredFields())
+                );
             }
 
             if (rowStrideReaders.isEmpty()) {
@@ -390,7 +392,9 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
                 SourceLoader sourceLoader = null;
                 if (storedFieldsSpec.requiresSource()) {
                     sourceLoader = shardContexts.get(shard).newSourceLoader.get();
-                    storedFieldsSpec = storedFieldsSpec.merge(new StoredFieldsSpec(true, true, sourceLoader.requiredStoredFields()));
+                    storedFieldsSpec = storedFieldsSpec.merge(
+                        new StoredFieldsSpec(true, storedFieldsSpec.requiresMetadata(), sourceLoader.requiredStoredFields())
+                    );
                 }
                 storedFields = new BlockLoaderStoredFieldsFromLeafLoader(
                     StoredFieldLoader.fromSpec(storedFieldsSpec).getLoader(ctx, null),

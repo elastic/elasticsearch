@@ -27,7 +27,7 @@ configure(allprojects) {
     }
   project.tasks.withType(Test).configureEach { Test test ->
         if (buildParams.getIsRuntimeJavaHomeSet()) {
-            test.executable = "${buildParams.runtimeJavaHome}/bin/java" +
+            test.executable = "${buildParams.runtimeJavaHome.get()}/bin/java" +
                     (OS.current() == OS.WINDOWS ? '.exe' : '')
         } else {
             test.javaLauncher = javaToolchains.launcherFor {

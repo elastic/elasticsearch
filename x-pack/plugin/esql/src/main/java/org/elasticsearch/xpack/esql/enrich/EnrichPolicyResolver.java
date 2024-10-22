@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.enrich;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.search.SearchRequest;
@@ -111,23 +112,52 @@ public class EnrichPolicyResolver {
         }
         final Set<String> remoteClusters = new HashSet<>(targetClusters);
         final boolean includeLocal = remoteClusters.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
-        lookupPolicies(remoteClusters, includeLocal, unresolvedPolicies, listener.map(lookupResponses -> {
-            final EnrichResolution enrichResolution = new EnrichResolution();
-            for (UnresolvedPolicy unresolved : unresolvedPolicies) {
-                Tuple<ResolvedEnrichPolicy, String> resolved = mergeLookupResults(
-                    unresolved,
-                    calculateTargetClusters(unresolved.mode, includeLocal, remoteClusters),
-                    lookupResponses
-                );
-                if (resolved.v1() != null) {
-                    enrichResolution.addResolvedPolicy(unresolved.name, unresolved.mode, resolved.v1());
-                } else {
-                    assert resolved.v2() != null;
-                    enrichResolution.addError(unresolved.name, unresolved.mode, resolved.v2());
+        lookupPolicies(remoteClusters, includeLocal, unresolvedPolicies, new ActionListener<Map<String, LookupResponse>>() {
+            @Override
+            public void onResponse(Map<String, LookupResponse> lookupResponses) {
+                final EnrichResolution enrichResolution = new EnrichResolution();
+                for (UnresolvedPolicy unresolved : unresolvedPolicies) {
+                    Tuple<ResolvedEnrichPolicy, String> resolved = mergeLookupResults(
+                        unresolved,
+                        calculateTargetClusters(unresolved.mode, includeLocal, remoteClusters),
+                        lookupResponses
+                    );
+                    if (resolved.v1() != null) {
+                        enrichResolution.addResolvedPolicy(unresolved.name, unresolved.mode, resolved.v1());
+                    } else {
+                        assert resolved.v2() != null;
+                        enrichResolution.addError(unresolved.name, unresolved.mode, resolved.v2());
+                    }
                 }
+                listener.onResponse(enrichResolution);
             }
-            return enrichResolution;
-        }));
+
+            @Override
+            public void onFailure(Exception e) {
+                // MP TODO: I don't think this handler here is what we want because if you have an error from a skip_un=true
+                // cluster and want to ignore it, you'll never get the other LookupResponses sent to onResponse
+                System.err.println(">>> >>> FFF FFF Lookup onFailure handler passing through: " + e);
+                listener.onFailure(e);
+            }
+        });
+
+        // lookupPolicies(remoteClusters, includeLocal, unresolvedPolicies, listener.map(lookupResponses -> {
+        // final EnrichResolution enrichResolution = new EnrichResolution();
+        // for (UnresolvedPolicy unresolved : unresolvedPolicies) {
+        // Tuple<ResolvedEnrichPolicy, String> resolved = mergeLookupResults(
+        // unresolved,
+        // calculateTargetClusters(unresolved.mode, includeLocal, remoteClusters),
+        // lookupResponses
+        // );
+        // if (resolved.v1() != null) {
+        // enrichResolution.addResolvedPolicy(unresolved.name, unresolved.mode, resolved.v1());
+        // } else {
+        // assert resolved.v2() != null;
+        // enrichResolution.addError(unresolved.name, unresolved.mode, resolved.v2());
+        // }
+        // }
+        // return enrichResolution;
+        // }));
     }
 
     private Collection<String> calculateTargetClusters(Enrich.Mode mode, boolean includeLocal, Set<String> remoteClusters) {
@@ -245,13 +275,15 @@ public class EnrichPolicyResolver {
         return reason + " on clusters [" + detailed + "]";
     }
 
+    // MP TODO: probably need to pass in EsqlExecutionInfo here
     private void lookupPolicies(
         Collection<String> remoteClusters,
         boolean includeLocal,
         Collection<UnresolvedPolicy> unresolvedPolicies,
-        ActionListener<Map<String, LookupResponse>> listener
+        ActionListener<Map<String, LookupResponse>> listener  // what is this map of? What is the key?
     ) {
         final Map<String, LookupResponse> lookupResponses = ConcurrentCollections.newConcurrentMap();
+        // MP TODO: I don't understand what listener.map does here
         try (RefCountingListener refs = new RefCountingListener(listener.map(unused -> lookupResponses))) {
             Set<String> remotePolicies = unresolvedPolicies.stream()
                 .filter(u -> u.mode != Enrich.Mode.COORDINATOR)
@@ -261,22 +293,50 @@ public class EnrichPolicyResolver {
             if (remotePolicies.isEmpty() == false) {
                 for (String cluster : remoteClusters) {
                     ActionListener<LookupResponse> lookupListener = refs.acquire(resp -> lookupResponses.put(cluster, resp));
-                    // MP TODO: need to track how errors are handled here
-                    getRemoteConnection(
-                        cluster,
-                        lookupListener.delegateFailureAndWrap(
-                            (delegate, connection) -> transportService.sendRequest(
+                    getRemoteConnection(cluster, new ActionListener<Transport.Connection>() {
+                        @Override
+                        public void onResponse(Transport.Connection connection) {
+                            transportService.sendRequest(
                                 connection,
                                 RESOLVE_ACTION_NAME,
                                 new LookupRequest(cluster, remotePolicies),
                                 TransportRequestOptions.EMPTY,
-                                new ActionListenerResponseHandler<>(
-                                    delegate,
-                                    LookupResponse::new,
-                                    threadPool.executor(ThreadPool.Names.SEARCH)
-                                )
-                            )
-                        )
+                                new ActionListenerResponseHandler<>(lookupListener.delegateResponse((l, e) -> {
+                                    if (ExceptionsHelper.isRemoteUnavailableException(e)
+                                        && remoteClusterService.isSkipUnavailable(cluster)) {
+                                        // TODO: fill in later with proper error message
+                                        l.onResponse(new LookupResponse(Map.of(), Map.of(cluster, e.getMessage())));
+                                    } else {
+                                        l.onFailure(e);
+                                    }
+                                }), LookupResponse::new, threadPool.executor(ThreadPool.Names.SEARCH))
+                            );
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            // MP TODO: do I need this or only do it for the sendRequest handler?
+                            if (ExceptionsHelper.isRemoteUnavailableException(e) && remoteClusterService.isSkipUnavailable(cluster)) {
+                                // TODO: fill in later with proper error message
+                                lookupListener.onResponse(new LookupResponse(Map.of(), Map.of(cluster, e.getMessage())));
+                            } else {
+                                lookupListener.onFailure(e);
+                            }
+                        }
+                    }
+                    // lookupListener.delegateFailureAndWrap(
+                    // (delegate, connection) -> transportService.sendRequest(
+                    // connection,
+                    // RESOLVE_ACTION_NAME,
+                    // new LookupRequest(cluster, remotePolicies),
+                    // TransportRequestOptions.EMPTY,
+                    // new ActionListenerResponseHandler<>(
+                    // delegate,
+                    // LookupResponse::new,
+                    // threadPool.executor(ThreadPool.Names.SEARCH)
+                    // )
+                    // )
+                    // )
                     );
                 }
             }
@@ -323,7 +383,7 @@ public class EnrichPolicyResolver {
 
     private static class LookupResponse extends TransportResponse {
         final Map<String, ResolvedEnrichPolicy> policies;
-        final Map<String, String> failures;
+        final Map<String, String> failures;  // MP TODO: what are these failures and why are they strings?
 
         LookupResponse(Map<String, ResolvedEnrichPolicy> policies, Map<String, String> failures) {
             this.policies = policies;
@@ -347,6 +407,7 @@ public class EnrichPolicyResolver {
     private class RequestHandler implements TransportRequestHandler<LookupRequest> {
         @Override
         public void messageReceived(LookupRequest request, TransportChannel channel, Task task) {
+            System.err.println("\n\n === AAA EnrichPolicyResolver.RequestHandler.messageReceived\n");
             final Map<String, EnrichPolicy> availablePolicies = availablePolicies();
             final Map<String, String> failures = ConcurrentCollections.newConcurrentMap();
             final Map<String, ResolvedEnrichPolicy> resolvedPolices = ConcurrentCollections.newConcurrentMap();

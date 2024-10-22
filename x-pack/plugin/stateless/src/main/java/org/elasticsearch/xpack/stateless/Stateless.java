@@ -281,6 +281,7 @@ public class Stateless extends Plugin
     public static final String MERGE_THREAD_POOL_SETTING = "stateless." + MERGE_THREAD_POOL + "_thread_pool";
 
     public static final Set<DiscoveryNodeRole> STATELESS_ROLES = Set.of(DiscoveryNodeRole.INDEX_ROLE, DiscoveryNodeRole.SEARCH_ROLE);
+    private final SetOnce<ThreadPool> threadPool = new SetOnce<>();
     private final SetOnce<StatelessCommitService> commitService = new SetOnce<>();
     private final SetOnce<ClosedShardService> closedShardService = new SetOnce<>();
     private final SetOnce<ObjectStoreService> objectStoreService = new SetOnce<>();
@@ -425,7 +426,7 @@ public class Stateless extends Plugin
     public Collection<Object> createComponents(PluginServices services) {
         Client client = services.client();
         ClusterService clusterService = services.clusterService();
-        ThreadPool threadPool = services.threadPool();
+        ThreadPool threadPool = setAndGet(this.threadPool, services.threadPool());
         Environment environment = services.environment();
         NodeEnvironment nodeEnvironment = services.nodeEnvironment();
         IndicesService indicesService = setAndGet(this.indicesService, services.indicesService());
@@ -468,8 +469,6 @@ public class Stateless extends Plugin
         components.add(commitCleaner);
         var cacheWarmingService = createSharedBlobCacheWarmingService(cacheService, threadPool, services.telemetryProvider(), settings);
         setAndGet(this.sharedBlobCacheWarmingService, cacheWarmingService);
-        var indexShardCacheWarmer = new IndexShardCacheWarmer(objectStoreService, cacheWarmingService, threadPool);
-        components.add(indexShardCacheWarmer);
         var commitService = createStatelessCommitService(
             settings,
             objectStoreService,
@@ -494,8 +493,15 @@ public class Stateless extends Plugin
             new TranslogReplicator(threadPool, settings, objectStoreService, consistencyService)
         );
         setAndGet(this.translogReplicatorMetrics, new TranslogRecoveryMetrics(services.telemetryProvider().getMeterRegistry()));
-
         components.add(new StatelessComponents(translogReplicator, objectStoreService));
+
+        var indexShardCacheWarmer = new IndexShardCacheWarmer(
+            objectStoreService,
+            cacheWarmingService,
+            threadPool,
+            commitService.useReplicatedRanges()
+        );
+        components.add(indexShardCacheWarmer);
 
         var refreshThrottlingService = setAndGet(this.refreshThrottlingService, new RefreshThrottlingService(settings, clusterService));
         components.add(refreshThrottlingService);
@@ -1029,6 +1035,7 @@ public class Stateless extends Plugin
         }
         indexModule.addIndexEventListener(
             new StatelessIndexEventListener(
+                threadPool.get(),
                 statelessCommitService,
                 objectStoreService.get(),
                 localTranslogReplicator,

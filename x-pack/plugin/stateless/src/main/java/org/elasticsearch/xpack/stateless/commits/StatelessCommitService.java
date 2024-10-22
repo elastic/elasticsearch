@@ -1361,7 +1361,6 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                             .getPrimaryTermAndGeneration()
                             .onOrBefore(uploadedBcc.primaryTermAndGeneration())
                     )
-                    // TODO Build a map of BlobFileRanges that includes replicated ranges (ES-9344)
                     .collect(Collectors.toMap(Map.Entry::getKey, entry -> new BlobFileRanges(entry.getValue().blobLocation())));
 
             assert uploadedFilesBlobLocations.values()

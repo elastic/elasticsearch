@@ -62,8 +62,8 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
 
     private static final Logger logger = LogManager.getLogger(BlobStoreCacheDirectory.class);
 
-    protected final LongAdder totalBytesReadFromObjectStore = new LongAdder();
-    protected final LongAdder totalBytesWarmedFromObjectStore = new LongAdder();
+    protected final LongAdder totalBytesReadFromObjectStore;
+    protected final LongAdder totalBytesWarmedFromObjectStore;
 
     protected final ShardId shardId;
     protected final StatelessSharedBlobCacheService cacheService;
@@ -77,9 +77,20 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
     protected volatile long currentDataSetSizeInBytes = 0L;
 
     BlobStoreCacheDirectory(StatelessSharedBlobCacheService cacheService, ShardId shardId) {
+        this(cacheService, shardId, new LongAdder(), new LongAdder());
+    }
+
+    protected BlobStoreCacheDirectory(
+        StatelessSharedBlobCacheService cacheService,
+        ShardId shardId,
+        LongAdder totalBytesRead,
+        LongAdder totalBytesWarmed
+    ) {
         super(EmptyDirectory.INSTANCE);
         this.cacheService = cacheService;
         this.shardId = shardId;
+        this.totalBytesReadFromObjectStore = totalBytesRead;
+        this.totalBytesWarmedFromObjectStore = totalBytesWarmed;
     }
 
     @Override
@@ -311,9 +322,10 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
     }
 
     /**
-     * @return the {@link BlobStoreCacheDirectory} to use for prewarming purpose.
+     * @return the {@link BlobStoreCacheDirectory} to use for pre-warming, warming or reading BCC purpose.
+     * Note: the bytes read using this instance are always added to {@link #totalBytesWarmedFromObjectStore}.
      */
-    public BlobStoreCacheDirectory createPreWarmingInstance() {
+    public BlobStoreCacheDirectory createNewInstance() {
         return this;
     }
 

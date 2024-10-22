@@ -1135,7 +1135,8 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
             latestUploadBccMetadata.length(),
             (blobName, offset, length) -> new InputStreamStreamInput(
                 blobContainerForCommit.readBlob(operationPurpose, blobName, offset, length)
-            )
+            ),
+            true
         );
         return latestUploadedBcc;
     }

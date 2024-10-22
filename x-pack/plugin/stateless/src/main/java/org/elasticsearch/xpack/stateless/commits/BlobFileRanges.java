@@ -21,14 +21,15 @@ import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 
 import org.apache.lucene.codecs.CodecUtil;
 import org.elasticsearch.blobcache.BlobCacheUtils;
-import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.set.Sets;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Objects;
+import java.util.Set;
 import java.util.TreeMap;
-import java.util.stream.Collectors;
 
 import static co.elastic.elasticsearch.stateless.commits.InternalFilesReplicatedRanges.REPLICATED_CONTENT_FOOTER_SIZE;
 import static co.elastic.elasticsearch.stateless.commits.InternalFilesReplicatedRanges.REPLICATED_CONTENT_HEADER_SIZE;
@@ -126,54 +127,62 @@ public class BlobFileRanges {
     }
 
     /**
-     * Computes the {@link BlobFileRanges} for the last compound commit files of a {@link BatchedCompoundCommit}
+     * Computes the {@link BlobFileRanges} for a given set of internal files of a {@link BatchedCompoundCommit}
      *
      * @param batchedCompoundCommit the batched compound commit
+     * @param files                 the set of files for which the blob file ranges must be computed
      * @param useReplicatedRanges   if the replication of ranges feature is enabled
      * @return map of all the commit files of the last commit of the batched compound commit associated to their {@link BlobFileRanges}
      */
-    public static Map<String, BlobFileRanges> computeLastCommitBlobFileRanges(
+    public static Map<String, BlobFileRanges> computeBlobFileRanges(
         BatchedCompoundCommit batchedCompoundCommit,
+        Set<String> files,
         boolean useReplicatedRanges
     ) {
-        var lastCompoundCommit = batchedCompoundCommit.lastCompoundCommit();
-        if (useReplicatedRanges == false || lastCompoundCommit.internalFilesReplicatedRanges().isEmpty()) {
-            return Maps.transformValues(lastCompoundCommit.commitFiles(), BlobFileRanges::new);
-        }
-
         long blobOffset = 0L;
-        var replicatedByteRanges = new TreeMap<Long, ReplicatedByteRange>();
+        var blobFileRanges = new HashMap<String, BlobFileRanges>(files.size());
         for (var compoundCommit : batchedCompoundCommit.compoundCommits()) {
             assert blobOffset == BlobCacheUtils.toPageAlignedSize(blobOffset);
 
-            if (compoundCommit == lastCompoundCommit) {
+            var internalFiles = Sets.intersection(compoundCommit.internalFiles(), files);
+            if (internalFiles.isEmpty() == false) {
                 long replicatedRangesOffset = blobOffset + compoundCommit.headerSizeInBytes();
                 long internalFilesOffset = replicatedRangesOffset + compoundCommit.internalFilesReplicatedRanges().dataSizeInBytes();
 
+                var replicatedRanges = new TreeMap<Long, ReplicatedByteRange>();
                 for (var range : compoundCommit.internalFilesReplicatedRanges().replicatedRanges()) {
                     long position = internalFilesOffset + range.position();
-                    var previous = replicatedByteRanges.put(
+                    var previous = replicatedRanges.put(
                         position,
                         new ReplicatedByteRange(position, range.length(), replicatedRangesOffset)
                     );
                     assert previous == null : "replicated range already exists: " + previous;
                     replicatedRangesOffset += range.length();
                 }
-                assert assertReplicatedRangesMatchInternalFiles(compoundCommit, replicatedByteRanges);
-                assert assertNoOverlappingReplicatedRanges(replicatedByteRanges);
+                assert assertReplicatedRangesMatchInternalFiles(compoundCommit, replicatedRanges);
+                assert assertNoOverlappingReplicatedRanges(replicatedRanges);
+
+                for (var internalFile : internalFiles) {
+                    var blobLocation = compoundCommit.commitFiles().get(internalFile);
+                    assert blobLocation != null : internalFile;
+                    var floor = replicatedRanges.floorEntry(blobLocation.offset());
+                    if (useReplicatedRanges && floor != null) {
+                        blobFileRanges.put(
+                            internalFile,
+                            // tailMap returns a view of the backing map where the first element is the replicated range corresponding to
+                            // the file's header, followed by the replicated range for the file's footer, and then replicated ranges for
+                            // other files.
+                            new BlobFileRanges(blobLocation, unmodifiableNavigableMap(replicatedRanges.tailMap(floor.getKey(), true)))
+                        );
+                    } else {
+                        blobFileRanges.put(internalFile, new BlobFileRanges(blobLocation));
+                    }
+                }
             }
             blobOffset += BlobCacheUtils.toPageAlignedSize(compoundCommit.sizeInBytes());
         }
-        return lastCompoundCommit.commitFiles().entrySet().stream().collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, entry -> {
-            var blobLocation = entry.getValue();
-            if (lastCompoundCommit.internalFiles().contains(entry.getKey())) {
-                var floor = replicatedByteRanges.floorEntry(blobLocation.offset());
-                assert floor != null : "no replicated range for [" + entry.getKey() + "] at " + blobLocation + ": " + replicatedByteRanges;
-                return new BlobFileRanges(blobLocation, unmodifiableNavigableMap(replicatedByteRanges.tailMap(floor.getKey(), true)));
-            } else {
-                return new BlobFileRanges(blobLocation);
-            }
-        }));
+        assert files.stream().allMatch(blobFileRanges::containsKey);
+        return blobFileRanges;
     }
 
     /**
@@ -213,5 +222,4 @@ public class BlobFileRanges {
         }
         return true;
     }
-
 }

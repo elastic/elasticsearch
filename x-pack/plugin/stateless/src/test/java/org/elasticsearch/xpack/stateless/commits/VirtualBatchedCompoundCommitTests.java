@@ -92,7 +92,8 @@ public class VirtualBatchedCompoundCommitTests extends ESTestCase {
                     var deserializedBatchedCompoundCommit = BatchedCompoundCommit.readFromStore(
                         virtualBatchedCompoundCommit.getBlobName(),
                         output.size(),
-                        (blobName, offset, length) -> serializedBatchedCompoundCommit.slice((int) offset, (int) length).streamInput()
+                        (blobName, offset, length) -> serializedBatchedCompoundCommit.slice((int) offset, (int) length).streamInput(),
+                        true
                     );
                     assertEquals(batchedCompoundCommit, deserializedBatchedCompoundCommit);
 

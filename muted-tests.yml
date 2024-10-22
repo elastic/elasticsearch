@@ -424,6 +424,9 @@ tests:
 - class: org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT
   method: test {p0=mixed_cluster/80_transform_jobs_crud/Test GET, start, and stop old cluster batch transforms}
   issue: https://github.com/elastic/elasticsearch/issues/115319
+- class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
+  method: test {yaml=reference/rest-api/usage/line_38}
+  issue: https://github.com/elastic/elasticsearch/issues/113694
 
 # Examples:
 #

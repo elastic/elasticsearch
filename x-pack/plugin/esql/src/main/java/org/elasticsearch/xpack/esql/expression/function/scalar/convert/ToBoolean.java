@@ -28,6 +28,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataType.SEMANTIC_TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToBoolean;
@@ -47,7 +48,8 @@ public class ToBoolean extends AbstractConvertFunction {
         Map.entry(DOUBLE, ToBooleanFromDoubleEvaluator.Factory::new),
         Map.entry(LONG, ToBooleanFromLongEvaluator.Factory::new),
         Map.entry(UNSIGNED_LONG, ToBooleanFromUnsignedLongEvaluator.Factory::new),
-        Map.entry(INTEGER, ToBooleanFromIntEvaluator.Factory::new)
+        Map.entry(INTEGER, ToBooleanFromIntEvaluator.Factory::new),
+        Map.entry(SEMANTIC_TEXT, ToBooleanFromStringEvaluator.Factory::new)
     );
 
     @FunctionInfo(

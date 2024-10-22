@@ -46,6 +46,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -60,6 +61,7 @@ import static org.elasticsearch.indices.recovery.RecoverySettings.INDICES_RECOVE
 import static org.elasticsearch.xcontent.XContentType.JSON;
 import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7;
 import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -367,13 +369,14 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
             )
         );
 
-        int readOnlyCount = 0;
-        // assert that cluster-state role mappings come last
+        List<Boolean> readOnlyFlags = new ArrayList<>();
         for (ExpressionRoleMapping mapping : response.mappings()) {
-            readOnlyCount = ExpressionRoleMapping.hasReadOnlySuffix(mapping.getName()) ? readOnlyCount + 1 : readOnlyCount;
+            boolean isReadOnly = ExpressionRoleMapping.hasReadOnlySuffix(mapping.getName())
+                && mapping.getMetadata().get("_read_only") != null;
+            readOnlyFlags.add(isReadOnly);
         }
-        // Two sourced from cluster-state
-        assertEquals(readOnlyCount, 2);
+        // assert that cluster-state role mappings come last
+        assertThat(readOnlyFlags, contains(false, false, false, false, true, true));
 
         // it's possible to delete overlapping native role mapping
         assertTrue(client().execute(DeleteRoleMappingAction.INSTANCE, deleteRequest("everyone_kibana")).actionGet().isFound());

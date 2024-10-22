@@ -25,11 +25,9 @@ public class TermCount implements Writeable, ToXContentFragment {
     public static final String TERM_FIELD = "term";
     public static final String DOC_COUNT_FIELD = "doc_count";
 
-    static final ConstructingObjectParser<TermCount, Void> PARSER = new ConstructingObjectParser<>(
-        "term_count",
-        true,
-        a -> { return new TermCount((String) a[0], (long) a[1]); }
-    );
+    static final ConstructingObjectParser<TermCount, Void> PARSER = new ConstructingObjectParser<>("term_count", true, a -> {
+        return new TermCount((String) a[0], (long) a[1]);
+    });
     static {
         PARSER.declareString(constructorArg(), new ParseField(TERM_FIELD));
         PARSER.declareLong(constructorArg(), new ParseField(DOC_COUNT_FIELD));

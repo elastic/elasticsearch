@@ -359,12 +359,9 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
             boolean registerType
         ) throws IOException {
             this.nowInMillis = nowInMillis;
-            Environment env = InternalSettingsPreparer.prepareEnvironment(
-                nodeSettings,
-                emptyMap(),
-                null,
-                () -> { throw new AssertionError("node.name must be set"); }
-            );
+            Environment env = InternalSettingsPreparer.prepareEnvironment(nodeSettings, emptyMap(), null, () -> {
+                throw new AssertionError("node.name must be set");
+            });
             PluginsService pluginsService;
             pluginsService = new PluginsService(nodeSettings, null, env.modulesFile(), env.pluginsFile(), plugins);
 

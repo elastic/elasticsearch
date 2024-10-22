@@ -174,13 +174,9 @@ public class PutUserRequestBuilderTests extends ESTestCase {
         final String json = "{\n" + "    \"password_hash\": \"" + new String(hash) + "\"," + "    \"roles\": []\n" + "}";
 
         PutUserRequestBuilder builder = new PutUserRequestBuilder(mock(Client.class));
-        final IllegalArgumentException ex = expectThrows(
-            IllegalArgumentException.class,
-            () -> {
-                builder.source("hash_user", new BytesArray(json.getBytes(StandardCharsets.UTF_8)), XContentType.JSON, systemHasher)
-                    .request();
-            }
-        );
+        final IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> {
+            builder.source("hash_user", new BytesArray(json.getBytes(StandardCharsets.UTF_8)), XContentType.JSON, systemHasher).request();
+        });
         assertThat(ex.getMessage(), containsString(userHasher.name()));
         assertThat(ex.getMessage(), containsString(systemHasher.name()));
     }
@@ -190,13 +186,9 @@ public class PutUserRequestBuilderTests extends ESTestCase {
         final String json = "{\n" + "    \"password_hash\": \"not-a-hash\"," + "    \"roles\": []\n" + "}";
 
         PutUserRequestBuilder builder = new PutUserRequestBuilder(mock(Client.class));
-        final IllegalArgumentException ex = expectThrows(
-            IllegalArgumentException.class,
-            () -> {
-                builder.source("hash_user", new BytesArray(json.getBytes(StandardCharsets.UTF_8)), XContentType.JSON, systemHasher)
-                    .request();
-            }
-        );
+        final IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> {
+            builder.source("hash_user", new BytesArray(json.getBytes(StandardCharsets.UTF_8)), XContentType.JSON, systemHasher).request();
+        });
         assertThat(ex.getMessage(), containsString(Hasher.NOOP.name()));
         assertThat(ex.getMessage(), containsString(systemHasher.name()));
     }
@@ -214,10 +206,9 @@ public class PutUserRequestBuilderTests extends ESTestCase {
         );
 
         PutUserRequestBuilder builder = new PutUserRequestBuilder(mock(Client.class));
-        final IllegalArgumentException ex = expectThrows(
-            ValidationException.class,
-            () -> { builder.source("hash_user", json, XContentType.JSON, hasher).request(); }
-        );
+        final IllegalArgumentException ex = expectThrows(ValidationException.class, () -> {
+            builder.source("hash_user", json, XContentType.JSON, hasher).request();
+        });
         assertThat(ex.getMessage(), containsString("password_hash has already been set"));
     }
 }

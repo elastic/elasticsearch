@@ -326,10 +326,9 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             configurationReadyListener.onResponse(null);
         }, listener::onFailure);
 
-        ActionListener<Void> reLoadFieldMappingsListener = ActionListener.wrap(
-            updateConfigResponse -> { doGetFieldMappings(fieldMappingsListener); },
-            listener::onFailure
-        );
+        ActionListener<Void> reLoadFieldMappingsListener = ActionListener.wrap(updateConfigResponse -> {
+            doGetFieldMappings(fieldMappingsListener);
+        }, listener::onFailure);
 
         // If we are continuous, we will want to verify we have the latest stored configuration
         ActionListener<Void> changedSourceListener = ActionListener.wrap(r -> {

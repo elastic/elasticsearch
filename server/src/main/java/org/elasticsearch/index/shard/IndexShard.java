@@ -3351,10 +3351,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return new DelegatingAnalyzerWrapper(Analyzer.PER_FIELD_REUSE_STRATEGY) {
             @Override
             protected Analyzer getWrappedAnalyzer(String fieldName) {
-                return mapperService.indexAnalyzer(
-                    fieldName,
-                    f -> { throw new IllegalArgumentException("Field [" + fieldName + "] has no associated analyzer"); }
-                );
+                return mapperService.indexAnalyzer(fieldName, f -> {
+                    throw new IllegalArgumentException("Field [" + fieldName + "] has no associated analyzer");
+                });
             }
         };
     }

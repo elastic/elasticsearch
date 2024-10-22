@@ -193,13 +193,9 @@ public class ValuesSourceConfigTests extends MapperServiceTestCase {
 
     public void testTypeFieldDeprecation() throws IOException {
         MapperService mapperService = createMapperService(mapping(b -> {}));
-        withAggregationContext(
-            mapperService,
-            List.of(source(b -> {})),
-            context -> {
-                ValuesSourceConfig.resolve(context, null, TypeFieldMapper.NAME, null, null, null, null, CoreValuesSourceType.KEYWORD);
-            }
-        );
+        withAggregationContext(mapperService, List.of(source(b -> {})), context -> {
+            ValuesSourceConfig.resolve(context, null, TypeFieldMapper.NAME, null, null, null, null, CoreValuesSourceType.KEYWORD);
+        });
         assertWarnings(TypeFieldMapper.TYPES_DEPRECATION_MESSAGE);
     }
 

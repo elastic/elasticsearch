@@ -848,14 +848,9 @@ public class RateAggregatorTests extends AggregatorTestCase {
 
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
-            () -> testCase(
-                dateHistogramAggregationBuilder,
-                new MatchAllDocsQuery(),
-                iw -> { iw.addDocument(doc("2010-03-12T01:07:45", new SortedNumericDocValuesField("val", 1))); },
-                h -> { fail("Shouldn't be here"); },
-                dateType,
-                numType
-            )
+            () -> testCase(dateHistogramAggregationBuilder, new MatchAllDocsQuery(), iw -> {
+                iw.addDocument(doc("2010-03-12T01:07:45", new SortedNumericDocValuesField("val", 1)));
+            }, h -> { fail("Shouldn't be here"); }, dateType, numType)
         );
         assertEquals("The mode parameter is only supported with field or script", ex.getMessage());
     }

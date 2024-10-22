@@ -142,10 +142,9 @@ public class PutPrivilegesRequestTests extends ESTestCase {
         final RefreshPolicy refreshPolicy = randomFrom(RefreshPolicy.values());
         PutPrivilegesRequest putPrivilegesRequest = new PutPrivilegesRequest(privileges, refreshPolicy);
 
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
-            putPrivilegesRequest,
-            (original) -> { return new PutPrivilegesRequest(privileges, refreshPolicy); }
-        );
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(putPrivilegesRequest, (original) -> {
+            return new PutPrivilegesRequest(privileges, refreshPolicy);
+        });
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(putPrivilegesRequest, (original) -> {
             return new PutPrivilegesRequest(
                 original.getPrivileges().values().stream().flatMap(List::stream).collect(Collectors.toList()),

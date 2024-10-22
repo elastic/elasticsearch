@@ -35,10 +35,9 @@ public class DelegatePkiAuthenticationRequestTests extends AbstractRequestTestCa
     org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationRequest> {
 
     public void testEmptyOrNullCertificateChain() throws Exception {
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> { new DelegatePkiAuthenticationRequest((List<X509Certificate>) null); }
-        );
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
+            new DelegatePkiAuthenticationRequest((List<X509Certificate>) null);
+        });
         assertThat(e.getMessage(), is("certificate chain must not be empty or null"));
         e = expectThrows(IllegalArgumentException.class, () -> { new DelegatePkiAuthenticationRequest(Collections.emptyList()); });
         assertThat(e.getMessage(), is("certificate chain must not be empty or null"));

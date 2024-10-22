@@ -188,11 +188,9 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
             MappedFieldType fieldType = indexService.mapperService().fieldType(request.field());
             if (fieldType != null) {
                 if (fieldType instanceof StringFieldType) {
-                    return indexService.mapperService()
-                        .indexAnalyzer(
-                            fieldType.name(),
-                            f -> { throw new IllegalArgumentException("No analyzer configured for field " + fieldType.name()); }
-                        );
+                    return indexService.mapperService().indexAnalyzer(fieldType.name(), f -> {
+                        throw new IllegalArgumentException("No analyzer configured for field " + fieldType.name());
+                    });
                 } else {
                     throw new IllegalArgumentException(
                         "Can't process field [" + request.field() + "], Analysis requests are only supported on tokenized fields"

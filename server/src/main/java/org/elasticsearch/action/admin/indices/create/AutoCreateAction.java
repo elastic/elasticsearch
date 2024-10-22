@@ -106,7 +106,9 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                         new String[] { indexName },
                         ActiveShardCount.DEFAULT,
                         request.timeout(),
-                        shardsAcked -> { finalListener.onResponse(new CreateIndexResponse(true, shardsAcked, indexName)); },
+                        shardsAcked -> {
+                            finalListener.onResponse(new CreateIndexResponse(true, shardsAcked, indexName));
+                        },
                         finalListener::onFailure
                     );
                 } else {

@@ -52,10 +52,9 @@ public final class HasPrivilegesResponse {
         if (argument instanceof Map) {
             Map<String, T> map = (Map<String, T>) argument;
             if (depth == 0) {
-                map.values()
-                    .stream()
-                    .filter(val -> (val instanceof Boolean) == false)
-                    .forEach(val -> { throw new IllegalArgumentException("Map value [" + val + "] in [" + map + "] is not a Boolean"); });
+                map.values().stream().filter(val -> (val instanceof Boolean) == false).forEach(val -> {
+                    throw new IllegalArgumentException("Map value [" + val + "] in [" + map + "] is not a Boolean");
+                });
             } else {
                 map.values().stream().forEach(val -> checkMap(val, depth - 1));
             }

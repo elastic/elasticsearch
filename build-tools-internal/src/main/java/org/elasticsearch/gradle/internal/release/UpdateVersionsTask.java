@@ -227,14 +227,9 @@ public class UpdateVersionsTask extends DefaultTask {
             .stream()
             .map(f -> Map.entry(f, parseVersionField(f.getVariable(0).getNameAsString())))
             .filter(e -> e.getValue().isPresent())
-            .collect(
-                Collectors.toMap(
-                    e -> e.getValue().get(),
-                    Map.Entry::getKey,
-                    (v1, v2) -> { throw new IllegalArgumentException("Duplicate version constants " + v1); },
-                    TreeMap::new
-                )
-            );
+            .collect(Collectors.toMap(e -> e.getValue().get(), Map.Entry::getKey, (v1, v2) -> {
+                throw new IllegalArgumentException("Duplicate version constants " + v1);
+            }, TreeMap::new));
 
         // find the version this should be inserted after
         var previousVersion = versions.lowerEntry(version);

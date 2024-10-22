@@ -303,10 +303,9 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
             if (ft.hasDocValues()) {
                 ifds.getForField(ft, "test", () -> { throw new UnsupportedOperationException(); }); // no exception
             } else {
-                IllegalArgumentException e = expectThrows(
-                    IllegalArgumentException.class,
-                    () -> ifds.getForField(ft, "test", () -> { throw new UnsupportedOperationException(); })
-                );
+                IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> ifds.getForField(ft, "test", () -> {
+                    throw new UnsupportedOperationException();
+                }));
                 assertThat(e.getMessage(), containsString("doc values"));
             }
         } finally {

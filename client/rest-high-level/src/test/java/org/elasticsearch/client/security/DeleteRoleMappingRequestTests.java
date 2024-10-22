@@ -39,16 +39,13 @@ public class DeleteRoleMappingRequestTests extends ESTestCase {
         final DeleteRoleMappingRequest deleteRoleMappingRequest = new DeleteRoleMappingRequest(name, refreshPolicy);
         assertNotNull(deleteRoleMappingRequest);
 
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
-            deleteRoleMappingRequest,
-            (original) -> { return new DeleteRoleMappingRequest(original.getName(), original.getRefreshPolicy()); }
-        );
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(deleteRoleMappingRequest, (original) -> {
+            return new DeleteRoleMappingRequest(original.getName(), original.getRefreshPolicy());
+        });
 
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
-            deleteRoleMappingRequest,
-            (original) -> { return new DeleteRoleMappingRequest(original.getName(), original.getRefreshPolicy()); },
-            DeleteRoleMappingRequestTests::mutateTestItem
-        );
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(deleteRoleMappingRequest, (original) -> {
+            return new DeleteRoleMappingRequest(original.getName(), original.getRefreshPolicy());
+        }, DeleteRoleMappingRequestTests::mutateTestItem);
 
     }
 

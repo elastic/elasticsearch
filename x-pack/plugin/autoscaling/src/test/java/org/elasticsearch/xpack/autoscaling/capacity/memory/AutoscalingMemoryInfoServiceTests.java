@@ -327,14 +327,9 @@ public class AutoscalingMemoryInfoServiceTests extends AutoscalingTestCase {
     }
 
     public void assertMatchesResponse(Set<DiscoveryNode> nodes, NodesStatsResponse response) {
-        nodes.forEach(
-            n -> {
-                assertThat(
-                    service.snapshot().get(n),
-                    equalTo(response.getNodesMap().get(n.getId()).getOs().getMem().getTotal().getBytes())
-                );
-            }
-        );
+        nodes.forEach(n -> {
+            assertThat(service.snapshot().get(n), equalTo(response.getNodesMap().get(n.getId()).getOs().getMem().getTotal().getBytes()));
+        });
     }
 
     private Thread startThread(Runnable runnable) {

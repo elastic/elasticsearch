@@ -58,10 +58,9 @@ public class TransportGetCalendarEventsAction extends HandledTransportAction<
                 .size(request.getPageParams().getSize())
                 .calendarIds(calendarId);
 
-            ActionListener<QueryPage<ScheduledEvent>> eventsListener = ActionListener.wrap(
-                events -> { listener.onResponse(new GetCalendarEventsAction.Response(events)); },
-                listener::onFailure
-            );
+            ActionListener<QueryPage<ScheduledEvent>> eventsListener = ActionListener.wrap(events -> {
+                listener.onResponse(new GetCalendarEventsAction.Response(events));
+            }, listener::onFailure);
 
             if (request.getJobId() != null) {
 

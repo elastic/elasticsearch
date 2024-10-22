@@ -52,7 +52,9 @@ public class Phase implements ToXContentObject {
         PARSER.declareNamedObjects(
             ConstructingObjectParser.constructorArg(),
             (p, c, n) -> p.namedObject(LifecycleAction.class, n, null),
-            v -> { throw new IllegalArgumentException("ordered " + ACTIONS_FIELD.getPreferredName() + " are not supported"); },
+            v -> {
+                throw new IllegalArgumentException("ordered " + ACTIONS_FIELD.getPreferredName() + " are not supported");
+            },
             ACTIONS_FIELD
         );
     }

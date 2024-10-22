@@ -33,7 +33,9 @@ public class ClusterUpdateSettingsResponse extends AcknowledgedResponse {
     private static final ConstructingObjectParser<ClusterUpdateSettingsResponse, Void> PARSER = new ConstructingObjectParser<>(
         "cluster_update_settings_response",
         true,
-        args -> { return new ClusterUpdateSettingsResponse((boolean) args[0], (Settings) args[1], (Settings) args[2]); }
+        args -> {
+            return new ClusterUpdateSettingsResponse((boolean) args[0], (Settings) args[1], (Settings) args[2]);
+        }
     );
     static {
         declareAcknowledgedField(PARSER);

@@ -188,13 +188,9 @@ public class BoxplotAggregatorTests extends AggregatorTestCase {
 
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> testCase(
-                aggregationBuilder,
-                new MatchAllDocsQuery(),
-                iw -> { iw.addDocument(singleton(new SortedSetDocValuesField("string", new BytesRef("foo")))); },
-                (Consumer<InternalBoxplot>) boxplot -> { fail("Should have thrown exception"); },
-                fieldType
-            )
+            () -> testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+                iw.addDocument(singleton(new SortedSetDocValuesField("string", new BytesRef("foo"))));
+            }, (Consumer<InternalBoxplot>) boxplot -> { fail("Should have thrown exception"); }, fieldType)
         );
         assertEquals(e.getMessage(), "Field [not_a_number] of type [keyword] " + "is not supported for aggregation [boxplot]");
     }

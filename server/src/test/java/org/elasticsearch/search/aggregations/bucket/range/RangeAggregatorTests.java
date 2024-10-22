@@ -210,7 +210,9 @@ public class RangeAggregatorTests extends AggregatorTestCase {
         testCase(
             new RangeAggregationBuilder("range").field(fieldName).addRange("r1", 0, 0.04D).addRange("r2", 0.04D, 1.0D),
             new MatchAllDocsQuery(),
-            iw -> { iw.addDocument(NumberType.FLOAT.createFields(fieldName, 0.04F, false, true, false)); },
+            iw -> {
+                iw.addDocument(NumberType.FLOAT.createFields(fieldName, 0.04F, false, true, false));
+            },
             result -> {
                 InternalRange<?, ?> range = (InternalRange<?, ?>) result;
                 List<? extends InternalRange.Bucket> ranges = range.getBuckets();
@@ -231,7 +233,9 @@ public class RangeAggregatorTests extends AggregatorTestCase {
         testCase(
             new RangeAggregationBuilder("range").field(fieldName).addRange("r1", 0, 0.0152D).addRange("r2", 0.0152D, 1.0D),
             new MatchAllDocsQuery(),
-            iw -> { iw.addDocument(NumberType.HALF_FLOAT.createFields(fieldName, 0.0152F, false, true, false)); },
+            iw -> {
+                iw.addDocument(NumberType.HALF_FLOAT.createFields(fieldName, 0.0152F, false, true, false));
+            },
             result -> {
                 InternalRange<?, ?> range = (InternalRange<?, ?>) result;
                 List<? extends InternalRange.Bucket> ranges = range.getBuckets();
@@ -494,13 +498,9 @@ public class RangeAggregatorTests extends AggregatorTestCase {
 
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> testCase(
-                aggregationBuilder,
-                new MatchAllDocsQuery(),
-                iw -> { iw.addDocument(singleton(new SortedSetDocValuesField("string", new BytesRef("foo")))); },
-                range -> fail("Should have thrown exception"),
-                fieldType
-            )
+            () -> testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+                iw.addDocument(singleton(new SortedSetDocValuesField("string", new BytesRef("foo"))));
+            }, range -> fail("Should have thrown exception"), fieldType)
         );
         assertEquals("Field [not_a_number] of type [keyword] is not supported for aggregation [range]", e.getMessage());
     }

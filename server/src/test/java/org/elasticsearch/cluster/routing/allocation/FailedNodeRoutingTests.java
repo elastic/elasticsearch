@@ -162,8 +162,9 @@ public class FailedNodeRoutingTests extends ESAllocationTestCase {
             // Pick a random subset of primaries to fail
             List<FailedShard> shardsToFail = new ArrayList<>();
             List<ShardRouting> failedPrimaries = randomSubsetOf(primaries);
-            failedPrimaries.stream()
-                .forEach(sr -> { shardsToFail.add(new FailedShard(randomFrom(sr), "failed primary", new Exception(), randomBoolean())); });
+            failedPrimaries.stream().forEach(sr -> {
+                shardsToFail.add(new FailedShard(randomFrom(sr), "failed primary", new Exception(), randomBoolean()));
+            });
 
             logger.info("--> state before failing shards: {}", state);
             state = cluster.applyFailedShards(state, shardsToFail);

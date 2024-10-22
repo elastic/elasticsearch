@@ -260,11 +260,9 @@ public class TransportBulkActionIngestTests extends ESTestCase {
     public void testSingleItemBulkActionIngestSkipped() throws Exception {
         IndexRequest indexRequest = new IndexRequest("index", "type", "id");
         indexRequest.source(emptyMap());
-        singleItemBulkWriteAction.execute(
-            null,
-            indexRequest,
-            ActionListener.wrap(response -> {}, exception -> { throw new AssertionError(exception); })
-        );
+        singleItemBulkWriteAction.execute(null, indexRequest, ActionListener.wrap(response -> {}, exception -> {
+            throw new AssertionError(exception);
+        }));
         assertTrue(action.isExecuted);
         verifyNoMoreInteractions(ingestService);
     }
@@ -726,12 +724,9 @@ public class TransportBulkActionIngestTests extends ESTestCase {
 
         AtomicBoolean responseCalled = new AtomicBoolean(false);
         AtomicBoolean failureCalled = new AtomicBoolean(false);
-        ActionTestUtils.execute(
-            action,
-            null,
-            bulkRequest,
-            ActionListener.wrap(response -> { responseCalled.set(true); }, e -> { failureCalled.set(true); })
-        );
+        ActionTestUtils.execute(action, null, bulkRequest, ActionListener.wrap(response -> { responseCalled.set(true); }, e -> {
+            failureCalled.set(true);
+        }));
 
         // check failure works, and passes through to the listener
         assertFalse(action.isExecuted); // haven't executed yet

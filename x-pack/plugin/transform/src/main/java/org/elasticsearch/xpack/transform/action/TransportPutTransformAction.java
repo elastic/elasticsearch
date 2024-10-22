@@ -138,10 +138,9 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
         }
 
         // <3> Create the transform
-        ActionListener<ValidateTransformAction.Response> validateTransformListener = ActionListener.wrap(
-            validationResponse -> { putTransform(request, listener); },
-            listener::onFailure
-        );
+        ActionListener<ValidateTransformAction.Response> validateTransformListener = ActionListener.wrap(validationResponse -> {
+            putTransform(request, listener);
+        }, listener::onFailure);
 
         // <2> Validate source and destination indices
         ActionListener<Void> checkPrivilegesListener = ActionListener.wrap(aVoid -> {

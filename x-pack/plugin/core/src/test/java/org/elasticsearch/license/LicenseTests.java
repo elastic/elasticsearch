@@ -228,10 +228,9 @@ public class LicenseTests extends ESTestCase {
             + "\"issuer\":\"elasticsearch\","
             + "\"signature\":\"AA\"}"
             + "}";
-        ElasticsearchException exception = expectThrows(
-            ElasticsearchException.class,
-            () -> { License.fromSource(new BytesArray(licenseString.getBytes(StandardCharsets.UTF_8)), XContentType.JSON); }
-        );
+        ElasticsearchException exception = expectThrows(ElasticsearchException.class, () -> {
+            License.fromSource(new BytesArray(licenseString.getBytes(StandardCharsets.UTF_8)), XContentType.JSON);
+        });
         assertThat(exception.getMessage(), containsString("malformed signature for license [4056779d-b823-4c12-a9cb-efa4a8d8c422]"));
         assertThat(exception.getCause(), instanceOf(BufferUnderflowException.class));
     }
@@ -250,10 +249,9 @@ public class LicenseTests extends ESTestCase {
             + randomAlphaOfLength(10)
             + "\"}"
             + "}";
-        ElasticsearchException exception = expectThrows(
-            ElasticsearchException.class,
-            () -> { License.fromSource(new BytesArray(licenseString.getBytes(StandardCharsets.UTF_8)), XContentType.JSON); }
-        );
+        ElasticsearchException exception = expectThrows(ElasticsearchException.class, () -> {
+            License.fromSource(new BytesArray(licenseString.getBytes(StandardCharsets.UTF_8)), XContentType.JSON);
+        });
         // When parsing a license, we read the signature bytes to verify the _version_.
         // Random alphabetic sig bytes will generate a bad version
         assertThat(exception, throwableWithMessage(containsString("Unknown license version found")));
@@ -277,10 +275,9 @@ public class LicenseTests extends ESTestCase {
             + "EL7wA6Z0/UuRm/weECcsjW/50kBnPLO8yEs+9/bPa5LSU0bF6byEXOVeO0ebUQfztpjulbXh8TrBDSG+6VdxGtohPo2IYPBaXzGs3LOOor6An/lhptxBWdwYmf"
             + "+xHAQ8tyvRqP5G+PRU7tiluEwR/eyHGZV2exdJNzmoGzdPSWwueBM5HK2GexORICH+UFI4cuGz444/hL2MMM1RdpVWQkT0SJ6D9x/VuSmHuYPdtX59Pp41LXvl"
             + "bcp0m8mnXZh1vN9rmbTsZXnhBIoPTaRDwUBi3vJ3Ms3iLaEm4S8Slrfmtht2jUjgGZ2vAeZ9OHU2YsGtrSpz6fd\"}";
-        ElasticsearchException exception = expectThrows(
-            ElasticsearchException.class,
-            () -> { License.fromSource(new BytesArray(licenseString.getBytes(StandardCharsets.UTF_8)), XContentType.JSON); }
-        );
+        ElasticsearchException exception = expectThrows(ElasticsearchException.class, () -> {
+            License.fromSource(new BytesArray(licenseString.getBytes(StandardCharsets.UTF_8)), XContentType.JSON);
+        });
         assertThat(exception.getMessage(), containsString("malformed signature for license [4056779d-b823-4c12-a9cb-efa4a8d8c422]"));
         assertThat(exception.getCause(), instanceOf(IllegalArgumentException.class));
     }

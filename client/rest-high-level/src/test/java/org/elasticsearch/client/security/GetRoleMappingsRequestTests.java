@@ -34,15 +34,12 @@ public class GetRoleMappingsRequestTests extends ESTestCase {
         final String[] roleMappingNames = randomArray(noOfRoleMappingNames, String[]::new, () -> randomAlphaOfLength(5));
         final GetRoleMappingsRequest getRoleMappingsRequest = new GetRoleMappingsRequest(roleMappingNames);
         assertNotNull(getRoleMappingsRequest);
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
-            getRoleMappingsRequest,
-            (original) -> { return new GetRoleMappingsRequest(original.getRoleMappingNames().toArray(new String[0])); }
-        );
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
-            getRoleMappingsRequest,
-            (original) -> { return new GetRoleMappingsRequest(original.getRoleMappingNames().toArray(new String[0])); },
-            GetRoleMappingsRequestTests::mutateTestItem
-        );
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(getRoleMappingsRequest, (original) -> {
+            return new GetRoleMappingsRequest(original.getRoleMappingNames().toArray(new String[0]));
+        });
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(getRoleMappingsRequest, (original) -> {
+            return new GetRoleMappingsRequest(original.getRoleMappingNames().toArray(new String[0]));
+        }, GetRoleMappingsRequestTests::mutateTestItem);
     }
 
     private static GetRoleMappingsRequest mutateTestItem(GetRoleMappingsRequest original) {

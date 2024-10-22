@@ -27,15 +27,12 @@ public class GetRolesRequestTests extends ESTestCase {
         final String[] roles = randomArray(0, 5, String[]::new, () -> randomAlphaOfLength(5));
         final GetRolesRequest getRolesRequest = new GetRolesRequest(roles);
         assertNotNull(getRolesRequest);
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
-            getRolesRequest,
-            (original) -> { return new GetRolesRequest(original.getRoleNames().toArray(new String[0])); }
-        );
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
-            getRolesRequest,
-            (original) -> { return new GetRolesRequest(original.getRoleNames().toArray(new String[0])); },
-            GetRolesRequestTests::mutateTestItem
-        );
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(getRolesRequest, (original) -> {
+            return new GetRolesRequest(original.getRoleNames().toArray(new String[0]));
+        });
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(getRolesRequest, (original) -> {
+            return new GetRolesRequest(original.getRoleNames().toArray(new String[0]));
+        }, GetRolesRequestTests::mutateTestItem);
     }
 
     private static GetRolesRequest mutateTestItem(GetRolesRequest original) {

@@ -75,11 +75,9 @@ public class TemplateUpgradeServiceIT extends ESIntegTestCase {
             IndexNameExpressionResolver expressionResolver,
             Supplier<RepositoriesService> repositoriesServiceSupplier
         ) {
-            clusterService.getClusterSettings()
-                .addSettingsUpdateConsumer(
-                    UPDATE_TEMPLATE_DUMMY_SETTING,
-                    integer -> { logger.debug("the template dummy setting was updated to {}", integer); }
-                );
+            clusterService.getClusterSettings().addSettingsUpdateConsumer(UPDATE_TEMPLATE_DUMMY_SETTING, integer -> {
+                logger.debug("the template dummy setting was updated to {}", integer);
+            });
             return super.createComponents(
                 client,
                 clusterService,

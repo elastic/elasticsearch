@@ -872,11 +872,9 @@ public class MasterService extends AbstractLifecycleComponent {
             );
         if (Assertions.ENABLED) {
             ClusterTasksResult<Object> finalClusterTasksResult = clusterTasksResult;
-            taskInputs.updateTasks.forEach(
-                updateTask -> {
-                    assert finalClusterTasksResult.executionResults.containsKey(updateTask.task) : "missing task result for " + updateTask;
-                }
-            );
+            taskInputs.updateTasks.forEach(updateTask -> {
+                assert finalClusterTasksResult.executionResults.containsKey(updateTask.task) : "missing task result for " + updateTask;
+            });
         }
 
         return clusterTasksResult;

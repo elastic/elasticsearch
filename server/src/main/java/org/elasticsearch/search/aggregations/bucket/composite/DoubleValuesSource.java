@@ -136,11 +136,9 @@ class DoubleValuesSource extends SingleDimensionValuesSource<Double> {
         } else if (value instanceof Number) {
             afterValue = ((Number) value).doubleValue();
         } else {
-            afterValue = format.parseDouble(
-                value.toString(),
-                false,
-                () -> { throw new IllegalArgumentException("now() is not supported in [after] key"); }
-            );
+            afterValue = format.parseDouble(value.toString(), false, () -> {
+                throw new IllegalArgumentException("now() is not supported in [after] key");
+            });
         }
     }
 

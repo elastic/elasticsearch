@@ -87,19 +87,16 @@ public class KerberosAuthenticationTokenTests extends ESTestCase {
         final KerberosAuthenticationToken kerberosAuthenticationToken = new KerberosAuthenticationToken(
             "base64EncodedToken".getBytes(StandardCharsets.UTF_8)
         );
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
-            kerberosAuthenticationToken,
-            (original) -> { return new KerberosAuthenticationToken((byte[]) original.credentials()); }
-        );
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(kerberosAuthenticationToken, (original) -> {
+            return new KerberosAuthenticationToken((byte[]) original.credentials());
+        });
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(kerberosAuthenticationToken, (original) -> {
             byte[] originalCreds = (byte[]) original.credentials();
             return new KerberosAuthenticationToken(Arrays.copyOf(originalCreds, originalCreds.length));
         });
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
-            kerberosAuthenticationToken,
-            (original) -> { return new KerberosAuthenticationToken((byte[]) original.credentials()); },
-            KerberosAuthenticationTokenTests::mutateTestItem
-        );
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(kerberosAuthenticationToken, (original) -> {
+            return new KerberosAuthenticationToken((byte[]) original.credentials());
+        }, KerberosAuthenticationTokenTests::mutateTestItem);
     }
 
     private static KerberosAuthenticationToken mutateTestItem(KerberosAuthenticationToken original) {

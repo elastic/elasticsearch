@@ -50,10 +50,9 @@ public class CreateIndexRequestBuilderTests extends ESTestCase {
     public void testSetSource() throws IOException {
         CreateIndexRequestBuilder builder = new CreateIndexRequestBuilder(this.testClient, CreateIndexAction.INSTANCE);
 
-        ElasticsearchParseException e = expectThrows(
-            ElasticsearchParseException.class,
-            () -> { builder.setSource("{\"" + KEY + "\" : \"" + VALUE + "\"}", XContentType.JSON); }
-        );
+        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> {
+            builder.setSource("{\"" + KEY + "\" : \"" + VALUE + "\"}", XContentType.JSON);
+        });
         assertEquals(String.format(Locale.ROOT, "unknown key [%s] for create index", KEY), e.getMessage());
 
         builder.setSource("{\"settings\" : {\"" + KEY + "\" : \"" + VALUE + "\"}}", XContentType.JSON);

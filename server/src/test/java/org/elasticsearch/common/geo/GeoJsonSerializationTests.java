@@ -77,7 +77,9 @@ public class GeoJsonSerializationTests extends ESTestCase {
         AbstractXContentTestCase.xContentTester(
             this::createParser,
             () -> new GeometryWrapper(instanceSupplier.get()),
-            (geometryWrapper, xContentBuilder) -> { geometryWrapper.toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS); },
+            (geometryWrapper, xContentBuilder) -> {
+                geometryWrapper.toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS);
+            },
             GeometryWrapper::fromXContent
         ).supportsUnknownFields(true).test();
     }

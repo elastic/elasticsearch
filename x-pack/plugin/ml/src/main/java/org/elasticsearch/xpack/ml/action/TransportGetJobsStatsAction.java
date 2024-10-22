@@ -246,17 +246,13 @@ public class TransportGetJobsStatsAction extends TransportTasksAction<
         Consumer<Exception> errorHandler
     ) {
         jobResultsProvider.dataCounts(jobId, dataCounts -> {
-            jobResultsProvider.modelSizeStats(
-                jobId,
-                modelSizeStats -> {
-                    jobResultsProvider.timingStats(
-                        jobId,
-                        timingStats -> { handler.apply(dataCounts, modelSizeStats, timingStats); },
-                        errorHandler
-                    );
-                },
-                errorHandler
-            );
+            jobResultsProvider.modelSizeStats(jobId, modelSizeStats -> {
+                jobResultsProvider.timingStats(
+                    jobId,
+                    timingStats -> { handler.apply(dataCounts, modelSizeStats, timingStats); },
+                    errorHandler
+                );
+            }, errorHandler);
         }, errorHandler);
     }
 

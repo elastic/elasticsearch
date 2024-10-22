@@ -443,9 +443,9 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
                 HttpMessage authenticableMessage = HttpHeadersAuthenticatorUtils.wrapAsMessageWithAuthenticationContext(
                     new DefaultHttpRequest(HTTP_1_1, HttpMethod.GET, "/unauthenticated_request")
                 );
-                ((HttpHeadersWithAuthenticationContext) authenticableMessage.headers()).setAuthenticationContext(
-                    () -> { throw new ElasticsearchException("Boom"); }
-                );
+                ((HttpHeadersWithAuthenticationContext) authenticableMessage.headers()).setAuthenticationContext(() -> {
+                    throw new ElasticsearchException("Boom");
+                });
                 ch.writeInbound(authenticableMessage);
                 ch.writeInbound(new DefaultLastHttpContent());
                 ch.flushInbound();
@@ -488,7 +488,9 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
                 sslService,
                 new SharedGroupFactory(settings),
                 randomClusterSettings(),
-                (httpPreRequest, channel, listener) -> { throw new AssertionError("should not be invoked for OPTIONS requests"); },
+                (httpPreRequest, channel, listener) -> {
+                    throw new AssertionError("should not be invoked for OPTIONS requests");
+                },
                 (httpPreRequest, channel, listener) -> {
                     throw new AssertionError("should not be invoked for OPTIONS requests with a body");
                 }

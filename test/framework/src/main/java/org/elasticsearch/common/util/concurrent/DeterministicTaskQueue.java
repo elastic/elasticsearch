@@ -214,17 +214,9 @@ public class DeterministicTaskQueue {
     }
 
     public PrioritizedEsThreadPoolExecutor getPrioritizedEsThreadPoolExecutor(Function<Runnable, Runnable> runnableWrapper) {
-        return new PrioritizedEsThreadPoolExecutor(
-            "DeterministicTaskQueue",
-            1,
-            1,
-            1,
-            TimeUnit.SECONDS,
-            r -> { throw new AssertionError("should not create new threads"); },
-            null,
-            null,
-            PrioritizedEsThreadPoolExecutor.StarvationWatcher.NOOP_STARVATION_WATCHER
-        ) {
+        return new PrioritizedEsThreadPoolExecutor("DeterministicTaskQueue", 1, 1, 1, TimeUnit.SECONDS, r -> {
+            throw new AssertionError("should not create new threads");
+        }, null, null, PrioritizedEsThreadPoolExecutor.StarvationWatcher.NOOP_STARVATION_WATCHER) {
             @Override
             public void execute(Runnable command, final TimeValue timeout, final Runnable timeoutCallback) {
                 throw new AssertionError("not implemented");

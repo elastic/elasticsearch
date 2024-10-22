@@ -36,10 +36,9 @@ public class WhenThingsGoWrongTests extends ScriptTestCase {
         assertEquals(npe.getMessage(), "cannot access method/field [intValue] from a null def reference");
         npe = expectScriptThrows(NullPointerException.class, () -> { exec("def x = [1, null]; for (y in x) y.intValue(); return null;"); });
         assertEquals(npe.getMessage(), "cannot access method/field [intValue] from a null def reference");
-        npe = expectScriptThrows(
-            NullPointerException.class,
-            () -> { exec("def x = [1, 2L, 3.0, 'test', (byte)1, (short)1, (char)1, null]; for (y in x) y.toString(); return null;"); }
-        );
+        npe = expectScriptThrows(NullPointerException.class, () -> {
+            exec("def x = [1, 2L, 3.0, 'test', (byte)1, (short)1, (char)1, null]; for (y in x) y.toString(); return null;");
+        });
         assertEquals(npe.getMessage(), "cannot access method/field [toString] from a null def reference");
     }
 
@@ -50,10 +49,9 @@ public class WhenThingsGoWrongTests extends ScriptTestCase {
     public void testScriptStack() {
         for (String type : new String[] { "String", "def   " }) {
             // trigger NPE at line 1 of the script
-            ScriptException exception = expectThrows(
-                ScriptException.class,
-                () -> { exec(type + " x = null; boolean y = x.isEmpty();\n" + "return y;"); }
-            );
+            ScriptException exception = expectThrows(ScriptException.class, () -> {
+                exec(type + " x = null; boolean y = x.isEmpty();\n" + "return y;");
+            });
             // null deref at x.isEmpty(), the '.' is offset 30
             assertScriptElementColumn(30, exception);
             assertScriptStack(exception, "y = x.isEmpty();\n", "     ^---- HERE");
@@ -77,12 +75,9 @@ public class WhenThingsGoWrongTests extends ScriptTestCase {
             assertThat(exception.getCause(), instanceOf(NullPointerException.class));
 
             // trigger NPE at line 4 in script (inside conditional)
-            exception = expectThrows(
-                ScriptException.class,
-                () -> {
-                    exec(type + " x = null;\n" + "boolean y = false;\n" + "if (!y) {\n" + "  y = x.isEmpty();\n" + "}\n" + "return y;");
-                }
-            );
+            exception = expectThrows(ScriptException.class, () -> {
+                exec(type + " x = null;\n" + "boolean y = false;\n" + "if (!y) {\n" + "  y = x.isEmpty();\n" + "}\n" + "return y;");
+            });
             // null deref at x.isEmpty(), the '.' is offset 53
             assertScriptElementColumn(53, exception);
             assertScriptStack(exception, "y = x.isEmpty();\n}\n", "     ^---- HERE");
@@ -114,10 +109,9 @@ public class WhenThingsGoWrongTests extends ScriptTestCase {
     }
 
     public void testBogusParameter() {
-        IllegalArgumentException expected = expectThrows(
-            IllegalArgumentException.class,
-            () -> { exec("return 5;", null, Collections.singletonMap("bogusParameterKey", "bogusParameterValue"), true); }
-        );
+        IllegalArgumentException expected = expectThrows(IllegalArgumentException.class, () -> {
+            exec("return 5;", null, Collections.singletonMap("bogusParameterKey", "bogusParameterValue"), true);
+        });
         assertTrue(expected.getMessage().contains("Unrecognized compile-time parameter"));
     }
 
@@ -171,10 +165,9 @@ public class WhenThingsGoWrongTests extends ScriptTestCase {
     }
 
     public void testIllegalDynamicMethod() {
-        IllegalArgumentException expected = expectScriptThrows(
-            IllegalArgumentException.class,
-            () -> { exec("def x = 'test'; return x.getClass().toString()"); }
-        );
+        IllegalArgumentException expected = expectScriptThrows(IllegalArgumentException.class, () -> {
+            exec("def x = 'test'; return x.getClass().toString()");
+        });
         assertTrue(expected.getMessage().contains("dynamic method [java.lang.String, getClass/0] not found"));
     }
 
@@ -217,10 +210,9 @@ public class WhenThingsGoWrongTests extends ScriptTestCase {
     }
 
     public void testStackOverflowError() {
-        ErrorCauseWrapper e = expectScriptThrows(
-            ErrorCauseWrapper.class,
-            () -> { exec("void recurse(int x, int y) {recurse(x, y)} recurse(1, 2);"); }
-        );
+        ErrorCauseWrapper e = expectScriptThrows(ErrorCauseWrapper.class, () -> {
+            exec("void recurse(int x, int y) {recurse(x, y)} recurse(1, 2);");
+        });
         assertThat(e.realCause.getClass(), equalTo(StackOverflowError.class));
     }
 

@@ -49,16 +49,13 @@ public class DeleteUserRequestTests extends ESTestCase {
         final DeleteUserRequest deleteUserRequest = new DeleteUserRequest(name, refreshPolicy);
         assertNotNull(deleteUserRequest);
 
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
-            deleteUserRequest,
-            (original) -> { return new DeleteUserRequest(original.getName(), original.getRefreshPolicy()); }
-        );
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(deleteUserRequest, (original) -> {
+            return new DeleteUserRequest(original.getName(), original.getRefreshPolicy());
+        });
 
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
-            deleteUserRequest,
-            (original) -> { return new DeleteUserRequest(original.getName(), original.getRefreshPolicy()); },
-            DeleteUserRequestTests::mutateTestItem
-        );
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(deleteUserRequest, (original) -> {
+            return new DeleteUserRequest(original.getName(), original.getRefreshPolicy());
+        }, DeleteUserRequestTests::mutateTestItem);
 
     }
 

@@ -273,10 +273,9 @@ public class PkiAuthDelegationIntegTests extends SecurityIntegTestCase {
                     "Authorization",
                     basicAuthHeaderValue(delegateeUsername, SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)
                 );
-                ElasticsearchStatusException e = expectThrows(
-                    ElasticsearchStatusException.class,
-                    () -> { restClient.security().delegatePkiAuthentication(delegatePkiRequest, optionsBuilder.build()); }
-                );
+                ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> {
+                    restClient.security().delegatePkiAuthentication(delegatePkiRequest, optionsBuilder.build());
+                });
                 assertThat(
                     e.getMessage(),
                     startsWith(

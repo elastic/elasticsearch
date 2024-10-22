@@ -211,9 +211,9 @@ public final class TransformAggregations {
                 Collections.emptyMap(),
                 Arrays.stream(percentilesAgg.percentiles())
                     .mapToObj(OutputFieldNameConverter::fromDouble)
-                    .collect(
-                        Collectors.toMap(p -> percentilesAgg.getName() + "." + p, p -> { return percentilesAgg.getType(); }, (p1, p2) -> p1)
-                    )
+                    .collect(Collectors.toMap(p -> percentilesAgg.getName() + "." + p, p -> {
+                        return percentilesAgg.getType();
+                    }, (p1, p2) -> p1))
             );
         }
 

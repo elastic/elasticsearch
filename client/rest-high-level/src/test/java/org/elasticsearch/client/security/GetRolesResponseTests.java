@@ -123,15 +123,12 @@ public class GetRolesResponseTests extends ESTestCase {
         transientMetadata2.put("other_transient_key", "other_transient_value");
         transientMetadataMap.put(role2.getName(), transientMetadata);
         final GetRolesResponse getRolesResponse = new GetRolesResponse(roles, transientMetadataMap);
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
-            getRolesResponse,
-            (original) -> { return new GetRolesResponse(original.getRoles(), original.getTransientMetadataMap()); }
-        );
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
-            getRolesResponse,
-            (original) -> { return new GetRolesResponse(original.getRoles(), original.getTransientMetadataMap()); },
-            GetRolesResponseTests::mutateTestItem
-        );
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(getRolesResponse, (original) -> {
+            return new GetRolesResponse(original.getRoles(), original.getTransientMetadataMap());
+        });
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(getRolesResponse, (original) -> {
+            return new GetRolesResponse(original.getRoles(), original.getTransientMetadataMap());
+        }, GetRolesResponseTests::mutateTestItem);
 
     }
 

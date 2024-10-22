@@ -58,12 +58,9 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
         Provider<BwcTaskThrottle> bwcTaskThrottleProvider = project.getGradle()
             .getSharedServices()
             .registerIfAbsent(BWC_TASK_THROTTLE_SERVICE, BwcTaskThrottle.class, spec -> spec.getMaxParallelUsages().set(1));
-        BuildParams.getBwcVersions()
-            .forPreviousUnreleased(
-                (BwcVersions.UnreleasedVersionInfo unreleasedVersion) -> {
-                    configureBwcProject(project.project(unreleasedVersion.gradleProjectPath), unreleasedVersion, bwcTaskThrottleProvider);
-                }
-            );
+        BuildParams.getBwcVersions().forPreviousUnreleased((BwcVersions.UnreleasedVersionInfo unreleasedVersion) -> {
+            configureBwcProject(project.project(unreleasedVersion.gradleProjectPath), unreleasedVersion, bwcTaskThrottleProvider);
+        });
     }
 
     private void configureBwcProject(

@@ -33,7 +33,7 @@ public class ReverseTests extends AbstractScalarFunctionTestCase {
     public static Iterable<Object[]> parameters() {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
 
-        for (DataType stringType : new DataType[] { DataType.KEYWORD, DataType.TEXT, DataType.SEMANTIC_TEXT }) {
+        for (DataType stringType : DataType.stringTypes()) {
             for (var supplier : TestCaseSupplier.stringCases(stringType)) {
                 suppliers.add(makeSupplier(supplier));
             }

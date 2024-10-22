@@ -203,8 +203,8 @@ public class InTests extends AbstractFunctionTestCase {
             );
         }));
 
-        for (DataType type1 : new DataType[] { DataType.KEYWORD, DataType.TEXT, DataType.SEMANTIC_TEXT }) {
-            for (DataType type2 : new DataType[] { DataType.KEYWORD, DataType.TEXT, DataType.SEMANTIC_TEXT }) {
+        for (DataType type1 : DataType.stringTypes()) {
+            for (DataType type2 : DataType.stringTypes()) {
                 if (type1 == type2 || items > 1) continue;
                 suppliers.add(new TestCaseSupplier(type1 + " " + type2, List.of(type1, type2), () -> {
                     List<Object> inlist = randomList(items, items, () -> randomLiteral(type1).value());

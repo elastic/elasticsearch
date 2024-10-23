@@ -188,6 +188,33 @@ public class XPackSettingsTests extends ESTestCase {
         );
     }
 
+    public void testSecurityMustBeEnabledByDefaultForEis() {
+        final Settings.Builder builder = Settings.builder();
+
+        assertThat(XPackSettings.EIS_SSL_ENABLED.get(builder.build()), is(true));
+    }
+
+    public void testEisSslSettings() {
+        final List<Setting<?>> allSettings = XPackSettings.getAllSettings();
+
+        final List<String> eisSslSettingKeys = allSettings.stream()
+            .map(Setting::getKey)
+            .filter(key -> key.startsWith("xpack.security.eis.ssl"))
+            .toList();
+
+        // None of them allow insecure password
+        List.of(
+            "xpack.security.eis.ssl.keystore.password",
+            "xpack.security.eis.ssl.keystore.key_password",
+            "xpack.security.eis.ssl.key_passphrase",
+            "xpack.security.eis.ssl.truststore.password",
+            "xpack.security.eis.ssl.keystore.password",
+            "xpack.security.eis.ssl.keystore.key_password",
+            "xpack.security.eis.ssl.key_passphrase",
+            "xpack.security.eis.ssl.truststore.password"
+        ).forEach(key -> assertThat(eisSslSettingKeys, not(hasItem(key))));
+    }
+
     private boolean isSecretkeyFactoryAlgoAvailable(String algorithmId) {
         try {
             SecretKeyFactory.getInstance(algorithmId);

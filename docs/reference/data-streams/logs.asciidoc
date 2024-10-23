@@ -132,21 +132,11 @@ automatically added to the list of sort fields.
 [[logsdb-specialized-codecs]]
 === Specialized codecs
 
-`logsdb` index mode uses the `best_compression` codec by default, which applies {wikipedia}/Zstd[ZSTD] compression to
-stored fields.
+`logsdb` index mode uses the `best_compression` <<index-codec,codec>> by default, which applies {wikipedia}/Zstd[ZSTD]
+compression to stored fields. Users are allowed to override it and switch to the `default` codec for faster compression
+at the expense of slightly larger storage footprint.
 
-Users are allowed to override the default compression codec. If desired, they can switch to the `best_speed`
-codec for faster compression at the expense of slightly larger storage footprint.
-
-* `index.codec`: `"best_compression"`
-  This is the default setting, applying {wikipedia}/Zstd[ZSTD] compression to stored fields for optimal storage
-  efficiency.
-
-* `index.codec`: `"best_speed"`
-  If faster indexing performance is required, users can opt for `best_speed` compression, which sacrifices some storage
-  efficiency for higher indexing throughput.
-
-`logsdb` index mode adopts specialized codecs for numeric doc values that are crafted to optimize storage usage.
+`logsdb` index mode also adopts specialized codecs for numeric doc values that are crafted to optimize storage usage.
 Users can rely on these specialized codecs being applied by default when using `logsdb` index mode.
 
 Doc values encoding for numeric fields in `logsdb` follows a static sequence of codecs, applying each one in the

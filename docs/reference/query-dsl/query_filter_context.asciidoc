@@ -41,10 +41,20 @@ Filtering has several benefits:
 
 Filters are particularly effective for querying structured data and implementing "must have" criteria in complex searches.
 
+Structured data refers to information that is highly organized and formatted in a predefined manner. In the context of Elasticsearch, this typically includes:
+
+* Numeric fields (integers, floating-point numbers)
+* Dates and timestamps
+* Boolean values
+* Keyword fields (exact match strings)
+* Geo-points and geo-shapes
+
+Unlike full-text fields, structured data has a consistent, predictable format, making it ideal for precise filtering operations.
+
 Common filter applications include:
 
 * Date range checks: for example is the `timestamp` field between 2015 and 2016
-* Status checks: for example is the `status` field equal to "published"
+* Specific field value checks: for example is the `status` field equal to "published" or is the `author` field equal to "John Doe"
 
 Filter context applies when a query clause is passed to a `filter` parameter, such as:
 

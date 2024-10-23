@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.enrich;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -23,7 +22,6 @@ import org.elasticsearch.search.SearchService;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
-import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -34,14 +32,14 @@ import java.io.IOException;
 import java.util.List;
 
 /**
- * {@link EnrichLookupService} performs enrich lookup for a given input page.
- * See {@link AbstractLookupService} for how it works where it refers to this
- * process as a {@code LEFT JOIN}. Which is mostly is.
+ * {@link LookupFromIndexService} performs lookup against a Lookup index for
+ * a given input page. See {@link AbstractLookupService} for how it works
+ * where it refers to this process as a {@code LEFT JOIN}. Which is mostly is.
  */
-public class EnrichLookupService extends AbstractLookupService<EnrichLookupService.Request, EnrichLookupService.TransportRequest> {
-    public static final String LOOKUP_ACTION_NAME = EsqlQueryAction.NAME + "/lookup";
+public class LookupFromIndexService extends AbstractLookupService<LookupFromIndexService.Request, LookupFromIndexService.TransportRequest> {
+    public static final String LOOKUP_ACTION_NAME = EsqlQueryAction.NAME + "/lookup_from_index";
 
-    public EnrichLookupService(
+    public LookupFromIndexService(
         ClusterService clusterService,
         SearchService searchService,
         TransportService transportService,
@@ -50,7 +48,7 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
     ) {
         super(
             LOOKUP_ACTION_NAME,
-            ClusterPrivilegeResolver.MONITOR_ENRICH.name(),
+            ClusterPrivilegeResolver.MONITOR_ENRICH.name(), // TODO some other privilege
             clusterService,
             searchService,
             transportService,
@@ -61,62 +59,51 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
     }
 
     @Override
-    protected TransportRequest transportRequest(EnrichLookupService.Request request, ShardId shardId) {
+    protected TransportRequest transportRequest(LookupFromIndexService.Request request, ShardId shardId) {
         return new TransportRequest(
             request.sessionId,
             shardId,
             request.inputDataType,
-            request.matchType,
-            request.matchField,
             request.inputPage,
-            request.extractFields
+            request.extractFields,
+            request.matchField
         );
     }
 
     @Override
     protected QueryList queryList(TransportRequest request, SearchExecutionContext context, Block inputBlock, DataType inputDataType) {
         MappedFieldType fieldType = context.getFieldType(request.matchField);
-        return switch (request.matchType) {
-            case "match", "range" -> QueryList.termQueryList(fieldType, context, inputBlock, inputDataType);
-            case "geo_match" -> QueryList.geoShapeQuery(fieldType, context, inputBlock, inputDataType);
-            default -> throw new EsqlIllegalArgumentException("illegal match type " + request.matchType);
-        };
+        return QueryList.termQueryList(fieldType, context, inputBlock, inputDataType);
     }
 
     public static class Request extends AbstractLookupService.Request {
-        private final String matchType;
         private final String matchField;
 
         Request(
             String sessionId,
             String index,
             DataType inputDataType,
-            String matchType,
             String matchField,
             Page inputPage,
             List<NamedExpression> extractFields
         ) {
             super(sessionId, index, inputDataType, inputPage, extractFields);
-            this.matchType = matchType;
             this.matchField = matchField;
         }
     }
 
     protected static class TransportRequest extends AbstractLookupService.TransportRequest {
-        private final String matchType;
         private final String matchField;
 
         TransportRequest(
             String sessionId,
             ShardId shardId,
             DataType inputDataType,
-            String matchType,
-            String matchField,
             Page inputPage,
-            List<NamedExpression> extractFields
+            List<NamedExpression> extractFields,
+            String matchField
         ) {
             super(sessionId, shardId, inputDataType, inputPage, extractFields);
-            this.matchType = matchType;
             this.matchField = matchField;
         }
 
@@ -124,26 +111,15 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
             TaskId parentTaskId = TaskId.readFromStream(in);
             String sessionId = in.readString();
             ShardId shardId = new ShardId(in);
-            DataType inputDataType = DataType.fromTypeName(
-                (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) ? in.readString() : "unknown"
-            );
-            String matchType = in.readString();
-            String matchField = in.readString();
+            DataType inputDataType = DataType.fromTypeName(in.readString());
             Page inputPage;
             try (BlockStreamInput bsi = new BlockStreamInput(in, blockFactory)) {
                 inputPage = new Page(bsi);
             }
             PlanStreamInput planIn = new PlanStreamInput(in, in.namedWriteableRegistry(), null);
             List<NamedExpression> extractFields = planIn.readNamedWriteableCollectionAsList(NamedExpression.class);
-            TransportRequest result = new TransportRequest(
-                sessionId,
-                shardId,
-                inputDataType,
-                matchType,
-                matchField,
-                inputPage,
-                extractFields
-            );
+            String matchField = in.readString();
+            TransportRequest result = new TransportRequest(sessionId, shardId, inputDataType, inputPage, extractFields, matchField);
             result.setParentTask(parentTaskId);
             return result;
         }
@@ -153,19 +129,16 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
             super.writeTo(out);
             out.writeString(sessionId);
             out.writeWriteable(shardId);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
-                out.writeString(inputDataType.typeName());
-            }
-            out.writeString(matchType);
-            out.writeString(matchField);
+            out.writeString(inputDataType.typeName());
             out.writeWriteable(inputPage);
             PlanStreamOutput planOut = new PlanStreamOutput(out, null);
             planOut.writeNamedWriteableCollection(extractFields);
+            out.writeString(matchField);
         }
 
         @Override
         protected String extraDescription() {
-            return " ,match_type=" + matchType + " ,match_field=" + matchField;
+            return " ,match_field=" + matchField;
         }
     }
 }

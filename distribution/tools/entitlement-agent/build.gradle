@@ -18,6 +18,12 @@ embeddedProviders {
 
 configurations {
   entitlementBridge
+  entitlementAgentJar {
+    canBeConsumed = true
+    canBeResolved = false
+    // If you want this configuration to share the same dependencies, otherwise omit this line
+    extendsFrom implementation, runtimeOnly
+  }
 }
 
 dependencies {
@@ -59,4 +65,12 @@ tasks.named('jar').configure {
 tasks.named('forbiddenApisMain').configure {
   replaceSignatureFiles 'jdk-signatures'
 }
+
+
+
+artifacts {
+  entitlementAgentJar(tasks.named('jar'))
+}
+
+
 

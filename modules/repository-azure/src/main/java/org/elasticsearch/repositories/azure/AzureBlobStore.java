@@ -138,7 +138,7 @@ public class AzureBlobStore implements BlobStore {
         this.locationMode = Repository.LOCATION_MODE_SETTING.get(metadata.settings());
         this.maxSinglePartUploadSize = Repository.MAX_SINGLE_PART_UPLOAD_SIZE_SETTING.get(metadata.settings());
         this.deletionBatchSize = Repository.DELETION_BATCH_SIZE_SETTING.get(metadata.settings());
-        this.maxConcurrentBatchDeletes = Repository.MAXIMUM_CONCURRENT_BATCH_DELETES.get(metadata.settings());
+        this.maxConcurrentBatchDeletes = Repository.MAX_CONCURRENT_BATCH_DELETES_SETTING.get(metadata.settings());
 
         List<RequestMatcher> requestMatchers = List.of(
             new RequestMatcher((httpMethod, url) -> httpMethod == HttpMethod.HEAD, Operation.GET_BLOB_PROPERTIES),

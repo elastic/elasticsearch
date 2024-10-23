@@ -411,7 +411,17 @@ public class EsqlCapabilities {
         /**
          * Support for semantic_text field mapping
          */
-        SEMANTIC_TEXT_TYPE(EsqlCorePlugin.SEMANTIC_TEXT_FEATURE_FLAG);
+        SEMANTIC_TEXT_TYPE(EsqlCorePlugin.SEMANTIC_TEXT_FEATURE_FLAG),
+
+        /**
+         * This enables 60_usage.yml "Basic ESQL usage....snapshot" version test. See also the next capability.
+         */
+        SNAPSHOT_TEST_FOR_TELEMETRY(Build.current().isSnapshot()),
+
+        /**
+         * This enables 60_usage.yml "Basic ESQL usage....non-snapshot" version test. See also the previous capability.
+         */
+        NON_SNAPSHOT_TEST_FOR_TELEMETRY(Build.current().isSnapshot() == false);
 
         private final boolean enabled;
 

@@ -54,9 +54,7 @@ public class ChunkedToXContentBuilder implements Iterator<ToXContent> {
      * Creates an object, with the specified {@code contents}
      */
     public ChunkedToXContentBuilder xContentObject(ToXContent contents) {
-        startObject();
-        append(contents);
-        endObject();
+        addChunk((b, p) -> contents.toXContent(b.startObject(), p).endObject());
         return this;
     }
 
@@ -64,9 +62,7 @@ public class ChunkedToXContentBuilder implements Iterator<ToXContent> {
      * Creates an object named {@code name}, with the specified {@code contents}
      */
     public ChunkedToXContentBuilder xContentObject(String name, ToXContent contents) {
-        startObject(name);
-        append(contents);
-        endObject();
+        addChunk((b, p) -> contents.toXContent(b.startObject(name), p).endObject());
         return this;
     }
 

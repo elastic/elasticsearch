@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.routing.allocation.MoveDecision;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
@@ -359,8 +360,8 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
                     assertEquals(Decision.Type.NO, d.type());
                     assertEquals(Strings.format("""
                         node does not match index setting [index.routing.allocation.include] \
-                        filters [_name:"%s"]\
-                        """, primaryNodeName), d.getExplanation());
+                        filters [_name:"%s"]; for more information, see [%s]\
+                        """, primaryNodeName, ReferenceDocs.ALLOCATION_EXPLAIN_SETTING_CONFLICT), d.getExplanation());
                 } else {
                     assertEquals(Decision.Type.YES, d.type());
                     assertNotNull(d.getExplanation());
@@ -461,7 +462,9 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
                 if (d.label().equals("filter")) {
                     assertEquals(Decision.Type.NO, d.type());
                     assertEquals(
-                        "node does not match index setting [index.routing.allocation.include] filters [_name:\"non_existent_node\"]",
+                        "node does not match index setting [index.routing.allocation.include] filters [_name:\"non_existent_node\"]; for more information, see ["
+                            + ReferenceDocs.ALLOCATION_EXPLAIN_SETTING_CONFLICT
+                            + "]",
                         d.getExplanation()
                     );
                 }
@@ -551,7 +554,9 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
             if (d.label().equals("filter")) {
                 assertEquals(Decision.Type.NO, d.type());
                 assertEquals(
-                    "node does not match index setting [index.routing.allocation.include] filters [_name:\"non_existent_node\"]",
+                    "node does not match index setting [index.routing.allocation.include] filters [_name:\"non_existent_node\"]; for more information, see ["
+                        + ReferenceDocs.ALLOCATION_EXPLAIN_SETTING_CONFLICT
+                        + "]",
                     d.getExplanation()
                 );
             } else {
@@ -574,7 +579,9 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
             if (d.label().equals("filter")) {
                 assertEquals(Decision.Type.NO, d.type());
                 assertEquals(
-                    "node does not match index setting [index.routing.allocation.include] filters [_name:\"non_existent_node\"]",
+                    "node does not match index setting [index.routing.allocation.include] filters [_name:\"non_existent_node\"]; for more information, see ["
+                        + ReferenceDocs.ALLOCATION_EXPLAIN_SETTING_CONFLICT
+                        + "]",
                     d.getExplanation()
                 );
             } else {
@@ -883,9 +890,16 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         for (Decision d : result.getCanAllocateDecision().getDecisions()) {
             if (d.label().equals("filter")) {
                 assertEquals(Decision.Type.NO, d.type());
-                assertEquals(Strings.format("""
-                    node does not match index setting [index.routing.allocation.include] filters [_name:"%s"]\
-                    """, primaryNodeName), d.getExplanation());
+                assertEquals(
+                    Strings.format(
+                        """
+                            node does not match index setting [index.routing.allocation.include] filters [_name:"%s"]; for more information, see [%s]\
+                            """,
+                        primaryNodeName,
+                        ReferenceDocs.ALLOCATION_EXPLAIN_SETTING_CONFLICT
+                    ),
+                    d.getExplanation()
+                );
             } else {
                 assertEquals(Decision.Type.YES, d.type());
                 assertNotNull(d.getExplanation());

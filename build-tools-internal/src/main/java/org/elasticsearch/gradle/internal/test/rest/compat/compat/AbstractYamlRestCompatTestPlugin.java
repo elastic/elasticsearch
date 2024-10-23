@@ -134,8 +134,6 @@ public abstract class AbstractYamlRestCompatTestPlugin implements Plugin<Project
                             .resolve(RELATIVE_API_PATH)
                     )
                 );
-                onlyIfBwcEnabled(task, extraProperties);
-                // task.onlyIf(t -> isEnabled(extraProperties));
             });
 
         // copy compatible rest tests
@@ -279,15 +277,6 @@ public abstract class AbstractYamlRestCompatTestPlugin implements Plugin<Project
     public abstract TaskProvider<? extends Test> registerTestTask(Project project, SourceSet sourceSet);
 
     public abstract Class<? extends Plugin<Project>> getBasePlugin();
-
-    private void onlyIfBwcEnabled(Task task, ExtraPropertiesExtension extraProperties) {
-        task.onlyIf("BWC tests disabled", t -> isEnabled(extraProperties));
-    }
-
-    private boolean isEnabled(ExtraPropertiesExtension extraProperties) {
-        Object bwcEnabled = extraProperties.getProperties().get("bwc_tests_enabled");
-        return bwcEnabled == null || (Boolean) bwcEnabled;
-    }
 
     // TODO: implement custom extension that allows us move around of the projects between major versions and still find them
     private Path getCompatProjectPath(String projectPath, Path checkoutDir) {

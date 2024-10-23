@@ -18,24 +18,18 @@ ext.bwcTaskName = { Version version ->
 }
 
 def bwcTestSnapshots = tasks.register("bwcTestSnapshots") {
-  if (project.bwc_tests_enabled) {
-    dependsOn tasks.matching { task -> BuildParams.bwcVersions.unreleased.any { version -> bwcTaskName(version) == task.name } }
-  }
+  dependsOn tasks.matching { task -> BuildParams.bwcVersions.unreleased.any { version -> bwcTaskName(version) == task.name } }
 }
 
 tasks.register("bwcTest") {
   description = 'Runs backwards compatibility tests.'
   group = 'verification'
 
-  if (project.bwc_tests_enabled) {
-    dependsOn tasks.matching { it.name ==~ /v[0-9\.]+#bwcTest/ }
-  }
+  dependsOn tasks.matching { it.name ==~ /v[0-9\.]+#bwcTest/ }
 }
 
 plugins.withType(ElasticsearchTestBasePlugin) {
   tasks.withType(Test).matching { it.name ==~ /v[0-9\.]+#.*/ }.configureEach {
-    boolean bwcEnabled = project.bwc_tests_enabled
-    onlyIf("BWC tests enabled") { bwcEnabled }
     nonInputProperties.systemProperty 'tests.bwc', 'true'
   }
 }

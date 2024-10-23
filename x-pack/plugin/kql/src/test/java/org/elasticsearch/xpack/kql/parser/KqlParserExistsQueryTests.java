@@ -11,7 +11,6 @@ import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.ExistsQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.query.SearchExecutionContext;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
@@ -21,46 +20,31 @@ import static org.hamcrest.Matchers.isA;
 public class KqlParserExistsQueryTests extends AbstractKqlParserTestCase {
 
     public void testExistsQueryWithNonExistingField() {
-        KqlParser parser = new KqlParser();
-        SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
-
         // Using an unquoted literal
-        assertThat(parser.parseKqlQuery(kqlExistsQuery("foo"), searchExecutionContext), isA(MatchNoneQueryBuilder.class));
+        assertThat(parseKqlQuery(kqlExistsQuery("foo")), isA(MatchNoneQueryBuilder.class));
 
         // Using an a quoted string
-        assertThat(parser.parseKqlQuery(kqlExistsQuery("\"foo\""), searchExecutionContext), isA(MatchNoneQueryBuilder.class));
+        assertThat(parseKqlQuery(kqlExistsQuery("\"foo\"")), isA(MatchNoneQueryBuilder.class));
 
         // Not expanding wildcard with quoted string
-        assertThat(parser.parseKqlQuery(kqlExistsQuery("\"mapped_*\""), searchExecutionContext), isA(MatchNoneQueryBuilder.class));
+        assertThat(parseKqlQuery(kqlExistsQuery("\"mapped_*\"")), isA(MatchNoneQueryBuilder.class));
 
         // Object fields are not supported by the exists query. Returning a MatchNoneQueryBuilder in this case.
-        assertThat(parser.parseKqlQuery(kqlExistsQuery(OBJECT_FIELD_NAME), searchExecutionContext), isA(MatchNoneQueryBuilder.class));
+        assertThat(parseKqlQuery(kqlExistsQuery(OBJECT_FIELD_NAME)), isA(MatchNoneQueryBuilder.class));
     }
 
     public void testExistsQueryWithASingleField() {
-        KqlParser parser = new KqlParser();
-        SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
-
         for (String fieldName : mappedLeafFields()) {
-            ExistsQueryBuilder parsedQuery = asInstanceOf(
-                ExistsQueryBuilder.class,
-                parser.parseKqlQuery(kqlExistsQuery(fieldName), searchExecutionContext)
-            );
+            ExistsQueryBuilder parsedQuery = asInstanceOf(ExistsQueryBuilder.class, parseKqlQuery(kqlExistsQuery(fieldName)));
             assertThat(parsedQuery.fieldName(), equalTo(fieldName));
 
             // Using quotes to wrap the field name does not change the result.
-            assertThat(parser.parseKqlQuery(kqlExistsQuery("\"" + fieldName + "\""), searchExecutionContext), equalTo(parsedQuery));
+            assertThat(parseKqlQuery(kqlExistsQuery("\"" + fieldName + "\"")), equalTo(parsedQuery));
         }
     }
 
     public void testExistsQueryUsingAWildcard() {
-        KqlParser parser = new KqlParser();
-        SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
-
-        BoolQueryBuilder parsedQuery = asInstanceOf(
-            BoolQueryBuilder.class,
-            parser.parseKqlQuery(kqlExistsQuery("mapped_*"), searchExecutionContext)
-        );
+        BoolQueryBuilder parsedQuery = asInstanceOf(BoolQueryBuilder.class, parseKqlQuery(kqlExistsQuery("mapped_*")));
         assertThat(parsedQuery.minimumShouldMatch(), equalTo("1"));
         assertThat(parsedQuery.must(), empty());
         assertThat(parsedQuery.mustNot(), empty());

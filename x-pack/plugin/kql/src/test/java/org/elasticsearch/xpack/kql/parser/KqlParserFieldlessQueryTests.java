@@ -9,23 +9,16 @@ package org.elasticsearch.xpack.kql.parser;
 
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.QueryStringQueryBuilder;
-import org.elasticsearch.index.query.SearchExecutionContext;
 
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.equalTo;
 
-public class KqlParserTermQueryTests extends AbstractKqlParserTestCase {
+public class KqlParserFieldlessQueryTests extends AbstractKqlParserTestCase {
 
     public void testTermQueryWithNoField() {
-        KqlParser parser = new KqlParser();
-        SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
-
         {
             // Single word
-            MultiMatchQueryBuilder parsedQuery = asInstanceOf(
-                MultiMatchQueryBuilder.class,
-                parser.parseKqlQuery(("foo"), searchExecutionContext)
-            );
+            MultiMatchQueryBuilder parsedQuery = asInstanceOf(MultiMatchQueryBuilder.class, parseKqlQuery("foo"));
             assertThat(parsedQuery.fields(), anEmptyMap());
             assertThat(parsedQuery.type(), equalTo(MultiMatchQueryBuilder.Type.BEST_FIELDS));
             assertThat(parsedQuery.lenient(), equalTo(true));
@@ -34,10 +27,7 @@ public class KqlParserTermQueryTests extends AbstractKqlParserTestCase {
 
         {
             // Multiple words
-            MultiMatchQueryBuilder parsedQuery = asInstanceOf(
-                MultiMatchQueryBuilder.class,
-                parser.parseKqlQuery(("foo bar baz"), searchExecutionContext)
-            );
+            MultiMatchQueryBuilder parsedQuery = asInstanceOf(MultiMatchQueryBuilder.class, parseKqlQuery("foo bar baz"));
             assertThat(parsedQuery.fields(), anEmptyMap());
             assertThat(parsedQuery.type(), equalTo(MultiMatchQueryBuilder.Type.BEST_FIELDS));
             assertThat(parsedQuery.lenient(), equalTo(true));
@@ -46,10 +36,7 @@ public class KqlParserTermQueryTests extends AbstractKqlParserTestCase {
 
         {
             // With an escaped wildcard
-            MultiMatchQueryBuilder parsedQuery = asInstanceOf(
-                MultiMatchQueryBuilder.class,
-                parser.parseKqlQuery(("foo \\* baz"), searchExecutionContext)
-            );
+            MultiMatchQueryBuilder parsedQuery = asInstanceOf(MultiMatchQueryBuilder.class, parseKqlQuery("foo \\* baz"));
             assertThat(parsedQuery.fields(), anEmptyMap());
             assertThat(parsedQuery.type(), equalTo(MultiMatchQueryBuilder.Type.BEST_FIELDS));
             assertThat(parsedQuery.lenient(), equalTo(true));
@@ -58,10 +45,7 @@ public class KqlParserTermQueryTests extends AbstractKqlParserTestCase {
 
         // With a wildcard
         {
-            QueryStringQueryBuilder parsedQuery = asInstanceOf(
-                QueryStringQueryBuilder.class,
-                parser.parseKqlQuery(("foo * baz"), searchExecutionContext)
-            );
+            QueryStringQueryBuilder parsedQuery = asInstanceOf(QueryStringQueryBuilder.class, parseKqlQuery("foo * baz"));
             assertThat(parsedQuery.queryString(), equalTo("foo * baz"));
         }
     }

@@ -17,7 +17,6 @@ import org.elasticsearch.geometry.ShapeType;
 import org.elasticsearch.geometry.utils.StandardValidator;
 import org.elasticsearch.geometry.utils.WellKnownBinary;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.percolator.PercolateQueryBuilder;
 import org.elasticsearch.percolator.PercolatorPlugin;
@@ -84,25 +83,11 @@ public class GeoShapeWithDocValuesIT extends GeoShapeIntegTestCase {
               }
             }""";
 
-        if (version.before(IndexVersions.V_8_0_0)) {
-            IllegalArgumentException e = expectThrows(
-                IllegalArgumentException.class,
-                () -> indicesAdmin().preparePutMapping("test").setSource(update, XContentType.JSON).get()
-            );
-            assertThat(
-                e.getMessage(),
-                containsString("mapper [shape] of type [geo_shape] cannot change strategy from [BKD] to [recursive]")
-            );
-        } else {
-            MapperParsingException e = expectThrows(
-                MapperParsingException.class,
-                () -> indicesAdmin().preparePutMapping("test").setSource(update, XContentType.JSON).get()
-            );
-            assertThat(
-                e.getMessage(),
-                containsString("using deprecated parameters [strategy] in mapper [shape] of type [geo_shape] is no longer allowed")
-            );
-        }
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
+            () -> indicesAdmin().preparePutMapping("test").setSource(update, XContentType.JSON).get()
+        );
+        assertThat(e.getMessage(), containsString("unknown parameter [strategy] on mapper [shape] of type [geo_shape]"));
     }
 
     public void testPercolatorGeoQueries() throws Exception {

@@ -48,7 +48,6 @@ import org.elasticsearch.index.mapper.StoredValueFetcher;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.legacygeo.mapper.LegacyGeoShapeFieldMapper;
 import org.elasticsearch.lucene.spatial.BinaryShapeDocValuesField;
 import org.elasticsearch.lucene.spatial.CoordinateEncoder;
 import org.elasticsearch.lucene.spatial.LatLonShapeDocValuesQuery;
@@ -69,12 +68,10 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.ByteOrder;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
-import java.util.Set;
 import java.util.function.Function;
 
 /**
@@ -309,39 +306,18 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
         }
 
         @Override
-        @SuppressWarnings("deprecation")
         public Mapper.Builder parse(String name, Map<String, Object> node, MappingParserContext parserContext)
             throws MapperParsingException {
-            FieldMapper.Builder builder;
             boolean ignoreMalformedByDefault = IGNORE_MALFORMED_SETTING.get(parserContext.getSettings());
             boolean coerceByDefault = COERCE_SETTING.get(parserContext.getSettings());
-            if (LegacyGeoShapeFieldMapper.containsDeprecatedParameter(node.keySet())) {
-                if (parserContext.indexVersionCreated().onOrAfter(IndexVersions.V_8_0_0)) {
-                    Set<String> deprecatedParams = LegacyGeoShapeFieldMapper.getDeprecatedParameters(node.keySet());
-                    throw new IllegalArgumentException(
-                        "using deprecated parameters "
-                            + Arrays.toString(deprecatedParams.toArray())
-                            + " in mapper ["
-                            + name
-                            + "] of type [geo_shape] is no longer allowed"
-                    );
-                }
-                builder = new LegacyGeoShapeFieldMapper.Builder(
-                    name,
-                    parserContext.indexVersionCreated(),
-                    ignoreMalformedByDefault,
-                    coerceByDefault
-                );
-            } else {
-                builder = new GeoShapeWithDocValuesFieldMapper.Builder(
-                    name,
-                    parserContext.indexVersionCreated(),
-                    parserContext.scriptCompiler(),
-                    ignoreMalformedByDefault,
-                    coerceByDefault,
-                    geoFormatterFactory
-                );
-            }
+            FieldMapper.Builder builder = new GeoShapeWithDocValuesFieldMapper.Builder(
+                name,
+                parserContext.indexVersionCreated(),
+                parserContext.scriptCompiler(),
+                ignoreMalformedByDefault,
+                coerceByDefault,
+                geoFormatterFactory
+            );
             builder.parse(name, parserContext, node);
             return builder;
         }

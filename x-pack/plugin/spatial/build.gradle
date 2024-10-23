@@ -7,7 +7,7 @@ esplugin {
   name 'spatial'
   description 'A plugin for Basic Spatial features'
   classname 'org.elasticsearch.xpack.spatial.SpatialPlugin'
-  extendedPlugins = ['x-pack-core', 'legacy-geo', 'lang-painless']
+  extendedPlugins = ['x-pack-core', 'lang-painless']
 }
 
 dependencies {
@@ -19,6 +19,7 @@ dependencies {
   testImplementation project(path: ':modules:percolator')
   testImplementation project(path: xpackModule('vector-tile'))
   testImplementation project(path: ':modules:aggregations')
+  testImplementation("org.locationtech.jts:jts-core:${versions.jts}")
 }
 
 testClusters.configureEach {

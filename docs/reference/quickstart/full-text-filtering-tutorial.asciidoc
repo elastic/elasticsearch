@@ -88,8 +88,8 @@ PUT /cooking_blog
 <1> The `standard` analyzer is used by default for `text` fields if an `analyzer` isn't specified. It's included here for demonstration purposes.
 <2> <<multi-fields,Multi-fields>> are used to index `text` fields as both `text` and `keyword` <<mapping-types,data types>>. This enables both full-text search and exact matching/filtering on the same field.
 Note that if you used <<dynamic-field-mapping,dynamic mapping>>, these multi-fields would be created automatically.
-<3> The `ignore_above` parameter prevents indexing values longer than 256 characters in the `keyword` field. Again this is the default value, but it's included here for for demonstration purposes.
-This is a common practice to avoid <<mapping-explosion,mapping explosion>>.
+<3> The <<ignore-above,`ignore_above` parameter>> prevents indexing values longer than 256 characters in the `keyword` field. Again this is the default value, but it's included here for for demonstration purposes.
+It helps to save disk space and avoid potential issues with Lucene's term byte-length limit.
 
 [TIP]
 ====
@@ -152,7 +152,7 @@ GET /cooking_blog/_search
   }
 }
 ----
-// TEST[skip:Flakey test]
+// TEST[continued]
 <1> By default, the `match` query uses `OR` logic between the resulting tokens. This means it will match documents that contain either "fluffy" or "pancakes", or both, in the description field.
 <2> {es} defaults to the analyzer defined in the field mapping, so this field is unnecessary here. This is only required if you're using a different analyzer at search time, which is an <<different-analyzers,advanced use case>>.
 
@@ -198,10 +198,7 @@ GET /cooking_blog/_search
     ]
 ----
 // TEST[continued]
-<1> The `hits` object contains the total number of matching documents and their relation to the total. <1> The `relation` field can have one of three values: "eq", "gte", or "lte".
-* "eq": The `value` is exactly equal to the total number of hits.
-* "gte": The `value` is greater than or equal to the total number of hits. This occurs when the number of hits exceeds the configured max result window.
-* "lte": The `value` is less than or equal to the total number of hits. This is used in certain scenarios like specific range queries.
+<1> The `hits` object contains the total number of matching documents and their relation to the total. Refer to <<track-total-hits,Track total hits>> for more details about the `hits` object.
 <2> `max_score` is the highest relevance score among all matching documents. In this example, we only have one matching document.
 <3> `_score` is the relevance score for a specific document, indicating how well it matches the query. Higher scores indicate better matches. In this example the `max_score` is the same as the `_score`, as there is only one matching document.
 <4> The title contains both "Fluffy" and "Pancakes", matching our search terms exactly.
@@ -286,7 +283,27 @@ GET /cooking_blog/_search
 === Step 4: Search across multiple fields at once
 
 When users enter a search query, they often don't know (or care) whether their search terms appear in a specific field.
-A <<query-dsl-multi-match-query,`multi_match`>> query allows searching across multiple fields simultaneously, with the ability to apply different boosts to each field.
+A <<query-dsl-multi-match-query,`multi_match`>> query allows searching across multiple fields simultaneously.
+
+Let's start with a basic `multi_match` query:
+
+[source,console]
+----
+GET /cooking_blog/_search
+{
+  "query": {
+    "multi_match": {
+      "query": "vegetarian curry",
+      "fields": ["title", "description", "tags"]
+    }
+  }
+}
+----
+// TEST[continued]
+
+This query searches for "vegetarian curry" across the title, description, and tags fields. Each field is treated with equal importance.
+
+However, in many cases, matches in certain fields (like the title) might be more relevant than others. We can adjust the importance of each field using field boosting:
 
 [source,console]
 ----
@@ -308,6 +325,8 @@ GET /cooking_blog/_search
 * `tags`: No boost applied (equivalent to `^1`)
 +
 These boosts help tune relevance, prioritizing matches in the title over the description, and matches in the description over tags.
+
+Learn more about fields and per-field boosting in the <<query-dsl-multi-match-query,`multi_match` query>> reference.
 
 .Example response
 [%collapsible]
@@ -357,14 +376,14 @@ These boosts help tune relevance, prioritizing matches in the title over the des
 <1> The title contains "Vegetarian" and "Curry", which matches our search terms. The title field has the highest boost (^3), contributing significantly to this document's relevance score.
 <2> The description contains "curry" and related terms like "vegetables", further increasing the document's relevance.
 <3> The tags include both "vegetarian" and "curry", providing an exact match for our search terms, albeit with no boost.
-==============
 
 This result demonstrates how the `multi_match` query with field boosts helps users find relevant recipes across multiple fields.
 Even though the exact phrase "vegetarian curry" doesn't appear in any single field, the combination of matches across fields produces a highly relevant result.
+==============
 
 [TIP]
 ====
-The `multi_match` query is often recommended over a single `match` query for most text search use cases, as it provides more flexibility and better matches user expectations.
+The `multi_match` query is often recommended over a single `match` query for most text search use cases, as it provides more flexibility and better matches user expectations. It won't work if the multi-field mapping isn't enabled.
 ====
 
 [discrete]
@@ -391,12 +410,14 @@ GET /cooking_blog/_search
 }
 ----
 // TEST[continued]
-<1> Note the use of `category.keyword` here. This refers to the `keyword` multi-field of the `category` field, ensuring an exact, case-sensitive match.
+<1> Note the use of `category.keyword` here. This refers to the <<keyword, `keyword`>> multi-field of the `category` field, ensuring an exact, case-sensitive match.
 
 [TIP]
 ====
-Using the `.keyword` suffix accesses the unanalyzed version of a field.
-This is crucial for exact matching on the original input, because the analyzed text will have been transformed in various ways.
+The `.keyword` suffix accesses the unanalyzed version of a field, enabling exact, case-sensitive matching. This works in two scenarios:
+
+1. *When using dynamic mapping for text fields*. Elasticsearch automatically creates a `.keyword` sub-field.
+2. *When text fields are explicitly mapped with a `.keyword` sub-field*. For example, we explicitly mapped the `category` field in <<full-text-filter-tutorial-create-index,Step 1>> of this tutorial.
 ====
 
 [discrete]
@@ -446,7 +467,7 @@ GET /cooking_blog/_search
 }
 ----
 // TEST[continued]
-<1> The `term` query has zero flexibility. For example, here the queries `maria` or `maria rodriguez` would have zero hits.
+<1> The `term` query has zero flexibility. For example, here the queries `maria` or `maria rodriguez` would have zero hits, due to case sensitivity.
 
 [TIP]
 ====
@@ -586,3 +607,5 @@ Here are some resources once you're ready to dive deeper:
 * <<search-analyze, Elasticsearch basics — Search and analyze data>>: Understand all your options for searching and analyzing data in {es}.
 * <<analysis,Text analysis>>: Understand how text is processed for full-text search.
 * <<search-with-elasticsearch>>: Learn about more advanced search techniques using the `_search` API, including semantic search.
+
+

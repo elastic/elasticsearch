@@ -2530,7 +2530,8 @@ public class MetadataTests extends ESTestCase {
     }
 
     public void testMultiProjectXContent() throws IOException {
-        Metadata originalMeta = randomMetadata();
+        final List<ProjectMetadata> projects = randomList(1, 5, () -> randomProject(new ProjectId(randomUUID()), randomIntBetween(1, 3)));
+        final Metadata originalMeta = randomMetadata(projects);
         ToXContent.Params p = new ToXContent.MapParams(
             Map.of("multi-project", "true", Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_GATEWAY)
         );
@@ -2538,7 +2539,7 @@ public class MetadataTests extends ESTestCase {
         final BytesReference bytes = toXContentBytes(originalMeta, p);
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, bytes)) {
             Metadata fromXContentMeta = Metadata.fromXContent(parser);
-            assertEquals(originalMeta.projects().size(), fromXContentMeta.projects().size());
+            assertThat(fromXContentMeta.projects().keySet(), equalTo(originalMeta.projects().keySet()));
         }
     }
 

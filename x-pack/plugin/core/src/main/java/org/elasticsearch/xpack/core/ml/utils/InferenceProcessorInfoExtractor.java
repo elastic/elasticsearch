@@ -55,13 +55,7 @@ public final class InferenceProcessorInfoExtractor {
             List<Map<String, Object>> processorConfigs = (List<Map<String, Object>>) configMap.get(PROCESSORS_KEY);
             for (Map<String, Object> processorConfigWithKey : processorConfigs) {
                 for (Map.Entry<String, Object> entry : processorConfigWithKey.entrySet()) {
-                    addModelsAndPipelines(
-                        entry.getKey(),
-                        pipelineId,
-                        (Map<String, Object>) entry.getValue(),
-                        pam -> counter.addAndGet(1),
-                        0
-                    );
+                    addModelsAndPipelines(entry.getKey(), pipelineId, entry.getValue(), pam -> counter.addAndGet(1), 0);
                 }
             }
         });
@@ -184,7 +178,7 @@ public final class InferenceProcessorInfoExtractor {
                     addModelsAndPipelines(
                         innerProcessorWithName.getKey(),
                         pipelineId,
-                        (Map<String, Object>) innerProcessorWithName.getValue(),
+                        innerProcessorWithName.getValue(),
                         handler,
                         level + 1
                     );

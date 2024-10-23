@@ -80,6 +80,16 @@ public abstract class BuildVersion {
     }
 
     /**
+     * Create a {@link BuildVersion} from a version string.
+     *
+     * @param version A string representation of a version
+     * @return a version representing a build or release of Elasticsearch
+     */
+    public static BuildVersion fromString(String version) {
+        return CurrentExtensionHolder.BUILD_EXTENSION.fromString(version);
+    }
+
+    /**
      * Get the current build version.
      *
      * <p>By default, this value will be different for every public release of Elasticsearch,
@@ -116,6 +126,11 @@ public abstract class BuildVersion {
         @Override
         public BuildVersion fromVersionId(int versionId) {
             return new DefaultBuildVersion(versionId);
+        }
+
+        @Override
+        public BuildVersion fromString(String version) {
+            return new DefaultBuildVersion(version);
         }
     }
 

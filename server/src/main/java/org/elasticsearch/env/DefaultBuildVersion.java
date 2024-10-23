@@ -37,6 +37,11 @@ final class DefaultBuildVersion extends BuildVersion {
         this.version = Version.fromId(versionId);
     }
 
+    DefaultBuildVersion(String version) {
+        this.version = Version.fromString(Objects.requireNonNull(version));
+        this.versionId = this.version.id();
+    }
+
     @Override
     public boolean onOrAfterMinimumCompatible() {
         return Version.CURRENT.minimumCompatibilityVersion().onOrBefore(version);

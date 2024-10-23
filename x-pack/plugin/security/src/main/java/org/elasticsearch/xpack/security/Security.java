@@ -902,6 +902,7 @@ public class Security extends Plugin
         components.add(nativeUsersStore);
         components.add(new PluginComponentBinding<>(NativeRoleMappingStore.class, nativeRoleMappingStore));
         components.add(new PluginComponentBinding<>(UserRoleMapper.class, userRoleMapper));
+        components.add(clusterStateRoleMapper);
         components.add(reservedRealm);
         components.add(realms);
         this.realms.set(realms);

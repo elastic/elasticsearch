@@ -25,9 +25,12 @@ import org.junit.rules.TestRule;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Supplier;
 
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
@@ -106,6 +109,10 @@ public class FileSettingsRoleMappingUpgradeIT extends ParameterizedRollingUpgrad
             );
             assertThat(roleMappings, is(not(nullValue())));
             assertThat(roleMappings.size(), equalTo(1));
+            assertThat(roleMappings, is(instanceOf(Map.class)));
+            @SuppressWarnings("unchecked")
+            Map<String, Object> roleMapping = (Map<String, Object>) roleMappings;
+            assertThat(roleMapping.keySet(), contains("everyone_kibana-read-only-operator-mapping"));
         }
     }
 }

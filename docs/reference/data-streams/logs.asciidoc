@@ -57,12 +57,12 @@ DELETE _index_template/my-index-template
 [[logsdb-synthtic-source]]
 === Synthetic source
 
-By default, `logsdb` mode uses  <<synthetic-source,synthetic `_source`>>, which omits storing the original `_source`
+By default, `logsdb` mode uses <<synthetic-source,Synthetic source>>, which omits storing the original `_source`
 field and synthesizes it from doc values or stored fields upon document retrieval. Synthetic source comes with a few
 restrictions which you can read more about in the <<synthetic-source,documentation>> section dedicated to it.
 
 NOTE: When dealing with multi-value fields, the `index.mapping.synthetic_source_keep` setting controls how field values
-are preserved for <<synthetic-source,synthetic `_source`>> reconstruction. In `logsdb`, the default value is `arrays`,
+are preserved for <<synthetic-source,Synthetic source>> reconstruction. In `logsdb`, the default value is `arrays`,
 which retains both duplicate values and the order of entries but not necessarily the exact structure when it comes to
 array elements or objects. Preserving duplicates and ordering could be critical for some log fields. This could be the
 case, for instance, for DNS A records, HTTP headers, or log entries that represent sequential or repeated events.
@@ -99,7 +99,7 @@ The following settings are applied by default when using the `logsdb` mode for i
   The default sort order for both fields is descending (`desc`), prioritizing the latest data.
 
 * `index.sort.mode`: `["min", "min"]`
-  The default sort mode is `min`, ensuring that indices are sorted by the minimum value of multi-valued fields.
+  The default sort mode is `min`, ensuring that indices are sorted by the minimum value of multi-value fields.
 
 * `index.sort.missing`: `["_first", "_first"]`
   Missing values are sorted to appear first (`_first`) in `logsdb` index mode.
@@ -125,7 +125,7 @@ is organized after sorting. For more details, refer to our documentation on
 <<index-modules-index-sorting,index sorting>>.
 
 NOTE: For <<data-streams, data streams>>, the `@timestamp` field is automatically injected if not already present.
-However, if custom sort settings are applied, the `@timestamp` field is injected into the mapping, but it is not
+However, if custom sort settings are applied, the `@timestamp` field is injected into the mappings, but it is not
 automatically added to the list of sort fields.
 
 [discrete]
@@ -204,7 +204,7 @@ rejection, even after the total number of fields exceeds the limit defined by `i
 and runtime). When the limit is reached, new dynamically mapped fields will be ignored instead of failing the document
 indexing, ensuring continued log ingestion without errors.
 
-NOTE: When automatically injected, `host.name` and `timestamp` contribute to the limit of mapped fields. When
+NOTE: When automatically injected, `host.name` and `@timestamp` contribute to the limit of mapped fields. When
 `host.name` is mapped with `subobjects: true` it consists of two fields. When `host.name` is mapped with
 `subobjects: false` it only consists of one field.
 
@@ -222,7 +222,7 @@ encoding or the field name remaining the same.
 When `logsdb` index mode uses synthetic `_source`, and `doc_values` are disabled for a field in the mapping,
 Elasticsearch may set the `store` setting to `true` for that field as a last resort option to ensure that the field's
 data is still available for reconstructing the document’s source when retrieving it via
-<<synthetic-source,synthetic `_source`>>.
+<<synthetic-source,Synthetic source>>.
 
 For example, this happens with text fields when `store` is `false` and there is no suitable multi-field available to
 reconstruct the original value in <<synthetic-source,Synthetic source>>.

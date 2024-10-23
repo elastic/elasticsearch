@@ -218,28 +218,21 @@ public class SecurityMigrations {
             return ADD_MANAGE_ROLES_PRIVILEGE.id();
         }
 
-        // TODO REMOVE AND USE CONSTANT WHEN AVAILABLE!
-        public static final String METADATA_READ_ONLY_FLAG_KEY = "_read_only";
-        public static final String RESERVED_ROLE_MAPPING_SUFFIX = "(read only)";
-
         // Visible for testing
         protected static List<String> getDuplicateRoleMappingNames(ExpressionRoleMapping... roleMappings) {
             // Partition role mappings on if they're cluster state role mappings (true) or native role mappings (false)
             Map<Boolean, List<ExpressionRoleMapping>> partitionedRoleMappings = Arrays.stream(roleMappings)
                 .collect(
                     Collectors.partitioningBy(
-                        roleMapping -> roleMapping.getMetadata().get(METADATA_READ_ONLY_FLAG_KEY) != null
-                            && (boolean) roleMapping.getMetadata().get(METADATA_READ_ONLY_FLAG_KEY)
+                        roleMapping -> roleMapping.getMetadata().get(ExpressionRoleMapping.READ_ONLY_ROLE_MAPPING_METADATA_FLAG) != null
+                            && (boolean) roleMapping.getMetadata().get(ExpressionRoleMapping.READ_ONLY_ROLE_MAPPING_METADATA_FLAG)
                     )
                 );
 
             Set<String> clusterStateRoleMappings = partitionedRoleMappings.get(true)
                 .stream()
                 .map(ExpressionRoleMapping::getName)
-                .map(name -> {
-                    int lastIndex = name.lastIndexOf(RESERVED_ROLE_MAPPING_SUFFIX);
-                    return lastIndex > 0 ? name.substring(0, lastIndex) : name;
-                })
+                .map(ExpressionRoleMapping::removeReadOnlySuffixIfPresent)
                 .collect(Collectors.toSet());
 
             return partitionedRoleMappings.get(false)

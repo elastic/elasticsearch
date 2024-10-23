@@ -182,7 +182,13 @@ public class EsqlCapabilities {
          * Don't optimize CASE IS NOT NULL function by not requiring the fields to be not null as well.
          * https://github.com/elastic/elasticsearch/issues/112704
          */
-        FIXED_WRONG_IS_NOT_NULL_CHECK_ON_CASE;
+        FIXED_WRONG_IS_NOT_NULL_CHECK_ON_CASE,
+
+        /**
+         * Fix for an optimization that caused wrong results
+         * https://github.com/elastic/elasticsearch/issues/115281
+         */
+        FIX_FILTER_PUSHDOWN_PAST_STATS;
 
         private final boolean snapshotOnly;
 

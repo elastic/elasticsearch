@@ -120,8 +120,8 @@ public class EnrichPolicyResolver {
 
             for (Map.Entry<String, LookupResponse> entry : lookupResponses.entrySet()) {
                 String clusterAlias = entry.getKey();
-                if (entry.getValue() instanceof ConnectionErrorLookupResponse connErrorResponse) {
-                    enrichResolution.addUnavailableCluster(clusterAlias, connErrorResponse.connectionError);
+                if (entry.getValue().connectionError != null) {
+                    enrichResolution.addUnavailableCluster(clusterAlias, entry.getValue().connectionError);
                     remoteClusters.remove(clusterAlias);
                 } else {
                     lookupResponsesToProcess.put(clusterAlias, entry.getValue());
@@ -171,7 +171,7 @@ public class EnrichPolicyResolver {
         final List<String> failures = new ArrayList<>();
         for (String cluster : targetClusters) {
             LookupResponse lookupResult = lookupResults.get(cluster);
-            assert (lookupResult instanceof ConnectionErrorLookupResponse) == false : "Should never get ConnectionErrorLookupResponse here";
+            assert lookupResult.connectionError == null : "Should never have a non-null connectionError here";
             if (lookupResult != null) {
                 ResolvedEnrichPolicy policy = lookupResult.policies.get(policyName);
                 if (policy != null) {
@@ -278,7 +278,7 @@ public class EnrichPolicyResolver {
             if (remotePolicies.isEmpty() == false) {
                 for (String cluster : remoteClusters) {
                     ActionListener<LookupResponse> lookupListener = refs.acquire(resp -> lookupResponses.put(cluster, resp));
-                    getRemoteConnection(cluster, new ActionListener<Transport.Connection>() {
+                    getRemoteConnection(cluster, new ActionListener<>() {
                         @Override
                         public void onResponse(Transport.Connection connection) {
                             transportService.sendRequest(
@@ -289,8 +289,7 @@ public class EnrichPolicyResolver {
                                 new ActionListenerResponseHandler<>(lookupListener.delegateResponse((l, e) -> {
                                     if (ExceptionsHelper.isRemoteUnavailableException(e)
                                         && remoteClusterService.isSkipUnavailable(cluster)) {
-                                        // TODO: fill in later with proper error message
-                                        l.onResponse(new ConnectionErrorLookupResponse(e));
+                                        l.onResponse(new LookupResponse(e));
                                     } else {
                                         l.onFailure(e);
                                     }
@@ -301,8 +300,7 @@ public class EnrichPolicyResolver {
                         @Override
                         public void onFailure(Exception e) {
                             if (ExceptionsHelper.isRemoteUnavailableException(e) && remoteClusterService.isSkipUnavailable(cluster)) {
-                                // TODO: fill in later with proper error message
-                                lookupListener.onResponse(new ConnectionErrorLookupResponse(e));
+                                lookupListener.onResponse(new LookupResponse(e));
                             } else {
                                 lookupListener.onFailure(e);
                             }
@@ -353,17 +351,27 @@ public class EnrichPolicyResolver {
 
     private static class LookupResponse extends TransportResponse {
         final Map<String, ResolvedEnrichPolicy> policies;
-        final Map<String, String> failures;  // MP TODO: what are these failures and why are they strings?
+        final Map<String, String> failures;
+        // does not need to be Writable since this indicates a failure to contact a remote cluster
+        final transient Exception connectionError;
+
+        LookupResponse(Exception connectionError) {
+            this.policies = Collections.emptyMap();
+            this.failures = Collections.emptyMap();
+            this.connectionError = connectionError;
+        }
 
         LookupResponse(Map<String, ResolvedEnrichPolicy> policies, Map<String, String> failures) {
             this.policies = policies;
             this.failures = failures;
+            this.connectionError = null;
         }
 
         LookupResponse(StreamInput in) throws IOException {
             PlanStreamInput planIn = new PlanStreamInput(in, in.namedWriteableRegistry(), null);
             this.policies = planIn.readMap(StreamInput::readString, ResolvedEnrichPolicy::new);
             this.failures = planIn.readMap(StreamInput::readString, StreamInput::readString);
+            this.connectionError = null;
         }
 
         @Override
@@ -371,28 +379,6 @@ public class EnrichPolicyResolver {
             PlanStreamOutput pso = new PlanStreamOutput(out, null);
             pso.writeMap(policies, StreamOutput::writeWriteable);
             pso.writeMap(failures, StreamOutput::writeString);
-        }
-    }
-
-    /**
-     * TODO: DOCUMENT ME (if keep this)
-     */
-    private static class ConnectionErrorLookupResponse extends LookupResponse {
-        private Exception connectionError;
-
-        ConnectionErrorLookupResponse(Exception e) {
-            super(Collections.emptyMap(), Collections.emptyMap());
-            this.connectionError = e;
-        }
-
-        ConnectionErrorLookupResponse(StreamInput in) throws IOException {
-            super(in);
-            throw new UnsupportedOperationException("should never be called");
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            throw new UnsupportedOperationException("should never be called");
         }
     }
 

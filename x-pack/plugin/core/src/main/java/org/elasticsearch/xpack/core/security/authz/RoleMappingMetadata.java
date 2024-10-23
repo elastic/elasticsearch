@@ -193,7 +193,7 @@ public final class RoleMappingMetadata extends AbstractNamedDiffable<Metadata.Cu
 
     /**
      * Check if any of the role mappings have a fallback name
-     * @return true if any role mapping has the fallback name
+     * @return true if any role mappings have the fallback name
      */
     public boolean hasAnyMappingWithFallbackName() {
         return roleMappings.stream().anyMatch(RoleMappingMetadata::hasFallbackName);

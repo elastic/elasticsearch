@@ -72,6 +72,7 @@ import java.util.function.Function;
 import java.util.function.LongSupplier;
 
 import static org.elasticsearch.common.time.DateUtils.toLong;
+import static org.elasticsearch.common.time.DateUtils.toLongMillis;
 
 /** A {@link FieldMapper} for dates. */
 public final class DateFieldMapper extends FieldMapper {
@@ -95,7 +96,7 @@ public final class DateFieldMapper extends FieldMapper {
         MILLISECONDS(CONTENT_TYPE, NumericType.DATE, DateMillisDocValuesField::new) {
             @Override
             public long convert(Instant instant) {
-                return instant.toEpochMilli();
+                return toLongMillis(instant);
             }
 
             @Override

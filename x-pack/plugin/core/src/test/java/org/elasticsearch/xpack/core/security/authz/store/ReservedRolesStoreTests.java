@@ -949,7 +949,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
             );
         });
 
-        // read-only index for Endpoint
+        // Elastic Defend internal index for response actions results
         Arrays.asList(".logs-endpoint.action.responses-" + randomAlphaOfLength(randomIntBetween(0, 13))).forEach((index) -> {
             final IndexAbstraction indexAbstraction = mockIndexAbstraction(index);
             assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:foo").test(indexAbstraction), is(false));
@@ -1313,7 +1313,15 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
             final boolean isAlsoAutoCreateIndex = indexName.startsWith(".logs-endpoint.actions-")
                 || indexName.startsWith(".logs-endpoint.action.responses-");
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name()).test(indexAbstraction), is(true));
+            final boolean canAlsoCreateIndex = indexName.startsWith(".logs-endpoint.actions-")
+                || indexName.startsWith(".logs-endpoint.action.responses-")
+                || indexName.startsWith(".logs-endpoint.diagnostic.collection-")
+                || indexName.startsWith(".logs-endpoint.heartbeat-");
+
+            assertThat(
+                kibanaRole.indices().allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name()).test(indexAbstraction),
+                is(canAlsoCreateIndex)
+            );
             assertThat(kibanaRole.indices().allowedIndicesMatcher(AutoCreateAction.NAME).test(indexAbstraction), is(isAlsoAutoCreateIndex));
             assertThat(kibanaRole.indices().allowedIndicesMatcher(CreateDataStreamAction.NAME).test(indexAbstraction), is(false));
             assertThat(

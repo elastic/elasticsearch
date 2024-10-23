@@ -614,8 +614,8 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
 
     @Override
     public String visitFunctionName(EsqlBaseParser.FunctionNameContext ctx) {
-        if (ctx.MATCH() != null) {
-            return ctx.MATCH().getText();
+        if (ctx.DEV_MATCH() != null) {
+            return ctx.DEV_MATCH().getText();
         }
         return visitIdentifierOrParameter(ctx.identifierOrParameter());
     }

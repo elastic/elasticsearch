@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.expression.function.fulltext;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
@@ -16,6 +17,7 @@ import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
@@ -30,7 +32,14 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isStr
  */
 public abstract class FullTextFunction extends Function {
     public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        return List.of(QueryString.ENTRY, Match.ENTRY);
+        List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
+        if (EsqlCapabilities.Cap.QSTR_FUNCTION.isEnabled()) {
+            entries.add(QueryString.ENTRY);
+        }
+        if (EsqlCapabilities.Cap.MATCH_FUNCTION.isEnabled()) {
+            entries.add(Match.ENTRY);
+        }
+        return entries;
     }
 
     private final Expression query;

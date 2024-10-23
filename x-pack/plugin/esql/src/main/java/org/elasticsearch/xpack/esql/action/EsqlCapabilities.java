@@ -360,12 +360,12 @@ public class EsqlCapabilities {
         /**
          * QSTR function
          */
-        QSTR_FUNCTION,
+        QSTR_FUNCTION(true),
 
         /**
          * MATCH function
          */
-        MATCH_FUNCTION,
+        MATCH_FUNCTION(true),
 
         /**
          * Don't optimize CASE IS NOT NULL function by not requiring the fields to be not null as well.

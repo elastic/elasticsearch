@@ -218,24 +218,12 @@ tests:
 - class: org.elasticsearch.xpack.inference.TextEmbeddingCrudIT
   method: testPutE5Small_withPlatformSpecificVariant
   issue: https://github.com/elastic/elasticsearch/issues/113950
-- class: org.elasticsearch.xpack.inference.services.openai.OpenAiServiceTests
-  method: testInfer_StreamRequest_ErrorResponse
-  issue: https://github.com/elastic/elasticsearch/issues/114105
 - class: org.elasticsearch.xpack.inference.InferenceCrudIT
   method: testGet
   issue: https://github.com/elastic/elasticsearch/issues/114135
 - class: org.elasticsearch.xpack.ilm.ExplainLifecycleIT
   method: testStepInfoPreservedOnAutoRetry
   issue: https://github.com/elastic/elasticsearch/issues/114220
-- class: org.elasticsearch.xpack.inference.services.openai.OpenAiServiceTests
-  method: testInfer_StreamRequest
-  issue: https://github.com/elastic/elasticsearch/issues/114232
-- class: org.elasticsearch.xpack.inference.services.cohere.CohereServiceTests
-  method: testInfer_StreamRequest_ErrorResponse
-  issue: https://github.com/elastic/elasticsearch/issues/114327
-- class: org.elasticsearch.xpack.inference.services.cohere.CohereServiceTests
-  method: testInfer_StreamRequest
-  issue: https://github.com/elastic/elasticsearch/issues/114385
 - class: org.elasticsearch.xpack.inference.InferenceRestIT
   method: test {p0=inference/30_semantic_text_inference/Calculates embeddings using the default ELSER 2 endpoint}
   issue: https://github.com/elastic/elasticsearch/issues/114412

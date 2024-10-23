@@ -72,7 +72,11 @@ public class SecurityIndexRoleMappingCleanupIT extends AbstractUpgradeTestCase {
         RequestOptions.Builder options = request.getOptions().toBuilder();
         request.setJsonEntity(String.format(Locale.ROOT, """
             {"query":{"bool":{"must":[{"term":{"_id":"%s_%s"}}]}}}""", "role-mapping", mappingName));
-        addExpectWarningOption(options);
+        addExpectWarningOption(
+            options,
+            "this request accesses system indices: [.security-7],"
+                + " but in a future major version, direct access to system indices will be prevented by default"
+        );
         request.setOptions(options);
 
         Response response = adminClient().performRequest(request);
@@ -83,11 +87,8 @@ public class SecurityIndexRoleMappingCleanupIT extends AbstractUpgradeTestCase {
         return ((List<Object>) hits.get("hits")).isEmpty() == false;
     }
 
-    private void addExpectWarningOption(RequestOptions.Builder options) {
-        Set<String> expectedWarnings = Set.of(
-            "this request accesses system indices: [.security-7],"
-                + " but in a future major version, direct access to system indices will be prevented by default"
-        );
+    private void addExpectWarningOption(RequestOptions.Builder options, String message) {
+        Set<String> expectedWarnings = Set.of(message);
 
         options.setWarningsHandler(warnings -> {
             final Set<String> actual = Set.copyOf(warnings);
@@ -97,7 +98,21 @@ public class SecurityIndexRoleMappingCleanupIT extends AbstractUpgradeTestCase {
     }
 
     private void createNativeRoleMapping(String roleMappingName, Map<String, Object> metadata) throws IOException {
+        createNativeRoleMapping(roleMappingName, metadata, false);
+    }
+
+    private void createNativeRoleMapping(String roleMappingName, Map<String, Object> metadata, boolean expectWarning) throws IOException {
         final Request request = new Request("POST", "/_security/role_mapping/" + roleMappingName);
+        if (expectWarning) {
+            RequestOptions.Builder options = request.getOptions().toBuilder();
+            addExpectWarningOption(
+                options,
+                "A read-only role mapping with the same name ["
+                    + roleMappingName
+                    + "] has been previously defined in a configuration file. Both role mappings will be used to determine role assignments."
+            );
+        }
+
         BytesReference source = BytesReference.bytes(
             jsonBuilder().map(
                 Map.of(

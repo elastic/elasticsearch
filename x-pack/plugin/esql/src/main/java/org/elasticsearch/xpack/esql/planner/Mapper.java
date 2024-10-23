@@ -264,7 +264,6 @@ public class Mapper {
             child = aggExec(aggregate, child, AggregatorMode.INITIAL, intermediateAttributes);
         }
         // otherwise create both sides of the aggregate (for parallelism purposes), if no fragment is present
-        // TODO: might be easier long term to end up with just one node and split if necessary instead of doing that always at this stage
         else {
             child = addExchangeForFragment(aggregate, child);
             // exchange was added - use the intermediates for the output

@@ -375,9 +375,6 @@ tests:
 - class: org.elasticsearch.xpack.enrich.EnrichIT
   method: testEnrichSpecialTypes
   issue: https://github.com/elastic/elasticsearch/issues/114773
-- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
-  method: test {string.ReverseGraphemeClusters}
-  issue: https://github.com/elastic/elasticsearch/issues/114560
 - class: org.elasticsearch.license.LicensingTests
   issue: https://github.com/elastic/elasticsearch/issues/114865
 - class: org.elasticsearch.xpack.enrich.EnrichIT

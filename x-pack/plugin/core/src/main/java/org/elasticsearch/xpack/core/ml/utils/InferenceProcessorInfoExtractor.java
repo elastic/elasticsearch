@@ -12,7 +12,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestMetadata;
-import org.elasticsearch.ingest.Pipeline;
 import org.elasticsearch.transport.Transports;
 
 import java.util.HashMap;
@@ -24,6 +23,7 @@ import java.util.Set;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.inference.InferenceResults.MODEL_ID_RESULTS_FIELD;
+import static org.elasticsearch.ingest.Pipeline.ON_FAILURE_KEY;
 import static org.elasticsearch.ingest.Pipeline.PROCESSORS_KEY;
 
 /**
@@ -196,12 +196,12 @@ public final class InferenceProcessorInfoExtractor {
             }
             return;
         }
-        if (processorDefinition instanceof Map<?, ?> definitionMap && definitionMap.containsKey(Pipeline.ON_FAILURE_KEY)) {
+        if (processorDefinition instanceof Map<?, ?> definitionMap && definitionMap.containsKey(ON_FAILURE_KEY)) {
             List<Map<String, Object>> onFailureConfigs = ConfigurationUtils.readList(
                 null,
                 null,
                 (Map<String, Object>) definitionMap,
-                Pipeline.ON_FAILURE_KEY
+                ON_FAILURE_KEY
             );
             onFailureConfigs.stream()
                 .flatMap(map -> map.entrySet().stream())

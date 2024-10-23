@@ -38,6 +38,7 @@ public class CreateIndexClusterStateUpdateRequest {
     private ResizeType resizeType;
     private boolean copySettings;
     private SystemDataStreamDescriptor systemDataStreamDescriptor;
+    private boolean isFailureIndex = false;
 
     private Settings settings = Settings.EMPTY;
 
@@ -114,6 +115,11 @@ public class CreateIndexClusterStateUpdateRequest {
         return this;
     }
 
+    public CreateIndexClusterStateUpdateRequest isFailureIndex(boolean isFailureIndex) {
+        this.isFailureIndex = isFailureIndex;
+        return this;
+    }
+
     public String cause() {
         return cause;
     }
@@ -184,6 +190,10 @@ public class CreateIndexClusterStateUpdateRequest {
         return dataStreamName;
     }
 
+    public boolean isFailureIndex() {
+        return isFailureIndex;
+    }
+
     public CreateIndexClusterStateUpdateRequest dataStreamName(String dataStreamName) {
         this.dataStreamName = dataStreamName;
         return this;
@@ -247,6 +257,8 @@ public class CreateIndexClusterStateUpdateRequest {
             + systemDataStreamDescriptor
             + ", matchingTemplate="
             + matchingTemplate
+            + ", isFailureIndex="
+            + isFailureIndex
             + '}';
     }
 }

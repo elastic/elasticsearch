@@ -19,7 +19,6 @@
 
 package co.elastic.elasticsearch.stateless.lucene;
 
-import co.elastic.elasticsearch.stateless.Stateless;
 import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
 import co.elastic.elasticsearch.stateless.cache.reader.CacheBlobReader;
 import co.elastic.elasticsearch.stateless.cache.reader.CacheBlobReaderService;
@@ -297,7 +296,7 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
 
     @Override
     public CacheBlobReader getCacheBlobReaderForWarming(BlobLocation blobLocation) {
-        assert ThreadPool.assertCurrentThreadPool(Stateless.PREWARM_THREAD_POOL, ThreadPool.Names.GENERIC);
+        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
         return cacheBlobReaderService.getCacheBlobReader(
             shardId,
             this::getBlobContainer,

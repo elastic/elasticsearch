@@ -17,7 +17,6 @@
 
 package co.elastic.elasticsearch.stateless.lucene;
 
-import co.elastic.elasticsearch.stateless.Stateless;
 import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
 import co.elastic.elasticsearch.stateless.cache.reader.CacheBlobReader;
 import co.elastic.elasticsearch.stateless.cache.reader.MeteringCacheBlobReader;
@@ -82,7 +81,6 @@ public class IndexBlobStoreCacheDirectory extends BlobStoreCacheDirectory {
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             totalBytesWarmedFromObjectStore,
             BlobCacheMetrics.CachePopulationReason.Warming,
-            Stateless.PREWARM_THREAD_POOL,
             ThreadPool.Names.GENERIC
         );
     }
@@ -149,7 +147,6 @@ public class IndexBlobStoreCacheDirectory extends BlobStoreCacheDirectory {
                     EsExecutors.DIRECT_EXECUTOR_SERVICE,
                     totalBytesWarmedFromObjectStore,
                     BlobCacheMetrics.CachePopulationReason.Warming,
-                    Stateless.PREWARM_THREAD_POOL, // when fetching blob regions in warming service
                     ThreadPool.Names.GENERIC
                 );
             }

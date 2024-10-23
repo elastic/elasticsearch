@@ -37,7 +37,6 @@ public abstract class BuildParameterExtension {
     private final Provider<? extends Action<JavaToolchainSpec>> javaToolChainSpec;
     private final Provider<String> runtimeJavaDetails;
     private final String gitRevision;
-    private final String gitOrigin;
     private transient AtomicReference<ZonedDateTime> buildDate = new AtomicReference<>();
     private final String testSeed;
     private final Boolean isCi;
@@ -75,12 +74,12 @@ public abstract class BuildParameterExtension {
         this.minimumRuntimeVersion = minimumRuntimeVersion;
         this.gradleJavaVersion = gradleJavaVersion;
         this.gitRevision = gitRevision;
-        this.gitOrigin = gitOrigin;
         this.testSeed = testSeed;
         this.isCi = isCi;
         this.defaultParallel = defaultParallel;
         this.isSnapshotBuild = isSnapshotBuild;
         this.getBwcVersionsProperty().set(bwcVersions);
+        this.getGitOriginProperty().set(gitOrigin);
     }
 
     private static boolean parseBoolean(String s) {
@@ -139,7 +138,7 @@ public abstract class BuildParameterExtension {
     }
 
     public String getGitOrigin() {
-        return gitOrigin;
+        return getGitOriginProperty().get();
     }
 
     public ZonedDateTime getBuildDate() {
@@ -175,6 +174,8 @@ public abstract class BuildParameterExtension {
     }
 
     public abstract Property<BwcVersions> getBwcVersionsProperty();
+
+    public abstract Property<String> getGitOriginProperty();
 
     public Random getRandom() {
         return new Random(Long.parseUnsignedLong(testSeed.split(":")[0], 16));

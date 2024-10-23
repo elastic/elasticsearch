@@ -11,7 +11,6 @@ package org.elasticsearch.gradle.internal.info;
 import org.apache.commons.io.IOUtils;
 import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.internal.BwcVersions;
-import org.elasticsearch.gradle.internal.conventions.GUtils;
 import org.elasticsearch.gradle.internal.conventions.info.GitInfo;
 import org.elasticsearch.gradle.internal.conventions.info.ParallelDetector;
 import org.elasticsearch.gradle.internal.conventions.util.Util;
@@ -56,6 +55,7 @@ import java.util.Random;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
 import javax.inject.Inject;
 
 import static org.elasticsearch.gradle.internal.conventions.GUtils.elvis;

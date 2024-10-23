@@ -142,6 +142,11 @@ public class DesiredBalanceReconciler {
         moveOrdering.clear();
     }
 
+    /**
+     * Encapsulates the logic (in {@link #run()}) to update the {@link #routingNodes} referenced in the {@link #allocation} with shard
+     * initializations and relocations proposed by {@link #desiredBalance}. Prioritizes initializaing unassigned shards, then moving any
+     * shards that violate an AllocationDecider, and lastly relocating shards in order to improve overall cluster balance.
+     */
     private class Reconciliation {
 
         private final DesiredBalance desiredBalance;

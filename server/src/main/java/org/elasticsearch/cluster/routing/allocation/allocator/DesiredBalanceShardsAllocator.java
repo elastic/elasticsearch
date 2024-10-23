@@ -60,7 +60,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
     private final PendingListenersQueue queue;
     private final AtomicLong indexGenerator = new AtomicLong(-1);
     private final ConcurrentLinkedQueue<List<MoveAllocationCommand>> pendingDesiredBalanceMoves = new ConcurrentLinkedQueue<>();
-    private final MasterServiceTaskQueue<ReconcileDesiredBalanceTask> masterServiceTaskQueue;
+    private final MasterServiceTaskQueue<ReconcileDesiredBalanceTaskAndListener> masterServiceTaskQueue;
     private volatile DesiredBalance currentDesiredBalance = DesiredBalance.INITIAL;
     private volatile boolean resetCurrentDesiredBalance = false;
     private final Set<String> processedNodeShutdowns = new HashSet<>();
@@ -73,6 +73,10 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
     protected final CounterMetric cumulativeComputationTime = new CounterMetric();
     protected final CounterMetric cumulativeReconciliationTime = new CounterMetric();
 
+    /**
+     * Interface for an external method that dictates how cluster changes affect the desired shard allocation in the cluster state.
+     * Computes the ClusterState for the next step incremental steps towards an improved final shard allocation balance.
+     */
     @FunctionalInterface
     public interface DesiredBalanceReconcilerAction {
         ClusterState apply(ClusterState clusterState, RerouteStrategy rerouteStrategy);
@@ -252,7 +256,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
     }
 
     protected void submitReconcileTask(DesiredBalance desiredBalance) {
-        masterServiceTaskQueue.submitTask("reconcile-desired-balance", new ReconcileDesiredBalanceTask(desiredBalance), null);
+        masterServiceTaskQueue.submitTask("reconcile-desired-balance", new ReconcileDesiredBalanceTaskAndListener(desiredBalance), null);
     }
 
     protected void reconcile(DesiredBalance desiredBalance, RoutingAllocation allocation) {
@@ -269,6 +273,10 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         }
     }
 
+    /**
+     * Wrapper around invoking {@link #reconcile(DesiredBalance, RoutingAllocation)} (ultimately the {@link DesiredBalanceReconciler})
+     * with the given {@link DesiredBalance}.
+     */
     private RerouteStrategy createReconcileAllocationAction(DesiredBalance desiredBalance) {
         return new RerouteStrategy() {
             @Override
@@ -325,10 +333,13 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         }
     }
 
-    private static final class ReconcileDesiredBalanceTask implements ClusterStateTaskListener {
+    /**
+     * Failure callback for a particular cluster state update task. Also holds a {@link DesiredBalance} for the task.
+     */
+    private static final class ReconcileDesiredBalanceTaskAndListener implements ClusterStateTaskListener {
         private final DesiredBalance desiredBalance;
 
-        private ReconcileDesiredBalanceTask(DesiredBalance desiredBalance) {
+        private ReconcileDesiredBalanceTaskAndListener(DesiredBalance desiredBalance) {
             this.desiredBalance = desiredBalance;
         }
 
@@ -343,25 +354,28 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         }
     }
 
-    private final class ReconcileDesiredBalanceExecutor implements ClusterStateTaskExecutor<ReconcileDesiredBalanceTask> {
+    private final class ReconcileDesiredBalanceExecutor implements ClusterStateTaskExecutor<ReconcileDesiredBalanceTaskAndListener> {
 
+        /**
+         * Applies the returns an updated ClusterState
+         */
         @Override
-        public ClusterState execute(BatchExecutionContext<ReconcileDesiredBalanceTask> batchExecutionContext) {
+        public ClusterState execute(BatchExecutionContext<ReconcileDesiredBalanceTaskAndListener> batchExecutionContext) {
             var latest = findLatest(batchExecutionContext.taskContexts());
             var newState = applyBalance(batchExecutionContext, latest);
             discardSupersededTasks(batchExecutionContext.taskContexts(), latest);
             return newState;
         }
 
-        private static TaskContext<ReconcileDesiredBalanceTask> findLatest(
-            List<? extends TaskContext<ReconcileDesiredBalanceTask>> taskContexts
+        private static TaskContext<ReconcileDesiredBalanceTaskAndListener> findLatest(
+            List<? extends TaskContext<ReconcileDesiredBalanceTaskAndListener>> taskContexts
         ) {
             return taskContexts.stream().max(Comparator.comparing(context -> context.getTask().desiredBalance.lastConvergedIndex())).get();
         }
 
         private ClusterState applyBalance(
-            BatchExecutionContext<ReconcileDesiredBalanceTask> batchExecutionContext,
-            TaskContext<ReconcileDesiredBalanceTask> latest
+            BatchExecutionContext<ReconcileDesiredBalanceTaskAndListener> batchExecutionContext,
+            TaskContext<ReconcileDesiredBalanceTaskAndListener> latest
         ) {
             try (var ignored = batchExecutionContext.dropHeadersContext()) {
                 var newState = reconciler.apply(
@@ -374,10 +388,10 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         }
 
         private static void discardSupersededTasks(
-            List<? extends TaskContext<ReconcileDesiredBalanceTask>> taskContexts,
-            TaskContext<ReconcileDesiredBalanceTask> latest
+            List<? extends TaskContext<ReconcileDesiredBalanceTaskAndListener>> taskContexts,
+            TaskContext<ReconcileDesiredBalanceTaskAndListener> latest
         ) {
-            for (TaskContext<ReconcileDesiredBalanceTask> taskContext : taskContexts) {
+            for (TaskContext<ReconcileDesiredBalanceTaskAndListener> taskContext : taskContexts) {
                 if (taskContext != latest) {
                     taskContext.success(() -> {});
                 }

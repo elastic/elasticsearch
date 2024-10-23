@@ -1,15 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.query;
 
 import org.apache.lucene.analysis.pattern.PatternReplaceCharFilter;
-import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.tests.analysis.MockTokenizer;
@@ -263,7 +264,7 @@ public class SearchQueryIT extends ESIntegTestCase {
             MatchQueryBuilder matchQuery = matchQuery("f", English.intToEnglish(between(0, num)));
             final long[] constantScoreTotalHits = new long[1];
             assertResponse(prepareSearch("test_1").setQuery(constantScoreQuery(matchQuery)).setSize(num), response -> {
-                constantScoreTotalHits[0] = response.getHits().getTotalHits().value;
+                constantScoreTotalHits[0] = response.getHits().getTotalHits().value();
                 SearchHits hits = response.getHits();
                 for (SearchHit searchHit : hits) {
                     assertThat(searchHit, hasScore(1.0f));
@@ -276,7 +277,7 @@ public class SearchQueryIT extends ESIntegTestCase {
                 ).setSize(num),
                 response -> {
                     SearchHits hits = response.getHits();
-                    assertThat(hits.getTotalHits().value, equalTo(constantScoreTotalHits[0]));
+                    assertThat(hits.getTotalHits().value(), equalTo(constantScoreTotalHits[0]));
                     if (constantScoreTotalHits[0] > 1) {
                         float expected = hits.getAt(0).getScore();
                         for (SearchHit searchHit : hits) {
@@ -1692,7 +1693,7 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertResponse(
             prepareSearch("test").setSearchType(SearchType.DFS_QUERY_THEN_FETCH).setQuery(QueryBuilders.queryStringQuery("xyz").boost(100)),
             response -> {
-                assertThat(response.getHits().getTotalHits().value, equalTo(1L));
+                assertThat(response.getHits().getTotalHits().value(), equalTo(1L));
                 assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
                 first[0] = response.getHits().getAt(0).getScore();
             }
@@ -1703,7 +1704,7 @@ public class SearchQueryIT extends ESIntegTestCase {
                 prepareSearch("test").setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
                     .setQuery(QueryBuilders.queryStringQuery("xyz").boost(100)),
                 response -> {
-                    assertThat(response.getHits().getTotalHits().value, equalTo(1L));
+                    assertThat(response.getHits().getTotalHits().value(), equalTo(1L));
                     assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
                     float actual = response.getHits().getAt(0).getScore();
                     assertThat(finalI + " expected: " + first[0] + " actual: " + actual, Float.compare(first[0], actual), equalTo(0));
@@ -1916,7 +1917,9 @@ public class SearchQueryIT extends ESIntegTestCase {
     }
 
     /**
-     * Test correct handling {@link SpanBooleanQueryRewriteWithMaxClause#rewrite(IndexReader, MultiTermQuery)}. That rewrite method is e.g.
+     * Test correct handling
+     * {@link SpanBooleanQueryRewriteWithMaxClause#rewrite(IndexSearcher, MultiTermQuery)}.
+     * That rewrite method is e.g.
      * set for fuzzy queries with "constant_score" rewrite nested inside a `span_multi` query and would cause NPEs due to an unset
      * {@link AttributeSource}.
      */

@@ -7,6 +7,7 @@
 first | rest | result
 boolean | boolean | boolean
 boolean | | boolean
+date | date | date
 double | double | double
 integer | integer | integer
 integer | | integer

@@ -1,14 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common;
 
-import java.util.Base64;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -34,8 +34,6 @@ class TimeBasedUUIDGenerator implements UUIDGenerator {
     static {
         assert SECURE_MUNGED_ADDRESS.length == 6;
     }
-
-    private static final Base64.Encoder BASE_64_NO_PADDING = Base64.getUrlEncoder().withoutPadding();
 
     // protected for testing
     protected long currentTimeMillis() {
@@ -104,6 +102,6 @@ class TimeBasedUUIDGenerator implements UUIDGenerator {
 
         assert i == uuidBytes.length;
 
-        return BASE_64_NO_PADDING.encodeToString(uuidBytes);
+        return Strings.BASE_64_NO_PADDING_URL_ENCODER.encodeToString(uuidBytes);
     }
 }

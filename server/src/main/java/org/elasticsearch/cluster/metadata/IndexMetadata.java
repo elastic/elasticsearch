@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.metadata;
@@ -40,6 +41,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
@@ -429,10 +431,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     public static final String SETTING_INDEX_UUID = "index.uuid";
     public static final String SETTING_HISTORY_UUID = "index.history.uuid";
     public static final String SETTING_DATA_PATH = "index.data_path";
-    public static final Setting<String> INDEX_DATA_PATH_SETTING = new Setting<>(
+    public static final Setting<String> INDEX_DATA_PATH_SETTING = Setting.simpleString(
         SETTING_DATA_PATH,
-        "",
-        Function.identity(),
         Property.IndexScope,
         Property.DeprecatedWarning
     );
@@ -946,9 +946,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         if (timestampRange.equals(this.timestampRange) && eventIngestedRange.equals(this.eventIngestedRange)) {
             return this;
         }
+        @UpdateForV9(owner = UpdateForV9.Owner.SEARCH_FOUNDATIONS) // remove this check when 8.15 is no longer communicable
         IndexLongFieldRange allowedEventIngestedRange = eventIngestedRange;
-        // remove this check when the EVENT_INGESTED_RANGE_IN_CLUSTER_STATE version is removed
-        if (minClusterTransportVersion.before(TransportVersions.EVENT_INGESTED_RANGE_IN_CLUSTER_STATE)) {
+        if (minClusterTransportVersion.before(TransportVersions.V_8_15_0)) {
             allowedEventIngestedRange = IndexLongFieldRange.UNKNOWN;
         }
         return new IndexMetadata(
@@ -1333,7 +1333,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     public static final Setting<String> INDEX_DOWNSAMPLE_INTERVAL = Setting.simpleString(
         INDEX_DOWNSAMPLE_INTERVAL_KEY,
-        "",
         Property.IndexScope,
         Property.InternalIndex
     );
@@ -1646,7 +1645,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 DiffableUtils.getStringKeySerializer(),
                 ROLLOVER_INFO_DIFF_VALUE_READER
             );
-            if (in.getTransportVersion().onOrAfter(TransportVersions.INDEX_METADATA_MAPPINGS_UPDATED_VERSION)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
                 mappingsUpdatedVersion = IndexVersion.readVersion(in);
             } else {
                 mappingsUpdatedVersion = IndexVersions.ZERO;
@@ -1666,7 +1665,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 indexWriteLoadForecast = null;
                 shardSizeInBytesForecast = null;
             }
-            if (in.getTransportVersion().onOrAfter(TransportVersions.EVENT_INGESTED_RANGE_IN_CLUSTER_STATE)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
                 eventIngestedRange = IndexLongFieldRange.readFrom(in);
             } else {
                 eventIngestedRange = IndexLongFieldRange.UNKNOWN;
@@ -1700,7 +1699,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             customData.writeTo(out);
             inSyncAllocationIds.writeTo(out);
             rolloverInfos.writeTo(out);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.INDEX_METADATA_MAPPINGS_UPDATED_VERSION)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
                 IndexVersion.writeVersion(mappingsUpdatedVersion, out);
             }
             if (out.getTransportVersion().onOrAfter(SYSTEM_INDEX_FLAG_ADDED)) {
@@ -1712,7 +1711,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 out.writeOptionalDouble(indexWriteLoadForecast);
                 out.writeOptionalLong(shardSizeInBytesForecast);
             }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.EVENT_INGESTED_RANGE_IN_CLUSTER_STATE)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
                 eventIngestedRange.writeTo(out);
             } else {
                 assert eventIngestedRange == IndexLongFieldRange.UNKNOWN
@@ -1811,7 +1810,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         for (int i = 0; i < rolloverAliasesSize; i++) {
             builder.putRolloverInfo(new RolloverInfo(in));
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.INDEX_METADATA_MAPPINGS_UPDATED_VERSION)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
             builder.mappingsUpdatedVersion(IndexVersion.readVersion(in));
         }
         if (in.getTransportVersion().onOrAfter(SYSTEM_INDEX_FLAG_ADDED)) {
@@ -1824,7 +1823,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             builder.indexWriteLoadForecast(in.readOptionalDouble());
             builder.shardSizeInBytesForecast(in.readOptionalLong());
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.EVENT_INGESTED_RANGE_IN_CLUSTER_STATE)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
             builder.eventIngestedRange(IndexLongFieldRange.readFrom(in), in.getTransportVersion());
         } else {
             builder.eventIngestedRange(IndexLongFieldRange.UNKNOWN, in.getTransportVersion());
@@ -1869,7 +1868,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             (o, v) -> DiffableUtils.StringSetValueSerializer.getInstance().write(v, o)
         );
         out.writeCollection(rolloverInfos.values());
-        if (out.getTransportVersion().onOrAfter(TransportVersions.INDEX_METADATA_MAPPINGS_UPDATED_VERSION)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
             IndexVersion.writeVersion(mappingsUpdatedVersion, out);
         }
         if (out.getTransportVersion().onOrAfter(SYSTEM_INDEX_FLAG_ADDED)) {
@@ -1881,7 +1880,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             out.writeOptionalDouble(writeLoadForecast);
             out.writeOptionalLong(shardSizeInBytesForecast);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.EVENT_INGESTED_RANGE_IN_CLUSTER_STATE)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
             eventIngestedRange.writeTo(out);
         } else {
             assert eventIngestedRange == IndexLongFieldRange.UNKNOWN
@@ -2207,8 +2206,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                     + minClusterTransportVersion
                     + "; eventIngestedRange = "
                     + eventIngestedRange;
-            if (minClusterTransportVersion != null
-                && minClusterTransportVersion.before(TransportVersions.EVENT_INGESTED_RANGE_IN_CLUSTER_STATE)) {
+            if (minClusterTransportVersion != null && minClusterTransportVersion.before(TransportVersions.V_8_15_0)) {
                 this.eventIngestedRange = IndexLongFieldRange.UNKNOWN;
             } else {
                 this.eventIngestedRange = eventIngestedRange;
@@ -2267,7 +2265,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                     "routing partition size ["
                         + routingPartitionSize
                         + "] should be a positive number"
-                        + " less than the number of shards ["
+                        + " less than the number of routing shards ["
                         + getRoutingNumShards()
                         + "] for ["
                         + index

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.aggregations.pipeline;
@@ -64,17 +65,17 @@ public class DateDerivativeIT extends ESIntegTestCase {
     }
 
     private static IndexRequestBuilder indexDoc(String idx, ZonedDateTime date, int value) throws Exception {
-        return prepareIndex(idx).setSource(jsonBuilder().startObject().timeField("date", date).field("value", value).endObject());
+        return prepareIndex(idx).setSource(jsonBuilder().startObject().timestampField("date", date).field("value", value).endObject());
     }
 
     private IndexRequestBuilder indexDoc(int month, int day, int value) throws Exception {
         return prepareIndex("idx").setSource(
             jsonBuilder().startObject()
                 .field("value", value)
-                .timeField("date", date(month, day))
+                .timestampField("date", date(month, day))
                 .startArray("dates")
-                .timeValue(date(month, day))
-                .timeValue(date(month + 1, day + 1))
+                .timestampValue(date(month, day))
+                .timestampValue(date(month + 1, day + 1))
                 .endArray()
                 .endObject()
         );

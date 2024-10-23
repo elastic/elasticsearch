@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.mapper;
 
@@ -201,29 +202,14 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
     protected AbstractGeometryFieldMapper(
         String simpleName,
         MappedFieldType mappedFieldType,
+        BuilderParams builderParams,
         Explicit<Boolean> ignoreMalformed,
         Explicit<Boolean> ignoreZValue,
-        MultiFields multiFields,
-        CopyTo copyTo,
         Parser<T> parser
     ) {
-        super(simpleName, mappedFieldType, multiFields, copyTo, false, null);
+        super(simpleName, mappedFieldType, builderParams);
         this.ignoreMalformed = ignoreMalformed;
         this.ignoreZValue = ignoreZValue;
-        this.parser = parser;
-    }
-
-    protected AbstractGeometryFieldMapper(
-        String simpleName,
-        MappedFieldType mappedFieldType,
-        MultiFields multiFields,
-        CopyTo copyTo,
-        Parser<T> parser,
-        OnScriptError onScriptError
-    ) {
-        super(simpleName, mappedFieldType, multiFields, copyTo, true, onScriptError);
-        this.ignoreMalformed = Explicit.EXPLICIT_FALSE;
-        this.ignoreZValue = Explicit.EXPLICIT_FALSE;
         this.parser = parser;
     }
 
@@ -252,7 +238,7 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
 
     @Override
     public final void parse(DocumentParserContext context) throws IOException {
-        if (hasScript) {
+        if (builderParams.hasScript()) {
             throw new DocumentParsingException(
                 context.parser().getTokenLocation(),
                 "failed to parse field [" + fieldType().name() + "] of type + " + contentType() + "]",

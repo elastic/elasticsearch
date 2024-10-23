@@ -17,6 +17,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.esql.core.util.PlanStreamInput.readCachedStringWithVersionCheck;
+import static org.elasticsearch.xpack.esql.core.util.PlanStreamOutput.writeCachedStringWithVersionCheck;
+
 /**
  * During IndexResolution it could occur that the same field is mapped to different types in different indices.
  * The class MultiTypeEfField.UnresolvedField holds that information and allows for later resolution of the field
@@ -36,13 +39,18 @@ public class MultiTypeEsField extends EsField {
     }
 
     protected MultiTypeEsField(StreamInput in) throws IOException {
-        this(in.readString(), DataType.readFrom(in), in.readBoolean(), in.readImmutableMap(i -> i.readNamedWriteable(Expression.class)));
+        this(
+            readCachedStringWithVersionCheck(in),
+            DataType.readFrom(in),
+            in.readBoolean(),
+            in.readImmutableMap(i -> i.readNamedWriteable(Expression.class))
+        );
     }
 
     @Override
     public void writeContent(StreamOutput out) throws IOException {
-        out.writeString(getName());
-        out.writeString(getDataType().typeName());
+        writeCachedStringWithVersionCheck(out, getName());
+        getDataType().writeTo(out);
         out.writeBoolean(isAggregatable());
         out.writeMap(getIndexToConversionExpressions(), (o, v) -> out.writeNamedWriteable(v));
     }

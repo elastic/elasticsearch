@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.test.rest;
@@ -95,6 +96,27 @@ class ESRestTestFeatureService implements TestFeatureService {
         Matcher matcher = VERSION_FEATURE_PATTERN.matcher(featureId);
         if (matcher.matches()) {
             Version extractedVersion = Version.fromString(matcher.group(1));
+            if (extractedVersion.after(Version.CURRENT)) {
+                throw new IllegalArgumentException(
+                    Strings.format(
+                        "Cannot use a synthetic feature [%s] for a version after the current version [%s]",
+                        featureId,
+                        Version.CURRENT
+                    )
+                );
+            }
+
+            if (extractedVersion.equals(Version.CURRENT)) {
+                throw new IllegalArgumentException(
+                    Strings.format(
+                        "Cannot use a synthetic feature [%s] for the current version [%s]; "
+                            + "please define a test cluster feature alongside the corresponding code change instead",
+                        featureId,
+                        Version.CURRENT
+                    )
+                );
+            }
+
             return checkCollection(nodeVersions, v -> v.onOrAfter(extractedVersion), any);
         }
 

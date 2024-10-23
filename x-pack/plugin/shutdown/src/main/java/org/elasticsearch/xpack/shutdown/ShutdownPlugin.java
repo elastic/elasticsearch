@@ -6,8 +6,6 @@
  */
 package org.elasticsearch.xpack.shutdown;
 
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -18,7 +16,6 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -71,12 +68,5 @@ public class ShutdownPlugin extends Plugin implements ActionPlugin {
         Predicate<NodeFeature> clusterSupportsFeature
     ) {
         return Arrays.asList(new RestPutShutdownNodeAction(), new RestDeleteShutdownNodeAction(), new RestGetShutdownStatusAction());
-    }
-
-    @UpdateForV9 // always true in v9 so can be removed
-    static boolean serializesWithParentTaskAndTimeouts(TransportVersion transportVersion) {
-        return transportVersion.isPatchFrom(TransportVersions.V_8_13_4)
-            || transportVersion.isPatchFrom(TransportVersions.V_8_14_0)
-            || transportVersion.onOrAfter(TransportVersions.SHUTDOWN_REQUEST_TIMEOUTS_FIX);
     }
 }

@@ -125,7 +125,7 @@ spec:
         ELASTIC_SLACK_NOTIFICATIONS_ENABLED: "true"
         SLACK_NOTIFICATIONS_CHANNEL: "#lucene"
         SLACK_NOTIFICATIONS_ALL_BRANCHES: "true"
-      branch_configuration: lucene_snapshot lucene_snapshot_10
+      branch_configuration: lucene_snapshot
       default_branch: lucene_snapshot
       teams:
         elasticsearch-team: {}
@@ -140,10 +140,6 @@ spec:
       schedules:
         Periodically on lucene_snapshot:
           branch: lucene_snapshot
-          cronline: "0 2 * * * America/New_York"
-          message: "Builds a new lucene snapshot 1x per day"
-        Periodically on lucene_snapshot_10:
-          branch: lucene_snapshot_10
           cronline: "0 2 * * * America/New_York"
           message: "Builds a new lucene snapshot 1x per day"
 ---
@@ -173,7 +169,6 @@ spec:
         ELASTIC_SLACK_NOTIFICATIONS_ENABLED: "true"
         SLACK_NOTIFICATIONS_CHANNEL: "#lucene"
         SLACK_NOTIFICATIONS_ALL_BRANCHES: "true"
-      branch_configuration: lucene_snapshot lucene_snapshot_10
       default_branch: lucene_snapshot
       teams:
         elasticsearch-team: {}
@@ -190,10 +185,6 @@ spec:
           branch: lucene_snapshot
           cronline: "0 6 * * * America/New_York"
           message: "Merges main into lucene_snapshot branch 1x per day"
-        Periodically on lucene_snapshot_10:
-          branch: lucene_snapshot_10
-          cronline: "0 6 * * * America/New_York"
-          message: "Merges main into lucene_snapshot_10 branch 1x per day"
 ---
 # yaml-language-server: $schema=https://gist.githubusercontent.com/elasticmachine/988b80dae436cafea07d9a4a460a011d/raw/e57ee3bed7a6f73077a3f55a38e76e40ec87a7cf/rre.schema.json
 apiVersion: backstage.io/v1alpha1
@@ -221,7 +212,7 @@ spec:
         ELASTIC_SLACK_NOTIFICATIONS_ENABLED: "true"
         SLACK_NOTIFICATIONS_CHANNEL: "#lucene"
         SLACK_NOTIFICATIONS_ALL_BRANCHES: "true"
-      branch_configuration: lucene_snapshot lucene_snapshot_10
+      branch_configuration: lucene_snapshot
       default_branch: lucene_snapshot
       teams:
         elasticsearch-team: {}
@@ -238,10 +229,6 @@ spec:
           branch: lucene_snapshot
           cronline: "0 9,12,15,18 * * * America/New_York"
           message: "Runs tests against lucene_snapshot branch several times per day"
-        Periodically on lucene_snapshot_10:
-          branch: lucene_snapshot_10
-          cronline: "0 9,12,15,18 * * * America/New_York"
-          message: "Runs tests against lucene_snapshot_10 branch several times per day"
 ---
 # yaml-language-server: $schema=https://gist.githubusercontent.com/elasticmachine/988b80dae436cafea07d9a4a460a011d/raw/e57ee3bed7a6f73077a3f55a38e76e40ec87a7cf/rre.schema.json
 apiVersion: backstage.io/v1alpha1

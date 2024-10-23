@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.EsIndexSerializationTests;
-import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -67,11 +66,12 @@ public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSeri
      * See {@link #testManyTypeConflicts(boolean, ByteSizeValue)} for more.
      */
     public void testManyTypeConflicts() throws IOException {
-        testManyTypeConflicts(false, ByteSizeValue.ofBytes(1897373));
+        testManyTypeConflicts(false, ByteSizeValue.ofBytes(1424048));
         /*
          * History:
          *  2.3mb - shorten error messages for UnsupportedAttributes #111973
          *  1.8mb - cache EsFields #112008
+         *  1.4mb - string serialization #112929
          */
     }
 
@@ -80,19 +80,67 @@ public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSeri
      * See {@link #testManyTypeConflicts(boolean, ByteSizeValue)} for more.
      */
     public void testManyTypeConflictsWithParent() throws IOException {
-        testManyTypeConflicts(true, ByteSizeValue.ofBytes(3271486));
+        testManyTypeConflicts(true, ByteSizeValue.ofBytes(2774192));
         /*
          * History:
          *  2 gb+ - start
          * 43.3mb - Cache attribute subclasses #111447
          *  5.6mb - shorten error messages for UnsupportedAttributes #111973
          *  3.1mb - cache EsFields #112008
+         *  2774214b - string serialization #112929
+         *  2774192b - remove field attribute #112881
          */
     }
 
+    private void testManyTypeConflicts(boolean withParent, ByteSizeValue expected) throws IOException {
+        EsIndex index = EsIndexSerializationTests.indexWithManyConflicts(withParent);
+        testSerializePlanWithIndex(index, expected);
+    }
+
     /**
-     * Test the size of serializing a plan with many conflicts. Callers of
-     * this method intentionally use a very precise size for the serialized
+     * Test the size of serializing a plan like
+     * FROM index | LIMIT 10
+     * with a single root field that has many children, grandchildren etc.
+     */
+    public void testDeeplyNestedFields() throws IOException {
+        ByteSizeValue expected = ByteSizeValue.ofBytes(47252411);
+        /*
+         * History:
+         *  48223371b - string serialization #112929
+         *  47252411b - remove field attribute #112881
+         */
+
+        int depth = 6;
+        int childrenPerLevel = 8;
+
+        EsIndex index = EsIndexSerializationTests.deeplyNestedIndex(depth, childrenPerLevel);
+        testSerializePlanWithIndex(index, expected);
+    }
+
+    /**
+     * Test the size of serializing a plan like
+     * FROM index | LIMIT 10 | KEEP one_single_field
+     * with a single root field that has many children, grandchildren etc.
+     */
+    public void testDeeplyNestedFieldsKeepOnlyOne() throws IOException {
+        ByteSizeValue expected = ByteSizeValue.ofBytes(9425806);
+        /*
+         * History:
+         *  9426058b - string serialization #112929
+         *  9425806b - remove field attribute #112881
+         */
+
+        int depth = 6;
+        int childrenPerLevel = 9;
+
+        EsIndex index = EsIndexSerializationTests.deeplyNestedIndex(depth, childrenPerLevel);
+        testSerializePlanWithIndex(index, expected, false);
+    }
+
+    /**
+     * Test the size of serializing the physical plan that will be sent to a data node.
+     * The plan corresponds to `FROM index | LIMIT 10`.
+     * Callers of this method intentionally use a very precise size for the serialized
      * data so a programmer making changes has to think when this size changes.
      * <p>
      *     In general, shrinking the over the wire size is great and the precise
@@ -107,29 +155,23 @@ public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSeri
      *     ESQL impossible to use at all for big mappings with many conflicts.
      * </p>
      */
-    private void testManyTypeConflicts(boolean withParent, ByteSizeValue expected) throws IOException {
-        EsIndex index = EsIndexSerializationTests.indexWithManyConflicts(withParent);
-        List<Attribute> attributes = Analyzer.mappingAsAttributes(randomSource(), index.mapping());
-        EsRelation relation = new EsRelation(randomSource(), index, attributes, IndexMode.STANDARD);
+    private void testSerializePlanWithIndex(EsIndex index, ByteSizeValue expected) throws IOException {
+        testSerializePlanWithIndex(index, expected, true);
+    }
+
+    private void testSerializePlanWithIndex(EsIndex index, ByteSizeValue expected, boolean keepAllFields) throws IOException {
+        List<Attribute> allAttributes = Analyzer.mappingAsAttributes(randomSource(), index.mapping());
+        List<Attribute> keepAttributes = keepAllFields ? allAttributes : List.of(allAttributes.get(0));
+        EsRelation relation = new EsRelation(randomSource(), index, keepAttributes, IndexMode.STANDARD);
         Limit limit = new Limit(randomSource(), new Literal(randomSource(), 10, DataType.INTEGER), relation);
         Project project = new Project(randomSource(), limit, limit.output());
         FragmentExec fragmentExec = new FragmentExec(project);
         ExchangeSinkExec exchangeSinkExec = new ExchangeSinkExec(randomSource(), fragmentExec.output(), false, fragmentExec);
-        try (
-            BytesStreamOutput out = new BytesStreamOutput();
-            PlanStreamOutput pso = new PlanStreamOutput(out, new PlanNameRegistry(), configuration())
-        ) {
-            pso.writePhysicalPlanNode(exchangeSinkExec);
+        try (BytesStreamOutput out = new BytesStreamOutput(); PlanStreamOutput pso = new PlanStreamOutput(out, configuration())) {
+            pso.writeNamedWriteable(exchangeSinkExec);
             assertThat(ByteSizeValue.ofBytes(out.bytes().length()), byteSizeEquals(expected));
-            try (
-                PlanStreamInput psi = new PlanStreamInput(
-                    out.bytes().streamInput(),
-                    new PlanNameRegistry(),
-                    getNamedWriteableRegistry(),
-                    configuration()
-                )
-            ) {
-                assertThat(psi.readPhysicalPlanNode(), equalTo(exchangeSinkExec));
+            try (PlanStreamInput psi = new PlanStreamInput(out.bytes().streamInput(), getNamedWriteableRegistry(), configuration())) {
+                assertThat(psi.readNamedWriteable(PhysicalPlan.class), equalTo(exchangeSinkExec));
             }
         }
     }

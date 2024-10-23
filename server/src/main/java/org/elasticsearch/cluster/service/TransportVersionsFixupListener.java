@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.service;
@@ -49,7 +50,7 @@ import static org.elasticsearch.cluster.ClusterState.INFERRED_TRANSPORT_VERSION;
  * due to the master node not understanding cluster state with transport versions added in 8.8.0.
  * Any nodes with the inferred placeholder cluster state is then refreshed with their actual transport version
  */
-@UpdateForV9    // this can be removed in v9
+@UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA) // this can be removed in v9
 public class TransportVersionsFixupListener implements ClusterStateListener {
 
     private static final Logger logger = LogManager.getLogger(TransportVersionsFixupListener.class);

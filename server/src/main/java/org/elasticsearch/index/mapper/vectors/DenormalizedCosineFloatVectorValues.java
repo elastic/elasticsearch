@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper.vectors;
@@ -44,24 +45,13 @@ public class DenormalizedCosineFloatVectorValues extends FloatVectorValues {
     }
 
     @Override
-    public float[] vectorValue() throws IOException {
-        // Lazy load vectors as we may iterate but not actually require the vector
-        return vectorValue(in.docID());
+    public DocIndexIterator iterator() {
+        return in.iterator();
     }
 
     @Override
-    public int docID() {
-        return in.docID();
-    }
-
-    @Override
-    public int nextDoc() throws IOException {
-        return in.nextDoc();
-    }
-
-    @Override
-    public int advance(int target) throws IOException {
-        return in.advance(target);
+    public FloatVectorValues copy() throws IOException {
+        return in.copy();
     }
 
     @Override
@@ -73,22 +63,24 @@ public class DenormalizedCosineFloatVectorValues extends FloatVectorValues {
         return magnitude;
     }
 
-    private float[] vectorValue(int docId) throws IOException {
+    @Override
+    public float[] vectorValue(int ord) throws IOException {
+        int docId = ordToDoc(ord);
         if (docId != this.docId) {
             this.docId = docId;
             hasMagnitude = decodedMagnitude(docId);
             // We should only copy and transform if we have a stored a non-unit length magnitude
             if (hasMagnitude) {
-                System.arraycopy(in.vectorValue(), 0, vector, 0, dimension());
+                System.arraycopy(in.vectorValue(ord), 0, vector, 0, dimension());
                 for (int i = 0; i < vector.length; i++) {
                     vector[i] *= magnitude;
                 }
                 return vector;
             } else {
-                return in.vectorValue();
+                return in.vectorValue(ord);
             }
         } else {
-            return hasMagnitude ? vector : in.vectorValue();
+            return hasMagnitude ? vector : in.vectorValue(ord);
         }
     }
 

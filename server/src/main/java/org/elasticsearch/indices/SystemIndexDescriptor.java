@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices;
@@ -39,6 +40,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+
+import static org.apache.lucene.util.automaton.Operations.DEFAULT_DETERMINIZE_WORK_LIMIT;
 
 /**
  * Uses a pattern string to define a protected space for indices belonging to a system feature, and, if needed, provides metadata for
@@ -92,6 +95,9 @@ import java.util.Set;
  *
  * <p>The mappings for managed system indices are automatically upgraded when all nodes in the cluster are compatible with the
  * descriptor's mappings. See {@link SystemIndexMappingUpdateService} for details.
+ * When the mappings change add the previous index descriptors with
+ * {@link SystemIndexDescriptor.Builder#setPriorSystemIndexDescriptors(List)}. In a mixed cluster setting this enables auto creation
+ * of the index with compatible mappings.
  *
  * <p>We hope to remove the currently deprecated forms of access to system indices in a future release. A newly added system index with
  * no backwards-compatibility requirements may opt into our desired behavior by setting isNetNew to true. A "net new system index"
@@ -356,7 +362,7 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
         this.primaryIndex = primaryIndex;
         this.aliasName = aliasName;
 
-        final Automaton automaton = buildAutomaton(indexPattern, aliasName);
+        final Automaton automaton = Operations.determinize(buildAutomaton(indexPattern, aliasName), DEFAULT_DETERMINIZE_WORK_LIMIT);
         this.indexPatternAutomaton = new CharacterRunAutomaton(automaton);
         if (primaryIndex != null && indexPatternAutomaton.run(primaryIndex) == false) {
             throw new IllegalArgumentException("primary index does not match the index pattern!");
@@ -879,15 +885,15 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
         final String patternAsRegex = patternToRegex(pattern);
         final String aliasAsRegex = alias == null ? null : patternToRegex(alias);
 
-        final Automaton patternAutomaton = new RegExp(patternAsRegex).toAutomaton();
+        final Automaton patternAutomaton = new RegExp(patternAsRegex, RegExp.ALL | RegExp.DEPRECATED_COMPLEMENT).toAutomaton();
 
         if (aliasAsRegex == null) {
             return patternAutomaton;
         }
 
-        final Automaton aliasAutomaton = new RegExp(aliasAsRegex).toAutomaton();
+        final Automaton aliasAutomaton = new RegExp(aliasAsRegex, RegExp.ALL | RegExp.DEPRECATED_COMPLEMENT).toAutomaton();
 
-        return Operations.union(patternAutomaton, aliasAutomaton);
+        return Operations.determinize(Operations.union(patternAutomaton, aliasAutomaton), DEFAULT_DETERMINIZE_WORK_LIMIT);
     }
 
     /**

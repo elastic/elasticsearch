@@ -594,7 +594,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         };
         client().execute(
             DownsampleAction.INSTANCE,
-            new DownsampleAction.Request(sourceIndex, downsampleIndex, TIMEOUT, config),
+            new DownsampleAction.Request(TEST_REQUEST_TIMEOUT, sourceIndex, downsampleIndex, TIMEOUT, config),
             downsampleListener
         );
         assertBusy(() -> {
@@ -607,7 +607,10 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
 
         assertBusy(() -> {
             try {
-                client().execute(DownsampleAction.INSTANCE, new DownsampleAction.Request(sourceIndex, downsampleIndex, TIMEOUT, config));
+                client().execute(
+                    DownsampleAction.INSTANCE,
+                    new DownsampleAction.Request(TEST_REQUEST_TIMEOUT, sourceIndex, downsampleIndex, TIMEOUT, config)
+                );
             } catch (ElasticsearchException e) {
                 fail("transient failure due to overlapping downsample operations");
             }
@@ -1145,7 +1148,10 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
 
     private void downsample(String sourceIndex, String downsampleIndex, DownsampleConfig config) {
         assertAcked(
-            client().execute(DownsampleAction.INSTANCE, new DownsampleAction.Request(sourceIndex, downsampleIndex, TIMEOUT, config))
+            client().execute(
+                DownsampleAction.INSTANCE,
+                new DownsampleAction.Request(TEST_REQUEST_TIMEOUT, sourceIndex, downsampleIndex, TIMEOUT, config)
+            )
         );
     }
 
@@ -1176,7 +1182,11 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             .map(mappingMetadata -> mappingMetadata.getValue().sourceAsMap())
             .orElseThrow(() -> new IllegalArgumentException("No mapping found for downsample source index [" + sourceIndex + "]"));
 
-        final IndexMetadata indexMetadata = clusterAdmin().prepareState().get().getState().getMetadata().index(sourceIndex);
+        final IndexMetadata indexMetadata = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
+            .get()
+            .getState()
+            .getMetadata()
+            .index(sourceIndex);
         final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         final MapperService mapperService = indicesService.createIndexMapperServiceForValidation(indexMetadata);
         final CompressedXContent sourceIndexCompressedXContent = new CompressedXContent(sourceIndexMappings);

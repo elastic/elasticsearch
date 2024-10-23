@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.readiness;
 
@@ -111,13 +112,16 @@ public class ReadinessClusterIT extends ESIntegTestCase {
     }
 
     private void assertMasterNode(Client client, String node) {
-        assertThat(client.admin().cluster().prepareState().get().getState().nodes().getMasterNode().getName(), equalTo(node));
+        assertThat(
+            client.admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState().nodes().getMasterNode().getName(),
+            equalTo(node)
+        );
     }
 
     private void expectMasterNotFound() {
         expectThrows(
             MasterNotDiscoveredException.class,
-            clusterAdmin().prepareState().setMasterNodeTimeout(TimeValue.timeValueMillis(100))
+            clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).setMasterNodeTimeout(TimeValue.timeValueMillis(100))
         );
     }
 

@@ -305,7 +305,7 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
                 assertThat(newSearchResponse.getSuccessfulShards(), equalTo(totalShards));
                 assertThat(newSearchResponse.getFailedShards(), equalTo(0));
                 assertThat(newSearchResponse.getTotalShards(), equalTo(totalShards));
-                assertThat(newSearchResponse.getHits().getTotalHits().value, equalTo((long) numDocsWithinRange));
+                assertThat(newSearchResponse.getHits().getTotalHits().value(), equalTo((long) numDocsWithinRange));
             });
 
             // test with SearchShardsAPI
@@ -655,7 +655,7 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
                 assertThat(searchResponse.getFailedShards(), equalTo(indexOutsideSearchRangeShardCount));
                 assertThat(searchResponse.getSkippedShards(), equalTo(searchableSnapshotShardCount));
                 assertThat(searchResponse.getTotalShards(), equalTo(totalShards));
-                assertThat(searchResponse.getHits().getTotalHits().value, equalTo(0L));
+                assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(0L));
             });
         }
 
@@ -736,7 +736,7 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
                 // a shard that's available in order to construct the search response
                 assertThat(newSearchResponse.getSkippedShards(), equalTo(totalShards - 1));
                 assertThat(newSearchResponse.getTotalShards(), equalTo(totalShards));
-                assertThat(newSearchResponse.getHits().getTotalHits().value, equalTo(0L));
+                assertThat(newSearchResponse.getHits().getTotalHits().value(), equalTo(0L));
             });
         });
 
@@ -850,7 +850,7 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
             SearchResponse response = client().search(request).actionGet();
             logger.info(
                 "[TEST DEBUG INFO] Search hits: {} Successful shards: {}, failed shards: {}, skipped shards: {}, total shards: {}",
-                response.getHits().getTotalHits().value,
+                response.getHits().getTotalHits().value(),
                 response.getSuccessfulShards(),
                 response.getFailedShards(),
                 response.getSkippedShards(),
@@ -1067,7 +1067,14 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
     }
 
     private IndexMetadata getIndexMetadata(String indexName) {
-        return clusterAdmin().prepareState().clear().setMetadata(true).setIndices(indexName).get().getState().metadata().index(indexName);
+        return clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
+            .clear()
+            .setMetadata(true)
+            .setIndices(indexName)
+            .get()
+            .getState()
+            .metadata()
+            .index(indexName);
     }
 
     private void waitUntilRecoveryIsDone(String index) throws Exception {

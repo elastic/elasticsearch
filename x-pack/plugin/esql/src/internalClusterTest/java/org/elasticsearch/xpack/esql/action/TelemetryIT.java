@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.action;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -23,6 +24,7 @@ import org.elasticsearch.xpack.esql.stats.PlanningMetricsManager;
 import org.junit.Before;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -112,13 +114,20 @@ public class TelemetryIT extends AbstractEsqlIntegTestCase {
                     true
                 ) },
             new Object[] {
-                new Test("METRICS idx | LIMIT 10", Map.ofEntries(Map.entry("METRICS", 1), Map.entry("LIMIT", 1)), Map.ofEntries(), true) },
+                new Test(
+                    "METRICS idx | LIMIT 10",
+                    Build.current().isSnapshot() ? Map.ofEntries(Map.entry("METRICS", 1), Map.entry("LIMIT", 1)) : Collections.emptyMap(),
+                    Map.ofEntries(),
+                    Build.current().isSnapshot()
+                ) },
             new Object[] {
                 new Test(
                     "METRICS idx max(id) BY host | LIMIT 10",
-                    Map.ofEntries(Map.entry("METRICS", 1), Map.entry("LIMIT", 1), Map.entry("FROM TS", 1)),
-                    Map.ofEntries(Map.entry("MAX", 1)),
-                    true
+                    Build.current().isSnapshot()
+                        ? Map.ofEntries(Map.entry("METRICS", 1), Map.entry("LIMIT", 1), Map.entry("FROM TS", 1))
+                        : Collections.emptyMap(),
+                    Build.current().isSnapshot() ? Map.ofEntries(Map.entry("MAX", 1)) : Collections.emptyMap(),
+                    Build.current().isSnapshot()
                 ) },
             new Object[] {
                 new Test(
@@ -127,9 +136,13 @@ public class TelemetryIT extends AbstractEsqlIntegTestCase {
                         | EVAL ip = to_ip(host), x = to_string(host), y = to_string(host)
                         | INLINESTATS max(id)
                         """,
-                    Map.ofEntries(Map.entry("FROM", 1), Map.entry("EVAL", 1), Map.entry("INLINESTATS", 1)),
-                    Map.ofEntries(Map.entry("MAX", 1), Map.entry("TO_IP", 1), Map.entry("TO_STRING", 2)),
-                    true
+                    Build.current().isSnapshot()
+                        ? Map.ofEntries(Map.entry("FROM", 1), Map.entry("EVAL", 1), Map.entry("INLINESTATS", 1))
+                        : Collections.emptyMap(),
+                    Build.current().isSnapshot()
+                        ? Map.ofEntries(Map.entry("MAX", 1), Map.entry("TO_IP", 1), Map.entry("TO_STRING", 2))
+                        : Collections.emptyMap(),
+                    Build.current().isSnapshot()
                 ) }
         );
     }

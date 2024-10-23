@@ -283,5 +283,7 @@
   ],
   "examples" : [
     "ROW a=null, b=\"b\"\n| EVAL COALESCE(a, b)"
-  ]
+  ],
+  "preview" : false,
+  "snapshot_only" : false
 }

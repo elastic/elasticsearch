@@ -1,16 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.server.cli;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.core.UpdateForV9;
 
 import java.util.List;
 import java.util.Map;
@@ -60,7 +60,7 @@ final class SystemJvmOptions {
                 "-Dlog4j.shutdownHookEnabled=false",
                 "-Dlog4j2.disable.jmx=true",
                 "-Dlog4j2.formatMsgNoLookups=true",
-                "-Djava.locale.providers=" + getLocaleProviders(),
+                "-Djava.locale.providers=CLDR",
                 maybeEnableNativeAccess(),
                 maybeOverrideDockerCgroup(distroType),
                 maybeSetActiveProcessorCount(nodeSettings),
@@ -70,16 +70,6 @@ final class SystemJvmOptions {
             ),
             maybeWorkaroundG1Bug()
         ).filter(e -> e.isEmpty() == false).collect(Collectors.toList());
-    }
-
-    @UpdateForV9    // only use CLDR in v9+
-    private static String getLocaleProviders() {
-        /*
-         * Specify SPI to load IsoCalendarDataProvider (see #48209), specifying the first day of week as Monday.
-         * When on pre-23, use COMPAT instead to maintain existing date formats as much as we can.
-         * When on JDK 23+, use the default CLDR locale database, as COMPAT was removed in JDK 23.
-         */
-        return Runtime.version().feature() >= 23 ? "SPI,CLDR" : "SPI,COMPAT";
     }
 
     /*

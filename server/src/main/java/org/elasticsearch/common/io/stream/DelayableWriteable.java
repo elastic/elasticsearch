@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.io.stream;
@@ -15,6 +16,8 @@ import org.elasticsearch.core.Releasable;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * A holder for {@link Writeable}s that delays reading the underlying object
@@ -230,11 +233,72 @@ public abstract class DelayableWriteable<T extends Writeable> implements Writeab
     ) throws IOException {
         try (
             StreamInput in = registry == null
-                ? serialized.streamInput()
-                : new NamedWriteableAwareStreamInput(serialized.streamInput(), registry)
+                ? new DeduplicateStreamInput(serialized.streamInput(), new DeduplicatorCache())
+                : new DeduplicateNamedWriteableAwareStreamInput(serialized.streamInput(), registry, new DeduplicatorCache())
         ) {
             in.setTransportVersion(serializedAtVersion);
             return reader.read(in);
+        }
+    }
+
+    /** An object implementing this interface can deduplicate instance of the provided objects.*/
+    public interface Deduplicator {
+        <T> T deduplicate(T object);
+    }
+
+    private static class DeduplicateStreamInput extends FilterStreamInput implements Deduplicator {
+
+        private final Deduplicator deduplicator;
+
+        private DeduplicateStreamInput(StreamInput delegate, Deduplicator deduplicator) {
+            super(delegate);
+            this.deduplicator = deduplicator;
+        }
+
+        @Override
+        public <T> T deduplicate(T object) {
+            return deduplicator.deduplicate(object);
+        }
+    }
+
+    private static class DeduplicateNamedWriteableAwareStreamInput extends NamedWriteableAwareStreamInput implements Deduplicator {
+
+        private final Deduplicator deduplicator;
+
+        private DeduplicateNamedWriteableAwareStreamInput(
+            StreamInput delegate,
+            NamedWriteableRegistry registry,
+            Deduplicator deduplicator
+        ) {
+            super(delegate, registry);
+            this.deduplicator = deduplicator;
+        }
+
+        @Override
+        public <T> T deduplicate(T object) {
+            return deduplicator.deduplicate(object);
+        }
+    }
+
+    /**
+     * Implementation of a {@link Deduplicator} cache. It can hold up to 1024 instances.
+     */
+    private static class DeduplicatorCache implements Deduplicator {
+
+        private static final int MAX_SIZE = 1024;
+        // lazily init
+        private Map<Object, Object> cache = null;
+
+        @SuppressWarnings("unchecked")
+        @Override
+        public <T> T deduplicate(T object) {
+            if (cache == null) {
+                cache = new HashMap<>();
+                cache.put(object, object);
+            } else if (cache.size() < MAX_SIZE) {
+                object = (T) cache.computeIfAbsent(object, o -> o);
+            }
+            return object;
         }
     }
 }

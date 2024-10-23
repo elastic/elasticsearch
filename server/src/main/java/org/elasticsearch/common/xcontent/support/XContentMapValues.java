@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.xcontent.support;
@@ -279,8 +280,8 @@ public class XContentMapValues {
             include = matchAllAutomaton;
         } else {
             Automaton includeA = Regex.simpleMatchToAutomaton(includes);
-            includeA = makeMatchDotsInFieldNames(includeA);
-            include = new CharacterRunAutomaton(includeA, MAX_DETERMINIZED_STATES);
+            includeA = Operations.determinize(makeMatchDotsInFieldNames(includeA), MAX_DETERMINIZED_STATES);
+            include = new CharacterRunAutomaton(includeA);
         }
 
         Automaton excludeA;
@@ -288,9 +289,9 @@ public class XContentMapValues {
             excludeA = Automata.makeEmpty();
         } else {
             excludeA = Regex.simpleMatchToAutomaton(excludes);
-            excludeA = makeMatchDotsInFieldNames(excludeA);
+            excludeA = Operations.determinize(makeMatchDotsInFieldNames(excludeA), MAX_DETERMINIZED_STATES);
         }
-        CharacterRunAutomaton exclude = new CharacterRunAutomaton(excludeA, MAX_DETERMINIZED_STATES);
+        CharacterRunAutomaton exclude = new CharacterRunAutomaton(excludeA);
 
         // NOTE: We cannot use Operations.minus because of the special case that
         // we want all sub properties to match as soon as an object matches

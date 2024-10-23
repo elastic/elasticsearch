@@ -44,7 +44,7 @@ public final class MedianAbsoluteDeviationDoubleGroupingAggregatorFunction imple
 
   public static MedianAbsoluteDeviationDoubleGroupingAggregatorFunction create(
       List<Integer> channels, DriverContext driverContext) {
-    return new MedianAbsoluteDeviationDoubleGroupingAggregatorFunction(channels, MedianAbsoluteDeviationDoubleAggregator.initGrouping(driverContext.bigArrays()), driverContext);
+    return new MedianAbsoluteDeviationDoubleGroupingAggregatorFunction(channels, MedianAbsoluteDeviationDoubleAggregator.initGrouping(driverContext), driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -75,6 +75,10 @@ public final class MedianAbsoluteDeviationDoubleGroupingAggregatorFunction imple
         public void add(int positionOffset, IntVector groupIds) {
           addRawInput(positionOffset, groupIds, valuesBlock);
         }
+
+        @Override
+        public void close() {
+        }
       };
     }
     return new GroupingAggregatorFunction.AddInput() {
@@ -86,6 +90,10 @@ public final class MedianAbsoluteDeviationDoubleGroupingAggregatorFunction imple
       @Override
       public void add(int positionOffset, IntVector groupIds) {
         addRawInput(positionOffset, groupIds, valuesVector);
+      }
+
+      @Override
+      public void close() {
       }
     };
   }
@@ -144,6 +152,11 @@ public final class MedianAbsoluteDeviationDoubleGroupingAggregatorFunction imple
         MedianAbsoluteDeviationDoubleAggregator.combine(state, groupId, values.getDouble(groupPosition + positionOffset));
       }
     }
+  }
+
+  @Override
+  public void selectedMayContainUnseenGroups(SeenGroupIds seenGroupIds) {
+    state.enableGroupIdTracking(seenGroupIds);
   }
 
   @Override

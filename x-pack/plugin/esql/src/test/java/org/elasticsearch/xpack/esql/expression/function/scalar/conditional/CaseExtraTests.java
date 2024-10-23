@@ -72,6 +72,19 @@ public class CaseExtraTests extends ESTestCase {
         );
     }
 
+    public void testPartialFoldMv() {
+        Case c = new Case(
+            Source.synthetic("case"),
+            new Literal(Source.EMPTY, List.of(true, true), DataType.BOOLEAN),
+            List.of(field("first", DataType.LONG), field("last_cond", DataType.BOOLEAN), field("last", DataType.LONG))
+        );
+        assertThat(c.foldable(), equalTo(false));
+        assertThat(
+            c.partiallyFold(),
+            equalTo(new Case(Source.synthetic("case"), field("last_cond", DataType.BOOLEAN), List.of(field("last", DataType.LONG))))
+        );
+    }
+
     public void testPartialFoldNoop() {
         Case c = new Case(
             Source.synthetic("case"),

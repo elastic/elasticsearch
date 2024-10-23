@@ -56,7 +56,8 @@ public class AzureAiStudioEmbeddingsRequestManager extends AzureAiStudioRequestM
         return new AzureMistralOpenAiExternalResponseHandler(
             "azure ai studio text embedding",
             new AzureAiStudioEmbeddingsResponseEntity(),
-            ErrorMessageResponseEntity::fromResponse
+            ErrorMessageResponseEntity::fromResponse,
+            false
         );
     }
 

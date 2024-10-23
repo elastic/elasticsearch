@@ -7,16 +7,27 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
+import org.elasticsearch.TransportVersions;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
 public class FragmentExec extends LeafExec implements EstimatesRowSize {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+        PhysicalPlan.class,
+        "FragmentExec",
+        FragmentExec::new
+    );
 
     private final LogicalPlan fragment;
     private final QueryBuilder esFilter;
@@ -38,6 +49,32 @@ public class FragmentExec extends LeafExec implements EstimatesRowSize {
         this.esFilter = esFilter;
         this.estimatedRowSize = estimatedRowSize;
         this.reducer = reducer;
+    }
+
+    private FragmentExec(StreamInput in) throws IOException {
+        this(
+            Source.readFrom((PlanStreamInput) in),
+            in.readNamedWriteable(LogicalPlan.class),
+            in.readOptionalNamedWriteable(QueryBuilder.class),
+            in.readOptionalVInt(),
+            in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0) ? in.readOptionalNamedWriteable(PhysicalPlan.class) : null
+        );
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        Source.EMPTY.writeTo(out);
+        out.writeNamedWriteable(fragment());
+        out.writeOptionalNamedWriteable(esFilter());
+        out.writeOptionalVInt(estimatedRowSize());
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
+            out.writeOptionalNamedWriteable(reducer);
+        }
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
     }
 
     public LogicalPlan fragment() {

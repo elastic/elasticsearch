@@ -370,18 +370,14 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
         Version oldVersion,
         int numberOfShards
     ) throws IOException {
-        RequestOptions v7RequestOptions = RequestOptions.DEFAULT.toBuilder()
-            .addHeader("Content-Type", "application/vnd.elasticsearch+json;compatible-with=7")
-            .addHeader("Accept", "application/vnd.elasticsearch+json;compatible-with=7")
-            .build();
-        RequestOptions randomRequestOptions = randomBoolean() ? RequestOptions.DEFAULT : v7RequestOptions;
+        RequestOptions requestOptions = RequestOptions.DEFAULT;
 
         // run a search against the index
-        SearchResponse searchResponse = search(index, null, randomRequestOptions);
+        SearchResponse searchResponse = search(index, null, requestOptions);
         try {
             logger.info(searchResponse);
             // check hit count
-            assertEquals(numDocs, searchResponse.getHits().getTotalHits().value);
+            assertEquals(numDocs, searchResponse.getHits().getTotalHits().value());
             // check that _index is properly set
             assertTrue(Arrays.stream(searchResponse.getHits().getHits()).map(SearchHit::getIndex).allMatch(index::equals));
             // check that all _ids are there
@@ -404,11 +400,11 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
             SearchSourceBuilder.searchSource()
                 .query(QueryBuilders.matchQuery("val", num))
                 .runtimeMappings(Map.of("val", Map.of("type", "long"))),
-            randomRequestOptions
+            requestOptions
         );
         try {
             logger.info(searchResponse);
-            assertEquals(1, searchResponse.getHits().getTotalHits().value);
+            assertEquals(1, searchResponse.getHits().getTotalHits().value());
             assertEquals(id, searchResponse.getHits().getHits()[0].getId());
             assertEquals(sourceForDoc(num), searchResponse.getHits().getHits()[0].getSourceAsString());
         } finally {
@@ -422,7 +418,7 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
                 SearchSourceBuilder.searchSource()
                     .query(QueryBuilders.matchAllQuery())
                     .sort(SortBuilders.fieldSort("val").order(SortOrder.DESC)),
-                randomRequestOptions
+                requestOptions
             );
             try {
                 logger.info(searchResponse);
@@ -439,7 +435,7 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
             searchResponse = search(
                 index,
                 SearchSourceBuilder.searchSource().query(QueryBuilders.matchQuery("test", "test" + num)),
-                randomRequestOptions
+                requestOptions
             );
             try {
                 logger.info(searchResponse);
@@ -456,11 +452,11 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
                 searchResponse = search(
                     index,
                     SearchSourceBuilder.searchSource().query(QueryBuilders.termQuery("_type", randomType)),
-                    randomRequestOptions
+                    requestOptions
                 );
                 try {
                     logger.info(searchResponse);
-                    assertEquals(typeCount, searchResponse.getHits().getTotalHits().value);
+                    assertEquals(typeCount, searchResponse.getHits().getTotalHits().value());
                     for (SearchHit hit : searchResponse.getHits().getHits()) {
                         DocumentField typeField = hit.field("_type");
                         assertNotNull(typeField);
@@ -482,11 +478,11 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
             searchResponse = search(
                 index,
                 SearchSourceBuilder.searchSource().query(QueryBuilders.rangeQuery("create_date").from("2020-02-01")),
-                randomRequestOptions
+                requestOptions
             );
             try {
                 logger.info(searchResponse);
-                assertEquals(0, searchResponse.getHits().getTotalHits().value);
+                assertEquals(0, searchResponse.getHits().getTotalHits().value());
                 assertEquals(numberOfShards, searchResponse.getSuccessfulShards());
                 // When all shards are skipped, at least one of them is queried in order to provide a proper search response.
                 assertEquals(numberOfShards - 1, searchResponse.getSkippedShards());

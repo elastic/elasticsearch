@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.mapping.get;
@@ -16,7 +17,6 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
@@ -24,9 +24,6 @@ import org.elasticsearch.xcontent.ToXContent;
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.Map;
-
-import static org.elasticsearch.rest.BaseRestHandler.DEFAULT_INCLUDE_TYPE_NAME_POLICY;
-import static org.elasticsearch.rest.BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER;
 
 public class GetMappingsResponse extends ActionResponse implements ChunkedToXContentObject {
 
@@ -72,16 +69,7 @@ public class GetMappingsResponse extends ActionResponse implements ChunkedToXCon
             Iterators.single((b, p) -> b.startObject()),
             Iterators.map(getMappings().entrySet().iterator(), indexEntry -> (builder, params) -> {
                 builder.startObject(indexEntry.getKey());
-                boolean includeTypeName = params.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER, DEFAULT_INCLUDE_TYPE_NAME_POLICY);
-                if (builder.getRestApiVersion() == RestApiVersion.V_7 && includeTypeName && indexEntry.getValue() != null) {
-                    builder.startObject(MAPPINGS.getPreferredName());
-
-                    if (indexEntry.getValue() != MappingMetadata.EMPTY_MAPPINGS) {
-                        builder.field(MapperService.SINGLE_MAPPING_NAME, indexEntry.getValue().sourceAsMap());
-                    }
-                    builder.endObject();
-
-                } else if (indexEntry.getValue() != null) {
+                if (indexEntry.getValue() != null) {
                     builder.field(MAPPINGS.getPreferredName(), indexEntry.getValue().sourceAsMap());
                 } else {
                     builder.startObject(MAPPINGS.getPreferredName()).endObject();

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.search;
@@ -14,7 +15,6 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.OriginalIndices;
@@ -233,15 +233,6 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         }
         if (shardsIts.size() > 0) {
             doCheckNoMissingShards(getName(), request, shardsIts);
-            Version version = request.minCompatibleShardNode();
-            if (version != null && Version.CURRENT.minimumCompatibilityVersion().equals(version) == false) {
-                if (checkMinimumVersion(shardsIts) == false) {
-                    throw new VersionMismatchException(
-                        "One of the shards is incompatible with the required minimum version [{}]",
-                        request.minCompatibleShardNode()
-                    );
-                }
-            }
             for (int i = 0; i < shardsIts.size(); i++) {
                 final SearchShardIterator shardRoutings = shardsIts.get(i);
                 assert shardRoutings.skip() == false;
@@ -257,21 +248,6 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         skippedOps.incrementAndGet();
         assert iterator.skip();
         successfulShardExecution(iterator);
-    }
-
-    private boolean checkMinimumVersion(GroupShardsIterator<SearchShardIterator> shardsIts) {
-        for (SearchShardIterator it : shardsIts) {
-            if (it.getTargetNodeIds().isEmpty() == false) {
-                boolean isCompatible = it.getTargetNodeIds().stream().anyMatch(nodeId -> {
-                    Transport.Connection conn = getConnection(it.getClusterAlias(), nodeId);
-                    return conn == null || conn.getNode().getVersion().onOrAfter(request.minCompatibleShardNode());
-                });
-                if (isCompatible == false) {
-                    return false;
-                }
-            }
-        }
-        return true;
     }
 
     private static boolean assertExecuteOnStartThread() {
@@ -760,12 +736,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
 
     @Override
     public final Transport.Connection getConnection(String clusterAlias, String nodeId) {
-        Transport.Connection conn = nodeIdToConnection.apply(clusterAlias, nodeId);
-        Version minVersion = request.minCompatibleShardNode();
-        if (minVersion != null && conn != null && conn.getNode().getVersion().before(minVersion)) {
-            throw new VersionMismatchException("One of the shards is incompatible with the required minimum version [{}]", minVersion);
-        }
-        return conn;
+        return nodeIdToConnection.apply(clusterAlias, nodeId);
     }
 
     @Override

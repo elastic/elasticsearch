@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -178,6 +179,11 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
         return createMapperService(getVersion(), mappings);
     }
 
+    public final MapperService createSytheticSourceMapperService(XContentBuilder mappings) throws IOException {
+        var settings = Settings.builder().put("index.mapping.source.mode", "synthetic").build();
+        return createMapperService(getVersion(), settings, () -> true, mappings);
+    }
+
     protected IndexVersion getVersion() {
         return IndexVersion.current();
     }
@@ -301,8 +307,12 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
                 mapperMetrics
             );
 
-            if (applyDefaultMapping && indexSettings.getMode().getDefaultMapping() != null) {
-                mapperService.merge(null, indexSettings.getMode().getDefaultMapping(), MapperService.MergeReason.MAPPING_UPDATE);
+            if (applyDefaultMapping && indexSettings.getMode().getDefaultMapping(indexSettings) != null) {
+                mapperService.merge(
+                    null,
+                    indexSettings.getMode().getDefaultMapping(indexSettings),
+                    MapperService.MergeReason.MAPPING_UPDATE
+                );
             }
 
             return mapperService;

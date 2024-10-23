@@ -115,5 +115,7 @@
   ],
   "examples" : [
     "  FROM employees\n| EVAL first_letter = SUBSTRING(first_name, 0, 1)\n| STATS first_name=MV_SORT(VALUES(first_name)) BY first_letter\n| SORT first_letter"
-  ]
+  ],
+  "preview" : true,
+  "snapshot_only" : false
 }

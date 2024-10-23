@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.template.post;
@@ -47,6 +48,7 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.time.Instant;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -269,20 +271,35 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
         // First apply settings sourced from index settings providers
         final var now = Instant.now();
         Settings.Builder additionalSettings = Settings.builder();
+        Set<String> overrulingSettings = new HashSet<>();
         for (var provider : indexSettingProviders) {
             Settings result = provider.getAdditionalIndexSettings(
                 indexName,
                 template.getDataStreamTemplate() != null ? indexName : null,
-                template.getDataStreamTemplate() != null && metadata.isTimeSeriesTemplate(template),
+                metadata.retrieveIndexModeFromTemplate(template),
                 simulatedState.getMetadata(),
                 now,
                 templateSettings,
                 mappings
             );
+            MetadataCreateIndexService.validateAdditionalSettings(provider, result, additionalSettings);
             dummySettings.put(result);
             additionalSettings.put(result);
+            if (provider.overrulesTemplateAndRequestSettings()) {
+                overrulingSettings.addAll(result.keySet());
+            }
         }
-        // Then apply settings resolved from templates:
+
+        if (overrulingSettings.isEmpty() == false) {
+            // Filter any conflicting settings from overruling providers, to avoid overwriting their values from templates.
+            final Settings.Builder filtered = Settings.builder().put(templateSettings);
+            for (String setting : overrulingSettings) {
+                filtered.remove(setting);
+            }
+            templateSettings = filtered.build();
+        }
+
+        // Apply settings resolved from templates.
         dummySettings.put(templateSettings);
 
         final IndexMetadata indexMetadata = IndexMetadata.builder(indexName)

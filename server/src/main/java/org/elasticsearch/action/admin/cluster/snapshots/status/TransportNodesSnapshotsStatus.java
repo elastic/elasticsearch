@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.snapshots.status;
@@ -46,7 +47,8 @@ public class TransportNodesSnapshotsStatus extends TransportNodesAction<
     TransportNodesSnapshotsStatus.Request,
     TransportNodesSnapshotsStatus.NodesSnapshotStatus,
     TransportNodesSnapshotsStatus.NodeRequest,
-    TransportNodesSnapshotsStatus.NodeSnapshotStatus> {
+    TransportNodesSnapshotsStatus.NodeSnapshotStatus,
+    Void> {
 
     public static final String ACTION_NAME = TransportSnapshotsStatusAction.TYPE.name() + "[nodes]";
     public static final ActionType<NodesSnapshotStatus> TYPE = new ActionType<>(ACTION_NAME);
@@ -119,17 +121,13 @@ public class TransportNodesSnapshotsStatus extends TransportNodesAction<
         }
     }
 
-    public static class Request extends BaseNodesRequest<Request> {
+    public static class Request extends BaseNodesRequest {
 
-        private Snapshot[] snapshots;
+        private final Snapshot[] snapshots;
 
-        public Request(String[] nodesIds) {
+        public Request(String[] nodesIds, Snapshot[] snapshots) {
             super(nodesIds);
-        }
-
-        public Request snapshots(Snapshot[] snapshots) {
             this.snapshots = snapshots;
-            return this;
         }
     }
 

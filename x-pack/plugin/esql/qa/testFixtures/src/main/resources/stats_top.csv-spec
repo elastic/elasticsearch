@@ -224,3 +224,77 @@ a:ip | b:ip | c:ip | host:keyword
 [fe82::cae2:65ff:fece:fec0, fe81::cae2:65ff:fece:feb9] | [fe82::cae2:65ff:fece:fec0, fe81::cae2:65ff:fece:feb9] | [fe82::cae2:65ff:fece:fec0, fe81::cae2:65ff:fece:feb9] | epsilon
 [fe80::cae2:65ff:fece:feb9, fe80::cae2:65ff:fece:feb9] | [fe80::cae2:65ff:fece:feb9, fe80::cae2:65ff:fece:feb9] | [fe81::cae2:65ff:fece:feb9, 127.0.0.3] | gamma
 ;
+
+topKeywords
+required_capability: agg_top
+required_capability: agg_top_string_support
+
+FROM employees
+| EVAL calc = SUBSTRING(last_name, 2)
+| STATS
+    first_name = TOP(first_name, 3, "asc"),
+    last_name = TOP(calc, 3, "asc"),
+    evil = TOP(CASE(languages <= 2, first_name, last_name), 3, "desc");
+
+     first_name:keyword      |   last_name:keyword   | evil:keyword
+[Alejandro, Amabile, Anneke] | [acello, addadi, aek] | [Zschoche, Zielinski, Zhongwei]
+;
+
+topKeywordsGrouping
+required_capability: agg_top
+required_capability: agg_top_string_support
+
+FROM employees
+| EVAL calc = SUBSTRING(last_name, 2)
+| STATS
+    first_name = TOP(first_name, 3, "asc"),
+    last_name = TOP(calc, 3, "asc"),
+    evil = TOP(CASE(languages <= 2, first_name, last_name), 3, "desc")
+  BY job_positions
+| SORT job_positions
+| LIMIT 3;
+
+     first_name:keyword      |     last_name:keyword     |          evil:keyword          | job_positions:keyword
+ [Arumugam, Bojan, Domenick] |   [acello, aine, akrucki] | [Zhongwei, Yinghua, Valdiodio] | Accountant
+[Alejandro, Charlene, Danel] | [andell, cAlpine, eistad] |      [Stamatiou, Sluis, Sidou] | Architect
+ [Basil, Breannda, Hidefumi] |  [aine, alabarba, ierman] |  [Tramer, Syrzycki, Stamatiou] | Business Analyst
+;
+
+topText
+required_capability: agg_top
+required_capability: agg_top_string_support
+# we don't need MATCH, but the loader for books.csv is busted in CsvTests
+required_capability: match_operator
+
+FROM books
+| EVAL calc = TRIM(SUBSTRING(title, 2, 5))
+| STATS
+    title = TOP(title, 3, "desc"),
+    calc = TOP(calc, 3, "asc"),
+    evil = TOP(CASE(year < 1980, title, author), 3, "desc");
+
+title:text | calc:keyword | evil:text
+[Worlds of Exile and Illusion: Three Complete Novels of the Hainish Series in One Volume--Rocannon's World, Planet of Exile, City of Illusions, Woman-The Full Story: A Dynamic Celebration of Freedoms, Winter notes on summer impressions] | ["'Bria", "Gent", "HE UN"] | [William Faulkner, William Faulkner, William Faulkner]
+;
+
+topTextGrouping
+required_capability: agg_top
+required_capability: agg_top_string_support
+# we don't need MATCH, but the loader for books.csv is busted in CsvTests
+required_capability: match_operator
+
+FROM books
+| EVAL calc = TRIM(SUBSTRING(title, 2, 5))
+| STATS
+    title = TOP(title, 3, "desc"),
+    calc = TOP(calc, 3, "asc"),
+    evil = TOP(CASE(year < 1980, title, author), 3, "desc")
+  BY author
+| SORT author
+| LIMIT 3;
+
+                                                                                                             title:text | calc:keyword | evil:text | author:text
+                                   A Tolkien Compass: Including J. R. R. Tolkien's Guide to the Names in The Lord of the Rings |  Tolk | A Tolkien Compass: Including J. R. R. Tolkien's Guide to the Names in The Lord of the Rings | Agnes Perkins
+                                                    The Lord of the Rings Poster Collection: Six Paintings by Alan Lee (No. 1) | he Lo |                                                                [J. R. R. Tolkien, Alan Lee] | Alan Lee
+A Gentle Creature and Other Stories: White Nights, A Gentle Creature, and The Dream of a Ridiculous Man (The World's Classics) |  Gent |                                        [W. J. Leatherbarrow, Fyodor Dostoevsky, Alan Myers] | Alan Myers
+;

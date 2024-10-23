@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.telemetry.apm.internal.tracing;
@@ -438,13 +439,13 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
             ? includeAutomaton
             : Operations.minus(includeAutomaton, excludeAutomaton, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
 
-        return new CharacterRunAutomaton(finalAutomaton);
+        return new CharacterRunAutomaton(Operations.determinize(finalAutomaton, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT));
     }
 
     private static Automaton patternsToAutomaton(List<String> patterns) {
         final List<Automaton> automata = patterns.stream().map(s -> {
             final String regex = s.replace(".", "\\.").replace("*", ".*");
-            return new RegExp(regex).toAutomaton();
+            return new RegExp(regex, RegExp.ALL | RegExp.DEPRECATED_COMPLEMENT).toAutomaton();
         }).toList();
         if (automata.isEmpty()) {
             return null;

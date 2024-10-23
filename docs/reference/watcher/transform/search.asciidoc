@@ -119,8 +119,8 @@ time of the watch:
                 {
                   "range" : {
                     "@timestamp" : {
-                      "from" : "{{ctx.trigger.scheduled_time}}||-30s",
-                      "to" : "{{ctx.trigger.triggered_time}}"
+                      "gte" : "{{ctx.trigger.scheduled_time}}||-30s",
+                      "lte" : "{{ctx.trigger.triggered_time}}"
                     }
                   }
                 }
@@ -159,8 +159,8 @@ The following is an example of using templates that refer to provided parameters
                   {
                     "range" : {
                       "@timestamp" : {
-                        "from" : "{{ctx.trigger.scheduled_time}}||-30s",
-                        "to" : "{{ctx.trigger.triggered_time}}"
+                        "gte" : "{{ctx.trigger.scheduled_time}}||-30s",
+                        "lte" : "{{ctx.trigger.triggered_time}}"
                       }
                     }
                   }

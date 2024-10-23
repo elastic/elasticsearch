@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.mapper;
 
@@ -87,7 +88,10 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
         final Parameter<Boolean> hasDocValues = Parameter.docValuesParam(m -> builder(m).hasDocValues.get(), true);
         final Parameter<Boolean> stored = Parameter.storeParam(m -> builder(m).stored.get(), false);
         private final Parameter<Script> script = Parameter.scriptParam(m -> builder(m).script.get());
-        private final Parameter<OnScriptError> onScriptError = Parameter.onScriptErrorParam(m -> builder(m).onScriptError.get(), script);
+        private final Parameter<OnScriptError> onScriptErrorParam = Parameter.onScriptErrorParam(
+            m -> builder(m).onScriptErrorParam.get(),
+            script
+        );
         final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         private final ScriptCompiler scriptCompiler;
@@ -152,7 +156,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
                 ignoreZValue,
                 nullValue,
                 script,
-                onScriptError,
+                onScriptErrorParam,
                 meta,
                 dimension,
                 metric };
@@ -217,10 +221,9 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
                 metric.get(),
                 indexMode
             );
-            if (this.script.get() == null) {
-                return new GeoPointFieldMapper(leafName(), ft, multiFieldsBuilder.build(this, context), copyTo, geoParser, this);
-            }
-            return new GeoPointFieldMapper(leafName(), ft, geoParser, this);
+            hasScript = script.get() != null;
+            onScriptError = onScriptErrorParam.get();
+            return new GeoPointFieldMapper(leafName(), ft, builderParams(this, context), geoParser, this);
         }
 
     }
@@ -248,31 +251,19 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
     public GeoPointFieldMapper(
         String simpleName,
         MappedFieldType mappedFieldType,
-        MultiFields multiFields,
-        CopyTo copyTo,
+        BuilderParams builderParams,
         Parser<GeoPoint> parser,
         Builder builder
     ) {
         super(
             simpleName,
             mappedFieldType,
-            multiFields,
+            builderParams,
             builder.ignoreMalformed.get(),
             builder.ignoreZValue.get(),
             builder.nullValue.get(),
-            copyTo,
             parser
         );
-        this.builder = builder;
-        this.scriptValues = null;
-        this.indexCreatedVersion = builder.indexCreatedVersion;
-        this.metricType = builder.metric.get();
-        this.indexMode = builder.indexMode;
-        this.indexed = builder.indexed.get();
-    }
-
-    public GeoPointFieldMapper(String simpleName, MappedFieldType mappedFieldType, Parser<GeoPoint> parser, Builder builder) {
-        super(simpleName, mappedFieldType, MultiFields.empty(), CopyTo.empty(), parser, builder.onScriptError.get());
         this.builder = builder;
         this.scriptValues = builder.scriptValues();
         this.indexCreatedVersion = builder.indexCreatedVersion;
@@ -308,7 +299,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
         // TODO phase out geohash (which is currently used in the CompletionSuggester)
         // we only expose the geohash value and disallow advancing tokens, hence we can reuse the same parser throughout multiple sub-fields
         DocumentParserContext parserContext = context.switchParser(new GeoHashMultiFieldParser(context.parser(), geometry.geohash()));
-        multiFields.parse(this, context, () -> parserContext);
+        multiFields().parse(this, context, () -> parserContext);
     }
 
     /**
@@ -617,37 +608,21 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
     }
 
     @Override
-    protected SyntheticSourceMode syntheticSourceMode() {
-        return SyntheticSourceMode.NATIVE;
-    }
+    protected SyntheticSourceSupport syntheticSourceSupport() {
+        if (fieldType().hasDocValues()) {
+            var loader = new SortedNumericDocValuesSyntheticFieldLoader(fullPath(), leafName(), ignoreMalformed()) {
+                final GeoPoint point = new GeoPoint();
 
-    @Override
-    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-        if (hasScript()) {
-            return SourceLoader.SyntheticFieldLoader.NOTHING;
-        }
-        if (fieldType().hasDocValues() == false) {
-            throw new IllegalArgumentException(
-                "field ["
-                    + fullPath()
-                    + "] of type ["
-                    + typeName()
-                    + "] doesn't support synthetic source because it doesn't have doc values"
-            );
-        }
-        if (copyTo.copyToFields().isEmpty() != true) {
-            throw new IllegalArgumentException(
-                "field [" + fullPath() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
-            );
-        }
-        return new SortedNumericDocValuesSyntheticFieldLoader(fullPath(), leafName(), ignoreMalformed()) {
-            final GeoPoint point = new GeoPoint();
+                @Override
+                protected void writeValue(XContentBuilder b, long value) throws IOException {
+                    point.reset(GeoEncodingUtils.decodeLatitude((int) (value >>> 32)), GeoEncodingUtils.decodeLongitude((int) value));
+                    point.toXContent(b, ToXContent.EMPTY_PARAMS);
+                }
+            };
 
-            @Override
-            protected void writeValue(XContentBuilder b, long value) throws IOException {
-                point.reset(GeoEncodingUtils.decodeLatitude((int) (value >>> 32)), GeoEncodingUtils.decodeLongitude((int) value));
-                point.toXContent(b, ToXContent.EMPTY_PARAMS);
-            }
-        };
+            return new SyntheticSourceSupport.Native(loader);
+        }
+
+        return super.syntheticSourceSupport();
     }
 }

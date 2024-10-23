@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal
@@ -66,6 +67,11 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
     <license>
       <name>Elastic License 2.0</name>
       <url>https://raw.githubusercontent.com/elastic/elasticsearch/v1.0/licenses/ELASTIC-LICENSE-2.0.txt</url>
+      <distribution>repo</distribution>
+    </license>
+    <license>
+      <name>GNU Affero General Public License Version 3</name>
+      <url>https://raw.githubusercontent.com/elastic/elasticsearch/v1.0/licenses/AGPL-3.0+SSPL-1.0+ELASTIC-LICENSE-2.0.txt</url>
       <distribution>repo</distribution>
     </license>
     <license>
@@ -141,6 +147,11 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
                 <license>
                   <name>Elastic License 2.0</name>
                   <url>https://raw.githubusercontent.com/elastic/elasticsearch/v1.0/licenses/ELASTIC-LICENSE-2.0.txt</url>
+                  <distribution>repo</distribution>
+                </license>
+                <license>
+                  <name>GNU Affero General Public License Version 3</name>
+                  <url>https://raw.githubusercontent.com/elastic/elasticsearch/v1.0/licenses/AGPL-3.0+SSPL-1.0+ELASTIC-LICENSE-2.0.txt</url>
                   <distribution>repo</distribution>
                 </license>
                 <license>
@@ -225,6 +236,11 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
                 <license>
                   <name>Elastic License 2.0</name>
                   <url>https://raw.githubusercontent.com/elastic/elasticsearch/v1.0/licenses/ELASTIC-LICENSE-2.0.txt</url>
+                  <distribution>repo</distribution>
+                </license>
+                <license>
+                  <name>GNU Affero General Public License Version 3</name>
+                  <url>https://raw.githubusercontent.com/elastic/elasticsearch/v1.0/licenses/AGPL-3.0+SSPL-1.0+ELASTIC-LICENSE-2.0.txt</url>
                   <distribution>repo</distribution>
                 </license>
                 <license>
@@ -321,6 +337,11 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
                   <distribution>repo</distribution>
                 </license>
                 <license>
+                  <name>GNU Affero General Public License Version 3</name>
+                  <url>https://raw.githubusercontent.com/elastic/elasticsearch/v1.0/licenses/AGPL-3.0+SSPL-1.0+ELASTIC-LICENSE-2.0.txt</url>
+                  <distribution>repo</distribution>
+                </license>
+                <license>
                   <name>Server Side Public License, v 1</name>
                   <url>https://www.mongodb.com/licensing/server-side-public-license</url>
                   <distribution>repo</distribution>
@@ -391,6 +412,11 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
                 <license>
                   <name>Elastic License 2.0</name>
                   <url>https://raw.githubusercontent.com/elastic/elasticsearch/v2.0/licenses/ELASTIC-LICENSE-2.0.txt</url>
+                  <distribution>repo</distribution>
+                </license>
+                <license>
+                  <name>GNU Affero General Public License Version 3</name>
+                  <url>https://raw.githubusercontent.com/elastic/elasticsearch/v2.0/licenses/AGPL-3.0+SSPL-1.0+ELASTIC-LICENSE-2.0.txt</url>
                   <distribution>repo</distribution>
                 </license>
                 <license>

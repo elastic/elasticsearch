@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.example.resthandler;
 
@@ -15,7 +16,7 @@ import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 /**
  * {@link ExampleRestHandlerClientYamlTestSuiteIT} executes the plugin's REST API integration tests.
  * <p>
- * The tests can be executed using the command: ./gradlew :example-plugins:rest-handler:yamlRestTest
+ * The tests can be executed using the command: ./gradlew :rest-handler:yamlRestTest
  * <p>
  * This class extends {@link ESClientYamlSuiteTestCase}, which takes care of parsing the YAML files
  * located in the src/yamlRestTest/resources/rest-api-spec/test/ directory and validates them against the

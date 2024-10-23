@@ -6,7 +6,9 @@
  */
 package org.elasticsearch.xpack.esql.session;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesIndexResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
@@ -18,6 +20,7 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsAction;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.DateEsField;
@@ -155,7 +158,23 @@ public class IndexResolver {
         for (FieldCapabilitiesIndexResponse ir : fieldCapsResponse.getIndexResponses()) {
             concreteIndices.put(ir.getIndexName(), ir.getIndexMode());
         }
-        return IndexResolution.valid(new EsIndex(indexPattern, rootFields, concreteIndices));
+        Set<String> unavailableRemoteClusters = determineUnavailableRemoteClusters(fieldCapsResponse.getFailures());
+        return IndexResolution.valid(new EsIndex(indexPattern, rootFields, concreteIndices), unavailableRemoteClusters);
+    }
+
+    // visible for testing
+    static Set<String> determineUnavailableRemoteClusters(List<FieldCapabilitiesFailure> failures) {
+        Set<String> unavailableRemotes = new HashSet<>();
+        for (FieldCapabilitiesFailure failure : failures) {
+            if (ExceptionsHelper.isRemoteUnavailableException(failure.getException())) {
+                for (String indexExpression : failure.getIndices()) {
+                    if (indexExpression.indexOf(RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR) > 0) {
+                        unavailableRemotes.add(RemoteClusterAware.parseClusterAlias(indexExpression));
+                    }
+                }
+            }
+        }
+        return unavailableRemotes;
     }
 
     private boolean allNested(List<IndexFieldCapabilities> caps) {

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.transport.netty4;
@@ -102,7 +103,7 @@ public class SimpleNetty4TransportTests extends AbstractSimpleTransportTestCase 
             MockTransportService serviceD = buildService("TS_D", VersionInformation.CURRENT, TransportVersion.current(), Settings.EMPTY)
         ) {
 
-            try (Transport.Connection connection = openConnection(serviceC, serviceD.getLocalDiscoNode(), TestProfiles.LIGHT_PROFILE)) {
+            try (Transport.Connection connection = openConnection(serviceC, serviceD.getLocalNode(), TestProfiles.LIGHT_PROFILE)) {
                 assertThat(connection, instanceOf(StubbableTransport.WrappedConnection.class));
                 Transport.Connection conn = ((StubbableTransport.WrappedConnection) connection).getConnection();
                 assertThat(conn, instanceOf(TcpTransport.NodeChannels.class));
@@ -146,7 +147,7 @@ public class SimpleNetty4TransportTests extends AbstractSimpleTransportTestCase 
             MockTransportService serviceD = buildService("TS_D", VersionInformation.CURRENT, TransportVersion.current(), Settings.EMPTY)
         ) {
 
-            try (Transport.Connection connection = openConnection(serviceC, serviceD.getLocalDiscoNode(), connectionProfile)) {
+            try (Transport.Connection connection = openConnection(serviceC, serviceD.getLocalNode(), connectionProfile)) {
                 assertThat(connection, instanceOf(StubbableTransport.WrappedConnection.class));
                 Transport.Connection conn = ((StubbableTransport.WrappedConnection) connection).getConnection();
                 assertThat(conn, instanceOf(TcpTransport.NodeChannels.class));

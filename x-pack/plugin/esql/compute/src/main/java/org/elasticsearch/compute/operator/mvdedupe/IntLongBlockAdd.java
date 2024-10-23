@@ -9,13 +9,13 @@ package org.elasticsearch.compute.operator.mvdedupe;
 
 import org.elasticsearch.common.util.LongLongHash;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
-import org.elasticsearch.compute.aggregation.blockhash.AddBlock;
+import org.elasticsearch.compute.aggregation.blockhash.AddPage;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 
-public class IntLongBlockAdd extends AddBlock {
+public class IntLongBlockAdd extends AddPage {
     private final LongLongHash hash;
     private final MultivalueDedupeInt block1;
     private final MultivalueDedupeLong block2;
@@ -39,7 +39,7 @@ public class IntLongBlockAdd extends AddBlock {
         for (int p = 0; p < positions; p++) {
             add1(p);
         }
-        emitOrds();
+        flushRemaining();
     }
 
     private void add1(int position) {

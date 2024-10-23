@@ -2,6 +2,8 @@ setup:
   - requires:
       cluster_features: "gte_v8.8.0"
       reason: 'rank added in 8.8'
+  - skip:
+      features: "warnings"
 
   - do:
       indices.create:
@@ -59,7 +61,14 @@ setup:
 ---
 "Simple rank with bm25 search and kNN search":
 
+  - requires:
+      cluster_features: ["gte_v8.16.0"]
+      reason: "deprecation added in 8.16"
+      test_runner_features: warnings
+
   - do:
+      warnings:
+        - "Deprecated field [rank] used, replaced by [retriever]"
       search:
         index: test
         body:
@@ -80,24 +89,29 @@ setup:
           size: 10
 
   - match: { hits.hits.0._id: "1" }
-  - match: { hits.hits.0._rank: 1 }
   - match: { hits.hits.0.fields.text.0: "term term" }
   - match: { hits.hits.0.fields.keyword.0: "other" }
 
   - match: { hits.hits.1._id: "3" }
-  - match: { hits.hits.1._rank: 2 }
   - match: { hits.hits.1.fields.text.0: "term" }
   - match: { hits.hits.1.fields.keyword.0: "keyword" }
 
   - match: { hits.hits.2._id: "2" }
-  - match: { hits.hits.2._rank: 3 }
   - match: { hits.hits.2.fields.text.0: "other" }
   - match: { hits.hits.2.fields.keyword.0: "other" }
 
 ---
 "Simple rank with multiple bm25 sub searches":
 
+  - requires:
+      cluster_features: ["gte_v8.16.0"]
+      reason: "deprecation added in 8.16"
+      test_runner_features: warnings
+
   - do:
+      warnings:
+        - "Deprecated field [rank] used, replaced by [retriever]"
+        - Deprecated field [sub_searches] used, replaced by [retriever]
       search:
         index: test
         body:
@@ -128,19 +142,25 @@ setup:
   - match: { hits.total.value: 2 }
 
   - match: { hits.hits.0._id: "3" }
-  - match: { hits.hits.0._rank: 1 }
   - match: { hits.hits.0.fields.text.0: "term" }
   - match: { hits.hits.0.fields.keyword.0: "keyword" }
 
   - match: { hits.hits.1._id: "1" }
-  - match: { hits.hits.1._rank: 2 }
   - match: { hits.hits.1.fields.text.0: "term term" }
   - match: { hits.hits.1.fields.keyword.0: "other" }
 
 ---
 "Simple rank with multiple bm25 sub_searches and a knn search":
 
+  - requires:
+      cluster_features: ["gte_v8.16.0"]
+      reason: "deprecation added in 8.16"
+      test_runner_features: warnings
+
   - do:
+      warnings:
+        - "Deprecated field [rank] used, replaced by [retriever]"
+        - Deprecated field [sub_searches] used, replaced by [retriever]
       search:
         index: test
         body:
@@ -176,17 +196,14 @@ setup:
   - match: { hits.total.value: 3 }
 
   - match: { hits.hits.0._id: "3" }
-  - match: { hits.hits.0._rank: 1 }
   - match: { hits.hits.0.fields.text.0: "term" }
   - match: { hits.hits.0.fields.keyword.0: "keyword" }
 
   - match: { hits.hits.1._id: "1" }
-  - match: { hits.hits.1._rank: 2 }
   - match: { hits.hits.1.fields.text.0: "term term" }
   - match: { hits.hits.1.fields.keyword.0: "other" }
 
   - match: { hits.hits.2._id: "2" }
-  - match: { hits.hits.2._rank: 3 }
   - match: { hits.hits.2.fields.text.0: "other" }
   - match: { hits.hits.2.fields.keyword.0: "other" }
 

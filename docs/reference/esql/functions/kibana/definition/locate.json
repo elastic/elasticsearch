@@ -175,5 +175,7 @@
   ],
   "examples" : [
     "row a = \"hello\"\n| eval a_ll = locate(a, \"ll\")"
-  ]
+  ],
+  "preview" : false,
+  "snapshot_only" : false
 }

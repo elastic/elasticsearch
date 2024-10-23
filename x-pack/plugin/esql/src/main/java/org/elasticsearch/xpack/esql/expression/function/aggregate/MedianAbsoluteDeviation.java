@@ -14,16 +14,22 @@ import org.elasticsearch.compute.aggregation.MedianAbsoluteDeviationDoubleAggreg
 import org.elasticsearch.compute.aggregation.MedianAbsoluteDeviationIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MedianAbsoluteDeviationLongAggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMedianAbsoluteDeviation;
 
 import java.io.IOException;
 import java.util.List;
 
-public class MedianAbsoluteDeviation extends NumericAggregate {
+import static java.util.Collections.emptyList;
+
+public class MedianAbsoluteDeviation extends NumericAggregate implements SurrogateExpression {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "MedianAbsoluteDeviation",
@@ -50,18 +56,22 @@ public class MedianAbsoluteDeviation extends NumericAggregate {
             ====""",
         isAggregation = true,
         examples = {
-            @Example(file = "stats_percentile", tag = "median-absolute-deviation"),
+            @Example(file = "median_absolute_deviation", tag = "median-absolute-deviation"),
             @Example(
                 description = "The expression can use inline functions. For example, to calculate the the "
                     + "median absolute deviation of the maximum values of a multivalued column, first "
                     + "use `MV_MAX` to get the maximum value per row, and use the result with the "
                     + "`MEDIAN_ABSOLUTE_DEVIATION` function",
-                file = "stats_percentile",
+                file = "median_absolute_deviation",
                 tag = "docsStatsMADNestedExpression"
             ), }
     )
     public MedianAbsoluteDeviation(Source source, @Param(name = "number", type = { "double", "integer", "long" }) Expression field) {
-        super(source, field);
+        this(source, field, Literal.TRUE);
+    }
+
+    public MedianAbsoluteDeviation(Source source, Expression field, Expression filter) {
+        super(source, field, filter, emptyList());
     }
 
     private MedianAbsoluteDeviation(StreamInput in) throws IOException {
@@ -75,12 +85,17 @@ public class MedianAbsoluteDeviation extends NumericAggregate {
 
     @Override
     protected NodeInfo<MedianAbsoluteDeviation> info() {
-        return NodeInfo.create(this, MedianAbsoluteDeviation::new, field());
+        return NodeInfo.create(this, MedianAbsoluteDeviation::new, field(), filter());
     }
 
     @Override
     public MedianAbsoluteDeviation replaceChildren(List<Expression> newChildren) {
-        return new MedianAbsoluteDeviation(source(), newChildren.get(0));
+        return new MedianAbsoluteDeviation(source(), newChildren.get(0), newChildren.get(1));
+    }
+
+    @Override
+    public MedianAbsoluteDeviation withFilter(Expression filter) {
+        return new MedianAbsoluteDeviation(source(), field(), filter);
     }
 
     @Override
@@ -96,5 +111,17 @@ public class MedianAbsoluteDeviation extends NumericAggregate {
     @Override
     protected AggregatorFunctionSupplier doubleSupplier(List<Integer> inputChannels) {
         return new MedianAbsoluteDeviationDoubleAggregatorFunctionSupplier(inputChannels);
+    }
+
+    @Override
+    public Expression surrogate() {
+        var s = source();
+        var field = field();
+
+        if (field.foldable()) {
+            return new MvMedianAbsoluteDeviation(s, new ToDouble(s, field));
+        }
+
+        return null;
     }
 }

@@ -1,0 +1,59 @@
+setup:
+  - do:
+      ingest.put_pipeline:
+        id: pipeline1
+        body:  >
+          {
+            "processors": [
+              {
+                "repeat" : {
+                  "field": "to_repeat"
+                }
+              }
+            ]
+          }
+---
+teardown:
+  - do:
+      ingest.delete_pipeline:
+        id: pipeline1
+        ignore: 404
+
+  - do:
+      indices.delete:
+        index: index1
+        ignore: 404
+---
+"Process document":
+  # index a document with field to be processed
+  - do:
+      index:
+        id: doc1
+        index: index1
+        pipeline: pipeline1
+        body: { to_repeat: "foo" }
+  - match: { result: "created" }
+
+  # validate document is processed
+  - do:
+      get:
+        index: index1
+        id: doc1
+  - match: { _source: { to_repeat: "foofoo" } }
+---
+"Does not process document without field":
+  # index a document without field to be processed
+  - do:
+      index:
+        id: doc1
+        index: index1
+        pipeline: pipeline1
+        body: { field1: "foo" }
+  - match: { result: "created" }
+
+  # validate document is not processed
+  - do:
+      get:
+        index: index1
+        id: doc1
+  - match: { _source: { field1: "foo" } }

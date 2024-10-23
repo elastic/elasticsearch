@@ -107,6 +107,7 @@ subprojects {
 
       // spatial dependency
       javaRestTestRuntimeOnly project(path: xpackModule('spatial'))
+      javaRestTestRuntimeOnly "org.locationtech.jts:jts-core:${versions.jts}"
 
       javaRestTestRuntimeOnly project(path: ':modules:rest-root')
 

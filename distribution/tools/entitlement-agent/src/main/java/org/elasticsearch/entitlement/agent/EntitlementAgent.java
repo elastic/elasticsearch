@@ -24,11 +24,15 @@ import java.util.jar.JarFile;
 public class EntitlementAgent {
 
     public static void premain(String agentArgs, Instrumentation inst) throws Exception {
+        agentmain(agentArgs, inst);
+    }
+
+    public static void agentmain(String agentArgs, Instrumentation inst) throws Exception {
         // Add the bridge library (the one with the entitlement checking interface) to the bootstrap classpath.
         // We can't actually reference the classes here for real before this point because they won't resolve.
-        var bridgeJarName = System.getProperty("es.entitlements.bridgeJar");
+        var bridgeJarName = System.getProperty("es.entitlement.bridgeJar");
         if (bridgeJarName == null) {
-            throw new IllegalArgumentException("System property es.entitlements.bridgeJar is required");
+            throw new IllegalArgumentException("System property es.entitlement.bridgeJar is required");
         }
         addJarToBootstrapClassLoader(inst, bridgeJarName);
 

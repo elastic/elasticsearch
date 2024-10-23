@@ -37,7 +37,7 @@ tasks.named('test').configure {
   jvmArgumentProviders.add(new CommandLineArgumentProvider() {
     @Override
     Iterable<String> asArguments() {
-      return ["-javaagent:${tasks.jar.archiveFile.get()}", "-Des.entitlements.bridgeJar=${configurations.entitlementBridge.singleFile}"]
+      return ["-javaagent:${tasks.jar.archiveFile.get()}", "-Des.entitlement.bridgeJar=${configurations.entitlementBridge.singleFile}"]
     }
   })
 
@@ -51,6 +51,7 @@ tasks.named('jar').configure {
   manifest {
     attributes(
       'Premain-Class': 'org.elasticsearch.entitlement.agent.EntitlementAgent'
+      , 'Agent-Class': 'org.elasticsearch.entitlement.agent.EntitlementAgent'
       , 'Can-Retransform-Classes': 'true'
     )
   }

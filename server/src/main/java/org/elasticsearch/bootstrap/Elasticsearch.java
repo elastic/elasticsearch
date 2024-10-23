@@ -198,12 +198,17 @@ class Elasticsearch {
             VectorUtil.class
         );
 
-        // install SM after natives, shutdown hooks, etc.
-        org.elasticsearch.bootstrap.Security.configure(
-            nodeEnv,
-            SECURITY_FILTER_BAD_DEFAULTS_SETTING.get(args.nodeSettings()),
-            args.pidFile()
-        );
+//        if ("SecurityManager".equalsIgnoreCase(System.getProperty("es.entitlement.mechanism"))) {
+        if (false) {
+            // install SM after natives, shutdown hooks, etc.
+            org.elasticsearch.bootstrap.Security.configure(
+                nodeEnv,
+                SECURITY_FILTER_BAD_DEFAULTS_SETTING.get(args.nodeSettings()),
+                args.pidFile()
+            );
+        } else {
+            org.elasticsearch.bootstrap.Entitlement.configure();
+        }
     }
 
     private static void ensureInitialized(Class<?>... classes) {

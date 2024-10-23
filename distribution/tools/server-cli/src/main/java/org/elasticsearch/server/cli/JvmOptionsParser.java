@@ -95,7 +95,7 @@ public final class JvmOptionsParser {
 
         try {
             return Collections.unmodifiableList(
-                parser.jvmOptions(args, args.configDir(), tmpDir, envOptions, substitutions, processInfo.sysprops(), machineDependentHeap)
+                parser.jvmOptions(args, args.configDir(), processInfo.workingDir(), tmpDir, envOptions, substitutions, processInfo.sysprops(), machineDependentHeap)
             );
         } catch (final JvmOptionsFileParserException e) {
             final String errorMessage = String.format(
@@ -128,6 +128,7 @@ public final class JvmOptionsParser {
     private List<String> jvmOptions(
         ServerArgs args,
         final Path config,
+        final Path workingDir,
         Path tmpDir,
         final String esJavaOpts,
         final Map<String, String> substitutions,
@@ -145,7 +146,7 @@ public final class JvmOptionsParser {
         final SystemMemoryInfo memoryInfo = new OverridableSystemMemoryInfo(substitutedJvmOptions, new DefaultSystemMemoryInfo());
         substitutedJvmOptions.addAll(machineDependentHeap.determineHeapSettings(args.nodeSettings(), memoryInfo, substitutedJvmOptions));
         final List<String> ergonomicJvmOptions = JvmErgonomics.choose(substitutedJvmOptions, args.nodeSettings());
-        final List<String> systemJvmOptions = SystemJvmOptions.systemJvmOptions(args.nodeSettings(), cliSysprops);
+        final List<String> systemJvmOptions = SystemJvmOptions.systemJvmOptions(args.nodeSettings(), cliSysprops, workingDir);
 
         final List<String> apmOptions = APMJvmOptions.apmJvmOptions(args.nodeSettings(), args.secrets(), args.logsDir(), tmpDir);
 

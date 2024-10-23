@@ -9,16 +9,18 @@
 
 package org.elasticsearch.server.cli;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
 
 final class SystemJvmOptions {
 
-    static List<String> systemJvmOptions(Settings nodeSettings, final Map<String, String> sysprops) {
+    static List<String> systemJvmOptions(Settings nodeSettings, final Map<String, String> sysprops, Path workingDir) {
         String distroType = sysprops.get("es.distribution.type");
         boolean isHotspot = sysprops.getOrDefault("sun.management.compiler", "").contains("HotSpot");
 
@@ -36,6 +38,10 @@ final class SystemJvmOptions {
                 "-Des.networkaddress.cache.negative.ttl=10",
                 // Allow to set the security manager.
                 "-Djava.security.manager=allow",
+                // Entitlement agent
+                "-Djdk.attach.allowAttachSelf=true",
+                "-Des.entitlement.agentJar=" + workingDir.resolve(Path.of("lib", "tools", "entitlement-agent", "entitlement-agent-" + Build.current().version() + "-SNAPSHOT.jar")),
+                "-Des.entitlement.bridgeJar=" + workingDir.resolve(Path.of("lib", "tools", "entitlement-bridge", "entitlement-bridge-" + Build.current().version() + "-SNAPSHOT.jar")),
                 // pre-touch JVM emory pages during initialization
                 "-XX:+AlwaysPreTouch",
                 // explicitly set the stack size

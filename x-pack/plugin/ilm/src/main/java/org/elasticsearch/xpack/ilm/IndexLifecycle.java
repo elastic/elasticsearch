@@ -63,6 +63,7 @@ import org.elasticsearch.xpack.core.ilm.action.GetStatusAction;
 import org.elasticsearch.xpack.core.ilm.action.ILMActions;
 import org.elasticsearch.xpack.core.ilm.action.RemoveIndexLifecyclePolicyAction;
 import org.elasticsearch.xpack.ilm.action.ReservedLifecycleAction;
+import org.elasticsearch.xpack.ilm.action.RestCatIndexLifecycleAction;
 import org.elasticsearch.xpack.ilm.action.RestDeleteLifecycleAction;
 import org.elasticsearch.xpack.ilm.action.RestExplainLifecycleAction;
 import org.elasticsearch.xpack.ilm.action.RestGetLifecycleAction;
@@ -275,7 +276,8 @@ public class IndexLifecycle extends Plugin implements ActionPlugin, HealthPlugin
                 new RestStopAction(),
                 new RestStartILMAction(),
                 new RestGetStatusAction(),
-                new RestMigrateToDataTiersAction()
+                new RestMigrateToDataTiersAction(),
+                new RestCatIndexLifecycleAction()
             )
         );
         return handlers;

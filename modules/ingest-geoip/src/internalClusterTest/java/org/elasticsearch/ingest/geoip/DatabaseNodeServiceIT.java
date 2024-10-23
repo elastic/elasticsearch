@@ -50,6 +50,11 @@ public class DatabaseNodeServiceIT extends AbstractGeoIpIT {
         String databaseName = randomAlphaOfLength(20) + "-" + databaseFileName;
         byte[] mmdbBytes = getBytesForFile(databaseFileName);
         final DatabaseNodeService databaseNodeService = internalCluster().getInstance(DatabaseNodeService.class);
+        /*
+         * If DatabaseNodeService::checkDatabases runs it will sometimes (rarely) remove the database we are using in this test while we
+         * are trying to assert things about it. So we disable checkDatabase.
+         */
+        databaseNodeService.doNotCheckDatabases = true;
         assertNull(databaseNodeService.getDatabase(databaseName));
         int numChunks = indexData(databaseName, mmdbBytes);
         retrieveDatabase(databaseNodeService, databaseName, mmdbBytes, numChunks);

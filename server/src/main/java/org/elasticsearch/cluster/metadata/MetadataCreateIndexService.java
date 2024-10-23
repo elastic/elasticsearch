@@ -1604,6 +1604,15 @@ public class MetadataCreateIndexService {
             // of if the source shards are divisible by the number of target shards
             IndexMetadata.getRoutingFactor(sourceMetadata.getNumberOfShards(), INDEX_NUMBER_OF_SHARDS_SETTING.get(targetIndexSettings));
         }
+        if (targetIndexSettings.hasValue(IndexSettings.MODE.getKey())) {
+            IndexMode oldMode = Objects.requireNonNullElse(sourceMetadata.getIndexMode(), IndexMode.STANDARD);
+            IndexMode newMode = IndexSettings.MODE.get(targetIndexSettings);
+            if (newMode != oldMode) {
+                throw new IllegalArgumentException(
+                    "can't change index.mode of index [" + sourceIndex + "] from [" + oldMode + "] to [" + newMode + "]"
+                );
+            }
+        }
         return sourceMetadata;
     }
 

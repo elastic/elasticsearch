@@ -9,7 +9,6 @@
 
 package org.elasticsearch.index.reindex;
 
-import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.common.settings.Settings;
@@ -17,7 +16,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.ShutdownPrepareService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
-import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -29,7 +27,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import static org.elasticsearch.node.Node.MAXIMUM_REINDEXING_TIMEOUT_SETTING;
+import static org.elasticsearch.node.ShutdownPrepareService.MAXIMUM_REINDEXING_TIMEOUT_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 
 /**
@@ -115,31 +113,27 @@ public class ReindexNodeShutdownIT extends ESIntegTestCase {
         internalCluster().client(coordNodeName).execute(ReindexAction.INSTANCE, reindexRequest, reindexListener);
 
         // Check for reindex task to appear in the tasks list and Immediately stop coordinating node
-        findTask(ReindexAction.INSTANCE.name(), coordNodeName);
+        waitForTask(ReindexAction.INSTANCE.name(), coordNodeName);
         shutdownPrepareService.prepareForShutdown(taskManager);
         internalCluster().stopNode(coordNodeName);
     }
 
     // Make sure all documents from the source index have been reindexed into the destination index
-    private void checkDestinationIndex(String dataNodeName, int numDocs) {
+    private void checkDestinationIndex(String dataNodeName, int numDocs) throws Exception {
         assertTrue(indexExists(DEST_INDEX));
         flushAndRefresh(DEST_INDEX);
-        assertTrue("Number of documents in source and dest indexes does not match", waitUntil(() -> {
-            final TotalHits totalHits = SearchResponseUtils.getTotalHits(
-                client(dataNodeName).prepareSearch(DEST_INDEX).setSize(0).setTrackTotalHits(true)
-            );
-            return totalHits.relation() == TotalHits.Relation.EQUAL_TO && totalHits.value() == numDocs;
-        }, 10, TimeUnit.SECONDS));
+        assertBusy(() -> { assertHitCount(prepareSearch(DEST_INDEX).setSize(0).setTrackTotalHits(true), numDocs); });
     }
 
-    private static void findTask(String actionName, String nodeName) throws Exception {
+    private static void waitForTask(String actionName, String nodeName) throws Exception {
         assertBusy(() -> {
             ListTasksResponse tasks = clusterAdmin().prepareListTasks(nodeName).setActions(actionName).setDetailed(true).get();
             tasks.rethrowFailures("Find my task");
             for (TaskInfo taskInfo : tasks.getTasks()) {
                 // Skip tasks with a parent because those are children of the task we want
-                assertFalse(taskInfo.parentTaskId().isSet());
+                if (taskInfo.parentTaskId().isSet() == false) return;
             }
-        }, 10, TimeUnit.NANOSECONDS);
+            fail("Couldn't find task after waiting, tasks=" + tasks.getTasks());
+        }, 10, TimeUnit.SECONDS);
     }
 }

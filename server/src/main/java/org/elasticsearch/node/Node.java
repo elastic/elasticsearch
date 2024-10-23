@@ -150,18 +150,6 @@ public class Node implements Closeable {
         Property.NodeScope
     );
 
-    public static final Setting<TimeValue> MAXIMUM_SHUTDOWN_TIMEOUT_SETTING = Setting.positiveTimeSetting(
-        "node.maximum_shutdown_grace_period",
-        TimeValue.ZERO,
-        Setting.Property.NodeScope
-    );
-
-    public static final Setting<TimeValue> MAXIMUM_REINDEXING_TIMEOUT_SETTING = Setting.positiveTimeSetting(
-        "node.maximum_reindexing_grace_period",
-        TimeValue.timeValueSeconds(10),
-        Setting.Property.NodeScope
-    );
-
     private final Lifecycle lifecycle = new Lifecycle();
 
     /**

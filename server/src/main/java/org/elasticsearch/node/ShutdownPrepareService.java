@@ -15,6 +15,7 @@ import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.http.HttpServerTransport;
@@ -44,9 +45,9 @@ import static org.elasticsearch.core.Strings.format;
 public class ShutdownPrepareService {
 
     private final Logger logger = LogManager.getLogger(ShutdownPrepareService.class);
-    Settings settings;
-    HttpServerTransport httpServerTransport;
-    TerminationHandler terminationHandler;
+    private final Settings settings;
+    private final HttpServerTransport httpServerTransport;
+    private final TerminationHandler terminationHandler;
     private volatile boolean hasBeenShutdown = false;
 
     public ShutdownPrepareService(Settings settings, HttpServerTransport httpServerTransport, TerminationHandler terminationHandler) {
@@ -54,6 +55,18 @@ public class ShutdownPrepareService {
         this.httpServerTransport = httpServerTransport;
         this.terminationHandler = terminationHandler;
     }
+
+    public static final Setting<TimeValue> MAXIMUM_SHUTDOWN_TIMEOUT_SETTING = Setting.positiveTimeSetting(
+        "node.maximum_shutdown_grace_period",
+        TimeValue.ZERO,
+        Setting.Property.NodeScope
+    );
+
+    public static final Setting<TimeValue> MAXIMUM_REINDEXING_TIMEOUT_SETTING = Setting.positiveTimeSetting(
+        "node.maximum_reindexing_grace_period",
+        TimeValue.timeValueSeconds(10),
+        Setting.Property.NodeScope
+    );
 
     /**
      * Invokes hooks to prepare this node to be closed. This should be called when Elasticsearch receives a request to shut down
@@ -66,8 +79,8 @@ public class ShutdownPrepareService {
     public void prepareForShutdown(TaskManager taskManager) {
         assert hasBeenShutdown == false;
         hasBeenShutdown = true;
-        final var maxTimeout = Node.MAXIMUM_SHUTDOWN_TIMEOUT_SETTING.get(settings);
-        final var reindexTimeout = Node.MAXIMUM_REINDEXING_TIMEOUT_SETTING.get(settings);
+        final var maxTimeout = MAXIMUM_SHUTDOWN_TIMEOUT_SETTING.get(settings);
+        final var reindexTimeout = MAXIMUM_REINDEXING_TIMEOUT_SETTING.get(settings);
 
         record Stopper(String name, SubscribableListener<Void> listener) {
             boolean isIncomplete() {
@@ -123,7 +136,7 @@ public class ShutdownPrepareService {
         }
     }
 
-    private void waitForTasks(TimeValue timeout, String taskName, TaskManager taskManager) {
+    private void awaitTasksComplete(TimeValue timeout, String taskName, TaskManager taskManager) {
         long millisWaited = 0;
         while (true) {
             long tasksRemaining = taskManager.getTasks().values().stream().filter(task -> taskName.equals(task.getAction())).count();
@@ -161,11 +174,11 @@ public class ShutdownPrepareService {
     }
 
     private void awaitSearchTasksComplete(TimeValue asyncSearchTimeout, TaskManager taskManager) {
-        waitForTasks(asyncSearchTimeout, TransportSearchAction.NAME, taskManager);
+        awaitTasksComplete(asyncSearchTimeout, TransportSearchAction.NAME, taskManager);
     }
 
     private void awaitReindexTasksComplete(TimeValue asyncReindexTimeout, TaskManager taskManager) {
-        waitForTasks(asyncReindexTimeout, ReindexAction.NAME, taskManager);
+        awaitTasksComplete(asyncReindexTimeout, ReindexAction.NAME, taskManager);
     }
 
 }

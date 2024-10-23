@@ -147,6 +147,7 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
             TranslogReplicator translogReplicator,
             Function<String, BlobContainer> translogBlobContainer,
             StatelessCommitService statelessCommitService,
+            SharedBlobCacheWarmingService sharedBlobCacheWarmingService,
             RefreshThrottler.Factory refreshThrottlerFactory,
             DocumentParsingProvider documentParsingProvider,
             TranslogRecoveryMetrics translogRecoveryMetrics
@@ -156,6 +157,7 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
                 translogReplicator,
                 translogBlobContainer,
                 statelessCommitService,
+                sharedBlobCacheWarmingService,
                 refreshThrottlerFactory,
                 statelessCommitService.getIndexEngineLocalReaderListenerForShard(engineConfig.getShardId()),
                 statelessCommitService.getCommitBCCResolverForShard(engineConfig.getShardId()),

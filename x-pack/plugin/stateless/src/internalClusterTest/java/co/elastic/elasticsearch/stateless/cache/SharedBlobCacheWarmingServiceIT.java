@@ -23,9 +23,12 @@ import co.elastic.elasticsearch.stateless.action.NewCommitNotificationRequest;
 import co.elastic.elasticsearch.stateless.action.TransportGetVirtualBatchedCompoundCommitChunkAction;
 import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationAction;
 import co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService.Type;
+import co.elastic.elasticsearch.stateless.cache.action.ClearBlobCacheNodesRequest;
+import co.elastic.elasticsearch.stateless.commits.BlobLocation;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
+import co.elastic.elasticsearch.stateless.engine.ThreadPoolMergeScheduler;
 import co.elastic.elasticsearch.stateless.lucene.BlobStoreCacheDirectory;
 import co.elastic.elasticsearch.stateless.lucene.FileCacheKey;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
@@ -33,6 +36,7 @@ import co.elastic.elasticsearch.stateless.recovery.TransportRegisterCommitForRec
 import co.elastic.elasticsearch.stateless.recovery.TransportStatelessPrimaryRelocationAction;
 
 import org.apache.logging.log4j.Level;
+import org.apache.lucene.index.SegmentCommitInfo;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -54,6 +58,8 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
@@ -78,12 +84,15 @@ import org.elasticsearch.xpack.shutdown.ShutdownPlugin;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 import static co.elastic.elasticsearch.stateless.cache.reader.CacheBlobReaderService.TRANSPORT_BLOB_READER_CHUNK_SIZE_SETTING;
 import static co.elastic.elasticsearch.stateless.objectstore.ObjectStoreTestUtils.getObjectStoreMockRepository;
@@ -108,7 +117,8 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
 
     @Override
     protected Settings.Builder nodeSettings() {
-        return super.nodeSettings().put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.MOCK);
+        return super.nodeSettings().put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.MOCK)
+            .put(ThreadPoolMergeScheduler.MERGE_THREAD_POOL_SCHEDULER.getKey(), true);
     }
 
     @Override
@@ -320,6 +330,60 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
             expectCacheWarmingCompleteEvent(Type.INDEXING_EARLY),
             expectCacheWarmingCompleteEvent(Type.INDEXING)
         );
+    }
+
+    @TestLogging(value = "co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService:DEBUG", reason = "verify debug output")
+    public void testCacheIsWarmedDuringMerge() {
+        var cacheSettings = Settings.builder()
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), CACHE_SIZE.getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), REGION_SIZE.getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), REGION_SIZE.getStringRep())
+            .build();
+        String indexNode = startMasterAndIndexNode(cacheSettings);
+
+        final String indexName = randomIdentifier();
+        createIndex(indexName, indexSettings(1, 0).build());
+
+        int segments = randomIntBetween(4, 8);
+        for (int i = 0; i < segments; ++i) {
+            indexDocs(indexName, randomIntBetween(100, 1000));
+            flush(indexName);
+        }
+
+        long generation = client().admin().indices().prepareStats(indexName).setFlush(true).get().getShards()[0].getCommitStats()
+            .getGeneration();
+
+        client(indexNode).execute(Stateless.CLEAR_BLOB_CACHE_ACTION, new ClearBlobCacheNodesRequest()).actionGet();
+
+        PlainActionFuture<Void> warmingFuture = new PlainActionFuture<>();
+
+        final var warmingService = getSharedBlobCacheWarmingService(indexNode);
+        final var mockRepository = getObjectStoreMockRepository(getObjectStoreService(indexNode));
+        warmingService.addMergeWarmingCompletedListener(new ActionListener<>() {
+            @Override
+            public void onResponse(Void unused) {
+                warmingFuture.onResponse(null);
+                logger.info("--> fail object store repository after warming");
+                mockRepository.setRandomControlIOExceptionRate(1.0);
+                mockRepository.setRandomDataFileIOExceptionRate(1.0);
+                mockRepository.setMaximumNumberOfFailures(Long.MAX_VALUE);
+                long generationToBlock = randomLongBetween(2, generation);
+                mockRepository.setRandomIOExceptionPattern(".*" + StatelessCompoundCommit.blobNameFromGeneration(generationToBlock) + ".*");
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                warmingFuture.onFailure(e);
+            }
+        });
+
+        assertThatLogger(
+            () -> client().admin().indices().prepareForceMerge(indexName).setMaxNumSegments(1).get(),
+            SharedBlobCacheWarmingService.class,
+            expectCacheWarmingCompleteEvent(Type.INDEXING_MERGE)
+        );
+
+        safeGet(warmingFuture);
     }
 
     @TestLogging(value = "co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService:DEBUG", reason = "verify debug output")
@@ -888,6 +952,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
 
     private static class BlockingSharedBlobCacheWarmingService extends SharedBlobCacheWarmingService {
 
+        private final CopyOnWriteArrayList<ActionListener<Void>> mergeWarmingCompleteListeners = new CopyOnWriteArrayList<>();
         private final CopyOnWriteArrayList<ActionListener<CompletedWarmingDetails>> warmingCompletedListeners =
             new CopyOnWriteArrayList<>();
         private final CopyOnWriteArrayList<Consumer<Type>> beforeWarmingStartsListeners = new CopyOnWriteArrayList<>();
@@ -909,12 +974,36 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
             beforeWarmingStartsListeners.add(actionListener);
         }
 
+        void addMergeWarmingCompletedListener(ActionListener<Void> listener) {
+            mergeWarmingCompleteListeners.add(listener);
+        }
+
         void addWarmingCompletedListener(ActionListener<CompletedWarmingDetails> listener) {
             warmingCompletedListeners.add(listener);
         }
 
         @Override
-        protected void warmCache(
+        protected void warmCacheMerge(
+            String mergeId,
+            ShardId shardId,
+            Store store,
+            List<SegmentCommitInfo> segmentsToMerge,
+            Function<String, BlobLocation> blobLocationResolver,
+            BooleanSupplier mergeCancelled,
+            ActionListener<Void> listener
+        ) {
+            var wrappedListener = new SubscribableListener<Void>();
+            for (ActionListener<Void> voidActionListener : mergeWarmingCompleteListeners) {
+                wrappedListener.addListener(voidActionListener);
+            }
+            wrappedListener.addListener(listener); // completed last
+            super.warmCacheMerge(mergeId, shardId, store, segmentsToMerge, blobLocationResolver, mergeCancelled, wrappedListener);
+            assert mustSucceed.get();
+            safeAwait(wrappedListener);
+        }
+
+        @Override
+        protected void warmCacheRecovery(
             Type type,
             IndexShard indexShard,
             StatelessCompoundCommit commit,
@@ -931,7 +1020,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
             for (Consumer<Type> beforeWarmingStartsListener : beforeWarmingStartsListeners) {
                 beforeWarmingStartsListener.accept(type);
             }
-            super.warmCache(type, indexShard, commit, directory, wrappedListener);
+            super.warmCacheRecovery(type, indexShard, commit, directory, wrappedListener);
             if (mustSucceed.get()) {
                 safeAwait(wrappedListener);
             } else {

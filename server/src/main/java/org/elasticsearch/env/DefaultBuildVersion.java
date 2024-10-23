@@ -72,6 +72,6 @@ final class DefaultBuildVersion extends BuildVersion {
 
     @Override
     public String toString() {
-        return Version.fromId(versionId).toString();
+        return version.toString();
     }
 }

@@ -879,7 +879,7 @@ teardown:
   # Successfully indexed to backing index
   - match: { items.0.create._index: '/\.ds-logs-foobar-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
   - match: { items.0.create.status: 201 }
-  - is_false: items.1.create.failure_store
+  - is_false: items.0.create.failure_store
 
   # Rejected but not eligible to go to failure store
   - match: { items.1.create._index: '/\.ds-logs-foobar-(\d{4}\.\d{2}\.\d{2}-)?000001/' }

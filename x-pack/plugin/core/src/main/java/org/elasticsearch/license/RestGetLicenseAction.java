@@ -27,8 +27,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.core.RestApiVersion.V_8;
-import static org.elasticsearch.core.RestApiVersion.onOrAfter;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
 import static org.elasticsearch.rest.RestStatus.OK;
@@ -72,7 +70,7 @@ public class RestGetLicenseAction extends BaseRestHandler {
                 "Including [accept_enterprise] in get license requests is deprecated."
                     + " The parameter will be removed in the next major version"
             );
-            if (request.paramAsBoolean("accept_enterprise", true) == false && request.getRestApiVersion().matches(onOrAfter(V_8))) {
+            if (request.paramAsBoolean("accept_enterprise", true) == false) {
                 throw new IllegalArgumentException("The [accept_enterprise] parameters may not be false");
             }
         }

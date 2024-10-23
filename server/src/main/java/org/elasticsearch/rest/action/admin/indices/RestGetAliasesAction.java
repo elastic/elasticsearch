@@ -199,6 +199,8 @@ public class RestGetAliasesAction extends BaseRestHandler {
     }
 
     @Override
+    @UpdateForV9(owner = UpdateForV9.Owner.DATA_MANAGEMENT)
+    // v7 REST API no longer exists: eliminate ref to RestApiVersion.V_7; reject local parameter in v9 too?
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         // The TransportGetAliasesAction was improved do the same post processing as is happening here.
         // We can't remove this logic yet to support mixed clusters. We should be able to remove this logic here

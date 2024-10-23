@@ -1376,7 +1376,7 @@ public class RecoverySourceHandler {
                         // we already have the file contents on heap no need to open the file again
                         currentInput = null;
                     } else {
-                        currentInput = store.directory().openInput(md.name(), IOContext.READ);
+                        currentInput = store.directory().openInput(md.name(), IOContext.DEFAULT);
                     }
                 }
 

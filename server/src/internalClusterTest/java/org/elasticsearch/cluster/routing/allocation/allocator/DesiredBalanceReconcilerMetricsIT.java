@@ -28,7 +28,7 @@ public class DesiredBalanceReconcilerMetricsIT extends ESIntegTestCase {
         return CollectionUtils.appendToCopy(super.nodePlugins(), TestTelemetryPlugin.class);
     }
 
-    public void testPrimaryFailureIncreasesTerm() throws Exception {
+    public void testDesiredBalanceGaugeMetricsAreOnlyPublishedByCurrentMaster() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(2);
         prepareCreate("test").setSettings(indexSettings(2, 1)).get();
         ensureGreen();

@@ -27,8 +27,8 @@ import java.io.IOException;
 import java.util.List;
 import java.util.function.Supplier;
 
-import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
@@ -110,8 +110,8 @@ public class FileSettingsRoleMappingUpgradeIT extends ParameterizedRollingUpgrad
 
             assertThat(
                 entityAsMap(client().performRequest(new Request("GET", "/_security/role_mapping"))).keySet(),
-                // TODO remove `everyone_kibana` once the clean up migration is in
-                containsInAnyOrder("everyone_kibana", "everyone_kibana-read-only-operator-mapping")
+                // TODO change this to `contains` once the clean-up migration work is merged
+                hasItem("everyone_kibana-read-only-operator-mapping")
             );
         }
     }

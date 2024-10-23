@@ -218,7 +218,7 @@ Putting it together as an {esql} query:
 
 [source.merge.styled,esql]
 ----
-include::{esql-specs}/docs.csv-spec[tag=grokWithEscape]
+include::{esql-specs}/docs.csv-spec[tag=grokWithEscapeTripleQuotes]
 ----
 
 `GROK` adds the following columns to the input table:

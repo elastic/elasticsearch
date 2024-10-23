@@ -1229,7 +1229,7 @@ setup:
 
   - requires:
       cluster_features: ["simulate.mapping.addition"]
-      reason: "ingest simulate mapping addition added in 8.16"
+      reason: "ingest simulate mapping addition added in 8.17"
 
   - do:
       headers:
@@ -1465,7 +1465,7 @@ setup:
 
   - requires:
       cluster_features: ["simulate.mapping.addition"]
-      reason: "ingest simulate mapping addition added in 8.16"
+      reason: "ingest simulate mapping addition added in 8.17"
 
   - do:
       indices.put_template:
@@ -1570,4 +1570,144 @@ setup:
   - match: { docs.0.doc._index: "foo-1" }
   - match: { docs.0.doc._source.foo: 3 }
   - match: { docs.0.doc._source.bar: "not a boolean" }
+  - not_exists: docs.0.doc.error
+
+---
+"Test mapping addition works with indices without templates":
+  # In this test, we make sure that when we have an index that has mapping but was not built with a template, that the additional_mapping
+  # is merged in with that template.
+
+  - skip:
+      features:
+        - headers
+        - allowed_warnings
+
+  - requires:
+      cluster_features: ["simulate.support.non.template.mapping"]
+      reason: "ingest simulate support for indices with mappings that didn't come from templates added in 8.17"
+
+  # First, make sure that validation fails before we create the index (since we are only defining to bar field but trying to index a value
+  # for foo.
+  - do:
+      headers:
+        Content-Type: application/json
+      simulate.ingest:
+        index: foo-1
+        body: >
+          {
+            "docs": [
+              {
+                "_id": "asdf",
+                "_source": {
+                  "foo": 3,
+                  "bar": "some text value"
+                }
+              }
+            ],
+            "mapping_addition": {
+              "dynamic": "strict",
+              "properties": {
+                "bar": {
+                  "type": "keyword"
+                }
+              }
+            }
+          }
+  - length: { docs: 1 }
+  - match: { docs.0.doc._index: "foo-1" }
+  - match: { docs.0.doc._source.foo: 3 }
+  - match: { docs.0.doc._source.bar: "some text value" }
+  - match: { docs.0.doc.error.type: "strict_dynamic_mapping_exception" }
+
+  - do:
+      indices.create:
+        index: foo-1
+        body:
+          mappings:
+            dynamic: strict
+            properties:
+              foo:
+                type: integer
+  - match: { acknowledged: true }
+
+  # Now make sure that the mapping for the newly-created index is getting picked up. Validation fails because it only defined a mapping
+  # for foo, not for bar.
+  - do:
+      headers:
+        Content-Type: application/json
+      simulate.ingest:
+        index: foo-1
+        body: >
+          {
+            "docs": [
+              {
+                "_id": "asdf",
+                "_source": {
+                  "foo": 3,
+                  "bar": "some text value"
+                }
+              }
+            ]
+          }
+  - length: { docs: 1 }
+  - match: { docs.0.doc._index: "foo-1" }
+  - match: { docs.0.doc._source.foo: 3 }
+  - match: { docs.0.doc._source.bar: "some text value" }
+  - match: { docs.0.doc.error.type: "strict_dynamic_mapping_exception" }
+
+  # Now we make sure that the index's mapping gets merged with the mapping_addition:
+  - do:
+      headers:
+        Content-Type: application/json
+      simulate.ingest:
+        index: foo-1
+        body: >
+          {
+            "docs": [
+              {
+                "_id": "asdf",
+                "_source": {
+                  "foo": 3,
+                  "bar": "some text value"
+                }
+              }
+            ],
+            "mapping_addition": {
+              "dynamic": "strict",
+              "properties": {
+                "bar": {
+                  "type": "keyword"
+                }
+              }
+            }
+          }
+  - length: { docs: 1 }
+  - match: { docs.0.doc._index: "foo-1" }
+  - match: { docs.0.doc._source.foo: 3 }
+  - match: { docs.0.doc._source.bar: "some text value" }
+  - not_exists: docs.0.doc.error
+
+  # This last call to simulate is just making sure that if there are no templates, no index mappings, no substitutions, and no mapping
+  # addition, then validation does not fail
+  - do:
+      headers:
+        Content-Type: application/json
+      simulate.ingest:
+        index: nonexistent
+        body: >
+          {
+            "docs": [
+              {
+                "_id": "asdf",
+                "_source": {
+                  "foo": 3,
+                  "bar": "some text value"
+                }
+              }
+            ]
+          }
+  - length: { docs: 1 }
+  - match: { docs.0.doc._index: "nonexistent" }
+  - match: { docs.0.doc._source.foo: 3 }
+  - match: { docs.0.doc._source.bar: "some text value" }
   - not_exists: docs.0.doc.error

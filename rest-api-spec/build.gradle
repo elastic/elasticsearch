@@ -59,4 +59,8 @@ tasks.named("yamlRestCompatTestTransform").configure ({ task ->
   task.replaceValueInMatch("profile.shards.0.dfs.knn.0.query.0.description", "DocAndScoreQuery[0,...][0.009673266,...],0.009673266", "dfs knn vector profiling with vector_operations_count")
   task.skipTest("indices.sort/10_basic/Index Sort", "warning does not exist for compatibility")
   task.skipTest("search/330_fetch_fields/Test search rewrite", "warning does not exist for compatibility")
+  task.skipTest("indices.get_alias/10_basic/Deprecated local parameter", "Tests query parameter deprecated in 8.12 and removed in 9.0")
+  task.skipTest("indices.get_alias/10_basic/Get alias with local flag", "Tests query parameter deprecated in 8.12 and removed in 9.0")
+  task.skipTest("indices.exists_alias/10_basic/Test indices.exists_alias with local flag", "Tests query parameter deprecated in 8.12 and removed in 9.0")
+  task.skipTest("cat.aliases/10_basic/Deprecated local parameter", "Tests query parameter deprecated in 8.12 and removed in 9.0")
 })

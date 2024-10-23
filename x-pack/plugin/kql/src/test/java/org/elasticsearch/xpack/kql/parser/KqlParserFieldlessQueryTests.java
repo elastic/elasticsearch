@@ -8,45 +8,40 @@
 package org.elasticsearch.xpack.kql.parser;
 
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
-import org.elasticsearch.index.query.QueryStringQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.equalTo;
 
 public class KqlParserFieldlessQueryTests extends AbstractKqlParserTestCase {
 
-    public void testTermQueryWithNoField() {
-        {
-            // Single word
-            MultiMatchQueryBuilder parsedQuery = asInstanceOf(MultiMatchQueryBuilder.class, parseKqlQuery("foo"));
-            assertThat(parsedQuery.fields(), anEmptyMap());
-            assertThat(parsedQuery.type(), equalTo(MultiMatchQueryBuilder.Type.BEST_FIELDS));
-            assertThat(parsedQuery.lenient(), equalTo(true));
-            assertThat(parsedQuery.value(), equalTo("foo"));
-        }
+    public void testFieldlessQuery() {
+        // Single word
+        assertMultiMatchQuery(parseKqlQuery("foo"), "foo", MultiMatchQueryBuilder.Type.BEST_FIELDS);
+        // Multiple words
+        assertMultiMatchQuery(parseKqlQuery("foo bar baz"), "foo bar baz", MultiMatchQueryBuilder.Type.BEST_FIELDS);
+        // With an escaped wildcard
+        assertMultiMatchQuery(parseKqlQuery("foo \\* baz"), "foo * baz", MultiMatchQueryBuilder.Type.BEST_FIELDS);
+        // Wrapping terms into parentheses
+        assertMultiMatchQuery(parseKqlQuery("foo baz"), "foo baz", MultiMatchQueryBuilder.Type.BEST_FIELDS);
+    }
 
-        {
-            // Multiple words
-            MultiMatchQueryBuilder parsedQuery = asInstanceOf(MultiMatchQueryBuilder.class, parseKqlQuery("foo bar baz"));
-            assertThat(parsedQuery.fields(), anEmptyMap());
-            assertThat(parsedQuery.type(), equalTo(MultiMatchQueryBuilder.Type.BEST_FIELDS));
-            assertThat(parsedQuery.lenient(), equalTo(true));
-            assertThat(parsedQuery.value(), equalTo("foo bar baz"));
-        }
+    public void testMatchPhraseQuery() {
+        // Single word
+        assertMultiMatchQuery(parseKqlQuery("\"foo\""), "foo", MultiMatchQueryBuilder.Type.PHRASE);
+        // Multiple words
+        assertMultiMatchQuery(parseKqlQuery("\"foo bar\""), "foo bar", MultiMatchQueryBuilder.Type.PHRASE);
+        // Containing unescaped language reserved keyword
+        assertMultiMatchQuery(parseKqlQuery("\"not foo and bar or baz\""), "not foo and bar or baz", MultiMatchQueryBuilder.Type.PHRASE);
+        // Containing unescaped language reserved characters
+        assertMultiMatchQuery(parseKqlQuery("\"foo*: {(<bar>})\""), "foo*: {(<bar>})", MultiMatchQueryBuilder.Type.PHRASE);
+    }
 
-        {
-            // With an escaped wildcard
-            MultiMatchQueryBuilder parsedQuery = asInstanceOf(MultiMatchQueryBuilder.class, parseKqlQuery("foo \\* baz"));
-            assertThat(parsedQuery.fields(), anEmptyMap());
-            assertThat(parsedQuery.type(), equalTo(MultiMatchQueryBuilder.Type.BEST_FIELDS));
-            assertThat(parsedQuery.lenient(), equalTo(true));
-            assertThat(parsedQuery.value(), equalTo("foo * baz"));
-        }
-
-        // With a wildcard
-        {
-            QueryStringQueryBuilder parsedQuery = asInstanceOf(QueryStringQueryBuilder.class, parseKqlQuery("foo * baz"));
-            assertThat(parsedQuery.queryString(), equalTo("foo * baz"));
-        }
+    private void assertMultiMatchQuery(QueryBuilder query, String expectedValue, MultiMatchQueryBuilder.Type expectedType) {
+        MultiMatchQueryBuilder multiMatchQuery = asInstanceOf(MultiMatchQueryBuilder.class, query);
+        assertThat(multiMatchQuery.fields(), anEmptyMap());
+        assertThat(multiMatchQuery.lenient(), equalTo(true));
+        assertThat(multiMatchQuery.type(), equalTo(expectedType));
+        assertThat(multiMatchQuery.value(), equalTo(expectedValue));
     }
 }

@@ -61,10 +61,7 @@ public class KqlParserBooleanQueryTests extends AbstractKqlParserTestCase {
             assertThat(parsedQuery.mustNot(), empty());
             assertThat(parsedQuery.should(), hasSize(2));
             assertThat(parsedQuery.minimumShouldMatch(), equalTo("1"));
-            assertThat(
-                parsedQuery.should(),
-                allOf(hasItem(equalTo((parseKqlQuery(queryA)))), hasItem(equalTo((parseKqlQuery(queryB)))))
-            );
+            assertThat(parsedQuery.should(), allOf(hasItem(equalTo((parseKqlQuery(queryA)))), hasItem(equalTo((parseKqlQuery(queryB))))));
         }
 
         for (int runs = 0; runs < 100; runs++) {
@@ -100,10 +97,7 @@ public class KqlParserBooleanQueryTests extends AbstractKqlParserTestCase {
             assertThat(parsedQuery.should(), empty());
             assertThat(parsedQuery.mustNot(), empty());
             assertThat(parsedQuery.must(), hasSize(2));
-            assertThat(
-                parsedQuery.must(),
-                allOf(hasItem(equalTo((parseKqlQuery(queryA)))), hasItem(equalTo((parseKqlQuery(queryB)))))
-            );
+            assertThat(parsedQuery.must(), allOf(hasItem(equalTo((parseKqlQuery(queryA)))), hasItem(equalTo((parseKqlQuery(queryB))))));
         }
 
         for (int runs = 0; runs < 100; runs++) {

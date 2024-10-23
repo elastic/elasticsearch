@@ -8,14 +8,24 @@
 package org.elasticsearch.xpack.kql.parser;
 
 import org.antlr.v4.runtime.ParserRuleContext;
+import org.antlr.v4.runtime.Token;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
+import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.RangeQueryBuilder;
 
 import java.util.function.BiConsumer;
+import java.util.function.BiFunction;
+
+import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
+import static org.elasticsearch.xpack.kql.parser.KqlParserExecutionContext.isDateField;
+import static org.elasticsearch.xpack.kql.parser.KqlParserExecutionContext.isKeywordField;
+import static org.elasticsearch.xpack.kql.parser.KqlParserExecutionContext.isRuntimeField;
+import static org.elasticsearch.xpack.kql.parser.ParserUtils.hasWildcard;
 
 class KqlAstBuilder extends KqlBaseBaseVisitor<QueryBuilder> {
     private final KqlParserExecutionContext kqlParserExecutionContext;
@@ -98,34 +108,83 @@ class KqlAstBuilder extends KqlBaseBaseVisitor<QueryBuilder> {
 
         BoolQueryBuilder boolQueryBuilder = QueryBuilders.boolQuery().minimumShouldMatch(1);
         withFields(ctx.fieldName(), (fieldName, mappedFieldType) -> {
-            if (kqlParserExecutionContext.isRuntimeField(mappedFieldType) == false) {
+            if (isRuntimeField(mappedFieldType) == false) {
                 boolQueryBuilder.should(QueryBuilders.existsQuery(fieldName));
             }
         });
 
-        if (boolQueryBuilder.should().isEmpty()) {
-            return new MatchNoneQueryBuilder();
-        }
-
-        return boolQueryBuilder.should().size() == 1 ? boolQueryBuilder.should().getFirst() : boolQueryBuilder;
+        return rewriteDisjunctionQuery(boolQueryBuilder);
     }
 
     @Override
     public QueryBuilder visitRangeQuery(KqlBaseParser.RangeQueryContext ctx) {
-        // TODO: implementation
-        return new MatchNoneQueryBuilder();
+        BoolQueryBuilder boolQueryBuilder = QueryBuilders.boolQuery().minimumShouldMatch(1);
+
+        String queryText = ParserUtils.extractText(ctx.rangeQueryValue());
+        BiFunction<RangeQueryBuilder, String, RangeQueryBuilder> rangeOperation = rangeOperation(ctx.operator);
+
+        withFields(ctx.fieldName(), (fieldName, mappedFieldType) -> {
+            RangeQueryBuilder rangeQuery = rangeOperation.apply(QueryBuilders.rangeQuery(fieldName), queryText);
+            // TODO: add timezone for date fields
+            boolQueryBuilder.should(rangeQuery);
+        });
+
+        return rewriteDisjunctionQuery(boolQueryBuilder);
     }
 
     @Override
-    public QueryBuilder visitTermQuery(KqlBaseParser.TermQueryContext ctx) {
-        // TODO: implementation
-        return new MatchNoneQueryBuilder();
+    public QueryBuilder visitFieldLessQuery(KqlBaseParser.FieldLessQueryContext ctx) {
+        String queryText = ParserUtils.extractText(ctx.fieldQueryValue());
+
+        if (hasWildcard(ctx.fieldQueryValue())) {
+            // TODO: set default fields.
+            // TODO: escape query_string chars but keep wildcard
+            // str.replace(/[+\-=&|><!(){}[\]^"~*?:\\/]/g, '\\$&');
+            return QueryBuilders.queryStringQuery(queryText);
+        }
+
+        boolean isPhraseMatch = ctx.fieldQueryValue().QUOTED_STRING() != null;
+
+        return QueryBuilders.multiMatchQuery(queryText)
+            // TODO: add default fields?
+            .type(isPhraseMatch ? MultiMatchQueryBuilder.Type.PHRASE : MultiMatchQueryBuilder.Type.BEST_FIELDS)
+            .lenient(true);
     }
 
     @Override
-    public QueryBuilder visitPhraseQuery(KqlBaseParser.PhraseQueryContext ctx) {
-        // TODO: implementation
-        return new MatchNoneQueryBuilder();
+    public QueryBuilder visitFieldQuery(KqlBaseParser.FieldQueryContext ctx) {
+
+        BoolQueryBuilder boolQueryBuilder = QueryBuilders.boolQuery().minimumShouldMatch(1);
+        String queryText = ParserUtils.extractText(ctx.fieldQueryValue());
+        boolean hasWildcard = hasWildcard(ctx.fieldQueryValue());
+
+        withFields(ctx.fieldName(), (fieldName, mappedFieldType) -> {
+            QueryBuilder fieldQuery = null;
+
+            if (hasWildcard && isKeywordField(mappedFieldType)) {
+                fieldQuery = QueryBuilders.wildcardQuery(fieldName, queryText)
+                    .caseInsensitive(kqlParserExecutionContext.isCaseSensitive() == false);
+            } else if (hasWildcard) {
+                // TODO: escape query_string chars but keep wildcard
+                fieldQuery = QueryBuilders.queryStringQuery(queryText).field(fieldName);
+            } else if (isDateField(mappedFieldType)) {
+                // TODO: add timezone
+                fieldQuery = QueryBuilders.rangeQuery(fieldName).gte(queryText).lte(queryText);
+            } else if (isKeywordField(mappedFieldType)) {
+                fieldQuery = QueryBuilders.termQuery(fieldName, queryText)
+                    .caseInsensitive(kqlParserExecutionContext.isCaseSensitive() == false);
+            } else if (ctx.fieldQueryValue().QUOTED_STRING() != null) {
+                fieldQuery = QueryBuilders.matchPhraseQuery(fieldName, queryText);
+            } else {
+                fieldQuery = QueryBuilders.matchQuery(fieldName, queryText);
+            }
+
+            if (fieldQuery != null) {
+                boolQueryBuilder.should(fieldQuery);
+            }
+        });
+
+        return rewriteDisjunctionQuery(boolQueryBuilder);
     }
 
     private static boolean isAndQuery(KqlBaseParser.BooleanQueryContext ctx) {
@@ -138,5 +197,25 @@ class KqlAstBuilder extends KqlBaseBaseVisitor<QueryBuilder> {
 
     private void withFields(KqlBaseParser.FieldNameContext ctx, BiConsumer<String, MappedFieldType> fieldConsummer) {
         kqlParserExecutionContext.resolveFields(ctx).forEach(fieldDef -> fieldConsummer.accept(fieldDef.v1(), fieldDef.v2()));
+    }
+
+    private QueryBuilder rewriteDisjunctionQuery(BoolQueryBuilder boolQueryBuilder) {
+        assert boolQueryBuilder.must().isEmpty() && boolQueryBuilder.filter().isEmpty() && boolQueryBuilder.mustNot().isEmpty();
+
+        if (boolQueryBuilder.should().isEmpty()) {
+            return new MatchNoneQueryBuilder();
+        }
+
+        return boolQueryBuilder.should().size() == 1 ? boolQueryBuilder.should().getFirst() : boolQueryBuilder;
+    }
+
+    private BiFunction<RangeQueryBuilder, String, RangeQueryBuilder> rangeOperation(Token operator) {
+        return switch (operator.getType()) {
+            case KqlBaseParser.OP_LESS -> RangeQueryBuilder::lt;
+            case KqlBaseParser.OP_LESS_EQ -> RangeQueryBuilder::lte;
+            case KqlBaseParser.OP_MORE -> RangeQueryBuilder::gt;
+            case KqlBaseParser.OP_MORE_EQ -> RangeQueryBuilder::gte;
+            default -> throw new IllegalArgumentException(format(null, "Invalid range operator {}\"", operator.getText()));
+        };
     }
 }

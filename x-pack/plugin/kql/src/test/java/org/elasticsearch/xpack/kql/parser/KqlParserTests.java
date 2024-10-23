@@ -61,16 +61,6 @@ public class KqlParserTests extends AbstractKqlParserTestCase {
         }
     }
 
-    public void testExistsQuery() {
-        KqlParser parser = new KqlParser();
-        SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
-
-        // System.out.println(parser.parseKqlQuery("foo:*", searchExecutionContext));
-        // System.out.println(parser.parseKqlQuery("mapped_string:*", searchExecutionContext));
-        // System.out.println(parser.parseKqlQuery("mapped_*:*", searchExecutionContext));
-        // System.out.println(parser.parseKqlQuery("\"mapped_string\":*", searchExecutionContext));
-    }
-
     public void testSupportedQueries() throws IOException {
         KqlParser parser = new KqlParser();
         SearchExecutionContext searchExecutionContext = createSearchExecutionContext();

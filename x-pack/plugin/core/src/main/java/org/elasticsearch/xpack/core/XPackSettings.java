@@ -240,7 +240,7 @@ public class XPackSettings {
 
     public static final Setting<Boolean> EIS_SSL_ENABLED = Setting.boolSetting(
         "xpack.security.eis.ssl.enabled",
-        false,
+        true,
         Setting.Property.NodeScope
     );
 

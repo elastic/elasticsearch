@@ -193,11 +193,12 @@ public class LookupIndexModeIT extends ESIntegTestCase {
         shrink.setResizeType(ResizeType.SHRINK);
         shrink.getTargetIndexRequest()
             .settings(Settings.builder().put("index.mode", "lookup").put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1));
-        assertAcked(client().admin().indices().execute(ResizeAction.INSTANCE, shrink).actionGet());
-        Settings settings = client().admin().indices().prepareGetSettings("lookup-4").get().getIndexToSettings().get("lookup-4");
-        assertThat(settings.get("index.mode"), equalTo("lookup"));
-        assertThat(settings.get("index.number_of_shards"), equalTo("1"));
-        assertThat(settings.get("index.auto_expand_replicas"), equalTo("0-all"));
+
+        error = expectThrows(
+            IllegalArgumentException.class,
+            () -> client().admin().indices().execute(ResizeAction.INSTANCE, shrink).actionGet()
+        );
+        assertThat(error.getMessage(), equalTo("can't change index.mode of index [regular-1] from [standard] to [lookup]"));
     }
 
     public void testDoNotOverrideAutoExpandReplicas() {

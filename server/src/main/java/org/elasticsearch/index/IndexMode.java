@@ -11,6 +11,7 @@ package org.elasticsearch.index;
 
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -38,9 +39,9 @@ import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
 import org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.BooleanSupplier;
@@ -323,14 +324,6 @@ public enum IndexMode {
         }
 
         @Override
-        public Settings defaultIndexSettings() {
-            return Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-all")
-                .build();
-        }
-
-        @Override
         public void validateMapping(MappingLookup lookup) {};
 
         @Override
@@ -552,13 +545,6 @@ public enum IndexMode {
     }
 
     /**
-     * The default index settings provided by this index mode.
-     */
-    public Settings defaultIndexSettings() {
-        return Settings.EMPTY;
-    }
-
-    /**
      * Parse a string into an {@link IndexMode}.
      */
     public static IndexMode fromString(String value) {
@@ -598,17 +584,38 @@ public enum IndexMode {
         out.writeByte((byte) code);
     }
 
-    public static IndexMode getIndexMode(Settings.Builder settings) {
-        final String indexMode = settings.get(IndexSettings.MODE.getKey());
-        if (indexMode != null) {
-            return IndexMode.valueOf(indexMode.toUpperCase(Locale.ROOT));
-        } else {
-            return IndexMode.STANDARD;
-        }
-    }
-
     @Override
     public String toString() {
         return getName();
+    }
+
+    /**
+     * A built-in index setting provider that supplies additional index settings based on the index mode.
+     * Currently, only the lookup index mode provides non-empty additional settings.
+     */
+    public static final class IndexModeSettingsProvider implements IndexSettingProvider {
+        @Override
+        public Settings getAdditionalIndexSettings(
+            String indexName,
+            String dataStreamName,
+            IndexMode templateIndexMode,
+            Metadata metadata,
+            Instant resolvedAt,
+            Settings indexTemplateAndCreateRequestSettings,
+            List<CompressedXContent> combinedTemplateMappings
+        ) {
+            IndexMode indexMode = templateIndexMode;
+            if (indexMode == null) {
+                indexMode = IndexSettings.MODE.get(indexTemplateAndCreateRequestSettings);
+            }
+            if (indexMode == LOOKUP) {
+                return Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-all")
+                    .build();
+            } else {
+                return Settings.EMPTY;
+            }
+        }
     }
 }

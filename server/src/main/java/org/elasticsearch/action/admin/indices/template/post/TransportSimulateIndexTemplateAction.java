@@ -31,7 +31,6 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettingProviders;
@@ -49,7 +48,6 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.time.Instant;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -272,7 +270,6 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
         // First apply settings sourced from index settings providers
         final var now = Instant.now();
         Settings.Builder additionalSettings = Settings.builder();
-        Set<String> overrulingSettings = new HashSet<>();
         for (var provider : indexSettingProviders) {
             Settings result = provider.getAdditionalIndexSettings(
                 indexName,
@@ -286,21 +283,8 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
             MetadataCreateIndexService.validateAdditionalSettings(provider, result, additionalSettings);
             dummySettings.put(result);
             additionalSettings.put(result);
-            if (provider.overrulesTemplateAndRequestSettings()) {
-                overrulingSettings.addAll(result.keySet());
-            }
         }
-
-        if (overrulingSettings.isEmpty() == false) {
-            // Filter any conflicting settings from overruling providers, to avoid overwriting their values from templates.
-            final Settings.Builder filtered = Settings.builder().put(templateSettings);
-            for (String setting : overrulingSettings) {
-                filtered.remove(setting);
-            }
-            templateSettings = filtered.build();
-        }
-
-        // Apply settings resolved from templates.
+        // Then apply settings resolved from templates:
         dummySettings.put(templateSettings);
 
         final IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
@@ -344,14 +328,7 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
             }
         );
 
-        Settings.Builder settingsBuilder = Settings.builder().put(additionalSettings.build()).put(templateSettings);
-        final Settings indexModeSettings = IndexMode.getIndexMode(settingsBuilder).defaultIndexSettings();
-        for (String k : indexModeSettings.keySet()) {
-            if (settingsBuilder.get(k) == null) {
-                settingsBuilder.put(k, indexModeSettings.get(k));
-            }
-        }
-        Settings settings = settingsBuilder.build();
+        Settings settings = Settings.builder().put(additionalSettings.build()).put(templateSettings).build();
         DataStreamLifecycle lifecycle = resolveLifecycle(simulatedState.metadata(), matchingTemplate);
         if (template.getDataStreamTemplate() != null && lifecycle == null && isDslOnlyMode) {
             lifecycle = DataStreamLifecycle.DEFAULT;

@@ -404,6 +404,9 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/102992
 - class: org.elasticsearch.bootstrap.SpawnerNoBootstrapTests
   issue: https://github.com/elastic/elasticsearch/issues/114555
+- class: org.elasticsearch.ingest.geoip.DatabaseNodeServiceIT
+  method: testNonGzippedDatabase
+  issue: https://github.com/elastic/elasticsearch/issues/113821
 
 # Examples:
 #

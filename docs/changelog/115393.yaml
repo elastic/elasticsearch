@@ -1,0 +1,11 @@
+pr: 115393
+summary: Remove deprecated local attribute from alias APIs
+area: "Indices APIs, CAT APIs"
+type: deprecation
+issues: []
+deprecation:
+  title: Remove deprecated local attribute from alias APIs
+  area: "Indices APIs, CAT APIs"
+  details: Please describe the details of this change for the release notes. You can
+    use asciidoc.
+  impact: Please describe the impact of this change to users

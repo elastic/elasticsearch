@@ -461,12 +461,10 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
             for (Decision d : result.getCanAllocateDecision().getDecisions()) {
                 if (d.label().equals("filter")) {
                     assertEquals(Decision.Type.NO, d.type());
-                    assertEquals(
-                        "node does not match index setting [index.routing.allocation.include] filters [_name:\"non_existent_node\"]; for more information, see ["
-                            + ReferenceDocs.ALLOCATION_EXPLAIN_SETTING_CONFLICT
-                            + "]",
-                        d.getExplanation()
-                    );
+                    assertEquals(Strings.format("""
+                        node does not match index setting [index.routing.allocation.include] \
+                        filters [_name:\"non_existent_node\"]; for more information, see [%s]\
+                        """, ReferenceDocs.ALLOCATION_EXPLAIN_SETTING_CONFLICT), d.getExplanation());
                 }
             }
         }
@@ -554,9 +552,12 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
             if (d.label().equals("filter")) {
                 assertEquals(Decision.Type.NO, d.type());
                 assertEquals(
-                    "node does not match index setting [index.routing.allocation.include] filters [_name:\"non_existent_node\"]; for more information, see ["
-                        + ReferenceDocs.ALLOCATION_EXPLAIN_SETTING_CONFLICT
-                        + "]",
+                    Strings.format(
+                        """
+                            node does not match index setting [index.routing.allocation.include] \
+                            filters [_name:\"non_existent_node\"]; for more information, see [%s]""",
+                        ReferenceDocs.ALLOCATION_EXPLAIN_SETTING_CONFLICT
+                    ),
                     d.getExplanation()
                 );
             } else {
@@ -579,9 +580,12 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
             if (d.label().equals("filter")) {
                 assertEquals(Decision.Type.NO, d.type());
                 assertEquals(
-                    "node does not match index setting [index.routing.allocation.include] filters [_name:\"non_existent_node\"]; for more information, see ["
-                        + ReferenceDocs.ALLOCATION_EXPLAIN_SETTING_CONFLICT
-                        + "]",
+                    Strings.format(
+                        """
+                            node does not match index setting [index.routing.allocation.include] \
+                            filters [_name:\"non_existent_node\"]; for more information, see [%s]""",
+                        ReferenceDocs.ALLOCATION_EXPLAIN_SETTING_CONFLICT
+                    ),
                     d.getExplanation()
                 );
             } else {
@@ -893,8 +897,8 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
                 assertEquals(
                     Strings.format(
                         """
-                            node does not match index setting [index.routing.allocation.include] filters [_name:"%s"]; for more information, see [%s]\
-                            """,
+                            node does not match index setting [index.routing.allocation.include] \
+                            filters [_name:"%s"]; for more information, see [%s]""",
                         primaryNodeName,
                         ReferenceDocs.ALLOCATION_EXPLAIN_SETTING_CONFLICT
                     ),

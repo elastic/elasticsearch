@@ -48,7 +48,6 @@ public class DesiredBalanceReconcilerMetricsIT extends ESIntegTestCase {
     private static void assertOnlyMasterIsPublishingMetrics() {
         String masterNodeName = internalCluster().getMasterName();
         String[] nodeNames = internalCluster().getNodeNames();
-        // Only the master should be publishing desired balance metrics
         for (String nodeName : nodeNames) {
             assertMetricsAreBeingPublished(nodeName, nodeName.equals(masterNodeName));
         }

@@ -402,6 +402,8 @@ tests:
 - class: org.elasticsearch.xpack.security.operator.OperatorPrivilegesIT
   method: testEveryActionIsEitherOperatorOnlyOrNonOperator
   issue: https://github.com/elastic/elasticsearch/issues/102992
+- class: org.elasticsearch.bootstrap.SpawnerNoBootstrapTests
+  issue: https://github.com/elastic/elasticsearch/issues/114555
 
 # Examples:
 #

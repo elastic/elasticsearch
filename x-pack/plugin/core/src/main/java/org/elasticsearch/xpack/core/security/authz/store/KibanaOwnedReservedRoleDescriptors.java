@@ -292,7 +292,7 @@ class KibanaOwnedReservedRoleDescriptors {
                 // actions and display them.
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(".logs-endpoint.actions-*")
-                    .privileges("auto_configure", "read", "write")
+                    .privileges("auto_configure", "read", "write", "create_index")
                     .build(),
                 // Legacy Osquery manager specific action responses. Kibana reads from these to
                 // display responses to the user.

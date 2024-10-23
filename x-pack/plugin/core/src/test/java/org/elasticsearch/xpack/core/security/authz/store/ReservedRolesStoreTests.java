@@ -1066,10 +1066,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
                 is(false)
             );
             assertThat(kibanaRole.indices().allowedIndicesMatcher(GetIndexAction.NAME).test(indexAbstraction), is(true));
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name()).test(indexAbstraction),
-                is(false)
-            );
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name()).test(indexAbstraction), is(true));
             assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportIndexAction.NAME).test(indexAbstraction), is(true));
             assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportDeleteAction.NAME).test(indexAbstraction), is(true));
             assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(indexAbstraction), is(true));
@@ -1313,19 +1310,20 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
             final boolean isAlsoAutoCreateIndex = indexName.startsWith(".logs-endpoint.actions-")
                 || indexName.startsWith(".logs-endpoint.action.responses-");
-            final boolean canAlsoCreateIndex = indexName.startsWith(".logs-endpoint.actions-")
+
+            final boolean isAlsoCreateIndex = indexName.startsWith(".logs-endpoint.actions-")
                 || indexName.startsWith(".logs-endpoint.action.responses-")
                 || indexName.startsWith(".logs-endpoint.diagnostic.collection-")
                 || indexName.startsWith(".logs-endpoint.heartbeat-");
 
             assertThat(
                 kibanaRole.indices().allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name()).test(indexAbstraction),
-                is(canAlsoCreateIndex)
+                is(isAlsoCreateIndex)
             );
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(AutoCreateAction.NAME).test(indexAbstraction), is(isAlsoAutoCreateIndex));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(AutoCreateAction.NAME).test(indexAbstraction), is(isAlsoCreateIndex));
             assertThat(
                 kibanaRole.indices().allowedIndicesMatcher(CreateDataStreamAction.NAME).test(indexAbstraction),
-                is(canAlsoCreateIndex)
+                is(isAlsoCreateIndex)
             );
             assertThat(
                 kibanaRole.indices().allowedIndicesMatcher(TransportIndexAction.NAME).test(indexAbstraction),

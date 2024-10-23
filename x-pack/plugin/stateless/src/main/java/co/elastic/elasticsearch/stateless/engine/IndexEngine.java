@@ -20,6 +20,7 @@
 package co.elastic.elasticsearch.stateless.engine;
 
 import co.elastic.elasticsearch.stateless.action.GetVirtualBatchedCompoundCommitChunkRequest;
+import co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService;
 import co.elastic.elasticsearch.stateless.commits.CommitBCCResolver;
 import co.elastic.elasticsearch.stateless.commits.IndexEngineLocalReaderListener;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
@@ -96,6 +97,7 @@ public class IndexEngine extends InternalEngine {
     private final DocumentSizeAccumulator documentSizeAccumulator;
     private final DocumentSizeReporter documentParsingReporter;
     private final TranslogRecoveryMetrics translogRecoveryMetrics;
+    private final SharedBlobCacheWarmingService cacheWarmingService;
     // This is written and then accessed on the same thread under the flush lock. So not need for volatile
     private long translogStartFileForNextCommit = 0;
 
@@ -110,6 +112,7 @@ public class IndexEngine extends InternalEngine {
         TranslogReplicator translogReplicator,
         Function<String, BlobContainer> translogBlobContainer,
         StatelessCommitService statelessCommitService,
+        SharedBlobCacheWarmingService cacheWarmingService,
         RefreshThrottler.Factory refreshThrottlerFactory,
         IndexEngineLocalReaderListener localReaderListener,
         CommitBCCResolver commitBCCResolver,
@@ -121,6 +124,7 @@ public class IndexEngine extends InternalEngine {
         this.translogReplicator = translogReplicator;
         this.translogBlobContainer = translogBlobContainer;
         this.statelessCommitService = statelessCommitService;
+        this.cacheWarmingService = cacheWarmingService;
         this.fastRefresh = INDEX_FAST_REFRESH_SETTING.get(config().getIndexSettings().getSettings());
         this.refreshThrottler = refreshThrottlerFactory.create(this::doExternalRefresh);
         this.localReaderListener = localReaderListener;
@@ -588,7 +592,19 @@ public class IndexEngine extends InternalEngine {
     @Override
     protected ElasticsearchMergeScheduler createMergeScheduler(ShardId shardId, IndexSettings indexSettings) {
         if (ThreadPoolMergeScheduler.MERGE_THREAD_POOL_SCHEDULER.get(indexSettings.getSettings())) {
-            return new ThreadPoolMergeScheduler(shardId, engineConfig.getThreadPool(), this::mergeException);
+            return new ThreadPoolMergeScheduler(
+                shardId,
+                ThreadPoolMergeScheduler.MERGE_PREWARM.get(indexSettings.getSettings()),
+                engineConfig.getThreadPool(),
+                (mergeId, merge) -> cacheWarmingService.warmCacheForMerge(
+                    mergeId,
+                    shardId,
+                    store,
+                    merge,
+                    fileName -> statelessCommitService.getBlobLocation(shardId, fileName)
+                ),
+                this::mergeException
+            );
         } else {
             return super.createMergeScheduler(shardId, indexSettings);
         }

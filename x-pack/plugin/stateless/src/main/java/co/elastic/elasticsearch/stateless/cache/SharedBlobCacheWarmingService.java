@@ -35,6 +35,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.codecs.CodecUtil;
+import org.apache.lucene.index.MergePolicy;
+import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.IOContext;
 import org.elasticsearch.ExceptionsHelper;
@@ -51,11 +53,13 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.LuceneFilesExtensions;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.telemetry.TelemetryProvider;
@@ -65,17 +69,24 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.PriorityBlockingQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.BooleanSupplier;
+import java.util.function.Function;
 
 import static org.elasticsearch.blobcache.common.BlobCacheBufferedIndexInput.BUFFER_SIZE;
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING;
@@ -87,6 +98,7 @@ public class SharedBlobCacheWarmingService {
     public enum Type {
         INDEXING_EARLY,
         INDEXING,
+        INDEXING_MERGE,
         SEARCH
     }
 
@@ -289,6 +301,91 @@ public class SharedBlobCacheWarmingService {
         );
     }
 
+    public void warmCacheForMerge(
+        String mergeId,
+        ShardId shardId,
+        Store store,
+        MergePolicy.OneMerge merge,
+        Function<String, BlobLocation> blobLocationResolver
+    ) {
+        warmCacheMerge(mergeId, shardId, store, merge.segments, blobLocationResolver, merge::isAborted, ActionListener.noop());
+    }
+
+    protected void warmCacheMerge(
+        String mergeId,
+        ShardId shardId,
+        Store store,
+        List<SegmentCommitInfo> segmentsToMerge,
+        Function<String, BlobLocation> blobLocationResolver,
+        BooleanSupplier mergeCancelled,
+        ActionListener<Void> listener
+    ) {
+        Type type = Type.INDEXING_MERGE;
+        if (store.isClosing() || store.tryIncRef() == false) {
+            listener.onFailure(new AlreadyClosedException("Failed to warm cache [" + type + "] for " + shardId + ", store is closing"));
+        } else {
+            boolean success = false;
+            try {
+                WarmingRun warmingRun = new WarmingRun(
+                    type,
+                    shardId,
+                    "merge=" + mergeId,
+                    Map.of(
+                        "index_name",
+                        shardId.getIndex().getName(),
+                        "index_uuid",
+                        shardId.getIndex().getUUID(),
+                        "shard_id",
+                        shardId.id(),
+                        "prewarming_type",
+                        type.name(),
+                        "merge_id",
+                        mergeId
+                    )
+                );
+                Set<String> filesToWarm = new HashSet<>();
+                final Map<String, BlobLocation> fileLocations = new HashMap<>();
+
+                for (SegmentCommitInfo segmentCommitInfo : segmentsToMerge) {
+                    try {
+                        filesToWarm.addAll(segmentCommitInfo.files());
+                    } catch (IOException e) {
+                        listener.onFailure(e);
+                        return;
+                    }
+                }
+
+                for (String fileToWarm : filesToWarm) {
+                    // File might not be uploaded yet
+                    BlobLocation location = blobLocationResolver.apply(fileToWarm);
+                    if (location != null) {
+                        fileLocations.put(fileToWarm, location);
+                    }
+                }
+                success = true;
+                try (
+                    var warmer = new MergeWarmer(
+                        warmingRun,
+                        store,
+                        fileLocations,
+                        segmentsToMerge.size(),
+                        mergeCancelled,
+                        BlobStoreCacheDirectory.unwrapDirectory(store.directory()),
+                        ActionListener.runAfter(listener, store::decRef)
+                    )
+                ) {
+                    warmer.run();
+                }
+            } finally {
+                if (success == false) {
+                    store.decRef();
+                }
+            }
+
+        }
+
+    }
+
     /**
      * Warms the cache to optimize cache hits during the recovery of an indexing or search shard. The warming happens concurrently
      * with the recovery and doesn't block it.
@@ -311,31 +408,41 @@ public class SharedBlobCacheWarmingService {
         StatelessCompoundCommit commit,
         BlobStoreCacheDirectory directory
     ) {
-        warmCache(type, indexShard, commit, directory, ActionListener.noop());
+        warmCacheRecovery(type, indexShard, commit, directory, ActionListener.noop());
     }
 
-    protected void warmCache(
+    protected void warmCacheRecovery(
         Type type,
         IndexShard indexShard,
         StatelessCompoundCommit commit,
         BlobStoreCacheDirectory directory,
         ActionListener<Void> listener
     ) {
-        final Store store = indexShard.store();
+        ShardId shardId = indexShard.shardId();
+        Store store = indexShard.store();
         if (store.isClosing() || store.tryIncRef() == false) {
-            listener.onFailure(new AlreadyClosedException("Failed to warm cache for " + indexShard + ", store is closing"));
-            return;
+            listener.onFailure(new AlreadyClosedException("Failed to warm cache [" + type + "] for " + shardId + ", store is closing"));
+        } else {
+            WarmingRun warmingRun = new WarmingRun(
+                type,
+                indexShard.shardId(),
+                "generation=" + commit.generation(),
+                Maps.copyMapWithAddedEntry(RecoveryMetricsCollector.commonMetricLabels(indexShard), "prewarming_type", type.name())
+            );
+            try (
+                var warmer = new RecoveryWarmer(
+                    warmingRun,
+                    indexShard,
+                    store,
+                    commit.commitFiles(),
+                    directory,
+                    ActionListener.runAfter(listener, store::decRef)
+                )
+            ) {
+                warmer.run();
+            }
         }
-        try (var warmer = new Warmer(type, indexShard, commit, directory, ActionListener.runAfter(listener, store::decRef))) {
-            warmer.run();
-        }
-    }
 
-    private static boolean shouldFullyWarmUp(String fileName) {
-        var extension = LuceneFilesExtensions.fromFile(fileName);
-        return extension == null // segments_N are fully warmed up in cache
-            || extension.isMetadata() // metadata files
-            || StatelessCommitService.isGenerationalFile(fileName); // generational files
     }
 
     private static final ThreadLocal<ByteBuffer> writeBuffer = ThreadLocal.withInitial(() -> {
@@ -346,85 +453,43 @@ public class SharedBlobCacheWarmingService {
         return ByteBuffer.allocateDirect(MAX_BYTES_PER_WRITE);
     });
 
-    private class Warmer implements Releasable {
+    private record WarmingRun(Type type, ShardId shardId, String logIdentifier, Map<String, Object> labels) {}
 
-        private final Type type;
+    private class RecoveryWarmer extends AbstractWarmer {
+
+        private final ConcurrentMap<BlobRegion, BlobRangesQueue> queues = new ConcurrentHashMap<>();
         private final IndexShard indexShard;
-        private final StatelessCompoundCommit commit;
-        private final BlobStoreCacheDirectory directory;
-        private final ConcurrentMap<BlobRegion, BlobRangesQueue> queues;
-        private final RefCountingListener listeners;
+        private final Map<String, BlobLocation> filesToWarm;
 
-        private final AtomicLong tasksCount = new AtomicLong(0L);
-        private final AtomicLong totalBytesCopied = new AtomicLong(0L);
-
-        Warmer(
-            Type type,
+        RecoveryWarmer(
+            WarmingRun warmingRun,
             IndexShard indexShard,
-            StatelessCompoundCommit commit,
+            Store store,
+            Map<String, BlobLocation> filesToWarm,
             BlobStoreCacheDirectory directory,
             ActionListener<Void> listener
         ) {
-            this.type = type;
+            super(warmingRun, store, filesToWarm.size(), segmentCount(filesToWarm), directory, listener);
             this.indexShard = indexShard;
-            this.commit = commit;
-            this.directory = directory;
-            this.queues = new ConcurrentHashMap<>();
-            this.listeners = new RefCountingListener(metering(logging(listener)));
-        }
-
-        private ActionListener<Void> logging(ActionListener<Void> target) {
-            final long started = threadPool.rawRelativeTimeInMillis();
-            logger.debug("{} {} warming, generation={}", indexShard.shardId(), type, commit.generation());
-            return ActionListener.runBefore(target, () -> {
-                final long duration = threadPool.rawRelativeTimeInMillis() - started;
-                logger.log(
-                    duration >= 5000 ? Level.INFO : Level.DEBUG,
-                    "{} {} warming completed in {} ms ({} segments, {} files, {} tasks, {} bytes)",
-                    indexShard.shardId(),
-                    type,
-                    duration,
-                    commit.commitFiles()
-                        .keySet()
-                        .stream()
-                        .filter(file -> LuceneFilesExtensions.fromFile(file) == LuceneFilesExtensions.SI)
-                        .count(),
-                    commit.commitFiles().size(),
-                    tasksCount.get(),
-                    totalBytesCopied.get()
-                );
-            }).delegateResponse((l, e) -> {
-                Supplier<String> logMessage = () -> Strings.format("%s %s warming failed", indexShard.shardId(), type);
-                if (logger.isDebugEnabled()) {
-                    logger.debug(logMessage, e);
-                } else {
-                    logger.info(logMessage);
-                }
-                l.onFailure(e);
-            });
-        }
-
-        private ActionListener<Void> metering(ActionListener<Void> target) {
-            return ActionListener.runAfter(
-                target,
-                () -> cacheWarmingPageAlignedBytesTotalMetric.incrementBy(
-                    totalBytesCopied.get(),
-                    RecoveryMetricsCollector.commonMetricLabels(indexShard)
-                )
-            );
+            this.filesToWarm = Collections.unmodifiableMap(filesToWarm);
         }
 
         void run() {
-            commit.commitFiles()
-                .entrySet()
+            filesToWarm.entrySet()
                 .stream()
                 .sorted(Map.Entry.comparingByKey(new IndexingShardRecoveryComparator()))
                 .forEach(entry -> addFile(entry.getKey(), entry.getValue()));
         }
 
         @Override
-        public void close() {
-            listeners.close();
+        protected boolean isCancelled() {
+            return super.isCancelled() || indexShard.state() != IndexShardState.RECOVERING;
+        }
+
+        private static int segmentCount(Map<String, BlobLocation> filesToWarm) {
+            return Math.toIntExact(
+                filesToWarm.keySet().stream().filter(file -> LuceneFilesExtensions.fromFile(file) == LuceneFilesExtensions.SI).count()
+            );
         }
 
         /**
@@ -440,7 +505,7 @@ public class SharedBlobCacheWarmingService {
          * @param blobLocation the blob location of the Lucene file
          */
         private void addFile(String fileName, BlobLocation blobLocation) {
-            if (indexShard.store().isClosing()) {
+            if (isCancelled()) {
                 // skipping scheduling when store is closing
             } else if (LuceneFilesExtensions.fromFile(fileName) == LuceneFilesExtensions.CFE) {
                 SubscribableListener
@@ -478,28 +543,23 @@ public class SharedBlobCacheWarmingService {
             final int endRegion = (int) ((end - (end % regionSize == 0 ? 1 : 0)) / regionSize);
 
             if (startRegion == endRegion) {
-                enqueue(new BlobRegion(location.blobFile(), startRegion), fileName, location, position, length, listener);
+                BlobRegion blobRegion = new BlobRegion(location.blobFile(), startRegion);
+                enqueue(blobRegion, fileName, location, position, length, listener);
             } else {
                 try (var listeners = new RefCountingListener(listener)) {
                     for (int r = startRegion; r <= endRegion; r++) {
                         // adjust the position & length to the region
                         var range = ByteRange.of(Math.max(start, (long) r * regionSize), Math.min(end, (r + 1L) * regionSize));
-                        enqueue(
-                            new BlobRegion(location.blobFile(), r),
-                            fileName,
-                            location,
-                            range.start(),
-                            range.length(),
-                            listeners.acquire()
-                        );
+                        BlobRegion blobRegion = new BlobRegion(location.blobFile(), r);
+                        enqueue(blobRegion, fileName, location, range.start(), range.length(), listeners.acquire());
                     }
                 }
             }
         }
 
         private void addCfe(String fileName) {
-            assert indexShard.store().hasReferences();// store.incRef() is held by toplevel warmCache until warming is complete
-            // We spawn to the generic pool here (via a throtrled task runner), so that we have the following invocation path across
+            assert store.hasReferences(); // store.incRef() is held by toplevel warmCache until warming is complete
+            // We spawn to the generic pool here (via a throttled task runner), so that we have the following invocation path across
             // the thread pools: GENERIC (recovery) -> FILL_VBCC_THREAD_POOL (if fetching from indexing node) -> GENERIC.
             // We expect no blocking here since `addCfe` gets called AFTER warming the region.
             cfeThrottledTaskRunner.enqueueTask(listeners.acquire().map(ref -> {
@@ -511,7 +571,7 @@ public class SharedBlobCacheWarmingService {
                     }
 
                     var cfs = fileName.replace(".cfe", ".cfs");
-                    var cfsLocation = commit.commitFiles().get(cfs);
+                    var cfsLocation = filesToWarm.get(cfs);
 
                     entries.entrySet()
                         .stream()
@@ -541,23 +601,203 @@ public class SharedBlobCacheWarmingService {
         ) {
             var blobRanges = queues.computeIfAbsent(blobRegion, BlobRangesQueue::new);
             if (blobRanges.add(fileName, blobLocation, position, length, listener)) {
-                createWarmingTask(blobRanges);
+                scheduleWarmingTask(new WarmingTask(blobRanges));
             }
         }
 
-        private void createWarmingTask(BlobRangesQueue queue) {
-            throttledTaskRunner.enqueueTask(new WarmingTask(queue));
+        private static boolean shouldFullyWarmUp(String fileName) {
+            var extension = LuceneFilesExtensions.fromFile(fileName);
+            return extension == null // segments_N are fully warmed up in cache
+                || extension.isMetadata() // metadata files
+                || StatelessCommitService.isGenerationalFile(fileName); // generational files
+        }
+    }
+
+    private class MergeWarmer extends AbstractWarmer {
+
+        private final Collection<BlobLocation> locationsToWarm;
+        private final BooleanSupplier mergeCancelled;
+
+        MergeWarmer(
+            WarmingRun warmingRun,
+            Store store,
+            Map<String, BlobLocation> filesToWarm,
+            int segmentCount,
+            BooleanSupplier mergeCancelled,
+            BlobStoreCacheDirectory directory,
+            ActionListener<Void> listener
+        ) {
+            super(warmingRun, store, filesToWarm.size(), segmentCount, directory, listener);
+            this.locationsToWarm = filesToWarm.values();
+            this.mergeCancelled = mergeCancelled;
+        }
+
+        void run() {
+            HashMap<BlobFile, Long> locations = new HashMap<>();
+            for (BlobLocation location : locationsToWarm) {
+                // compute the largest position in the blob that needs to be warmed
+                locations.compute(location.blobFile(), (blobFile, existingLength) -> {
+                    long embeddedEndOffset = location.offset() + location.fileLength();
+                    if (existingLength == null) {
+                        return embeddedEndOffset;
+                    } else {
+                        return Math.max(embeddedEndOffset, existingLength);
+                    }
+                });
+
+            }
+
+            locations.forEach(
+                (blobFile, length) -> scheduleWarmingTask(
+                    new WarmBlobLocationTask(new BlobLocation(blobFile, 0, length), listeners.acquire())
+                )
+            );
+        }
+
+        @Override
+        protected boolean isCancelled() {
+            return super.isCancelled() || mergeCancelled.getAsBoolean();
+        }
+    }
+
+    private abstract class AbstractWarmer implements Releasable {
+
+        private final WarmingRun warmingRun;
+        private final ShardId shardId;
+        private final int fileCount;
+        private final int segmentCount;
+        protected final BlobStoreCacheDirectory directory;
+        protected final Store store;
+        protected final RefCountingListener listeners;
+
+        protected final AtomicLong tasksCount = new AtomicLong(0L);
+        protected final AtomicLong totalBytesCopied = new AtomicLong(0L);
+
+        AbstractWarmer(
+            WarmingRun warmingRun,
+            Store store,
+            int fileCount,
+            int segmentCount,
+            BlobStoreCacheDirectory directory,
+            ActionListener<Void> listener
+        ) {
+            this.warmingRun = warmingRun;
+            this.shardId = warmingRun.shardId();
+            this.store = store;
+            this.fileCount = fileCount;
+            this.segmentCount = segmentCount;
+            this.directory = directory;
+            this.listeners = new RefCountingListener(metering(logging(listener)));
+        }
+
+        private ActionListener<Void> logging(ActionListener<Void> target) {
+            final long started = threadPool.rawRelativeTimeInMillis();
+            logger.debug("{} {} warming, {}", shardId, warmingRun.type(), warmingRun.logIdentifier());
+            return ActionListener.runBefore(target, () -> {
+                final long duration = threadPool.rawRelativeTimeInMillis() - started;
+                logger.log(
+                    duration >= 5000 ? Level.INFO : Level.DEBUG,
+                    "{} {} warming completed in {} ms ({} segments, {} files, {} tasks, {} bytes)",
+                    shardId,
+                    warmingRun.type(),
+                    duration,
+                    segmentCount,
+                    fileCount,
+                    tasksCount.get(),
+                    totalBytesCopied.get()
+                );
+            }).delegateResponse((l, e) -> {
+                Supplier<String> logMessage = () -> Strings.format("%s %s warming failed", shardId, warmingRun.type());
+                if (logger.isDebugEnabled()) {
+                    logger.debug(logMessage, e);
+                } else {
+                    logger.info(logMessage);
+                }
+                l.onFailure(e);
+            });
+        }
+
+        private ActionListener<Void> metering(ActionListener<Void> target) {
+            return ActionListener.runAfter(
+                target,
+                () -> cacheWarmingPageAlignedBytesTotalMetric.incrementBy(totalBytesCopied.get(), warmingRun.labels())
+            );
+        }
+
+        @Override
+        public void close() {
+            listeners.close();
+        }
+
+        protected void scheduleWarmingTask(ActionListener<Releasable> warmTask) {
+            throttledTaskRunner.enqueueTask(warmTask);
             tasksCount.incrementAndGet();
         }
 
-        private boolean isCancelled() {
-            return indexShard.store().isClosing() || indexShard.state() != IndexShardState.RECOVERING;
+        protected class WarmBlobLocationTask implements ActionListener<Releasable> {
+
+            private final BlobLocation blobLocation;
+            private final BlobFile blobFile;
+            private final ActionListener<Void> listener;
+
+            WarmBlobLocationTask(BlobLocation blobLocation, ActionListener<Void> listener) {
+                this.blobLocation = Objects.requireNonNull(blobLocation);
+                this.blobFile = blobLocation.blobFile();
+                this.listener = listener;
+                logger.trace("{} {}: scheduled {}", shardId, warmingRun.type(), blobLocation);
+            }
+
+            @Override
+            public void onResponse(Releasable releasable) {
+                var cacheKey = new FileCacheKey(shardId, blobFile.primaryTerm(), blobFile.blobName());
+                var cacheBlobReader = directory.getCacheBlobReaderForWarming(blobLocation);
+                ByteRange range = cacheBlobReader.getRange(0, Math.toIntExact(blobLocation.fileLength()), blobLocation.fileLength());
+                int endingRegion = getEndingRegion(range.length());
+
+                // TODO: Evaluate reducing to fewer fetches in the future. For example, reading multiple fetches in a single read.
+                try (RefCountingListener ref = new RefCountingListener(ActionListener.releaseAfter(listener, releasable))) {
+                    for (int i = 0; i <= endingRegion; i++) {
+                        int offset = i * cacheService.getRegionSize();
+                        cacheService.maybeFetchRegion(
+                            cacheKey,
+                            i,
+                            cacheService.getRegionSize(),
+                            new SequentialRangeMissingHandler(
+                                WarmBlobLocationTask.this,
+                                cacheKey.fileName(),
+                                ByteRange.of(offset, offset + cacheService.getRegionSize()),
+                                cacheBlobReader,
+                                () -> writeBuffer.get().clear(),
+                                totalBytesCopied::addAndGet,
+                                Stateless.PREWARM_THREAD_POOL
+                            ),
+                            fetchExecutor,
+                            ref.acquire().map(b -> null)
+                        );
+                    }
+                }
+            }
+
+            private int getEndingRegion(long position) {
+                int regionSize = cacheService.getRegionSize();
+                return (int) ((position - (position % regionSize == 0 ? 1 : 0)) / regionSize);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                logger.error(() -> format("%s %s failed to warm blob %s", shardId, warmingRun.type(), blobLocation), e);
+            }
+
+            @Override
+            public String toString() {
+                return "WarmBlobLocationTask{blobLocation=" + blobLocation + "}";
+            }
         }
 
         /**
          * Warms in cache all pending file locations of a given blob region.
          */
-        private class WarmingTask implements ActionListener<Releasable> {
+        protected class WarmingTask implements ActionListener<Releasable> {
 
             private final BlobRangesQueue queue;
             private final BlobRegion blobRegion;
@@ -565,13 +805,13 @@ public class SharedBlobCacheWarmingService {
             WarmingTask(BlobRangesQueue queue) {
                 this.queue = Objects.requireNonNull(queue);
                 this.blobRegion = queue.blobRegion;
-                logger.trace("{} {}: scheduled {}", indexShard.shardId(), type, blobRegion);
+                logger.trace("{} {}: scheduled {}", shardId, warmingRun.type(), blobRegion);
             }
 
             @Override
             public void onResponse(Releasable releasable) {
                 try (RefCountingRunnable refs = new RefCountingRunnable(() -> Releasables.close(releasable))) {
-                    var cacheKey = new FileCacheKey(indexShard.shardId(), blobRegion.blob.primaryTerm(), blobRegion.blob.blobName());
+                    var cacheKey = new FileCacheKey(shardId, blobRegion.blob.primaryTerm(), blobRegion.blob.blobName());
 
                     var remaining = queue.counter.get();
                     assert 0 < remaining : remaining;
@@ -682,13 +922,17 @@ public class SharedBlobCacheWarmingService {
 
             @Override
             public void onFailure(Exception e) {
-                logger.error(() -> format("%s %s failed to warm region %s", indexShard.shardId(), type, blobRegion), e);
+                logger.error(() -> format("%s %s failed to warm region %s", shardId, warmingRun.type(), blobRegion), e);
             }
 
             @Override
             public String toString() {
                 return "WarmingTask{region=" + blobRegion + "}";
             }
+        }
+
+        protected boolean isCancelled() {
+            return store.isClosing();
         }
     }
 }

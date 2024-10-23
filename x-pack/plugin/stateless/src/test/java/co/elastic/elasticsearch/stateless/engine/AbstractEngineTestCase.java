@@ -20,6 +20,7 @@
 package co.elastic.elasticsearch.stateless.engine;
 
 import co.elastic.elasticsearch.stateless.Stateless;
+import co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService;
 import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
 import co.elastic.elasticsearch.stateless.cache.reader.CacheBlobReaderService;
 import co.elastic.elasticsearch.stateless.cache.reader.MutableObjectStoreUploadTracker;
@@ -203,6 +204,7 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
             translogReplicator,
             objectStoreService,
             commitService,
+            mock(SharedBlobCacheWarmingService.class),
             DocumentParsingProvider.EMPTY_INSTANCE,
             TranslogRecoveryMetrics.NOOP
         );
@@ -213,6 +215,7 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
         TranslogReplicator translogReplicator,
         ObjectStoreService objectStoreService,
         StatelessCommitService commitService,
+        SharedBlobCacheWarmingService sharedBlobCacheWarmingService,
         DocumentParsingProvider documentParsingProvider,
         TranslogRecoveryMetrics translogRecoveryMetrics
     ) {
@@ -221,6 +224,7 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
             translogReplicator,
             objectStoreService::getTranslogBlobContainer,
             commitService,
+            sharedBlobCacheWarmingService,
             RefreshThrottler.Noop::new,
             commitService.getIndexEngineLocalReaderListenerForShard(indexConfig.getShardId()),
             commitService.getCommitBCCResolverForShard(indexConfig.getShardId()),

@@ -1063,7 +1063,7 @@ public class IndexingShardRelocationIT extends AbstractStatelessIntegTestCase {
             }
             return new SharedBlobCacheWarmingService(cacheService, threadPool, telemetryProvider, settings) {
                 @Override
-                protected void warmCache(
+                protected void warmCacheRecovery(
                     Type type,
                     IndexShard indexShard,
                     StatelessCompoundCommit commit,

@@ -38,6 +38,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.util.Set;
 import java.util.concurrent.Executor;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 /**
@@ -59,17 +60,29 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
         Setting.Property.NodeScope
     );
 
+    public static final Setting<Boolean> MERGE_PREWARM = Setting.boolSetting("stateless.merge.prewarm", true, Setting.Property.NodeScope);
+
     private final Logger logger;
+    private final boolean prewarm;
     private final ThreadPool threadPool;
+    private final BiConsumer<String, MergePolicy.OneMerge> warmer;
     private final Consumer<Exception> exceptionHandler;
     private final MergeTracking mergeTracking;
     private final SameThreadExecutorService sameThreadExecutorService = new SameThreadExecutorService();
 
     // TODO: We could consider using a prioritized executor to compare merges. In particular, when comparing two merges between the same
     // shard perhaps we should prefer to execute a smaller merge first. This should probably be follow-up work.
-    public ThreadPoolMergeScheduler(ShardId shardId, ThreadPool threadPool, Consumer<Exception> exceptionHandler) {
+    public ThreadPoolMergeScheduler(
+        ShardId shardId,
+        boolean prewarm,
+        ThreadPool threadPool,
+        BiConsumer<String, MergePolicy.OneMerge> warmer,
+        Consumer<Exception> exceptionHandler
+    ) {
         this.logger = Loggers.getLogger(getClass(), shardId);
+        this.prewarm = prewarm;
         this.threadPool = threadPool;
+        this.warmer = warmer;
         this.exceptionHandler = exceptionHandler;
         this.mergeTracking = new MergeTracking(logger, () -> Double.POSITIVE_INFINITY);
     }
@@ -126,6 +139,9 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
                 long timeNS = System.nanoTime();
                 mergeTracking.mergeStarted(onGoingMerge);
                 try {
+                    if (prewarm) {
+                        warmer.accept(onGoingMerge.getId(), currentMerge);
+                    }
                     mergeSource.merge(currentMerge);
                 } finally {
                     long tookMS = TimeValue.nsecToMSec(System.nanoTime() - timeNS);

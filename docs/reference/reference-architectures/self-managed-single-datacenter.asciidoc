@@ -1,7 +1,8 @@
 [[self-managed-single-datacenter]]
 == Elastic Highly Available Architecture: Self Managed -  Single Datacenter
 
-This architecture is designed so as to satisfy high availability requirements under normal processing as well as including high availability and resiliency during node maintenance or re-paving activities.  The architecture includes all the necessary components of the Elastic Stack but is not intended for sizing workloads.  It is being provided as a pattern that can be leveraged and extended as needed to address your specific needs. 
+This architecture ensures high availability during normal operations and node maintenance. It includes all necessary Elastic Stack components but is not intended for workload sizing. Use this pattern as a foundation and extend it to meet your specific needs. While it represents data flow for context, implementations may vary. Key design elements include the number and location of master nodes, data nodes, zone awareness, and shard allocation strategy. For more details, see https://www.elastic.co/guide/en/elasticsearch/reference/current/high-availability-cluster-design-large-clusters.html#high-availability-cluster-design-two-zones[Resilience in larger clusters - Two-zone clusters]. This design does not cover cross-region (geographically diverse) disaster recovery.
+
 While this architecture does include a representation of a data flow, this is being provided for contextual understanding and may differ from implementation to implementation.  The critical portion of the design is the number and location of master nodes, the location of data nodes, zone awareness and the shard allocation strategy.  For additional information see this https://www.elastic.co/guide/en/elasticsearch/reference/current/high-availability-cluster-design-large-clusters.html#high-availability-cluster-design-two-zones[reference].
 This design does not address cross region (i.e. geographically diverse) disaster recovery.  
 

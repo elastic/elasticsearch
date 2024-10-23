@@ -168,16 +168,16 @@ public interface DocValueFormat extends NamedWriteable {
         }
     };
 
-    DocValueFormat DENSE = DenseDocValueFormat.INSTANCE;
+    DocValueFormat DENSE_VECTOR = DenseVectorDocValueFormat.INSTANCE;
 
     /**
      * Singleton, stateless formatter, for dense vector values, no need to actually format anything
      */
-    class DenseDocValueFormat implements DocValueFormat {
+    class DenseVectorDocValueFormat implements DocValueFormat {
 
-        public static final DocValueFormat INSTANCE = new DenseDocValueFormat();
+        public static final DocValueFormat INSTANCE = new DenseVectorDocValueFormat();
 
-        private DenseDocValueFormat() {}
+        private DenseVectorDocValueFormat() {}
 
         @Override
         public String getWriteableName() {

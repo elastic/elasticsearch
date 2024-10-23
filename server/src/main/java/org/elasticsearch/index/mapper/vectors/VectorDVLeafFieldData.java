@@ -16,11 +16,10 @@ import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.fielddata.DenseVectorNumericByteValues;
-import org.elasticsearch.index.fielddata.DenseVectorNumericFloatValues;
 import org.elasticsearch.index.fielddata.FormattedDocValues;
 import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.plain.DenseVectorNumericValues;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.script.field.vectors.BinaryDenseVectorDocValuesField;
@@ -89,107 +88,92 @@ final class VectorDVLeafFieldData implements LeafFieldData {
 
     @Override
     public FormattedDocValues getFormattedValues(DocValueFormat format) {
-
         return switch (elementType) {
-            case BYTE, BIT -> new FormattedDocValues() {
-                final DenseVectorNumericByteValues values = getByteValues();
+            case BYTE, BIT -> new DenseVectorNumericValues(elementType == ElementType.BIT ? this.dims / Byte.SIZE : this.dims) {
+                private byte[] values;
+                private ByteVectorValues byteVectorValues; // use when indexed
 
                 @Override
                 public boolean advanceExact(int docId) throws IOException {
-                    return values.advanceExact(docId);
+                    if (indexed) {
+                        if (byteVectorValues == null) {
+                            this.byteVectorValues = reader.getByteVectorValues(field);
+                        }
+                        if (iterator == null) {
+                            this.iterator = byteVectorValues.iterator();
+                        }
+                        if (iterator.advance(docId) == NO_MORE_DOCS) {
+                            return false;
+                        }
+                        values = byteVectorValues.vectorValue(iterator.index());
+                    } else {
+                        if (binary == null) {
+                            binary = DocValues.getBinary(reader, field);
+                        }
+                        if (binary.advance(docId) == NO_MORE_DOCS) {
+                            return false;
+                        }
+                        BytesRef ref = binary.binaryValue();
+                        ByteBuffer byteBuffer = ByteBuffer.wrap(ref.bytes, ref.offset, ref.length);
+                        if (indexVersion.onOrAfter(DenseVectorFieldMapper.LITTLE_ENDIAN_FLOAT_STORED_INDEX_VERSION)) {
+                            byteBuffer.order(ByteOrder.LITTLE_ENDIAN);
+                        }
+                        values = new byte[dims];
+                        for (int dim = 0; dim < dims; dim++) {
+                            values[dim] = byteBuffer.get();
+                        }
+                    }
+                    valuesCursor = 0;
+                    return true;
                 }
 
-                @Override
-                public int docValueCount() throws IOException {
-                    return values.docValueCount();
-                }
-
-                @Override
-                public Object nextValue() throws IOException {
-                    return values.nextValue();
+                public Object nextValue() {
+                    return values[valuesCursor++];
                 }
             };
-            case FLOAT -> new FormattedDocValues() {
-                final DenseVectorNumericFloatValues values = getFloatValues();
+            case FLOAT -> new DenseVectorNumericValues(dims) {
+                private float[] values;
+                private FloatVectorValues floatVectorValues; // use when indexed
 
                 @Override
                 public boolean advanceExact(int docId) throws IOException {
-                    return values.advanceExact(docId);
+                    if (indexed) {
+                        if (floatVectorValues == null) {
+                            this.floatVectorValues = reader.getFloatVectorValues(field);
+                        }
+                        if (iterator == null) {
+                            this.iterator = floatVectorValues.iterator();
+                        }
+                        if (iterator.advance(docId) == NO_MORE_DOCS) {
+                            return false;
+                        }
+                        values = floatVectorValues.vectorValue(iterator.index());
+                    } else {
+                        if (binary == null) {
+                            binary = DocValues.getBinary(reader, field);
+                        }
+                        if (binary.advance(docId) == NO_MORE_DOCS) {
+                            return false;
+                        }
+                        BytesRef ref = binary.binaryValue();
+                        ByteBuffer byteBuffer = ByteBuffer.wrap(ref.bytes, ref.offset, ref.length);
+                        if (indexVersion.onOrAfter(DenseVectorFieldMapper.LITTLE_ENDIAN_FLOAT_STORED_INDEX_VERSION)) {
+                            byteBuffer.order(ByteOrder.LITTLE_ENDIAN);
+                        }
+                        values = new float[dims];
+                        for (int dim = 0; dim < dims; dim++) {
+                            values[dim] = byteBuffer.getFloat();
+                        }
+                    }
+                    valuesCursor = 0;
+                    return true;
                 }
 
                 @Override
-                public int docValueCount() throws IOException {
-                    return values.docValueCount();
-                }
-
-                @Override
-                public Object nextValue() throws IOException {
-                    return values.nextValue();
+                public Object nextValue() {
+                    return values[valuesCursor++];
                 }
             };
-        };
-    }
-
-    private DenseVectorNumericByteValues getByteValues() {
-        int dims = elementType == ElementType.BIT ? this.dims / Byte.SIZE : this.dims;
-        return new DenseVectorNumericByteValues(dims) {
-            @Override
-            public boolean advanceExact(int docID) throws IOException {
-                if (indexed) {
-                    final ByteVectorValues byteVectorValues = reader.getByteVectorValues(field);
-                    if (byteVectorValues.advance(docID) == NO_MORE_DOCS) {
-                        return false;
-                    }
-                    values = byteVectorValues.vectorValue();
-                } else {
-                    BinaryDocValues binary = DocValues.getBinary(reader, field);
-                    if (binary.advance(docID) == NO_MORE_DOCS) {
-                        return false;
-                    }
-                    BytesRef ref = binary.binaryValue();
-                    ByteBuffer byteBuffer = ByteBuffer.wrap(ref.bytes, ref.offset, ref.length);
-                    if (indexVersion.onOrAfter(DenseVectorFieldMapper.LITTLE_ENDIAN_FLOAT_STORED_INDEX_VERSION)) {
-                        byteBuffer.order(ByteOrder.LITTLE_ENDIAN);
-                    }
-                    values = new byte[dims];
-                    for (int dim = 0; dim < dims; dim++) {
-                        values[dim] = byteBuffer.get();
-                    }
-                }
-                valuesCursor = 0;
-                return true;
-            }
-        };
-    }
-
-    private DenseVectorNumericFloatValues getFloatValues() {
-        return new DenseVectorNumericFloatValues(dims) {
-            @Override
-            public boolean advanceExact(int docID) throws IOException {
-                if (indexed) {
-                    final FloatVectorValues floatVectorValues = reader.getFloatVectorValues(field);
-                    if (floatVectorValues.advance(docID) == NO_MORE_DOCS) {
-                        return false;
-                    }
-                    values = floatVectorValues.vectorValue();
-                } else {
-                    BinaryDocValues binary = DocValues.getBinary(reader, field);
-                    if (binary.advance(docID) == NO_MORE_DOCS) {
-                        return false;
-                    }
-                    BytesRef ref = binary.binaryValue();
-                    ByteBuffer byteBuffer = ByteBuffer.wrap(ref.bytes, ref.offset, ref.length);
-                    if (indexVersion.onOrAfter(DenseVectorFieldMapper.LITTLE_ENDIAN_FLOAT_STORED_INDEX_VERSION)) {
-                        byteBuffer.order(ByteOrder.LITTLE_ENDIAN);
-                    }
-                    values = new float[dims];
-                    for (int dim = 0; dim < dims; dim++) {
-                        values[dim] = byteBuffer.getFloat();
-                    }
-                }
-                valuesCursor = 0;
-                return true;
-            }
         };
     }
 }

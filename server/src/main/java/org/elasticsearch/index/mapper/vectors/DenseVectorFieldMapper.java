@@ -99,8 +99,6 @@ import static org.elasticsearch.index.IndexVersions.DEFAULT_DENSE_VECTOR_TO_INT8
  * A {@link FieldMapper} for indexing a dense vector of floats.
  */
 public class DenseVectorFieldMapper extends FieldMapper {
-    public static final NodeFeature DOCVALUES_FIELDS_SUPPORTED = new NodeFeature("search.vectors.docvalues_fields_supported");
-
     public static final String COSINE_MAGNITUDE_FIELD_SUFFIX = "._magnitude";
     private static final float EPS = 1e-3f;
     static final int BBQ_MIN_DIMS = 64;
@@ -1906,7 +1904,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         @Override
         public DocValueFormat docValueFormat(String format, ZoneId timeZone) {
-            return DocValueFormat.DENSE;
+            return DocValueFormat.DENSE_VECTOR;
         }
 
         @Override

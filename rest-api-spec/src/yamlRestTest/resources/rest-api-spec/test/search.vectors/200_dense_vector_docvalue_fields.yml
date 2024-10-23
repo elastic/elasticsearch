@@ -1,6 +1,7 @@
 setup:
   - requires:
-      cluster_features: "search.vectors.docvalues_fields_supported"
+      cluster_features: "gte_v8.17.0"
+      "test_runner_features": "close_to"
       reason: 'docvalue_fields parameter for dense_vector fields is required'
   - do:
       indices.create:
@@ -52,6 +53,12 @@ setup:
           vector4: [-1, 50, -1, 1, 120]
           vector5: [1, 111, -13, 15, -128]
           vector6: [-1, 11, 0, 12, 111]
+  - do:
+      index:
+        index: test
+        id: "2"
+        body:
+          name: moose.jpg
 
   - do:
       indices.refresh: {}
@@ -83,29 +90,29 @@ setup:
   - length: {hits.hits.0.fields.vector5: 5}
   - length: {hits.hits.0.fields.vector6: 5}
 
-  - lt: { hits.hits.0.fields.vector1.0: 230.01}
-  - gt: { hits.hits.0.fields.vector1.0: 229.99}
-  - lt: { hits.hits.0.fields.vector1.1: 300.331}
-  - gt: { hits.hits.0.fields.vector1.1: 300.329}
-  - lt: { hits.hits.0.fields.vector1.2: -34.8987}
-  - gt: { hits.hits.0.fields.vector1.2: -34.8989}
-  - lt: { hits.hits.0.fields.vector1.3: 15.5551}
-  - gt: { hits.hits.0.fields.vector1.3: 15.5549}
-  - lt: { hits.hits.0.fields.vector1.4: -199.99}
-  - gt: { hits.hits.0.fields.vector1.4: -200.01}
+  - close_to: { hits.hits.0.fields.vector1.0: { value: 230.0, error: 0.001 } }
+  - close_to: { hits.hits.0.fields.vector1.1: { value: 300.33, error: 0.001 } }
+  - close_to: { hits.hits.0.fields.vector1.2: { value: -34.8988, error: 0.001 } }
+  - close_to: { hits.hits.0.fields.vector1.3: { value: 15.555, error: 0.001 } }
+  - close_to: { hits.hits.0.fields.vector1.4: { value: -200.0, error: 0.001 } }
 
-  - lt: { hits.hits.0.fields.vector2.0: 130.01}
-  - gt: { hits.hits.0.fields.vector2.0: 129.99}
-  - lt: { hits.hits.0.fields.vector2.1: 115.01}
-  - gt: { hits.hits.0.fields.vector2.1: 114.99}
-  - lt: { hits.hits.0.fields.vector2.2: -1.019}
-  - gt: { hits.hits.0.fields.vector2.2: -1.021}
-  - lt: { hits.hits.0.fields.vector2.3: 15.5551}
-  - gt: { hits.hits.0.fields.vector2.3: 15.5549}
-  - lt: { hits.hits.0.fields.vector2.4: -99.99}
-  - gt: { hits.hits.0.fields.vector2.4: -100.01}
+  - close_to: { hits.hits.0.fields.vector2.0: { value: 130.0, error: 0.001 } }
+  - close_to: { hits.hits.0.fields.vector2.1: { value: 115.0, error: 0.001 } }
+  - close_to: { hits.hits.0.fields.vector2.2: { value: -1.02, error: 0.001 } }
+  - close_to: { hits.hits.0.fields.vector2.3: { value: 15.555, error: 0.001 } }
+  - close_to: { hits.hits.0.fields.vector2.4: { value: -100.0, error: 0.001 } }
 
   - match: {hits.hits.0.fields.vector3: [-1, 100, -13, 15, -128]}
   - match: {hits.hits.0.fields.vector4: [-1, 50, -1, 1, 120]}
   - match: {hits.hits.0.fields.vector5: [1, 111, -13, 15, -128]}
   - match: {hits.hits.0.fields.vector6: [-1, 11, 0, 12, 111]}
+
+  - match: {hits.hits.1._id: "2"}
+  - match: {hits.hits.1.fields.name.0: "moose.jpg"}
+
+  - match: {hits.hits.1.fields.vector1: null}
+  - match: {hits.hits.1.fields.vector2: null}
+  - match: {hits.hits.1.fields.vector3: null}
+  - match: {hits.hits.1.fields.vector4: null}
+  - match: {hits.hits.1.fields.vector5: null}
+  - match: {hits.hits.1.fields.vector6: null}

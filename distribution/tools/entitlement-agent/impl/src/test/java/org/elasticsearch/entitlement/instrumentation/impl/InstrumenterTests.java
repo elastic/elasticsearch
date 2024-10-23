@@ -9,6 +9,7 @@
 
 package org.elasticsearch.entitlement.instrumentation.impl;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.entitlement.api.EntitlementChecks;
 import org.elasticsearch.entitlement.api.EntitlementProvider;
 import org.elasticsearch.entitlement.instrumentation.InstrumentationService;
@@ -136,8 +137,8 @@ public class InstrumenterTests extends ESTestCase {
         byte[] instrumentedBytecode = instrumenter.instrumentClass(internalClassName, initial.bytecodes());
         byte[] instrumentedTwiceBytecode = instrumenter.instrumentClass(internalClassName, instrumentedBytecode);
 
-        logger.trace(() -> String.format("Bytecode after 1st instrumentation:\n%s", bytecode2text(instrumentedBytecode)));
-        logger.trace(() -> String.format("Bytecode after 2nd instrumentation:\n%s", bytecode2text(instrumentedTwiceBytecode)));
+        logger.trace(() -> Strings.format("Bytecode after 1st instrumentation:\n%s", bytecode2text(instrumentedBytecode)));
+        logger.trace(() -> Strings.format("Bytecode after 2nd instrumentation:\n%s", bytecode2text(instrumentedTwiceBytecode)));
 
         Class<?> newClass = new TestLoader(Testable.class.getClassLoader()).defineClassFromBytes(
             ClassToInstrument.class.getName() + "_NEW_NEW",
@@ -161,8 +162,8 @@ public class InstrumenterTests extends ESTestCase {
         byte[] instrumentedBytecode = instrumenter.instrumentClass(internalClassName, initial.bytecodes());
         byte[] instrumentedTwiceBytecode = instrumenter.instrumentClass(internalClassName, instrumentedBytecode);
 
-        logger.trace(() -> String.format("Bytecode after 1st instrumentation:\n%s", bytecode2text(instrumentedBytecode)));
-        logger.trace(() -> String.format("Bytecode after 2nd instrumentation:\n%s", bytecode2text(instrumentedTwiceBytecode)));
+        logger.trace(() -> Strings.format("Bytecode after 1st instrumentation:\n%s", bytecode2text(instrumentedBytecode)));
+        logger.trace(() -> Strings.format("Bytecode after 2nd instrumentation:\n%s", bytecode2text(instrumentedTwiceBytecode)));
 
         Class<?> newClass = new TestLoader(Testable.class.getClassLoader()).defineClassFromBytes(
             ClassToInstrument.class.getName() + "_NEW_NEW",

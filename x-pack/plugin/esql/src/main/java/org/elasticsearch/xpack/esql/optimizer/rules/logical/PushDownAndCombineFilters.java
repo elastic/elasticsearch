@@ -39,6 +39,7 @@ public final class PushDownAndCombineFilters extends OptimizerRules.OptimizerRul
         // TODO: Push down past STATS if the filter is only on the groups; but take into account how `STATS ... BY field` handles
         // multi-values: It seems to be equivalent to `EVAL field = MV_DEDUPE(field) | MV_EXPAND(field) | STATS ... BY field`, where the
         // last `STATS ... BY field` can assume that `field` is single-valued (to be checked more thoroughly).
+        // https://github.com/elastic/elasticsearch/issues/115311
         if (child instanceof Filter f) {
             // combine nodes into a single Filter with updated ANDed condition
             plan = f.with(Predicates.combineAnd(List.of(f.condition(), condition)));

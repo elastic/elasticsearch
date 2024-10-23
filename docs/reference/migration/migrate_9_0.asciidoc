@@ -34,3 +34,4 @@ To find out if you are using any deprecated functionality,
 enable <<deprecation-logging, deprecation logging>>.
 
 
+include::transient-settings-migration-guide.asciidoc[]

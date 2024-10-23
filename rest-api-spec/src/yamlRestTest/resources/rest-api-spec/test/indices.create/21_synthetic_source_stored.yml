@@ -319,7 +319,7 @@ object param - nested object array next to other fields:
 ---
 object param - nested object with stored array:
   - requires:
-      cluster_features: ["mapper.ignored_source.always_store_object_arrays_in_nested", "mapper.bwc_workaround_9_0"]
+      cluster_features: ["mapper.ignored_source.always_store_object_arrays_in_nested"]
       reason: requires fix to object array handling
 
   - do:

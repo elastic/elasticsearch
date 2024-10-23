@@ -43,6 +43,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptySet;
+import static org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions.ROLE_REMOTE_CLUSTER_PRIVS;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -69,7 +70,7 @@ public class GetUserPrivilegesResponseTests extends ESTestCase {
     public void testSerializationForCurrentVersion() throws Exception {
         final TransportVersion version = TransportVersionUtils.randomCompatibleVersion(random());
         final boolean canIncludeRemoteIndices = version.onOrAfter(TransportVersions.V_8_8_0);
-        final boolean canIncludeRemoteCluster = version.onOrAfter(TransportVersions.ROLE_REMOTE_CLUSTER_PRIVS);
+        final boolean canIncludeRemoteCluster = version.onOrAfter(ROLE_REMOTE_CLUSTER_PRIVS);
 
         final GetUserPrivilegesResponse original = randomResponse(canIncludeRemoteIndices, canIncludeRemoteCluster);
 

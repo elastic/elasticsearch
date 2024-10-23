@@ -532,6 +532,7 @@ public class AnthropicServiceTests extends ESTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/114385")
     public void testInfer_StreamRequest() throws Exception {
         String responseJson = """
             data: {"type": "message_start", "message": {"model": "claude, probably"}}
@@ -577,6 +578,7 @@ public class AnthropicServiceTests extends ESTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/114385")
     public void testInfer_StreamRequest_ErrorResponse() throws Exception {
         String responseJson = """
             data: {"type": "error", "error": {"type": "request_too_large", "message": "blah"}}

@@ -30,20 +30,21 @@ public interface IndexSettingProvider {
      * Returns explicitly set default index {@link Settings} for the given index. This should not
      * return null.
      *
-     * @param indexName                The name of the new index being created
-     * @param dataStreamName           The name of the data stream if the index being created is part of a data stream otherwise
-     *                                 <code>null</code>
-     * @param isTimeSeries             Whether the template is in time series mode.
-     * @param metadata                 The current metadata instance that doesn't yet contain the index to be created
-     * @param resolvedAt               The time the request to create this new index was accepted.
-     * @param indexTemplateAndCreateRequestSettings    All the settings resolved from the template that matches and any settings
-     *                                                 defined on the create index request
-     * @param combinedTemplateMappings All the mappings resolved from the template that matches
+     * @param indexName                             The name of the new index being created
+     * @param dataStreamName                        The name of the data stream if the index being created is part of a data stream
+     *                                              otherwise <code>null</code>
+     * @param templateIndexMode                     The index mode defined in template if template creates data streams,
+     *                                              otherwise <code>null</code> is returned.
+     * @param metadata                              The current metadata instance that doesn't yet contain the index to be created
+     * @param resolvedAt                            The time the request to create this new index was accepted.
+     * @param indexTemplateAndCreateRequestSettings All the settings resolved from the template that matches and any settings
+     *                                              defined on the create index request
+     * @param combinedTemplateMappings              All the mappings resolved from the template that matches
      */
     Settings getAdditionalIndexSettings(
         String indexName,
         @Nullable String dataStreamName,
-        boolean isTimeSeries,
+        @Nullable IndexMode templateIndexMode,
         Metadata metadata,
         Instant resolvedAt,
         Settings indexTemplateAndCreateRequestSettings,
@@ -55,5 +56,16 @@ public interface IndexSettingProvider {
      */
     record Parameters(CheckedFunction<IndexMetadata, MapperService, IOException> mapperServiceFactory) {
 
+    }
+
+    /**
+     * Indicates whether the additional settings that this provider returns can overrule the settings defined in matching template
+     * or in create index request.
+     *
+     * Note that this is not used during index template validation, to avoid overruling template settings that may apply to
+     * different contexts (e.g. the provider is not used, or it returns different setting values).
+     */
+    default boolean overrulesTemplateAndRequestSettings() {
+        return false;
     }
 }

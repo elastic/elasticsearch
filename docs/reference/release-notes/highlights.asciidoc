@@ -1,5 +1,6 @@
+[chapter]
 [[release-highlights]]
-== What's new in {minor-version}
+= What's new in {minor-version}
 
 coming::[{minor-version}]
 

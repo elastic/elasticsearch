@@ -85,8 +85,8 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
     );
 
     public static final int EMBEDDING_MAX_BATCH_SIZE = 10;
-    public static final String DEFAULT_ELSER_ID = ".elser-2";
-    public static final String DEFAULT_E5_ID = ".multi-e5-small";
+    public static final String DEFAULT_ELSER_ID = ".elser-2-elasticsearch";
+    public static final String DEFAULT_E5_ID = ".multilingual-e5-small-elasticsearch";
 
     private static final Logger logger = LogManager.getLogger(ElasticsearchInternalService.class);
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(ElasticsearchInternalService.class);

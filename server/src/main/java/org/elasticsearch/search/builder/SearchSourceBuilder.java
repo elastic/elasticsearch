@@ -1639,6 +1639,9 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
 
         knnSearch = knnBuilders.stream().map(knnBuilder -> knnBuilder.build(size())).collect(Collectors.toList());
         if (rankBuilder != null) {
+            if (retrieverBuilder != null) {
+                throw new IllegalArgumentException("Cannot specify both [rank] and [retriever].");
+            }
             RetrieverBuilder transformedRetriever = rankBuilder.toRetriever(this, clusterSupportsFeature);
             if (transformedRetriever != null) {
                 this.retriever(transformedRetriever);

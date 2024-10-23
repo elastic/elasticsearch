@@ -648,6 +648,32 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
         }
     }
 
+    public void testThrowErrorIfBothRankAndRetrieverSpecified() throws IOException {
+        String restContent = "{\n"
+            + "    \"retriever\": {\n"
+            + "        \"standard\": {\n"
+            + "            \"query\": {\n"
+            + "                \"match_all\": {}\n"
+            + "            }\n"
+            + "        }\n"
+            + "    },\n"
+            + "    \"rank\": {\n"
+            + "        \"rrf\": {\n"
+            + "            \"rank_window_size\": 10,\n"
+            + "            \"rank_constant\": 1\n"
+            + "        }\n"
+            + "    }\n"
+            + "}";
+        SearchUsageHolder searchUsageHolder = new UsageService().getSearchUsageHolder();
+        try (XContentParser jsonParser = createParser(JsonXContent.jsonXContent, restContent)) {
+            Exception ex = expectThrows(
+                IllegalArgumentException.class,
+                () -> new SearchSourceBuilder().parseXContent(jsonParser, true, searchUsageHolder, nf -> true)
+            );
+            assertThat(ex.getMessage(), equalTo("Cannot specify both [rank] and [retriever]."));
+        }
+    }
+
     public void testStoredFieldsUsage() throws IOException {
         Set<String> storedFieldRestVariations = Set.of(
             "{\"stored_fields\" : [\"_none_\"]}",

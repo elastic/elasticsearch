@@ -39,5 +39,4 @@ To reduce the overhead of escaping, we suggest using triple quotes strings `"""`
 ----
 include::{esql-specs}/string.csv-spec[tag=likeEscapingTripleQuotes]
 ----
-====
 // end::body[]

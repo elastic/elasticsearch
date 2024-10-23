@@ -1819,7 +1819,7 @@ foo * bar
 likeEscapingTripleQuotes
 // tag::likeEscapingTripleQuotes[]
 ROW message = "foo * bar"
-| WHERE message RLIKE """foo \* bar"""
+| WHERE message LIKE """foo \* bar"""
 // end::likeEscapingTripleQuotes[]
 ;
 

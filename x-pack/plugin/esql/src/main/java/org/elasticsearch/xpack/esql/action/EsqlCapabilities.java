@@ -394,6 +394,11 @@ public class EsqlCapabilities {
         PER_AGG_FILTERING,
 
         /**
+         * Fix {@link #PER_AGG_FILTERING} grouped by ordinals.
+         */
+        PER_AGG_FILTERING_ORDS,
+
+        /**
          * Fix for an optimization that caused wrong results
          * https://github.com/elastic/elasticsearch/issues/115281
          */

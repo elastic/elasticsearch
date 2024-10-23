@@ -1,0 +1,180 @@
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
+import org.elasticsearch.gradle.internal.info.BuildParams
+
+dependencies {
+  testImplementation project(':x-pack:qa')
+  clusterModules project(':modules:mapper-extras')
+  clusterModules project(':modules:rank-eval')
+  clusterModules project(':modules:ingest-common')
+  clusterModules project(':modules:reindex')
+  clusterModules project(':modules:analysis-common')
+  clusterModules project(':modules:health-shards-availability')
+  clusterModules project(':modules:data-streams')
+  clusterModules project(':modules:multi-project')
+  clusterModules project(xpackModule('stack'))
+  clusterModules project(xpackModule('ilm'))
+  clusterModules project(xpackModule('mapper-constant-keyword'))
+  clusterModules project(xpackModule('wildcard'))
+}
+
+restResources {
+  restTests {
+    includeCore '*'
+  }
+}
+
+tasks.named("yamlRestTest").configure {
+  ArrayList<String> blacklist = [
+    /* These tests don't work on multi-project yet - we need to go through each of them and make them work */
+    'bulk/*/*',
+    'capabilities/10_basic/*',
+    'cat.aliases/*/*',
+    'cat.allocation/10_basic/*',
+    'cat.count/10_basic/*',
+    'cat.fielddata/10_basic/*',
+    'cat.health/10_basic/*',
+    'cat.indices/*/*',
+    'cat.nodeattrs/10_basic/*',
+    'cat.nodes/*/*',
+    'cat.plugins/*/*',
+    'cat.recovery/*/*',
+    'cat.repositories/*/*',
+    'cat.segments/*/*',
+    'cat.shards/*/*',
+    'cat.snapshots/*/*',
+    'cat.tasks/*/*',
+    'cat.templates/*/*',
+    'cluster.component_template/10_basic/*',
+    'cluster.desired_balance/10_basic/*',
+    'cluster.desired_nodes/*/*',
+    'cluster.health/*/*',
+    'cluster.pending_tasks/*/*',
+    'cluster.prevalidate_node_removal/*/*',
+    'cluster.reroute/11_explain/*',
+    'cluster.state/20_filtering/*',
+    'cluster.state/30_expand_wildcards/*',
+    'cluster.stats/*/*',
+    'cluster.voting_config_exclusions/*/*',
+    'count/*/*',
+    'create/*/*',
+    'delete/*/*',
+    'exists/*/*',
+    'explain/*/*',
+    'features.get_features/*/*',
+    'features.reset_features/*/*',
+    'field_caps/*/*',
+    'get/*/*',
+    'get_source/*/*',
+    'health/*/*',
+    'index/*/*',
+    'indices.analyze/*/*',
+    'indices.blocks/*/*',
+    'indices.clear_cache/*/*',
+    'indices.clone/*/*',
+    'indices.create/*/*',
+    'indices.create/*/*/*',
+    'indices.delete/*/*',
+    'indices.delete_alias/*/*',
+    'indices.exists/*/*',
+    'indices.exists_alias/*/*',
+    'indices.exists_template/*/*',
+    'indices.flush/*/*',
+    'indices.forcemerge/*/*',
+    'indices.get/*/*',
+    'indices.get_alias/*/*',
+    'indices.get_alias/10_basic/Get aliases via /*/_alias/',
+    'indices.get_alias/10_basic/Get aliases via /*/_alias/{name}',
+    'indices.get_alias/10_basic/Get aliases via /*suf/_alias/{name}',
+    'indices.get_alias/10_basic/Get aliases via /_alias/*',
+    'indices.get_alias/10_basic/Get aliases via /_alias/_all',
+    'indices.get_alias/10_basic/Get aliases via /_alias/{name}',
+    'indices.get_alias/10_basic/Get aliases via /_all/_alias/',
+    'indices.get_alias/10_basic/Get aliases via /_all/_alias/{name}',
+    'indices.get_alias/10_basic/Get aliases via /name,name/_alias/{name}',
+    'indices.get_alias/10_basic/Get aliases via /{index}/_alias/*',
+    'indices.get_alias/10_basic/Get aliases via /{index}/_alias/_all',
+    'indices.get_alias/10_basic/Get aliases via /{index}/_alias/name,name',
+    'indices.get_alias/10_basic/Get aliases via /{index}/_alias/prefix*',
+    'indices.get_alias/10_basic/Get all aliases via /_alias',
+    'indices.get_alias/10_basic/Get all aliases via /{index}/_alias/',
+    'indices.get_alias/10_basic/Get and index with no aliases via /{index}/_alias/',
+    'indices.get_alias/10_basic/Get specific alias via /{index}/_alias/{name}',
+    'indices.get_alias/20_empty/Check empty aliases when getting all aliases via /_alias',
+    'indices.get_field_mapping/*/*',
+    'indices.get_index_template/*/*',
+    'indices.get_mapping/*/*',
+    'indices.get_mapping/*/*/*',
+    'indices.get_mapping/*/*/*/*',
+    'indices.get_mapping/*/*/*/*/*',
+    'indices.get_settings/*/*',
+    'indices.get_settings/*/*/*',
+    'indices.get_settings/*/*/*/*',
+    'indices.get_settings/*/*/*/*/*',
+    'indices.get_template/*/*',
+    'indices.open/*/*',
+    'indices.open/*/*/*',
+    'indices.put_alias/*/*',
+    'indices.put_index_template/*/*',
+    'indices.put_mapping/*/*',
+    'indices.put_settings/*/*',
+    'indices.put_template/*/*',
+    'indices.recovery/*/*',
+    'indices.refresh/*/*',
+    'indices.resolve_cluster/*/*',
+    'indices.resolve_index/*/*',
+    'indices.rollover/*/*',
+    'indices.segments/*/*',
+    'indices.shard_stores/*/*',
+    'indices.shrink/*/*',
+    'indices.simulate_index_template/*/*',
+    'indices.simulate_template/*/*',
+    'indices.sort/*/*',
+    'indices.split/*/*',
+    'indices.stats/*/*',
+    'indices.update_aliases/*/*',
+    'indices.validate_query/*/*',
+    'ingest/*/*',
+    'logsdb/*/*',
+    'mget/*/*',
+    'mget/*/*/*',
+    'migration/*/*',
+    'mlt/*/*',
+    'msearch/*/*',
+    'mtermvectors/*/*',
+    'nodes.hot_threads/*/*',
+    'nodes.info/*/*',
+    'nodes.reload_secure_settings/*/*',
+    'nodes.stats/*/*',
+    'range/*/*',
+    'scripts/*/*',
+    'scroll/*/*',
+    'search/*/*',
+    'search/*/*/*',
+    'search.highlight/*/*',
+    'search.inner_hits/*/*',
+    'search.retrievers/*/*',
+    'search.vectors/*/*',
+    'search_shards/*/*',
+    'search_shards/*/*/*',
+    'simulate.ingest/*/*',
+    'snapshot.clone/*/*',
+    'snapshot.create/*/*',
+    'snapshot.delete/*/*',
+    'snapshot.get/*/*',
+    'snapshot.get_repository/*/*',
+    'snapshot.restore/*/*',
+    'snapshot.status/*/*',
+    'suggest/*/*',
+    'synonyms/*/*',
+    'tasks.cancel/*/*',
+    'tasks.get/*/*',
+    'tasks.list/*/*',
+    'termvectors/*/*',
+    'tsdb/*/*',
+    'update/*/*'
+  ];
+  if (BuildParams.isSnapshotBuild() == false) {
+    blacklist += [];
+  }
+  systemProperty 'tests.rest.blacklist', blacklist.join(',')
+}

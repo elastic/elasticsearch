@@ -1215,6 +1215,42 @@ public class MetadataIndexTemplateService {
     }
 
     /**
+     * A private, local alternative to elements.stream().anyMatch(predicate) for micro-optimization reasons.
+     */
+    private static <T> boolean anyMatch(final List<T> elements, final Predicate<T> predicate) {
+        for (T e : elements) {
+            if (predicate.test(e)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * A private, local alternative to elements.stream().noneMatch(predicate) for micro-optimization reasons.
+     */
+    private static <T> boolean noneMatch(final List<T> elements, final Predicate<T> predicate) {
+        for (T e : elements) {
+            if (predicate.test(e)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * A private, local alternative to elements.stream().filter(predicate).findFirst() for micro-optimization reasons.
+     */
+    private static <T> Optional<T> findFirst(final List<T> elements, final Predicate<T> predicate) {
+        for (T e : elements) {
+            if (predicate.test(e)) {
+                return Optional.of(e);
+            }
+        }
+        return Optional.empty();
+    }
+
+    /**
      * Finds index templates whose index pattern matched with the given index name. In the case of
      * hidden indices, a template with a match all pattern or global template will not be returned.
      *
@@ -1237,15 +1273,14 @@ public class MetadataIndexTemplateService {
         final List<IndexTemplateMetadata> matchedTemplates = new ArrayList<>();
         for (IndexTemplateMetadata template : projectMetadata.templates().values()) {
             if (isHidden == null || isHidden == Boolean.FALSE) {
-                final boolean matched = template.patterns().stream().anyMatch(patternMatchPredicate);
-                if (matched) {
+                if (anyMatch(template.patterns(), patternMatchPredicate)) {
                     matchedTemplates.add(template);
                 }
             } else {
                 assert isHidden == Boolean.TRUE;
-                final boolean isNotMatchAllTemplate = template.patterns().stream().noneMatch(Regex::isMatchAllPattern);
+                final boolean isNotMatchAllTemplate = noneMatch(template.patterns(), Regex::isMatchAllPattern);
                 if (isNotMatchAllTemplate) {
-                    if (template.patterns().stream().anyMatch(patternMatchPredicate)) {
+                    if (anyMatch(template.patterns(), patternMatchPredicate)) {
                         matchedTemplates.add(template);
                     }
                 }
@@ -1256,19 +1291,21 @@ public class MetadataIndexTemplateService {
         // this is complex but if the index is not hidden in the create request but is hidden as the result of template application,
         // then we need to exclude global templates
         if (isHidden == null) {
-            final Optional<IndexTemplateMetadata> templateWithHiddenSetting = matchedTemplates.stream()
-                .filter(template -> IndexMetadata.INDEX_HIDDEN_SETTING.exists(template.settings()))
-                .findFirst();
+            final Optional<IndexTemplateMetadata> templateWithHiddenSetting = findFirst(
+                matchedTemplates,
+                template -> IndexMetadata.INDEX_HIDDEN_SETTING.exists(template.settings())
+            );
             if (templateWithHiddenSetting.isPresent()) {
                 final boolean templatedIsHidden = IndexMetadata.INDEX_HIDDEN_SETTING.get(templateWithHiddenSetting.get().settings());
                 if (templatedIsHidden) {
                     // remove the global templates
-                    matchedTemplates.removeIf(current -> current.patterns().stream().anyMatch(Regex::isMatchAllPattern));
+                    matchedTemplates.removeIf(current -> anyMatch(current.patterns(), Regex::isMatchAllPattern));
                 }
                 // validate that hidden didn't change
-                final Optional<IndexTemplateMetadata> templateWithHiddenSettingPostRemoval = matchedTemplates.stream()
-                    .filter(template -> IndexMetadata.INDEX_HIDDEN_SETTING.exists(template.settings()))
-                    .findFirst();
+                final Optional<IndexTemplateMetadata> templateWithHiddenSettingPostRemoval = findFirst(
+                    matchedTemplates,
+                    template -> IndexMetadata.INDEX_HIDDEN_SETTING.exists(template.settings())
+                );
                 if (templateWithHiddenSettingPostRemoval.isEmpty()
                     || templateWithHiddenSetting.get() != templateWithHiddenSettingPostRemoval.get()) {
                     throw new IllegalStateException(
@@ -1335,14 +1372,13 @@ public class MetadataIndexTemplateService {
              * built with a template that none of its indices match.
              */
             if (isHidden == false || template.getDataStreamTemplate() != null) {
-                final boolean matched = template.indexPatterns().stream().anyMatch(patternMatchPredicate);
-                if (matched) {
+                if (anyMatch(template.indexPatterns(), patternMatchPredicate)) {
                     candidates.add(Tuple.tuple(name, template));
                 }
             } else {
-                final boolean isNotMatchAllTemplate = template.indexPatterns().stream().noneMatch(Regex::isMatchAllPattern);
+                final boolean isNotMatchAllTemplate = noneMatch(template.indexPatterns(), Regex::isMatchAllPattern);
                 if (isNotMatchAllTemplate) {
-                    if (template.indexPatterns().stream().anyMatch(patternMatchPredicate)) {
+                    if (anyMatch(template.indexPatterns(), patternMatchPredicate)) {
                         candidates.add(Tuple.tuple(name, template));
                     }
                 }
@@ -1360,7 +1396,7 @@ public class MetadataIndexTemplateService {
         ComposableIndexTemplate template,
         String templateName
     ) {
-        return template.indexPatterns().stream().anyMatch(Regex::isMatchAllPattern)
+        return anyMatch(template.indexPatterns(), Regex::isMatchAllPattern)
             && IndexMetadata.INDEX_HIDDEN_SETTING.exists(resolveSettings(projectMetadata, templateName));
     }
 

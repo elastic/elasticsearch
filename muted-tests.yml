@@ -23,12 +23,6 @@ tests:
 - class: org.elasticsearch.index.store.FsDirectoryFactoryTests
   method: testPreload
   issue: https://github.com/elastic/elasticsearch/issues/110211
-- class: org.elasticsearch.backwards.SearchWithMinCompatibleSearchNodeIT
-  method: testMinVersionAsNewVersion
-  issue: https://github.com/elastic/elasticsearch/issues/95384
-- class: org.elasticsearch.backwards.SearchWithMinCompatibleSearchNodeIT
-  method: testCcsMinimizeRoundtripsIsFalse
-  issue: https://github.com/elastic/elasticsearch/issues/101974
 - class: "org.elasticsearch.xpack.searchablesnapshots.FrozenSearchableSnapshotsIntegTests"
   issue: "https://github.com/elastic/elasticsearch/issues/110408"
   method: "testCreateAndRestorePartialSearchableSnapshot"
@@ -248,9 +242,6 @@ tests:
 - class: org.elasticsearch.xpack.inference.InferenceRestIT
   method: test {p0=inference/40_semantic_text_query/Query a field that uses the default ELSER 2 endpoint}
   issue: https://github.com/elastic/elasticsearch/issues/114376
-- class: org.elasticsearch.search.retriever.RankDocsRetrieverBuilderTests
-  method: testRewrite
-  issue: https://github.com/elastic/elasticsearch/issues/114467
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test022InstallPluginsFromLocalArchive
   issue: https://github.com/elastic/elasticsearch/issues/111063
@@ -303,6 +294,9 @@ tests:
 - class: org.elasticsearch.reservedstate.service.FileSettingsServiceTests
   method: testProcessFileChanges
   issue: https://github.com/elastic/elasticsearch/issues/115280
+- class: org.elasticsearch.smoketest.SmokeTestIngestWithAllDepsClientYamlTestSuiteIT
+  method: test {yaml=ingest/80_ingest_simulate/Test mapping addition works with legacy templates}
+  issue: https://github.com/elastic/elasticsearch/issues/115412
 
 # Examples:
 #

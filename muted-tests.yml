@@ -23,12 +23,6 @@ tests:
 - class: org.elasticsearch.index.store.FsDirectoryFactoryTests
   method: testPreload
   issue: https://github.com/elastic/elasticsearch/issues/110211
-- class: org.elasticsearch.backwards.SearchWithMinCompatibleSearchNodeIT
-  method: testMinVersionAsNewVersion
-  issue: https://github.com/elastic/elasticsearch/issues/95384
-- class: org.elasticsearch.backwards.SearchWithMinCompatibleSearchNodeIT
-  method: testCcsMinimizeRoundtripsIsFalse
-  issue: https://github.com/elastic/elasticsearch/issues/101974
 - class: "org.elasticsearch.xpack.searchablesnapshots.FrozenSearchableSnapshotsIntegTests"
   issue: "https://github.com/elastic/elasticsearch/issues/110408"
   method: "testCreateAndRestorePartialSearchableSnapshot"
@@ -282,18 +276,6 @@ tests:
 - class: org.elasticsearch.xpack.inference.DefaultEndPointsIT
   method: testInferDeploysDefaultElser
   issue: https://github.com/elastic/elasticsearch/issues/114913
-- class: org.elasticsearch.index.mapper.TextFieldMapperTests
-  method: testBlockLoaderFromRowStrideReaderWithSyntheticSource
-  issue: https://github.com/elastic/elasticsearch/issues/115066
-- class: org.elasticsearch.index.mapper.TextFieldMapperTests
-  method: testBlockLoaderFromColumnReaderWithSyntheticSource
-  issue: https://github.com/elastic/elasticsearch/issues/115073
-- class: org.elasticsearch.index.mapper.annotatedtext.AnnotatedTextFieldMapperTests
-  method: testBlockLoaderFromColumnReaderWithSyntheticSource
-  issue: https://github.com/elastic/elasticsearch/issues/115074
-- class: org.elasticsearch.index.mapper.annotatedtext.AnnotatedTextFieldMapperTests
-  method: testBlockLoaderFromRowStrideReaderWithSyntheticSource
-  issue: https://github.com/elastic/elasticsearch/issues/115076
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=esql/60_usage/Basic ESQL usage output (telemetry)}
   issue: https://github.com/elastic/elasticsearch/issues/115231
@@ -315,6 +297,9 @@ tests:
 - class: org.elasticsearch.reservedstate.service.FileSettingsServiceTests
   method: testProcessFileChanges
   issue: https://github.com/elastic/elasticsearch/issues/115280
+- class: org.elasticsearch.smoketest.SmokeTestIngestWithAllDepsClientYamlTestSuiteIT
+  method: test {yaml=ingest/80_ingest_simulate/Test mapping addition works with legacy templates}
+  issue: https://github.com/elastic/elasticsearch/issues/115412
 
 # Examples:
 #

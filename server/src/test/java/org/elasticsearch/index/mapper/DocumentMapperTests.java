@@ -323,7 +323,6 @@ public class DocumentMapperTests extends MapperServiceTestCase {
         assertMap(
             metadataMappers,
             matchesList().item(DataStreamTimestampFieldMapper.class)
-                .item(DataTierFieldMapper.class)
                 .item(DocCountFieldMapper.class)
                 .item(FieldNamesFieldMapper.class)
                 .item(IgnoredFieldMapper.class)
@@ -353,7 +352,6 @@ public class DocumentMapperTests extends MapperServiceTestCase {
                 .item(RoutingFieldMapper.CONTENT_TYPE)
                 .item(SeqNoFieldMapper.CONTENT_TYPE)
                 .item(SourceFieldMapper.CONTENT_TYPE)
-                .item(DataTierFieldMapper.CONTENT_TYPE)
                 .item(VersionFieldMapper.CONTENT_TYPE)
         );
     }

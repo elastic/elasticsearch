@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -238,10 +239,11 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
             metadata = state.getMetadata();
         }
 
+        ProjectMetadata project = metadata.getProject(projectId);
         for (DocWriteRequest<?> actionRequest : bulkRequest.requests) {
             IndexRequest indexRequest = getIndexWriteRequest(actionRequest);
             if (indexRequest != null) {
-                IngestService.resolvePipelinesAndUpdateIndexRequest(actionRequest, indexRequest, metadata.getProject(projectId));
+                IngestService.resolvePipelinesAndUpdateIndexRequest(actionRequest, indexRequest, project);
                 hasIndexRequestsWithPipelines |= IngestService.hasPipeline(indexRequest);
             }
 
@@ -266,7 +268,7 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
                     assert arePipelinesResolved : bulkRequest;
                 }
                 if (clusterService.localNode().isIngestNode()) {
-                    processBulkIndexIngestRequest(task, bulkRequest, executor, metadata, l);
+                    processBulkIndexIngestRequest(task, bulkRequest, executor, project, l);
                 } else {
                     ingestForwarder.forwardIngestRequest(bulkAction, bulkRequest, l);
                 }
@@ -280,7 +282,7 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
         Task task,
         BulkRequest original,
         Executor executor,
-        Metadata metadata,
+        ProjectMetadata metadata,
         ActionListener<BulkResponse> listener
     ) {
         final long ingestStartTimeInNanos = relativeTimeNanos();
@@ -349,7 +351,7 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
      * or if it matches a template that has a data stream failure store enabled. Returns false if the index name corresponds to a
      * data stream, but it doesn't have the failure store enabled. Returns null when it doesn't correspond to a data stream.
      */
-    protected abstract Boolean resolveFailureStore(String indexName, Metadata metadata, long epochMillis);
+    protected abstract Boolean resolveFailureStore(String indexName, ProjectMetadata metadata, long epochMillis);
 
     /**
      * Retrieves the {@link IndexRequest} from the provided {@link DocWriteRequest} for index or upsert actions.  Upserts are

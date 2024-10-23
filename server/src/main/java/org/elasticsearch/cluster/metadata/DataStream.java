@@ -306,14 +306,14 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
 
     /**
      * @param timestamp The timestamp used to select a backing index based on its start and end time.
-     * @param metadata  The metadata that is used to fetch the start and end times for backing indices of this data stream.
+     * @param project   The project that is used to fetch the start and end times for backing indices of this data stream.
      * @return a backing index with a start time that is greater or equal to the provided timestamp and
      *         an end time that is less than the provided timestamp. Otherwise <code>null</code> is returned.
      */
-    public Index selectTimeSeriesWriteIndex(Instant timestamp, Metadata metadata) {
+    public Index selectTimeSeriesWriteIndex(Instant timestamp, ProjectMetadata project) {
         for (int i = backingIndices.indices.size() - 1; i >= 0; i--) {
             Index index = backingIndices.indices.get(i);
-            IndexMetadata im = metadata.getProject().index(index);
+            IndexMetadata im = project.index(index);
 
             // TODO: make index_mode, start and end time fields in IndexMetadata class.
             // (this to avoid the overhead that occurs when reading a setting)
@@ -1313,7 +1313,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     }
 
     @Override
-    public Index getWriteIndex(IndexRequest request, Metadata metadata) {
+    public Index getWriteIndex(IndexRequest request, ProjectMetadata project) {
         if (request.opType() != DocWriteRequest.OpType.CREATE) {
             return getWriteIndex();
         }
@@ -1330,11 +1330,11 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             timestamp = getTimestampFromParser(request.source(), request.getContentType());
         }
         timestamp = getCanonicalTimestampBound(timestamp);
-        Index result = selectTimeSeriesWriteIndex(timestamp, metadata);
+        Index result = selectTimeSeriesWriteIndex(timestamp, project);
         if (result == null) {
             String timestampAsString = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.format(timestamp);
             String writeableIndicesString = getIndices().stream()
-                .map(metadata.getProject()::index)
+                .map(project::index)
                 .map(IndexMetadata::getSettings)
                 .map(
                     settings -> "["

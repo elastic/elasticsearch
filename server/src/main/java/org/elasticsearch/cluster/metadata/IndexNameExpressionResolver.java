@@ -258,14 +258,14 @@ public class IndexNameExpressionResolver {
      * Returns {@link IndexAbstraction} instance for the provided write request. This instance isn't fully resolved,
      * meaning that {@link IndexAbstraction#getWriteIndex()} should be invoked in order to get concrete write index.
      *
-     * @param state The cluster state
+     * @param project The project
      * @param request The provided write request
      * @return {@link IndexAbstraction} instance for the provided write request
      */
-    public IndexAbstraction resolveWriteIndexAbstraction(ClusterState state, DocWriteRequest<?> request) {
+    public IndexAbstraction resolveWriteIndexAbstraction(ProjectMetadata project, DocWriteRequest<?> request) {
         boolean includeDataStreams = request.opType() == DocWriteRequest.OpType.CREATE && request.includeDataStreams();
         Context context = new Context(
-            state.metadata().getProject(projectResolver.getProjectId(state)),
+            project,
             request.indicesOptions(),
             false,
             false,
@@ -278,10 +278,7 @@ public class IndexNameExpressionResolver {
         final Collection<String> expressions = resolveExpressions(context, request.index());
 
         if (expressions.size() == 1) {
-            IndexAbstraction ia = state.metadata()
-                .getProject(projectResolver.getProjectId(state))
-                .getIndicesLookup()
-                .get(expressions.iterator().next());
+            IndexAbstraction ia = project.getIndicesLookup().get(expressions.iterator().next());
             if (ia.getType() == Type.ALIAS) {
                 Index writeIndex = ia.getWriteIndex();
                 if (writeIndex == null) {

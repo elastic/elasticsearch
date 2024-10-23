@@ -936,21 +936,22 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             dataStreamName,
             List.of(Tuple.tuple(start1, end1), Tuple.tuple(start2, end2))
         );
+        ProjectMetadata project = clusterState.getMetadata().getProject();
 
-        DataStream dataStream = clusterState.getMetadata().getProject().dataStreams().get(dataStreamName);
-        Index result = dataStream.selectTimeSeriesWriteIndex(currentTime, clusterState.getMetadata());
+        DataStream dataStream = project.dataStreams().get(dataStreamName);
+        Index result = dataStream.selectTimeSeriesWriteIndex(currentTime, project);
         assertThat(result, equalTo(dataStream.getIndices().get(1)));
         assertThat(result.getName(), equalTo(DataStream.getDefaultBackingIndexName(dataStreamName, 2, start2.toEpochMilli())));
 
-        result = dataStream.selectTimeSeriesWriteIndex(currentTime.minus(2, ChronoUnit.HOURS), clusterState.getMetadata());
+        result = dataStream.selectTimeSeriesWriteIndex(currentTime.minus(2, ChronoUnit.HOURS), project);
         assertThat(result, equalTo(dataStream.getIndices().get(1)));
         assertThat(result.getName(), equalTo(DataStream.getDefaultBackingIndexName(dataStreamName, 2, start2.toEpochMilli())));
 
-        result = dataStream.selectTimeSeriesWriteIndex(currentTime.minus(3, ChronoUnit.HOURS), clusterState.getMetadata());
+        result = dataStream.selectTimeSeriesWriteIndex(currentTime.minus(3, ChronoUnit.HOURS), project);
         assertThat(result, equalTo(dataStream.getIndices().get(0)));
         assertThat(result.getName(), equalTo(DataStream.getDefaultBackingIndexName(dataStreamName, 1, start1.toEpochMilli())));
 
-        result = dataStream.selectTimeSeriesWriteIndex(currentTime.minus(6, ChronoUnit.HOURS), clusterState.getMetadata());
+        result = dataStream.selectTimeSeriesWriteIndex(currentTime.minus(6, ChronoUnit.HOURS), project);
         assertThat(result, equalTo(dataStream.getIndices().get(0)));
         assertThat(result.getName(), equalTo(DataStream.getDefaultBackingIndexName(dataStreamName, 1, start1.toEpochMilli())));
     }

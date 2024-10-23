@@ -50,7 +50,7 @@ public interface IndexAbstraction {
     @Nullable
     Index getWriteIndex();
 
-    default Index getWriteIndex(IndexRequest request, Metadata metadata) {
+    default Index getWriteIndex(IndexRequest request, ProjectMetadata project) {
         return getWriteIndex();
     }
 
@@ -257,16 +257,12 @@ public interface IndexAbstraction {
         }
 
         @Override
-        public Index getWriteIndex(IndexRequest request, Metadata metadata) {
+        public Index getWriteIndex(IndexRequest request, ProjectMetadata project) {
             if (dataStreamAlias == false) {
                 return getWriteIndex();
             }
 
-            return metadata.getProject()
-                .getIndicesLookup()
-                .get(getWriteIndex().getName())
-                .getParentDataStream()
-                .getWriteIndex(request, metadata);
+            return project.getIndicesLookup().get(getWriteIndex().getName()).getParentDataStream().getWriteIndex(request, project);
         }
 
         @Override

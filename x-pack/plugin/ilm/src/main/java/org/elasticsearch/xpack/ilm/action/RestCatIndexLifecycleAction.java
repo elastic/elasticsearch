@@ -107,7 +107,10 @@ public class RestCatIndexLifecycleAction extends AbstractCatAction {
         table.addCell("step", "alias:st;desc:current ilm step");
 
         table.addCell("failed_step", "alias:fs;default:false;desc:if error occur, the step that caused the it");
-        table.addCell("retryable", "alias:rty;default:false;desc:if retrying the failed step can overcome the error. If this is true, ILM will retry the failed step automatically");
+        table.addCell(
+            "retryable",
+            "alias:rty;default:false;desc:if retrying the failed step can overcome the error. If this is true, ILM will retry the failed step automatically"
+        );
         table.addCell("retry_count", "alias:rc;default:false;desc:number of attempted automatic retries");
         table.addCell("failed_step.type", "alias:fst;default:false;desc:type of failure");
 

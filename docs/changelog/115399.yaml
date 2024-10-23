@@ -4,9 +4,19 @@ area: Ranking
 type: breaking
 issues: []
 breaking:
-  title: Adding breaking change entry for retrievers
+  title: Reworking RRF retriever to be evaluated during rewrite phase
   area: Ranking
-  details: Please describe the details of this change for the release notes. You can
-    use asciidoc.
-  impact: Please describe the impact of this change to users
+  details: |-
+    In this release (8.16), we have introduced major changes to the retrievers framework and how they can be evaluated,
+    focusing mainly on compound retrievers like `rrf` and `text_similarity_reranker`, which allowed us to support
+    additional search features like highlighting, collapsing, explaining, and aggregations.
+    To ensure consistency and avoid unexpected failures, we have introduced a new cluster_feature that ensures that
+    all nodes must satisfy, in order for the `rrf` and `text_similarity_reranker` retriever queries to be evaluated.
+    This guarantees that all nodes are able to take advantage of the new framework and provide compatible responses.
+    As part of the rework, we have removed the `_rank` property from the responses of an `rrf` retriever.
+  impact: |-
+    - Users will not be able to use the `rrf` and `text_similarity_reranker` retrievers in a mixed cluster scenario
+    with previous releases (i.e. prior to 8.16), and the request will throw an `UnsupportedOperationException`.
+    - `_rank` has now been removed from the output of the `rrf` retrievers so trying to directly parse the field
+    will throw an exception
   notable: false

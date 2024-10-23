@@ -282,6 +282,9 @@ tests:
 - class: org.elasticsearch.smoketest.SmokeTestIngestWithAllDepsClientYamlTestSuiteIT
   method: test {yaml=ingest/80_ingest_simulate/Test mapping addition works with legacy templates}
   issue: https://github.com/elastic/elasticsearch/issues/115412
+- class: org.elasticsearch.xpack.security.FileSettingsRoleMappingsRestartIT
+  method: testFileSettingsReprocessedOnRestartWithoutVersionChange
+  issue: https://github.com/elastic/elasticsearch/issues/115450
 
 # Examples:
 #

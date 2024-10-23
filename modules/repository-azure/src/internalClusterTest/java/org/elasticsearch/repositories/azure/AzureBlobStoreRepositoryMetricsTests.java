@@ -259,7 +259,7 @@ public class AzureBlobStoreRepositoryMetricsTests extends AzureBlobStoreReposito
         clearMetrics(dataNodeName);
 
         // Handler will fail one or more of the batch requests
-        RequestHandler failNRequestRequestHandler = createFailNRequestsHandler(failedBatches);
+        final RequestHandler failNRequestRequestHandler = createFailNRequestsHandler(failedBatches);
 
         // Exhaust the retries
         IntStream.range(0, (numberOfBatches - failedBatches) + (failedBatches * (MAX_RETRIES + 1)))
@@ -267,7 +267,7 @@ public class AzureBlobStoreRepositoryMetricsTests extends AzureBlobStoreReposito
 
         logger.info("--> Failing {} of {} batches", failedBatches, numberOfBatches);
 
-        IOException exception = assertThrows(
+        final IOException exception = assertThrows(
             IOException.class,
             () -> container.deleteBlobsIgnoringIfNotExists(randomPurpose(), blobsToDelete.iterator())
         );

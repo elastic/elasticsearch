@@ -279,8 +279,8 @@ public class AzureHttpHandler implements HttpHandler {
                 final StringBuilder response = new StringBuilder();
 
                 try (BufferedReader requestReader = new BufferedReader(new InputStreamReader(exchange.getRequestBody()))) {
-                    String batchBoundary = requestReader.readLine();
-                    String responseBoundary = "batch_" + UUID.randomUUID();
+                    final String batchBoundary = requestReader.readLine();
+                    final String responseBoundary = "batch_" + UUID.randomUUID();
 
                     String line;
                     String contentId = null, requestId = null, toDelete = null;

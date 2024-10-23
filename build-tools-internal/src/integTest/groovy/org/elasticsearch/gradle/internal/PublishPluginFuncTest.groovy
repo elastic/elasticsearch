@@ -440,8 +440,7 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
         // scm info only added for internal builds
         internalBuild()
         buildFile << """
-            BuildParams.init { it.setGitOrigin("https://some-repo.com/repo.git") }
-
+            buildParams.getGitOriginProperty().set("https://some-repo.com/repo.git")
             apply plugin:'elasticsearch.java'
             apply plugin:'elasticsearch.publish'
 

@@ -627,6 +627,7 @@ public class RRFRetrieverBuilderIT extends ESIntegTestCase {
         );
         assertThat(ExceptionsHelper.status(ex), equalTo(RestStatus.BAD_REQUEST));
         assertThat(ex.getSuppressed().length, equalTo(1));
+        assertThat(ex.getSuppressed()[0].getCause().getCause(), instanceOf(IllegalArgumentException.class));
     }
 
     public void testRRFInnerRetrieverMultipleErrorsOne5xx() {
@@ -665,6 +666,8 @@ public class RRFRetrieverBuilderIT extends ESIntegTestCase {
         );
         assertThat(ExceptionsHelper.status(ex), equalTo(RestStatus.INTERNAL_SERVER_ERROR));
         assertThat(ex.getSuppressed().length, equalTo(2));
+        assertThat(ex.getSuppressed()[0].getCause().getCause(), instanceOf(IllegalArgumentException.class));
+        assertThat(ex.getSuppressed()[1].getCause().getCause(), instanceOf(IllegalStateException.class));
     }
 
     public void testRRFInnerRetrieverErrorWhenExtractingToSource() {

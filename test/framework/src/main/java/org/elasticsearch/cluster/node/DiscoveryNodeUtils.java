@@ -13,6 +13,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.env.BuildVersion;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.node.Node;
 
@@ -67,7 +68,7 @@ public class DiscoveryNodeUtils {
         private TransportAddress address;
         private Map<String, String> attributes = Map.of();
         private Set<DiscoveryNodeRole> roles = DiscoveryNodeRole.roles();
-        private Version version;
+        private BuildVersion version;
         private IndexVersion minIndexVersion;
         private IndexVersion maxIndexVersion;
         private String externalId;
@@ -108,11 +109,16 @@ public class DiscoveryNodeUtils {
         }
 
         public Builder version(Version version) {
-            this.version = version;
+            this.version = BuildVersion.fromVersionId(version.id());
             return this;
         }
 
+        @Deprecated
         public Builder version(Version version, IndexVersion minIndexVersion, IndexVersion maxIndexVersion) {
+            return version(BuildVersion.fromVersionId(version.id()), minIndexVersion, maxIndexVersion);
+        }
+
+        public Builder version(BuildVersion version, IndexVersion minIndexVersion, IndexVersion maxIndexVersion) {
             this.version = version;
             this.minIndexVersion = minIndexVersion;
             this.maxIndexVersion = maxIndexVersion;
@@ -120,7 +126,7 @@ public class DiscoveryNodeUtils {
         }
 
         public Builder version(VersionInformation versions) {
-            this.version = versions.nodeVersion();
+            this.version = versions.buildVersion();
             this.minIndexVersion = versions.minIndexVersion();
             this.maxIndexVersion = versions.maxIndexVersion();
             return this;
@@ -150,7 +156,7 @@ public class DiscoveryNodeUtils {
 
             VersionInformation versionInfo;
             if (minIndexVersion == null || maxIndexVersion == null) {
-                versionInfo = VersionInformation.inferVersions(version);
+                versionInfo = VersionInformation.inferVersions(Version.fromId(version.id()));
             } else {
                 versionInfo = new VersionInformation(version, minIndexVersion, maxIndexVersion);
             }

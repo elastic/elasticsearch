@@ -10,6 +10,7 @@
 package org.elasticsearch.cluster.node;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.env.BuildVersion;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 
@@ -17,17 +18,33 @@ import java.util.Objects;
 
 /**
  * Represents the versions of various aspects of an Elasticsearch node.
- * @param nodeVersion       The node {@link Version}
+ * @param buildVersion      The node {@link BuildVersion}
  * @param minIndexVersion   The minimum {@link IndexVersion} supported by this node
  * @param maxIndexVersion   The maximum {@link IndexVersion} supported by this node
  */
-public record VersionInformation(Version nodeVersion, IndexVersion minIndexVersion, IndexVersion maxIndexVersion) {
+public record VersionInformation(BuildVersion buildVersion, IndexVersion minIndexVersion, IndexVersion maxIndexVersion) {
 
     public static final VersionInformation CURRENT = new VersionInformation(
-        Version.CURRENT,
+        BuildVersion.current(),
         IndexVersions.MINIMUM_COMPATIBLE,
         IndexVersion.current()
     );
+
+    public VersionInformation {
+        Objects.requireNonNull(buildVersion);
+        Objects.requireNonNull(minIndexVersion);
+        Objects.requireNonNull(maxIndexVersion);
+    }
+
+    @Deprecated
+    public VersionInformation(Version version, IndexVersion minIndexVersion, IndexVersion maxIndexVersion) {
+        this(BuildVersion.fromVersionId(version.id()), minIndexVersion, maxIndexVersion);
+    }
+
+    @Deprecated
+    public Version nodeVersion() {
+        return Version.fromId(buildVersion.id());
+    }
 
     public static VersionInformation inferVersions(Version nodeVersion) {
         if (nodeVersion == null) {
@@ -36,18 +53,12 @@ public record VersionInformation(Version nodeVersion, IndexVersion minIndexVersi
             return CURRENT;
         } else if (nodeVersion.before(Version.V_8_11_0)) {
             return new VersionInformation(
-                nodeVersion,
+                BuildVersion.fromVersionId(nodeVersion.id()),
                 IndexVersion.getMinimumCompatibleIndexVersion(nodeVersion.id),
                 IndexVersion.fromId(nodeVersion.id)
             );
         } else {
             throw new IllegalArgumentException("Node versions can only be inferred before release version 8.10.0");
         }
-    }
-
-    public VersionInformation {
-        Objects.requireNonNull(nodeVersion);
-        Objects.requireNonNull(minIndexVersion);
-        Objects.requireNonNull(maxIndexVersion);
     }
 }

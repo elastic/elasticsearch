@@ -11,7 +11,6 @@ esplugin {
 }
 
 dependencies {
-  compileOnly project(path: ':modules:legacy-geo')
   compileOnly project(':modules:lang-painless:spi')
   compileOnly project(path: xpackModule('core'))
   api "org.apache.lucene:lucene-spatial3d:${versions.lucene}"

@@ -107,7 +107,6 @@ subprojects {
 
       // spatial dependency
       javaRestTestRuntimeOnly project(path: xpackModule('spatial'))
-      javaRestTestRuntimeOnly project(path: ':modules:legacy-geo')
 
       javaRestTestRuntimeOnly project(path: ':modules:rest-root')
 

@@ -12,11 +12,14 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.application.connector.ConnectorIndexService;
+
+import static org.elasticsearch.xpack.core.ClientHelper.ENT_SEARCH_ORIGIN;
 
 public class TransportDeleteConnectorAction extends HandledTransportAction<DeleteConnectorAction.Request, AcknowledgedResponse> {
 
@@ -31,7 +34,7 @@ public class TransportDeleteConnectorAction extends HandledTransportAction<Delet
             DeleteConnectorAction.Request::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
-        this.connectorIndexService = new ConnectorIndexService(client);
+        this.connectorIndexService = new ConnectorIndexService(new OriginSettingClient(client, ENT_SEARCH_ORIGIN));
     }
 
     @Override

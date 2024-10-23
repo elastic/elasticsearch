@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.features.NodeFeature;
@@ -23,23 +24,23 @@ import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.security.action.rolemapping.DeleteRoleMappingAction;
 import org.elasticsearch.xpack.core.security.action.rolemapping.DeleteRoleMappingRequestBuilder;
+import org.elasticsearch.xpack.core.security.action.rolemapping.DeleteRoleMappingResponse;
 import org.elasticsearch.xpack.core.security.action.rolemapping.GetRoleMappingsAction;
 import org.elasticsearch.xpack.core.security.action.rolemapping.GetRoleMappingsRequestBuilder;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping;
 
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.TransportVersions.ADD_MANAGE_ROLES_PRIVILEGE;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SecurityMainIndexMappingVersion.ADD_REMOTE_CLUSTER_AND_DESCRIPTION_FIELDS;
+import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SecurityMainIndexMappingVersion.ADD_MANAGE_ROLES_PRIVILEGE;
 
 public class SecurityMigrations {
 
@@ -154,7 +155,7 @@ public class SecurityMigrations {
                 List<String> roleMappingsToDelete = getDuplicateRoleMappingNames(roleMappings);
                 if (roleMappingsToDelete.isEmpty() == false) {
                     logger.info("Found [" + roleMappingsToDelete.size() + "] role mappings to cleanup in .security index.");
-                    deleteNativeRoleMappings(client, roleMappingsToDelete.iterator(), listener);
+                    deleteNativeRoleMappings(client, roleMappingsToDelete, listener);
                 } else {
                     listener.onResponse(null);
                 }
@@ -171,35 +172,34 @@ public class SecurityMigrations {
             );
         }
 
-        private void deleteNativeRoleMappings(Client client, Iterator<String> namesIterator, ActionListener<Void> listener) {
-            String name = namesIterator.next();
-            boolean hasNext = namesIterator.hasNext();
-            executeAsyncWithOrigin(
-                client,
-                SECURITY_ORIGIN,
-                DeleteRoleMappingAction.INSTANCE,
-                new DeleteRoleMappingRequestBuilder(client).name(name).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).request(),
-                ActionListener.wrap(response -> {
-                    if (response.isFound() == false) {
-                        logger.warn("Expected role mapping [" + name + "] not found during role mapping clean up.");
-                    } else {
-                        logger.info("Deleted duplicated role mapping [" + name + "] from .security index");
+        private void deleteNativeRoleMappings(Client client, List<String> names, ActionListener<Void> listener) {
+            ActionListener<DeleteRoleMappingResponse> groupListener = new GroupedActionListener<>(
+                names.size(),
+                ActionListener.wrap(responses -> {
+                    Map<Boolean, List<DeleteRoleMappingResponse>> deletesPartitionedByFound = responses.stream()
+                        .collect(Collectors.partitioningBy(DeleteRoleMappingResponse::isFound));
+                    if (deletesPartitionedByFound.containsKey(false)) {
+                        logger.warn(
+                            "[" + deletesPartitionedByFound.get(false).size() + "] Role mappings not found during role mapping clean up."
+                        );
                     }
-                    if (hasNext) {
-                        deleteNativeRoleMappings(client, namesIterator, listener);
-                    } else {
-                        listener.onResponse(null);
+                    if (deletesPartitionedByFound.containsKey(true)) {
+                        logger.info("Deleted [" + deletesPartitionedByFound.get(true) + "] duplicated role mapping from .security index");
                     }
-                }, exception -> {
-                    logger.warn("Failed to delete role mapping [" + name + "]", exception);
-                    if (hasNext) {
-                        // Continue even if some deletions fail to do as much cleanup as possible
-                        deleteNativeRoleMappings(client, namesIterator, listener);
-                    } else {
-                        listener.onFailure(exception);
-                    }
-                })
+                    listener.onResponse(null);
+                }, listener::onFailure)
             );
+
+            for (String name : names) {
+                executeAsyncWithOrigin(
+                    client,
+                    SECURITY_ORIGIN,
+                    DeleteRoleMappingAction.INSTANCE,
+                    new DeleteRoleMappingRequestBuilder(client).name(name).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).request(),
+                    groupListener
+                );
+            }
+
         }
 
         @Override

@@ -279,11 +279,22 @@ public class SecurityIndexManager implements ClusterStateListener {
      */
     private static boolean isReadyForRoleMappingCleanupMigration(ClusterState clusterState) {
         ReservedStateMetadata fileSettingsMetadata = clusterState.metadata().reservedStateMetadata().get(FILE_SETTINGS_METADATA_NAMESPACE);
-        assert fileSettingsMetadata != null || clusterState.metadata().reservedStateMetadata().isEmpty();
-        return fileSettingsMetadata == null
-            || RoleMappingMetadata.getFromClusterState(clusterState).getRoleMappings().size() == fileSettingsMetadata.keys(
-                ReservedRoleMappingAction.NAME
-            ).size();
+        boolean hasFileSettingsMetadata = fileSettingsMetadata != null;
+        // If there is no fileSettingsMetadata, there should be no reserved state (this is to catch bugs related to
+        // name changes of FILE_SETTINGS_METADATA_NAMESPACE)
+        assert hasFileSettingsMetadata || clusterState.metadata().reservedStateMetadata().isEmpty();
+
+        RoleMappingMetadata roleMappingMetadata = RoleMappingMetadata.getFromClusterState(clusterState);
+        return hasFileSettingsMetadata == false
+            || (reservedMappingsHasExpectedSize(roleMappingMetadata, fileSettingsMetadata)
+                && roleMappingMetadata.hasAnyMappingWithFallbackName() == false);
+    }
+
+    private static boolean reservedMappingsHasExpectedSize(
+        RoleMappingMetadata roleMappingMetadata,
+        ReservedStateMetadata fileSettingsMetadata
+    ) {
+        return roleMappingMetadata.getRoleMappings().size() == fileSettingsMetadata.keys(ReservedRoleMappingAction.NAME).size();
     }
 
     @Override

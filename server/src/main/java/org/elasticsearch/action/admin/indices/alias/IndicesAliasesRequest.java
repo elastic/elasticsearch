@@ -58,7 +58,26 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
     // indices options that require every specified index to exist, expand wildcards only to open
     // indices, don't allow that no indices are resolved from wildcard expressions and resolve the
     // expressions only against indices
-    private static final IndicesOptions INDICES_OPTIONS = IndicesOptions.fromOptions(false, false, true, false, true, false, true, false);
+    private static final IndicesOptions INDICES_OPTIONS = IndicesOptions.builder()
+        .concreteTargetOptions(IndicesOptions.ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
+        .wildcardOptions(
+            IndicesOptions.WildcardOptions.builder()
+                .matchOpen(true)
+                .matchClosed(false)
+                .includeHidden(false)
+                .resolveAliases(false)
+                .allowEmptyExpressions(false)
+                .build()
+        )
+        .gatekeeperOptions(
+            IndicesOptions.GatekeeperOptions.builder()
+                .allowAliasToMultipleIndices(true)
+                .allowClosedIndices(true)
+                .ignoreThrottled(false)
+                .allowFailureIndices(true)
+                .build()
+        )
+        .build();
 
     public IndicesAliasesRequest(StreamInput in) throws IOException {
         super(in);

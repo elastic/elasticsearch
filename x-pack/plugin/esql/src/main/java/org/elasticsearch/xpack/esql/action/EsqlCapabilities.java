@@ -36,7 +36,7 @@ public class EsqlCapabilities {
          * Support for reversing whole grapheme clusters. This is not supported
          * on JDK versions less than 20.
          */
-        FN_REVERSE_GRAPHEME_CLUSTERS(Runtime.version().feature() < 20),
+        FN_REVERSE_GRAPHEME_CLUSTERS(Runtime.version().feature() >= 20),
 
         /**
          * Support for function {@code CBRT}. Done in #108574.

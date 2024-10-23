@@ -35,11 +35,14 @@ public class ClosedShardService {
 
     /**
      * Active shard reader information, per shard. Readers may continue running after a shard is technically closed.
+     *
+     * Essentially a globally available snapshot of any remaining SearchEngine readers at the time an IndexShard is closed.
+     * All commits for a particular index are cleared at once from the service when all readers are done and the SearchEngine closes.
      */
     private final Map<ShardId, Set<PrimaryTermAndGeneration>> openReadersByShardId = new ConcurrentHashMap<>();
 
     /**
-     * Registers information about what serverless shard commits are in still in active use by search operations.
+     * Registers information about what serverless shard commits are still in active use by search operations.
      *
      * Expected to be called whenever an {@link org.elasticsearch.index.shard.IndexShard} closes with active readers.
      */

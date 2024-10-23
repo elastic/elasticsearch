@@ -74,4 +74,9 @@ public class NewCommitNotificationResponse extends ActionResponse {
         }
         return new NewCommitNotificationResponse(Collections.unmodifiableSet(combinedPrimaryTermAndGenerations));
     }
+
+    @Override
+    public String toString() {
+        return "NewCommitNotificationResponse{" + "primaryTermAndGenerationsInUse=" + primaryTermAndGenerationsInUse + "}";
+    }
 }

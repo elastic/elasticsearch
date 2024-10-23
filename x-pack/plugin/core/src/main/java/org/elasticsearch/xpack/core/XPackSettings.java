@@ -238,6 +238,12 @@ public class XPackSettings {
         (s) -> Hasher.PBKDF2_STRETCH.name()
     );
 
+    public static final Setting<Boolean> EIS_SSL_ENABLED = Setting.boolSetting(
+        "xpack.security.eis.ssl.enabled",
+        false,
+        Setting.Property.NodeScope
+    );
+
     /*
      * Do not allow insecure hashing algorithms to be used for password hashing
      */
@@ -272,6 +278,10 @@ public class XPackSettings {
     // http specific settings
     public static final String HTTP_SSL_PREFIX = SecurityField.setting("http.ssl.");
     private static final SSLConfigurationSettings HTTP_SSL = SSLConfigurationSettings.withPrefix(HTTP_SSL_PREFIX, true);
+
+    public static final String EIS_SSL_PREFIX = SecurityField.setting("eis.ssl.");
+
+    private static final SSLConfigurationSettings EIS_SSL = SSLConfigurationSettings.withPrefix(EIS_SSL_PREFIX, true);
 
     // transport specific settings
     public static final String TRANSPORT_SSL_PREFIX = SecurityField.setting("transport.ssl.");
@@ -312,6 +322,7 @@ public class XPackSettings {
         settings.addAll(TRANSPORT_SSL.getEnabledSettings());
         settings.addAll(REMOTE_CLUSTER_SERVER_SSL.getEnabledSettings());
         settings.addAll(REMOTE_CLUSTER_CLIENT_SSL.getEnabledSettings());
+        settings.addAll(EIS_SSL.getEnabledSettings());
         settings.add(SECURITY_ENABLED);
         settings.add(GRAPH_ENABLED);
         settings.add(MACHINE_LEARNING_ENABLED);
@@ -335,6 +346,7 @@ public class XPackSettings {
         settings.add(DOMAIN_TO_REALM_ASSOC_SETTING);
         settings.add(DOMAIN_UID_LITERAL_USERNAME_SETTING);
         settings.add(DOMAIN_UID_SUFFIX_SETTING);
+        settings.add(EIS_SSL_ENABLED);
         return Collections.unmodifiableList(settings);
     }
 

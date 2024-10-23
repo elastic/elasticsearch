@@ -208,6 +208,7 @@ public final class DocumentParser {
         XContentParser parser = context.parser();
         XContentParser.Token currentToken = parser.nextToken();
         List<String> path = new ArrayList<>();
+        List<Boolean> isObjectInPath = new ArrayList<>();  // Tracks if path components correspond to an object or an array.
         String fieldName = null;
         while (currentToken != null) {
             while (currentToken != XContentParser.Token.FIELD_NAME) {
@@ -218,11 +219,16 @@ public final class DocumentParser {
                         parser.skipChildren();
                     } else {
                         path.add(fieldName);
+                        isObjectInPath.add(currentToken == XContentParser.Token.START_OBJECT);
                     }
                     fieldName = null;
                 } else if (currentToken == XContentParser.Token.END_OBJECT || currentToken == XContentParser.Token.END_ARRAY) {
-                    if (currentToken == XContentParser.Token.END_OBJECT && path.isEmpty() == false) {
+                    // Remove the path, if the scope type matches the one when the path was added.
+                    if (isObjectInPath.isEmpty() == false
+                        && (isObjectInPath.getLast() && currentToken == XContentParser.Token.END_OBJECT
+                            || isObjectInPath.getLast() == false && currentToken == XContentParser.Token.END_ARRAY)) {
                         path.removeLast();
+                        isObjectInPath.removeLast();
                     }
                     fieldName = null;
                 }
@@ -237,7 +243,6 @@ public final class DocumentParser {
             if (leaf != null) {
                 parser.nextToken();  // Advance the parser to the value to be read.
                 result.add(leaf.cloneWithValue(context.encodeFlattenedToken()));
-                parser.nextToken();  // Skip the token ending the value.
                 fieldName = null;
             }
             currentToken = parser.nextToken();
@@ -799,17 +804,30 @@ public final class DocumentParser {
         String fullPath = context.path().pathAsText(arrayFieldName);
 
         // Check if we need to record the array source. This only applies to synthetic source.
+        boolean canRemoveSingleLeafElement = false;
         if (context.canAddIgnoredField()) {
-            boolean objectRequiresStoringSource = mapper instanceof ObjectMapper objectMapper
-                && (getSourceKeepMode(context, objectMapper.sourceKeepMode()) == Mapper.SourceKeepMode.ALL
-                    || (getSourceKeepMode(context, objectMapper.sourceKeepMode()) == Mapper.SourceKeepMode.ARRAYS
-                        && objectMapper instanceof NestedObjectMapper == false));
-            boolean fieldWithFallbackSyntheticSource = mapper instanceof FieldMapper fieldMapper
-                && fieldMapper.syntheticSourceMode() == FieldMapper.SyntheticSourceMode.FALLBACK;
-            boolean fieldWithStoredArraySource = mapper instanceof FieldMapper fieldMapper
-                && getSourceKeepMode(context, fieldMapper.sourceKeepMode()) != Mapper.SourceKeepMode.NONE;
+            Mapper.SourceKeepMode mode = Mapper.SourceKeepMode.NONE;
+            boolean objectWithFallbackSyntheticSource = false;
+            if (mapper instanceof ObjectMapper objectMapper) {
+                mode = getSourceKeepMode(context, objectMapper.sourceKeepMode());
+                objectWithFallbackSyntheticSource = (mode == Mapper.SourceKeepMode.ALL
+                    || (mode == Mapper.SourceKeepMode.ARRAYS && objectMapper instanceof NestedObjectMapper == false));
+            }
+            boolean fieldWithFallbackSyntheticSource = false;
+            boolean fieldWithStoredArraySource = false;
+            if (mapper instanceof FieldMapper fieldMapper) {
+                mode = getSourceKeepMode(context, fieldMapper.sourceKeepMode());
+                fieldWithFallbackSyntheticSource = fieldMapper.syntheticSourceMode() == FieldMapper.SyntheticSourceMode.FALLBACK;
+                fieldWithStoredArraySource = mode != Mapper.SourceKeepMode.NONE;
+            }
             boolean copyToFieldHasValuesInDocument = context.isWithinCopyTo() == false && context.isCopyToDestinationField(fullPath);
-            if (objectRequiresStoringSource
+
+            canRemoveSingleLeafElement = mapper instanceof FieldMapper
+                && mode == Mapper.SourceKeepMode.ARRAYS
+                && fieldWithFallbackSyntheticSource == false
+                && copyToFieldHasValuesInDocument == false;
+
+            if (objectWithFallbackSyntheticSource
                 || fieldWithFallbackSyntheticSource
                 || fieldWithStoredArraySource
                 || copyToFieldHasValuesInDocument) {
@@ -829,19 +847,27 @@ public final class DocumentParser {
 
         XContentParser parser = context.parser();
         XContentParser.Token token;
+        int elements = 0;
         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
             if (token == XContentParser.Token.START_OBJECT) {
+                elements = Integer.MAX_VALUE;
                 parseObject(context, lastFieldName);
             } else if (token == XContentParser.Token.START_ARRAY) {
+                elements = Integer.MAX_VALUE;
                 parseArray(context, lastFieldName);
             } else if (token == XContentParser.Token.VALUE_NULL) {
+                elements++;
                 parseNullValue(context, lastFieldName);
             } else if (token == null) {
                 throwEOFOnParseArray(arrayFieldName, context);
             } else {
                 assert token.isValue();
+                elements++;
                 parseValue(context, lastFieldName);
             }
+        }
+        if (elements <= 1 && canRemoveSingleLeafElement) {
+            context.removeLastIgnoredField(fullPath);
         }
         postProcessDynamicArrayMapping(context, lastFieldName);
     }

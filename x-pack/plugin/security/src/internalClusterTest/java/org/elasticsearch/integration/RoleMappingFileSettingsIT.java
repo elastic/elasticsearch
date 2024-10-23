@@ -46,6 +46,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -59,8 +60,8 @@ import java.util.function.Consumer;
 import static org.elasticsearch.indices.recovery.RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING;
 import static org.elasticsearch.xcontent.XContentType.JSON;
 import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7;
-import static org.elasticsearch.xpack.security.authc.support.mapper.ClusterStateRoleMapper.RESERVED_ROLE_MAPPING_SUFFIX;
 import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -148,22 +149,23 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
              }
         }""";
 
-    @Override
-    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-        Settings.Builder builder = Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal, otherSettings))
-            // some tests make use of cluster-state based role mappings
-            .put("xpack.security.authc.cluster_state_role_mappings.enabled", true);
-        return builder.build();
-    }
-
     @After
     public void cleanUp() {
         updateClusterSettings(Settings.builder().putNull("indices.recovery.max_bytes_per_sec"));
     }
 
     public static void writeJSONFile(String node, String json, Logger logger, AtomicLong versionCounter) throws Exception {
-        long version = versionCounter.incrementAndGet();
+        writeJSONFile(node, json, logger, versionCounter, true);
+    }
+
+    public static void writeJSONFileWithoutVersionIncrement(String node, String json, Logger logger, AtomicLong versionCounter)
+        throws Exception {
+        writeJSONFile(node, json, logger, versionCounter, false);
+    }
+
+    private static void writeJSONFile(String node, String json, Logger logger, AtomicLong versionCounter, boolean incrementVersion)
+        throws Exception {
+        long version = incrementVersion ? versionCounter.incrementAndGet() : versionCounter.get();
 
         FileSettingsService fileSettingsService = internalCluster().getInstance(FileSettingsService.class, node);
         assertTrue(fileSettingsService.watching());
@@ -359,33 +361,34 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
             Arrays.stream(response.mappings()).map(ExpressionRoleMapping::getName).toList(),
             containsInAnyOrder(
                 "everyone_kibana",
-                "everyone_kibana" + RESERVED_ROLE_MAPPING_SUFFIX,
+                ExpressionRoleMapping.addReadOnlySuffix("everyone_kibana"),
                 "_everyone_kibana",
-                "everyone_fleet" + RESERVED_ROLE_MAPPING_SUFFIX,
+                ExpressionRoleMapping.addReadOnlySuffix("everyone_fleet"),
                 "zzz_mapping",
                 "123_mapping"
             )
         );
 
-        int readOnlyCount = 0;
-        // assert that cluster-state role mappings come last
+        List<Boolean> readOnlyFlags = new ArrayList<>();
         for (ExpressionRoleMapping mapping : response.mappings()) {
-            readOnlyCount = mapping.getName().endsWith(RESERVED_ROLE_MAPPING_SUFFIX) ? readOnlyCount + 1 : readOnlyCount;
+            boolean isReadOnly = ExpressionRoleMapping.hasReadOnlySuffix(mapping.getName())
+                && mapping.getMetadata().get("_read_only") != null;
+            readOnlyFlags.add(isReadOnly);
         }
-        // Two sourced from cluster-state
-        assertEquals(readOnlyCount, 2);
+        // assert that cluster-state role mappings come last
+        assertThat(readOnlyFlags, contains(false, false, false, false, true, true));
 
         // it's possible to delete overlapping native role mapping
         assertTrue(client().execute(DeleteRoleMappingAction.INSTANCE, deleteRequest("everyone_kibana")).actionGet().isFound());
 
         // Fetch a specific file based role
         request = new GetRoleMappingsRequest();
-        request.setNames("everyone_kibana" + RESERVED_ROLE_MAPPING_SUFFIX);
+        request.setNames(ExpressionRoleMapping.addReadOnlySuffix("everyone_kibana"));
         response = client().execute(GetRoleMappingsAction.INSTANCE, request).get();
         assertTrue(response.hasMappings());
         assertThat(
             Arrays.stream(response.mappings()).map(ExpressionRoleMapping::getName).toList(),
-            containsInAnyOrder("everyone_kibana" + RESERVED_ROLE_MAPPING_SUFFIX)
+            containsInAnyOrder(ExpressionRoleMapping.addReadOnlySuffix("everyone_kibana"))
         );
 
         savedClusterState = setupClusterStateListenerForCleanup(internalCluster().getMasterName());
@@ -566,7 +569,9 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
         assertThat(
             Arrays.stream(response.mappings()).map(ExpressionRoleMapping::getName).toList(),
             containsInAnyOrder(
-                Arrays.stream(mappings).map(mapping -> mapping + (readOnly ? RESERVED_ROLE_MAPPING_SUFFIX : "")).toArray(String[]::new)
+                Arrays.stream(mappings)
+                    .map(mapping -> readOnly ? ExpressionRoleMapping.addReadOnlySuffix(mapping) : mapping)
+                    .toArray(String[]::new)
             )
         );
     }

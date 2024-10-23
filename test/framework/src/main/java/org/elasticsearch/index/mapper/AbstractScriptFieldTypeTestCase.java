@@ -502,7 +502,7 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
     }
 
     protected final String readSource(IndexReader reader, int docId) throws IOException {
-        return reader.document(docId).getBinaryValue("_source").utf8ToString();
+        return reader.storedFields().document(docId).getBinaryValue("_source").utf8ToString();
     }
 
     protected final void checkExpensiveQuery(BiConsumer<MappedFieldType, SearchExecutionContext> queryBuilder) {

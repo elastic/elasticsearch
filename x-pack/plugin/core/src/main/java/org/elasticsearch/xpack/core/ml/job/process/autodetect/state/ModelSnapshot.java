@@ -194,7 +194,11 @@ public class ModelSnapshot implements ToXContentObject, Writeable {
         builder.field(Job.ID.getPreferredName(), jobId);
         builder.field(MIN_VERSION.getPreferredName(), minVersion);
         if (timestamp != null) {
-            builder.timeField(TIMESTAMP.getPreferredName(), TIMESTAMP.getPreferredName() + "_string", timestamp.getTime());
+            builder.timestampFieldsFromUnixEpochMillis(
+                TIMESTAMP.getPreferredName(),
+                TIMESTAMP.getPreferredName() + "_string",
+                timestamp.getTime()
+            );
         }
         if (description != null) {
             builder.field(DESCRIPTION.getPreferredName(), description);
@@ -207,14 +211,14 @@ public class ModelSnapshot implements ToXContentObject, Writeable {
             builder.field(ModelSizeStats.RESULT_TYPE_FIELD.getPreferredName(), modelSizeStats);
         }
         if (latestRecordTimeStamp != null) {
-            builder.timeField(
+            builder.timestampFieldsFromUnixEpochMillis(
                 LATEST_RECORD_TIME.getPreferredName(),
                 LATEST_RECORD_TIME.getPreferredName() + "_string",
                 latestRecordTimeStamp.getTime()
             );
         }
         if (latestResultTimeStamp != null) {
-            builder.timeField(
+            builder.timestampFieldsFromUnixEpochMillis(
                 LATEST_RESULT_TIME.getPreferredName(),
                 LATEST_RESULT_TIME.getPreferredName() + "_string",
                 latestResultTimeStamp.getTime()

@@ -1379,6 +1379,63 @@ d:double | c:double
 -0.0     | -0.0
 ;
 
+hypot
+required_capability: fn_hypot
+// tag::hypot[]
+ROW a = 3.0, b = 4.0
+| EVAL c = HYPOT(a, b)
+// end::hypot[]
+;
+
+// tag::hypot-result[]
+a:double | b:double | c:double
+3.0      | 4.0      | 5.0
+// end::hypot-result[]
+;
+
+hypotWithFrom
+required_capability: fn_hypot
+FROM ul_logs
+| WHERE id > 95
+| EVAL bytes_hypot = HYPOT(bytes_in, bytes_out)
+| SORT id ASC
+| LIMIT 5
+| KEEP id, bytes_in, bytes_out, bytes_hypot
+;
+
+id:integer | bytes_in:unsigned_long | bytes_out:unsigned_long | bytes_hypot:double
+96         | 9932469097722733505    | 14925592145374204307    | 1.792839209932874E19
+97         | 11620953158540412267   | 3809712277266935082     | 1.2229491401875583E19
+98         | 3448205404634246112    | 5409549730889481641     | 6.415087591258227E18
+99         | 1957665857956635540    | 352442273299370793      | 1.9891382977102218E18
+100        | 16462768484251021236   | 15616395223975497926    | 2.2691287886707827E19
+;
+
+hypotBothNull
+required_capability: fn_hypot
+FROM ul_logs
+| WHERE bytes_in IS NULL and bytes_out IS NULL
+| LIMIT 1
+| EVAL bytes_hypot = HYPOT(bytes_in, bytes_out)
+| KEEP bytes_in, bytes_out, bytes_hypot
+;
+
+bytes_in:unsigned_long | bytes_out:unsigned_long | bytes_hypot:double
+null                   | null                    | null
+;
+
+hypotOneNull
+required_capability: fn_hypot
+FROM ul_logs
+| WHERE id == 41
+| EVAL confused_hypot = HYPOT(id, bytes_in)
+| KEEP id, bytes_in, confused_hypot
+;
+
+id:integer | bytes_in:unsigned_long | confused_hypot:double
+41         | null                   | null
+;
+
 least
 // tag::least[]
 ROW a = 10, b = 20

@@ -280,8 +280,8 @@ public class XContentMapValues {
             include = matchAllAutomaton;
         } else {
             Automaton includeA = Regex.simpleMatchToAutomaton(includes);
-            includeA = makeMatchDotsInFieldNames(includeA);
-            include = new CharacterRunAutomaton(includeA, MAX_DETERMINIZED_STATES);
+            includeA = Operations.determinize(makeMatchDotsInFieldNames(includeA), MAX_DETERMINIZED_STATES);
+            include = new CharacterRunAutomaton(includeA);
         }
 
         Automaton excludeA;
@@ -289,9 +289,9 @@ public class XContentMapValues {
             excludeA = Automata.makeEmpty();
         } else {
             excludeA = Regex.simpleMatchToAutomaton(excludes);
-            excludeA = makeMatchDotsInFieldNames(excludeA);
+            excludeA = Operations.determinize(makeMatchDotsInFieldNames(excludeA), MAX_DETERMINIZED_STATES);
         }
-        CharacterRunAutomaton exclude = new CharacterRunAutomaton(excludeA, MAX_DETERMINIZED_STATES);
+        CharacterRunAutomaton exclude = new CharacterRunAutomaton(excludeA);
 
         // NOTE: We cannot use Operations.minus because of the special case that
         // we want all sub properties to match as soon as an object matches

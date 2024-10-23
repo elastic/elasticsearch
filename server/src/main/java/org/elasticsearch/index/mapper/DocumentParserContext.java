@@ -111,6 +111,7 @@ public abstract class DocumentParserContext {
     private final Set<String> ignoredFields;
     private final List<IgnoredSourceFieldMapper.NameValue> ignoredFieldValues;
     private final List<IgnoredSourceFieldMapper.NameValue> ignoredFieldsMissingValues;
+    private boolean inArrayScopeEnabled;
     private boolean inArrayScope;
 
     private final Map<String, List<Mapper>> dynamicMappers;
@@ -143,6 +144,7 @@ public abstract class DocumentParserContext {
         Set<String> ignoreFields,
         List<IgnoredSourceFieldMapper.NameValue> ignoredFieldValues,
         List<IgnoredSourceFieldMapper.NameValue> ignoredFieldsWithNoSource,
+        boolean inArrayScopeEnabled,
         boolean inArrayScope,
         Map<String, List<Mapper>> dynamicMappers,
         Map<String, ObjectMapper> dynamicObjectMappers,
@@ -164,6 +166,7 @@ public abstract class DocumentParserContext {
         this.ignoredFields = ignoreFields;
         this.ignoredFieldValues = ignoredFieldValues;
         this.ignoredFieldsMissingValues = ignoredFieldsWithNoSource;
+        this.inArrayScopeEnabled = inArrayScopeEnabled;
         this.inArrayScope = inArrayScope;
         this.dynamicMappers = dynamicMappers;
         this.dynamicObjectMappers = dynamicObjectMappers;
@@ -188,6 +191,7 @@ public abstract class DocumentParserContext {
             in.ignoredFields,
             in.ignoredFieldValues,
             in.ignoredFieldsMissingValues,
+            in.inArrayScopeEnabled,
             in.inArrayScope,
             in.dynamicMappers,
             in.dynamicObjectMappers,
@@ -219,6 +223,7 @@ public abstract class DocumentParserContext {
             new HashSet<>(),
             new ArrayList<>(),
             new ArrayList<>(),
+            mappingParserContext.getIndexSettings().isSyntheticSourceSecondDocParsingPassEnabled(),
             false,
             new HashMap<>(),
             new HashMap<>(),
@@ -296,6 +301,12 @@ public abstract class DocumentParserContext {
         }
     }
 
+    final void removeLastIgnoredField(String name) {
+        if (ignoredFieldValues.isEmpty() == false && ignoredFieldValues.getLast().name().equals(name)) {
+            ignoredFieldValues.removeLast();
+        }
+    }
+
     /**
      * Return the collection of values for fields that have been ignored so far.
      */
@@ -365,13 +376,14 @@ public abstract class DocumentParserContext {
      * Applies to synthetic source only.
      */
     public final DocumentParserContext maybeCloneForArray(Mapper mapper) throws IOException {
-        if (canAddIgnoredField() && mapper instanceof ObjectMapper) {
-            boolean isNested = mapper instanceof NestedObjectMapper;
-            if ((inArrayScope == false && isNested == false) || (inArrayScope && isNested)) {
-                DocumentParserContext subcontext = switchParser(parser());
-                subcontext.inArrayScope = inArrayScope == false;
-                return subcontext;
-            }
+        if (canAddIgnoredField()
+            && mapper instanceof ObjectMapper
+            && mapper instanceof NestedObjectMapper == false
+            && inArrayScope == false
+            && inArrayScopeEnabled) {
+            DocumentParserContext subcontext = switchParser(parser());
+            subcontext.inArrayScope = true;
+            return subcontext;
         }
         return this;
     }
@@ -698,12 +710,18 @@ public abstract class DocumentParserContext {
      * Return a new context that has the provided document as the current document.
      */
     public final DocumentParserContext switchDoc(final LuceneDocument document) {
-        return new Wrapper(this.parent, this) {
+        DocumentParserContext cloned = new Wrapper(this.parent, this) {
             @Override
             public LuceneDocument doc() {
                 return document;
             }
         };
+        // Disable tracking array scopes for ignored source, as it would be added to the parent doc.
+        // Nested documents are added to preserve object structure within arrays of objects, so the use
+        // of ignored source for arrays inside them should be mostly redundant.
+        cloned.inArrayScope = false;
+        cloned.inArrayScopeEnabled = false;
+        return cloned;
     }
 
     /**

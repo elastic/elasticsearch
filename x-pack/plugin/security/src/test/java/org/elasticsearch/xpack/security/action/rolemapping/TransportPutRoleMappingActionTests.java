@@ -26,17 +26,15 @@ import org.junit.Before;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.elasticsearch.xpack.security.authc.support.mapper.ClusterStateRoleMapper.RESERVED_ROLE_MAPPING_SUFFIX;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.iterableWithSize;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anySet;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -44,17 +42,14 @@ import static org.mockito.Mockito.when;
 public class TransportPutRoleMappingActionTests extends ESTestCase {
 
     private NativeRoleMappingStore store;
-    private ClusterStateRoleMapper clusterStateRoleMapper;
     private TransportPutRoleMappingAction action;
     private AtomicReference<PutRoleMappingRequest> requestRef;
+    private ClusterStateRoleMapper clusterStateRoleMapper;
 
     @SuppressWarnings("unchecked")
     @Before
     public void setupMocks() {
         store = mock(NativeRoleMappingStore.class);
-        clusterStateRoleMapper = mock(ClusterStateRoleMapper.class);
-        when(clusterStateRoleMapper.getMappings(anySet())).thenReturn(Set.of());
-        when(clusterStateRoleMapper.hasMapping(any())).thenReturn(false);
         TransportService transportService = new TransportService(
             Settings.EMPTY,
             mock(Transport.class),
@@ -64,6 +59,8 @@ public class TransportPutRoleMappingActionTests extends ESTestCase {
             null,
             Collections.emptySet()
         );
+        clusterStateRoleMapper = mock();
+        when(clusterStateRoleMapper.hasMapping(any())).thenReturn(false);
         action = new TransportPutRoleMappingAction(mock(ActionFilters.class), transportService, store, clusterStateRoleMapper);
 
         requestRef = new AtomicReference<>(null);
@@ -94,20 +91,36 @@ public class TransportPutRoleMappingActionTests extends ESTestCase {
         assertThat(mapping.getMetadata().get("dumb"), equalTo(true));
     }
 
-    public void testPutMappingWithInvalidName() {
+    public void testValidMappingClashingClusterStateMapping() throws Exception {
         final FieldExpression expression = new FieldExpression("username", Collections.singletonList(new FieldExpression.FieldValue("*")));
-        IllegalArgumentException illegalArgumentException = expectThrows(
-            IllegalArgumentException.class,
-            () -> put("anarchy" + RESERVED_ROLE_MAPPING_SUFFIX, expression, "superuser", Collections.singletonMap("dumb", true))
-        );
+        final PutRoleMappingResponse response = put("anarchy", expression, "superuser", Collections.singletonMap("dumb", true));
+        when(clusterStateRoleMapper.hasMapping(any())).thenReturn(true);
 
+        assertThat(response.isCreated(), equalTo(true));
+
+        final ExpressionRoleMapping mapping = requestRef.get().getMapping();
+        assertThat(mapping.getExpression(), is(expression));
+        assertThat(mapping.isEnabled(), equalTo(true));
+        assertThat(mapping.getName(), equalTo("anarchy"));
+        assertThat(mapping.getRoles(), iterableWithSize(1));
+        assertThat(mapping.getRoles(), contains("superuser"));
+        assertThat(mapping.getMetadata(), aMapWithSize(1));
+        assertThat(mapping.getMetadata().get("dumb"), equalTo(true));
+    }
+
+    public void testInvalidSuffix() {
+        final FieldExpression expression = new FieldExpression("username", Collections.singletonList(new FieldExpression.FieldValue("*")));
+        String name = ExpressionRoleMapping.addReadOnlySuffix("anarchy");
+        final var ex = expectThrows(IllegalArgumentException.class, () -> {
+            put(name, expression, "superuser", Collections.singletonMap("dumb", true));
+        });
         assertThat(
-            illegalArgumentException.getMessage(),
-            equalTo(
-                "Invalid mapping name [anarchy"
-                    + RESERVED_ROLE_MAPPING_SUFFIX
+            ex.getMessage(),
+            containsString(
+                "Invalid mapping name ["
+                    + name
                     + "]. ["
-                    + RESERVED_ROLE_MAPPING_SUFFIX
+                    + ExpressionRoleMapping.READ_ONLY_ROLE_MAPPING_SUFFIX
                     + "] is not an allowed suffix"
             )
         );

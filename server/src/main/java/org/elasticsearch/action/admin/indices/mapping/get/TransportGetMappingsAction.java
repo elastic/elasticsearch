@@ -17,7 +17,6 @@ import org.elasticsearch.action.support.master.info.TransportClusterInfoAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.indices.IndicesService;
@@ -68,8 +67,7 @@ public class TransportGetMappingsAction extends TransportClusterInfoAction<GetMa
         final ActionListener<GetMappingsResponse> listener
     ) {
         logger.trace("serving getMapping request based on version {}", state.version());
-        final Metadata metadata = state.metadata();
-        final Map<String, MappingMetadata> mappings = metadata.getProject()
+        final Map<String, MappingMetadata> mappings = projectResolver.getProjectMetadata(state)
             .findMappings(concreteIndices, indicesService.getFieldFilter(), () -> checkCancellation(task));
         listener.onResponse(new GetMappingsResponse(mappings));
     }

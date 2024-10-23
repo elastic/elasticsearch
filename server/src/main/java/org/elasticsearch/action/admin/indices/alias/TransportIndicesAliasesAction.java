@@ -207,7 +207,11 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeAction<Ind
                     );
                 }
             }
-            final Optional<Exception> maybeException = requestValidators.validateRequest(request, state, concreteIndices);
+            final Optional<Exception> maybeException = requestValidators.validateRequest(
+                request,
+                state.metadata().getProject(),
+                concreteIndices
+            );
             if (maybeException.isPresent()) {
                 listener.onFailure(maybeException.get());
                 return;

@@ -2469,7 +2469,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         actionFilters,
                         indexNameExpressionResolver,
                         new RequestValidators<>(Collections.emptyList()),
-                        EmptySystemIndices.INSTANCE
+                        EmptySystemIndices.INSTANCE,
+                        TestProjectResolvers.singleProjectOnly()
                     )
                 );
                 actions.put(

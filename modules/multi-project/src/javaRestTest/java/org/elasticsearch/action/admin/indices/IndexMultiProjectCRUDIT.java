@@ -48,7 +48,7 @@ public class IndexMultiProjectCRUDIT extends ESRestTestCase {
     private static ElasticsearchCluster createCluster() {
         LocalClusterSpecBuilder<ElasticsearchCluster> clusterBuilder = ElasticsearchCluster.local()
             .nodes(NODE_NUM)
-            .distribution(DistributionType.INTEG_TEST) // TODO multi-rpoject: make this test suite work under the default distrib
+            .distribution(DistributionType.INTEG_TEST) // TODO multi-project: make this test suite work under the default distrib
             .module("multi-project")
             .setting("xpack.security.enabled", "false") // TODO multi-project: make this test suite work with Security enabled
             .setting("xpack.ml.enabled", "false"); // TODO multi-project: make this test suite work with ML enabled
@@ -157,6 +157,135 @@ public class IndexMultiProjectCRUDIT extends ESRestTestCase {
             assertThat(responseException.getMessage(), containsString("index_not_found_exception"));
             assertThat(responseException.getMessage(), containsString("no such index [" + indexName2));
             assertThat(responseException.getResponse().getStatusLine().getStatusCode(), is(404));
+        }
+    }
+
+    public void testUpdateMappingOfProjectIndex() throws IOException {
+        final String projectId1 = "projectid1" + testNameRule.getMethodName().toLowerCase(Locale.ROOT);
+        createProject(projectId1);
+        final String projectId2 = "projectid2" + testNameRule.getMethodName().toLowerCase(Locale.ROOT);
+        createProject(projectId2);
+
+        final String indexName = "testindex" + testNameRule.getMethodName().toLowerCase(Locale.ROOT);
+        {
+            Request putIndexRequest = new Request("PUT", "/" + indexName);
+            putIndexRequest.setJsonEntity("""
+                {
+                  "mappings": {
+                    "properties": {
+                      "field1": { "type": "text" }
+                    }
+                  }
+                }
+                """);
+            setRequestProjectId(putIndexRequest, projectId1);
+            Response putIndexResponse = client().performRequest(putIndexRequest);
+            assertOK(putIndexResponse);
+            var putIndexResponseBodyMap = toMap(putIndexResponse);
+            assertTrue((boolean) XContentMapValues.extractValue("acknowledged", putIndexResponseBodyMap));
+            assertThat((String) XContentMapValues.extractValue("index", putIndexResponseBodyMap), is(indexName));
+        }
+        {
+            Request putIndexRequest = new Request("PUT", "/" + indexName);
+            putIndexRequest.setJsonEntity("""
+                {
+                  "mappings": {
+                    "properties": {
+                      "field1": { "type": "keyword" }
+                    }
+                  }
+                }
+                """);
+            setRequestProjectId(putIndexRequest, projectId2);
+            Response putIndexResponse = client().performRequest(putIndexRequest);
+            assertOK(putIndexResponse);
+            var putIndexResponseBodyMap = toMap(putIndexResponse);
+            assertTrue((boolean) XContentMapValues.extractValue("acknowledged", putIndexResponseBodyMap));
+            assertThat((String) XContentMapValues.extractValue("index", putIndexResponseBodyMap), is(indexName));
+        }
+        // update the mapping (add a new field) for the index in project1
+        {
+            Request putMappingRequest = new Request("PUT", "/" + indexName + "/_mapping");
+            putMappingRequest.setJsonEntity("""
+                {
+                  "properties": {
+                    "field2": { "type": "keyword" }
+                  }
+                }
+                """);
+            setRequestProjectId(putMappingRequest, projectId1);
+            Response putMappingResponse = client().performRequest(putMappingRequest);
+            assertOK(putMappingResponse);
+            var putMappingResponseBodyMap = toMap(putMappingResponse);
+            assertTrue((boolean) XContentMapValues.extractValue("acknowledged", putMappingResponseBodyMap));
+        }
+        // update the mapping (modify an existing field) for the index in project2
+        {
+            Request putMappingRequest = new Request("PUT", "/" + indexName + "/_mapping");
+            putMappingRequest.setJsonEntity("""
+                {
+                  "properties": {
+                    "field1": {
+                      "type": "keyword",
+                      "fields": {
+                        "text": {
+                          "type": "text"
+                        }
+                      }
+                    }
+                  }
+                }
+                """);
+            setRequestProjectId(putMappingRequest, projectId2);
+            Response putMappingResponse = client().performRequest(putMappingRequest);
+            assertOK(putMappingResponse);
+            var putMappingResponseBodyMap = toMap(putMappingResponse);
+            assertTrue((boolean) XContentMapValues.extractValue("acknowledged", putMappingResponseBodyMap));
+        }
+        final Request getMappingRequest = randomFrom(
+            new Request("GET", "/" + indexName + "/_mapping"),
+            new Request("GET", "/" + indexName + "?features=mappings")
+        );
+        // get the (updated) mapping of index from project1
+        {
+            setRequestProjectId(getMappingRequest, projectId1);
+            Response getMappingResponse = client().performRequest(getMappingRequest);
+            assertOK(getMappingResponse);
+            Map<String, Object> getMappingResponseBodyMap = entityAsMap(getMappingResponse);
+            assertThat(
+                ((Map<?, ?>) XContentMapValues.extractValue(indexName + ".mappings.properties", getMappingResponseBodyMap)).size(),
+                is(2)
+            );
+            assertThat(
+                (String) XContentMapValues.extractValue(indexName + ".mappings.properties.field1.type", getMappingResponseBodyMap),
+                is("text")
+            );
+            assertThat(
+                (String) XContentMapValues.extractValue(indexName + ".mappings.properties.field2.type", getMappingResponseBodyMap),
+                is("keyword")
+            );
+        }
+        // get the (updated) mapping of index from project2
+        {
+            setRequestProjectId(getMappingRequest, projectId2);
+            Response getMappingResponse = client().performRequest(getMappingRequest);
+            assertOK(getMappingResponse);
+            Map<String, Object> getMappingResponseBodyMap = entityAsMap(getMappingResponse);
+            assertThat(
+                ((Map<?, ?>) XContentMapValues.extractValue(indexName + ".mappings.properties", getMappingResponseBodyMap)).size(),
+                is(1)
+            );
+            assertThat(
+                (String) XContentMapValues.extractValue(indexName + ".mappings.properties.field1.type", getMappingResponseBodyMap),
+                is("keyword")
+            );
+            assertThat(
+                (String) XContentMapValues.extractValue(
+                    indexName + ".mappings.properties.field1.fields.text.type",
+                    getMappingResponseBodyMap
+                ),
+                is("text")
+            );
         }
     }
 

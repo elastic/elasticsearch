@@ -125,8 +125,16 @@ public class IndexNameExpressionResolver {
      * are encapsulated in the specified request and resolves data streams.
      */
     public Index[] concreteIndices(ClusterState state, IndicesRequest request) {
+        return concreteIndices(projectResolver.getProjectMetadata(state), request);
+    }
+
+    /**
+     * Same as {@link #concreteIndices(ClusterState, IndicesOptions, String...)}, but the index expressions and options
+     * are encapsulated in the specified request and resolves data streams.
+     */
+    public Index[] concreteIndices(ProjectMetadata projectMetadata, IndicesRequest request) {
         Context context = new Context(
-            state.metadata().getProject(projectResolver.getProjectId(state)),
+            projectMetadata,
             request.indicesOptions(),
             false,
             false,
@@ -722,6 +730,28 @@ public class IndexNameExpressionResolver {
         boolean allowNoIndices,
         boolean includeDataStreams
     ) {
+        return concreteWriteIndex(projectResolver.getProjectMetadata(state), options, index, allowNoIndices, includeDataStreams);
+    }
+
+    /**
+     * Utility method that allows to resolve an index expression to its corresponding single write index.
+     *
+     * @param projectMetadata   the project metadata containing all the data to resolve to expression to a concrete index
+     * @param options           defines how the aliases or indices need to be resolved to concrete indices
+     * @param index             index that can be resolved to alias or index name.
+     * @param allowNoIndices    whether to allow resolve to no index
+     * @param includeDataStreams Whether data streams should be included in the evaluation.
+     * @throws IllegalArgumentException if the index resolution does not lead to an index, or leads to more than one index, as well as
+     * if a remote index is requested.
+     * @return the write index obtained as a result of the index resolution or null if no index
+     */
+    public Index concreteWriteIndex(
+        ProjectMetadata projectMetadata,
+        IndicesOptions options,
+        String index,
+        boolean allowNoIndices,
+        boolean includeDataStreams
+    ) {
         IndicesOptions combinedOptions = IndicesOptions.fromOptions(
             options.ignoreUnavailable(),
             allowNoIndices,
@@ -735,7 +765,7 @@ public class IndexNameExpressionResolver {
         );
 
         Context context = new Context(
-            state.metadata().getProject(projectResolver.getProjectId(state)),
+            projectMetadata,
             combinedOptions,
             false,
             true,

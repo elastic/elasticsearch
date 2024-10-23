@@ -339,7 +339,8 @@ public class DataStreamGetWriteIndexTests extends ESTestCase {
     }
 
     private Index getWriteIndex(ClusterState state, String name, String timestamp) {
-        var ia = state.getMetadata().getProject().getIndicesLookup().get(name);
+        var project = state.getMetadata().getProject();
+        var ia = project.getIndicesLookup().get(name);
         assertThat(ia, notNullValue());
         IndexRequest indexRequest = new IndexRequest(name);
         indexRequest.opType(DocWriteRequest.OpType.CREATE);
@@ -348,7 +349,7 @@ public class DataStreamGetWriteIndexTests extends ESTestCase {
         } else {
             indexRequest.setRawTimestamp(timestamp);
         }
-        return ia.getWriteIndex(indexRequest, state.getMetadata());
+        return ia.getWriteIndex(indexRequest, project);
     }
 
 }

@@ -3327,15 +3327,8 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             List.of(new Tuple<>("logs-foobar", 1)),
             List.of("my-index")
         );
-        ClusterState finalState = ClusterState.builder(state)
-            .putProjectMetadata(
-                ProjectMetadata.builder(state.metadata().getProject())
-                    .put(
-                        IndexMetadata.builder(state.getMetadata().getProject().index("my-index"))
-                            .putAlias(new AliasMetadata.Builder("my-alias"))
-                    )
-                    .build()
-            )
+        ProjectMetadata finalState = ProjectMetadata.builder(state.metadata().getProject())
+            .put(IndexMetadata.builder(state.getMetadata().getProject().index("my-index")).putAlias(new AliasMetadata.Builder("my-alias")))
             .build();
         Function<String, List<DocWriteRequest<?>>> docWriteRequestsForName = (name) -> List.of(
             new IndexRequest(name).opType(DocWriteRequest.OpType.INDEX),
@@ -3374,25 +3367,17 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             List.of(new Tuple<>("logs-foobar", 1)),
             List.of("my-index", "my-index2")
         );
-        ClusterState state2 = ClusterState.builder(state1)
-            .putProjectMetadata(
-                ProjectMetadata.builder(state1.getMetadata().getProject())
-                    .put(
-                        IndexMetadata.builder(state1.getMetadata().getProject().index("my-index"))
-                            .putAlias(new AliasMetadata.Builder("my-alias"))
-                    )
-                    .put(
-                        IndexMetadata.builder(state1.getMetadata().getProject().index("my-index2"))
-                            .putAlias(new AliasMetadata.Builder("my-alias"))
-                    )
-                    .build()
+        ProjectMetadata project2 = ProjectMetadata.builder(state1.getMetadata().getProject())
+            .put(IndexMetadata.builder(state1.getMetadata().getProject().index("my-index")).putAlias(new AliasMetadata.Builder("my-alias")))
+            .put(
+                IndexMetadata.builder(state1.getMetadata().getProject().index("my-index2")).putAlias(new AliasMetadata.Builder("my-alias"))
             )
             .build();
 
         DocWriteRequest<?> request = new IndexRequest("my-alias");
         var e = expectThrows(
             IllegalArgumentException.class,
-            () -> indexNameExpressionResolver.resolveWriteIndexAbstraction(state2, request)
+            () -> indexNameExpressionResolver.resolveWriteIndexAbstraction(project2, request)
         );
         assertThat(
             e.getMessage(),
@@ -3404,16 +3389,18 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
     }
 
     public void testResolveWriteIndexAbstractionMissing() {
-        ClusterState state = DataStreamTestHelper.getClusterStateWithDataStreams(
+        ProjectMetadata project = DataStreamTestHelper.getClusterStateWithDataStreams(
             List.of(new Tuple<>("logs-foobar", 1)),
             List.of("my-index")
-        );
+        ).getMetadata().getProject();
         DocWriteRequest<?> request = new IndexRequest("logs-my-index");
-        expectThrows(IndexNotFoundException.class, () -> indexNameExpressionResolver.resolveWriteIndexAbstraction(state, request));
+        expectThrows(IndexNotFoundException.class, () -> indexNameExpressionResolver.resolveWriteIndexAbstraction(project, request));
     }
 
     public void testResolveWriteIndexAbstractionMultipleMatches() {
-        ClusterState state = DataStreamTestHelper.getClusterStateWithDataStreams(List.of(), List.of("logs-foo", "logs-bar"));
+        ProjectMetadata project = DataStreamTestHelper.getClusterStateWithDataStreams(List.of(), List.of("logs-foo", "logs-bar"))
+            .getMetadata()
+            .getProject();
         DocWriteRequest<?> request = mock(DocWriteRequest.class);
         when(request.index()).thenReturn("logs-*");
         when(request.indicesOptions()).thenReturn(IndicesOptions.lenientExpandOpen());
@@ -3421,7 +3408,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         when(request.includeDataStreams()).thenReturn(true);
         var e = expectThrows(
             IllegalArgumentException.class,
-            () -> indexNameExpressionResolver.resolveWriteIndexAbstraction(state, request)
+            () -> indexNameExpressionResolver.resolveWriteIndexAbstraction(project, request)
         );
         assertThat(
             e.getMessage(),

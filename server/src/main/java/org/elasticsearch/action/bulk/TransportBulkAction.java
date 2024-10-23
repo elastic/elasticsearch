@@ -37,7 +37,6 @@ import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
@@ -246,13 +245,12 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
      * different places.
      */
     private void trackIndexRequests(BulkRequest bulkRequest) {
-        final Metadata metadata = clusterService.state().metadata();
+        ProjectMetadata project = projectResolver.getProjectMetadata(clusterService.state());
         for (DocWriteRequest<?> request : bulkRequest.requests) {
             if (request instanceof IndexRequest == false) {
                 continue;
             }
             String resolvedIndexName = IndexNameExpressionResolver.resolveDateMathExpression(request.index());
-            final ProjectMetadata project = metadata.getProject();
             IndexAbstraction indexAbstraction = project.getIndicesLookup().get(resolvedIndexName);
             DataStream dataStream = DataStream.resolveDataStream(indexAbstraction, project);
             // We only track index requests into data streams.
@@ -592,6 +590,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
             client,
             responses,
             indexNameExpressionResolver,
+            projectResolver,
             relativeTimeNanosProvider,
             startTimeNanos,
             listener,
@@ -600,7 +599,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
     }
 
     /**
-     * See {@link #resolveFailureStore(String, Metadata, long)}
+     * See {@link #resolveFailureStore(String, ProjectMetadata, long)}
      */
     // Visibility for testing
     static Boolean resolveFailureInternal(String indexName, ProjectMetadata projectMetadata, long epochMillis) {
@@ -615,8 +614,8 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
     }
 
     @Override
-    protected Boolean resolveFailureStore(String indexName, Metadata metadata, long time) {
-        return resolveFailureInternal(indexName, metadata.getProject(), time);
+    protected Boolean resolveFailureStore(String indexName, ProjectMetadata metadata, long time) {
+        return resolveFailureInternal(indexName, metadata, time);
     }
 
     /**

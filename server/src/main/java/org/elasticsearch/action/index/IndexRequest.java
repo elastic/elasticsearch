@@ -22,7 +22,7 @@ import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -849,7 +849,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     }
 
     @Override
-    public Index getConcreteWriteIndex(IndexAbstraction ia, Metadata metadata) {
+    public Index getConcreteWriteIndex(IndexAbstraction ia, ProjectMetadata project) {
         if (DataStream.isFailureStoreFeatureFlagEnabled() && writeToFailureStore) {
             if (ia.isDataStreamRelated() == false) {
                 throw new ElasticsearchException(
@@ -858,7 +858,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
             }
             // Resolve write index and get parent data stream to handle the case of dealing with an alias
             String defaultWriteIndexName = ia.getWriteIndex().getName();
-            DataStream dataStream = metadata.getProject().getIndicesLookup().get(defaultWriteIndexName).getParentDataStream();
+            DataStream dataStream = project.getIndicesLookup().get(defaultWriteIndexName).getParentDataStream();
             if (dataStream.getFailureIndices().getIndices().size() < 1) {
                 throw new ElasticsearchException(
                     "Attempting to write a document to a failure store but the target data stream does not have one enabled"
@@ -867,7 +867,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
             return dataStream.getFailureIndices().getIndices().get(dataStream.getFailureIndices().getIndices().size() - 1);
         } else {
             // Resolve as normal
-            return ia.getWriteIndex(this, metadata);
+            return ia.getWriteIndex(this, project);
         }
     }
 

@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -191,8 +192,9 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
         );
 
         ClusterState state = clusterService.state();
+        ProjectMetadata project = state.metadata().getProject();
         Exception mappingValidationException = null;
-        IndexAbstraction indexAbstraction = state.metadata().getProject().getIndicesLookup().get(request.index());
+        IndexAbstraction indexAbstraction = project.getIndicesLookup().get(request.index());
         try {
             if (indexAbstraction != null
                 && componentTemplateSubstitutions.isEmpty()
@@ -202,7 +204,7 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
                  * In this case the index exists and we don't have any component template overrides. So we can just use withTempIndexService
                  * to do the mapping validation, using all the existing logic for validation.
                  */
-                IndexMetadata imd = state.metadata().getProject().getIndexSafe(indexAbstraction.getWriteIndex(request, state.metadata()));
+                IndexMetadata imd = project.getIndexSafe(indexAbstraction.getWriteIndex(request, project));
                 indicesService.withTempIndexService(imd, indexService -> {
                     indexService.mapperService().updateMapping(null, imd);
                     return IndexShard.prepareIndex(
@@ -398,7 +400,7 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
     }
 
     @Override
-    protected Boolean resolveFailureStore(String indexName, Metadata metadata, long epochMillis) {
+    protected Boolean resolveFailureStore(String indexName, ProjectMetadata metadata, long epochMillis) {
         // A simulate bulk request should not change any persistent state in the system, so we never write to the failure store
         return null;
     }

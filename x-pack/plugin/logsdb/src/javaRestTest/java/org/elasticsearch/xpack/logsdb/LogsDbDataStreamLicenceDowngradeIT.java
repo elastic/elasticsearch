@@ -19,6 +19,7 @@ public class LogsDbDataStreamLicenceDowngradeIT extends LogsDbDataStreamLicenseC
         startBasic();
     }
 
+    @Override
     protected List<String> prepareDataStreams() throws IOException {
         startTrial();
 

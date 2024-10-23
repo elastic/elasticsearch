@@ -19,6 +19,7 @@ public class LogsDbDataStreamLicenseUpgradeIT extends LogsDbDataStreamLicenseCha
         startTrial();
     }
 
+    @Override
     protected List<String> prepareDataStreams() throws IOException {
         var dataStreams = new ArrayList<String>();
 

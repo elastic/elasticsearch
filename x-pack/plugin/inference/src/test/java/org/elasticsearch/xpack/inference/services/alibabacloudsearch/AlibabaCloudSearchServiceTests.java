@@ -10,11 +10,15 @@ package org.elasticsearch.xpack.inference.services.alibabacloudsearch;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
 import org.elasticsearch.inference.ChunkingOptions;
 import org.elasticsearch.inference.ChunkingSettings;
+import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
@@ -22,6 +26,8 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.ChunkingSettingsFeatureFlag;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.InferenceChunkedSparseEmbeddingResults;
@@ -56,6 +62,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.elasticsearch.xpack.inference.Utils.getPersistedConfigMap;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
@@ -490,6 +498,159 @@ public class AlibabaCloudSearchServiceTests extends ESTestCase {
             } else if (TaskType.SPARSE_EMBEDDING.equals(taskType)) {
                 assertThat(firstResult, instanceOf(InferenceChunkedSparseEmbeddingResults.class));
             }
+        }
+    }
+
+    @SuppressWarnings("checkstyle:LineLength")
+    public void testGetConfiguration() throws IOException {
+        try (var service = new AlibabaCloudSearchService(mock(HttpRequestSender.Factory.class), createWithEmptySettings(threadPool))) {
+            String content = XContentHelper.stripWhitespace(
+                """
+                    {
+                       "provider": "alibabacloud-ai-search",
+                       "task_types": [
+                         "text_embedding",
+                         "sparse_embedding",
+                         "rerank",
+                         "completion"
+                       ],
+                       "configuration": {
+                         "workspace": {
+                           "default_value": null,
+                           "depends_on": [],
+                           "display": "textbox",
+                           "label": "Workspace",
+                           "order": 5,
+                           "required": true,
+                           "sensitive": false,
+                           "tooltip": "The name of the workspace used for the {infer} task.",
+                           "type": "str",
+                           "ui_restrictions": [],
+                           "validations": [],
+                           "value": null
+                         },
+                         "api_key": {
+                           "default_value": null,
+                           "depends_on": [],
+                           "display": "textbox",
+                           "label": "API Key",
+                           "order": 1,
+                           "required": true,
+                           "sensitive": true,
+                           "tooltip": "A valid API key for the AlibabaCloud AI Search API.",
+                           "type": "str",
+                           "ui_restrictions": [],
+                           "validations": [],
+                           "value": null
+                         },
+                         "service_id": {
+                           "default_value": null,
+                           "depends_on": [],
+                           "display": "dropdown",
+                           "label": "Project ID",
+                           "options": [
+                             {
+                               "label": "ops-text-embedding-001",
+                               "value": "ops-text-embedding-001"
+                             },
+                             {
+                               "label": "ops-text-embedding-zh-001",
+                               "value": "ops-text-embedding-zh-001"
+                             },
+                             {
+                               "label": "ops-text-embedding-en-001",
+                               "value": "ops-text-embedding-en-001"
+                             },
+                             {
+                               "label": "ops-text-embedding-002",
+                               "value": "ops-text-embedding-002"
+                             },
+                             {
+                               "label": "ops-text-sparse-embedding-001",
+                               "value": "ops-text-sparse-embedding-001"
+                             },
+                             {
+                               "label": "ops-bge-reranker-larger",
+                               "value": "ops-bge-reranker-larger"
+                             }
+                           ],
+                           "order": 2,
+                           "required": true,
+                           "sensitive": false,
+                           "tooltip": "The name of the model service to use for the {infer} task.",
+                           "type": "str",
+                           "ui_restrictions": [],
+                           "validations": [],
+                           "value": null
+                         },
+                         "host": {
+                           "default_value": null,
+                           "depends_on": [],
+                           "display": "textbox",
+                           "label": "Host",
+                           "order": 3,
+                           "required": true,
+                           "sensitive": false,
+                           "tooltip": "The name of the host address used for the {infer} task. You can find the host address at https://opensearch.console.aliyun.com/cn-shanghai/rag/api-key[ the API keys section] of the documentation.",
+                           "type": "str",
+                           "ui_restrictions": [],
+                           "validations": [],
+                           "value": null
+                         },
+                         "rate_limit.requests_per_minute": {
+                           "default_value": null,
+                           "depends_on": [],
+                           "display": "numeric",
+                           "label": "Rate Limit",
+                           "order": 6,
+                           "required": false,
+                           "sensitive": false,
+                           "tooltip": "Minimize the number of rate limit errors.",
+                           "type": "int",
+                           "ui_restrictions": [],
+                           "validations": [],
+                           "value": null
+                         },
+                         "http_schema": {
+                           "default_value": null,
+                           "depends_on": [],
+                           "display": "dropdown",
+                           "label": "HTTP Schema",
+                           "options": [
+                             {
+                               "label": "https",
+                               "value": "https"
+                             },
+                             {
+                               "label": "http",
+                               "value": "http"
+                             }
+                           ],
+                           "order": 4,
+                           "required": true,
+                           "sensitive": false,
+                           "tooltip": "",
+                           "type": "str",
+                           "ui_restrictions": [],
+                           "validations": [],
+                           "value": null
+                         }
+                       }
+                    }
+                    """
+            );
+            InferenceServiceConfiguration configuration = InferenceServiceConfiguration.fromXContentBytes(
+                new BytesArray(content),
+                XContentType.JSON
+            );
+            boolean humanReadable = true;
+            BytesReference originalBytes = toShuffledXContent(configuration, XContentType.JSON, ToXContent.EMPTY_PARAMS, humanReadable);
+            InferenceServiceConfiguration serviceConfiguration = service.getConfiguration();
+            assertToXContentEquivalent(
+                originalBytes,
+                toXContent(serviceConfiguration, XContentType.JSON, humanReadable),
+                XContentType.JSON
+            );
         }
     }
 

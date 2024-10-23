@@ -17,14 +17,18 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
 import org.elasticsearch.inference.ChunkingOptions;
+import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
+import org.elasticsearch.inference.ServiceConfiguration;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.configuration.ServiceConfigurationDisplayType;
+import org.elasticsearch.inference.configuration.ServiceConfigurationFieldType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -32,6 +36,8 @@ import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -76,6 +82,19 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
             var taskSettings = TestTaskSettings.fromMap(taskSettingsMap);
 
             parsedModelListener.onResponse(new TestServiceModel(modelId, taskType, name(), serviceSettings, taskSettings, secretSettings));
+        }
+
+        @Override
+        public InferenceServiceConfiguration getConfiguration() {
+            return new InferenceServiceConfiguration.Builder().setProvider(NAME)
+                .setTaskTypes(supportedTaskTypes())
+                .setConfiguration(TestInferenceService.Configuration.get())
+                .build();
+        }
+
+        @Override
+        public EnumSet<TaskType> supportedTaskTypes() {
+            return EnumSet.of(TaskType.TEXT_EMBEDDING);
         }
 
         @Override
@@ -131,6 +150,26 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
 
         protected ServiceSettings getServiceSettingsFromMap(Map<String, Object> serviceSettingsMap) {
             return TestServiceSettings.fromMap(serviceSettingsMap);
+        }
+
+        private static class Configuration {
+            public static Map<String, ServiceConfiguration> get() {
+                var configurationMap = new HashMap<String, ServiceConfiguration>();
+
+                configurationMap.put(
+                    "model",
+                    new ServiceConfiguration.Builder().setDisplay(ServiceConfigurationDisplayType.TEXTBOX)
+                        .setLabel("Model")
+                        .setOrder(1)
+                        .setRequired(true)
+                        .setSensitive(true)
+                        .setTooltip("")
+                        .setType(ServiceConfigurationFieldType.STRING)
+                        .build()
+                );
+
+                return configurationMap;
+            }
         }
     }
 

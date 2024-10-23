@@ -11,11 +11,15 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.inference.ServiceConfiguration;
+import org.elasticsearch.inference.configuration.ServiceConfigurationDisplayType;
+import org.elasticsearch.inference.configuration.ServiceConfigurationFieldType;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
@@ -46,6 +50,26 @@ public class RateLimitSettings implements Writeable, ToXContentFragment {
         }
 
         return requestsPerMinute == null ? defaultValue : new RateLimitSettings(requestsPerMinute);
+    }
+
+    public static Map<String, ServiceConfiguration> toServiceConfigurationWithTooltip(String tooltip) {
+        var configurationMap = new HashMap<String, ServiceConfiguration>();
+        configurationMap.put(
+            FIELD_NAME + "." + REQUESTS_PER_MINUTE_FIELD,
+            new ServiceConfiguration.Builder().setDisplay(ServiceConfigurationDisplayType.NUMERIC)
+                .setLabel("Rate Limit")
+                .setOrder(6)
+                .setRequired(false)
+                .setSensitive(false)
+                .setTooltip(tooltip)
+                .setType(ServiceConfigurationFieldType.INTEGER)
+                .build()
+        );
+        return configurationMap;
+    }
+
+    public static Map<String, ServiceConfiguration> toServiceConfiguration() {
+        return RateLimitSettings.toServiceConfigurationWithTooltip("Minimize the number of rate limit errors.");
     }
 
     /**

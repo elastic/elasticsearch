@@ -17,13 +17,18 @@ import org.elasticsearch.inference.ChunkedInferenceServiceResults;
 import org.elasticsearch.inference.ChunkingOptions;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceService;
+import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
+import org.elasticsearch.inference.ServiceConfiguration;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.configuration.ServiceConfigurationDisplayType;
+import org.elasticsearch.inference.configuration.ServiceConfigurationFieldType;
+import org.elasticsearch.inference.configuration.ServiceConfigurationSelectOption;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.inference.ChunkingSettingsFeatureFlag;
 import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsBuilder;
@@ -42,10 +47,18 @@ import org.elasticsearch.xpack.inference.services.alibabacloudsearch.embeddings.
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.embeddings.AlibabaCloudSearchEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.rerank.AlibabaCloudSearchRerankModel;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.sparse.AlibabaCloudSearchSparseModel;
+import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
+import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.inference.TaskType.SPARSE_EMBEDDING;
+import static org.elasticsearch.inference.TaskType.TEXT_EMBEDDING;
 import static org.elasticsearch.xpack.core.inference.action.InferenceAction.Request.DEFAULT_TIMEOUT;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.parsePersistedConfigErrorMsg;
@@ -53,6 +66,10 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFrom
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
 import static org.elasticsearch.xpack.inference.services.alibabacloudsearch.AlibabaCloudSearchServiceFields.EMBEDDING_MAX_BATCH_SIZE;
+import static org.elasticsearch.xpack.inference.services.alibabacloudsearch.AlibabaCloudSearchServiceSettings.HOST;
+import static org.elasticsearch.xpack.inference.services.alibabacloudsearch.AlibabaCloudSearchServiceSettings.HTTP_SCHEMA_NAME;
+import static org.elasticsearch.xpack.inference.services.alibabacloudsearch.AlibabaCloudSearchServiceSettings.SERVICE_ID;
+import static org.elasticsearch.xpack.inference.services.alibabacloudsearch.AlibabaCloudSearchServiceSettings.WORKSPACE_NAME;
 
 public class AlibabaCloudSearchService extends SenderService {
     public static final String NAME = AlibabaCloudSearchUtils.SERVICE_NAME;
@@ -78,7 +95,7 @@ public class AlibabaCloudSearchService extends SenderService {
             Map<String, Object> taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
 
             ChunkingSettings chunkingSettings = null;
-            if (ChunkingSettingsFeatureFlag.isEnabled() && List.of(TaskType.TEXT_EMBEDDING, TaskType.SPARSE_EMBEDDING).contains(taskType)) {
+            if (ChunkingSettingsFeatureFlag.isEnabled() && List.of(TEXT_EMBEDDING, SPARSE_EMBEDDING).contains(taskType)) {
                 chunkingSettings = ChunkingSettingsBuilder.fromMap(
                     removeFromMapOrDefaultEmpty(config, ModelConfigurations.CHUNKING_SETTINGS)
                 );
@@ -103,6 +120,19 @@ public class AlibabaCloudSearchService extends SenderService {
         } catch (Exception e) {
             parsedModelListener.onFailure(e);
         }
+    }
+
+    @Override
+    public InferenceServiceConfiguration getConfiguration() {
+        return new InferenceServiceConfiguration.Builder().setProvider(NAME)
+            .setTaskTypes(supportedTaskTypes())
+            .setConfiguration(AlibabaCloudSearchService.Configuration.get())
+            .build();
+    }
+
+    @Override
+    public EnumSet<TaskType> supportedTaskTypes() {
+        return EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.SPARSE_EMBEDDING, TaskType.RERANK, TaskType.COMPLETION);
     }
 
     private static AlibabaCloudSearchModel createModelWithoutLoggingDeprecations(
@@ -191,7 +221,7 @@ public class AlibabaCloudSearchService extends SenderService {
         Map<String, Object> secretSettingsMap = removeFromMapOrThrowIfNull(secrets, ModelSecrets.SECRET_SETTINGS);
 
         ChunkingSettings chunkingSettings = null;
-        if (ChunkingSettingsFeatureFlag.isEnabled() && List.of(TaskType.TEXT_EMBEDDING, TaskType.SPARSE_EMBEDDING).contains(taskType)) {
+        if (ChunkingSettingsFeatureFlag.isEnabled() && List.of(TEXT_EMBEDDING, SPARSE_EMBEDDING).contains(taskType)) {
             chunkingSettings = ChunkingSettingsBuilder.fromMap(removeFromMapOrDefaultEmpty(config, ModelConfigurations.CHUNKING_SETTINGS));
         }
 
@@ -212,7 +242,7 @@ public class AlibabaCloudSearchService extends SenderService {
         Map<String, Object> taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
 
         ChunkingSettings chunkingSettings = null;
-        if (ChunkingSettingsFeatureFlag.isEnabled() && List.of(TaskType.TEXT_EMBEDDING, TaskType.SPARSE_EMBEDDING).contains(taskType)) {
+        if (ChunkingSettingsFeatureFlag.isEnabled() && List.of(TEXT_EMBEDDING, SPARSE_EMBEDDING).contains(taskType)) {
             chunkingSettings = ChunkingSettingsBuilder.fromMap(removeFromMapOrDefaultEmpty(config, ModelConfigurations.CHUNKING_SETTINGS));
         }
 
@@ -366,4 +396,85 @@ public class AlibabaCloudSearchService extends SenderService {
 
     private static final String ALIBABA_CLOUD_SEARCH_SERVICE_CONFIG_INPUT = "input";
     private static final String ALIBABA_CLOUD_SEARCH_SERVICE_CONFIG_QUERY = "query";
+
+    private static class Configuration {
+        public static Map<String, ServiceConfiguration> get() {
+            var configurationMap = new HashMap<String, ServiceConfiguration>();
+
+            configurationMap.put(
+                SERVICE_ID,
+                new ServiceConfiguration.Builder().setDisplay(ServiceConfigurationDisplayType.DROPDOWN)
+                    .setLabel("Project ID")
+                    .setOrder(2)
+                    .setRequired(true)
+                    .setSensitive(false)
+                    .setTooltip("The name of the model service to use for the {infer} task.")
+                    .setType(ServiceConfigurationFieldType.STRING)
+                    .setOptions(
+                        new ArrayList<>(
+                            Arrays.asList(
+                                "ops-text-embedding-001",
+                                "ops-text-embedding-zh-001",
+                                "ops-text-embedding-en-001",
+                                "ops-text-embedding-002",
+                                "ops-text-sparse-embedding-001",
+                                "ops-bge-reranker-larger"
+                            )
+                        ).stream().map(v -> new ServiceConfigurationSelectOption.Builder().setLabelAndValue(v).build()).toList()
+                    )
+                    .build()
+            );
+
+            configurationMap.put(
+                HOST,
+                new ServiceConfiguration.Builder().setDisplay(ServiceConfigurationDisplayType.TEXTBOX)
+                    .setLabel("Host")
+                    .setOrder(3)
+                    .setRequired(true)
+                    .setSensitive(false)
+                    .setTooltip(
+                        "The name of the host address used for the {infer} task. You can find the host address at "
+                            + "https://opensearch.console.aliyun.com/cn-shanghai/rag/api-key[ the API keys section] of the documentation."
+                    )
+                    .setType(ServiceConfigurationFieldType.STRING)
+                    .build()
+            );
+
+            configurationMap.put(
+                HTTP_SCHEMA_NAME,
+                new ServiceConfiguration.Builder().setDisplay(ServiceConfigurationDisplayType.DROPDOWN)
+                    .setLabel("HTTP Schema")
+                    .setOrder(4)
+                    .setRequired(true)
+                    .setSensitive(false)
+                    .setTooltip("")
+                    .setType(ServiceConfigurationFieldType.STRING)
+                    .setOptions(
+                        new ArrayList<>(Arrays.asList("https", "http")).stream()
+                            .map(v -> new ServiceConfigurationSelectOption.Builder().setLabelAndValue(v).build())
+                            .toList()
+                    )
+                    .build()
+            );
+
+            configurationMap.put(
+                WORKSPACE_NAME,
+                new ServiceConfiguration.Builder().setDisplay(ServiceConfigurationDisplayType.TEXTBOX)
+                    .setLabel("Workspace")
+                    .setOrder(5)
+                    .setRequired(true)
+                    .setSensitive(false)
+                    .setTooltip("The name of the workspace used for the {infer} task.")
+                    .setType(ServiceConfigurationFieldType.STRING)
+                    .build()
+            );
+
+            configurationMap.putAll(
+                DefaultSecretSettings.toServiceConfigurationWithTooltip("A valid API key for the AlibabaCloud AI Search API.")
+            );
+            configurationMap.putAll(RateLimitSettings.toServiceConfiguration());
+
+            return configurationMap;
+        }
+    }
 }

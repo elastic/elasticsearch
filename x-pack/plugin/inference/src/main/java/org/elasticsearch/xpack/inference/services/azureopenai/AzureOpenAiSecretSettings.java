@@ -16,6 +16,9 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.SecretSettings;
+import org.elasticsearch.inference.ServiceConfiguration;
+import org.elasticsearch.inference.configuration.ServiceConfigurationDisplayType;
+import org.elasticsearch.inference.configuration.ServiceConfigurationFieldType;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -62,6 +65,33 @@ public class AzureOpenAiSecretSettings implements SecretSettings {
         }
 
         return new AzureOpenAiSecretSettings(secureApiToken, secureEntraId);
+    }
+
+    public static Map<String, ServiceConfiguration> toServiceConfiguration() {
+        var configurationMap = new HashMap<String, ServiceConfiguration>();
+        configurationMap.put(
+            API_KEY,
+            new ServiceConfiguration.Builder().setDisplay(ServiceConfigurationDisplayType.TEXTBOX)
+                .setLabel("API Key")
+                .setOrder(1)
+                .setRequired(false)
+                .setSensitive(true)
+                .setTooltip("You must provide either an API key or an Entra ID.")
+                .setType(ServiceConfigurationFieldType.STRING)
+                .build()
+        );
+        configurationMap.put(
+            ENTRA_ID,
+            new ServiceConfiguration.Builder().setDisplay(ServiceConfigurationDisplayType.TEXTBOX)
+                .setLabel("Entra ID")
+                .setOrder(2)
+                .setRequired(false)
+                .setSensitive(true)
+                .setTooltip("You must provide either an API key or an Entra ID.")
+                .setType(ServiceConfigurationFieldType.STRING)
+                .build()
+        );
+        return configurationMap;
     }
 
     public AzureOpenAiSecretSettings(@Nullable SecureString apiKey, @Nullable SecureString entraId) {

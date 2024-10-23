@@ -17,13 +17,18 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
 import org.elasticsearch.inference.ChunkingOptions;
 import org.elasticsearch.inference.ChunkingSettings;
+import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
+import org.elasticsearch.inference.ServiceConfiguration;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.configuration.ServiceConfigurationDisplayType;
+import org.elasticsearch.inference.configuration.ServiceConfigurationFieldType;
+import org.elasticsearch.inference.configuration.ServiceConfigurationSelectOption;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.inference.ChunkingSettingsFeatureFlag;
 import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsBuilder;
@@ -40,7 +45,13 @@ import org.elasticsearch.xpack.inference.services.azureaistudio.completion.Azure
 import org.elasticsearch.xpack.inference.services.azureaistudio.completion.AzureAiStudioChatCompletionTaskSettings;
 import org.elasticsearch.xpack.inference.services.azureaistudio.embeddings.AzureAiStudioEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.azureaistudio.embeddings.AzureAiStudioEmbeddingsServiceSettings;
+import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
+import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -50,6 +61,9 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.parsePersi
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
+import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioConstants.ENDPOINT_TYPE_FIELD;
+import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioConstants.PROVIDER_FIELD;
+import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioConstants.TARGET_FIELD;
 import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioProviderCapabilities.providerAllowsEndpointTypeForTask;
 import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioProviderCapabilities.providerAllowsTaskType;
 import static org.elasticsearch.xpack.inference.services.azureaistudio.completion.AzureAiStudioChatCompletionTaskSettings.DEFAULT_MAX_NEW_TOKENS;
@@ -205,6 +219,19 @@ public class AzureAiStudioService extends SenderService {
             null,
             parsePersistedConfigErrorMsg(inferenceEntityId, NAME)
         );
+    }
+
+    @Override
+    public InferenceServiceConfiguration getConfiguration() {
+        return new InferenceServiceConfiguration.Builder().setProvider(NAME)
+            .setTaskTypes(supportedTaskTypes())
+            .setConfiguration(AzureAiStudioService.Configuration.get())
+            .build();
+    }
+
+    @Override
+    public EnumSet<TaskType> supportedTaskTypes() {
+        return EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.COMPLETION);
     }
 
     @Override
@@ -376,6 +403,63 @@ public class AzureAiStudioService extends SenderService {
                 ),
                 RestStatus.BAD_REQUEST
             );
+        }
+    }
+
+    private static class Configuration {
+        public static Map<String, ServiceConfiguration> get() {
+            var configurationMap = new HashMap<String, ServiceConfiguration>();
+
+            configurationMap.put(
+                TARGET_FIELD,
+                new ServiceConfiguration.Builder().setDisplay(ServiceConfigurationDisplayType.TEXTBOX)
+                    .setLabel("Target")
+                    .setOrder(2)
+                    .setRequired(true)
+                    .setSensitive(false)
+                    .setTooltip("The target URL of your Azure AI Studio model deployment.")
+                    .setType(ServiceConfigurationFieldType.STRING)
+                    .build()
+            );
+
+            configurationMap.put(
+                ENDPOINT_TYPE_FIELD,
+                new ServiceConfiguration.Builder().setDisplay(ServiceConfigurationDisplayType.DROPDOWN)
+                    .setLabel("Endpoint Type")
+                    .setOrder(3)
+                    .setRequired(true)
+                    .setSensitive(false)
+                    .setTooltip("Specifies the type of endpoint that is used in your model deployment.")
+                    .setType(ServiceConfigurationFieldType.STRING)
+                    .setOptions(
+                        new ArrayList<>(Arrays.asList("token", "realtime")).stream()
+                            .map(v -> new ServiceConfigurationSelectOption.Builder().setLabelAndValue(v).build())
+                            .toList()
+                    )
+                    .build()
+            );
+
+            configurationMap.put(
+                PROVIDER_FIELD,
+                new ServiceConfiguration.Builder().setDisplay(ServiceConfigurationDisplayType.DROPDOWN)
+                    .setLabel("Provider")
+                    .setOrder(3)
+                    .setRequired(true)
+                    .setSensitive(false)
+                    .setTooltip("The model provider for your deployment.")
+                    .setType(ServiceConfigurationFieldType.STRING)
+                    .setOptions(
+                        new ArrayList<>(Arrays.asList("cohere", "meta", "microsoft_phi", "mistral", "openai", "databricks")).stream()
+                            .map(v -> new ServiceConfigurationSelectOption.Builder().setLabelAndValue(v).build())
+                            .toList()
+                    )
+                    .build()
+            );
+
+            configurationMap.putAll(DefaultSecretSettings.toServiceConfiguration());
+            configurationMap.putAll(RateLimitSettings.toServiceConfiguration());
+
+            return configurationMap;
         }
     }
 }

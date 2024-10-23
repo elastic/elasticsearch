@@ -14,11 +14,15 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.ValidationException;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
 import org.elasticsearch.inference.ChunkingOptions;
 import org.elasticsearch.inference.ChunkingSettings;
+import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
@@ -28,6 +32,8 @@ import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.ChunkingSettingsFeatureFlag;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
@@ -57,6 +63,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.elasticsearch.xpack.inference.Utils.getInvalidModel;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
@@ -139,6 +147,144 @@ public class AmazonBedrockServiceTests extends ESTestCase {
                     getAmazonBedrockSecretSettingsMap("access", "secret")
                 ),
                 modelVerificationListener
+            );
+        }
+    }
+
+    public void testGetConfiguration() throws IOException {
+        try (var service = createAmazonBedrockService()) {
+            String content = XContentHelper.stripWhitespace("""
+                {
+                     "provider": "amazonbedrock",
+                     "task_types": [
+                         "text_embedding",
+                         "completion"
+                     ],
+                     "configuration": {
+                         "secret_key": {
+                             "default_value": null,
+                             "depends_on": [],
+                             "display": "textbox",
+                             "label": "Secret Key",
+                             "order": 2,
+                             "required": true,
+                             "sensitive": true,
+                             "tooltip": "A valid AWS secret key that is paired with the access_key.",
+                             "type": "str",
+                             "ui_restrictions": [],
+                             "validations": [],
+                             "value": null
+                         },
+                         "provider": {
+                             "default_value": null,
+                             "depends_on": [],
+                             "display": "dropdown",
+                             "label": "Provider",
+                             "options": [
+                                 {
+                                     "label": "amazontitan",
+                                     "value": "amazontitan"
+                                 },
+                                 {
+                                     "label": "anthropic",
+                                     "value": "anthropic"
+                                 },
+                                 {
+                                     "label": "ai21labs",
+                                     "value": "ai21labs"
+                                 },
+                                 {
+                                     "label": "cohere",
+                                     "value": "cohere"
+                                 },
+                                 {
+                                     "label": "meta",
+                                     "value": "meta"
+                                 },
+                                 {
+                                     "label": "mistral",
+                                     "value": "mistral"
+                                 }
+                             ],
+                             "order": 3,
+                             "required": true,
+                             "sensitive": false,
+                             "tooltip": "The model provider for your deployment.",
+                             "type": "str",
+                             "ui_restrictions": [],
+                             "validations": [],
+                             "value": null
+                         },
+                         "access_key": {
+                             "default_value": null,
+                             "depends_on": [],
+                             "display": "textbox",
+                             "label": "Access Key",
+                             "order": 1,
+                             "required": true,
+                             "sensitive": true,
+                             "tooltip": "A valid AWS access key that has permissions to use Amazon Bedrock.",
+                             "type": "str",
+                             "ui_restrictions": [],
+                             "validations": [],
+                             "value": null
+                         },
+                         "model": {
+                             "default_value": null,
+                             "depends_on": [],
+                             "display": "textbox",
+                             "label": "Model",
+                             "order": 4,
+                             "required": true,
+                             "sensitive": false,
+                             "tooltip": "The base model ID or an ARN to a custom model based on a foundational model.",
+                             "type": "str",
+                             "ui_restrictions": [],
+                             "validations": [],
+                             "value": null
+                         },
+                         "rate_limit.requests_per_minute": {
+                             "default_value": null,
+                             "depends_on": [],
+                             "display": "numeric",
+                             "label": "Rate Limit",
+                             "order": 6,
+                             "required": false,
+                             "sensitive": false,
+                             "tooltip": "By default, the amazonbedrock service sets the number of requests allowed per minute to 240.",
+                             "type": "int",
+                             "ui_restrictions": [],
+                             "validations": [],
+                             "value": null
+                         },
+                         "region": {
+                             "default_value": null,
+                             "depends_on": [],
+                             "display": "textbox",
+                             "label": "Region",
+                             "order": 5,
+                             "required": true,
+                             "sensitive": false,
+                             "tooltip": "The region that your model or ARN is deployed in.",
+                             "type": "str",
+                             "ui_restrictions": [],
+                             "validations": [],
+                             "value": null
+                         }
+                     }
+                 }
+                """);
+            InferenceServiceConfiguration configuration = InferenceServiceConfiguration.fromXContentBytes(
+                new BytesArray(content),
+                XContentType.JSON
+            );
+            boolean humanReadable = true;
+            BytesReference originalBytes = toShuffledXContent(configuration, XContentType.JSON, ToXContent.EMPTY_PARAMS, humanReadable);
+            InferenceServiceConfiguration serviceConfiguration = service.getConfiguration();
+            assertToXContentEquivalent(
+                originalBytes,
+                toXContent(serviceConfiguration, XContentType.JSON, humanReadable),
+                XContentType.JSON
             );
         }
     }

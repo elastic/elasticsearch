@@ -13,12 +13,16 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.ValidationException;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
 import org.elasticsearch.inference.ChunkingOptions;
 import org.elasticsearch.inference.ChunkingSettings;
+import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
@@ -29,6 +33,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.ChunkingSettingsFeatureFlag;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
@@ -62,6 +67,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.elasticsearch.xpack.inference.Utils.getInvalidModel;
 import static org.elasticsearch.xpack.inference.Utils.getPersistedConfigMap;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
@@ -1384,6 +1391,140 @@ public class AzureAiStudioServiceTests extends ESTestCase {
             .hasNoEvents()
             .hasErrorWithStatusCode(401)
             .hasErrorContaining("You didn't provide an API key...");
+    }
+
+    public void testGetConfiguration() throws IOException {
+        try (var service = createService()) {
+            String content = XContentHelper.stripWhitespace("""
+                {
+                    "provider": "azureaistudio",
+                    "task_types": [
+                        "text_embedding",
+                        "completion"
+                    ],
+                    "configuration": {
+                        "endpoint_type": {
+                            "default_value": null,
+                            "depends_on": [],
+                            "display": "dropdown",
+                            "label": "Endpoint Type",
+                            "options": [
+                                {
+                                    "label": "token",
+                                    "value": "token"
+                                },
+                                {
+                                    "label": "realtime",
+                                    "value": "realtime"
+                                }
+                            ],
+                            "order": 3,
+                            "required": true,
+                            "sensitive": false,
+                            "tooltip": "Specifies the type of endpoint that is used in your model deployment.",
+                            "type": "str",
+                            "ui_restrictions": [],
+                            "validations": [],
+                            "value": null
+                        },
+                        "provider": {
+                            "default_value": null,
+                            "depends_on": [],
+                            "display": "dropdown",
+                            "label": "Provider",
+                            "options": [
+                                {
+                                    "label": "cohere",
+                                    "value": "cohere"
+                                },
+                                {
+                                    "label": "meta",
+                                    "value": "meta"
+                                },
+                                {
+                                    "label": "microsoft_phi",
+                                    "value": "microsoft_phi"
+                                },
+                                {
+                                    "label": "mistral",
+                                    "value": "mistral"
+                                },
+                                {
+                                    "label": "openai",
+                                    "value": "openai"
+                                },
+                                {
+                                    "label": "databricks",
+                                    "value": "databricks"
+                                }
+                            ],
+                            "order": 3,
+                            "required": true,
+                            "sensitive": false,
+                            "tooltip": "The model provider for your deployment.",
+                            "type": "str",
+                            "ui_restrictions": [],
+                            "validations": [],
+                            "value": null
+                        },
+                        "api_key": {
+                            "default_value": null,
+                            "depends_on": [],
+                            "display": "textbox",
+                            "label": "API Key",
+                            "order": 1,
+                            "required": true,
+                            "sensitive": true,
+                            "tooltip": "API Key for the provider you're connecting to.",
+                            "type": "str",
+                            "ui_restrictions": [],
+                            "validations": [],
+                            "value": null
+                        },
+                        "rate_limit.requests_per_minute": {
+                            "default_value": null,
+                            "depends_on": [],
+                            "display": "numeric",
+                            "label": "Rate Limit",
+                            "order": 6,
+                            "required": false,
+                            "sensitive": false,
+                            "tooltip": "Minimize the number of rate limit errors.",
+                            "type": "int",
+                            "ui_restrictions": [],
+                            "validations": [],
+                            "value": null
+                        },
+                        "target": {
+                            "default_value": null,
+                            "depends_on": [],
+                            "display": "textbox",
+                            "label": "Target",
+                            "order": 2,
+                            "required": true,
+                            "sensitive": false,
+                            "tooltip": "The target URL of your Azure AI Studio model deployment.",
+                            "type": "str",
+                            "ui_restrictions": [],
+                            "validations": [],
+                            "value": null
+                        }
+                    }
+                }
+                """);
+            InferenceServiceConfiguration configuration = InferenceServiceConfiguration.fromXContentBytes(
+                new BytesArray(content),
+                XContentType.JSON
+            );
+            boolean humanReadable = true;
+            BytesReference originalBytes = toShuffledXContent(configuration, XContentType.JSON, ToXContent.EMPTY_PARAMS, humanReadable);
+            InferenceServiceConfiguration serviceConfiguration = service.getConfiguration();
+            assertToXContentEquivalent(
+                originalBytes,
+                toXContent(serviceConfiguration, XContentType.JSON, humanReadable),
+                XContentType.JSON
+            );
+        }
     }
 
     // ----------------------------------------------------------------

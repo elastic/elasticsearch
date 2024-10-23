@@ -9,14 +9,20 @@ package org.elasticsearch.xpack.inference.services.googlevertexai;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.inference.ChunkingSettings;
+import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.ChunkingSettingsFeatureFlag;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
@@ -36,6 +42,8 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.elasticsearch.xpack.inference.Utils.getPersistedConfigMap;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
@@ -952,6 +960,107 @@ public class GoogleVertexAiServiceTests extends ESTestCase {
     }
 
     // testInfer tested via end-to-end notebook tests in AppEx repo
+
+    @SuppressWarnings("checkstyle:LineLength")
+    public void testGetConfiguration() throws IOException {
+        try (var service = createGoogleVertexAiService()) {
+            String content = XContentHelper.stripWhitespace(
+                """
+                    {
+                           "provider": "googlevertexai",
+                           "task_types": [
+                               "text_embedding",
+                               "rerank"
+                           ],
+                           "configuration": {
+                               "service_account_json": {
+                                   "default_value": null,
+                                   "depends_on": [],
+                                   "display": "textbox",
+                                   "label": "Credentials JSON",
+                                   "order": 1,
+                                   "required": true,
+                                   "sensitive": true,
+                                   "tooltip": "API Key for the provider you're connecting to.",
+                                   "type": "str",
+                                   "ui_restrictions": [],
+                                   "validations": [],
+                                   "value": null
+                               },
+                               "project_id": {
+                                   "default_value": null,
+                                   "depends_on": [],
+                                   "display": "textbox",
+                                   "label": "GCP Project",
+                                   "order": 3,
+                                   "required": true,
+                                   "sensitive": false,
+                                   "tooltip": "The GCP Project ID which has Vertex AI API(s) enabled. For more information on the URL, refer to the {geminiVertexAIDocs}.",
+                                   "type": "str",
+                                   "ui_restrictions": [],
+                                   "validations": [],
+                                   "value": null
+                               },
+                               "location": {
+                                   "default_value": null,
+                                   "depends_on": [],
+                                   "display": "textbox",
+                                   "label": "GCP Region",
+                                   "order": 2,
+                                   "required": true,
+                                   "sensitive": false,
+                                   "tooltip": "Please provide the GCP region where the Vertex AI API(s) is enabled. For more information, refer to the {geminiVertexAIDocs}.",
+                                   "type": "str",
+                                   "ui_restrictions": [],
+                                   "validations": [],
+                                   "value": null
+                               },
+                               "rate_limit.requests_per_minute": {
+                                   "default_value": null,
+                                   "depends_on": [],
+                                   "display": "numeric",
+                                   "label": "Rate Limit",
+                                   "order": 6,
+                                   "required": false,
+                                   "sensitive": false,
+                                   "tooltip": "Minimize the number of rate limit errors.",
+                                   "type": "int",
+                                   "ui_restrictions": [],
+                                   "validations": [],
+                                   "value": null
+                               },
+                               "model_id": {
+                                   "default_value": null,
+                                   "depends_on": [],
+                                   "display": "textbox",
+                                   "label": "Model ID",
+                                   "order": 2,
+                                   "required": true,
+                                   "sensitive": false,
+                                   "tooltip": "ID of the LLM you're using.",
+                                   "type": "str",
+                                   "ui_restrictions": [],
+                                   "validations": [],
+                                   "value": null
+                               }
+                           }
+                       }
+                    """
+            );
+            InferenceServiceConfiguration configuration = InferenceServiceConfiguration.fromXContentBytes(
+                new BytesArray(content),
+                XContentType.JSON
+            );
+            boolean humanReadable = true;
+            BytesReference originalBytes = toShuffledXContent(configuration, XContentType.JSON, ToXContent.EMPTY_PARAMS, humanReadable);
+            InferenceServiceConfiguration serviceConfiguration = service.getConfiguration();
+            assertToXContentEquivalent(
+                originalBytes,
+                toXContent(serviceConfiguration, XContentType.JSON, humanReadable),
+                XContentType.JSON
+            );
+        }
+    }
 
     private GoogleVertexAiService createGoogleVertexAiService() {
         return new GoogleVertexAiService(mock(HttpRequestSender.Factory.class), createWithEmptySettings(threadPool));

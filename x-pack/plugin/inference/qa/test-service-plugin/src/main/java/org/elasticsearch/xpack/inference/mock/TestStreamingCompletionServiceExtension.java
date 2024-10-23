@@ -19,19 +19,25 @@ import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
 import org.elasticsearch.inference.ChunkingOptions;
+import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
+import org.elasticsearch.inference.ServiceConfiguration;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.configuration.ServiceConfigurationDisplayType;
+import org.elasticsearch.inference.configuration.ServiceConfigurationFieldType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.inference.results.StreamingChatCompletionResults;
 
 import java.io.IOException;
+import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -77,6 +83,19 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
             var taskSettings = TestTaskSettings.fromMap(taskSettingsMap);
 
             parsedModelListener.onResponse(new TestServiceModel(modelId, taskType, name(), serviceSettings, taskSettings, secretSettings));
+        }
+
+        @Override
+        public InferenceServiceConfiguration getConfiguration() {
+            return new InferenceServiceConfiguration.Builder().setProvider(NAME)
+                .setTaskTypes(supportedTaskTypes())
+                .setConfiguration(TestStreamingCompletionServiceExtension.Configuration.get())
+                .build();
+        }
+
+        @Override
+        public EnumSet<TaskType> supportedTaskTypes() {
+            return EnumSet.of(TaskType.COMPLETION);
         }
 
         @Override
@@ -154,6 +173,26 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
         @Override
         public Set<TaskType> supportedStreamingTasks() {
             return supportedStreamingTasks;
+        }
+    }
+
+    private static class Configuration {
+        public static Map<String, ServiceConfiguration> get() {
+            var configurationMap = new HashMap<String, ServiceConfiguration>();
+
+            configurationMap.put(
+                "model_id",
+                new ServiceConfiguration.Builder().setDisplay(ServiceConfigurationDisplayType.TEXTBOX)
+                    .setLabel("Model ID")
+                    .setOrder(1)
+                    .setRequired(true)
+                    .setSensitive(true)
+                    .setTooltip("")
+                    .setType(ServiceConfigurationFieldType.STRING)
+                    .build()
+            );
+
+            return configurationMap;
         }
     }
 

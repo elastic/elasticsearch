@@ -36,12 +36,9 @@ the incompatibility, a message is written to the deprecation log with
 the category "compatible_api". Review the deprecation log to identify
 any gaps in usage and fully supported features.
 
-
-For information about specific breaking changes and the impact of requesting
-compatibility mode.
-
-//TODO: figure out how to include this
-//see <<breaking_90_rest_api_changes, REST API changes>> in the migration guide.
+//TODO: figure out how to get the link below to work !
+//For information about specific breaking changes and the impact of requesting
+//compatibility mode. See xref:/docs/reference/migration/migrate_9_0/rest-api-changes.asciidoc[REST API changes] in the migration guide.
 
 [discrete]
 [[request-rest-api-compatibility]]
@@ -89,4 +86,5 @@ Some critical issues might be mitigated by REST API compatibility.
 5. Review the deprecation logs for entries with the category `compatible_api`.
 Review the workflow associated with the requests that relied on compatibility mode.
 6. Upgrade your {es} clients to 9.x and resolve compatibility issues manually where needed.
+
 

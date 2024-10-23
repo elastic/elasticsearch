@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionName;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.hamcrest.Matcher;
 
-import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.function.Supplier;
@@ -36,7 +35,7 @@ public class QueryStringTests extends AbstractFunctionTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         List<TestCaseSupplier> suppliers = new LinkedList<>();
-        for (DataType strType : Arrays.stream(DataType.values()).filter(DataType::isString).toList()) {
+        for (DataType strType : DataType.stringTypes()) {
             suppliers.add(
                 new TestCaseSupplier(
                     "<" + strType + ">",

@@ -146,15 +146,18 @@ add, the more distributed the watches can be executed. If you add or remove
 replicas, all watches need to be reloaded. If a shard is relocated, the
 primary and all replicas of this particular shard will reload.
 
-Because the watches are executed on the node, where the watch shards are, you can create
-dedicated watcher nodes by using shard allocation filtering.
+Because the watches are executed on the node, where the watch shards are, you
+can create dedicated watcher nodes by using shard allocation filtering. To do this
+, configure nodes with a dedicated `node.attr.role: watcher` property.
 
-You could configure nodes with a dedicated `node.attr.role: watcher` property and
-then configure the `.watches` index like this:
+As the `.watches` index is a system index, you can't use the normal `.watcher/_settings`
+endpoint to modify its routing allocation. Instead, you can use the following dedicated
+endpoint to adjust the allocation of the `.watches` shards to the nodes with the
+`watcher` role attribute:
 
 [source,console]
 ------------------------
-PUT .watches/_settings
+PUT _watcher/settings
 {
   "index.routing.allocation.include.role": "watcher"
 }

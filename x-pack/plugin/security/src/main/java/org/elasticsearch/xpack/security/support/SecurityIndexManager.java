@@ -278,9 +278,11 @@ public class SecurityIndexManager implements ClusterStateListener {
      */
     private static boolean isReadyForRoleMappingCleanupMigration(ClusterState clusterState) {
         ReservedStateMetadata fileSettingsMetadata = clusterState.metadata().reservedStateMetadata().get(FILE_SETTINGS_METADATA_NAMESPACE);
-        return RoleMappingMetadata.getFromClusterState(clusterState).getRoleMappings().size() == fileSettingsMetadata.keys(
-            ReservedRoleMappingAction.NAME
-        ).size();
+        assert fileSettingsMetadata != null || clusterState.metadata().reservedStateMetadata().isEmpty();
+        return fileSettingsMetadata == null
+            || RoleMappingMetadata.getFromClusterState(clusterState).getRoleMappings().size() == fileSettingsMetadata.keys(
+                ReservedRoleMappingAction.NAME
+            ).size();
     }
 
     @Override

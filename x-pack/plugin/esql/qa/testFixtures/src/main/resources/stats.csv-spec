@@ -2291,6 +2291,33 @@ m:integer |a:double |x:integer
 74999     |48249.0  |0
 ;
 
+statsWithFilterOnGroups
+required_capability: fix_filter_pushdown_past_stats
+FROM employees
+| STATS v = VALUES(emp_no) by job_positions | WHERE job_positions == "Accountant" | MV_EXPAND v | SORT v
+;
+
+v:integer | job_positions:keyword
+    10001 | Accountant
+    10012 | Accountant
+    10016 | Accountant
+    10023 | Accountant
+    10025 | Accountant
+    10028 | Accountant
+    10034 | Accountant
+    10037 | Accountant
+    10044 | Accountant
+    10045 | Accountant
+    10050 | Accountant
+    10051 | Accountant
+    10066 | Accountant
+    10081 | Accountant
+    10085 | Accountant
+    10089 | Accountant
+    10092 | Accountant
+    10094 | Accountant
+;
+
 
 statsWithFiltering
 required_capability: per_agg_filtering

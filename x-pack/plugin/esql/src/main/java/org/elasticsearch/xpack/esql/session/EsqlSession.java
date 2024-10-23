@@ -11,6 +11,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.regex.Regex;
@@ -109,6 +111,8 @@ public class EsqlSession {
     private final PhysicalPlanOptimizer physicalPlanOptimizer;
     private final PlanningMetrics planningMetrics;
     private final IndicesExpressionGrouper indicesExpressionGrouper;
+    private final Client client;
+    private final ClusterService clusterService;
 
     public EsqlSession(
         String sessionId,
@@ -121,7 +125,9 @@ public class EsqlSession {
         Mapper mapper,
         Verifier verifier,
         PlanningMetrics planningMetrics,
-        IndicesExpressionGrouper indicesExpressionGrouper
+        IndicesExpressionGrouper indicesExpressionGrouper,
+        Client client,
+        ClusterService clusterService
     ) {
         this.sessionId = sessionId;
         this.configuration = configuration;
@@ -135,6 +141,8 @@ public class EsqlSession {
         this.physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(configuration));
         this.planningMetrics = planningMetrics;
         this.indicesExpressionGrouper = indicesExpressionGrouper;
+        this.client = client;
+        this.clusterService = clusterService;
     }
 
     public String sessionId() {
@@ -152,7 +160,17 @@ public class EsqlSession {
             new EsqlSessionCCSUtils.CssPartialErrorsActionListener(executionInfo, listener) {
                 @Override
                 public void onResponse(LogicalPlan analyzedPlan) {
-                    executeOptimizedPlan(request, executionInfo, planRunner, optimizedPlan(analyzedPlan), listener);
+                    try {
+                        InferenceUtils.setInferenceResults(
+                            analyzedPlan,
+                            client,
+                            clusterService,
+                            listener,
+                            (newPlan, next) -> executeOptimizedPlan(request, executionInfo, planRunner, optimizedPlan(newPlan), next)
+                        );
+                    } catch (Exception e) {
+                        listener.onFailure(e);
+                    }
                 }
             }
         );

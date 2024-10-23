@@ -430,6 +430,8 @@ public class CsvTests extends ESTestCase {
             mapper,
             TEST_VERIFIER,
             new PlanningMetrics(),
+            null,
+            null,
             null
         );
         TestPhysicalOperationProviders physicalOperationProviders = testOperationProviders(testDataset);

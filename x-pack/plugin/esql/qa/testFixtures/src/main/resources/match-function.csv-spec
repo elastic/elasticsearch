@@ -197,3 +197,33 @@ emp_no:integer | first_name:keyword | last_name:keyword
 10041          | Uri                 | Lenart         
 10043          | Yishay              | Tzvieli        
 ;
+
+testMatchWithSemanticText
+required_capability: match_function
+required_capability: semantic_text_type
+
+from semantic_text
+| where match(semantic_text_field, "something")
+| keep semantic_text_field
+| sort semantic_text_field asc
+;
+
+semantic_text_field:semantic_text
+all we have to decide is what to do with the time that is given to us
+be excellent to each other
+live long and prosper
+;
+
+testMatchWithSemanticTextAndKeyword
+required_capability: match_function
+required_capability: semantic_text_type
+
+from semantic_text
+| where match(semantic_text_field, "something") AND match(host, "host1")
+| keep semantic_text_field, host
+| sort semantic_text_field asc
+;
+
+semantic_text_field:semantic_text | host:keyword
+live long and prosper             | host1
+;

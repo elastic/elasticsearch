@@ -110,7 +110,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         out.writeBoolean(noInferenceResults);
     }
 
-    private SemanticQueryBuilder(
+    public SemanticQueryBuilder(
         SemanticQueryBuilder other,
         SetOnce<InferenceServiceResults> inferenceResultsSupplier,
         InferenceResults inferenceResults,
@@ -184,7 +184,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         }
 
         if (inferenceResultsSupplier != null) {
-            InferenceResults inferenceResults = validateAndConvertInferenceResults(inferenceResultsSupplier, fieldName);
+            InferenceResults inferenceResults = validateAndConvertInferenceResults(inferenceResultsSupplier.get(), fieldName);
             return inferenceResults != null ? new SemanticQueryBuilder(this, null, inferenceResults, noInferenceResults) : this;
         }
 
@@ -235,11 +235,10 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         return new SemanticQueryBuilder(this, noInferenceResults ? null : inferenceResultsSupplier, null, noInferenceResults);
     }
 
-    private static InferenceResults validateAndConvertInferenceResults(
-        SetOnce<InferenceServiceResults> inferenceResultsSupplier,
+    public static InferenceResults validateAndConvertInferenceResults(
+        InferenceServiceResults inferenceServiceResults,
         String fieldName
     ) {
-        InferenceServiceResults inferenceServiceResults = inferenceResultsSupplier.get();
         if (inferenceServiceResults == null) {
             return null;
         }

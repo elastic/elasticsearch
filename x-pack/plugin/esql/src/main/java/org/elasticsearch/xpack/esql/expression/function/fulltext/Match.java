@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.fulltext;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.xpack.esql.capabilities.Validatable;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
@@ -41,6 +42,8 @@ public class Match extends FullTextFunction implements Validatable {
 
     private final Expression field;
 
+    private InferenceResults inferenceResults;
+
     @FunctionInfo(
         returnType = "boolean",
         preview = true,
@@ -62,6 +65,7 @@ public class Match extends FullTextFunction implements Validatable {
 
     private Match(StreamInput in) throws IOException {
         this(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(Expression.class), in.readNamedWriteable(Expression.class));
+        this.inferenceResults = in.readOptionalNamedWriteable(InferenceResults.class);
     }
 
     @Override
@@ -69,6 +73,7 @@ public class Match extends FullTextFunction implements Validatable {
         source().writeTo(out);
         out.writeNamedWriteable(field);
         out.writeNamedWriteable(query());
+        out.writeOptionalWriteable(inferenceResults);
     }
 
     @Override
@@ -98,7 +103,13 @@ public class Match extends FullTextFunction implements Validatable {
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
         // Query is the first child, field is the second child
-        return new Match(source(), newChildren.get(0), newChildren.get(1));
+        Match newMatch = new Match(source(), newChildren.get(0), newChildren.get(1));
+        newMatch.setInferenceResults(this.inferenceResults);
+        return newMatch;
+    }
+
+    public void setInferenceResults(InferenceResults inferenceResults) {
+        this.inferenceResults = inferenceResults;
     }
 
     @Override
@@ -112,5 +123,9 @@ public class Match extends FullTextFunction implements Validatable {
 
     public Expression field() {
         return field;
+    }
+
+    public InferenceResults inferenceResults() {
+        return inferenceResults;
     }
 }

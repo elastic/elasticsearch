@@ -102,7 +102,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             return null;
         }).when(esqlClient).execute(eq(EsqlResolveFieldsAction.TYPE), any(), any());
 
-        var planExecutor = new PlanExecutor(indexResolver, MeterRegistry.NOOP);
+        var planExecutor = new PlanExecutor(indexResolver, MeterRegistry.NOOP, null, null);
         var enrichResolver = mockEnrichResolver();
 
         var request = new EsqlQueryRequest();

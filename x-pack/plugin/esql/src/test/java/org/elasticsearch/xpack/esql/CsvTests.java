@@ -257,7 +257,7 @@ public class CsvTests extends ESTestCase {
                 assertThat(
                     "Capability is not included in the enabled list capabilities on a snapshot build. Spelling mistake?",
                     testCase.requiredCapabilities,
-                    everyItem(in(EsqlCapabilities.CAPABILITIES))
+                    everyItem(in(EsqlCapabilities.capabilities(true)))
                 );
             } else {
                 for (EsqlCapabilities.Cap c : EsqlCapabilities.Cap.values()) {

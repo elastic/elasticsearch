@@ -209,9 +209,6 @@ tests:
 - class: org.elasticsearch.packaging.test.WindowsServiceTests
   method: test80JavaOptsInEnvVar
   issue: https://github.com/elastic/elasticsearch/issues/113219
-- class: org.elasticsearch.xpack.esql.expression.function.aggregate.AvgTests
-  method: "testFold {TestCase=<double> #2}"
-  issue: https://github.com/elastic/elasticsearch/issues/113225
 - class: org.elasticsearch.packaging.test.WindowsServiceTests
   method: test81JavaOptsInJvmOptions
   issue: https://github.com/elastic/elasticsearch/issues/113313
@@ -395,18 +392,6 @@ tests:
 - class: org.elasticsearch.xpack.enrich.EnrichIT
   method: testDeleteExistingPipeline
   issue: https://github.com/elastic/elasticsearch/issues/114775
-- class: org.elasticsearch.index.mapper.TextFieldMapperTests
-  method: testBlockLoaderFromRowStrideReaderWithSyntheticSource
-  issue: https://github.com/elastic/elasticsearch/issues/115066
-- class: org.elasticsearch.index.mapper.TextFieldMapperTests
-  method: testBlockLoaderFromColumnReaderWithSyntheticSource
-  issue: https://github.com/elastic/elasticsearch/issues/115073
-- class: org.elasticsearch.index.mapper.annotatedtext.AnnotatedTextFieldMapperTests
-  method: testBlockLoaderFromColumnReaderWithSyntheticSource
-  issue: https://github.com/elastic/elasticsearch/issues/115074
-- class: org.elasticsearch.index.mapper.annotatedtext.AnnotatedTextFieldMapperTests
-  method: testBlockLoaderFromRowStrideReaderWithSyntheticSource
-  issue: https://github.com/elastic/elasticsearch/issues/115076
 - class: org.elasticsearch.xpack.enrich.EnrichIT
   method: testEnrichSpecialTypes
   issue: https://github.com/elastic/elasticsearch/issues/114773

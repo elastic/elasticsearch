@@ -339,8 +339,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             BlockSourceReader.LeafIteratorLookup lookup = isStored() || isIndexed()
                 ? BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), name())
                 : BlockSourceReader.lookupMatchingAll();
-            var sourceMode = blContext.indexSettings().getIndexMappingSourceMode();
-            return new BlockSourceReader.LongsBlockLoader(valueFetcher, lookup, sourceMode);
+            return new BlockSourceReader.LongsBlockLoader(valueFetcher, lookup);
         }
 
         @Override

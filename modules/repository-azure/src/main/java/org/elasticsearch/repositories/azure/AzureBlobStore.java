@@ -282,9 +282,9 @@ public class AzureBlobStore implements BlobStore {
         final BlobBatchAsyncClient batchAsyncClient = new BlobBatchClientBuilder(
             azureBlobServiceClient.getAsyncClient().getBlobContainerAsyncClient(container)
         ).buildAsyncClient();
-        final List<Throwable> errors;
         try {
-            errors = blobNames.buffer(deletionBatchSize).flatMap(blobs -> {
+            final AtomicInteger errorsCollected = new AtomicInteger(0);
+            final List<Throwable> errors = blobNames.buffer(deletionBatchSize).flatMap(blobs -> {
                 final BlobBatch blobBatch = batchAsyncClient.getBlobBatch();
                 blobs.forEach(blob -> blobBatch.deleteBlob(container, blob));
                 return batchAsyncClient.submitBatch(blobBatch).then(Mono.<Throwable>empty()).onErrorResume(t -> {
@@ -292,17 +292,22 @@ public class AzureBlobStore implements BlobStore {
                     if (AzureBlobStore.isIgnorableBatchDeleteException(t)) {
                         return Mono.empty();
                     } else {
-                        return Mono.just(t);
+                        // Propagate the first 10 errors only
+                        if (errorsCollected.getAndIncrement() < 10) {
+                            return Mono.just(t);
+                        } else {
+                            return Mono.empty();
+                        }
                     }
                 });
             }, maxConcurrentBatchDeletes).collectList().block();
+            if (errors.isEmpty() == false) {
+                final IOException ex = new IOException("Error deleting batches");
+                errors.forEach(ex::addSuppressed);
+                throw ex;
+            }
         } catch (RuntimeException e) {
             throw new IOException("Error deleting batches", e);
-        }
-        if (errors.isEmpty() == false) {
-            final IOException ex = new IOException("Error deleting batches");
-            errors.forEach(ex::addSuppressed);
-            throw ex;
         }
     }
 

@@ -246,7 +246,7 @@ public class AzureBlobStoreRepositoryMetricsTests extends AzureBlobStoreReposito
         final BlobContainer container = getBlobContainer(dataNodeName, repository);
 
         final List<String> blobsToDelete = new ArrayList<>();
-        final int numberOfBatches = randomIntBetween(3, 5);
+        final int numberOfBatches = randomIntBetween(3, 20);
         final int numberOfBlobs = numberOfBatches * deleteBatchSize;
         final int failedBatches = randomIntBetween(1, numberOfBatches);
         for (int i = 0; i < numberOfBlobs; i++) {
@@ -271,7 +271,7 @@ public class AzureBlobStoreRepositoryMetricsTests extends AzureBlobStoreReposito
             IOException.class,
             () -> container.deleteBlobsIgnoringIfNotExists(randomPurpose(), blobsToDelete.iterator())
         );
-        assertEquals(exception.getSuppressed().length, failedBatches);
+        assertEquals(exception.getSuppressed().length, Math.min(failedBatches, 10));
         assertEquals(
             (numberOfBatches - failedBatches) + (failedBatches * (MAX_RETRIES + 1L)),
             getLongCounterTotal(dataNodeName, RepositoriesMetrics.METRIC_REQUESTS_TOTAL)

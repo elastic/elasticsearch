@@ -6,7 +6,7 @@ setup:
           path: /_query
           parameters: [ method, path, parameters, capabilities ]
           capabilities: [ snapshot_release_separation_for_telemetry ]
-      reason: "META command removed which changes the count of the data returned"
+      reason: "Add number of functions to check; this count might be different between snapshot and release versions"
       test_runner_features: [capabilities]
 
   - do:

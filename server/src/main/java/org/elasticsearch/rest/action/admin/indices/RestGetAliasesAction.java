@@ -17,12 +17,8 @@ import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.DataStreamAlias;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.DeprecationCategory;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.core.RestApiVersion;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -51,9 +47,6 @@ import static org.elasticsearch.rest.RestRequest.Method.HEAD;
  */
 @ServerlessScope(Scope.PUBLIC)
 public class RestGetAliasesAction extends BaseRestHandler {
-
-    @UpdateForV9(owner = UpdateForV9.Owner.DATA_MANAGEMENT) // reject the deprecated ?local parameter
-    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(RestGetAliasesAction.class);
 
     @Override
     public List<Route> routes() {
@@ -199,8 +192,6 @@ public class RestGetAliasesAction extends BaseRestHandler {
     }
 
     @Override
-    @UpdateForV9(owner = UpdateForV9.Owner.DATA_MANAGEMENT)
-    // v7 REST API no longer exists: eliminate ref to RestApiVersion.V_7; reject local parameter in v9 too?
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         // The TransportGetAliasesAction was improved do the same post processing as is happening here.
         // We can't remove this logic yet to support mixed clusters. We should be able to remove this logic here
@@ -212,20 +203,6 @@ public class RestGetAliasesAction extends BaseRestHandler {
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         getAliasesRequest.indices(indices);
         getAliasesRequest.indicesOptions(IndicesOptions.fromRequest(request, getAliasesRequest.indicesOptions()));
-
-        if (request.hasParam("local")) {
-            // consume this param just for validation
-            final var localParam = request.paramAsBoolean("local", false);
-            if (request.getRestApiVersion() != RestApiVersion.V_7) {
-                DEPRECATION_LOGGER.critical(
-                    DeprecationCategory.API,
-                    "get-aliases-local",
-                    "the [?local={}] query parameter to get-aliases requests has no effect and will be removed in a future version",
-                    localParam
-                );
-            }
-        }
-
         // we may want to move this logic to TransportGetAliasesAction but it is based on the original provided aliases, which will
         // not always be available there (they may get replaced so retrieving request.aliases is not quite the same).
         return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).admin()

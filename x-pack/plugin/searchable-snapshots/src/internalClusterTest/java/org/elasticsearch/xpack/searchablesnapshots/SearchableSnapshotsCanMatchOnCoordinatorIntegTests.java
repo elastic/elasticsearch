@@ -368,11 +368,9 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
                 }
             } else {
                 assertResponse(client().search(request), newSearchResponse -> {
-                    // When all shards are skipped, at least one of them should be queried in order to
-                    // provide a proper search response.
-                    assertThat(newSearchResponse.getSkippedShards(), equalTo(indexOutsideSearchRangeShardCount - 1));
-                    assertThat(newSearchResponse.getSuccessfulShards(), equalTo(indexOutsideSearchRangeShardCount - 1));
-                    assertThat(newSearchResponse.getFailedShards(), equalTo(1));
+                    assertThat(newSearchResponse.getSkippedShards(), equalTo(indexOutsideSearchRangeShardCount));
+                    assertThat(newSearchResponse.getSuccessfulShards(), equalTo(indexOutsideSearchRangeShardCount));
+                    assertThat(newSearchResponse.getFailedShards(), equalTo(0));
                     assertThat(newSearchResponse.getTotalShards(), equalTo(indexOutsideSearchRangeShardCount));
                 });
 

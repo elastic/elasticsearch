@@ -171,7 +171,6 @@ public abstract class AbstractYamlRestCompatTestPlugin implements Plugin<Project
                     )
                 );
                 task.dependsOn(copyCompatYamlSpecTask);
-                onlyIfBwcEnabled(task, extraProperties);
             });
 
         // copy both local source set apis and compat apis to a single location to be exported as an artifact
@@ -195,7 +194,6 @@ public abstract class AbstractYamlRestCompatTestPlugin implements Plugin<Project
                 task.getSourceDirectory().set(copyCompatYamlTestTask.flatMap(CopyRestTestsTask::getOutputResourceDir));
                 task.getOutputDirectory()
                     .set(project.getLayout().getBuildDirectory().dir(compatTestsDir.resolve("transformed").toString()));
-                onlyIfBwcEnabled(task, extraProperties);
             });
 
         // Register compat rest resources with source set
@@ -252,7 +250,6 @@ public abstract class AbstractYamlRestCompatTestPlugin implements Plugin<Project
 
             // run compatibility tests after "normal" tests
             testTask.mustRunAfter(project.getTasks().named(LegacyYamlRestTestPlugin.SOURCE_SET_NAME));
-            onlyIfBwcEnabled(testTask, extraProperties);
         });
 
         setupYamlRestTestDependenciesDefaults(project, yamlCompatTestSourceSet, true);

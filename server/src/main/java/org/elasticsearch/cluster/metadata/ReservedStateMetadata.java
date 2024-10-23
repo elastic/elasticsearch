@@ -93,7 +93,7 @@ public record ReservedStateMetadata(
 
     /**
      * Get the reserved keys for the handler name
-     * 
+     *
      * @param handlerName handler name to get keys for
      * @return set of keys for that handler
      */

@@ -35,8 +35,6 @@ import java.util.List;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
-import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isRepresentable;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isSpatial;
@@ -109,8 +107,7 @@ public class Max extends AggregateFunction implements ToAggregator, SurrogateExp
 
     @Override
     public DataType dataType() {
-        DataType t = field().dataType();
-        return t == TEXT ? KEYWORD : t;
+        return field().dataType().noText();
     }
 
     @Override

@@ -33,6 +33,7 @@ public class AdaptiveAllocationsScaler {
     private final String deploymentId;
     private final KalmanFilter1d requestRateEstimator;
     private final KalmanFilter1d inferenceTimeEstimator;
+    private final long scaleToZeroAfterNoRequestsSeconds;
     private double timeWithoutRequestsSeconds;
 
     private int numberOfAllocations;
@@ -44,10 +45,11 @@ public class AdaptiveAllocationsScaler {
     private Double lastMeasuredRequestRate;
     private Double lastMeasuredInferenceTime;
     private Long lastMeasuredQueueSize;
-    private long scaleToZeroAfterNoRequestsSeconds;
 
     AdaptiveAllocationsScaler(String deploymentId, int numberOfAllocations, long scaleToZeroAfterNoRequestsSeconds) {
         this.deploymentId = deploymentId;
+        this.scaleToZeroAfterNoRequestsSeconds = scaleToZeroAfterNoRequestsSeconds;
+
         // A smoothing factor of 100 roughly means the last 100 measurements have an effect
         // on the estimated values. The sampling time is 10 seconds, so approximately the
         // last 15 minutes are taken into account.
@@ -67,7 +69,6 @@ public class AdaptiveAllocationsScaler {
         lastMeasuredRequestRate = null;
         lastMeasuredInferenceTime = null;
         lastMeasuredQueueSize = null;
-        this.scaleToZeroAfterNoRequestsSeconds = scaleToZeroAfterNoRequestsSeconds;
     }
 
     void setMinMaxNumberOfAllocations(Integer minNumberOfAllocations, Integer maxNumberOfAllocations) {
@@ -115,6 +116,10 @@ public class AdaptiveAllocationsScaler {
 
         this.numberOfAllocations = numberOfAllocations;
         dynamicsChanged = false;
+    }
+
+    void resetTimeWithoutRequests() {
+        timeWithoutRequestsSeconds = 0;
     }
 
     double getLoadLower() {

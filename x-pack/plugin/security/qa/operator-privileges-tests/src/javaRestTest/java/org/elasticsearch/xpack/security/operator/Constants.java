@@ -376,6 +376,7 @@ public class Constants {
         "cluster:monitor/text_structure/test_grok_pattern",
         "cluster:monitor/transform/get",
         "cluster:monitor/transform/stats/get",
+        "cluster:monitor/versions",
         "cluster:monitor/xpack/analytics/stats",
         "cluster:monitor/xpack/enrich/coordinator_stats",
         "cluster:monitor/xpack/enrich/stats",

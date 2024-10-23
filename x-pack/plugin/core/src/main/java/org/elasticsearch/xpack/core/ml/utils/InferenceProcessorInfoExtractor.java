@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.core.ml.utils;
 import org.apache.lucene.util.Counter;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.transport.Transports;
 
@@ -53,7 +52,7 @@ public final class InferenceProcessorInfoExtractor {
         Counter counter = Counter.newCounter();
         ingestMetadata.getPipelines().forEach((pipelineId, configuration) -> {
             Map<String, Object> configMap = configuration.getConfigAsMap();
-            List<Map<String, Object>> processorConfigs = ConfigurationUtils.readList(null, null, configMap, PROCESSORS_KEY);
+            List<Map<String, Object>> processorConfigs = (List<Map<String, Object>>) configMap.get(PROCESSORS_KEY);
             for (Map<String, Object> processorConfigWithKey : processorConfigs) {
                 for (Map.Entry<String, Object> entry : processorConfigWithKey.entrySet()) {
                     addModelsAndPipelines(
@@ -82,7 +81,7 @@ public final class InferenceProcessorInfoExtractor {
         Set<String> modelIds = new LinkedHashSet<>();
         ingestMetadata.getPipelines().forEach((pipelineId, configuration) -> {
             Map<String, Object> configMap = configuration.getConfigAsMap();
-            List<Map<String, Object>> processorConfigs = ConfigurationUtils.readList(null, null, configMap, PROCESSORS_KEY);
+            List<Map<String, Object>> processorConfigs = (List<Map<String, Object>>) configMap.get(PROCESSORS_KEY);
             for (Map<String, Object> processorConfigWithKey : processorConfigs) {
                 for (Map.Entry<String, Object> entry : processorConfigWithKey.entrySet()) {
                     addModelsAndPipelines(entry.getKey(), pipelineId, entry.getValue(), pam -> modelIds.add(pam.modelIdOrAlias()), 0);
@@ -110,7 +109,7 @@ public final class InferenceProcessorInfoExtractor {
         }
         ingestMetadata.getPipelines().forEach((pipelineId, configuration) -> {
             Map<String, Object> configMap = configuration.getConfigAsMap();
-            List<Map<String, Object>> processorConfigs = ConfigurationUtils.readList(null, null, configMap, PROCESSORS_KEY);
+            List<Map<String, Object>> processorConfigs = (List<Map<String, Object>>) configMap.get(PROCESSORS_KEY);
             for (Map<String, Object> processorConfigWithKey : processorConfigs) {
                 for (Map.Entry<String, Object> entry : processorConfigWithKey.entrySet()) {
                     addModelsAndPipelines(entry.getKey(), pipelineId, entry.getValue(), pam -> {
@@ -142,7 +141,7 @@ public final class InferenceProcessorInfoExtractor {
         }
         ingestMetadata.getPipelines().forEach((pipelineId, configuration) -> {
             Map<String, Object> configMap = configuration.getConfigAsMap();
-            List<Map<String, Object>> processorConfigs = ConfigurationUtils.readList(null, null, configMap, PROCESSORS_KEY);
+            List<Map<String, Object>> processorConfigs = (List<Map<String, Object>>) configMap.get(PROCESSORS_KEY);
             for (Map<String, Object> processorConfigWithKey : processorConfigs) {
                 for (Map.Entry<String, Object> entry : processorConfigWithKey.entrySet()) {
                     addModelsAndPipelines(entry.getKey(), pipelineId, entry.getValue(), pam -> {
@@ -197,12 +196,7 @@ public final class InferenceProcessorInfoExtractor {
             return;
         }
         if (processorDefinition instanceof Map<?, ?> definitionMap && definitionMap.containsKey(ON_FAILURE_KEY)) {
-            List<Map<String, Object>> onFailureConfigs = ConfigurationUtils.readList(
-                null,
-                null,
-                (Map<String, Object>) definitionMap,
-                ON_FAILURE_KEY
-            );
+            List<Map<String, Object>> onFailureConfigs = (List<Map<String, Object>>) definitionMap.get(ON_FAILURE_KEY);
             onFailureConfigs.stream()
                 .flatMap(map -> map.entrySet().stream())
                 .forEach(entry -> addModelsAndPipelines(entry.getKey(), pipelineId, entry.getValue(), handler, level + 1));

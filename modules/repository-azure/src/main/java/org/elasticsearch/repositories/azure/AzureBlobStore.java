@@ -246,7 +246,7 @@ public class AzureBlobStore implements BlobStore {
         final AtomicInteger blobsDeleted = new AtomicInteger(0);
         final AtomicLong bytesDeleted = new AtomicLong(0);
 
-        SocketAccess.doPrivilegedVoidExceptionExplicit(IOException.class, () -> {
+        SocketAccess.doPrivilegedVoidException(() -> {
             final AzureBlobServiceClient client = getAzureBlobServiceClientClient(purpose);
             final BlobContainerAsyncClient blobContainerAsyncClient = client.getAsyncClient().getBlobContainerAsyncClient(container);
             final ListBlobsOptions options = new ListBlobsOptions().setPrefix(path)
@@ -267,8 +267,7 @@ public class AzureBlobStore implements BlobStore {
         if (blobNames.hasNext() == false) {
             return;
         }
-        SocketAccess.doPrivilegedVoidExceptionExplicit(
-            IOException.class,
+        SocketAccess.doPrivilegedVoidException(
             () -> deleteListOfBlobs(
                 getAzureBlobServiceClientClient(purpose),
                 Flux.fromStream(StreamSupport.stream(Spliterators.spliteratorUnknownSize(blobNames, Spliterator.ORDERED), false))

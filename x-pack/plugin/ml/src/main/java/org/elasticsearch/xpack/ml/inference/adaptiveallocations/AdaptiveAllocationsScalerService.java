@@ -188,7 +188,10 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
 
     /**
      * The time interval without any requests that has to pass, before scaling down
-     * to zero allocations (in case min_allocations = 0).
+     * to zero allocations (in case min_allocations = 0). After this time interval
+     * without requests, the number of allocations is set to zero. When this time
+     * interval hasn't passed, the minimum number of allocations will always be
+     * larger than zero.
      */
     private static final long SCALE_TO_ZERO_AFTER_NO_REQUESTS_TIME_SECONDS = TimeValue.timeValueMinutes(15).getSeconds();
 
@@ -447,6 +450,12 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
                 deploymentIdsWithInFlightScaleFromZeroRequests.add(assignment.getDeploymentId());
                 updateNumberOfAllocations(assignment.getDeploymentId(), 1, cleanUpListener);
             }
+
+            AdaptiveAllocationsScaler scaler = scalers.get(assignment.getDeploymentId());
+            if (scaler != null) {
+                scaler.resetTimeWithoutRequests();
+            }
+
             return true;
         }
         return false;

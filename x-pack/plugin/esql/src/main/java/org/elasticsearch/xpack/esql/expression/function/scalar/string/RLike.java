@@ -42,7 +42,6 @@ public class RLike extends org.elasticsearch.xpack.esql.core.expression.predicat
         ----
         include::{esql-specs}/string.csv-spec[tag=rlikeEscapingSingleQuotes]
         ----
-        ====
 
         To reduce the overhead of escaping, we suggest using triple quotes strings `\"\"\"`
 

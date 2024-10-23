@@ -52,7 +52,6 @@ public class WildcardLike extends org.elasticsearch.xpack.esql.core.expression.p
         ----
         include::{esql-specs}/string.csv-spec[tag=likeEscapingSingleQuotes]
         ----
-        ====
 
         To reduce the overhead of escaping, we suggest using triple quotes strings `\"\"\"`
 

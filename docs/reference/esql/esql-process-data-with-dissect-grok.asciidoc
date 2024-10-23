@@ -246,7 +246,6 @@ query becomes:
 ----
 include::{esql-specs}/docs.csv-spec[tag=grokWithEscape]
 ----
-====
 
 For this reason, in general it is more convenient to use triple quotes `"""` for GROK patterns,
 that do not require escaping for backslash.

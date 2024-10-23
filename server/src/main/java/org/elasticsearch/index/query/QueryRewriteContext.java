@@ -11,9 +11,12 @@ package org.elasticsearch.index.query;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.routing.allocation.DataTier;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
@@ -406,5 +409,28 @@ public class QueryRewriteContext {
     @Nullable
     public PointInTimeBuilder getPointInTimeBuilder() {
         return pit;
+    }
+
+    /**
+     * Retrieve the first tier preference from the index setting. If the setting is not
+     * present, then return null.
+     */
+    @Nullable
+    public static String getTierPreference(QueryRewriteContext context) {
+        if (context instanceof CoordinatorRewriteContext) {
+            String tier = ((CoordinatorRewriteContext) context).tier();
+            // dominant branch first (tier preference is configured)
+            return tier.isEmpty() == false ? tier : null;
+        }
+        Settings settings = context.getIndexSettings().getSettings();
+        String value = DataTier.TIER_PREFERENCE_SETTING.get(settings);
+
+        if (Strings.hasText(value) == false) {
+            return null;
+        }
+
+        // Tier preference can be a comma-delimited list of tiers, ordered by preference
+        // It was decided we should only test the first of these potentially multiple preferences.
+        return value.split(",")[0].trim();
     }
 }

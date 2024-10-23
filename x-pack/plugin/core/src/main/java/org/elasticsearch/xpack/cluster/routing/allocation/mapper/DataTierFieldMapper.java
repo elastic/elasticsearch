@@ -10,16 +10,12 @@ package org.elasticsearch.xpack.cluster.routing.allocation.mapper;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.ConstantFieldType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.ValueFetcher;
-import org.elasticsearch.index.query.CoordinatorRewriteContext;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
@@ -57,7 +53,7 @@ public class DataTierFieldMapper extends MetadataFieldMapper {
                 pattern = Strings.toLowercaseAscii(pattern);
             }
 
-            String tierPreference = getTierPreference(context);
+            String tierPreference = QueryRewriteContext.getTierPreference(context);
             if (tierPreference == null) {
                 return false;
             }
@@ -66,7 +62,7 @@ public class DataTierFieldMapper extends MetadataFieldMapper {
 
         @Override
         public Query existsQuery(SearchExecutionContext context) {
-            String tierPreference = getTierPreference(context);
+            String tierPreference = QueryRewriteContext.getTierPreference(context);
             if (tierPreference == null) {
                 return new MatchNoDocsQuery();
             }
@@ -79,31 +75,8 @@ public class DataTierFieldMapper extends MetadataFieldMapper {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
 
-            String tierPreference = getTierPreference(context);
+            String tierPreference = QueryRewriteContext.getTierPreference(context);
             return tierPreference == null ? ValueFetcher.EMPTY : ValueFetcher.singleton(tierPreference);
-        }
-
-        /**
-         * Retrieve the first tier preference from the index setting. If the setting is not
-         * present, then return null.
-         */
-        @Nullable
-        static String getTierPreference(QueryRewriteContext context) {
-            if (context instanceof CoordinatorRewriteContext) {
-                String tier = ((CoordinatorRewriteContext) context).tier();
-                // dominant branch first (tier preference is configured)
-                return tier.isEmpty() == false ? tier : null;
-            }
-            Settings settings = context.getIndexSettings().getSettings();
-            String value = DataTier.TIER_PREFERENCE_SETTING.get(settings);
-
-            if (Strings.hasText(value) == false) {
-                return null;
-            }
-
-            // Tier preference can be a comma-delimited list of tiers, ordered by preference
-            // It was decided we should only test the first of these potentially multiple preferences.
-            return value.split(",")[0].trim();
         }
     }
 

@@ -9,18 +9,25 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
+import org.apache.lucene.search.Query;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.index.mapper.DataTierFieldMapper;
+import org.elasticsearch.index.mapper.ConstantFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.indices.DateFieldRangeInfo;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.util.Collections;
+import java.util.Map;
 import java.util.function.LongSupplier;
 
 /**
@@ -31,6 +38,48 @@ import java.util.function.LongSupplier;
  * and skip the shards that don't hold queried data. See IndexMetadata for more details.
  */
 public class CoordinatorRewriteContext extends QueryRewriteContext {
+
+    public static final String TIER_FIELD_NAME = "_tier";
+
+    private static final ConstantFieldType TIER_FIELD_TYPE = new ConstantFieldType(TIER_FIELD_NAME, Map.of()) {
+        @Override
+        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+            if (format != null) {
+                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
+            }
+
+            String tierPreference = QueryRewriteContext.getTierPreference(context);
+            return tierPreference == null ? ValueFetcher.EMPTY : ValueFetcher.singleton(tierPreference);
+        }
+
+        @Override
+        public String typeName() {
+            return TIER_FIELD_NAME;
+        }
+
+        @Override
+        protected boolean matches(String pattern, boolean caseInsensitive, QueryRewriteContext context) {
+            if (caseInsensitive) {
+                pattern = Strings.toLowercaseAscii(pattern);
+            }
+
+            String tierPreference = QueryRewriteContext.getTierPreference(context);
+            if (tierPreference == null) {
+                return false;
+            }
+            return Regex.simpleMatch(pattern, tierPreference);
+        }
+
+        @Override
+        public Query existsQuery(SearchExecutionContext context) {
+            String tierPreference = QueryRewriteContext.getTierPreference(context);
+            if (tierPreference == null) {
+                return new MatchNoDocsQuery();
+            }
+            return new MatchAllDocsQuery();
+        }
+    };
+
     private final DateFieldRangeInfo dateFieldRangeInfo;
     private final String tier;
 
@@ -41,7 +90,7 @@ public class CoordinatorRewriteContext extends QueryRewriteContext {
      * @param client
      * @param nowInMillis
      * @param dateFieldRangeInfo range and field type info for @timestamp and 'event.ingested'
-     * @param tier the configured data tier (via the _tier_preference setting) for the index
+     * @param tier               the configured data tier (via the _tier_preference setting) for the index
      */
     public CoordinatorRewriteContext(
         XContentParserConfiguration parserConfig,
@@ -82,8 +131,8 @@ public class CoordinatorRewriteContext extends QueryRewriteContext {
             return dateFieldRangeInfo.timestampFieldType();
         } else if (IndexMetadata.EVENT_INGESTED_FIELD_NAME.equals(fieldName)) {
             return dateFieldRangeInfo.eventIngestedFieldType();
-        } else if (DataTierFieldMapper.NAME.equals(fieldName)) {
-            return DataTierFieldMapper.DataTierFieldType.INSTANCE;
+        } else if (TIER_FIELD_NAME.equals(fieldName)) {
+            return TIER_FIELD_TYPE;
         } else {
             return null;
         }

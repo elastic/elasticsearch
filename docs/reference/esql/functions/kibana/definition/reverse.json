@@ -3,6 +3,7 @@
   "type" : "eval",
   "name" : "reverse",
   "description" : "Returns a new string representing the input string in reverse order.",
+  "note" : "If Elasticsearch is running with a JDK version less than 20 then this will not properly reverse Grapheme Clusters.\nElastic Cloud the JDK bundled with Elasticsearch all use newer JDKs. But if you've explicitly shifted to an older jdk\nthen you'll see things like \"\uD83D\uDC4D\uD83C\uDFFD\uD83D\uDE0A\" be reversed to  \"\uD83C\uDFFD\uD83D\uDC4D\uD83D\uDE0A\" instead of the correct \"\uD83D\uDE0A\uD83D\uDC4D\uD83C\uDFFD\".",
   "signatures" : [
     {
       "params" : [

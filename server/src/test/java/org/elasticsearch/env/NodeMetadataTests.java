@@ -167,20 +167,12 @@ public class NodeMetadataTests extends ESTestCase {
         assertThat(nodeMetadata.previousNodeVersion(), equalTo(buildVersion));
     }
 
-    public static Version tooNewVersion() {
-        return Version.fromId(between(Version.CURRENT.id + 1, 99999999));
-    }
-
     public static IndexVersion tooNewIndexVersion() {
         return IndexVersion.fromId(between(IndexVersion.current().id() + 1, 99999999));
     }
 
     public static BuildVersion tooNewBuildVersion() {
         return BuildVersion.fromVersionId(between(Version.CURRENT.id() + 1, 99999999));
-    }
-
-    public static Version tooOldVersion() {
-        return Version.fromId(between(1, Version.CURRENT.minimumCompatibilityVersion().id - 1));
     }
 
     public static BuildVersion tooOldBuildVersion() {

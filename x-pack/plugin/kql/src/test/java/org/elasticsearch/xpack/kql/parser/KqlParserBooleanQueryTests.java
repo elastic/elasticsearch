@@ -24,9 +24,6 @@ import static org.hamcrest.Matchers.hasSize;
 public class KqlParserBooleanQueryTests extends AbstractKqlParserTestCase {
 
     public void testNotQuery() throws IOException {
-        KqlParser parser = new KqlParser();
-        SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
-
         for (String baseQuery : readQueries(SUPPORTED_QUERY_FILE_PATH)) {
             if (baseQuery.startsWith("NOT") || BOOLEAN_QUERY_FILTER.test(baseQuery)) {
                 baseQuery = wrapWithRandomWhitespaces("(") + baseQuery + wrapWithRandomWhitespaces(")");
@@ -34,27 +31,22 @@ public class KqlParserBooleanQueryTests extends AbstractKqlParserTestCase {
 
             String notQuery = wrapWithRandomWhitespaces("NOT ") + baseQuery;
 
-            BoolQueryBuilder parsedQuery = asInstanceOf(BoolQueryBuilder.class, parser.parseKqlQuery(notQuery, searchExecutionContext));
+            BoolQueryBuilder parsedQuery = asInstanceOf(BoolQueryBuilder.class, parseKqlQuery(notQuery));
 
             assertThat(parsedQuery.filter(), empty());
             assertThat(parsedQuery.should(), empty());
             assertThat(parsedQuery.must(), empty());
             assertThat(parsedQuery.mustNot(), hasSize(1));
-            assertThat(parsedQuery.mustNot(), hasItem(equalTo((parser.parseKqlQuery(baseQuery, searchExecutionContext)))));
+            assertThat(parsedQuery.mustNot(), hasItem(equalTo((parseKqlQuery(baseQuery)))));
 
             assertThat(
-                parser.parseKqlQuery(
-                    "NOT" + wrapWithRandomWhitespaces("(") + baseQuery + wrapWithRandomWhitespaces(")"),
-                    searchExecutionContext
-                ),
+                parseKqlQuery("NOT" + wrapWithRandomWhitespaces("(") + baseQuery + wrapWithRandomWhitespaces(")")),
                 equalTo(parsedQuery)
             );
         }
     }
 
     public void testOrQuery() throws IOException {
-        KqlParser parser = new KqlParser();
-        SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
         List<String> supportedQueries = readQueries(SUPPORTED_QUERY_FILE_PATH, Predicate.not(BOOLEAN_QUERY_FILTER));
 
         for (int runs = 0; runs < 100; runs++) {
@@ -62,7 +54,7 @@ public class KqlParserBooleanQueryTests extends AbstractKqlParserTestCase {
             String queryB = randomFrom(supportedQueries);
             String orQuery = queryA + wrapWithRandomWhitespaces(randomFrom(" or ", " OR ", " Or ", " oR ")) + queryB;
 
-            BoolQueryBuilder parsedQuery = asInstanceOf(BoolQueryBuilder.class, parser.parseKqlQuery(orQuery, searchExecutionContext));
+            BoolQueryBuilder parsedQuery = asInstanceOf(BoolQueryBuilder.class, parseKqlQuery(orQuery));
 
             assertThat(parsedQuery.filter(), empty());
             assertThat(parsedQuery.must(), empty());
@@ -71,10 +63,7 @@ public class KqlParserBooleanQueryTests extends AbstractKqlParserTestCase {
             assertThat(parsedQuery.minimumShouldMatch(), equalTo("1"));
             assertThat(
                 parsedQuery.should(),
-                allOf(
-                    hasItem(equalTo((parser.parseKqlQuery(queryA, searchExecutionContext)))),
-                    hasItem(equalTo((parser.parseKqlQuery(queryB, searchExecutionContext))))
-                )
+                allOf(hasItem(equalTo((parseKqlQuery(queryA)))), hasItem(equalTo((parseKqlQuery(queryB)))))
             );
         }
 
@@ -84,22 +73,20 @@ public class KqlParserBooleanQueryTests extends AbstractKqlParserTestCase {
             String queryC = randomFrom(supportedQueries);
             String orQuery = Strings.format("%s OR %s OR %s", queryA, queryB, queryC);
 
-            BoolQueryBuilder parsedQuery = asInstanceOf(BoolQueryBuilder.class, parser.parseKqlQuery(orQuery, searchExecutionContext));
+            BoolQueryBuilder parsedQuery = asInstanceOf(BoolQueryBuilder.class, parseKqlQuery(orQuery));
             assertThat(parsedQuery.should(), hasSize(3));
             assertThat(
                 parsedQuery.should(),
                 allOf(
-                    hasItem(equalTo((parser.parseKqlQuery(queryA, searchExecutionContext)))),
-                    hasItem(equalTo((parser.parseKqlQuery(queryB, searchExecutionContext)))),
-                    hasItem(equalTo((parser.parseKqlQuery(queryC, searchExecutionContext))))
+                    hasItem(equalTo((parseKqlQuery(queryA)))),
+                    hasItem(equalTo((parseKqlQuery(queryB)))),
+                    hasItem(equalTo((parseKqlQuery(queryC))))
                 )
             );
         }
     }
 
     public void testAndQuery() throws IOException {
-        KqlParser parser = new KqlParser();
-        SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
         List<String> supportedQueries = readQueries(SUPPORTED_QUERY_FILE_PATH, Predicate.not(BOOLEAN_QUERY_FILTER));
 
         for (int runs = 0; runs < 100; runs++) {
@@ -107,7 +94,7 @@ public class KqlParserBooleanQueryTests extends AbstractKqlParserTestCase {
             String queryB = randomFrom(supportedQueries);
             String andQuery = queryA + wrapWithRandomWhitespaces(randomFrom(" and ", " AND ", " And ", " anD ")) + queryB;
 
-            BoolQueryBuilder parsedQuery = asInstanceOf(BoolQueryBuilder.class, parser.parseKqlQuery(andQuery, searchExecutionContext));
+            BoolQueryBuilder parsedQuery = asInstanceOf(BoolQueryBuilder.class, parseKqlQuery(andQuery));
 
             assertThat(parsedQuery.filter(), empty());
             assertThat(parsedQuery.should(), empty());
@@ -115,10 +102,7 @@ public class KqlParserBooleanQueryTests extends AbstractKqlParserTestCase {
             assertThat(parsedQuery.must(), hasSize(2));
             assertThat(
                 parsedQuery.must(),
-                allOf(
-                    hasItem(equalTo((parser.parseKqlQuery(queryA, searchExecutionContext)))),
-                    hasItem(equalTo((parser.parseKqlQuery(queryB, searchExecutionContext))))
-                )
+                allOf(hasItem(equalTo((parseKqlQuery(queryA)))), hasItem(equalTo((parseKqlQuery(queryB)))))
             );
         }
 
@@ -128,14 +112,14 @@ public class KqlParserBooleanQueryTests extends AbstractKqlParserTestCase {
             String queryC = randomFrom(supportedQueries);
             String andQuery = Strings.format("%s AND %s AND %s", queryA, queryB, queryC);
 
-            BoolQueryBuilder parsedQuery = asInstanceOf(BoolQueryBuilder.class, parser.parseKqlQuery(andQuery, searchExecutionContext));
+            BoolQueryBuilder parsedQuery = asInstanceOf(BoolQueryBuilder.class, parseKqlQuery(andQuery));
             assertThat(parsedQuery.must(), hasSize(3));
             assertThat(
                 parsedQuery.must(),
                 allOf(
-                    hasItem(equalTo((parser.parseKqlQuery(queryA, searchExecutionContext)))),
-                    hasItem(equalTo((parser.parseKqlQuery(queryB, searchExecutionContext)))),
-                    hasItem(equalTo((parser.parseKqlQuery(queryC, searchExecutionContext))))
+                    hasItem(equalTo((parseKqlQuery(queryA)))),
+                    hasItem(equalTo((parseKqlQuery(queryB)))),
+                    hasItem(equalTo((parseKqlQuery(queryC))))
                 )
             );
         }

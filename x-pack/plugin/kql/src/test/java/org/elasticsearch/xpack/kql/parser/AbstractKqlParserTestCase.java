@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.kql.parser;
 
 import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.test.AbstractBuilderTestCase;
 
 import java.io.BufferedReader;
@@ -83,4 +85,10 @@ public abstract class AbstractKqlParserTestCase extends AbstractBuilderTestCase 
         ).toList();
     }
 
+    protected QueryBuilder parseKqlQuery(String kqlQuery) {
+        KqlParser parser = new KqlParser();
+        SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
+
+        return parser.parseKqlQuery(kqlQuery, searchExecutionContext);
+    }
 }

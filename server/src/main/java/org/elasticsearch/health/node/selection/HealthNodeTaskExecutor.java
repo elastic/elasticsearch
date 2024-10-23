@@ -43,6 +43,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.health.node.selection.HealthNode.TASK_NAME;
+import static org.elasticsearch.persistent.PersistentTasksClusterService.CLUSTER_TASKS_ALLOCATION_ALLOW_LIGHTWEIGHT_ASSIGNMENTS_TO_NODES_SHUTTING_DOWN_SETTING;
 
 /**
  * Persistent task executor that is managing the {@link HealthNode}.
@@ -64,6 +65,7 @@ public final class HealthNodeTaskExecutor extends PersistentTasksExecutor<Health
     private final AtomicReference<HealthNode> currentTask = new AtomicReference<>();
     private final ClusterStateListener taskStarter;
     private final ClusterStateListener shutdownListener;
+    private Boolean allowLightweightAssignmentsToNodesShuttingDown;
     private volatile boolean enabled;
 
     private HealthNodeTaskExecutor(
@@ -79,6 +81,18 @@ public final class HealthNodeTaskExecutor extends PersistentTasksExecutor<Health
         this.taskStarter = this::startTask;
         this.shutdownListener = this::shuttingDown;
         this.enabled = ENABLED_SETTING.get(settings);
+        this.allowLightweightAssignmentsToNodesShuttingDown =
+            CLUSTER_TASKS_ALLOCATION_ALLOW_LIGHTWEIGHT_ASSIGNMENTS_TO_NODES_SHUTTING_DOWN_SETTING.get(settings);
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(
+                CLUSTER_TASKS_ALLOCATION_ALLOW_LIGHTWEIGHT_ASSIGNMENTS_TO_NODES_SHUTTING_DOWN_SETTING,
+                this::setAllowLightweightAssignmentsToNodesShuttingDownFlag
+            );
+    }
+
+    // visible for testing only
+    public void setAllowLightweightAssignmentsToNodesShuttingDownFlag(Boolean allowLightweightAssignmentsToNodesShuttingDown) {
+        this.allowLightweightAssignmentsToNodesShuttingDown = allowLightweightAssignmentsToNodesShuttingDown;
     }
 
     public static HealthNodeTaskExecutor create(
@@ -186,9 +200,15 @@ public final class HealthNodeTaskExecutor extends PersistentTasksExecutor<Health
 
     // visible for testing
     void shuttingDown(ClusterChangedEvent event) {
-        DiscoveryNode node = clusterService.localNode();
-        if (isNodeShuttingDown(event, node.getId())) {
-            abortTaskIfApplicable("node [{" + node.getName() + "}{" + node.getId() + "}] shutting down");
+        DiscoveryNode localNode = clusterService.localNode();
+
+        if (isNodeShuttingDown(event, localNode.getId())) {
+            // only abort task if not every node is shutting down to avoid constant rescheduling on a cluster that is shutting down.
+            // only check this condition if lightweight tasks are allowed to be scheduled to nodes shutting down in the first place.
+            if (allowLightweightAssignmentsToNodesShuttingDown == false
+                || isEveryNodeShuttingDown(clusterService.state(), event) == false) {
+                abortTaskIfApplicable("node [{" + localNode.getName() + "}{" + localNode.getId() + "}] shutting down");
+            }
         }
     }
 
@@ -205,6 +225,10 @@ public final class HealthNodeTaskExecutor extends PersistentTasksExecutor<Health
     private static boolean isNodeShuttingDown(ClusterChangedEvent event, String nodeId) {
         return event.previousState().metadata().nodeShutdowns().contains(nodeId) == false
             && event.state().metadata().nodeShutdowns().contains(nodeId);
+    }
+
+    private static boolean isEveryNodeShuttingDown(ClusterState clusterState, ClusterChangedEvent event) {
+        return clusterState.nodes().getAllNodes().stream().allMatch(dn -> event.state().metadata().nodeShutdowns().contains(dn.getId()));
     }
 
     public static List<NamedXContentRegistry.Entry> getNamedXContentParsers() {

@@ -139,12 +139,19 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
 
         private String testParam = null;
 
+        private boolean isLightweight = false;
+
         public TestParams() {
             this((String) null);
         }
 
         public TestParams(String testParam) {
             this(testParam, TransportVersion.current(), Optional.empty());
+        }
+
+        public TestParams(String testParam, boolean isLightweight) {
+            this(testParam);
+            this.isLightweight = isLightweight;
         }
 
         public TestParams(String testParam, TransportVersion minVersion, Optional<String> feature) {
@@ -221,6 +228,11 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
         @Override
         public TransportVersion getMinimalSupportedVersion() {
             return minVersion;
+        }
+
+        @Override
+        public boolean isLightweight() {
+            return isLightweight;
         }
 
     }

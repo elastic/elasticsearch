@@ -1305,6 +1305,10 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
         var maxNonUploadedCommits = randomIntBetween(4, 5);
         var nodeSettings = Settings.builder()
             .put(StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), maxNonUploadedCommits)
+            // Set the inactivity monitor to a high value, and the inactivity threshold to a low value. This allows us to run it explicitly,
+            // but the inactivity monitor won't run on its own.
+            .put(StatelessCommitService.SHARD_INACTIVITY_MONITOR_INTERVAL_TIME_SETTING.getKey(), TimeValue.timeValueMinutes(30))
+            .put(StatelessCommitService.SHARD_INACTIVITY_DURATION_TIME_SETTING.getKey(), TimeValue.timeValueMillis(1))
             .build();
         startMasterOnlyNode(nodeSettings);
         var indexNode = startIndexNode(nodeSettings);
@@ -1390,6 +1394,10 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
         );
 
         internalCluster().stopNode(searchNode);
+        StatelessCommitServiceTestUtils.updateCommitUseTrackingForInactiveShards(
+            internalCluster().getInstance(StatelessCommitService.class, indexNode),
+            () -> Long.MAX_VALUE
+        );
 
         // If all the search nodes leave the cluster we should keep the latest BCC around
         assertBusy(

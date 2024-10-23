@@ -21,7 +21,9 @@ package co.elastic.elasticsearch.stateless.test;
 
 import co.elastic.elasticsearch.stateless.Stateless;
 import co.elastic.elasticsearch.stateless.TestUtils;
+import co.elastic.elasticsearch.stateless.action.FetchShardCommitsInUseAction;
 import co.elastic.elasticsearch.stateless.action.NewCommitNotificationResponse;
+import co.elastic.elasticsearch.stateless.action.TransportFetchShardCommitsInUseAction;
 import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationAction;
 import co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService;
 import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
@@ -59,6 +61,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -122,6 +125,10 @@ import static org.elasticsearch.env.Environment.PATH_REPO_SETTING;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+/**
+ * This is a test harness that sets up a collection of stateless components.
+ * Tests can use, or add to, what it provides to set up stateless component unit tests.
+ */
 public class FakeStatelessNode implements Closeable {
     public final DiscoveryNode node;
     public final Path pathHome;
@@ -495,8 +502,16 @@ public class FakeStatelessNode implements Closeable {
                 Request request,
                 ActionListener<Response> listener
             ) {
-                assert action == TransportNewCommitNotificationAction.TYPE;
-                ((ActionListener<NewCommitNotificationResponse>) listener).onResponse(new NewCommitNotificationResponse(Set.of()));
+                assert action == TransportNewCommitNotificationAction.TYPE || action == TransportFetchShardCommitsInUseAction.TYPE;
+                if (action == TransportNewCommitNotificationAction.TYPE) {
+                    ((ActionListener<NewCommitNotificationResponse>) listener).onResponse(new NewCommitNotificationResponse(Set.of()));
+                } else if (action == TransportFetchShardCommitsInUseAction.TYPE) {
+                    ((ActionListener<FetchShardCommitsInUseAction.Response>) listener).onResponse(
+                        new FetchShardCommitsInUseAction.Response(new ClusterName("fake-cluster-name"), List.of(), List.of())
+                    );
+                } else {
+                    assert false : "Unexpected request type: " + action;
+                }
             }
         };
     }

@@ -32,6 +32,9 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
+/**
+ * A request sent from an index node to a search node with information about the latest commit for a particular index shard.
+ */
 public class NewCommitNotificationRequest extends BroadcastUnpromotableRequest {
 
     /**
@@ -62,6 +65,9 @@ public class NewCommitNotificationRequest extends BroadcastUnpromotableRequest {
     @Nullable
     private final String nodeId;
 
+    /**
+     * Constructs a request to broadcast a new shard commit to all the unpromotable shards in the index shard routing table.
+     */
     public NewCommitNotificationRequest(
         final IndexShardRoutingTable indexShardRoutingTable,
         final StatelessCompoundCommit compoundCommit,
@@ -78,6 +84,9 @@ public class NewCommitNotificationRequest extends BroadcastUnpromotableRequest {
         this.nodeId = nodeId;
     }
 
+    /**
+     * Constructs the request received over the wire by a search node.
+     */
     public NewCommitNotificationRequest(final StreamInput in) throws IOException {
         super(in);
         compoundCommit = StatelessCompoundCommit.readFromTransport(in);

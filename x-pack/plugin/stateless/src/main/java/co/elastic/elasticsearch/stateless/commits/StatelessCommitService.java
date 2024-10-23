@@ -93,6 +93,7 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import static co.elastic.elasticsearch.serverless.constants.ServerlessTransportVersions.COMMIT_NOTIFICATION_TRANSPORT_ACTION_SPLIT;
 import static java.util.Objects.requireNonNull;
 import static org.elasticsearch.core.Strings.format;
 
@@ -700,6 +701,12 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     public BatchedCompoundCommit getLatestUploadedBcc(ShardId shardId) {
         ShardCommitState commitState = getSafe(shardsCommitsStates, shardId);
         return commitState.latestUploadedBcc;
+    }
+
+    // Visible for testing
+    Set<String> getAllSearchNodesRetainingCommitsForShard(ShardId shardId) {
+        ShardCommitState commitState = getSafe(shardsCommitsStates, shardId);
+        return commitState.getAllSearchNodesRetainingCommits();
     }
 
     /**
@@ -1537,7 +1544,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 maxUploadedBccTermAndGen,
                 clusterService.state().version(),
                 clusterService.localNode().getId(),
-                ActionListener.wrap(response -> {
+                ActionListener.wrap(Void -> {
                     // Do NOT update uploadedGenerationNotified since it is used for file deleting tracking
                     // TODO: Process the response for old commits that are no-longer-in-use similar to how it is done on upload
                     // notification
@@ -1562,8 +1569,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             var notificationCommitGeneration = uploadedBcc.lastCompoundCommit().generation();
             var notificationCommitBCCDependencies = resolveReferencedBCCsForCommit(notificationCommitGeneration);
             Optional<IndexShardRoutingTable> shardRoutingTable = shardRoutingFinder.apply(uploadedBcc.shardId());
-
-            Optional<Set<String>> nodesWithAssignedSearchShards = shardRoutingTable.map(
+            Optional<Set<String>> optCurrentRoutingNodesWithAssignedSearchShards = shardRoutingTable.map(
                 routingTable -> routingTable.unpromotableShards()
                     .stream()
                     .filter(ShardRouting::assignedToNode)
@@ -1571,10 +1577,13 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     .collect(Collectors.toSet())
             );
 
-            if (nodesWithAssignedSearchShards.isEmpty()) {
-                // no search shards, initializing or deleting index
+            var allSearchNodesRetainingCommits = getAllSearchNodesRetainingCommits();
+            // TODO (ES-9638): optCurrentRoutingNodesWithAssignedSearchShards.isEmpty() checks the Optional, not whether the set is empty.
+            if (allSearchNodesRetainingCommits.isEmpty() && optCurrentRoutingNodesWithAssignedSearchShards.isEmpty()) {
+                // No search nodes hold shard commit references.
+                // Initializing or deleting the index.
 
-                // is noop, but do this for completeness anyway.
+                // This is a noop, but do it for completeness anyway.
                 trackOutstandingUnpromotableShardCommitRef(Set.of(), blobReference);
                 lastNewCommitNotificationSentTimestamp = threadPool.relativeTimeInMillis();
 
@@ -1589,21 +1598,31 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 return;
             }
 
-            trackOutstandingUnpromotableShardCommitRef(nodesWithAssignedSearchShards.get(), blobReference);
+            Set<String> currentRoutingNodesWithAssignedSearchShards = optCurrentRoutingNodesWithAssignedSearchShards.orElse(Set.of());
+
+            // We may not have currently assigned shards, or even an index, but it is possible that we still have some search nodes that
+            // recently held search shards that may still be actively using shard commits. We'll send out requests to the old search nodes
+            // as well as any current search nodes.
+
+            // TODO (ES-9839): this tracking is missing old search nodes that could have already started using the commits before upload.
+            trackOutstandingUnpromotableShardCommitRef(currentRoutingNodesWithAssignedSearchShards, blobReference);
             lastNewCommitNotificationSentTimestamp = threadPool.relativeTimeInMillis();
 
-            statelessCommitNotificationPublisher.sendNewUploadedCommitNotification(
-                shardRoutingTable.get(),
+            statelessCommitNotificationPublisher.sendNewUploadedCommitNotificationAndFetchInUseCommits(
+                shardRoutingTable.isPresent() ? shardRoutingTable.get() : null,
+                currentRoutingNodesWithAssignedSearchShards,
+                allSearchNodesRetainingCommits,
                 uploadedBcc,
                 clusterService.state().version(),
                 clusterService.localNode().getId(),
-                ActionListener.wrap(primaryTermAndGenerationsInUseResponse -> {
+                clusterService,
+                ActionListener.wrap(searchNodesAndCommitsResult -> {
                     onNewUploadedCommitNotificationResponse(
-                        nodesWithAssignedSearchShards.get(),
+                        searchNodesAndCommitsResult.allSearchNodes(),
                         uploadedBcc.primaryTermAndGeneration().generation(),
                         notificationCommitGeneration,
                         notificationCommitBCCDependencies,
-                        primaryTermAndGenerationsInUseResponse
+                        searchNodesAndCommitsResult.commitsInUse()
                     );
                 },
                     e -> logNotificationException(
@@ -1676,7 +1695,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
 
             // Resend the notification if older blob references are still in use
             if (anyOldBlobReferencesStillInUse) {
-                logger.debug("sending new commit notifications for inactive shard [{}]", shardId);
+                logger.debug("sending new commit notifications for inactive or routing changed shard [{}]", shardId);
                 sendNewUploadedCommitNotification(latestBlobReference, latestBatchedCompoundCommitUploaded);
             } else {
                 lastNewCommitNotificationSentTimestamp = threadPool.relativeTimeInMillis();
@@ -1896,7 +1915,45 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             }
         }
 
+        /**
+         * Collects all the search nodes that retain commits for this shard into a set.
+         */
+        private Set<String> getAllSearchNodesRetainingCommits() {
+            return primaryTermAndGenToBlobReference.values()
+                .stream()
+                .map(blobReference -> blobReference.searchNodesRef.get())
+                .filter(Objects::nonNull)
+                .flatMap(nodes -> nodes.stream())
+                .collect(Collectors.toSet());
+        }
+
         void updateUnpromotableShardAssignedNodes(Set<String> currentUnpromotableNodes) {
+            var bccGenerationAndDependencies = getUploadedNotifiedGenerationAndDependencies();
+            updateUnpromotableShardAssignedNodes(
+                currentUnpromotableNodes,
+                bccGenerationAndDependencies.v1(),
+                bccGenerationAndDependencies.v2()
+            );
+        }
+
+        void updateUnpromotableShardAssignedNodes(
+            Set<String> currentUnpromotableNodes,
+            long bccNotificationGeneration,
+            Set<PrimaryTermAndGeneration> generationNotifiedBCCDependencies
+        ) {
+            for (BlobReference blobReference : primaryTermAndGenToBlobReference.values()) {
+                blobReference.retainSearchNodes(currentUnpromotableNodes, bccNotificationGeneration, generationNotifiedBCCDependencies);
+            }
+        }
+
+        void onRemoveNodesFromCluster(Set<String> removedNodeIds) {
+            var bccGenerationAndDependencies = getUploadedNotifiedGenerationAndDependencies();
+            for (BlobReference blobReference : primaryTermAndGenToBlobReference.values()) {
+                blobReference.removeSearchNodes(removedNodeIds, bccGenerationAndDependencies.v1(), bccGenerationAndDependencies.v2());
+            }
+        }
+
+        private Tuple<Long, Set<PrimaryTermAndGeneration>> getUploadedNotifiedGenerationAndDependencies() {
             long generationNotified = this.uploadedGenerationNotified.get();
             final long bccGeneration;
             final Set<PrimaryTermAndGeneration> generationNotifiedBCCDependencies;
@@ -1908,17 +1965,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 bccGeneration = commitReferencesInfo.storedInBCC().generation();
                 generationNotifiedBCCDependencies = commitReferencesInfo.referencedBCCs();
             }
-            updateUnpromotableShardAssignedNodes(currentUnpromotableNodes, bccGeneration, generationNotifiedBCCDependencies);
-        }
-
-        void updateUnpromotableShardAssignedNodes(
-            Set<String> currentUnpromotableNodes,
-            long bccNotificationGeneration,
-            Set<PrimaryTermAndGeneration> generationNotifiedBCCDependencies
-        ) {
-            for (BlobReference blobReference : primaryTermAndGenToBlobReference.values()) {
-                blobReference.retainSearchNodes(currentUnpromotableNodes, bccNotificationGeneration, generationNotifiedBCCDependencies);
-            }
+            return new Tuple<>(bccGeneration, generationNotifiedBCCDependencies);
         }
 
         /**
@@ -2021,7 +2068,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     // Exclude the virtual compound commit that is pending upload from the list of referenced BCC term/generations because:
                     // - it does not exist in the object store yet (and therefore does not need to be retained for deletion)
                     // - the search shard will be registered against this virtual compound commit the next time a new commit notification
-                    // is sent (see trackOutstandingUnpromotableShardCommitRef in sendNewUploadedCommitNotification)
+                    // is sent (see trackOutstandingUnpromotableShardCommitRef in sendNewUploadedCommitNotificationAndFetchInUseCommits)
                     .filter(primaryTermAndGeneration -> primaryTermAndGeneration.before(virtualPrimaryTermAndGeneration))
                     .collect(Collectors.toSet());
                 if (registerForUnpromotableRecovery(referencedPrimaryTermAndGenerations, nodeIds)) {
@@ -2482,39 +2529,55 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         }
     }
 
+    /**
+     * Updates the search node tracking if any search shards were moved.
+     */
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
-        // TODO: maybe give a grace period if the node left?
         try {
-            if (event.routingTableChanged()) {
-                var localShardRouting = event.state().getRoutingNodes().node(event.state().nodes().getLocalNodeId());
+            if (clusterService.state().getMinTransportVersion().before(COMMIT_NOTIFICATION_TRANSPORT_ACTION_SPLIT)) {
+                if (event.routingTableChanged()) {
+                    var localRoutingNode = event.state().getRoutingNodes().node(event.state().nodes().getLocalNodeId());
 
-                if (localShardRouting == null) {
-                    return;
-                }
-
-                for (ShardRouting shardRouting : localShardRouting) {
-                    if (shardRouting.primary() == false) {
-                        continue;
-                    }
-                    var shardId = shardRouting.shardId();
-                    var shardCommitState = shardsCommitsStates.get(shardId);
-                    // shardsCommitsStates not registered yet
-                    if (shardCommitState == null) {
-                        continue;
+                    if (localRoutingNode == null) {
+                        return;
                     }
 
-                    if (event.indexRoutingTableChanged(shardId.getIndexName())) {
-                        var currentShardRoutingTable = event.state().routingTable().shardRoutingTable(shardId);
-
-                        if (event.previousState().routingTable().hasIndex(shardId.getIndex()) == false
-                            || currentShardRoutingTable != event.previousState().routingTable().shardRoutingTable(shardId)) {
-                            var currentUnpromotableShards = currentShardRoutingTable.unpromotableShards();
-                            var currentUnpromotableShardAssignedNodes = currentUnpromotableShards.stream()
-                                .map(ShardRouting::currentNodeId)
-                                .collect(Collectors.toSet());
-                            shardCommitState.updateUnpromotableShardAssignedNodes(currentUnpromotableShardAssignedNodes);
+                    // Check if any of the shards on this node are affected by the routing table change.
+                    for (ShardRouting shardRouting : localRoutingNode) {
+                        if (shardRouting.primary() == false) {
+                            continue;
                         }
+                        var shardId = shardRouting.shardId();
+
+                        var shardCommitState = shardsCommitsStates.get(shardId);
+                        // shardsCommitsStates not registered yet
+                        if (shardCommitState == null) {
+                            continue;
+                        }
+
+                        if (event.indexRoutingTableChanged(shardId.getIndexName())) {
+                            var currentShardRoutingTable = event.state().routingTable().shardRoutingTable(shardId);
+
+                            // If the routing for any of the shard copies changed, update the shard commit tracking.
+                            if (event.previousState().routingTable().hasIndex(shardId.getIndex())
+                                && event.previousState().routingTable().shardRoutingTable(shardId) != currentShardRoutingTable) {
+                                var currentUnpromotableShards = currentShardRoutingTable.unpromotableShards();
+                                var currentUnpromotableShardAssignedNodes = currentUnpromotableShards.stream()
+                                    .filter(ShardRouting::assignedToNode)
+                                    .map(ShardRouting::currentNodeId)
+                                    .collect(Collectors.toSet());
+                                shardCommitState.updateUnpromotableShardAssignedNodes(currentUnpromotableShardAssignedNodes);
+                                return;
+                            }
+                        }
+                    }
+                }
+            } else {
+                if (event.nodesDelta().removed()) {
+                    var removedNodeIds = event.nodesDelta().removedNodes().stream().map(node -> node.getId()).collect(Collectors.toSet());
+                    for (var shardCommitState : shardsCommitsStates.values()) {
+                        shardCommitState.onRemoveNodesFromCluster(removedNodeIds);
                     }
                 }
             }

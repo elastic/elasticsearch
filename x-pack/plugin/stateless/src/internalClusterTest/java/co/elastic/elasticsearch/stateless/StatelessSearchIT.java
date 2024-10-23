@@ -20,7 +20,6 @@ package co.elastic.elasticsearch.stateless;
 import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationAction;
 import co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService;
 import co.elastic.elasticsearch.stateless.cache.action.ClearBlobCacheNodesRequest;
-import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessClusterConsistencyService;
 import co.elastic.elasticsearch.stateless.commits.ClosedShardService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitCleaner;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
@@ -40,7 +39,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.indices.diskusage.AnalyzeIndexDiskUsageRequest;
 import org.elasticsearch.action.admin.indices.diskusage.TransportAnalyzeIndexDiskUsageAction;
-import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.refresh.TransportUnpromotableShardRefreshAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -54,7 +52,6 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.ClearScrollResponse;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.search.TransportSearchAction;
@@ -1324,79 +1321,6 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
         }
 
         assertThat(fromTranslogActionsSent.get(), equalTo(0));
-    }
-
-    /**
-     * Tests that an index shard will not retain commits in the blob store for active readers on search nodes that no longer own the search
-     * shard. The index shard only tracks commits in use by search nodes that own a shard, not search nodes that used to own a shard replica
-     * and still have active readers depending on old shard commits.
-     *
-     * This is behavior that ES-6685 will change / fix.
-     */
-    public void testRetainCommitForReadersAfterShardMovedAway() throws Exception {
-        final String indexNode = startMasterAndIndexNode(
-            Settings.builder()
-                .put(StatelessClusterConsistencyService.DELAYED_CLUSTER_CONSISTENCY_INTERVAL_SETTING.getKey(), "100ms")
-                .build()
-        );
-        final String searchNodeA = startSearchNode();
-        final String searchNodeB = startSearchNode();
-
-        final String indexName = randomIdentifier();
-        createIndex(
-            indexName,
-            indexSettings(1, 1)
-                // Start with the shard replica on searchNodeA.
-                .put("index.routing.allocation.exclude._name", searchNodeB)
-                .build()
-        );
-        ensureGreen(indexName);
-
-        // Set up some data to be read.
-        final int numDocsToIndex = randomIntBetween(5, 100);
-        indexDocsAndRefresh(indexName, numDocsToIndex);
-
-        // Start a scroll to pin the reader state on the search node until the scroll is exhausted / released.
-        final var scrollSearchResponse = client().prepareSearch(indexName)
-            .setQuery(QueryBuilders.matchAllQuery())
-            .setSize(1)
-            .setScroll(TimeValue.timeValueMinutes(2))
-            .get();
-        try {
-            assertThat(scrollSearchResponse.getScrollId(), Matchers.is(notNullValue()));
-
-            // Move shard away from searchNodeA while the search is still active and using the latest shard commit.
-            logger.info("--> moving shards in index [{}] away from node [{}]", indexName, searchNodeA);
-            updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", searchNodeA), indexName);
-            assertBusy(() -> assertThat(internalCluster().nodesInclude(indexName), not(hasItem(searchNodeA))));
-            logger.info("--> shards in index [{}] have been moved off of node [{}]", indexName, searchNodeA);
-
-            // Run some indexing and create a new commit. Then force merge down to a single segment (in another new commit). Newer commits
-            // can reference information in older commit, rather than copying everything: force merge will ensure older commits are not
-            // retained for this reason.
-            // The indexNode should then delete the prior commits because searchNodeB is not using them, and searchNodeA is ignored because
-            // the routing indicates it has no shard.
-            indexDocsAndRefresh(indexName, numDocsToIndex);
-            client().admin().indices().forceMerge(new ForceMergeRequest(indexName).maxNumSegments(1)).actionGet();
-            refresh(indexName);
-
-            // Evict data from all node blob caches. This should force the scroll on searchNodeA to fetch data from the remote blob store.
-            client().execute(CLEAR_BLOB_CACHE_ACTION, new ClearBlobCacheNodesRequest()).get();
-
-            // Try to fetch more data from the scroll, which should throw an error because the remote blob store no longer has the commit
-            // that the reader is using.
-            assertHitCount(scrollSearchResponse, numDocsToIndex);
-            assertThat(scrollSearchResponse.getHits().getHits().length, equalTo(1));
-            assertBusy(
-                () -> assertThrows(
-                    ExecutionException.class,
-                    () -> client().searchScroll(new SearchScrollRequest(scrollSearchResponse.getScrollId())).get().decRef()
-                )
-            );
-        } finally {
-            // There's an implicit incRef in prepareSearch(), so call decRef() to release the response object back into the resource pool.
-            scrollSearchResponse.decRef();
-        }
     }
 
     public void testConcurrentIndexingAndSearches() throws Exception {

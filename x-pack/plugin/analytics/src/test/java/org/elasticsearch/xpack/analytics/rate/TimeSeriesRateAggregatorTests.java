@@ -156,8 +156,12 @@ public class TimeSeriesRateAggregatorTests extends AggregatorTestCase {
         AggTestConfig aggTestConfig = new AggTestConfig(tsBuilder, timeStampField(), counterField("counter_field"))
             .withSplitLeavesIntoSeperateAggregators(false);
         expectThrows(IllegalArgumentException.class, () -> testCase(iw -> {
-            iw.addDocuments(docs(2000, "1", 15, 37, 60, /*reset*/ 14));
-            iw.addDocuments(docs(2000, "2", 74, 150, /*reset*/ 50, 90, /*reset*/ 40));
+            for (Document document : docs(2000, "1", 15, 37, 60, /*reset*/ 14)) {
+                iw.addDocument(document);
+            }
+            for (Document document : docs(2000, "2", 74, 150, /*reset*/ 50, 90, /*reset*/ 40)) {
+                iw.addDocument(document);
+            }
         }, verifier, aggTestConfig));
     }
 

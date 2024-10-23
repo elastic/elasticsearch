@@ -27,8 +27,6 @@ import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.utils.GeometryValidator;
 import org.elasticsearch.geometry.utils.WellKnownBinary;
-import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
@@ -46,7 +44,6 @@ import org.elasticsearch.index.mapper.MappingParserContext;
 import org.elasticsearch.index.mapper.OnScriptError;
 import org.elasticsearch.index.mapper.StoredValueFetcher;
 import org.elasticsearch.index.mapper.ValueFetcher;
-import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.lucene.spatial.BinaryShapeDocValuesField;
 import org.elasticsearch.lucene.spatial.CoordinateEncoder;
@@ -111,24 +108,21 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
         private final Parameter<OnScriptError> onScriptErrorParam = Parameter.onScriptErrorParam(m -> builder(m).onScriptError, script);
         final Parameter<Map<String, String>> meta = Parameter.metaParam();
         private final ScriptCompiler scriptCompiler;
-        private final IndexVersion version;
         private final GeoFormatterFactory<Geometry> geoFormatterFactory;
 
         public Builder(
             String name,
-            IndexVersion version,
             ScriptCompiler scriptCompiler,
             boolean ignoreMalformedByDefault,
             boolean coerceByDefault,
             GeoFormatterFactory<Geometry> geoFormatterFactory
         ) {
             super(name);
-            this.version = version;
             this.scriptCompiler = scriptCompiler;
             this.geoFormatterFactory = geoFormatterFactory;
             this.ignoreMalformed = ignoreMalformedParam(m -> builder(m).ignoreMalformed.get(), ignoreMalformedByDefault);
             this.coerce = coerceParam(m -> builder(m).coerce.get(), coerceByDefault);
-            this.hasDocValues = Parameter.docValuesParam(m -> builder(m).hasDocValues.get(), IndexVersions.V_7_8_0.onOrBefore(version));
+            this.hasDocValues = Parameter.docValuesParam(m -> builder(m).hasDocValues.get(), true);
             addScriptValidation(script, indexed, hasDocValues);
         }
 
@@ -243,13 +237,6 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
         @Override
         public Query geoShapeQuery(SearchExecutionContext context, String fieldName, ShapeRelation relation, LatLonGeometry... geometries) {
             failIfNotIndexedNorDocValuesFallback(context);
-            // CONTAINS queries are not supported by VECTOR strategy for indices created before version 7.5.0 (Lucene 8.3.0)
-            if (relation == ShapeRelation.CONTAINS && context.indexVersionCreated().before(IndexVersions.V_7_5_0)) {
-                throw new QueryShardException(
-                    context,
-                    ShapeRelation.CONTAINS + " query relation not supported for Field [" + fieldName + "]."
-                );
-            }
             Query query;
             if (isIndexed()) {
                 query = LatLonShape.newGeometryQuery(fieldName, relation.getLuceneRelation(), geometries);
@@ -312,7 +299,6 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
             boolean coerceByDefault = COERCE_SETTING.get(parserContext.getSettings());
             FieldMapper.Builder builder = new GeoShapeWithDocValuesFieldMapper.Builder(
                 name,
-                parserContext.indexVersionCreated(),
                 parserContext.scriptCompiler(),
                 ignoreMalformedByDefault,
                 coerceByDefault,
@@ -396,7 +382,6 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
     public FieldMapper.Builder getMergeBuilder() {
         return new Builder(
             leafName(),
-            builder.version,
             builder.scriptCompiler,
             builder.ignoreMalformed.getDefaultValue().value(),
             builder.coerce.getDefaultValue().value(),

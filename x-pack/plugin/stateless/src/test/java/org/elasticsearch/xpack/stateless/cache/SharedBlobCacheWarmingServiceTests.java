@@ -305,7 +305,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
 
             // re-populate cache and fill holes
             PlainActionFuture<Void> refillCacheCompletionListener = new PlainActionFuture<>();
-            fakeNode.warmingService.warmCache(
+            fakeNode.warmingService.warmCacheRecovery(
                 INDEXING,
                 indexShard,
                 frozenBcc.lastCompoundCommit(),
@@ -356,7 +356,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
 
                 // Warm the cache and verify the range is fetched with minimization as expected
                 final PlainActionFuture<Void> future = new PlainActionFuture<>();
-                node.warmingService.warmCache(
+                node.warmingService.warmCacheRecovery(
                     randomFrom(Type.values()),
                     indexShard,
                     commit,
@@ -414,7 +414,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
 
             // Warm the cache and verify the range is fetched with minimization as expected
             final PlainActionFuture<Void> future = new PlainActionFuture<>();
-            node.warmingService.warmCache(
+            node.warmingService.warmCacheRecovery(
                 randomFrom(Type.values()),
                 indexShard,
                 commit,

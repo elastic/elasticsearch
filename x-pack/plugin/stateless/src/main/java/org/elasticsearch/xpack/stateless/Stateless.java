@@ -874,6 +874,7 @@ public class Stateless extends Plugin
             TranslogReplicator.FLUSH_INTERVAL_SETTING,
             TranslogReplicator.FLUSH_SIZE_SETTING,
             ThreadPoolMergeScheduler.MERGE_THREAD_POOL_SCHEDULER,
+            ThreadPoolMergeScheduler.MERGE_PREWARM,
             StatelessClusterConsistencyService.DELAYED_CLUSTER_CONSISTENCY_INTERVAL_SETTING,
             StoreHeartbeatService.HEARTBEAT_FREQUENCY,
             StoreHeartbeatService.MAX_MISSED_HEARTBEATS,
@@ -1053,6 +1054,7 @@ public class Stateless extends Plugin
         TranslogReplicator translogReplicator,
         Function<String, BlobContainer> translogBlobContainer,
         StatelessCommitService statelessCommitService,
+        SharedBlobCacheWarmingService sharedBlobCacheWarmingService,
         RefreshThrottler.Factory refreshThrottlerFactory,
         DocumentParsingProvider documentParsingProvider,
         TranslogRecoveryMetrics translogRecoveryMetrics
@@ -1062,6 +1064,7 @@ public class Stateless extends Plugin
             translogReplicator,
             translogBlobContainer,
             statelessCommitService,
+            sharedBlobCacheWarmingService,
             refreshThrottlerFactory,
             statelessCommitService.getIndexEngineLocalReaderListenerForShard(engineConfig.getShardId()),
             statelessCommitService.getCommitBCCResolverForShard(engineConfig.getShardId()),
@@ -1128,6 +1131,7 @@ public class Stateless extends Plugin
                     translogReplicator.get(),
                     getObjectStoreService()::getTranslogBlobContainer,
                     getCommitService(),
+                    sharedBlobCacheWarmingService.get(),
                     refreshThrottlingService.get().createRefreshThrottlerFactory(indexSettings),
                     documentParsingProvider.get(),
                     translogReplicatorMetrics.get()

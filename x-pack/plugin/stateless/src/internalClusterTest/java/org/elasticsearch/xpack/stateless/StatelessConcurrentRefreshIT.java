@@ -17,6 +17,7 @@
 
 package co.elastic.elasticsearch.stateless;
 
+import co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 import co.elastic.elasticsearch.stateless.engine.RefreshThrottler;
@@ -87,6 +88,7 @@ public class StatelessConcurrentRefreshIT extends AbstractStatelessIntegTestCase
             TranslogReplicator translogReplicator,
             Function<String, BlobContainer> translogBlobContainer,
             StatelessCommitService statelessCommitService,
+            SharedBlobCacheWarmingService sharedBlobCacheWarmingService,
             RefreshThrottler.Factory refreshThrottlerFactory,
             DocumentParsingProvider documentParsingProvider,
             TranslogRecoveryMetrics translogRecoveryMetrics
@@ -96,6 +98,7 @@ public class StatelessConcurrentRefreshIT extends AbstractStatelessIntegTestCase
                 translogReplicator,
                 translogBlobContainer,
                 statelessCommitService,
+                sharedBlobCacheWarmingService,
                 refreshThrottlerFactory,
                 statelessCommitService.getIndexEngineLocalReaderListenerForShard(engineConfig.getShardId()),
                 statelessCommitService.getCommitBCCResolverForShard(engineConfig.getShardId()),

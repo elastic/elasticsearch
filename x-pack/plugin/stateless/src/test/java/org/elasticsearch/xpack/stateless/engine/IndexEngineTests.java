@@ -19,6 +19,7 @@ package co.elastic.elasticsearch.stateless.engine;
 
 import co.elastic.elasticsearch.stateless.Stateless;
 import co.elastic.elasticsearch.stateless.action.GetVirtualBatchedCompoundCommitChunkRequest;
+import co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.commits.VirtualBatchedCompoundCommit;
 import co.elastic.elasticsearch.stateless.engine.translog.TranslogRecoveryMetrics;
@@ -419,6 +420,7 @@ public class IndexEngineTests extends AbstractEngineTestCase {
                 mockTranslogReplicator,
                 mock(ObjectStoreService.class),
                 mockCommitService,
+                mock(SharedBlobCacheWarmingService.class),
                 documentParsingProvider,
                 TranslogRecoveryMetrics.NOOP
             )
@@ -467,6 +469,7 @@ public class IndexEngineTests extends AbstractEngineTestCase {
                 mockTranslogReplicator,
                 mock(ObjectStoreService.class),
                 mockCommitService,
+                mock(SharedBlobCacheWarmingService.class),
                 documentParsingProvider,
                 TranslogRecoveryMetrics.NOOP
             )

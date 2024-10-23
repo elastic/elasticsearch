@@ -111,6 +111,7 @@ public class StatelessCommitNotificationsIT extends AbstractStatelessIntegTestCa
             TranslogReplicator translogReplicator,
             Function<String, BlobContainer> translogBlobContainer,
             StatelessCommitService statelessCommitService,
+            SharedBlobCacheWarmingService sharedBlobCacheWarmingService,
             RefreshThrottler.Factory refreshThrottlerFactory,
             DocumentParsingProvider documentParsingProvider,
             TranslogRecoveryMetrics translogRecoveryMetrics
@@ -120,6 +121,7 @@ public class StatelessCommitNotificationsIT extends AbstractStatelessIntegTestCa
                 translogReplicator,
                 translogBlobContainer,
                 statelessCommitService,
+                sharedBlobCacheWarmingService,
                 refreshThrottlerFactory,
                 statelessCommitService.getIndexEngineLocalReaderListenerForShard(engineConfig.getShardId()),
                 statelessCommitService.getCommitBCCResolverForShard(engineConfig.getShardId()),

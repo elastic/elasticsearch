@@ -172,6 +172,47 @@ setup:
   - match: { hits.hits.0._id: foo2 }
 
 ---
+"query rules allowed to be defined as a sub-retriever":
+
+  - do:
+      search:
+        index: test-index1
+        body:
+          retriever:
+            rrf:
+              retrievers: [
+                {
+                  standard: {
+                    query: {
+                      query_string: {
+                        query: bar
+                      }
+                    }
+                  }
+                },
+                {
+                  rule: {
+                    match_criteria: {
+                      foo: foo,
+                      bar: bar
+                    },
+                    ruleset_ids: test-ruleset,
+                    retriever: {
+                      standard: {
+                        query: {
+                          query_string: {
+                            query: baz
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              ]
+
+  - match: { hits.total.value: 5 }
+
+---
 "query rules retriever supports explicit sort on score":
 
   - do:
@@ -198,6 +239,123 @@ setup:
   - match: { hits.hits.2._id: bar_no_rule }
 
 ---
+"query rules retriever supports explicit sort on score with secondary sort allowed":
+
+  - do:
+      search:
+        index: test-index1
+        body:
+          retriever:
+            rule:
+              match_criteria:
+                foo: foo
+                bar: bar
+              ruleset_ids:
+                test-ruleset
+              retriever:
+                standard:
+                  query:
+                    query_string:
+                      query: bar
+                  sort: [ "_score", { "text.keyword": "asc" } ]
+
+  - match: { hits.total.value: 3 }
+  - match: { hits.hits.0._id: foo }
+  - match: { hits.hits.1._id: foo2 }
+  - match: { hits.hits.2._id: bar_no_rule }
+
+
+---
+"query rules retriever supports rank window size":
+  - skip:
+      features: headers
+
+  - do:
+      headers:
+        # Force JSON content type so that we use a parser that interprets the floating-point score as a double
+        Content-Type: application/json
+      search:
+        index: test-index1
+        body:
+          retriever:
+            rule:
+              match_criteria:
+                foo: foo
+                bar: bar
+              ruleset_ids:
+                test-ruleset
+              retriever:
+                standard:
+                  query:
+                    query_string:
+                      query: bar
+              rank_window_size: 1
+
+  - match: { hits.total.value: 3 }
+  - match: { hits.hits.0._id: foo }
+  - match: { hits.hits.0._score: 1.7014124430769804E38
+               - match: { hits.hits.1._score: 0 }
+               - match: { hits.hits.2._score: 0 }
+
+               - do:
+                   headers:
+                     # Force JSON content type so that we use a parser that interprets the floating-point score as a double
+                     Content-Type: application/json
+                   search:
+                     index: test-index1
+                     body:
+                       retriever:
+                         rule:
+                           match_criteria:
+                             foo: foo
+                             bar: bar
+                           ruleset_ids:
+                             test-ruleset
+                           retriever:
+                             standard:
+                               query:
+                                 query_string:
+                                   query: bar
+                           rank_window_size: 2
+
+               - match: { hits.total.value: 3 }
+               - match: { hits.hits.0._id: foo }
+               - match: { hits.hits.0._score: 1.7014124E38 }
+               - match: { hits.hits.1._id: foo2 }
+               - match: { hits.hits.1._score: 1.7014122E38 }
+               - match: { hits.hits.2._id: bar_no_rule }
+               - match: { hits.hits.2._score: 0 }
+
+               - do:
+                   headers:
+                     # Force JSON content type so that we use a parser that interprets the floating-point score as a double
+                     Content-Type: application/json
+                   search:
+                     index: test-index1
+                     body:
+                       retriever:
+                         rule:
+                           match_criteria:
+                             foo: foo
+                             bar: bar
+                           ruleset_ids:
+                             test-ruleset
+                           retriever:
+                             standard:
+                               query:
+                                 query_string:
+                                   query: bar
+                           rank_window_size: 10
+
+               - match: { hits.total.value: 3 }
+               - match: { hits.hits.0._id: foo }
+               - match: { hits.hits.0._score: 1.7014124E38 }
+               - match: { hits.hits.1._id: foo2 }
+               - match: { hits.hits.1._score: 1.7014122E38 }
+               - match: { hits.hits.2._id: bar_no_rule }
+               - match: { hits.hits.2._score: 0.87832844 }
+
+---
 "query rules will error if sorting by anything other than score":
 
   - do:
@@ -221,8 +379,13 @@ setup:
 
 ---
 "query rules retriever explains pinned documents as constant score queries":
+  - skip:
+      features: [ headers ]
 
   - do:
+      headers:
+        # Force JSON content type so that we use a parser that interprets the floating-point score as a double
+        Content-Type: application/json
       search:
         index: test-index1
         body:

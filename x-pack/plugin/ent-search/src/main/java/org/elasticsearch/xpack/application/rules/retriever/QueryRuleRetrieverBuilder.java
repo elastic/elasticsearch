@@ -68,7 +68,11 @@ public final class QueryRuleRetrieverBuilder extends CompoundRetrieverBuilder<Qu
     static {
         PARSER.declareStringArray(constructorArg(), RULESET_IDS_FIELD);
         PARSER.declareObject(constructorArg(), (p, c) -> p.map(), MATCH_CRITERIA_FIELD);
-        PARSER.declareNamedObject(constructorArg(), (p, c, n) -> p.namedObject(RetrieverBuilder.class, n, c), RETRIEVER_FIELD);
+        PARSER.declareNamedObject(constructorArg(), (p, c, n) -> {
+            RetrieverBuilder innerRetriever = p.namedObject(RetrieverBuilder.class, n, c);
+            c.trackRetrieverUsage(innerRetriever.getName());
+            return innerRetriever;
+        }, RETRIEVER_FIELD);
         PARSER.declareInt(optionalConstructorArg(), RANK_WINDOW_SIZE_FIELD);
         RetrieverBuilder.declareBaseParserFields(NAME, PARSER);
     }
@@ -118,6 +122,10 @@ public final class QueryRuleRetrieverBuilder extends CompoundRetrieverBuilder<Qu
     @Override
     public String getName() {
         return NAME;
+    }
+
+    public int rankWindowSize() {
+        return rankWindowSize;
     }
 
     @Override

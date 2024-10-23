@@ -16,7 +16,7 @@ breaking:
     As part of the rework, we have also removed the `_rank` property from the responses of an `rrf` retriever.
   impact: |-
     - Users will not be able to use the `rrf` and `text_similarity_reranker` retrievers in a mixed cluster scenario
-    with previous releases (i.e. prior to 8.16), and the request will throw a `ParsingException`.
+    with previous releases (i.e. prior to 8.16), and the request will throw an `IllegalArgumentException`.
     - `_rank` has now been removed from the output of the `rrf` retrievers so trying to directly parse the field
     will throw an exception
   notable: false

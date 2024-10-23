@@ -27,7 +27,7 @@ Each document in our simple dataset will have:
 
 [TIP]
 ====
-The `dense_vector` type supports quantization to reduce the memory footprint required when searching float vectors.
+The `dense_vector` type automatically uses `int8_hnsw` quantization by default to reduce the memory footprint required when searching float vectors.
 Learn more about balancing performance and accuracy in <<dense-vector-quantization,Dense vector quantization>>.
 ====
 

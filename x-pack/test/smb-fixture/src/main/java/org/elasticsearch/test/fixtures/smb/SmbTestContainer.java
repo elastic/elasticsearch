@@ -7,6 +7,7 @@
 
 package org.elasticsearch.test.fixtures.smb;
 
+import org.elasticsearch.bootstrap.BootstrapForTesting;
 import org.elasticsearch.test.fixtures.testcontainers.DockerEnvironmentAwareTestContainer;
 import org.testcontainers.images.builder.ImageFromDockerfile;
 
@@ -16,7 +17,7 @@ public final class SmbTestContainer extends DockerEnvironmentAwareTestContainer 
     public static final int AD_LDAP_PORT = 636;
     public static final int AD_LDAP_GC_PORT = 3269;
 
-    public SmbTestContainer() {
+    private SmbTestContainer() {
         super(
             new ImageFromDockerfile("es-smb-fixture").withDockerfileFromBuilder(
                 builder -> builder.from(DOCKER_BASE_IMAGE)
@@ -41,6 +42,10 @@ public final class SmbTestContainer extends DockerEnvironmentAwareTestContainer 
         // addExposedPort(3268);
         addExposedPort(AD_LDAP_PORT);
         addExposedPort(AD_LDAP_GC_PORT);
+    }
+
+    public static SmbTestContainer create() {
+        return BootstrapForTesting.doWithSecurityManagerDisabled(SmbTestContainer::new);
     }
 
     public String getAdLdapUrl() {

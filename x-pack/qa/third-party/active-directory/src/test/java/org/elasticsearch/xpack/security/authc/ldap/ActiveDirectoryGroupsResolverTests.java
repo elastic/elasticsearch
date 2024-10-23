@@ -36,7 +36,7 @@ public class ActiveDirectoryGroupsResolverTests extends GroupsResolverTestCase {
     private static final RealmConfig.RealmIdentifier REALM_ID = new RealmConfig.RealmIdentifier("active_directory", "ad");
 
     @ClassRule
-    public static final SmbTestContainer smbFixture = new SmbTestContainer();
+    public static final SmbTestContainer smbFixture = SmbTestContainer.create();
 
     @Before
     public void setReferralFollowing() {

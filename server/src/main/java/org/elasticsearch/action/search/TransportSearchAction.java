@@ -1436,7 +1436,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         ) {
             if (preFilter) {
                 // only for aggs we need to contact shards even if there are no matches
-                boolean requireAtLeastOneMatch = searchRequest.source().aggregations() != null;
+                boolean requireAtLeastOneMatch = searchRequest.source() != null && searchRequest.source().aggregations() != null;
                 return new CanMatchPreFilterSearchPhase(
                     logger,
                     searchTransportService,

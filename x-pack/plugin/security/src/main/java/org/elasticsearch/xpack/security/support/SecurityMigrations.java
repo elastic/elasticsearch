@@ -173,6 +173,7 @@ public class SecurityMigrations {
 
         private void deleteNativeRoleMappings(Client client, Iterator<String> namesIterator, ActionListener<Void> listener) {
             String name = namesIterator.next();
+            boolean hasNext = namesIterator.hasNext();
             executeAsyncWithOrigin(
                 client,
                 SECURITY_ORIGIN,
@@ -184,12 +185,20 @@ public class SecurityMigrations {
                     } else {
                         logger.info("Deleted duplicated role mapping [" + name + "] from .security index");
                     }
-                    if (namesIterator.hasNext()) {
+                    if (hasNext) {
                         deleteNativeRoleMappings(client, namesIterator, listener);
                     } else {
                         listener.onResponse(null);
                     }
-                }, listener::onFailure)
+                }, exception -> {
+                    logger.warn("Failed to delete role mapping [" + name + "]", exception);
+                    if (hasNext) {
+                        // Continue even if some deletions fail to do as much cleanup as possible
+                        deleteNativeRoleMappings(client, namesIterator, listener);
+                    } else {
+                        listener.onFailure(exception);
+                    }
+                })
             );
         }
 

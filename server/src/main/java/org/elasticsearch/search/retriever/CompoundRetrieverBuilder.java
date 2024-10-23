@@ -124,12 +124,17 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
                 public void onResponse(MultiSearchResponse items) {
                     List<ScoreDoc[]> topDocs = new ArrayList<>();
                     List<Exception> failures = new ArrayList<>();
+                    // capture the max status code returned by any of the responses
+                    int statusCode = RestStatus.OK.getStatus();
                     List<String> retrieversWithFailures = new ArrayList<>();
                     for (int i = 0; i < items.getResponses().length; i++) {
                         var item = items.getResponses()[i];
                         if (item.isFailure()) {
                             failures.add(item.getFailure());
                             retrieversWithFailures.add(innerRetrievers.get(i).retriever().getName());
+                            if (ExceptionsHelper.status(item.getFailure()).getStatus() > statusCode) {
+                                statusCode = ExceptionsHelper.status(item.getFailure()).getStatus();
+                            }
                         } else {
                             assert item.getResponse() != null;
                             var rankDocs = getRankDocs(item.getResponse());
@@ -138,13 +143,7 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
                         }
                     }
                     if (false == failures.isEmpty()) {
-                        // capture the max status code returned by any of the responses
-                        int statusCode = RestStatus.OK.getStatus();
-                        for (Exception failure : failures) {
-                            if (ExceptionsHelper.status(failure).getStatus() > statusCode) {
-                                statusCode = ExceptionsHelper.status(failure).getStatus();
-                            }
-                        }
+                        assert statusCode != RestStatus.OK.getStatus();
                         final String errMessage = "["
                             + getName()
                             + "] search failed - retrievers '"

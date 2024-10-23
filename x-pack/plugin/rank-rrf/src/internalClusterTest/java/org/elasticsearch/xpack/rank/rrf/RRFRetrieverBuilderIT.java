@@ -50,7 +50,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResp
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
@@ -627,7 +626,7 @@ public class RRFRetrieverBuilderIT extends ESIntegTestCase {
             )
         );
         assertThat(ExceptionsHelper.status(ex), equalTo(RestStatus.BAD_REQUEST));
-        assertThat(ex.getSuppressed().length, greaterThan(0));
+        assertThat(ex.getSuppressed().length, equalTo(1));
     }
 
     public void testRRFInnerRetrieverMultipleErrorsOne5xx() {
@@ -665,7 +664,7 @@ public class RRFRetrieverBuilderIT extends ESIntegTestCase {
             )
         );
         assertThat(ExceptionsHelper.status(ex), equalTo(RestStatus.INTERNAL_SERVER_ERROR));
-        assertThat(ex.getSuppressed().length, greaterThan(0));
+        assertThat(ex.getSuppressed().length, equalTo(2));
     }
 
     public void testRRFInnerRetrieverErrorWhenExtractingToSource() {

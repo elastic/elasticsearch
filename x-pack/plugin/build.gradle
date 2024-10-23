@@ -48,13 +48,15 @@ if (BuildParams.isSnapshotBuild() == false) {
   // * Data Stream Lifecycle. manage_data_stream_lifecycle privilege is only available with dlm_feature_flag_enabled set
   // We disable these tests for snapshot builds to maintain release build coverage.
   restTestBlacklist.add('privileges/11_builtin/Test get builtin privileges')
+}
 
+if (BuildParams.isSnapshotBuild()) {
+  // this test and its sister below are running one in snapshot-only tests, the other in release tests
+  restTestBlacklist.add('esql/60_usage_release/Basic ESQL usage output (telemetry)')
+} else {
   // this test has a specific number of esql.functions exposed, which is different than the same test (see below) because some functions
   // are not exposed in release versions (non-snapshot)
   restTestBlacklist.add('esql/60_usage/Basic ESQL usage output (telemetry)')
-} else {
-  // this test and its sister above are running one in snapshot-only tests, the one in release tests
-  restTestBlacklist.add('esql/60_usage_release/Basic ESQL usage output (telemetry)')
 }
 
 tasks.withType(StandaloneRestIntegTestTask).configureEach {

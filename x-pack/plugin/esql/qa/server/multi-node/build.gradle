@@ -1,3 +1,4 @@
+import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.util.GradleUtils
 
 apply plugin: 'elasticsearch.internal-java-rest-test'
@@ -29,7 +30,18 @@ restResources {
   }
 }
 
+def restTestBlacklist = []
+
 tasks.named('yamlRestTest') {
   usesDefaultDistribution()
   maxParallelForks = 1
+  if (BuildParams.isSnapshotBuild()) {
+    // this test and its sister below are running one in snapshot-only tests, the other in release tests
+    restTestBlacklist.add('esql/60_usage_release/Basic ESQL usage output (telemetry)')
+  } else {
+    // this test has a specific number of esql.functions exposed, which is different than the same test (see below) because some functions
+    // are not exposed in release versions (non-snapshot)
+    restTestBlacklist.add('esql/60_usage/Basic ESQL usage output (telemetry)')
+  }
+  systemProperty 'tests.rest.blacklist', restTestBlacklist.join(',')
 }

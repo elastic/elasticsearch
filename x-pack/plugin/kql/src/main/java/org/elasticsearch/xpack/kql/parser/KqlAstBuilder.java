@@ -94,15 +94,20 @@ class KqlAstBuilder extends KqlBaseBaseVisitor<QueryBuilder> {
 
     @Override
     public QueryBuilder visitExistsQuery(KqlBaseParser.ExistsQueryContext ctx) {
-        BoolQueryBuilder boolQueryBuilder = QueryBuilders.boolQuery().minimumShouldMatch(1);
+        assert ctx.fieldName() != null; // Should not happen since the grammar does not allow the fieldname to be null.
 
+        BoolQueryBuilder boolQueryBuilder = QueryBuilders.boolQuery().minimumShouldMatch(1);
         withFields(ctx.fieldName(), (fieldName, mappedFieldType) -> {
             if (kqlParserExecutionContext.isRuntimeField(mappedFieldType) == false) {
                 boolQueryBuilder.should(QueryBuilders.existsQuery(fieldName));
             }
         });
 
-        return boolQueryBuilder;
+        if (boolQueryBuilder.should().isEmpty()) {
+            return new MatchNoneQueryBuilder();
+        }
+
+        return boolQueryBuilder.should().size() == 1 ? boolQueryBuilder.should().getFirst() : boolQueryBuilder;
     }
 
     @Override

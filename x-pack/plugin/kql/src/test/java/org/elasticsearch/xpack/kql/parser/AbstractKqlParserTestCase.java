@@ -19,6 +19,7 @@ import java.net.URL;
 import java.net.URLConnection;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Predicate;
@@ -74,4 +75,12 @@ public abstract class AbstractKqlParserTestCase extends AbstractBuilderTestCase 
         con.setUseCaches(false);
         return con.getInputStream();
     }
+
+    protected List<String> mappedLeafFields() {
+        return Stream.concat(
+            Arrays.stream(MAPPED_LEAF_FIELD_NAMES),
+            List.of(DATE_FIELD_NAME, INT_FIELD_NAME).stream().map(subfieldName -> OBJECT_FIELD_NAME + "." + subfieldName)
+        ).toList();
+    }
+
 }

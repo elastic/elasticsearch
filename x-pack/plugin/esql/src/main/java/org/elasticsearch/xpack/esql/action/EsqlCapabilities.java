@@ -391,7 +391,13 @@ public class EsqlCapabilities {
         /**
          * Allow filter per individual aggregation.
          */
-        PER_AGG_FILTERING;
+        PER_AGG_FILTERING,
+
+        /**
+         * Fix for an optimization that caused wrong results
+         * https://github.com/elastic/elasticsearch/issues/115281
+         */
+        FIX_FILTER_PUSHDOWN_PAST_STATS;
 
         private final boolean enabled;
 

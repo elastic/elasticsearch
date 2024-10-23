@@ -298,7 +298,6 @@ public class JoinValidationService {
 
         @Override
         protected void doRun() {
-            assert connection.getTransportVersion().onOrAfter(TransportVersions.V_8_3_0) : discoveryNode.getVersion();
             // NB these things never run concurrently to each other, or to the cache cleaner (see IMPLEMENTATION NOTES above) so it is safe
             // to do these (non-atomic) things to the (unsynchronized) statesByVersion map.
             var transportVersion = connection.getTransportVersion();

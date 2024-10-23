@@ -1,5 +1,5 @@
 pr: 115383
 summary: Only publish desired balance gauges on master
 area: Allocation
-type: bug
+type: enhancement
 issues: []

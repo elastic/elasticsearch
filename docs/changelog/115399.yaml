@@ -1,0 +1,12 @@
+pr: 115399
+summary: Adding breaking change entry for retrievers
+area: Ranking
+type: breaking
+issues: []
+breaking:
+  title: Adding breaking change entry for retrievers
+  area: Ranking
+  details: Please describe the details of this change for the release notes. You can
+    use asciidoc.
+  impact: Please describe the impact of this change to users
+  notable: false

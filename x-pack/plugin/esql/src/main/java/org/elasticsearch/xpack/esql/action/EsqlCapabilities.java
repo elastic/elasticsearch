@@ -33,6 +33,13 @@ public class EsqlCapabilities {
         FN_REVERSE,
 
         /**
+         * Support for reversing whole grapheme clusters. This is not supported
+         * on JDK versions less than 20 which are not supported in ES 9.0.0+ but this
+         * exists to keep the {@code 8.x} branch similar to the {@code main} branch.
+         */
+        FN_REVERSE_GRAPHEME_CLUSTERS,
+
+        /**
          * Support for function {@code CBRT}. Done in #108574.
          */
         FN_CBRT,
@@ -133,7 +140,7 @@ public class EsqlCapabilities {
          * - fixed variable shadowing
          * - fixed Join.references(), requiring breaking change to Join serialization
          */
-        LOOKUP_V4(true),
+        LOOKUP_V4(Build.current().isSnapshot()),
 
         /**
          * Support for requesting the "REPEAT" command.
@@ -279,7 +286,7 @@ public class EsqlCapabilities {
         /**
          * Support for match operator
          */
-        MATCH_OPERATOR(true),
+        MATCH_OPERATOR(Build.current().isSnapshot()),
 
         /**
          * Removing support for the {@code META} keyword.
@@ -300,6 +307,11 @@ public class EsqlCapabilities {
          * Support for to_date_nanos function
          */
         TO_DATE_NANOS(EsqlCorePlugin.DATE_NANOS_FEATURE_FLAG),
+
+        /**
+         * Support Least and Greatest functions on Date Nanos type
+         */
+        LEAST_GREATEST_FOR_DATENANOS(EsqlCorePlugin.DATE_NANOS_FEATURE_FLAG),
 
         /**
          * Support for datetime in least and greatest functions
@@ -349,7 +361,7 @@ public class EsqlCapabilities {
         /**
          * Supported the text categorization function "CATEGORIZE".
          */
-        CATEGORIZE(true),
+        CATEGORIZE(Build.current().isSnapshot()),
 
         /**
          * QSTR function
@@ -375,7 +387,7 @@ public class EsqlCapabilities {
         /**
          * Support named parameters for field names.
          */
-        NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES(true),
+        NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES(Build.current().isSnapshot()),
 
         /**
          * Fix sorting not allowed on _source and counters.
@@ -401,32 +413,22 @@ public class EsqlCapabilities {
          */
         SEMANTIC_TEXT_TYPE(EsqlCorePlugin.SEMANTIC_TEXT_FEATURE_FLAG);
 
-        private final boolean snapshotOnly;
-        private final FeatureFlag featureFlag;
+        private final boolean enabled;
 
         Cap() {
-            this(false, null);
+            this.enabled = true;
         };
 
-        Cap(boolean snapshotOnly) {
-            this(snapshotOnly, null);
+        Cap(boolean enabled) {
+            this.enabled = enabled;
         };
 
         Cap(FeatureFlag featureFlag) {
-            this(false, featureFlag);
-        }
-
-        Cap(boolean snapshotOnly, FeatureFlag featureFlag) {
-            assert featureFlag == null || snapshotOnly == false;
-            this.snapshotOnly = snapshotOnly;
-            this.featureFlag = featureFlag;
+            this.enabled = featureFlag.isEnabled();
         }
 
         public boolean isEnabled() {
-            if (featureFlag == null) {
-                return Build.current().isSnapshot() || this.snapshotOnly == false;
-            }
-            return featureFlag.isEnabled();
+            return enabled;
         }
 
         public String capabilityName() {
@@ -434,12 +436,17 @@ public class EsqlCapabilities {
         }
     }
 
-    public static final Set<String> CAPABILITIES = capabilities();
+    public static final Set<String> CAPABILITIES = capabilities(false);
 
-    private static Set<String> capabilities() {
+    /**
+     * Get a {@link Set} of all capabilities. If the {@code all} parameter is {@code false}
+     * then only <strong>enabled</strong> capabilities are returned - otherwise <strong>all</strong>
+     * known capabilities are returned.
+     */
+    public static Set<String> capabilities(boolean all) {
         List<String> caps = new ArrayList<>();
         for (Cap cap : Cap.values()) {
-            if (cap.isEnabled()) {
+            if (all || cap.isEnabled()) {
                 caps.add(cap.capabilityName());
             }
         }

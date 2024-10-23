@@ -59,7 +59,6 @@ public abstract class BuildVersion {
     public abstract boolean isFutureVersion();
 
     // temporary
-    // TODO[wrb]: remove from PersistedClusterStateService
     // TODO[wrb]: remove from security bootstrap checks
     @Deprecated
     public Version toVersion() {

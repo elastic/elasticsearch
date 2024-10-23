@@ -1236,6 +1236,7 @@ off_on_holiday:keyword | back_home_again:keyword
 
 reverseGraphemeClusters
 required_capability: fn_reverse
+required_capability: fn_reverse_grapheme_clusters
 ROW message = "áéíóúàèìòùâêîôû😊👍🏽🎉💖कंठाी" | EVAL message_reversed = REVERSE(message);
 
 message:keyword                | message_reversed:keyword

@@ -1371,7 +1371,27 @@ public class Setting<T> implements ToXContentObject {
     }
 
     public static Setting<Integer> intSetting(String key, int defaultValue, int minValue, Property... properties) {
-        return new Setting<>(key, Integer.toString(defaultValue), (s) -> parseInt(s, minValue, key, isFiltered(properties)), properties);
+        return new Setting<>(key, Integer.toString(defaultValue), intParser(key, minValue, properties), properties);
+    }
+
+    public static Setting<Integer> intSetting(
+        String key,
+        Function<Settings, String> defaultValueFn,
+        int minValue,
+        int maxValue,
+        Property... properties
+    ) {
+        return new Setting<>(key, defaultValueFn, intParser(key, minValue, maxValue, properties), properties);
+    }
+
+    private static Function<String, Integer> intParser(String key, int minValue, Property[] properties) {
+        final boolean isFiltered = isFiltered(properties);
+        return s -> parseInt(s, minValue, key, isFiltered);
+    }
+
+    private static Function<String, Integer> intParser(String key, int minValue, int maxValue, Property[] properties) {
+        boolean isFiltered = isFiltered(properties);
+        return s -> parseInt(s, minValue, maxValue, key, isFiltered);
     }
 
     public static Setting<Integer> intSetting(

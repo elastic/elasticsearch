@@ -94,4 +94,9 @@ public class IndexTierMetrics extends AbstractBaseTierMetrics implements Autosca
     public int hashCode() {
         return Objects.hash(nodesLoad, memoryMetrics);
     }
+
+    @Override
+    public String toString() {
+        return "IndexTierMetrics{nodesLoad=" + nodesLoad + ", memoryMetrics=" + memoryMetrics + '}';
+    }
 }

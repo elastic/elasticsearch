@@ -197,6 +197,7 @@ public class IngestMetricsService implements ClusterStateListener {
             if (adjusted != null) {
                 adjusted.forEach(nodeIngestLoadSnapshot -> values.add(buildNodeIngestLoadMetricValue(nodeIngestLoadSnapshot, ADJUSTED)));
             }
+            logger.debug("Publishing ingest APM metrics: {}", values);
             return values;
         });
     }
@@ -310,7 +311,9 @@ public class IngestMetricsService implements ClusterStateListener {
         lastNodeIngestLoadSnapshotsRef.set(
             new RawAndAdjustedNodeIngestLoadSnapshots(ingestLoads, adjustedIngestLoads == ingestLoads ? null : adjustedIngestLoads)
         );
-        return new IndexTierMetrics(adjustedIngestLoads, memoryMetricsService.getMemoryMetrics());
+        final IndexTierMetrics indexTierMetrics = new IndexTierMetrics(adjustedIngestLoads, memoryMetricsService.getMemoryMetrics());
+        logger.debug("Returning index tier metrics: {}", indexTierMetrics);
+        return indexTierMetrics;
     }
 
     // Package private for testing

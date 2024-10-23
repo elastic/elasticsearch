@@ -30,15 +30,17 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.gateway.PriorityComparator;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.telemetry.metric.DoubleGauge;
 import org.elasticsearch.telemetry.metric.DoubleWithAttributes;
-import org.elasticsearch.telemetry.metric.LongGaugeMetric;
+import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Comparator;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -73,23 +75,29 @@ public class DesiredBalanceReconciler {
     private double undesiredAllocationsLogThreshold;
     private final NodeAllocationOrdering allocationOrdering = new NodeAllocationOrdering();
     private final NodeAllocationOrdering moveOrdering = new NodeAllocationOrdering();
+    private final AtomicBoolean nodeIsMaster;
 
     // stats
     /**
      * Number of unassigned shards during last reconciliation
      */
-    protected final LongGaugeMetric unassignedShards;
+    protected final AtomicLong unassignedShards = new AtomicLong();
     /**
      * Total number of assigned shards during last reconciliation
      */
-    protected final LongGaugeMetric totalAllocations;
+    protected final AtomicLong totalAllocations = new AtomicLong();
     /**
      * Number of assigned shards during last reconciliation that are not allocated on desired node and need to be moved
      */
-    protected final LongGaugeMetric undesiredAllocations;
-    private final DoubleGauge undesiredAllocationsRatio;
+    protected final AtomicLong undesiredAllocations = new AtomicLong();
 
-    public DesiredBalanceReconciler(ClusterSettings clusterSettings, ThreadPool threadPool, MeterRegistry meterRegistry) {
+    public DesiredBalanceReconciler(
+        ClusterSettings clusterSettings,
+        ThreadPool threadPool,
+        MeterRegistry meterRegistry,
+        AtomicBoolean nodeIsMaster
+    ) {
+        this.nodeIsMaster = nodeIsMaster;
         this.undesiredAllocationLogInterval = new FrequencyCappedAction(
             threadPool.relativeTimeInMillisSupplier(),
             TimeValue.timeValueMinutes(5)
@@ -100,33 +108,29 @@ public class DesiredBalanceReconciler {
             value -> this.undesiredAllocationsLogThreshold = value
         );
 
-        unassignedShards = LongGaugeMetric.create(
-            meterRegistry,
+        meterRegistry.registerLongsGauge(
             "es.allocator.desired_balance.shards.unassigned.current",
             "Current number of unassigned shards",
-            "{shard}"
+            "{shard}",
+            this::getUnassignedShards
         );
-        totalAllocations = LongGaugeMetric.create(
-            meterRegistry,
+        meterRegistry.registerLongsGauge(
             "es.allocator.desired_balance.shards.current",
             "Total number of shards",
-            "{shard}"
+            "{shard}",
+            this::getTotalAllocations
         );
-        undesiredAllocations = LongGaugeMetric.create(
-            meterRegistry,
+        meterRegistry.registerLongsGauge(
             "es.allocator.desired_balance.allocations.undesired.current",
             "Total number of shards allocated on undesired nodes excluding shutting down nodes",
-            "{shard}"
+            "{shard}",
+            this::getUndesiredAllocations
         );
-        undesiredAllocationsRatio = meterRegistry.registerDoubleGauge(
+        meterRegistry.registerDoublesGauge(
             "es.allocator.desired_balance.allocations.undesired.ratio",
             "Ratio of undesired allocations to shard count excluding shutting down nodes",
             "1",
-            () -> {
-                var total = totalAllocations.get();
-                var undesired = undesiredAllocations.get();
-                return new DoubleWithAttributes(total != 0 ? (double) undesired / total : 0.0);
-            }
+            this::getUndesiredAllocationsRatio
         );
     }
 
@@ -648,5 +652,33 @@ public class DesiredBalanceReconciler {
             assert target != null : "Target node is not found";
             return allocation.deciders().canForceAllocateDuringReplace(shardRouting, target, allocation);
         }
+    }
+
+    private List<LongWithAttributes> getUnassignedShards() {
+        return getIfPublishing(unassignedShards);
+    }
+
+    private List<LongWithAttributes> getTotalAllocations() {
+        return getIfPublishing(totalAllocations);
+    }
+
+    private List<LongWithAttributes> getUndesiredAllocations() {
+        return getIfPublishing(undesiredAllocations);
+    }
+
+    private List<LongWithAttributes> getIfPublishing(AtomicLong atomicLong) {
+        if (nodeIsMaster.get()) {
+            return List.of(new LongWithAttributes(atomicLong.longValue()));
+        }
+        return List.of();
+    }
+
+    private List<DoubleWithAttributes> getUndesiredAllocationsRatio() {
+        if (nodeIsMaster.get()) {
+            var total = totalAllocations.get();
+            var undesired = undesiredAllocations.get();
+            return List.of(new DoubleWithAttributes(total != 0 ? (double) undesired / total : 0.0));
+        }
+        return List.of();
     }
 }

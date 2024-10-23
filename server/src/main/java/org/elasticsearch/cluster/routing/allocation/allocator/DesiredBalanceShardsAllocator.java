@@ -41,6 +41,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -64,6 +65,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
     private volatile DesiredBalance currentDesiredBalance = DesiredBalance.INITIAL;
     private volatile boolean resetCurrentDesiredBalance = false;
     private final Set<String> processedNodeShutdowns = new HashSet<>();
+    private final AtomicBoolean nodeIsMaster = new AtomicBoolean(false);
 
     // stats
     protected final CounterMetric computationsSubmitted = new CounterMetric();
@@ -111,7 +113,8 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         this.desiredBalanceReconciler = new DesiredBalanceReconciler(
             clusterService.getClusterSettings(),
             threadPool,
-            telemetryProvider.getMeterRegistry()
+            telemetryProvider.getMeterRegistry(),
+            nodeIsMaster
         );
         this.desiredBalanceComputation = new ContinuousComputation<>(threadPool.generic()) {
 
@@ -168,6 +171,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
             if (event.localNodeMaster() == false) {
                 onNoLongerMaster();
             }
+            nodeIsMaster.set(event.localNodeMaster());
         });
     }
 

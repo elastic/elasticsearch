@@ -1215,7 +1215,8 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
         var reconciler = new DesiredBalanceReconciler(
             clusterSettings,
             new DeterministicTaskQueue().getThreadPool(),
-            mock(MeterRegistry.class)
+            mock(MeterRegistry.class),
+            new AtomicBoolean(true)
         );
 
         var totalOutgoingMoves = new HashMap<String, AtomicInteger>();
@@ -1297,7 +1298,12 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
         final var timeInMillisSupplier = new AtomicLong();
         when(threadPool.relativeTimeInMillisSupplier()).thenReturn(timeInMillisSupplier::incrementAndGet);
 
-        var reconciler = new DesiredBalanceReconciler(createBuiltInClusterSettings(), threadPool, mock(MeterRegistry.class));
+        var reconciler = new DesiredBalanceReconciler(
+            createBuiltInClusterSettings(),
+            threadPool,
+            mock(MeterRegistry.class),
+            new AtomicBoolean(true)
+        );
         final long initialDelayInMillis = TimeValue.timeValueMinutes(5).getMillis();
         timeInMillisSupplier.addAndGet(randomLongBetween(initialDelayInMillis, 2 * initialDelayInMillis));
 
@@ -1349,10 +1355,8 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
     private static void reconcile(RoutingAllocation routingAllocation, DesiredBalance desiredBalance) {
         final var threadPool = mock(ThreadPool.class);
         when(threadPool.relativeTimeInMillisSupplier()).thenReturn(new AtomicLong()::incrementAndGet);
-        new DesiredBalanceReconciler(createBuiltInClusterSettings(), threadPool, mock(MeterRegistry.class)).reconcile(
-            desiredBalance,
-            routingAllocation
-        );
+        new DesiredBalanceReconciler(createBuiltInClusterSettings(), threadPool, mock(MeterRegistry.class), new AtomicBoolean(true))
+            .reconcile(desiredBalance, routingAllocation);
     }
 
     private static boolean isReconciled(RoutingNode node, DesiredBalance balance) {

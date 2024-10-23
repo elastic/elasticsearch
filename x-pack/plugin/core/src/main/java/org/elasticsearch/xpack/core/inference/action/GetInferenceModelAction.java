@@ -40,8 +40,8 @@ public class GetInferenceModelAction extends ActionType<GetInferenceModelAction.
         public static boolean shouldReadPersistDefault(TransportVersion transportVersion) {
             // This constant is defined on future branches but we need to know about it here
             final TransportVersion INFERENCE_DONT_PERSIST_ON_READ = new TransportVersion(8_776_00_0);
-            return transportVersion.onOrAfter(INFERENCE_DONT_PERSIST_ON_READ) ||
-                transportVersion.isPatchFrom(TransportVersions.INFERENCE_DONT_PERSIST_ON_READ_BACKPORT_8_16);
+            return transportVersion.onOrAfter(INFERENCE_DONT_PERSIST_ON_READ)
+                || transportVersion.isPatchFrom(TransportVersions.INFERENCE_DONT_PERSIST_ON_READ_BACKPORT_8_16);
         }
 
         private final String inferenceEntityId;

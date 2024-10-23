@@ -66,7 +66,6 @@ public class MvSlice extends EsqlScalarFunction implements OptionalArgument, Eva
             "ip",
             "keyword",
             "long",
-            "text",
             "version" },
         description = """
             Returns a subset of the multivalued field using the start and end index values.
@@ -238,7 +237,7 @@ public class MvSlice extends EsqlScalarFunction implements OptionalArgument, Eva
 
     @Override
     public DataType dataType() {
-        return field.dataType();
+        return field.dataType().noText();
     }
 
     static int adjustIndex(int oldOffset, int fieldValueCount, int first) {

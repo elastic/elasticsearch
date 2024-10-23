@@ -15,6 +15,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.ContextParser;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -25,6 +26,9 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -73,11 +77,13 @@ public final class PipelineConfiguration implements SimpleDiffable<PipelineConfi
     // also the get pipeline api just directly returns this to the caller
     private final BytesReference config;
     private final XContentType xContentType;
+    private final Map<String, Object> parsedConfigMap;
 
     public PipelineConfiguration(String id, BytesReference config, XContentType xContentType) {
         this.id = Objects.requireNonNull(id);
         this.config = Objects.requireNonNull(config);
         this.xContentType = Objects.requireNonNull(xContentType);
+        this.parsedConfigMap = deepCopy(parseConfigAsMap(), true);
     }
 
     public String getId() {
@@ -85,7 +91,36 @@ public final class PipelineConfiguration implements SimpleDiffable<PipelineConfi
     }
 
     public Map<String, Object> getConfigAsMap() {
+        return parsedConfigMap;
+    }
+
+    public Map<String, Object> parseConfigAsMap() {
         return XContentHelper.convertToMap(config, true, xContentType).v2();
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <T> T deepCopy(final T value, final boolean unmodifiable) {
+        return (T) innerDeepCopy(value, unmodifiable);
+    }
+
+    private static Object innerDeepCopy(final Object value, final boolean unmodifiable) {
+        if (value instanceof Map<?, ?> mapValue) {
+            final Map<Object, Object> copy = Maps.newLinkedHashMapWithExpectedSize(mapValue.size()); // n.b. maintain ordering
+            for (Map.Entry<?, ?> entry : mapValue.entrySet()) {
+                copy.put(innerDeepCopy(entry.getKey(), unmodifiable), innerDeepCopy(entry.getValue(), unmodifiable));
+            }
+            return unmodifiable ? Collections.unmodifiableMap(copy) : copy;
+        } else if (value instanceof List<?> listValue) {
+            final List<Object> copy = new ArrayList<>(listValue.size());
+            for (Object itemValue : listValue) {
+                copy.add(innerDeepCopy(itemValue, unmodifiable));
+            }
+            return unmodifiable ? Collections.unmodifiableList(copy) : copy;
+        } else if (value == null || value instanceof String || value instanceof Number || value instanceof Boolean) {
+            return value;
+        } else {
+            throw new IllegalArgumentException("unexpected value type [" + value.getClass() + "]");
+        }
     }
 
     // pkg-private for tests
@@ -163,7 +198,7 @@ public final class PipelineConfiguration implements SimpleDiffable<PipelineConfi
      * <p>The given upgrader is applied to the config map for any processor of the given type.
      */
     PipelineConfiguration maybeUpgradeProcessors(String type, IngestMetadata.ProcessorConfigUpgrader upgrader) {
-        Map<String, Object> mutableConfigMap = getConfigAsMap();
+        Map<String, Object> mutableConfigMap = parseConfigAsMap();
         boolean changed = false;
         // This should be a List of Maps, where the keys are processor types and the values are config maps.
         // But we'll skip upgrading rather than fail if not.

@@ -1292,7 +1292,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             try {
                 Pipeline newPipeline = Pipeline.create(
                     newConfiguration.getId(),
-                    newConfiguration.getConfigAsMap(),
+                    newConfiguration.parseConfigAsMap(),
                     processorFactories,
                     scriptService
                 );
@@ -1416,7 +1416,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
 
     public synchronized void reloadPipeline(String id) throws Exception {
         PipelineHolder holder = pipelines.get(id);
-        Pipeline updatedPipeline = Pipeline.create(id, holder.configuration.getConfigAsMap(), processorFactories, scriptService);
+        Pipeline updatedPipeline = Pipeline.create(id, holder.configuration.parseConfigAsMap(), processorFactories, scriptService);
         Map<String, PipelineHolder> updatedPipelines = new HashMap<>(this.pipelines);
         updatedPipelines.put(id, new PipelineHolder(holder.configuration, updatedPipeline));
         this.pipelines = Map.copyOf(updatedPipelines);

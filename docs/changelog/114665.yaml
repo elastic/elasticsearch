@@ -3,4 +3,4 @@ summary: Fixing remote ENRICH by pushing the Enrich inside `FragmentExec`
 area: ES|QL
 type: bug
 issues:
-  - https://github.com/elastic/elasticsearch/issues/105095
+  - 105095

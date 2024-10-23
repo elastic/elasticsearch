@@ -221,7 +221,33 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
                 )
             );
         }
-
+        if (type.noText() == DataType.KEYWORD) {
+            DataType otherType = type == DataType.KEYWORD ? DataType.TEXT : DataType.KEYWORD;
+            suppliers.add(
+                new TestCaseSupplier(
+                    "foldable " + TestCaseSupplier.nameFrom(Arrays.asList(cond, type, otherType)),
+                    List.of(DataType.BOOLEAN, type, otherType),
+                    () -> {
+                        Object lhs = randomLiteral(type).value();
+                        Object rhs = randomLiteral(otherType).value();
+                        List<TestCaseSupplier.TypedData> typedData = List.of(
+                            cond(cond, "cond").forceLiteral(),
+                            new TestCaseSupplier.TypedData(lhs, type, "lhs").forceLiteral(),
+                            new TestCaseSupplier.TypedData(rhs, otherType, "rhs")
+                        );
+                        return testCase(
+                            type.noText(),
+                            typedData,
+                            lhsOrRhs ? lhs : rhs,
+                            startsWith("LiteralsEvaluator[lit="),
+                            true,
+                            null,
+                            addBuildEvaluatorWarnings(warnings)
+                        );
+                    }
+                )
+            );
+        }
         suppliers.add(
             new TestCaseSupplier(
                 "partial foldable " + TestCaseSupplier.nameFrom(Arrays.asList(cond, type, type)),
@@ -291,6 +317,33 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
                     }
                 )
             );
+            if (type.noText() == DataType.KEYWORD) {
+                DataType otherType = type == DataType.KEYWORD ? DataType.TEXT : DataType.KEYWORD;
+                suppliers.add(
+                    new TestCaseSupplier(
+                        TestCaseSupplier.nameFrom(Arrays.asList(DataType.NULL, type, otherType)),
+                        List.of(DataType.NULL, type, otherType),
+                        () -> {
+                            Object lhs = randomLiteral(type).value();
+                            Object rhs = randomLiteral(otherType).value();
+                            List<TestCaseSupplier.TypedData> typedData = List.of(
+                                new TestCaseSupplier.TypedData(null, DataType.NULL, "cond"),
+                                new TestCaseSupplier.TypedData(lhs, type, "lhs"),
+                                new TestCaseSupplier.TypedData(rhs, otherType, "rhs")
+                            );
+                            return testCase(
+                                type.noText(),
+                                typedData,
+                                lhsOrRhs ? lhs : rhs,
+                                startsWith("CaseEagerEvaluator[conditions=[ConditionEvaluator[condition="),
+                                false,
+                                null,
+                                addWarnings(warnings)
+                            );
+                        }
+                    )
+                );
+            }
         }
         suppliers.add(
             new TestCaseSupplier(
@@ -803,7 +856,7 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
         if (types.get(0) != DataType.BOOLEAN && types.get(0) != DataType.NULL) {
             return typeErrorMessage(includeOrdinal, types, 0, "boolean");
         }
-        DataType mainType = types.get(1);
+        DataType mainType = types.get(1).noText();
         for (int i = 2; i < types.size(); i++) {
             if (i % 2 == 0 && i != types.size() - 1) {
                 // condition
@@ -812,7 +865,7 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
                 }
             } else {
                 // value
-                if (types.get(i) != mainType) {
+                if (types.get(i).noText() != mainType) {
                     return typeErrorMessage(includeOrdinal, types, i, mainType.typeName());
                 }
             }

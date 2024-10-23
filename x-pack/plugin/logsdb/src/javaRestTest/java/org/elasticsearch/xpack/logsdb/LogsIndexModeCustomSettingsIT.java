@@ -12,6 +12,7 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
+import org.hamcrest.Matchers;
 import org.junit.Before;
 import org.junit.ClassRule;
 
@@ -454,7 +455,7 @@ public class LogsIndexModeCustomSettingsIT extends LogsIndexModeRestTestIT {
                 );
                 assertThat(
                     ex.getMessage(),
-                    containsString("Failed to parse value [" + newValue + "] for setting [index.mapping.ignore_above]")
+                    Matchers.containsString("Failed to parse value [" + newValue + "] for setting [index.mapping.ignore_above]")
                 );
             }
         }
@@ -493,6 +494,16 @@ public class LogsIndexModeCustomSettingsIT extends LogsIndexModeRestTestIT {
                 assertThat(getSetting(client, index, "index.mapping.ignore_above"), equalTo(newValue));
             }
         }
+    }
+
+    private static Map<String, Object> getMapping(final RestClient client, final String indexName) throws IOException {
+        final Request request = new Request("GET", "/" + indexName + "/_mapping");
+
+        Map<String, Object> mappings = ((Map<String, Map<String, Object>>) entityAsMap(client.performRequest(request)).get(indexName)).get(
+            "mappings"
+        );
+
+        return mappings;
     }
 
     private Function<Object, Map<String, Object>> subObject(String key) {

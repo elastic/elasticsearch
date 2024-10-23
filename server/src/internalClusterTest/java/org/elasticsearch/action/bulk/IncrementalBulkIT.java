@@ -10,6 +10,7 @@
 package org.elasticsearch.action.bulk;
 
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -28,12 +29,16 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.ingest.IngestClientIT;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.telemetry.Measurement;
+import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -43,7 +48,9 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Consumer;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
@@ -54,9 +61,15 @@ import static org.hamcrest.Matchers.lessThan;
 
 public class IncrementalBulkIT extends ESIntegTestCase {
 
+    private static final List<String> METRICS = List.of(
+        FailureStoreMetrics.METRIC_TOTAL,
+        FailureStoreMetrics.METRIC_FAILURE_STORE,
+        FailureStoreMetrics.METRIC_REJECTED
+    );
+
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(IngestClientIT.ExtendedIngestTestPlugin.class);
+        return List.of(IngestClientIT.ExtendedIngestTestPlugin.class, TestTelemetryPlugin.class);
     }
 
     @Override
@@ -380,15 +393,25 @@ public class IncrementalBulkIT extends ESIntegTestCase {
             refCounted.incRef();
             handler.addItems(List.of(indexRequest(index)), refCounted::decRef, () -> nextRequested.set(true));
             hits.incrementAndGet();
+            System.out.println("Hits = " + hits.get());
         }
 
         assertBusy(() -> assertTrue(nextRequested.get()));
+        System.out.println("Final Hits = " + hits.get());
+        var measurements = collectTelemetry();
+        // assertMeasurements(measurements.get(FailureStoreMetrics.METRIC_TOTAL), (int) hits.get(), index);
+        safeSleep(1000);
+        assertEquals(0, measurements.get(FailureStoreMetrics.METRIC_TOTAL).size());
+        assertEquals(0, measurements.get(FailureStoreMetrics.METRIC_FAILURE_STORE).size());
+        assertEquals(0, measurements.get(FailureStoreMetrics.METRIC_REJECTED).size());
 
         String node = findShard(resolveIndex(index), 0);
         String secondShardNode = findShard(resolveIndex(index), 1);
         IndexingPressure primaryPressure = internalCluster().getInstance(IndexingPressure.class, node);
         long memoryLimit = primaryPressure.stats().getMemoryLimit();
         long primaryRejections = primaryPressure.stats().getPrimaryRejections();
+        System.out.println("Primary rejections = " + primaryRejections);
+        System.out.println("Memory limit = " + memoryLimit);
         try (Releasable releasable = primaryPressure.markPrimaryOperationStarted(10, memoryLimit, false)) {
             while (primaryPressure.stats().getPrimaryRejections() == primaryRejections) {
                 while (nextRequested.get()) {
@@ -401,8 +424,13 @@ public class IncrementalBulkIT extends ESIntegTestCase {
                     handler.addItems(requests, refCounted::decRef, () -> nextRequested.set(true));
                 }
                 assertBusy(() -> assertTrue(nextRequested.get()));
+                System.out.println("Primary rejections = " + primaryPressure.stats().getPrimaryRejections());
             }
+            System.out.println("Primary rejections = " + primaryPressure.stats().getPrimaryRejections());
         }
+        measurements = collectTelemetry();
+        // assertEquals(1, measurements.get(FailureStoreMetrics.METRIC_FAILURE_STORE).size());
+        // assertEquals(1, measurements.get(FailureStoreMetrics.METRIC_REJECTED).size());
 
         while (nextRequested.get()) {
             nextRequested.set(false);
@@ -636,5 +664,52 @@ public class IncrementalBulkIT extends ESIntegTestCase {
             }
         }
         throw new AssertionError("IndexShard instance not found for shard " + new ShardId(index, shardId));
+    }
+
+    private static Map<String, List<Measurement>> collectTelemetry() {
+        Map<String, List<Measurement>> measurements = new HashMap<>();
+        for (PluginsService pluginsService : internalCluster().getInstances(PluginsService.class)) {
+            final TestTelemetryPlugin telemetryPlugin = pluginsService.filterPlugins(TestTelemetryPlugin.class).findFirst().orElseThrow();
+
+            telemetryPlugin.collect();
+
+            for (String metricName : METRICS) {
+                measurements.put(metricName, telemetryPlugin.getLongCounterMeasurement(metricName));
+            }
+        }
+        return measurements;
+    }
+
+    private void assertMeasurements(List<Measurement> measurements, int expectedSize, String expectedDataStream) {
+        assertMeasurements(measurements, expectedSize, expectedDataStream, (Consumer<Measurement>) null);
+    }
+
+    private void assertMeasurements(
+        List<Measurement> measurements,
+        int expectedSize,
+        String expectedDataStream,
+        FailureStoreMetrics.ErrorLocation location
+    ) {
+        assertMeasurements(
+            measurements,
+            expectedSize,
+            expectedDataStream,
+            measurement -> assertEquals(location.name(), measurement.attributes().get("error_location"))
+        );
+    }
+
+    private void assertMeasurements(
+        List<Measurement> measurements,
+        int expectedSize,
+        String expectedDataStream,
+        Consumer<Measurement> customAssertion
+    ) {
+        assertEquals(expectedSize, measurements.size());
+        for (Measurement measurement : measurements) {
+            assertEquals(expectedDataStream, measurement.attributes().get("data_stream"));
+            if (customAssertion != null) {
+                customAssertion.accept(measurement);
+            }
+        }
     }
 }

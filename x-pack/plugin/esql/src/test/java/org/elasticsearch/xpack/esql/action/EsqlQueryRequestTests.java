@@ -271,10 +271,12 @@ public class EsqlQueryRequestTests extends ESTestCase {
 
         // invalid named parameter for identifier and identifier pattern
         String paramsString1 = """
-            "params":[ {"n1" : {"v" : "v1"}}, {"n2" : {"identifier" : "v2", "pattern" : "v2"}}, {"n3" : {}},
-            {"n4" : {"value" : ["x", "y"]}}, {"n5" : {"identifier" : ["x", "y"]}}, {"n6" : {"pattern" : ["x*", "y*"]}},
-            {"n7" : {"identifier" : 1}}, {"n8" : {"pattern" : true}}, {"n9" : {"identifier" : null}}, {"n10" : {"pattern" : "v10"}},
-            {"n11" : {"pattern" : "v11*"}, "n12" : {"identifier" : "v12"}}]""";
+            "params":[{"n1" : {"v" : "v1"}}, {"n2" : {"identifier" : "v2", "pattern" : "v2"}},
+            {"n3" : {"identifier" : "v3", "pattern" : "v3"}}, {"n4" : {"pattern" : "v4.1", "value" : "v4.2"}},
+            {"n5" : {"value" : {"a5" : "v5"}}},{"n6" : {"identifier" : {"a6.1" : "v6.1", "a6.2" : "v6.2"}}}, {"n7" : {}},
+            {"n8" : {"value" : ["x", "y"]}}, {"n9" : {"identifier" : ["x", "y"]}}, {"n10" : {"pattern" : ["x*", "y*"]}},
+            {"n11" : {"identifier" : 1}}, {"n12" : {"pattern" : true}}, {"n13" : {"identifier" : null}}, {"n14" : {"pattern" : "v14"}},
+            {"n15" : {"pattern" : "v15*"}, "n16" : {"identifier" : "v16"}}]""";
         String json1 = String.format(Locale.ROOT, """
             {
                 %s
@@ -288,25 +290,37 @@ public class EsqlQueryRequestTests extends ESTestCase {
         assertThat(
             e1.getCause().getMessage(),
             containsString(
-                "[2:16] [v] is not a valid param attribute, a valid attribute is any of VALUE, IDENTIFIER, PATTERN; "
-                    + "[2:39] [n2] has multiple param attributes [identifier, pattern], "
+                "[2:15] [v] is not a valid param attribute, a valid attribute is any of VALUE, IDENTIFIER, PATTERN; "
+                    + "[2:38] [n2] has multiple param attributes [identifier, pattern], "
                     + "only one of VALUE, IDENTIFIER, PATTERN can be defined in a param; "
-                    + "[2:39] [v2] is not a valid value for PATTERN parameter, "
+                    + "[2:38] [v2] is not a valid value for PATTERN parameter, "
                     + "a valid value for PATTERN parameter is a string and contains *; "
-                    + "[2:89] [n3] has no valid param attribute, only one of VALUE, IDENTIFIER, PATTERN can be defined in a param; "
-                    + "[3:1] n4={value=[x, y]} is not supported as a parameter; "
-                    + "[3:34] [[x, y]] is not a valid value for IDENTIFIER parameter, a valid value for IDENTIFIER parameter is a string; "
-                    + "[3:34] n5={identifier=[x, y]} is not supported as a parameter; "
-                    + "[3:72] [[x*, y*]] is not a valid value for PATTERN parameter, "
+                    + "[3:1] [n3] has multiple param attributes [identifier, pattern], "
+                    + "only one of VALUE, IDENTIFIER, PATTERN can be defined in a param; "
+                    + "[3:1] [v3] is not a valid value for PATTERN parameter, "
                     + "a valid value for PATTERN parameter is a string and contains *; "
-                    + "[3:72] n6={pattern=[x*, y*]} is not supported as a parameter; "
-                    + "[4:1] [1] is not a valid value for IDENTIFIER parameter, a valid value for IDENTIFIER parameter is a string; "
-                    + "[4:30] [true] is not a valid value for PATTERN parameter, "
+                    + "[3:51] [n4] has multiple param attributes [pattern, value], "
+                    + "only one of VALUE, IDENTIFIER, PATTERN can be defined in a param; "
+                    + "[3:51] [v4.1] is not a valid value for PATTERN parameter, "
                     + "a valid value for PATTERN parameter is a string and contains *; "
-                    + "[4:59] [null] is not a valid value for IDENTIFIER parameter, a valid value for IDENTIFIER parameter is a string; "
-                    + "[4:91] [v10] is not a valid value for PATTERN parameter, "
+                    + "[4:1] n5={value={a5=v5}} is not supported as a parameter; "
+                    + "[4:36] [{a6.1=v6.1, a6.2=v6.2}] is not a valid value for IDENTIFIER parameter, "
+                    + "a valid value for IDENTIFIER parameter is a string; "
+                    + "[4:36] n6={identifier={a6.1=v6.1, a6.2=v6.2}} is not supported as a parameter; "
+                    + "[4:98] [n7] has no valid param attribute, only one of VALUE, IDENTIFIER, PATTERN can be defined in a param; "
+                    + "[5:1] n8={value=[x, y]} is not supported as a parameter; "
+                    + "[5:34] [[x, y]] is not a valid value for IDENTIFIER parameter, a valid value for IDENTIFIER parameter is a string; "
+                    + "[5:34] n9={identifier=[x, y]} is not supported as a parameter; "
+                    + "[5:72] [[x*, y*]] is not a valid value for PATTERN parameter, "
                     + "a valid value for PATTERN parameter is a string and contains *; "
-                    + "[5:1] Cannot parse more than one key:value pair as parameter, found [{n12:{identifier=v12}}, {n11:{pattern=v11*}}]"
+                    + "[5:72] n10={pattern=[x*, y*]} is not supported as a parameter; "
+                    + "[6:1] [1] is not a valid value for IDENTIFIER parameter, a valid value for IDENTIFIER parameter is a string; "
+                    + "[6:31] [true] is not a valid value for PATTERN parameter, "
+                    + "a valid value for PATTERN parameter is a string and contains *; "
+                    + "[6:61] [null] is not a valid value for IDENTIFIER parameter, a valid value for IDENTIFIER parameter is a string; "
+                    + "[6:94] [v14] is not a valid value for PATTERN parameter, "
+                    + "a valid value for PATTERN parameter is a string and contains *; "
+                    + "[7:1] Cannot parse more than one key:value pair as parameter, found [{n16:{identifier=v16}}, {n15:{pattern=v15*}}]"
             )
         );
     }

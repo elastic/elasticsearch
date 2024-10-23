@@ -20,20 +20,20 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-public class QueryRuleRankDoc extends RankDoc {
+public class RuleQueryRankDoc extends RankDoc {
 
     public static final String NAME = "query_rule_rank_doc";
 
     public final List<String> rulesetIds;
     public final Map<String, Object> matchCriteria;
 
-    public QueryRuleRankDoc(int doc, float score, int shardIndex, List<String> rulesetIds, Map<String, Object> matchCriteria) {
+    public RuleQueryRankDoc(int doc, float score, int shardIndex, List<String> rulesetIds, Map<String, Object> matchCriteria) {
         super(doc, score, shardIndex);
         this.rulesetIds = rulesetIds;
         this.matchCriteria = matchCriteria;
     }
 
-    public QueryRuleRankDoc(StreamInput in) throws IOException {
+    public RuleQueryRankDoc(StreamInput in) throws IOException {
         super(in);
         rulesetIds = in.readStringCollectionAsImmutableList();
         matchCriteria = in.readGenericMap();
@@ -57,8 +57,8 @@ public class QueryRuleRankDoc extends RankDoc {
 
     @Override
     public boolean doEquals(RankDoc rd) {
-        QueryRuleRankDoc qrrd = (QueryRuleRankDoc) rd;
-        return Objects.equals(rulesetIds, qrrd.rulesetIds) && Objects.equals(matchCriteria, qrrd.matchCriteria);
+        RuleQueryRankDoc rqrd = (RuleQueryRankDoc) rd;
+        return Objects.equals(rulesetIds, rqrd.rulesetIds) && Objects.equals(matchCriteria, rqrd.matchCriteria);
     }
 
     @Override

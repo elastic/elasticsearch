@@ -165,7 +165,7 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
             logger.warn(
                 () -> format(
                     "Reserved cluster state version [%s] for namespace [%s] is not compatible with this Elasticsearch node",
-                    reservedStateVersion.version(),
+                    reservedStateVersion.buildVersion(),
                     namespace
                 )
             );

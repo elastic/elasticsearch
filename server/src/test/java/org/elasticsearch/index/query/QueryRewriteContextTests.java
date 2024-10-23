@@ -59,8 +59,10 @@ public class QueryRewriteContextTests extends ESTestCase {
 
         {
             // missing tier preference
-            IndexMetadata metadata =
-                newIndexMeta("index", Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build());
+            IndexMetadata metadata = newIndexMeta(
+                "index",
+                Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build()
+            );
             QueryRewriteContext context = new QueryRewriteContext(
                 parserConfig(),
                 null,

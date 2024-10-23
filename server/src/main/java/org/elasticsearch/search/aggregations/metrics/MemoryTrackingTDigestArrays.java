@@ -21,7 +21,6 @@ import org.elasticsearch.tdigest.arrays.TDigestIntArray;
 import org.elasticsearch.tdigest.arrays.TDigestLongArray;
 
 import java.util.Arrays;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * TDigestArrays with raw arrays and circuit breaking.
@@ -32,6 +31,15 @@ public class MemoryTrackingTDigestArrays implements TDigestArrays {
 
     public MemoryTrackingTDigestArrays(CircuitBreaker breaker) {
         this.breaker = breaker;
+    }
+
+    @Override
+    public void adjustBreaker(long size) {
+        if (size > 0) {
+            breaker.addEstimateBytesAndMaybeBreak(size, "tdigest-adjust-breaker");
+        } else {
+            breaker.addWithoutBreaking(size);
+        }
     }
 
     @Override
@@ -80,7 +88,7 @@ public class MemoryTrackingTDigestArrays implements TDigestArrays {
 
     private abstract static class AbstractMemoryTrackingArray implements Releasable, Accountable {
         protected final CircuitBreaker breaker;
-        private final AtomicBoolean closed = new AtomicBoolean(false);
+        private boolean closed = false;
 
         AbstractMemoryTrackingArray(CircuitBreaker breaker) {
             this.breaker = breaker;
@@ -88,7 +96,8 @@ public class MemoryTrackingTDigestArrays implements TDigestArrays {
 
         @Override
         public final void close() {
-            if (closed.compareAndSet(false, true)) {
+            if (closed == false) {
+                closed = true;
                 breaker.addWithoutBreaking(-ramBytesUsed());
             }
         }

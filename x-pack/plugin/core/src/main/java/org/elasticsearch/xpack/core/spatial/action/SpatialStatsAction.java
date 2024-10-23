@@ -45,7 +45,7 @@ public class SpatialStatsAction extends ActionType<SpatialStatsAction.Response> 
         CARTESIANBOUNDS
     }
 
-    public static class Request extends BaseNodesRequest<Request> implements ToXContentObject {
+    public static class Request extends BaseNodesRequest implements ToXContentObject {
 
         public Request() {
             super((String[]) null);

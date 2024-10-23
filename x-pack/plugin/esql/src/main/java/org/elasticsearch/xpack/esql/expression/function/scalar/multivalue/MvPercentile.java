@@ -34,7 +34,6 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.List;
-import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
@@ -120,7 +119,7 @@ public class MvPercentile extends EsqlScalarFunction {
     }
 
     @Override
-    public final ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
+    public final ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         var fieldEval = toEvaluator.apply(field);
         var percentileEval = Cast.cast(source(), percentile.dataType(), DOUBLE, toEvaluator.apply(percentile));
 

@@ -17,7 +17,7 @@ pluginManagement {
 }
 
 plugins {
-  id "com.gradle.develocity" version "3.17.4"
+  id "com.gradle.develocity" version "3.18.1"
   id 'elasticsearch.java-toolchain'
 }
 
@@ -92,6 +92,9 @@ List projects = [
   'distribution:tools:geoip-cli',
   'distribution:tools:ansi-console',
   'distribution:tools:entitlement-agent',
+  'distribution:tools:entitlement-agent:impl',
+  'distribution:tools:entitlement-bridge',
+  'distribution:tools:entitlement-runtime',
   'server',
   'test:framework',
   'test:fixtures:azure-fixture',

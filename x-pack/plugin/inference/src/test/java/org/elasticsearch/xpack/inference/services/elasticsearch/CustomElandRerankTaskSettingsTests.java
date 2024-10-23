@@ -15,12 +15,37 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class CustomElandRerankTaskSettingsTests extends AbstractWireSerializingTestCase<CustomElandRerankTaskSettings> {
+
+    public void testIsEmpty() {
+        var randomSettings = createRandom();
+        var stringRep = Strings.toString(randomSettings);
+        assertEquals(stringRep, randomSettings.isEmpty(), stringRep.equals("{}"));
+    }
+
+    public void testUpdatedTaskSettings() {
+        var initialSettings = createRandom();
+        var newSettings = createRandom();
+        Map<String, Object> newSettingsMap = new HashMap<>();
+        if (newSettings.returnDocuments() != null) {
+            newSettingsMap.put(CustomElandRerankTaskSettings.RETURN_DOCUMENTS, newSettings.returnDocuments());
+        }
+        CustomElandRerankTaskSettings updatedSettings = (CustomElandRerankTaskSettings) initialSettings.updatedTaskSettings(
+            Collections.unmodifiableMap(newSettingsMap)
+        );
+        if (newSettings.returnDocuments() == null) {
+            assertEquals(initialSettings.returnDocuments(), updatedSettings.returnDocuments());
+        } else {
+            assertEquals(newSettings.returnDocuments(), updatedSettings.returnDocuments());
+        }
+    }
 
     public void testDefaultsFromMap_MapIsNull_ReturnsDefaultSettings() {
         var customElandRerankTaskSettings = CustomElandRerankTaskSettings.defaultsFromMap(null);
@@ -63,18 +88,6 @@ public class CustomElandRerankTaskSettingsTests extends AbstractWireSerializingT
             {"return_documents":true}"""));
     }
 
-    public void testToXContent_DoesNotWriteReturnDocuments_IfNull() throws IOException {
-        Boolean bool = null;
-        var serviceSettings = new CustomElandRerankTaskSettings(bool);
-
-        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-        serviceSettings.toXContent(builder, null);
-        String xContentResult = Strings.toString(builder);
-
-        assertThat(xContentResult, is("""
-            {}"""));
-    }
-
     public void testOf_PrefersNonNullRequestTaskSettings() {
         var originalSettings = new CustomElandRerankTaskSettings(Boolean.FALSE);
         var requestTaskSettings = new CustomElandRerankTaskSettings(Boolean.TRUE);
@@ -82,16 +95,6 @@ public class CustomElandRerankTaskSettingsTests extends AbstractWireSerializingT
         var taskSettings = CustomElandRerankTaskSettings.of(originalSettings, requestTaskSettings);
 
         assertThat(taskSettings, sameInstance(requestTaskSettings));
-    }
-
-    public void testOf_UseOriginalSettings_IfRequestSettingsValuesAreNull() {
-        Boolean bool = null;
-        var originalSettings = new CustomElandRerankTaskSettings(Boolean.TRUE);
-        var requestTaskSettings = new CustomElandRerankTaskSettings(bool);
-
-        var taskSettings = CustomElandRerankTaskSettings.of(originalSettings, requestTaskSettings);
-
-        assertThat(taskSettings, sameInstance(originalSettings));
     }
 
     private static CustomElandRerankTaskSettings createRandom() {

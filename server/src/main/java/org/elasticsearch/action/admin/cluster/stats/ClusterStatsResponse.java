@@ -28,8 +28,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.action.search.TransportSearchAction.CCS_TELEMETRY_FEATURE_FLAG;
-
 public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResponse> implements ToXContentFragment {
 
     final ClusterStatsNodes nodesStats;
@@ -145,14 +143,12 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
         builder.field("repositories");
         repositoryUsageStats.toXContent(builder, params);
 
-        if (CCS_TELEMETRY_FEATURE_FLAG.isEnabled()) {
-            builder.startObject("ccs");
-            if (remoteClustersStats != null) {
-                builder.field("clusters", remoteClustersStats);
-            }
-            ccsMetrics.toXContent(builder, params);
-            builder.endObject();
+        builder.startObject("ccs");
+        if (remoteClustersStats != null) {
+            builder.field("clusters", remoteClustersStats);
         }
+        ccsMetrics.toXContent(builder, params);
+        builder.endObject();
 
         return builder;
     }

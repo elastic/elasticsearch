@@ -10,8 +10,16 @@
 package org.elasticsearch.search.retriever.rankdoc;
 
 import org.apache.lucene.document.Document;
+import org.apache.lucene.document.NumericDocValuesField;
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.NoMergePolicy;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.TopScoreDocCollectorManager;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -21,6 +29,10 @@ import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Random;
+
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class RankDocsQueryBuilderTests extends AbstractQueryTestCase<RankDocsQueryBuilder> {
 
@@ -39,7 +51,7 @@ public class RankDocsQueryBuilderTests extends AbstractQueryTestCase<RankDocsQue
     @Override
     protected RankDocsQueryBuilder doCreateTestQueryBuilder() {
         RankDoc[] rankDocs = generateRandomRankDocs();
-        return new RankDocsQueryBuilder(rankDocs);
+        return new RankDocsQueryBuilder(rankDocs, null, false);
     }
 
     @Override
@@ -101,6 +113,128 @@ public class RankDocsQueryBuilderTests extends AbstractQueryTestCase<RankDocsQue
                 RankDocsQueryBuilder queryBuilder = createTestQueryBuilder();
                 queryBuilder.toQuery(context);
             }
+        }
+    }
+
+    public void testRankDocsQueryEarlyTerminate() throws IOException {
+        try (Directory directory = newDirectory()) {
+            IndexWriterConfig config = new IndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE);
+            try (IndexWriter iw = new IndexWriter(directory, config)) {
+                int seg = atLeast(5);
+                int numDocs = atLeast(20);
+                for (int i = 0; i < seg; i++) {
+                    for (int j = 0; j < numDocs; j++) {
+                        Document doc = new Document();
+                        doc.add(new NumericDocValuesField("active", 1));
+                        iw.addDocument(doc);
+                    }
+                    if (frequently()) {
+                        iw.flush();
+                    }
+                }
+            }
+            try (IndexReader reader = DirectoryReader.open(directory)) {
+                int topSize = randomIntBetween(1, reader.maxDoc() / 5);
+                RankDoc[] rankDocs = new RankDoc[topSize];
+                int index = 0;
+                for (int r : randomSample(random(), reader.maxDoc(), topSize)) {
+                    rankDocs[index++] = new RankDoc(r, randomFloat(), randomIntBetween(0, 5));
+                }
+                Arrays.sort(rankDocs);
+                for (int i = 0; i < rankDocs.length; i++) {
+                    rankDocs[i].rank = i;
+                }
+                IndexSearcher searcher = new IndexSearcher(reader);
+                for (int totalHitsThreshold = 0; totalHitsThreshold < reader.maxDoc(); totalHitsThreshold += randomIntBetween(1, 10)) {
+                    // Tests that the query matches only the {@link RankDoc} when the hit threshold is reached.
+                    RankDocsQuery q = new RankDocsQuery(
+                        reader,
+                        rankDocs,
+                        new Query[] { NumericDocValuesField.newSlowExactQuery("active", 1) },
+                        new String[1],
+                        false
+                    );
+                    var topDocsManager = new TopScoreDocCollectorManager(topSize, null, totalHitsThreshold);
+                    var col = searcher.search(q, topDocsManager);
+                    // depending on the doc-ids of the RankDocs (i.e. the actual docs to have score) we could visit them last,
+                    // so worst case is we could end up collecting up to 1 + max(topSize , totalHitsThreshold) + rankDocs.length documents
+                    // as we could have already filled the priority queue with non-optimal docs
+                    assertThat(
+                        col.totalHits.value(),
+                        lessThanOrEqualTo((long) (1 + Math.max(topSize, totalHitsThreshold) + rankDocs.length))
+                    );
+                    assertEqualTopDocs(col.scoreDocs, rankDocs);
+                }
+
+                {
+                    // Return all docs (rank + tail)
+                    RankDocsQuery q = new RankDocsQuery(
+                        reader,
+                        rankDocs,
+                        new Query[] { NumericDocValuesField.newSlowExactQuery("active", 1) },
+                        new String[1],
+                        false
+                    );
+                    var topDocsManager = new TopScoreDocCollectorManager(topSize, null, Integer.MAX_VALUE);
+                    var col = searcher.search(q, topDocsManager);
+                    assertThat(col.totalHits.value(), equalTo((long) reader.maxDoc()));
+                    assertEqualTopDocs(col.scoreDocs, rankDocs);
+                }
+
+                {
+                    // Only rank docs
+                    RankDocsQuery q = new RankDocsQuery(
+                        reader,
+                        rankDocs,
+                        new Query[] { NumericDocValuesField.newSlowExactQuery("active", 1) },
+                        new String[1],
+                        true
+                    );
+                    var topDocsManager = new TopScoreDocCollectorManager(topSize, null, Integer.MAX_VALUE);
+                    var col = searcher.search(q, topDocsManager);
+                    assertThat(col.totalHits.value(), equalTo((long) topSize));
+                    assertEqualTopDocs(col.scoreDocs, rankDocs);
+                }
+
+                {
+                    // A single rank doc in the last segment
+                    RankDoc[] singleRankDoc = new RankDoc[1];
+                    singleRankDoc[0] = rankDocs[rankDocs.length - 1];
+                    RankDocsQuery q = new RankDocsQuery(
+                        reader,
+                        singleRankDoc,
+                        new Query[] { NumericDocValuesField.newSlowExactQuery("active", 1) },
+                        new String[1],
+                        false
+                    );
+                    var topDocsManager = new TopScoreDocCollectorManager(1, null, 0);
+                    var col = searcher.search(q, topDocsManager);
+                    assertThat(col.totalHits.value(), lessThanOrEqualTo((long) (2 + rankDocs.length)));
+                    assertEqualTopDocs(col.scoreDocs, singleRankDoc);
+                }
+            }
+        }
+    }
+
+    private static int[] randomSample(Random rand, int n, int k) {
+        int[] reservoir = new int[k];
+        for (int i = 0; i < k; i++) {
+            reservoir[i] = i;
+        }
+        for (int i = k; i < n; i++) {
+            int j = rand.nextInt(i + 1);
+            if (j < k) {
+                reservoir[j] = i;
+            }
+        }
+        return reservoir;
+    }
+
+    private static void assertEqualTopDocs(ScoreDoc[] scoreDocs, RankDoc[] rankDocs) {
+        for (int i = 0; i < scoreDocs.length; i++) {
+            assertEquals(rankDocs[i].doc, scoreDocs[i].doc);
+            assertEquals(rankDocs[i].score, scoreDocs[i].score, 0f);
+            assertEquals(-1, scoreDocs[i].shardIndex);
         }
     }
 

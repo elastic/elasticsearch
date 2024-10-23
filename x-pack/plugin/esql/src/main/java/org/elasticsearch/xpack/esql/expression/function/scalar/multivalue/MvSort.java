@@ -48,7 +48,6 @@ import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
-import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
@@ -70,7 +69,7 @@ public class MvSort extends EsqlScalarFunction implements OptionalArgument, Vali
     private static final String INVALID_ORDER_ERROR = "Invalid order value in [{}], expected one of [{}, {}] but got [{}]";
 
     @FunctionInfo(
-        returnType = { "boolean", "date", "double", "integer", "ip", "keyword", "long", "text", "version" },
+        returnType = { "boolean", "date", "date_nanos", "double", "integer", "ip", "keyword", "long", "text", "version" },
         description = "Sorts a multivalued field in lexicographical order.",
         examples = @Example(file = "ints", tag = "mv_sort")
     )
@@ -78,7 +77,7 @@ public class MvSort extends EsqlScalarFunction implements OptionalArgument, Vali
         Source source,
         @Param(
             name = "field",
-            type = { "boolean", "date", "double", "integer", "ip", "keyword", "long", "text", "version" },
+            type = { "boolean", "date", "date_nanos", "double", "integer", "ip", "keyword", "long", "text", "version" },
             description = "Multivalue expression. If `null`, the function returns `null`."
         ) Expression field,
         @Param(
@@ -146,9 +145,7 @@ public class MvSort extends EsqlScalarFunction implements OptionalArgument, Vali
     }
 
     @Override
-    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(
-        Function<Expression, EvalOperator.ExpressionEvaluator.Factory> toEvaluator
-    ) {
+    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         boolean ordering = true;
         if (isValidOrder() == false) {
             throw new IllegalArgumentException(

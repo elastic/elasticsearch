@@ -28,8 +28,6 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.nullValue;
 
 public class MlConfigIndexMappingsFullClusterRestartIT extends AbstractXpackFullClusterRestartTestCase {
 
@@ -62,13 +60,8 @@ public class MlConfigIndexMappingsFullClusterRestartIT extends AbstractXpackFull
         if (isRunningAgainstOldCluster()) {
             // trigger .ml-config index creation
             createAnomalyDetectorJob(OLD_CLUSTER_JOB_ID);
-            if (clusterHasFeature(RestTestLegacyFeatures.ML_ANALYTICS_MAPPINGS)) {
-                // .ml-config has mappings for analytics as the feature was introduced in 7.3.0
-                assertThat(getDataFrameAnalysisMappings().keySet(), hasItem("outlier_detection"));
-            } else {
-                // .ml-config does not yet have correct mappings, it will need an update after cluster is upgraded
-                assertThat(getDataFrameAnalysisMappings(), is(nullValue()));
-            }
+            // .ml-config has mappings for analytics as the feature was introduced in 7.3.0
+            assertThat(getDataFrameAnalysisMappings().keySet(), hasItem("outlier_detection"));
         } else {
             // trigger .ml-config index mappings update
             createAnomalyDetectorJob(NEW_CLUSTER_JOB_ID);

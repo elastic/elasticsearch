@@ -1,6 +1,0 @@
-pr: 112282
-summary: Adds example plugin for custom ingest processor
-area: Ingest Node
-type: enhancement
-issues:
- - 111539

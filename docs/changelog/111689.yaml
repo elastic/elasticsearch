@@ -1,6 +1,0 @@
-pr: 111689
-summary: Add nanos support to `ZonedDateTime` serialization
-area: Infra/Core
-type: enhancement
-issues:
- - 68292

@@ -1,6 +1,0 @@
-pr: 111576
-summary: Execute shard snapshot tasks in shard-id order
-area: Snapshot/Restore
-type: enhancement
-issues:
- - 108739

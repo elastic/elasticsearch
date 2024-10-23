@@ -1,5 +1,0 @@
-pr: 113158
-summary: Adds a new Inference API for streaming responses back to the user.
-area: Machine Learning
-type: enhancement
-issues: []

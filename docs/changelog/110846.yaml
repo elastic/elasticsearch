@@ -1,5 +1,0 @@
-pr: 110846
-summary: Fix MLTQuery handling of custom term frequencies
-area: Ranking
-type: bug
-issues: []

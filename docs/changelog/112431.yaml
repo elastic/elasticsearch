@@ -1,6 +1,0 @@
-pr: 112431
-summary: "Async search: Add ID and \"is running\" http headers"
-area: Search
-type: feature
-issues:
- - 109576

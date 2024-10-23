@@ -1,5 +1,0 @@
-pr: 112888
-summary: Fix `getDatabaseType` for unusual MMDBs
-area: Ingest Node
-type: bug
-issues: []

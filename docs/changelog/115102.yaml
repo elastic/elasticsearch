@@ -1,0 +1,6 @@
+pr: 115102
+summary: Watch Next Run Interval Resets On Shard Move or Node Restart
+area: Watcher
+type: bug
+issues:
+ - 111433

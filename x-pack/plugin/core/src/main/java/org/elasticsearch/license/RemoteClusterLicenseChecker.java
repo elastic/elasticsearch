@@ -214,10 +214,8 @@ public final class RemoteClusterLicenseChecker {
             threadContext.newRestorableContext(false),
             listener
         );
-        try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+        try (var ignore = threadContext.newEmptySystemContext()) {
             // we stash any context here since this is an internal execution and should not leak any existing context information
-            threadContext.markAsSystemContext();
-
             final XPackInfoRequest request = new XPackInfoRequest();
             request.setCategories(EnumSet.of(XPackInfoRequest.Category.LICENSE));
             try {

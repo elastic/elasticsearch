@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedStar;
+import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.expression.predicate.fulltext.MatchQueryPredicate;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Not;
@@ -44,6 +45,7 @@ import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.FunctionResolutionStrategy;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.FilteredExpression;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.RLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
@@ -439,7 +441,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
             // use the fast run variant
             result = new UnresolvedNamePattern(
                 src,
-                new CharacterRunAutomaton(Operations.concatenate(list)),
+                new CharacterRunAutomaton(Operations.determinize(Operations.concatenate(list), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT)),
                 patternString.toString(),
                 nameString.toString()
             );
@@ -593,13 +595,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
 
     @Override
     public Expression visitFunctionExpression(EsqlBaseParser.FunctionExpressionContext ctx) {
-        EsqlBaseParser.IdentifierOrParameterContext identifierOrParameter = ctx.identifierOrParameter();
-        String name;
-        if (identifierOrParameter.identifier() != null) {
-            name = visitIdentifier(identifierOrParameter.identifier());
-        } else {
-            name = unresolvedAttributeNameInParam(identifierOrParameter.parameter(), expression(identifierOrParameter.parameter()));
-        }
+        String name = visitFunctionName(ctx.functionName());
         List<Expression> args = expressions(ctx.booleanExpression());
         if ("is_null".equals(EsqlFunctionRegistry.normalizeName(name))) {
             throw new ParsingException(
@@ -614,6 +610,23 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
             }
         }
         return new UnresolvedFunction(source(ctx), name, FunctionResolutionStrategy.DEFAULT, args);
+    }
+
+    @Override
+    public String visitFunctionName(EsqlBaseParser.FunctionNameContext ctx) {
+        if (ctx.MATCH() != null) {
+            return ctx.MATCH().getText();
+        }
+        return visitIdentifierOrParameter(ctx.identifierOrParameter());
+    }
+
+    @Override
+    public String visitIdentifierOrParameter(EsqlBaseParser.IdentifierOrParameterContext ctx) {
+        if (ctx.identifier() != null) {
+            return visitIdentifier(ctx.identifier());
+        }
+
+        return unresolvedAttributeNameInParam(ctx.parameter(), expression(ctx.parameter()));
     }
 
     @Override
@@ -731,9 +744,12 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
 
     @Override
     public Alias visitField(EsqlBaseParser.FieldContext ctx) {
+        return visitField(ctx, source(ctx));
+    }
+
+    private Alias visitField(EsqlBaseParser.FieldContext ctx, Source source) {
         UnresolvedAttribute id = visitQualifiedName(ctx.qualifiedName());
         Expression value = expression(ctx.booleanExpression());
-        var source = source(ctx);
         String name = id == null ? source.text() : id.name();
         return new Alias(source, name, value);
     }
@@ -741,6 +757,36 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     @Override
     public List<Alias> visitFields(EsqlBaseParser.FieldsContext ctx) {
         return ctx != null ? visitList(this, ctx.field(), Alias.class) : new ArrayList<>();
+    }
+
+    @Override
+    public NamedExpression visitAggField(EsqlBaseParser.AggFieldContext ctx) {
+        Source source = source(ctx);
+        Alias field = visitField(ctx.field(), source);
+        var filterExpression = ctx.booleanExpression();
+
+        if (filterExpression != null) {
+            Expression condition = expression(filterExpression);
+            Expression child = field.child();
+            // basic check as the filter can be specified only on a function (should be an aggregate but we can't determine that yet)
+            if (field.child().anyMatch(Function.class::isInstance)) {
+                field = field.replaceChild(new FilteredExpression(field.source(), child, condition));
+            }
+            // allow condition only per aggregated function
+            else {
+                throw new ParsingException(
+                    condition.source(),
+                    "WHERE clause allowed only for aggregate functions [{}]",
+                    field.sourceText()
+                );
+            }
+        }
+        return field;
+    }
+
+    @Override
+    public List<Alias> visitAggFields(EsqlBaseParser.AggFieldsContext ctx) {
+        return ctx != null ? visitList(this, ctx.aggField(), Alias.class) : new ArrayList<>();
     }
 
     /**

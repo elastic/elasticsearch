@@ -16,10 +16,8 @@ import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.ChunkedBroadcastResponse;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
@@ -120,9 +118,6 @@ public class IndicesSegmentResponse extends ChunkedBroadcastResponse {
                                                 builder.field(Fields.NUM_DOCS, segment.getNumDocs());
                                                 builder.field(Fields.DELETED_DOCS, segment.getDeletedDocs());
                                                 builder.humanReadableField(Fields.SIZE_IN_BYTES, Fields.SIZE, segment.getSize());
-                                                if (builder.getRestApiVersion() == RestApiVersion.V_7) {
-                                                    builder.humanReadableField(Fields.MEMORY_IN_BYTES, Fields.MEMORY, ByteSizeValue.ZERO);
-                                                }
                                                 builder.field(Fields.COMMITTED, segment.isCommitted());
                                                 builder.field(Fields.SEARCH, segment.isSearch());
                                                 if (segment.getVersion() != null) {

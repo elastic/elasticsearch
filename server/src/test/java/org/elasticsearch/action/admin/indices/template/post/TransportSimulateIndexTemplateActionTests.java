@@ -95,7 +95,7 @@ public class TransportSimulateIndexTemplateActionTests extends ESTestCase {
             }
 
             @Override
-            public boolean overrulesTemplateAndRequestSettings() {
+            public boolean overrulesSettings() {
                 return true;
             }
         });

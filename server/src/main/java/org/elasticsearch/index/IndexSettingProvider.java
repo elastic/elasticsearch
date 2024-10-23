@@ -37,8 +37,9 @@ public interface IndexSettingProvider {
      *                                              otherwise <code>null</code> is returned.
      * @param metadata                              The current metadata instance that doesn't yet contain the index to be created
      * @param resolvedAt                            The time the request to create this new index was accepted.
-     * @param indexTemplateAndCreateRequestSettings All the settings resolved from the template that matches and any settings
-     *                                              defined on the create index request
+     * @param incomingSettings                      All the settings resolved from the templates that match, the create index request,
+     *                                              and from non-overruling providers if this is an overruling one
+     *                                              per {@link #overrulesSettings()}
      * @param combinedTemplateMappings              All the mappings resolved from the template that matches
      */
     Settings getAdditionalIndexSettings(
@@ -47,7 +48,7 @@ public interface IndexSettingProvider {
         @Nullable IndexMode templateIndexMode,
         Metadata metadata,
         Instant resolvedAt,
-        Settings indexTemplateAndCreateRequestSettings,
+        Settings incomingSettings,
         List<CompressedXContent> combinedTemplateMappings
     );
 
@@ -59,13 +60,16 @@ public interface IndexSettingProvider {
     }
 
     /**
-     * Indicates whether the additional settings that this provider returns can overrule the settings defined in matching template
-     * or in create index request.
+     * Indicates whether the additional settings that this provider returns can overrule the settings defined in
+     * matching templates, create index request, and settings returned by non-overruling providers. All these
+     * settings are included as input to
+     * {@link #getAdditionalIndexSettings(String, String, IndexMode, Metadata, Instant, Settings, List)}
+     * and can therefore be used to decide what settings to provide/overwrite.
      *
      * Note that this is not used during index template validation, to avoid overruling template settings that may apply to
      * different contexts (e.g. the provider is not used, or it returns different setting values).
      */
-    default boolean overrulesTemplateAndRequestSettings() {
+    default boolean overrulesSettings() {
         return false;
     }
 }

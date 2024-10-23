@@ -150,6 +150,33 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
                 return testCase(type, typedData, lhsOrRhs ? lhs : rhs, toStringMatcher(1, false), false, null, addWarnings(warnings));
             })
         );
+        if (type.noText() == DataType.KEYWORD) {
+            DataType otherType = type == DataType.KEYWORD ? DataType.TEXT : DataType.KEYWORD;
+            suppliers.add(
+                new TestCaseSupplier(
+                    TestCaseSupplier.nameFrom(Arrays.asList(cond, type, otherType)),
+                    List.of(DataType.BOOLEAN, type, otherType),
+                    () -> {
+                        Object lhs = randomLiteral(type).value();
+                        Object rhs = randomLiteral(otherType).value();
+                        List<TestCaseSupplier.TypedData> typedData = List.of(
+                            cond(cond, "cond"),
+                            new TestCaseSupplier.TypedData(lhs, type, "lhs"),
+                            new TestCaseSupplier.TypedData(rhs, otherType, "rhs")
+                        );
+                        return testCase(
+                            type.noText(),
+                            typedData,
+                            lhsOrRhs ? lhs : rhs,
+                            toStringMatcher(1, false),
+                            false,
+                            null,
+                            addWarnings(warnings)
+                        );
+                    }
+                )
+            );
+        }
         if (lhsOrRhs) {
             suppliers.add(
                 new TestCaseSupplier(
@@ -215,33 +242,6 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
                             startsWith("LiteralsEvaluator[lit="),
                             true,
                             List.of(new TestCaseSupplier.TypedData(null, type, "null").forceLiteral()),
-                            addBuildEvaluatorWarnings(warnings)
-                        );
-                    }
-                )
-            );
-        }
-        if (type.noText() == DataType.KEYWORD) {
-            DataType otherType = type == DataType.KEYWORD ? DataType.TEXT : DataType.KEYWORD;
-            suppliers.add(
-                new TestCaseSupplier(
-                    "foldable " + TestCaseSupplier.nameFrom(Arrays.asList(cond, type, otherType)),
-                    List.of(DataType.BOOLEAN, type, otherType),
-                    () -> {
-                        Object lhs = randomLiteral(type).value();
-                        Object rhs = randomLiteral(otherType).value();
-                        List<TestCaseSupplier.TypedData> typedData = List.of(
-                            cond(cond, "cond").forceLiteral(),
-                            new TestCaseSupplier.TypedData(lhs, type, "lhs").forceLiteral(),
-                            new TestCaseSupplier.TypedData(rhs, otherType, "rhs")
-                        );
-                        return testCase(
-                            type.noText(),
-                            typedData,
-                            lhsOrRhs ? lhs : rhs,
-                            startsWith("LiteralsEvaluator[lit="),
-                            true,
-                            null,
                             addBuildEvaluatorWarnings(warnings)
                         );
                     }

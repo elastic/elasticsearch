@@ -16,9 +16,12 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermQueryBuilder;
@@ -100,6 +103,23 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         assertEquals(deserializedRequest, searchRequest);
         assertEquals(deserializedRequest.hashCode(), searchRequest.hashCode());
         assertNotSame(deserializedRequest, searchRequest);
+    }
+
+    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA)  // this can be removed when the affected transport version constants are collapsed
+    public void testSerializationConstants() throws Exception {
+        SearchRequest searchRequest = createSearchRequest();
+
+        // something serialized with previous version to remove, should read correctly with the reversion
+        try (BytesStreamOutput output = new BytesStreamOutput()) {
+            output.setTransportVersion(TransportVersionUtils.getPreviousVersion(TransportVersions.REMOVE_MIN_COMPATIBLE_SHARD_NODE));
+            searchRequest.writeTo(output);
+            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
+                in.setTransportVersion(TransportVersions.REVERT_REMOVE_MIN_COMPATIBLE_SHARD_NODE);
+                SearchRequest copiedRequest = new SearchRequest(in);
+                assertEquals(copiedRequest, searchRequest);
+                assertEquals(copiedRequest.hashCode(), searchRequest.hashCode());
+            }
+        }
     }
 
     public void testSerializationMultiKNN() throws Exception {
@@ -271,9 +291,22 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             assertNotNull(validationErrors);
             assertEquals(1, validationErrors.validationErrors().size());
             assertEquals(
-                "cannot specify a compound retriever and [allow_partial_search_results]",
+                "cannot specify [test_compound_retriever_builder] and [allow_partial_search_results]",
                 validationErrors.validationErrors().get(0)
             );
+        }
+        {
+            // scroll and compound retriever
+            SearchRequest searchRequest = createSearchRequest().source(
+                new SearchSourceBuilder().retriever(new TestCompoundRetrieverBuilder(randomIntBetween(1, 10)))
+            );
+            searchRequest.allowPartialSearchResults(false);
+            searchRequest.scroll(TimeValue.timeValueMinutes(1));
+            searchRequest.requestCache(false);
+            ActionRequestValidationException validationErrors = searchRequest.validate();
+            assertNotNull(validationErrors);
+            assertEquals(1, validationErrors.validationErrors().size());
+            assertEquals("cannot specify [test_compound_retriever_builder] and [scroll]", validationErrors.validationErrors().get(0));
         }
         {
             // allow_partial_results and non-compound retriever

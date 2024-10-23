@@ -211,7 +211,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         if (in.getTransportVersion().onOrAfter(DataStream.ADDED_AUTO_SHARDING_EVENT_VERSION)) {
             backingIndicesBuilder.setAutoShardingEvent(in.readOptionalWriteable(DataStreamAutoShardingEvent::new));
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.FAILURE_STORE_FIELD_PARITY)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
             failureIndicesBuilder.setRolloverOnWrite(in.readBoolean())
                 .setAutoShardingEvent(in.readOptionalWriteable(DataStreamAutoShardingEvent::new));
         }
@@ -1089,7 +1089,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         if (out.getTransportVersion().onOrAfter(DataStream.ADDED_AUTO_SHARDING_EVENT_VERSION)) {
             out.writeOptionalWriteable(backingIndices.autoShardingEvent);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.FAILURE_STORE_FIELD_PARITY)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
             out.writeBoolean(failureIndices.rolloverOnWrite);
             out.writeOptionalWriteable(failureIndices.autoShardingEvent);
         }
@@ -1343,7 +1343,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
                         + "]"
                 )
                 .collect(Collectors.joining());
-            throw new IllegalArgumentException(
+            throw new TimestampError(
                 "the document timestamp ["
                     + timestampAsString
                     + "] is outside of ranges of currently writable indices ["
@@ -1405,10 +1405,10 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             } else if (rawTimestamp instanceof String sTimestamp) {
                 return DateFormatters.from(TIMESTAMP_FORMATTER.parse(sTimestamp), TIMESTAMP_FORMATTER.locale()).toInstant();
             } else {
-                throw new IllegalArgumentException("timestamp [" + rawTimestamp + "] type [" + rawTimestamp.getClass() + "] error");
+                throw new TimestampError("timestamp [" + rawTimestamp + "] type [" + rawTimestamp.getClass() + "] error");
             }
         } catch (Exception e) {
-            throw new IllegalArgumentException("Error get data stream timestamp field: " + e.getMessage(), e);
+            throw new TimestampError("Error get data stream timestamp field: " + e.getMessage(), e);
         }
     }
 
@@ -1432,7 +1432,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
                 );
             };
         } catch (Exception e) {
-            throw new IllegalArgumentException("Error extracting data stream timestamp field: " + e.getMessage(), e);
+            throw new TimestampError("Error extracting data stream timestamp field: " + e.getMessage(), e);
         }
     }
 
@@ -1739,6 +1739,22 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
                 backingIndices,
                 failureIndices
             );
+        }
+    }
+
+    /**
+     * This is a specialised error to capture that a document does not have a valid timestamp
+     * to index a document. It is mainly applicable for TSDS data streams because they need the timestamp
+     * to determine the write index.
+     */
+    public static class TimestampError extends IllegalArgumentException {
+
+        public TimestampError(String message, Exception cause) {
+            super(message, cause);
+        }
+
+        public TimestampError(String message) {
+            super(message);
         }
     }
 }

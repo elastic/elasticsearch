@@ -11,7 +11,6 @@ package org.elasticsearch.env;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.internal.BuildExtension;
 import org.elasticsearch.plugins.ExtensionLoader;
 
@@ -58,12 +57,6 @@ public abstract class BuildVersion {
      * than the one that's running.
      */
     public abstract boolean isFutureVersion();
-
-    @Deprecated
-    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA)  // used (indirectly) by NodeMetadata and PersistedClusterStateService
-    public Version toVersion() {
-        return null;
-    }
 
     /**
      * Create a {@link BuildVersion} from a version ID number.

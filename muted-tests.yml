@@ -123,9 +123,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/112471
 - class: org.elasticsearch.ingest.geoip.IngestGeoIpClientYamlTestSuiteIT
   issue: https://github.com/elastic/elasticsearch/issues/111497
-- class: org.elasticsearch.smoketest.SmokeTestIngestWithAllDepsClientYamlTestSuiteIT
-  method: test {yaml=ingest/80_ingest_simulate/Test ingest simulate with reroute and mapping validation from templates}
-  issue: https://github.com/elastic/elasticsearch/issues/112575
 - class: org.elasticsearch.xpack.security.authc.kerberos.SimpleKdcLdapServerTests
   method: testClientServiceMutualAuthentication
   issue: https://github.com/elastic/elasticsearch/issues/112529
@@ -389,6 +386,19 @@ tests:
 - class: org.elasticsearch.xpack.enrich.EnrichIT
   method: testImmutablePolicy
   issue: https://github.com/elastic/elasticsearch/issues/114839
+- class: org.elasticsearch.xpack.security.authc.ldap.GroupMappingIT
+  issue: https://github.com/elastic/elasticsearch/issues/115221
+- class: org.elasticsearch.ingest.geoip.HttpClientTests
+  issue: https://github.com/elastic/elasticsearch/issues/115169
+- class: org.elasticsearch.reservedstate.service.FileSettingsServiceTests
+  method: testProcessFileChanges
+  issue: https://github.com/elastic/elasticsearch/issues/115280
+- class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
+  method: test {yaml=reference/rest-api/usage/line_38}
+  issue: https://github.com/elastic/elasticsearch/issues/113694
+- class: org.elasticsearch.xpack.enrich.EnrichIT
+  method: testDeleteExistingPipeline
+  issue: https://github.com/elastic/elasticsearch/issues/114775
 
 # Examples:
 #

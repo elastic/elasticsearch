@@ -672,7 +672,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
     public void testNamedParamsForIdentifierAndIdentifierPatterns() throws IOException {
         assumeTrue(
             "named parameters for identifiers and patterns require snapshot build",
-            EsqlCapabilities.Cap.NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES.isEnabled()
+            EsqlCapabilities.Cap.NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES_SIMPLIFIED_SYNTAX.isEnabled()
         );
         bulkLoadTestData(10);
         // positive

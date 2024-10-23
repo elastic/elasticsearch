@@ -1,0 +1,5 @@
+pr: 114951
+summary: Expose cluster-state role mappings in APIs
+area: Authentication
+type: bug
+issues: []

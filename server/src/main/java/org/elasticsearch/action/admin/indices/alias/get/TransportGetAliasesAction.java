@@ -140,7 +140,6 @@ public class TransportGetAliasesAction extends TransportLocalClusterStateAction<
         GetAliasesRequest request,
         ClusterState state
     ) {
-        Map<String, List<DataStreamAlias>> result = new HashMap<>();
         List<String> requestedDataStreams = resolver.dataStreamNames(state, request.indicesOptions(), request.indices());
 
         return state.metadata().findDataStreamAliases(request.aliases(), requestedDataStreams.toArray(new String[0]));

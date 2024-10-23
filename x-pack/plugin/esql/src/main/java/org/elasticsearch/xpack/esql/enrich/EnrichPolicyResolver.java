@@ -51,6 +51,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -112,52 +113,36 @@ public class EnrichPolicyResolver {
         }
         final Set<String> remoteClusters = new HashSet<>(targetClusters);
         final boolean includeLocal = remoteClusters.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
-        lookupPolicies(remoteClusters, includeLocal, unresolvedPolicies, new ActionListener<Map<String, LookupResponse>>() {
-            @Override
-            public void onResponse(Map<String, LookupResponse> lookupResponses) {
-                final EnrichResolution enrichResolution = new EnrichResolution();
-                for (UnresolvedPolicy unresolved : unresolvedPolicies) {
-                    Tuple<ResolvedEnrichPolicy, String> resolved = mergeLookupResults(
-                        unresolved,
-                        calculateTargetClusters(unresolved.mode, includeLocal, remoteClusters),
-                        lookupResponses
-                    );
-                    if (resolved.v1() != null) {
-                        enrichResolution.addResolvedPolicy(unresolved.name, unresolved.mode, resolved.v1());
-                    } else {
-                        assert resolved.v2() != null;
-                        enrichResolution.addError(unresolved.name, unresolved.mode, resolved.v2());
-                    }
+        lookupPolicies(remoteClusters, includeLocal, unresolvedPolicies, listener.map(lookupResponses -> {
+            final EnrichResolution enrichResolution = new EnrichResolution();
+
+            Map<String, LookupResponse> lookupResponsesToProcess = new HashMap<>();
+
+            for (Map.Entry<String, LookupResponse> entry : lookupResponses.entrySet()) {
+                String clusterAlias = entry.getKey();
+                if (entry.getValue() instanceof ConnectionErrorLookupResponse connErrorResponse) {
+                    enrichResolution.addUnavailableCluster(clusterAlias, connErrorResponse.connectionError);
+                    remoteClusters.remove(clusterAlias);
+                } else {
+                    lookupResponsesToProcess.put(clusterAlias, entry.getValue());
                 }
-                listener.onResponse(enrichResolution);
             }
 
-            @Override
-            public void onFailure(Exception e) {
-                // MP TODO: I don't think this handler here is what we want because if you have an error from a skip_un=true
-                // cluster and want to ignore it, you'll never get the other LookupResponses sent to onResponse
-                System.err.println(">>> >>> FFF FFF Lookup onFailure handler passing through: " + e);
-                listener.onFailure(e);
+            for (UnresolvedPolicy unresolved : unresolvedPolicies) {
+                Tuple<ResolvedEnrichPolicy, String> resolved = mergeLookupResults(
+                    unresolved,
+                    calculateTargetClusters(unresolved.mode, includeLocal, remoteClusters),
+                    lookupResponsesToProcess
+                );
+                if (resolved.v1() != null) {
+                    enrichResolution.addResolvedPolicy(unresolved.name, unresolved.mode, resolved.v1());
+                } else {
+                    assert resolved.v2() != null;
+                    enrichResolution.addError(unresolved.name, unresolved.mode, resolved.v2());
+                }
             }
-        });
-
-        // lookupPolicies(remoteClusters, includeLocal, unresolvedPolicies, listener.map(lookupResponses -> {
-        // final EnrichResolution enrichResolution = new EnrichResolution();
-        // for (UnresolvedPolicy unresolved : unresolvedPolicies) {
-        // Tuple<ResolvedEnrichPolicy, String> resolved = mergeLookupResults(
-        // unresolved,
-        // calculateTargetClusters(unresolved.mode, includeLocal, remoteClusters),
-        // lookupResponses
-        // );
-        // if (resolved.v1() != null) {
-        // enrichResolution.addResolvedPolicy(unresolved.name, unresolved.mode, resolved.v1());
-        // } else {
-        // assert resolved.v2() != null;
-        // enrichResolution.addError(unresolved.name, unresolved.mode, resolved.v2());
-        // }
-        // }
-        // return enrichResolution;
-        // }));
+            return enrichResolution;
+        }));
     }
 
     private Collection<String> calculateTargetClusters(Enrich.Mode mode, boolean includeLocal, Set<String> remoteClusters) {
@@ -185,6 +170,7 @@ public class EnrichPolicyResolver {
         final List<String> failures = new ArrayList<>();
         for (String cluster : targetClusters) {
             LookupResponse lookupResult = lookupResults.get(cluster);
+            assert (lookupResult instanceof ConnectionErrorLookupResponse) == false : "Should never get ConnectionErrorLookupResponse here";
             if (lookupResult != null) {
                 ResolvedEnrichPolicy policy = lookupResult.policies.get(policyName);
                 if (policy != null) {
@@ -305,7 +291,7 @@ public class EnrichPolicyResolver {
                                     if (ExceptionsHelper.isRemoteUnavailableException(e)
                                         && remoteClusterService.isSkipUnavailable(cluster)) {
                                         // TODO: fill in later with proper error message
-                                        l.onResponse(new LookupResponse(Map.of(), Map.of(cluster, e.getMessage())));
+                                        l.onResponse(new ConnectionErrorLookupResponse(e));
                                     } else {
                                         l.onFailure(e);
                                     }
@@ -315,29 +301,14 @@ public class EnrichPolicyResolver {
 
                         @Override
                         public void onFailure(Exception e) {
-                            // MP TODO: do I need this or only do it for the sendRequest handler?
                             if (ExceptionsHelper.isRemoteUnavailableException(e) && remoteClusterService.isSkipUnavailable(cluster)) {
                                 // TODO: fill in later with proper error message
-                                lookupListener.onResponse(new LookupResponse(Map.of(), Map.of(cluster, e.getMessage())));
+                                lookupListener.onResponse(new ConnectionErrorLookupResponse(e));
                             } else {
                                 lookupListener.onFailure(e);
                             }
                         }
-                    }
-                    // lookupListener.delegateFailureAndWrap(
-                    // (delegate, connection) -> transportService.sendRequest(
-                    // connection,
-                    // RESOLVE_ACTION_NAME,
-                    // new LookupRequest(cluster, remotePolicies),
-                    // TransportRequestOptions.EMPTY,
-                    // new ActionListenerResponseHandler<>(
-                    // delegate,
-                    // LookupResponse::new,
-                    // threadPool.executor(ThreadPool.Names.SEARCH)
-                    // )
-                    // )
-                    // )
-                    );
+                    });
                 }
             }
             // local cluster
@@ -401,6 +372,28 @@ public class EnrichPolicyResolver {
             PlanStreamOutput pso = new PlanStreamOutput(out, null);
             pso.writeMap(policies, StreamOutput::writeWriteable);
             pso.writeMap(failures, StreamOutput::writeString);
+        }
+    }
+
+    /**
+     * TODO: DOCUMENT ME (if keep this)
+     */
+    private static class ConnectionErrorLookupResponse extends LookupResponse {
+        private Exception connectionError;
+
+        ConnectionErrorLookupResponse(Exception e) {
+            super(Collections.emptyMap(), Collections.emptyMap());
+            this.connectionError = e;
+        }
+
+        ConnectionErrorLookupResponse(StreamInput in) throws IOException {
+            super(in);
+            throw new UnsupportedOperationException("should never be called");
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            throw new UnsupportedOperationException("should never be called");
         }
     }
 

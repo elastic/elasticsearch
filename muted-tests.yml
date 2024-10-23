@@ -20,9 +20,6 @@ tests:
 - class: org.elasticsearch.index.store.FsDirectoryFactoryTests
   method: testStoreDirectory
   issue: https://github.com/elastic/elasticsearch/issues/110210
-- class: org.elasticsearch.index.store.FsDirectoryFactoryTests
-  method: testPreload
-  issue: https://github.com/elastic/elasticsearch/issues/110211
 - class: "org.elasticsearch.xpack.searchablesnapshots.FrozenSearchableSnapshotsIntegTests"
   issue: "https://github.com/elastic/elasticsearch/issues/110408"
   method: "testCreateAndRestorePartialSearchableSnapshot"

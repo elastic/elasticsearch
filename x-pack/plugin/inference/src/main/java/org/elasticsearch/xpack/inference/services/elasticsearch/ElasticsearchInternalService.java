@@ -778,10 +778,17 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
 
     @Override
     public void updateModelsWithDynamicFields(List<Model> models, ActionListener<List<Model>> listener) {
+        if (models.isEmpty()) {
+            listener.onResponse(models);
+            return;
+        }
+
         var modelsByDeploymentIds = new HashMap<String, ElasticsearchInternalModel>();
         for (var model : models) {
+            assert model instanceof ElasticsearchInternalModel;
+
             if (model instanceof ElasticsearchInternalModel esModel) {
-                modelsByDeploymentIds.put(esModel.internalServiceSettings.deloymentId(), esModel);
+                modelsByDeploymentIds.put(esModel.mlNodeDeploymentId(), esModel);
             } else {
                 listener.onFailure(
                     new ElasticsearchStatusException(
@@ -794,11 +801,6 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
             }
         }
 
-        if (modelsByDeploymentIds.isEmpty()) {
-            listener.onResponse(models);
-            return;
-        }
-
         String deploymentIds = String.join(",", modelsByDeploymentIds.keySet());
         client.execute(
             GetDeploymentStatsAction.INSTANCE,
@@ -806,7 +808,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
             ActionListener.wrap(stats -> {
                 for (var deploymentStats : stats.getStats().results()) {
                     var model = modelsByDeploymentIds.get(deploymentStats.getDeploymentId());
-                    model.updateNumAllocation(deploymentStats.getNumberOfAllocations());
+                    model.updateNumAllocations(deploymentStats.getNumberOfAllocations());
                 }
                 listener.onResponse(new ArrayList<>(modelsByDeploymentIds.values()));
             }, e -> {

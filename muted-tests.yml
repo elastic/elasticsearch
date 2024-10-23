@@ -282,18 +282,6 @@ tests:
 - class: org.elasticsearch.xpack.inference.DefaultEndPointsIT
   method: testInferDeploysDefaultElser
   issue: https://github.com/elastic/elasticsearch/issues/114913
-- class: org.elasticsearch.index.mapper.TextFieldMapperTests
-  method: testBlockLoaderFromRowStrideReaderWithSyntheticSource
-  issue: https://github.com/elastic/elasticsearch/issues/115066
-- class: org.elasticsearch.index.mapper.TextFieldMapperTests
-  method: testBlockLoaderFromColumnReaderWithSyntheticSource
-  issue: https://github.com/elastic/elasticsearch/issues/115073
-- class: org.elasticsearch.index.mapper.annotatedtext.AnnotatedTextFieldMapperTests
-  method: testBlockLoaderFromColumnReaderWithSyntheticSource
-  issue: https://github.com/elastic/elasticsearch/issues/115074
-- class: org.elasticsearch.index.mapper.annotatedtext.AnnotatedTextFieldMapperTests
-  method: testBlockLoaderFromRowStrideReaderWithSyntheticSource
-  issue: https://github.com/elastic/elasticsearch/issues/115076
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=esql/60_usage/Basic ESQL usage output (telemetry)}
   issue: https://github.com/elastic/elasticsearch/issues/115231

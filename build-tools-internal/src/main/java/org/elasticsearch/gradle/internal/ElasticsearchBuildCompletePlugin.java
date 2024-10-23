@@ -14,6 +14,7 @@ import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
 import org.apache.commons.compress.archivers.tar.TarArchiveOutputStream;
 import org.apache.commons.compress.compressors.bzip2.BZip2CompressorOutputStream;
 import org.apache.commons.io.IOUtils;
+import org.elasticsearch.gradle.OS;
 import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
@@ -60,7 +61,7 @@ public abstract class ElasticsearchBuildCompletePlugin implements Plugin<Project
             ? System.getenv("BUILD_NUMBER")
             : System.getenv("BUILDKITE_BUILD_NUMBER");
         String performanceTest = System.getenv("BUILD_PERFORMANCE_TEST");
-        if (buildNumber != null && performanceTest == null && GradleUtils.isIncludedBuild(target) == false) {
+        if (buildNumber != null && performanceTest == null && GradleUtils.isIncludedBuild(target) == false && OS.current() != OS.WINDOWS) {
             File targetFile = target.file("build/" + buildNumber + ".tar.bz2");
             File projectDir = target.getProjectDir();
             File gradleWorkersDir = new File(target.getGradle().getGradleUserHomeDir(), "workers/");

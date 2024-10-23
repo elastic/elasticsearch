@@ -2291,6 +2291,33 @@ m:integer |a:double |x:integer
 74999     |48249.0  |0
 ;
 
+statsWithFilterOnGroups
+required_capability: fix_filter_pushdown_past_stats
+FROM employees
+| STATS v = VALUES(emp_no) by job_positions | WHERE job_positions == "Accountant" | MV_EXPAND v | SORT v
+;
+
+v:integer | job_positions:keyword
+    10001 | Accountant
+    10012 | Accountant
+    10016 | Accountant
+    10023 | Accountant
+    10025 | Accountant
+    10028 | Accountant
+    10034 | Accountant
+    10037 | Accountant
+    10044 | Accountant
+    10045 | Accountant
+    10050 | Accountant
+    10051 | Accountant
+    10066 | Accountant
+    10081 | Accountant
+    10085 | Accountant
+    10089 | Accountant
+    10092 | Accountant
+    10094 | Accountant
+;
+
 
 statsWithFiltering
 required_capability: per_agg_filtering
@@ -2472,4 +2499,33 @@ c2:l |c2_f:l |m2:i |m2_f:i |c:l
 1    |0      |4    |4      |18
 1    |0      |2    |2      |19
 1    |1      |5    |5      |21
+;
+
+
+statsByConstantExpressionNoAggs
+required_capability: fix_stats_by_foldable_expression
+FROM employees | eval x = [1,2,3], y = 5 + 6 | stats by y+1
+;
+
+y+1:integer
+12
+;
+
+
+statsByConstantExpressionNoAggsWithAlias
+required_capability: fix_stats_by_foldable_expression
+FROM employees | eval x = [1,2,3], y = 5 + 6 | stats by yy = y+1
+;
+
+yy:integer
+12
+;
+
+statsByConstantExpression
+required_capability: fix_stats_by_foldable_expression
+FROM employees | eval x = [1,2,3], y = 5 + 6 | stats m = max(y) by y+1
+;
+
+m:integer | y+1:integer
+11        | 12
 ;

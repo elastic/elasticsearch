@@ -39,6 +39,8 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  * meaning it has a set of child retrievers that each return a set of
  * top docs that will then be combined and ranked according to the rrf
  * formula.
+ *
+ * Breaking change
  */
 public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetrieverBuilder> {
 

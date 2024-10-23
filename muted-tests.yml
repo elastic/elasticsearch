@@ -366,6 +366,9 @@ tests:
 - class: org.elasticsearch.xpack.watcher.trigger.schedule.engine.TickerScheduleEngineTests
   method: testAddWithLastCheckedTimeExecutesBeforeInitialInterval
   issue: https://github.com/elastic/elasticsearch/issues/115356
+- class: org.elasticsearch.xpack.watcher.trigger.schedule.engine.TickerScheduleEngineTests
+  method: testWatchWithLastCheckedTimeExecutesBeforeInitialInterval
+  issue: https://github.com/elastic/elasticsearch/issues/115354
 
 # Examples:
 #

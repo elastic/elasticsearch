@@ -496,16 +496,6 @@ public class LogsIndexModeCustomSettingsIT extends LogsIndexModeRestTestIT {
         }
     }
 
-    private static Map<String, Object> getMapping(final RestClient client, final String indexName) throws IOException {
-        final Request request = new Request("GET", "/" + indexName + "/_mapping");
-
-        Map<String, Object> mappings = ((Map<String, Map<String, Object>>) entityAsMap(client.performRequest(request)).get(indexName)).get(
-            "mappings"
-        );
-
-        return mappings;
-    }
-
     private Function<Object, Map<String, Object>> subObject(String key) {
         return (mapAsObject) -> (Map<String, Object>) ((Map<String, Object>) mapAsObject).get(key);
     }

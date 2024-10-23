@@ -1323,7 +1323,10 @@ public class ReservedRolesStoreTests extends ESTestCase {
                 is(canAlsoCreateIndex)
             );
             assertThat(kibanaRole.indices().allowedIndicesMatcher(AutoCreateAction.NAME).test(indexAbstraction), is(isAlsoAutoCreateIndex));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(CreateDataStreamAction.NAME).test(indexAbstraction), is(false));
+            assertThat(
+                kibanaRole.indices().allowedIndicesMatcher(CreateDataStreamAction.NAME).test(indexAbstraction),
+                is(canAlsoCreateIndex)
+            );
             assertThat(
                 kibanaRole.indices().allowedIndicesMatcher(TransportIndexAction.NAME).test(indexAbstraction),
                 is(isAlsoAutoCreateIndex)

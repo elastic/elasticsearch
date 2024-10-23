@@ -61,11 +61,11 @@ public class SecurityMigrationsTests extends ESTestCase {
 
     private static ExpressionRoleMapping reservedRoleMapping(String name) {
         return new ExpressionRoleMapping(
-            name + SecurityMigrations.CleanupRoleMappingDuplicatesMigration.RESERVED_ROLE_MAPPING_SUFFIX,
+            name + ExpressionRoleMapping.READ_ONLY_ROLE_MAPPING_SUFFIX,
             null,
             null,
             null,
-            Map.of(SecurityMigrations.CleanupRoleMappingDuplicatesMigration.METADATA_READ_ONLY_FLAG_KEY, true),
+            Map.of(ExpressionRoleMapping.READ_ONLY_ROLE_MAPPING_METADATA_FLAG, true),
             true
         );
     }

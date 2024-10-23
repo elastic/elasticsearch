@@ -133,6 +133,18 @@ class KqlBaseBaseListener implements KqlBaseListener {
      *
      * <p>The default implementation does nothing.</p>
      */
+    @Override public void enterRangeQueryValue(KqlBaseParser.RangeQueryValueContext ctx) { }
+    /**
+     * {@inheritDoc}
+     *
+     * <p>The default implementation does nothing.</p>
+     */
+    @Override public void exitRangeQueryValue(KqlBaseParser.RangeQueryValueContext ctx) { }
+    /**
+     * {@inheritDoc}
+     *
+     * <p>The default implementation does nothing.</p>
+     */
     @Override public void enterExistsQuery(KqlBaseParser.ExistsQueryContext ctx) { }
     /**
      * {@inheritDoc}
@@ -145,25 +157,37 @@ class KqlBaseBaseListener implements KqlBaseListener {
      *
      * <p>The default implementation does nothing.</p>
      */
-    @Override public void enterTermQuery(KqlBaseParser.TermQueryContext ctx) { }
+    @Override public void enterFieldQuery(KqlBaseParser.FieldQueryContext ctx) { }
     /**
      * {@inheritDoc}
      *
      * <p>The default implementation does nothing.</p>
      */
-    @Override public void exitTermQuery(KqlBaseParser.TermQueryContext ctx) { }
+    @Override public void exitFieldQuery(KqlBaseParser.FieldQueryContext ctx) { }
     /**
      * {@inheritDoc}
      *
      * <p>The default implementation does nothing.</p>
      */
-    @Override public void enterPhraseQuery(KqlBaseParser.PhraseQueryContext ctx) { }
+    @Override public void enterFieldLessQuery(KqlBaseParser.FieldLessQueryContext ctx) { }
     /**
      * {@inheritDoc}
      *
      * <p>The default implementation does nothing.</p>
      */
-    @Override public void exitPhraseQuery(KqlBaseParser.PhraseQueryContext ctx) { }
+    @Override public void exitFieldLessQuery(KqlBaseParser.FieldLessQueryContext ctx) { }
+    /**
+     * {@inheritDoc}
+     *
+     * <p>The default implementation does nothing.</p>
+     */
+    @Override public void enterFieldQueryValue(KqlBaseParser.FieldQueryValueContext ctx) { }
+    /**
+     * {@inheritDoc}
+     *
+     * <p>The default implementation does nothing.</p>
+     */
+    @Override public void exitFieldQueryValue(KqlBaseParser.FieldQueryValueContext ctx) { }
     /**
      * {@inheritDoc}
      *

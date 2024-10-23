@@ -11,6 +11,7 @@ import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.ParseTreeVisitor;
 import org.antlr.v4.runtime.tree.TerminalNode;
+import org.apache.logging.log4j.util.Strings;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -61,7 +62,7 @@ public final class ParserUtils {
         for (ParseTree currentNode : ctx.children) {
             if (currentNode instanceof TerminalNode terminalNode && TEXT_TOKEMS_TYPE.contains(terminalNode.getSymbol().getType())) {
                 assert TEXT_TOKEMS_TYPE.contains(terminalNode.getSymbol().getType());
-                textTokens.add(extractText(ctx, terminalNode));
+                textTokens.add(extractText(terminalNode));
             } else {
                 throw new KqlParsingException("Unable to extract text from ctx", ctx.start.getLine(), ctx.start.getCharPositionInLine());
             }
@@ -70,17 +71,33 @@ public final class ParserUtils {
         return textTokens;
     }
 
-    public static String extractText(ParserRuleContext ctx, TerminalNode node) {
+    public static String extractText(TerminalNode node) {
         if (node.getSymbol().getType() == KqlBaseParser.QUOTED_STRING) {
-            return unescapeQuotedString(ctx, node.getText());
+            return unescapeQuotedString(node);
         } else if (node.getSymbol().getType() == KqlBaseParser.UNQUOTED_LITERAL) {
-            return unescapeUnquotedLiteral(ctx, node.getText());
+            return unescapeUnquotedLiteral(node);
         }
 
         return node.getText();
     }
 
-    private static String unescapeQuotedString(ParserRuleContext ctx, String inputText) {
+    public static boolean hasWildcard(ParserRuleContext ctx) {
+        return ctx.children.stream().anyMatch(childNode -> {
+            if (childNode instanceof TerminalNode terminalNode) {
+                return switch (terminalNode.getSymbol().getType()) {
+                    case KqlBaseParser.WILDCARD -> true;
+                    case KqlBaseParser.UNQUOTED_LITERAL -> terminalNode.getText().matches("[^\\\\]*[*].*");
+                    default -> false;
+                };
+            }
+
+            return false;
+        });
+    }
+
+    private static String unescapeQuotedString(TerminalNode ctx) {
+        String inputText = ctx.getText();
+
         assert inputText.length() >= 2 && inputText.charAt(0) == QUOTE_CHAR && inputText.charAt(inputText.length() - 1) == QUOTE_CHAR;
         StringBuilder sb = new StringBuilder();
 
@@ -109,7 +126,9 @@ public final class ParserUtils {
         return sb.toString();
     }
 
-    private static String unescapeUnquotedLiteral(ParserRuleContext ctx, String inputText) {
+    private static String unescapeUnquotedLiteral(TerminalNode ctx) {
+        String inputText = ctx.getText();
+
         if (inputText == null || inputText.isEmpty()) {
             return inputText;
         }
@@ -152,25 +171,25 @@ public final class ParserUtils {
         if (startIndex + 1 >= input.length()) {
             return false;
         }
-        String remaining = input.substring(startIndex).toLowerCase();
+        String remaining = Strings.toRootLowerCase(input.substring(startIndex));
         return remaining.startsWith("and") || remaining.startsWith("or") || remaining.startsWith("not");
     }
 
     private static String handleKeywordSequence(String input, int startIndex) {
         String remaining = input.substring(startIndex);
-        if (remaining.toLowerCase().startsWith("and")) return remaining.substring(0, 2);
-        if (remaining.toLowerCase().startsWith("or")) return remaining.substring(0, 1);
-        if (remaining.toLowerCase().startsWith("not")) return remaining.substring(0, 2);
+        if (Strings.toRootLowerCase(remaining).startsWith("and")) return remaining.substring(0, 2);
+        if (Strings.toRootLowerCase(remaining).startsWith("or")) return remaining.substring(0, 1);
+        if (Strings.toRootLowerCase(remaining).startsWith("not")) return remaining.substring(0, 2);
         return "";
     }
 
-    private static int handleUnicodePoints(ParserRuleContext ctx, StringBuilder sb, String text, int startIdx) {
+    private static int handleUnicodePoints(TerminalNode ctx, StringBuilder sb, String text, int startIdx) {
         int endIdx = startIdx + 4;
         sb.append(hexToUnicode(ctx, text.substring(startIdx, endIdx)));
         return endIdx;
     }
 
-    private static String hexToUnicode(ParserRuleContext ctx, String hex) {
+    private static String hexToUnicode(TerminalNode ctx, String hex) {
         try {
             int code = Integer.parseInt(hex, 16);
             // U+D800—U+DFFF can only be used as surrogate pairs and therefore are not valid character codes
@@ -185,5 +204,9 @@ public final class ParserUtils {
 
     private static KqlParsingException createParsingException(ParserRuleContext ctx, String message, String arg) {
         return new KqlParsingException(message, ctx.start.getLine(), ctx.start.getCharPositionInLine(), arg, null);
+    }
+
+    private static KqlParsingException createParsingException(TerminalNode ctx, String message, String arg) {
+        return new KqlParsingException(message, ctx.getSymbol().getLine(), ctx.getSymbol().getCharPositionInLine(), arg, null);
     }
 }

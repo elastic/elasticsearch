@@ -5,6 +5,9 @@ foo_field <
 foo_field >
 foo_field >=
 foo_field <=
+>= foo
+: "foo"
+: foo
 
 // Parentheses mismatch
 foo_field: (foo bar

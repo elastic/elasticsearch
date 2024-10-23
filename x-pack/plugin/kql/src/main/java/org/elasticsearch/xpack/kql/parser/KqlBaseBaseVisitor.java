@@ -89,6 +89,13 @@ class KqlBaseBaseVisitor<T> extends AbstractParseTreeVisitor<T> implements KqlBa
      * <p>The default implementation returns the result of calling
      * {@link #visitChildren} on {@code ctx}.</p>
      */
+    @Override public T visitRangeQueryValue(KqlBaseParser.RangeQueryValueContext ctx) { return visitChildren(ctx); }
+    /**
+     * {@inheritDoc}
+     *
+     * <p>The default implementation returns the result of calling
+     * {@link #visitChildren} on {@code ctx}.</p>
+     */
     @Override public T visitExistsQuery(KqlBaseParser.ExistsQueryContext ctx) { return visitChildren(ctx); }
     /**
      * {@inheritDoc}
@@ -96,14 +103,21 @@ class KqlBaseBaseVisitor<T> extends AbstractParseTreeVisitor<T> implements KqlBa
      * <p>The default implementation returns the result of calling
      * {@link #visitChildren} on {@code ctx}.</p>
      */
-    @Override public T visitTermQuery(KqlBaseParser.TermQueryContext ctx) { return visitChildren(ctx); }
+    @Override public T visitFieldQuery(KqlBaseParser.FieldQueryContext ctx) { return visitChildren(ctx); }
     /**
      * {@inheritDoc}
      *
      * <p>The default implementation returns the result of calling
      * {@link #visitChildren} on {@code ctx}.</p>
      */
-    @Override public T visitPhraseQuery(KqlBaseParser.PhraseQueryContext ctx) { return visitChildren(ctx); }
+    @Override public T visitFieldLessQuery(KqlBaseParser.FieldLessQueryContext ctx) { return visitChildren(ctx); }
+    /**
+     * {@inheritDoc}
+     *
+     * <p>The default implementation returns the result of calling
+     * {@link #visitChildren} on {@code ctx}.</p>
+     */
+    @Override public T visitFieldQueryValue(KqlBaseParser.FieldQueryValueContext ctx) { return visitChildren(ctx); }
     /**
      * {@inheritDoc}
      *

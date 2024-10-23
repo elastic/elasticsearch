@@ -76,23 +76,35 @@ interface KqlBaseVisitor<T> extends ParseTreeVisitor<T> {
      */
     T visitRangeQuery(KqlBaseParser.RangeQueryContext ctx);
     /**
+     * Visit a parse tree produced by {@link KqlBaseParser#rangeQueryValue}.
+     * @param ctx the parse tree
+     * @return the visitor result
+     */
+    T visitRangeQueryValue(KqlBaseParser.RangeQueryValueContext ctx);
+    /**
      * Visit a parse tree produced by {@link KqlBaseParser#existsQuery}.
      * @param ctx the parse tree
      * @return the visitor result
      */
     T visitExistsQuery(KqlBaseParser.ExistsQueryContext ctx);
     /**
-     * Visit a parse tree produced by {@link KqlBaseParser#termQuery}.
+     * Visit a parse tree produced by {@link KqlBaseParser#fieldQuery}.
      * @param ctx the parse tree
      * @return the visitor result
      */
-    T visitTermQuery(KqlBaseParser.TermQueryContext ctx);
+    T visitFieldQuery(KqlBaseParser.FieldQueryContext ctx);
     /**
-     * Visit a parse tree produced by {@link KqlBaseParser#phraseQuery}.
+     * Visit a parse tree produced by {@link KqlBaseParser#fieldLessQuery}.
      * @param ctx the parse tree
      * @return the visitor result
      */
-    T visitPhraseQuery(KqlBaseParser.PhraseQueryContext ctx);
+    T visitFieldLessQuery(KqlBaseParser.FieldLessQueryContext ctx);
+    /**
+     * Visit a parse tree produced by {@link KqlBaseParser#fieldQueryValue}.
+     * @param ctx the parse tree
+     * @return the visitor result
+     */
+    T visitFieldQueryValue(KqlBaseParser.FieldQueryValueContext ctx);
     /**
      * Visit a parse tree produced by {@link KqlBaseParser#fieldName}.
      * @param ctx the parse tree

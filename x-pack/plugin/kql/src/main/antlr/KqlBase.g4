@@ -37,8 +37,8 @@ simpleQuery
     | matchAllQuery
     | existsQuery
     | rangeQuery
-    | termQuery
-    | phraseQuery
+    | fieldQuery
+    | fieldLessQuery
     ;
 
 nestedQuery
@@ -54,21 +54,31 @@ parenthesizedQuery
     ;
 
 rangeQuery
-    : fieldName operator=OP_COMPARE rangeValue=UNQUOTED_LITERAL+
-    | fieldName operator=OP_COMPARE rangeValue=QUOTED_STRING|WILDCARD
+    : fieldName operator=(OP_LESS|OP_LESS_EQ|OP_MORE|OP_MORE_EQ) rangeQueryValue
     ;
+
+rangeQueryValue
+    : (UNQUOTED_LITERAL|WILDCARD)+
+    | QUOTED_STRING
+   ;
 
 existsQuery
     :fieldName COLON WILDCARD
     ;
 
-termQuery
-    : (fieldName COLON)? terms=(UNQUOTED_LITERAL|WILDCARD)+
-    | (fieldName COLON)? LEFT_PARENTHESIS terms=(UNQUOTED_LITERAL|WILDCARD)+ RIGHT_PARENTHESIS
+fieldQuery
+    : fieldName COLON fieldQueryValue
+    | fieldName COLON LEFT_PARENTHESIS fieldQueryValue RIGHT_PARENTHESIS
     ;
 
-phraseQuery:
-    (fieldName COLON)? value=QUOTED_STRING
+fieldLessQuery
+    : fieldQueryValue
+    | LEFT_PARENTHESIS fieldQueryValue RIGHT_PARENTHESIS
+    ;
+
+fieldQueryValue
+    : (UNQUOTED_LITERAL | WILDCARD)+
+    | QUOTED_STRING
     ;
 
 fieldName
@@ -84,7 +94,10 @@ OR: 'or';
 NOT: 'not';
 
 COLON: ':';
-OP_COMPARE: OP_LESS | OP_MORE | OP_LESS_EQ | OP_MORE_EQ;
+OP_LESS: '<';
+OP_LESS_EQ: '<=';
+OP_MORE: '>';
+OP_MORE_EQ: '>=';
 
 LEFT_PARENTHESIS: '(';
 RIGHT_PARENTHESIS: ')';
@@ -98,10 +111,7 @@ QUOTED_STRING: '"'QUOTED_CHAR*'"';
 WILDCARD: WILDCARD_CHAR;
 
 fragment WILDCARD_CHAR: '*';
-fragment OP_LESS: '<';
-fragment OP_LESS_EQ: '<=';
-fragment OP_MORE: '>';
-fragment OP_MORE_EQ: '>=';
+
 
 fragment UNQUOTED_LITERAL_CHAR
     : ESCAPED_WHITESPACE

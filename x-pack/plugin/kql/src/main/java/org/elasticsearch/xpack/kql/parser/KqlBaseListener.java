@@ -112,6 +112,16 @@ interface KqlBaseListener extends ParseTreeListener {
      */
     void exitRangeQuery(KqlBaseParser.RangeQueryContext ctx);
     /**
+     * Enter a parse tree produced by {@link KqlBaseParser#rangeQueryValue}.
+     * @param ctx the parse tree
+     */
+    void enterRangeQueryValue(KqlBaseParser.RangeQueryValueContext ctx);
+    /**
+     * Exit a parse tree produced by {@link KqlBaseParser#rangeQueryValue}.
+     * @param ctx the parse tree
+     */
+    void exitRangeQueryValue(KqlBaseParser.RangeQueryValueContext ctx);
+    /**
      * Enter a parse tree produced by {@link KqlBaseParser#existsQuery}.
      * @param ctx the parse tree
      */
@@ -122,25 +132,35 @@ interface KqlBaseListener extends ParseTreeListener {
      */
     void exitExistsQuery(KqlBaseParser.ExistsQueryContext ctx);
     /**
-     * Enter a parse tree produced by {@link KqlBaseParser#termQuery}.
+     * Enter a parse tree produced by {@link KqlBaseParser#fieldQuery}.
      * @param ctx the parse tree
      */
-    void enterTermQuery(KqlBaseParser.TermQueryContext ctx);
+    void enterFieldQuery(KqlBaseParser.FieldQueryContext ctx);
     /**
-     * Exit a parse tree produced by {@link KqlBaseParser#termQuery}.
+     * Exit a parse tree produced by {@link KqlBaseParser#fieldQuery}.
      * @param ctx the parse tree
      */
-    void exitTermQuery(KqlBaseParser.TermQueryContext ctx);
+    void exitFieldQuery(KqlBaseParser.FieldQueryContext ctx);
     /**
-     * Enter a parse tree produced by {@link KqlBaseParser#phraseQuery}.
+     * Enter a parse tree produced by {@link KqlBaseParser#fieldLessQuery}.
      * @param ctx the parse tree
      */
-    void enterPhraseQuery(KqlBaseParser.PhraseQueryContext ctx);
+    void enterFieldLessQuery(KqlBaseParser.FieldLessQueryContext ctx);
     /**
-     * Exit a parse tree produced by {@link KqlBaseParser#phraseQuery}.
+     * Exit a parse tree produced by {@link KqlBaseParser#fieldLessQuery}.
      * @param ctx the parse tree
      */
-    void exitPhraseQuery(KqlBaseParser.PhraseQueryContext ctx);
+    void exitFieldLessQuery(KqlBaseParser.FieldLessQueryContext ctx);
+    /**
+     * Enter a parse tree produced by {@link KqlBaseParser#fieldQueryValue}.
+     * @param ctx the parse tree
+     */
+    void enterFieldQueryValue(KqlBaseParser.FieldQueryValueContext ctx);
+    /**
+     * Exit a parse tree produced by {@link KqlBaseParser#fieldQueryValue}.
+     * @param ctx the parse tree
+     */
+    void exitFieldQueryValue(KqlBaseParser.FieldQueryValueContext ctx);
     /**
      * Enter a parse tree produced by {@link KqlBaseParser#fieldName}.
      * @param ctx the parse tree

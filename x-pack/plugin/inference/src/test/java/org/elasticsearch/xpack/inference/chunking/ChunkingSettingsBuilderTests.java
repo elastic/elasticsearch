@@ -38,25 +38,27 @@ public class ChunkingSettingsBuilderTests extends ESTestCase {
     }
 
     private Map<Map<String, Object>, ChunkingSettings> chunkingSettingsMapToChunkingSettings() {
-        var maxChunkSize = randomNonNegativeInt();
-        var overlap = randomIntBetween(1, maxChunkSize / 2);
+        var maxChunkSizeWordBoundaryChunkingSettings = randomIntBetween(10, 300);
+        var overlap = randomIntBetween(1, maxChunkSizeWordBoundaryChunkingSettings / 2);
+        var maxChunkSizeSentenceBoundaryChunkingSettings = randomIntBetween(20, 300);
+
         return Map.of(
             Map.of(
                 ChunkingSettingsOptions.STRATEGY.toString(),
                 ChunkingStrategy.WORD.toString(),
                 ChunkingSettingsOptions.MAX_CHUNK_SIZE.toString(),
-                maxChunkSize,
+                maxChunkSizeWordBoundaryChunkingSettings,
                 ChunkingSettingsOptions.OVERLAP.toString(),
                 overlap
             ),
-            new WordBoundaryChunkingSettings(maxChunkSize, overlap),
+            new WordBoundaryChunkingSettings(maxChunkSizeWordBoundaryChunkingSettings, overlap),
             Map.of(
                 ChunkingSettingsOptions.STRATEGY.toString(),
                 ChunkingStrategy.SENTENCE.toString(),
                 ChunkingSettingsOptions.MAX_CHUNK_SIZE.toString(),
-                maxChunkSize
+                maxChunkSizeSentenceBoundaryChunkingSettings
             ),
-            new SentenceBoundaryChunkingSettings(maxChunkSize, 1)
+            new SentenceBoundaryChunkingSettings(maxChunkSizeSentenceBoundaryChunkingSettings, 1)
         );
     }
 }

@@ -321,7 +321,7 @@ public class AzureBlobStore implements BlobStore {
         if (exception instanceof BlobBatchStorageException bbse) {
             final Iterable<BlobStorageException> batchExceptions = bbse.getBatchExceptions();
             for (BlobStorageException bse : batchExceptions) {
-                // If one of the requests failed with something other than a BLOB_NOT_FOUND, throw the encompassing exception
+                // If any requests failed with something other than a BLOB_NOT_FOUND, it is not ignorable
                 if (BlobErrorCode.BLOB_NOT_FOUND.equals(bse.getErrorCode()) == false) {
                     return false;
                 }

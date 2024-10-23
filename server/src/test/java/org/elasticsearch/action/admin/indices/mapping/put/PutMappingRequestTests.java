@@ -85,7 +85,11 @@ public class PutMappingRequestTests extends ESTestCase {
             )
         );
         PutMappingRequest request = new PutMappingRequest().indices("foo", "alias1", "alias2").writeIndexOnly(true);
-        Index[] indices = TransportPutMappingAction.resolveIndices(cs, request, TestIndexNameExpressionResolver.newInstance());
+        Index[] indices = TransportPutMappingAction.resolveIndices(
+            cs.metadata().getProject(),
+            request,
+            TestIndexNameExpressionResolver.newInstance()
+        );
         List<String> indexNames = Arrays.stream(indices).map(Index::getName).toList();
         IndexAbstraction expectedDs = cs.metadata().getProject().getIndicesLookup().get("foo");
         // should resolve the data stream and each alias to their respective write indices
@@ -109,7 +113,11 @@ public class PutMappingRequestTests extends ESTestCase {
             )
         );
         PutMappingRequest request = new PutMappingRequest().indices("foo", "alias1", "alias2");
-        Index[] indices = TransportPutMappingAction.resolveIndices(cs, request, TestIndexNameExpressionResolver.newInstance());
+        Index[] indices = TransportPutMappingAction.resolveIndices(
+            cs.metadata().getProject(),
+            request,
+            TestIndexNameExpressionResolver.newInstance()
+        );
         List<String> indexNames = Arrays.stream(indices).map(Index::getName).toList();
         IndexAbstraction expectedDs = cs.metadata().getProject().getIndicesLookup().get("foo");
         List<String> expectedIndices = expectedDs.getIndices()
@@ -138,7 +146,11 @@ public class PutMappingRequestTests extends ESTestCase {
             )
         );
         PutMappingRequest request = new PutMappingRequest().indices("foo", "index3").writeIndexOnly(true);
-        Index[] indices = TransportPutMappingAction.resolveIndices(cs, request, TestIndexNameExpressionResolver.newInstance());
+        Index[] indices = TransportPutMappingAction.resolveIndices(
+            cs.metadata().getProject(),
+            request,
+            TestIndexNameExpressionResolver.newInstance()
+        );
         List<String> indexNames = Arrays.stream(indices).map(Index::getName).toList();
         IndexAbstraction expectedDs = cs.metadata().getProject().getIndicesLookup().get("foo");
         List<String> expectedIndices = expectedDs.getIndices()
@@ -169,7 +181,11 @@ public class PutMappingRequestTests extends ESTestCase {
         PutMappingRequest request = new PutMappingRequest().indices("*").writeIndexOnly(true);
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> TransportPutMappingAction.resolveIndices(cs2, request, TestIndexNameExpressionResolver.newInstance())
+            () -> TransportPutMappingAction.resolveIndices(
+                cs2.metadata().getProject(),
+                request,
+                TestIndexNameExpressionResolver.newInstance()
+            )
         );
         assertThat(e.getMessage(), containsString("The index expression [*] and options provided did not point to a single write-index"));
     }
@@ -193,7 +209,11 @@ public class PutMappingRequestTests extends ESTestCase {
         PutMappingRequest request = new PutMappingRequest().indices("alias2").writeIndexOnly(true);
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> TransportPutMappingAction.resolveIndices(cs2, request, TestIndexNameExpressionResolver.newInstance())
+            () -> TransportPutMappingAction.resolveIndices(
+                cs2.getMetadata().getProject(),
+                request,
+                TestIndexNameExpressionResolver.newInstance()
+            )
         );
         assertThat(e.getMessage(), containsString("no write index is defined for alias [alias2]"));
     }

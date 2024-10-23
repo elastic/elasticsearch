@@ -103,13 +103,13 @@ public final class CcrRequests {
 
     public static final RequestValidators.RequestValidator<PutMappingRequest> CCR_PUT_MAPPING_REQUEST_VALIDATOR = (
         request,
-        state,
+        projectMetadata,
         indices) -> {
         if (request.origin() == null) {
             return Optional.empty(); // a put-mapping-request on old versions does not have origin.
         }
         final List<Index> followingIndices = Arrays.stream(indices).filter(index -> {
-            final IndexMetadata indexMetadata = state.metadata().getProject().index(index);
+            final IndexMetadata indexMetadata = projectMetadata.index(index);
             return indexMetadata != null && CcrSettings.CCR_FOLLOWING_INDEX_SETTING.get(indexMetadata.getSettings());
         }).toList();
         if (followingIndices.isEmpty() == false && "ccr".equals(request.origin()) == false) {
@@ -125,13 +125,13 @@ public final class CcrRequests {
 
     public static final RequestValidators.RequestValidator<IndicesAliasesRequest> CCR_INDICES_ALIASES_REQUEST_VALIDATOR = (
         request,
-        state,
+        projectMetadata,
         indices) -> {
         if (request.origin() == null) {
             return Optional.empty(); // an indices aliases request on old versions does not have origin
         }
         final List<Index> followingIndices = Arrays.stream(indices).filter(index -> {
-            final IndexMetadata indexMetadata = state.metadata().getProject().index(index);
+            final IndexMetadata indexMetadata = projectMetadata.index(index);
             return indexMetadata != null && CcrSettings.CCR_FOLLOWING_INDEX_SETTING.get(indexMetadata.getSettings());
         }).toList();
         if (followingIndices.isEmpty() == false && "ccr".equals(request.origin()) == false) {

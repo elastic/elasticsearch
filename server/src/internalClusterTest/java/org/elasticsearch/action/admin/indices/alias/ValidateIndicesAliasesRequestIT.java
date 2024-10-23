@@ -49,11 +49,9 @@ public class ValidateIndicesAliasesRequestIT extends ESSingleNodeTestCase {
 
         @Override
         public Collection<RequestValidators.RequestValidator<IndicesAliasesRequest>> indicesAliasesRequestValidators() {
-            return Collections.singletonList((request, state, indices) -> {
+            return Collections.singletonList((request, projectMetadata, indices) -> {
                 for (final Index index : indices) {
-                    final List<String> allowedOrigins = ALLOWED_ORIGINS_SETTING.get(
-                        state.metadata().getProject().index(index).getSettings()
-                    );
+                    final List<String> allowedOrigins = ALLOWED_ORIGINS_SETTING.get(projectMetadata.index(index).getSettings());
                     if (allowedOrigins.contains(request.origin()) == false) {
                         final String message = String.format(
                             Locale.ROOT,

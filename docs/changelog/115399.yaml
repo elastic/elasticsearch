@@ -1,11 +1,11 @@
 pr: 115399
 summary: Adding breaking change entry for retrievers
-area: Ranking
+area: Search
 type: breaking
 issues: []
 breaking:
   title: Reworking RRF retriever to be evaluated during rewrite phase
-  area: Ranking
+  area: REST API
   details: |-
     In this release (8.16), we have introduced major changes to the retrievers framework and how they can be evaluated,
     focusing mainly on compound retrievers like `rrf` and `text_similarity_reranker`, which allowed us to support

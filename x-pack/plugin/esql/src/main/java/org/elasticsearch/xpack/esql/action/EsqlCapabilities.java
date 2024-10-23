@@ -410,7 +410,17 @@ public class EsqlCapabilities {
          * Fix for an optimization that caused wrong results
          * https://github.com/elastic/elasticsearch/issues/115281
          */
-        FIX_FILTER_PUSHDOWN_PAST_STATS;
+        FIX_FILTER_PUSHDOWN_PAST_STATS,
+
+        /**
+         * This enables 60_usage.yml "Basic ESQL usage....snapshot" version test. See also the next capability.
+         */
+        SNAPSHOT_TEST_FOR_TELEMETRY(Build.current().isSnapshot()),
+
+        /**
+         * This enables 60_usage.yml "Basic ESQL usage....non-snapshot" version test. See also the previous capability.
+         */
+        NON_SNAPSHOT_TEST_FOR_TELEMETRY(Build.current().isSnapshot() == false);
 
         private final boolean enabled;
 

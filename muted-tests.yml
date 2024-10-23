@@ -344,21 +344,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/112731
 - class: org.elasticsearch.license.LicensingTests
   issue: https://github.com/elastic/elasticsearch/issues/114865
-- class: org.elasticsearch.xpack.enrich.EnrichIT
-  method: testImmutablePolicy
-  issue: https://github.com/elastic/elasticsearch/issues/114839
-- class: org.elasticsearch.index.mapper.TextFieldMapperTests
-  method: testBlockLoaderFromRowStrideReaderWithSyntheticSource
-  issue: https://github.com/elastic/elasticsearch/issues/115066
-- class: org.elasticsearch.index.mapper.TextFieldMapperTests
-  method: testBlockLoaderFromColumnReaderWithSyntheticSource
-  issue: https://github.com/elastic/elasticsearch/issues/115073
-- class: org.elasticsearch.index.mapper.annotatedtext.AnnotatedTextFieldMapperTests
-  method: testBlockLoaderFromColumnReaderWithSyntheticSource
-  issue: https://github.com/elastic/elasticsearch/issues/115074
-- class: org.elasticsearch.index.mapper.annotatedtext.AnnotatedTextFieldMapperTests
-  method: testBlockLoaderFromRowStrideReaderWithSyntheticSource
-  issue: https://github.com/elastic/elasticsearch/issues/115076
 - class: org.elasticsearch.xpack.inference.TextEmbeddingCrudIT
   method: testPutE5Small_withPlatformSpecificVariant
   issue: https://github.com/elastic/elasticsearch/issues/113950

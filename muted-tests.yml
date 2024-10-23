@@ -17,9 +17,6 @@ tests:
 - class: "org.elasticsearch.xpack.deprecation.DeprecationHttpIT"
   issue: "https://github.com/elastic/elasticsearch/issues/108628"
   method: "testDeprecatedSettingsReturnWarnings"
-- class: org.elasticsearch.index.store.FsDirectoryFactoryTests
-  method: testStoreDirectory
-  issue: https://github.com/elastic/elasticsearch/issues/110210
 - class: "org.elasticsearch.xpack.searchablesnapshots.FrozenSearchableSnapshotsIntegTests"
   issue: "https://github.com/elastic/elasticsearch/issues/110408"
   method: "testCreateAndRestorePartialSearchableSnapshot"

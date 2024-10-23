@@ -68,7 +68,8 @@ public class DiscoveryNodeUtils {
         private TransportAddress address;
         private Map<String, String> attributes = Map.of();
         private Set<DiscoveryNodeRole> roles = DiscoveryNodeRole.roles();
-        private BuildVersion version;
+        private BuildVersion buildVersion;
+        private Version version;
         private IndexVersion minIndexVersion;
         private IndexVersion maxIndexVersion;
         private String externalId;
@@ -109,24 +110,32 @@ public class DiscoveryNodeUtils {
         }
 
         public Builder version(Version version) {
-            this.version = BuildVersion.fromVersionId(version.id());
+            this.version = version;
             return this;
         }
 
         @Deprecated
         public Builder version(Version version, IndexVersion minIndexVersion, IndexVersion maxIndexVersion) {
-            return version(BuildVersion.fromVersionId(version.id()), minIndexVersion, maxIndexVersion);
-        }
-
-        public Builder version(BuildVersion version, IndexVersion minIndexVersion, IndexVersion maxIndexVersion) {
+            this.buildVersion = BuildVersion.fromVersionId(version.id());
             this.version = version;
             this.minIndexVersion = minIndexVersion;
             this.maxIndexVersion = maxIndexVersion;
             return this;
         }
 
+        public Builder version(BuildVersion version, IndexVersion minIndexVersion, IndexVersion maxIndexVersion) {
+            // see comment in VersionInformation
+            assert version.equals(BuildVersion.current());
+            this.buildVersion = version;
+            this.version = Version.CURRENT;
+            this.minIndexVersion = minIndexVersion;
+            this.maxIndexVersion = maxIndexVersion;
+            return this;
+        }
+
         public Builder version(VersionInformation versions) {
-            this.version = versions.buildVersion();
+            this.buildVersion = versions.buildVersion();
+            this.version = versions.nodeVersion();
             this.minIndexVersion = versions.minIndexVersion();
             this.maxIndexVersion = versions.maxIndexVersion();
             return this;
@@ -156,9 +165,9 @@ public class DiscoveryNodeUtils {
 
             VersionInformation versionInfo;
             if (minIndexVersion == null || maxIndexVersion == null) {
-                versionInfo = VersionInformation.inferVersions(Version.fromId(version.id()));
+                versionInfo = VersionInformation.inferVersions(version);
             } else {
-                versionInfo = new VersionInformation(version, minIndexVersion, maxIndexVersion);
+                versionInfo = new VersionInformation(buildVersion, version, minIndexVersion, maxIndexVersion);
             }
 
             return new DiscoveryNode(name, id, ephemeralId, hostName, hostAddress, address, attributes, roles, versionInfo, externalId);

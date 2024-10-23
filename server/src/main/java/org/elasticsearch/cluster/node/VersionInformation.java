@@ -22,7 +22,12 @@ import java.util.Objects;
  * @param minIndexVersion   The minimum {@link IndexVersion} supported by this node
  * @param maxIndexVersion   The maximum {@link IndexVersion} supported by this node
  */
-public record VersionInformation(BuildVersion buildVersion, IndexVersion minIndexVersion, IndexVersion maxIndexVersion) {
+public record VersionInformation(
+    BuildVersion buildVersion,
+    Version nodeVersion,
+    IndexVersion minIndexVersion,
+    IndexVersion maxIndexVersion
+) {
 
     public static final VersionInformation CURRENT = new VersionInformation(
         BuildVersion.current(),
@@ -36,14 +41,21 @@ public record VersionInformation(BuildVersion buildVersion, IndexVersion minInde
         Objects.requireNonNull(maxIndexVersion);
     }
 
-    @Deprecated
-    public VersionInformation(Version version, IndexVersion minIndexVersion, IndexVersion maxIndexVersion) {
-        this(BuildVersion.fromVersionId(version.id()), minIndexVersion, maxIndexVersion);
+    public VersionInformation(BuildVersion version, IndexVersion minIndexVersion, IndexVersion maxIndexVersion) {
+        this(version, Version.CURRENT, minIndexVersion, maxIndexVersion);
+        /*
+         * Whilst DiscoveryNode.getVersion exists, we need to be able to get a Version from VersionInfo
+         * This needs to be consistent - on serverless, BuildVersion has an id of -1, which translates
+         * to a nonsensical Version. So all consumers of Version need to be moved to BuildVersion
+         * before we can remove Version from here.
+         */
+        // for the moment, check this is only called with current() so the implied Version is correct
+        assert version.equals(BuildVersion.current());
     }
 
     @Deprecated
-    public Version nodeVersion() {
-        return Version.fromId(buildVersion.id());
+    public VersionInformation(Version version, IndexVersion minIndexVersion, IndexVersion maxIndexVersion) {
+        this(BuildVersion.fromVersionId(version.id()), version, minIndexVersion, maxIndexVersion);
     }
 
     public static VersionInformation inferVersions(Version nodeVersion) {
@@ -53,7 +65,7 @@ public record VersionInformation(BuildVersion buildVersion, IndexVersion minInde
             return CURRENT;
         } else if (nodeVersion.before(Version.V_8_11_0)) {
             return new VersionInformation(
-                BuildVersion.fromVersionId(nodeVersion.id()),
+                nodeVersion,
                 IndexVersion.getMinimumCompatibleIndexVersion(nodeVersion.id),
                 IndexVersion.fromId(nodeVersion.id)
             );

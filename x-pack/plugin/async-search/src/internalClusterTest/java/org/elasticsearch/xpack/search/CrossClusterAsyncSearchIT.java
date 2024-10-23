@@ -274,6 +274,8 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
         boolean dfs = randomBoolean();
         if (dfs) {
             request.getSearchRequest().searchType(SearchType.DFS_QUERY_THEN_FETCH);
+        } else {
+            request.getSearchRequest().searchType(SearchType.QUERY_THEN_FETCH);
         }
         RangeQueryBuilder rangeQueryBuilder = new RangeQueryBuilder("@timestamp").from(100).to(2000);
         request.getSearchRequest().source(new SearchSourceBuilder().query(rangeQueryBuilder).size(10));
@@ -288,20 +290,30 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
             assertTrue(response.isRunning());
             SearchResponse.Clusters clusters = response.getSearchResponse().getClusters();
             assertThat(clusters.getTotal(), equalTo(2));
-            assertTrue("search cluster results should be marked as partial", clusters.hasPartialResults());
-
+            if (dfs) {
+                assertTrue("search cluster results should be marked as partial", clusters.hasPartialResults());
+            } else {
+                assertFalse(
+                    "search cluster results should not be marked as partial as all shards are skipped",
+                    clusters.hasPartialResults()
+                );
+            }
             SearchResponse.Cluster localClusterSearchInfo = clusters.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
             assertNotNull(localClusterSearchInfo);
-            assertThat(localClusterSearchInfo.getStatus(), equalTo(SearchResponse.Cluster.Status.RUNNING));
+            if (dfs) {
+                assertThat(localClusterSearchInfo.getStatus(), equalTo(SearchResponse.Cluster.Status.RUNNING));
+            } else {
+                assertThat(localClusterSearchInfo.getStatus(), equalTo(SearchResponse.Cluster.Status.SUCCESSFUL));
+            }
 
             SearchResponse.Cluster remoteClusterSearchInfo = clusters.getCluster(REMOTE_CLUSTER);
             assertNotNull(remoteClusterSearchInfo);
-            assertThat(localClusterSearchInfo.getStatus(), equalTo(SearchResponse.Cluster.Status.RUNNING));
         } finally {
             response.decRef();
         }
-
-        SearchListenerPlugin.waitSearchStarted();
+        if (dfs) {
+            SearchListenerPlugin.waitSearchStarted();
+        }
         SearchListenerPlugin.allowQueryPhase();
 
         waitForSearchTasksToFinish();

@@ -372,6 +372,9 @@ tests:
 - class: org.elasticsearch.xpack.watcher.trigger.schedule.engine.TickerScheduleEngineTests
   method: testWatchWithNoLastCheckedTimeButHasActivationTimeExecutesBeforeInitialInterval
   issue: https://github.com/elastic/elasticsearch/issues/115368
+- class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
+  method: test {p0=search.vectors/42_knn_search_int4_flat/Vector similarity with filter only}
+  issue: https://github.com/elastic/elasticsearch/issues/115475
 
 # Examples:
 #

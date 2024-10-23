@@ -179,6 +179,7 @@ public class TransportVersions {
     public static final TransportVersion ESQL_FIELD_ATTRIBUTE_PARENT_SIMPLIFIED = def(8_775_00_0);
     public static final TransportVersion INFERENCE_DONT_PERSIST_ON_READ = def(8_776_00_0);
     public static final TransportVersion SIMULATE_MAPPING_ADDITION = def(8_777_00_0);
+    public static final TransportVersion INDEX_REQUEST_REMOVE_ORIGIN_FLAGS = def(8_778_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

@@ -47,8 +47,11 @@ tasks.named("yamlRestCompatTestTransform").configure({ task ->
   // Failure store configuration changed on 8.16 (earlier versions behind feature flag)
   task.skipTest("data_stream/10_basic/Create data stream with failure store", "Configuring the failure store via data stream templates is not supported anymore.")
   task.skipTest("data_stream/10_basic/Delete data stream with failure store", "Configuring the failure store via data stream templates is not supported anymore.")
+  task.skipTest("data_stream/10_basic/Delete data stream with failure store uninitialized", "Configuring the failure store via data stream templates is not supported anymore.")
 
   task.skipTest("data_stream/30_auto_create_data_stream/Don't initialize failure store during data stream auto-creation on successful index", "Configuring the failure store via data stream templates is not supported anymore.")
+
+  task.skipTest("data_stream/150_tsdb/TSDB failures go to failure store", "Configuring the failure store via data stream templates is not supported anymore.")
 
   task.skipTest("data_stream/170_modify_data_stream/Modify a data stream's failure store", "Configuring the failure store via data stream templates is not supported anymore.")
 

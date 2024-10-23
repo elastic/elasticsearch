@@ -375,6 +375,9 @@ tests:
 - class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
   method: test {p0=search.vectors/42_knn_search_int4_flat/Vector similarity with filter only}
   issue: https://github.com/elastic/elasticsearch/issues/115475
+- class: org.elasticsearch.xpack.core.ml.calendars.ScheduledEventTests
+  method: testBuild_SucceedsWithDefaultSkipResultAndSkipModelUpdatesValues
+  issue: https://github.com/elastic/elasticsearch/issues/115476
 
 # Examples:
 #

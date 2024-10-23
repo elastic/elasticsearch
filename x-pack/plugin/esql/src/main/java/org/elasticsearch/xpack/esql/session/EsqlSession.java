@@ -49,6 +49,7 @@ import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.index.MappingException;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
@@ -191,7 +192,12 @@ public class EsqlSession {
          * on any of the requested clusters.
          */
         private boolean returnSuccessWithEmptyResult(Exception e) {
-            if (executionInfo.isCrossClusterSearch() && ExceptionsHelper.isRemoteUnavailableException(e)) {
+            if (executionInfo.isCrossClusterSearch() == false) {
+                return false;
+            }
+
+            if ((e instanceof IllegalStateException ill && ill.getMessage().equals("No clusters to search"))
+                || ExceptionsHelper.isRemoteUnavailableException(e)) {
                 for (String clusterAlias : executionInfo.clusterAliases()) {
                     if (executionInfo.isSkipUnavailable(clusterAlias) == false
                         && clusterAlias.equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY) == false) {
@@ -229,7 +235,9 @@ public class EsqlSession {
                             builder.setStatus(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL);
                         } else {
                             builder.setStatus(EsqlExecutionInfo.Cluster.Status.SKIPPED);
-                            builder.setFailures(List.of(new ShardSearchFailure(exceptionForResponse)));
+                            if (v.getFailures() == null || v.getFailures().size() == 0) {
+                                builder.setFailures(List.of(new ShardSearchFailure(exceptionForResponse)));
+                            }
                         }
                         return builder.build();
                     });
@@ -239,7 +247,7 @@ public class EsqlSession {
                 listener.onFailure(e);
             }
         }
-    };
+    }
 
     /**
      * Execute an analyzed plan. Most code should prefer calling {@link #execute} but
@@ -334,17 +342,25 @@ public class EsqlSession {
                 .stream()
                 .map(ResolvedEnrichPolicy::matchField)
                 .collect(Collectors.toSet());
-            preAnalyzeIndices(parsed, executionInfo, l.delegateFailureAndWrap((ll, indexResolution) -> {
+            Map<String, Exception> unavailableClusters = enrichResolution.getUnavailableClusters();
+            preAnalyzeIndices(parsed, executionInfo, unavailableClusters, l.delegateFailureAndWrap((ll, indexResolution) -> {
                 if (indexResolution.isValid()) {
                     updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, indexResolution);
                     updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.getUnavailableClusters());
+                    if (executionInfo.getClusterStateCount(EsqlExecutionInfo.Cluster.Status.RUNNING) == 0) {
+                        ll.onFailure(new IllegalStateException("No clusters to search"));
+                        return;
+                    }
+
                     Set<String> newClusters = enrichPolicyResolver.groupIndicesPerCluster(
                         indexResolution.get().concreteIndices().toArray(String[]::new)
                     ).keySet();
                     // If new clusters appear when resolving the main indices, we need to resolve the enrich policies again
                     // or exclude main concrete indices. Since this is rare, it's simpler to resolve the enrich policies again.
                     // TODO: add a test for this
-                    if (targetClusters.containsAll(newClusters) == false) {
+                    if (targetClusters.containsAll(newClusters) == false
+                        // do not bother with a re-resolution if only remotes were requested and all were offline
+                        && executionInfo.getClusterStateCount(EsqlExecutionInfo.Cluster.Status.RUNNING) > 0) {
                         enrichPolicyResolver.resolvePolicies(
                             newClusters,
                             unresolvedPolicies,
@@ -361,6 +377,7 @@ public class EsqlSession {
     private void preAnalyzeIndices(
         LogicalPlan parsed,
         EsqlExecutionInfo executionInfo,
+        Map<String, Exception> unavailableClusters,  // known to be unavailable from the enrich policy API call
         ActionListener<IndexResolution> listener,
         Set<String> enrichPolicyMatchFields
     ) {
@@ -380,10 +397,34 @@ public class EsqlSession {
                 String indexExpr = Strings.arrayToCommaDelimitedString(entry.getValue().indices());
                 executionInfo.swapCluster(clusterAlias, (k, v) -> {
                     assert v == null : "No cluster for " + clusterAlias + " should have been added to ExecutionInfo yet";
-                    return new EsqlExecutionInfo.Cluster(clusterAlias, indexExpr, executionInfo.isSkipUnavailable(clusterAlias));
+                    if (unavailableClusters.containsKey(k)) {
+                        return new EsqlExecutionInfo.Cluster(
+                            clusterAlias,
+                            indexExpr,
+                            executionInfo.isSkipUnavailable(clusterAlias),
+                            EsqlExecutionInfo.Cluster.Status.SKIPPED,
+                            0,
+                            0,
+                            0,
+                            0,
+                            List.of(new ShardSearchFailure(unavailableClusters.get(k))),
+                            new TimeValue(0)
+                        );
+                    } else {
+                        return new EsqlExecutionInfo.Cluster(clusterAlias, indexExpr, executionInfo.isSkipUnavailable(clusterAlias));
+                    }
                 });
             }
-            indexResolver.resolveAsMergedMapping(table.index(), fieldNames, listener);
+            // if the preceding call to enrich policy API found unavailable clusters, recreate the index expression to search
+            // based only on available clusters (which could now be an empty list)
+            String indexExpressionToResolve = createIndexExpressionFromAvailableClusters(executionInfo);
+            if (indexExpressionToResolve.equals("")) {
+                // if this was a pure remote CCS request (no local indices) and all remotes are offline, return an empty IndexResolution
+                listener.onResponse(IndexResolution.valid(new EsIndex(table.index(), Map.of(), Map.of())));
+            } else {
+                // call the EsqlResolveFieldsAction (field-caps under the hood) to resolve indices and get field types
+                indexResolver.resolveAsMergedMapping(indexExpressionToResolve, fieldNames, listener);
+            }
         } else {
             try {
                 // occurs when dealing with local relations (row a = 1)
@@ -391,6 +432,30 @@ public class EsqlSession {
             } catch (Exception ex) {
                 listener.onFailure(ex);
             }
+        }
+    }
+
+    // visible for testing
+    static String createIndexExpressionFromAvailableClusters(EsqlExecutionInfo executionInfo) {
+        StringBuilder sb = new StringBuilder();
+        for (String clusterAlias : executionInfo.clusterAliases()) {
+            EsqlExecutionInfo.Cluster cluster = executionInfo.getCluster(clusterAlias);
+            if (cluster.getStatus() != EsqlExecutionInfo.Cluster.Status.SKIPPED) {
+                if (cluster.getClusterAlias().equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY)) {
+                    sb.append(executionInfo.getCluster(clusterAlias).getIndexExpression()).append(',');
+                } else {
+                    String indexExpression = executionInfo.getCluster(clusterAlias).getIndexExpression();
+                    for (String index : indexExpression.split(",")) {
+                        sb.append(clusterAlias).append(':').append(index).append(',');
+                    }
+                }
+            }
+        }
+
+        if (sb.length() > 0) {
+            return sb.substring(0, sb.length() - 1);
+        } else {
+            return "";
         }
     }
 

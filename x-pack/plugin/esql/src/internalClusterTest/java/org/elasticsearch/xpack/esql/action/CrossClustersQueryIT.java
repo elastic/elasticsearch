@@ -501,7 +501,7 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
 
             EsqlExecutionInfo.Cluster localCluster = executionInfo.getCluster(LOCAL_CLUSTER);
             assertThat(localCluster.getIndexExpression(), equalTo("nomatch*"));
-            assertThat(localCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SKIPPED));
+            assertThat(localCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
             assertThat(localCluster.getTook().millis(), greaterThanOrEqualTo(0L));
             assertThat(localCluster.getTook().millis(), lessThanOrEqualTo(overallTookMillis));
             assertThat(remoteCluster.getTotalShards(), equalTo(0));

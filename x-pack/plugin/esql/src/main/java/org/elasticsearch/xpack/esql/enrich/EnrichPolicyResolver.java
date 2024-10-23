@@ -134,6 +134,7 @@ public class EnrichPolicyResolver {
                     calculateTargetClusters(unresolved.mode, includeLocal, remoteClusters),
                     lookupResponsesToProcess
                 );
+
                 if (resolved.v1() != null) {
                     enrichResolution.addResolvedPolicy(unresolved.name, unresolved.mode, resolved.v1());
                 } else {
@@ -261,15 +262,13 @@ public class EnrichPolicyResolver {
         return reason + " on clusters [" + detailed + "]";
     }
 
-    // MP TODO: probably need to pass in EsqlExecutionInfo here
     private void lookupPolicies(
         Collection<String> remoteClusters,
         boolean includeLocal,
         Collection<UnresolvedPolicy> unresolvedPolicies,
-        ActionListener<Map<String, LookupResponse>> listener  // what is this map of? What is the key?
+        ActionListener<Map<String, LookupResponse>> listener
     ) {
         final Map<String, LookupResponse> lookupResponses = ConcurrentCollections.newConcurrentMap();
-        // MP TODO: I don't understand what listener.map does here
         try (RefCountingListener refs = new RefCountingListener(listener.map(unused -> lookupResponses))) {
             Set<String> remotePolicies = unresolvedPolicies.stream()
                 .filter(u -> u.mode != Enrich.Mode.COORDINATOR)
@@ -400,7 +399,6 @@ public class EnrichPolicyResolver {
     private class RequestHandler implements TransportRequestHandler<LookupRequest> {
         @Override
         public void messageReceived(LookupRequest request, TransportChannel channel, Task task) {
-            System.err.println("\n\n === AAA EnrichPolicyResolver.RequestHandler.messageReceived\n");
             final Map<String, EnrichPolicy> availablePolicies = availablePolicies();
             final Map<String, String> failures = ConcurrentCollections.newConcurrentMap();
             final Map<String, ResolvedEnrichPolicy> resolvedPolices = ConcurrentCollections.newConcurrentMap();

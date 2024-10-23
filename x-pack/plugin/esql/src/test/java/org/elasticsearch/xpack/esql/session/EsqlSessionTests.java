@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.session;
 
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.NoSeedNodeLeftException;
@@ -19,7 +20,10 @@ import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.type.EsFieldTests;
 
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -28,6 +32,90 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class EsqlSessionTests extends ESTestCase {
+
+    public void testCreateIndexExpressionFromAvailableClusters() {
+        final String localClusterAlias = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
+        final String remote1Alias = "remote1";
+        final String remote2Alias = "remote2";
+
+        // no clusters marked as skipped
+        {
+            EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(true);
+            executionInfo.swapCluster(localClusterAlias, (k, v) -> new EsqlExecutionInfo.Cluster(localClusterAlias, "logs*", false));
+            executionInfo.swapCluster(remote1Alias, (k, v) -> new EsqlExecutionInfo.Cluster(remote1Alias, "*", true));
+            executionInfo.swapCluster(remote2Alias, (k, v) -> new EsqlExecutionInfo.Cluster(remote2Alias, "mylogs1,mylogs2,logs*", true));
+
+            String indexExpr = EsqlSession.createIndexExpressionFromAvailableClusters(executionInfo);
+            List<String> list = Arrays.stream(Strings.splitStringByCommaToArray(indexExpr)).toList();
+            assertThat(list.size(), equalTo(5));
+            assertThat(
+                new HashSet<>(list),
+                equalTo(Strings.commaDelimitedListToSet("logs*,remote1:*,remote2:mylogs1,remote2:mylogs2,remote2:logs*"))
+            );
+        }
+
+        // one cluster marked as skipped, so not present in revised index expression
+        {
+            EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(true);
+            executionInfo.swapCluster(localClusterAlias, (k, v) -> new EsqlExecutionInfo.Cluster(localClusterAlias, "logs*", false));
+            executionInfo.swapCluster(remote1Alias, (k, v) -> new EsqlExecutionInfo.Cluster(remote1Alias, "*,foo", true));
+            executionInfo.swapCluster(
+                remote2Alias,
+                (k, v) -> new EsqlExecutionInfo.Cluster(
+                    remote2Alias,
+                    "mylogs1,mylogs2,logs*",
+                    true,
+                    EsqlExecutionInfo.Cluster.Status.SKIPPED
+                )
+            );
+
+            String indexExpr = EsqlSession.createIndexExpressionFromAvailableClusters(executionInfo);
+            List<String> list = Arrays.stream(Strings.splitStringByCommaToArray(indexExpr)).toList();
+            assertThat(list.size(), equalTo(3));
+            assertThat(new HashSet<>(list), equalTo(Strings.commaDelimitedListToSet("logs*,remote1:*,remote1:foo")));
+        }
+
+        // two clusters marked as skipped, so only local cluster present in revised index expression
+        {
+            EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(true);
+            executionInfo.swapCluster(localClusterAlias, (k, v) -> new EsqlExecutionInfo.Cluster(localClusterAlias, "logs*", false));
+            executionInfo.swapCluster(
+                remote1Alias,
+                (k, v) -> new EsqlExecutionInfo.Cluster(remote1Alias, "*,foo", true, EsqlExecutionInfo.Cluster.Status.SKIPPED)
+            );
+            executionInfo.swapCluster(
+                remote2Alias,
+                (k, v) -> new EsqlExecutionInfo.Cluster(
+                    remote2Alias,
+                    "mylogs1,mylogs2,logs*",
+                    true,
+                    EsqlExecutionInfo.Cluster.Status.SKIPPED
+                )
+            );
+
+            assertThat(EsqlSession.createIndexExpressionFromAvailableClusters(executionInfo), equalTo("logs*"));
+        }
+
+        // only remotes present and all marked as skipped, so in revised index expression should be empty string
+        {
+            EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(true);
+            executionInfo.swapCluster(
+                remote1Alias,
+                (k, v) -> new EsqlExecutionInfo.Cluster(remote1Alias, "*,foo", true, EsqlExecutionInfo.Cluster.Status.SKIPPED)
+            );
+            executionInfo.swapCluster(
+                remote2Alias,
+                (k, v) -> new EsqlExecutionInfo.Cluster(
+                    remote2Alias,
+                    "mylogs1,mylogs2,logs*",
+                    true,
+                    EsqlExecutionInfo.Cluster.Status.SKIPPED
+                )
+            );
+
+            assertThat(EsqlSession.createIndexExpressionFromAvailableClusters(executionInfo), equalTo(""));
+        }
+    }
 
     public void testUpdateExecutionInfoWithUnavailableClusters() {
         // skip_unavailable=true clusters are unavailable, both marked as SKIPPED

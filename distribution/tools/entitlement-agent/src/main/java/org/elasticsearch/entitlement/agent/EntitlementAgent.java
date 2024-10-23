@@ -11,6 +11,7 @@ package org.elasticsearch.entitlement.agent;
 
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.internal.provider.ProviderLocator;
+import org.elasticsearch.entitlement.api.EntitlementChecks;
 import org.elasticsearch.entitlement.instrumentation.InstrumentationService;
 import org.elasticsearch.entitlement.instrumentation.MethodKey;
 
@@ -37,7 +38,7 @@ public class EntitlementAgent {
         addJarToBootstrapClassLoader(inst, bridgeJarName);
 
         Method targetMethod = System.class.getMethod("exit", int.class);
-        Method instrumentationMethod = Class.forName("org.elasticsearch.entitlement.api.EntitlementChecks")
+        Method instrumentationMethod = EntitlementChecks.class
             .getMethod("checkSystemExit", Class.class, int.class);
         Map<MethodKey, Method> methodMap = Map.of(INSTRUMENTER_FACTORY.methodKeyForTarget(targetMethod), instrumentationMethod);
 

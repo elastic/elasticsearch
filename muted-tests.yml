@@ -99,9 +99,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/112424
 - class: org.elasticsearch.ingest.geoip.IngestGeoIpClientYamlTestSuiteIT
   issue: https://github.com/elastic/elasticsearch/issues/111497
-- class: org.elasticsearch.smoketest.SmokeTestIngestWithAllDepsClientYamlTestSuiteIT
-  method: test {yaml=ingest/80_ingest_simulate/Test ingest simulate with reroute and mapping validation from templates}
-  issue: https://github.com/elastic/elasticsearch/issues/112575
 - class: org.elasticsearch.xpack.security.authc.kerberos.SimpleKdcLdapServerTests
   method: testClientServiceMutualAuthentication
   issue: https://github.com/elastic/elasticsearch/issues/112529
@@ -262,15 +259,6 @@ tests:
 - class: org.elasticsearch.xpack.inference.DefaultElserIT
   method: testInferCreatesDefaultElser
   issue: https://github.com/elastic/elasticsearch/issues/114503
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {p0=synonyms/60_synonym_rule_get/Synonym set not found}
-  issue: https://github.com/elastic/elasticsearch/issues/114432
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {p0=synonyms/60_synonym_rule_get/Get a synonym rule}
-  issue: https://github.com/elastic/elasticsearch/issues/114443
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {p0=synonyms/60_synonym_rule_get/Synonym rule not found}
-  issue: https://github.com/elastic/elasticsearch/issues/114444
 - class: org.elasticsearch.xpack.inference.integration.ModelRegistryIT
   method: testGetModel
   issue: https://github.com/elastic/elasticsearch/issues/114657
@@ -294,18 +282,6 @@ tests:
 - class: org.elasticsearch.xpack.inference.DefaultEndPointsIT
   method: testInferDeploysDefaultElser
   issue: https://github.com/elastic/elasticsearch/issues/114913
-- class: org.elasticsearch.index.mapper.TextFieldMapperTests
-  method: testBlockLoaderFromRowStrideReaderWithSyntheticSource
-  issue: https://github.com/elastic/elasticsearch/issues/115066
-- class: org.elasticsearch.index.mapper.TextFieldMapperTests
-  method: testBlockLoaderFromColumnReaderWithSyntheticSource
-  issue: https://github.com/elastic/elasticsearch/issues/115073
-- class: org.elasticsearch.index.mapper.annotatedtext.AnnotatedTextFieldMapperTests
-  method: testBlockLoaderFromColumnReaderWithSyntheticSource
-  issue: https://github.com/elastic/elasticsearch/issues/115074
-- class: org.elasticsearch.index.mapper.annotatedtext.AnnotatedTextFieldMapperTests
-  method: testBlockLoaderFromRowStrideReaderWithSyntheticSource
-  issue: https://github.com/elastic/elasticsearch/issues/115076
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=esql/60_usage/Basic ESQL usage output (telemetry)}
   issue: https://github.com/elastic/elasticsearch/issues/115231
@@ -318,6 +294,15 @@ tests:
 - class: org.elasticsearch.xpack.watcher.trigger.schedule.engine.TickerScheduleEngineTests
   method: testAddWithLastCheckedTimeExecutesBeforeInitialInterval
   issue: https://github.com/elastic/elasticsearch/issues/115356
+- class: org.elasticsearch.xpack.inference.DefaultEndPointsIT
+  method: testInferDeploysDefaultE5
+  issue: https://github.com/elastic/elasticsearch/issues/115361
+- class: org.elasticsearch.xpack.watcher.trigger.schedule.engine.TickerScheduleEngineTests
+  method: testWatchWithNoLastCheckedTimeButHasActivationTimeExecutesBeforeInitialInterval
+  issue: https://github.com/elastic/elasticsearch/issues/115368
+- class: org.elasticsearch.reservedstate.service.FileSettingsServiceTests
+  method: testProcessFileChanges
+  issue: https://github.com/elastic/elasticsearch/issues/115280
 
 # Examples:
 #

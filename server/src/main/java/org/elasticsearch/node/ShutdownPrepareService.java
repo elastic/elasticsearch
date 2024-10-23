@@ -148,7 +148,11 @@ public class ShutdownPrepareService {
                     Thread.sleep(pollPeriod.millis());
                 } catch (InterruptedException ex) {
                     logger.warn(
-                        format("interrupted while waiting [%s] for [%d] search tasks to finish", timeout.toString(), tasksRemaining)
+                        format(
+                            "interrupted while waiting [%s] for [%d] " + taskName + " tasks to finish",
+                            timeout.toString(),
+                            tasksRemaining
+                        )
                     );
                     return;
                 }

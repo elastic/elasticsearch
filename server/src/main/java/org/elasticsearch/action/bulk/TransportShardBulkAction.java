@@ -173,7 +173,12 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 mappingUpdateListener.onFailure(new MapperException("timed out while waiting for a dynamic mapping update"));
             }
         }, clusterState -> {
-            var indexMetadata = clusterState.metadata().getProject().index(primary.shardId().getIndex());
+            var index = primary.shardId().getIndex();
+            var indexMetadata = clusterState.globalRoutingTable()
+                .getProjectLookup()
+                .project(index)
+                .map(p -> clusterState.getMetadata().getProject(p).index(index))
+                .orElse(null);
             return indexMetadata == null || (indexMetadata.mapping() != null && indexMetadata.getMappingVersion() != initialMappingVersion);
         }), listener, executor(primary), postWriteRefresh, postWriteAction, documentParsingProvider);
     }

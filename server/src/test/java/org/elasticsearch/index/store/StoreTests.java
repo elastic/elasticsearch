@@ -996,8 +996,6 @@ public class StoreTests extends ESTestCase {
         Document doc = new Document();
         doc.add(new TextField("id", "1", Field.Store.NO));
         writer.addDocument(doc);
-        Map<String, String> commitData = Maps.newMapWithExpectedSize(2);
-        writer.setLiveCommitData(commitData.entrySet());
         writer.commit();
         writer.close();
         Store.MetadataSnapshot metadata;

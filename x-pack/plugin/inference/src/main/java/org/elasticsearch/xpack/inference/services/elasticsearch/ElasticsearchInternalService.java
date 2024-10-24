@@ -675,7 +675,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
                 // Avoid filling the inference queue by executing the batches in series
                 // Each batch contains up to EMBEDDING_MAX_BATCH_SIZE inference request
                 var sequentialRunner = new BatchIterator(esModel, inputType, timeout, batchedRequests);
-                sequentialRunner.doNextRequest();
+                sequentialRunner.run();
             }
         } else {
             listener.onFailure(notElasticsearchModelException(model));
@@ -1015,11 +1015,11 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
             this.timeout = timeout;
         }
 
-        void doNextRequest() {
-            inferenceExecutor.execute(() -> inferOnBatch(requestAndListeners.get(index.get())));
+        void run() {
+            inferenceExecutor.execute(() -> inferBatchAndRunAfter(requestAndListeners.get(index.get())));
         }
 
-        private void inferOnBatch(EmbeddingRequestChunker.BatchRequestAndListener batch) {
+        private void inferBatchAndRunAfter(EmbeddingRequestChunker.BatchRequestAndListener batch) {
             var inferenceRequest = buildInferenceRequest(
                 esModel.mlNodeDeploymentId(),
                 EmptyConfigUpdate.INSTANCE,
@@ -1034,14 +1034,14 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
                 );
 
             // schedule the next request once the results have been processed
-            var scheduleNextListener = ActionListener.runAfter(mlResultsListener, () -> {
+            var runNextListener = ActionListener.runAfter(mlResultsListener, () -> {
                 if (index.incrementAndGet() < requestAndListeners.size()) {
-                    doNextRequest();
+                    run();
                 }
             });
 
-            var maybeDeployListener = scheduleNextListener.delegateResponse(
-                (l, exception) -> maybeStartDeployment(esModel, exception, inferenceRequest, scheduleNextListener)
+            var maybeDeployListener = runNextListener.delegateResponse(
+                (l, exception) -> maybeStartDeployment(esModel, exception, inferenceRequest, runNextListener)
             );
 
             client.execute(InferModelAction.INSTANCE, inferenceRequest, maybeDeployListener);

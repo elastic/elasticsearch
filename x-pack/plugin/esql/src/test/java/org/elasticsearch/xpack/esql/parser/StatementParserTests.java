@@ -1564,7 +1564,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testParamForIdentifier() {
         assumeTrue(
             "named parameters for identifiers and patterns require snapshot build",
-            EsqlCapabilities.Cap.NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES.isEnabled()
+            EsqlCapabilities.Cap.NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES_SIMPLIFIED_SYNTAX.isEnabled()
         );
         // field names can appear in eval/where/stats/sort/keep/drop/rename/dissect/grok/enrich/mvexpand
         // eval, where
@@ -1825,7 +1825,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testParamForIdentifierPattern() {
         assumeTrue(
             "named parameters for identifiers and patterns require snapshot build",
-            EsqlCapabilities.Cap.NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES.isEnabled()
+            EsqlCapabilities.Cap.NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES_SIMPLIFIED_SYNTAX.isEnabled()
         );
         // name patterns can appear in keep and drop
         // all patterns
@@ -1918,7 +1918,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testParamInInvalidPosition() {
         assumeTrue(
             "named parameters for identifiers and patterns require snapshot build",
-            EsqlCapabilities.Cap.NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES.isEnabled()
+            EsqlCapabilities.Cap.NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES_SIMPLIFIED_SYNTAX.isEnabled()
         );
         // param for pattern is not supported in eval/where/stats/sort/rename/dissect/grok/enrich/mvexpand
         // where/stats/sort/dissect/grok are covered in RestEsqlTestCase
@@ -1973,7 +1973,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testMissingParam() {
         assumeTrue(
             "named parameters for identifiers and patterns require snapshot build",
-            EsqlCapabilities.Cap.NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES.isEnabled()
+            EsqlCapabilities.Cap.NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES_SIMPLIFIED_SYNTAX.isEnabled()
         );
         // cover all processing commands eval/where/stats/sort/rename/dissect/grok/enrich/mvexpand/keep/drop
         String error = "Unknown query parameter [f1], did you mean [f4]?";

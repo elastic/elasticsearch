@@ -57,6 +57,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponses;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHitsWithoutFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSecondHit;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasId;
@@ -772,6 +773,7 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
         );
         // counter example
         assertHitCount(
+            0L,
             prepareSearch("test").setQuery(
                 randomizeType(
                     multiMatchQuery("captain america marvel hero", "first_name", "last_name", "category").type(
@@ -779,19 +781,13 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
                     ).operator(Operator.AND)
                 )
             ),
-            0L
-        );
-
-        // counter example
-        assertHitCount(
             prepareSearch("test").setQuery(
                 randomizeType(
                     multiMatchQuery("captain america marvel hero", "first_name", "last_name", "category").type(
                         randomBoolean() ? MultiMatchQueryBuilder.Type.CROSS_FIELDS : MultiMatchQueryBuilder.DEFAULT_TYPE
                     ).operator(Operator.AND)
                 )
-            ),
-            0L
+            )
         );
 
         // test if boosts work
@@ -828,40 +824,21 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
             }
         );
         // Test group based on numeric fields
-        assertResponse(
+        assertResponses(response -> {
+            assertHitCount(response, 1L);
+            assertFirstHit(response, hasId("theone"));
+        },
             prepareSearch("test").setQuery(randomizeType(multiMatchQuery("15", "skill").type(MultiMatchQueryBuilder.Type.CROSS_FIELDS))),
-            response -> {
-                assertHitCount(response, 1L);
-                assertFirstHit(response, hasId("theone"));
-            }
-        );
-        assertResponse(
             prepareSearch("test").setQuery(
                 randomizeType(multiMatchQuery("15", "skill", "first_name").type(MultiMatchQueryBuilder.Type.CROSS_FIELDS))
             ),
-            response -> {
-                assertHitCount(response, 1L);
-                assertFirstHit(response, hasId("theone"));
-            }
-        );
-        // Two numeric fields together caused trouble at one point!
-        assertResponse(
+            // Two numeric fields together caused trouble at one point!
             prepareSearch("test").setQuery(
                 randomizeType(multiMatchQuery("15", "int-field", "skill").type(MultiMatchQueryBuilder.Type.CROSS_FIELDS))
             ),
-            response -> {
-                assertHitCount(response, 1L);
-                assertFirstHit(response, hasId("theone"));
-            }
-        );
-        assertResponse(
             prepareSearch("test").setQuery(
                 randomizeType(multiMatchQuery("15", "int-field", "first_name", "skill").type(MultiMatchQueryBuilder.Type.CROSS_FIELDS))
-            ),
-            response -> {
-                assertHitCount(response, 1L);
-                assertFirstHit(response, hasId("theone"));
-            }
+            )
         );
         assertResponse(
             prepareSearch("test").setQuery(

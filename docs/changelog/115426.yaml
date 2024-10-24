@@ -1,0 +1,5 @@
+pr: 115426
+summary: Add SSL configuration for Elastic Inference Service
+area: "Machine Learning, Inference"
+type: feature
+issues: []

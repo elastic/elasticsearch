@@ -293,67 +293,67 @@ setup:
 
   - match: { hits.total.value: 3 }
   - match: { hits.hits.0._id: foo }
-  - match: { hits.hits.0._score: 1.7014124430769804E38
-               - match: { hits.hits.1._score: 0 }
-               - match: { hits.hits.2._score: 0 }
+  - match: { hits.hits.0._score: 1.7014124E38 }
+  - match: { hits.hits.1._score: 0 }
+  - match: { hits.hits.2._score: 0 }
 
-               - do:
-                   headers:
-                     # Force JSON content type so that we use a parser that interprets the floating-point score as a double
-                     Content-Type: application/json
-                   search:
-                     index: test-index1
-                     body:
-                       retriever:
-                         rule:
-                           match_criteria:
-                             foo: foo
-                             bar: bar
-                           ruleset_ids:
-                             test-ruleset
-                           retriever:
-                             standard:
-                               query:
-                                 query_string:
-                                   query: bar
-                           rank_window_size: 2
+  - do:
+      headers:
+        # Force JSON content type so that we use a parser that interprets the floating-point score as a double
+        Content-Type: application/json
+      search:
+        index: test-index1
+        body:
+          retriever:
+            rule:
+              match_criteria:
+                foo: foo
+                bar: bar
+              ruleset_ids:
+                test-ruleset
+              retriever:
+                standard:
+                  query:
+                    query_string:
+                      query: bar
+              rank_window_size: 2
 
-               - match: { hits.total.value: 3 }
-               - match: { hits.hits.0._id: foo }
-               - match: { hits.hits.0._score: 1.7014124E38 }
-               - match: { hits.hits.1._id: foo2 }
-               - match: { hits.hits.1._score: 1.7014122E38 }
-               - match: { hits.hits.2._id: bar_no_rule }
-               - match: { hits.hits.2._score: 0 }
+  - match: { hits.total.value: 3 }
+  - match: { hits.hits.0._id: foo }
+  - match: { hits.hits.0._score: 1.7014124E38 }
+  - match: { hits.hits.1._id: foo2 }
+  - match: { hits.hits.1._score: 1.7014122E38 }
+  - match: { hits.hits.2._id: bar_no_rule }
+  - match: { hits.hits.2._score: 0 }
 
-               - do:
-                   headers:
-                     # Force JSON content type so that we use a parser that interprets the floating-point score as a double
-                     Content-Type: application/json
-                   search:
-                     index: test-index1
-                     body:
-                       retriever:
-                         rule:
-                           match_criteria:
-                             foo: foo
-                             bar: bar
-                           ruleset_ids:
-                             test-ruleset
-                           retriever:
-                             standard:
-                               query:
-                                 query_string:
-                                   query: bar
-                           rank_window_size: 10
+  - do:
+      headers:
+        # Force JSON content type so that we use a parser that interprets the floating-point score as a double
+        Content-Type: application/json
+      search:
+        index: test-index1
+        body:
+          retriever:
+            rule:
+              match_criteria:
+                foo: foo
+                bar: bar
+              ruleset_ids:
+                test-ruleset
+              retriever:
+                standard:
+                  query:
+                    query_string:
+                      query: bar
+              rank_window_size: 10
 
-               - match: { hits.total.value: 3 }
-               - match: { hits.hits.0._id: foo }
-               - match: { hits.hits.0._score: 1.7014124E38 }
-               - match: { hits.hits.1._id: foo2 }
-               - match: { hits.hits.1._score: 1.7014122E38 }
-               - match: { hits.hits.2._id: bar_no_rule }
-               - match: { hits.hits.2._score: 0.87832844 }
+  - match: { hits.total.value: 3 }
+  - match: { hits.hits.0._id: foo }
+  - match: { hits.hits.0._score: 1.7014124E38 }
+  - match: { hits.hits.1._id: foo2 }
+  - match: { hits.hits.1._score: 1.7014122E38 }
+  - match: { hits.hits.2._id: bar_no_rule }
+  - match: { hits.hits.2._score: 0.87832844 }
 
 ---
 "query rules will error if sorting by anything other than score":
@@ -404,7 +404,7 @@ setup:
           explain: true
 
   - match: { hits.hits.0._id: foo }
-  - match: { hits.hits.0._explanation.value: 1.7014124430769804E38 }
+  - match: { hits.hits.0._explanation.value: 1.7014124E38 }
   - match: { hits.hits.0._explanation.description: "query rules evaluated rules from rulesets [test-ruleset] and match criteria {bar=bar, foo=foo}" }
   - match: { hits.hits.0._explanation.details.0.value: 1 }
   - match: { hits.hits.0._explanation.details.0.description: "doc [0] with an original score of [1.7014124E38] is at rank [1] from the following source queries." }

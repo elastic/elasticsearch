@@ -127,7 +127,12 @@ public abstract class RetrieverBuilderWrapper<T extends RetrieverBuilder> extend
 
     @Override
     protected boolean doEquals(Object o) {
-        return in.equals(o);
+        // Handle the edge case where we need to unwrap the incoming retriever
+        if (o instanceof RetrieverBuilderWrapper<?> wrapper) {
+            return in.doEquals(wrapper.in);
+        } else {
+            return in.doEquals(o);
+        }
     }
 
     @Override

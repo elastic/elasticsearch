@@ -153,6 +153,8 @@ public final class QueryRuleRetrieverBuilder extends CompoundRetrieverBuilder<Qu
         builder.mapContents(matchCriteria);
         builder.endObject();
         builder.field(RETRIEVER_FIELD.getPreferredName(), innerRetrievers.getFirst().retriever());
+        // We need to explicitly include this here as it's not propagated by the wrapper
+        builder.field(RANK_WINDOW_SIZE_FIELD.getPreferredName(), rankWindowSize);
     }
 
     @Override

@@ -196,6 +196,8 @@ GET /cooking_blog/_search
         }
       }
     ]
+  }
+}
 ----
 // TEST[continued]
 <1> The `hits` object contains the total number of matching documents and their relation to the total. Refer to <<track-total-hits,Track total hits>> for more details about the `hits` object.

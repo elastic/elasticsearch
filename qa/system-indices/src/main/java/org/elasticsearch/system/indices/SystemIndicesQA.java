@@ -77,7 +77,6 @@ public class SystemIndicesQA extends Plugin implements SystemIndexPlugin, Action
                         .build()
                 )
                 .setOrigin(TASKS_ORIGIN)
-                .setVersionMetaKey("version")
                 .setPrimaryIndex(".net-new-system-index-primary")
                 .build(),
             SystemIndexDescriptor.builder()
@@ -99,7 +98,6 @@ public class SystemIndicesQA extends Plugin implements SystemIndexPlugin, Action
                         .build()
                 )
                 .setOrigin(TASKS_ORIGIN)
-                .setVersionMetaKey("version")
                 .setPrimaryIndex(".internal-managed-index-primary")
                 .setAliasName(".internal-managed-alias")
                 .build()

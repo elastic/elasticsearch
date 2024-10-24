@@ -31,9 +31,9 @@ public class KqlParserFieldlessQueryTests extends AbstractKqlParserTestCase {
         assertMultiMatchQuery(parseKqlQuery("\"foo\""), "foo", MultiMatchQueryBuilder.Type.PHRASE);
         // Multiple words
         assertMultiMatchQuery(parseKqlQuery("\"foo bar\""), "foo bar", MultiMatchQueryBuilder.Type.PHRASE);
-        // Containing unescaped language reserved keyword
+        // Containing unescaped KQL reserved keyword
         assertMultiMatchQuery(parseKqlQuery("\"not foo and bar or baz\""), "not foo and bar or baz", MultiMatchQueryBuilder.Type.PHRASE);
-        // Containing unescaped language reserved characters
+        // Containing unescaped KQL reserved characters
         assertMultiMatchQuery(parseKqlQuery("\"foo*: {(<bar>})\""), "foo*: {(<bar>})", MultiMatchQueryBuilder.Type.PHRASE);
     }
 

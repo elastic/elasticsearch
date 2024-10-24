@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.kql.parser;
 
 import org.antlr.v4.runtime.ParserRuleContext;
+import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.ParseTreeVisitor;
 import org.antlr.v4.runtime.tree.TerminalNode;
@@ -55,7 +56,22 @@ public final class ParserUtils {
         return String.join(UNQUOTED_LITERAL_TERM_DELIMITER, extractTextTokems(ctx));
     }
 
-    public static List<String> extractTextTokems(ParserRuleContext ctx) {
+    public static boolean hasWildcard(ParserRuleContext ctx) {
+        return ctx.children.stream().anyMatch(childNode -> {
+            if (childNode instanceof TerminalNode terminalNode) {
+                Token token = terminalNode.getSymbol();
+                return switch (token.getType()) {
+                    case KqlBaseParser.WILDCARD -> true;
+                    case KqlBaseParser.UNQUOTED_LITERAL -> token.getText().matches("[^\\\\]*[*].*");
+                    default -> false;
+                };
+            }
+
+            return false;
+        });
+    }
+
+    private static List<String> extractTextTokems(ParserRuleContext ctx) {
         assert ctx.children != null;
         List<String> textTokens = new ArrayList<>(ctx.children.size());
 
@@ -71,7 +87,7 @@ public final class ParserUtils {
         return textTokens;
     }
 
-    public static String extractText(TerminalNode node) {
+    private static String extractText(TerminalNode node) {
         if (node.getSymbol().getType() == KqlBaseParser.QUOTED_STRING) {
             return unescapeQuotedString(node);
         } else if (node.getSymbol().getType() == KqlBaseParser.UNQUOTED_LITERAL) {
@@ -81,45 +97,27 @@ public final class ParserUtils {
         return node.getText();
     }
 
-    public static boolean hasWildcard(ParserRuleContext ctx) {
-        return ctx.children.stream().anyMatch(childNode -> {
-            if (childNode instanceof TerminalNode terminalNode) {
-                return switch (terminalNode.getSymbol().getType()) {
-                    case KqlBaseParser.WILDCARD -> true;
-                    case KqlBaseParser.UNQUOTED_LITERAL -> terminalNode.getText().matches("[^\\\\]*[*].*");
-                    default -> false;
-                };
-            }
-
-            return false;
-        });
-    }
-
     private static String unescapeQuotedString(TerminalNode ctx) {
         String inputText = ctx.getText();
 
         assert inputText.length() >= 2 && inputText.charAt(0) == QUOTE_CHAR && inputText.charAt(inputText.length() - 1) == QUOTE_CHAR;
         StringBuilder sb = new StringBuilder();
 
-        for (int i = 1; i < inputText.length() - 1;) {
+        for (int i = 1; i < inputText.length() - 1; i++) {
             if (inputText.charAt(i) == ESCAPE_CHAR && i + 1 < inputText.length()) {
                 switch (inputText.charAt(++i)) {
                     case 't' -> sb.append('\t');
-                    case 'b' -> sb.append('\b');
-                    case 'f' -> sb.append('\f');
                     case 'n' -> sb.append('\n');
                     case 'r' -> sb.append('\r');
                     case '"' -> sb.append('\"');
-                    case '\'' -> sb.append('\'');
-                    case 'u' -> i = handleUnicodePoints(ctx, sb, inputText, ++i);
+                    case 'u' -> i = handleUnicodePoints(ctx, sb, inputText, i);
                     case '\\' -> sb.append('\\');
-                    default -> {
+                    default ->
                         // For quoted strings, unknown escape sequences are passed through as-is
-                        sb.append(ESCAPE_CHAR).append(inputText.charAt(i++));
-                    }
+                        sb.append(ESCAPE_CHAR).append(inputText.charAt(i));
                 }
             } else {
-                sb.append(inputText.charAt(i++));
+                sb.append(inputText.charAt(i));
             }
         }
 
@@ -138,25 +136,20 @@ public final class ParserUtils {
             char currentChar = inputText.charAt(i);
 
             if (currentChar == '\\' && i + 1 < inputText.length()) {
-                switch (inputText.charAt(++i)) {
-                    case 't' -> sb.append('\t');
-                    case 'b' -> sb.append('\b');
-                    case 'f' -> sb.append('\f');
-                    case 'n' -> sb.append('\n');
-                    case 'r' -> sb.append('\r');
-                    case '"' -> sb.append('\"');
-                    case '\'' -> sb.append('\'');
-                    case 'u' -> i = handleUnicodePoints(ctx, sb, inputText, ++i);
-                    case '\\' -> sb.append('\\');
-                    case '(', ')', ':', '<', '>', '*', '{', '}' -> sb.append(inputText.charAt(i++));
-                    default -> {
-                        if (isEscapedKeywordSequence(inputText, i)) {
-                            String sequence = handleKeywordSequence(inputText, i);
-                            sb.append(sequence);
-                            i += sequence.length();
-                        } else {
-                            sb.append('\\').append(inputText.charAt(i++));
-                        }
+                if (isEscapedKeywordSequence(inputText, ++i)) {
+                    String sequence = handleKeywordSequence(inputText, i);
+                    sb.append(sequence);
+                    i += sequence.length();
+                } else {
+                    switch (currentChar = inputText.charAt(i++)) {
+                        case 't' -> sb.append('\t');
+                        case 'n' -> sb.append('\n');
+                        case 'r' -> sb.append('\r');
+                        case '"' -> sb.append('\"');
+                        case 'u' -> i = handleUnicodePoints(ctx, sb, inputText, i);
+                        case '\\' -> sb.append('\\');
+                        case '(', ')', ':', '<', '>', '*', '{', '}' -> sb.append(currentChar);
+                        default -> sb.append('\\').append(currentChar);
                     }
                 }
             } else {
@@ -177,9 +170,9 @@ public final class ParserUtils {
 
     private static String handleKeywordSequence(String input, int startIndex) {
         String remaining = input.substring(startIndex);
-        if (Strings.toRootLowerCase(remaining).startsWith("and")) return remaining.substring(0, 2);
-        if (Strings.toRootLowerCase(remaining).startsWith("or")) return remaining.substring(0, 1);
-        if (Strings.toRootLowerCase(remaining).startsWith("not")) return remaining.substring(0, 2);
+        if (Strings.toRootLowerCase(remaining).startsWith("and")) return remaining.substring(0, 3);
+        if (Strings.toRootLowerCase(remaining).startsWith("or")) return remaining.substring(0, 2);
+        if (Strings.toRootLowerCase(remaining).startsWith("not")) return remaining.substring(0, 3);
         return "";
     }
 

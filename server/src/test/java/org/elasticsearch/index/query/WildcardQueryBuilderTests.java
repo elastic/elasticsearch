@@ -15,7 +15,9 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.WildcardQuery;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.test.AbstractQueryTestCase;
+import org.hamcrest.CoreMatchers;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -165,5 +167,37 @@ public class WildcardQueryBuilderTests extends AbstractQueryTestCase<WildcardQue
         WildcardQueryBuilder queryBuilder = new WildcardQueryBuilder("unmapped_field", "foo");
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> queryBuilder.toQuery(context));
         assertEquals("Rewrite first", e.getMessage());
+    }
+
+    public void testCoordinatorTierRewriteToMatchAll() throws IOException {
+        QueryBuilder query = new WildcardQueryBuilder("_tier", "data_fr*");
+        final String timestampFieldName = "@timestamp";
+        long minTimestamp = 1685714000000L;
+        long maxTimestamp = 1685715000000L;
+        final CoordinatorRewriteContext coordinatorRewriteContext = createCoordinatorRewriteContext(
+            new DateFieldMapper.DateFieldType(timestampFieldName),
+            minTimestamp,
+            maxTimestamp,
+            "data_frozen"
+        );
+
+        QueryBuilder rewritten = query.rewrite(coordinatorRewriteContext);
+        assertThat(rewritten, CoreMatchers.instanceOf(MatchAllQueryBuilder.class));
+    }
+
+    public void testCoordinatorTierRewriteToMatchNone() throws IOException {
+        QueryBuilder query = QueryBuilders.boolQuery().mustNot(new WildcardQueryBuilder("_tier", "data_fro*"));
+        final String timestampFieldName = "@timestamp";
+        long minTimestamp = 1685714000000L;
+        long maxTimestamp = 1685715000000L;
+        final CoordinatorRewriteContext coordinatorRewriteContext = createCoordinatorRewriteContext(
+            new DateFieldMapper.DateFieldType(timestampFieldName),
+            minTimestamp,
+            maxTimestamp,
+            "data_frozen"
+        );
+
+        QueryBuilder rewritten = query.rewrite(coordinatorRewriteContext);
+        assertThat(rewritten, CoreMatchers.instanceOf(MatchNoneQueryBuilder.class));
     }
 }

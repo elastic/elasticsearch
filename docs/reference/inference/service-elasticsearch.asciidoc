@@ -53,6 +53,11 @@ These settings are specific to the `elasticsearch` service.
 (Optional, object)
 include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=adaptive-allocation]
 
+`deployment_id`:::
+(Optional, string)
+The `deployment_id` of an existing trained model deployment.
+When `deployment_id` is used the `model_id` is optional.
+
 `enabled`::::
 (Optional, Boolean)
 include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=adaptive-allocation-enabled]
@@ -211,3 +216,46 @@ PUT _inference/text_embedding/my-e5-model
 }
 ------------------------------------------------------------
 // TEST[skip:TBD]
+
+
+[discrete]
+[[inference-example-existing-deployment]]
+==== Using an existing model deployment with the `elasticsearch` service
+
+The following example shows how to use an already existing model deployment when creating an {infer} endpoint.
+
+[source,console]
+------------------------------------------------------------
+PUT _inference/sparse_embedding/use_existing_deployment
+{
+  "service": "elasticsearch",
+  "service_settings": {
+    "deployment_id": ".elser_model_2" <1>
+  }
+}
+------------------------------------------------------------
+// TEST[skip:TBD]
+<1> The `deployment_id` of the already existing model deployment.
+
+The API response contains the properties of `model_id`, and the threads and allocations settings:
+
+[source,console-result]
+------------------------------------------------------------
+{
+  "inference_id": "use_existing_deployment",
+  "task_type": "sparse_embedding",
+  "service": "elasticsearch",
+  "service_settings": {
+    "num_allocations": 2,
+    "num_threads": 1,
+    "model_id": ".elser_model_2",
+    "deployment_id": ".elser_model_2"
+  },
+  "chunking_settings": {
+    "strategy": "sentence",
+    "max_chunk_size": 250,
+    "sentence_overlap": 1
+  }
+}
+------------------------------------------------------------
+// NOTCONSOLE

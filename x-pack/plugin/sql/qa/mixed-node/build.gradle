@@ -53,8 +53,6 @@ BuildParams.bwcVersions.withWireCompatible(v -> v.onOrAfter("7.10.3") &&
       }
       systemProperty 'tests.bwc_nodes_version', bwcVersion.toString().replace('-SNAPSHOT', '')
       systemProperty 'tests.new_nodes_version', project.version.toString().replace('-SNAPSHOT', '')
-
-      onlyIf("BWC tests disabled") { project.bwc_tests_enabled }
   }
 
   tasks.register(bwcTaskName(bwcVersion)) {

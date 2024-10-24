@@ -168,9 +168,6 @@ class LegacyYamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTe
         result.task(transformTask).outcome == TaskOutcome.NO_SOURCE
 
         when:
-        buildFile << """
-         ext.bwc_tests_enabled = false
-        """
         result = gradleRunner("check").build()
 
         then:

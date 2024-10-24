@@ -32,6 +32,20 @@ tasks.named('yamlRestTest') {
 tasks.named('yamlRestCompatTest') {
   usesDefaultDistribution()
 }
+tasks.named("yamlRestCompatTestTransform").configure ({ task ->
+  task.skipTest("downsample/10_basic/Downsample index with empty dimension on routing path", "Skip until pr/115358 gets backported")
+  task.skipTest("downsample/10_basic/Downsample histogram as label", "Skip until pr/115358 gets backported")
+  task.skipTest("downsample/10_basic/Downsample date timestamp field using strict_date_optional_time_nanos format",
+                "Skip until pr/115358 gets backported")
+  task.skipTest("downsample/10_basic/Downsample a downsampled index", "Skip until pr/115358 gets backported")
+  task.skipTest("downsample/10_basic/Downsample date_nanos timestamp field using custom format", "Skip until pr/115358 gets backported")
+  task.skipTest("downsample/10_basic/Downsample using coarse grained timestamp", "Skip until pr/115358 gets backported")
+  task.skipTest("downsample/10_basic/Downsample label with ignore_above", "Skip until pr/115358 gets backported")
+  task.skipTest("downsample/10_basic/Downsample object field", "Skip until pr/115358 gets backported")
+  task.skipTest("downsample/10_basic/Downsample empty and missing labels", "Skip until pr/115358 gets backported")
+  task.skipTest("downsample/10_basic/Downsample index", "Skip until pr/115358 gets backported")
+  task.skipTest("downsample/10_basic/Downsample index with empty dimension", "Skip until pr/115358 gets backported")
+})
 if (BuildParams.inFipsJvm){
   // This test cluster is using a BASIC license and FIPS 140 mode is not supported in BASIC
   tasks.named("yamlRestTest").configure{enabled = false }

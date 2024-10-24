@@ -89,14 +89,17 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
         return simpleWithMode(mode, Function.identity());
     }
 
+    protected List<Integer> channels(AggregatorMode mode) {
+        return mode.isInputPartial() ? range(1, 1 + aggregatorIntermediateBlockCount()).boxed().toList() : List.of(1);
+    }
+
     private Operator.OperatorFactory simpleWithMode(
         AggregatorMode mode,
         Function<AggregatorFunctionSupplier, AggregatorFunctionSupplier> wrap
     ) {
-        List<Integer> channels = mode.isInputPartial() ? range(1, 1 + aggregatorIntermediateBlockCount()).boxed().toList() : List.of(1);
         int emitChunkSize = between(100, 200);
 
-        AggregatorFunctionSupplier supplier = wrap.apply(aggregatorFunction(channels));
+        AggregatorFunctionSupplier supplier = wrap.apply(aggregatorFunction(channels(mode)));
         if (randomBoolean()) {
             supplier = chunkGroups(emitChunkSize, supplier);
         }

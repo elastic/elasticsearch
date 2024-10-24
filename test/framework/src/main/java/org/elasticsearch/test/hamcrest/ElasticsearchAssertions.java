@@ -68,6 +68,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -304,6 +305,10 @@ public class ElasticsearchAssertions {
         assertResponse(searchRequestBuilder, res -> assertHitCount(res, expectedHitCount));
     }
 
+    public static void assertHitCount(long expectedHitCount, SearchRequestBuilder... searchRequestBuilders) {
+        assertResponses(res -> assertHitCount(res, expectedHitCount), searchRequestBuilders);
+    }
+
     public static void assertHitCount(ActionFuture<SearchResponse> responseFuture, long expectedHitCount) {
         try {
             assertResponse(responseFuture, res -> assertHitCount(res, expectedHitCount));
@@ -372,6 +377,33 @@ public class ElasticsearchAssertions {
             consumer.accept(res);
         } finally {
             res.decRef();
+        }
+    }
+
+    @SafeVarargs
+    public static <Q extends ActionRequest, R extends ActionResponse> void assertResponses(
+        Consumer<R> consumer,
+        RequestBuilder<Q, R>... searchRequestBuilder
+    ) {
+        List<Future<R>> futures = new ArrayList<>(searchRequestBuilder.length);
+        for (RequestBuilder<Q, R> builder : searchRequestBuilder) {
+            futures.add(builder.execute());
+        }
+        Throwable tr = null;
+        for (Future<R> f : futures) {
+            try {
+                var res = f.get();
+                try {
+                    consumer.accept(res);
+                } finally {
+                    res.decRef();
+                }
+            } catch (Throwable t) {
+                tr = ExceptionsHelper.useOrSuppress(tr, t);
+            }
+        }
+        if (tr != null) {
+            throw new AssertionError(tr);
         }
     }
 

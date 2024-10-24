@@ -1040,7 +1040,7 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
                 assertThat(searchResponse.getFailedShards(), equalTo(0));
                 // we should be receiving all the hits from the index that's in the data_content tier
                 assertNotNull(searchResponse.getHits().getTotalHits());
-                assertThat(searchResponse.getHits().getTotalHits().value(), equalTo((long) numDocsRegularIndex));
+                assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) numDocsRegularIndex));
             });
         }
 
@@ -1056,7 +1056,7 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
                 assertThat(searchResponse.getFailedShards(), equalTo(0));
                 // we should be receiving all the hits from the index that's in the data_content tier
                 assertNotNull(searchResponse.getHits().getTotalHits());
-                assertThat(searchResponse.getHits().getTotalHits().value(), equalTo((long) numDocsRegularIndex));
+                assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) numDocsRegularIndex));
             });
         }
 
@@ -1072,7 +1072,7 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
                 assertThat(searchResponse.getFailedShards(), equalTo(0));
                 // we should be receiving all the hits from the index that's in the data_content tier
                 assertNotNull(searchResponse.getHits().getTotalHits());
-                assertThat(searchResponse.getHits().getTotalHits().value(), equalTo((long) numDocsRegularIndex));
+                assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) numDocsRegularIndex));
             });
         }
 
@@ -1089,7 +1089,7 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
                 assertThat(searchResponse.getFailedShards(), equalTo(0));
                 // we should be receiving all the hits from the index that's in the data_content tier
                 assertNotNull(searchResponse.getHits().getTotalHits());
-                assertThat(searchResponse.getHits().getTotalHits().value(), equalTo((long) numDocsRegularIndex));
+                assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) numDocsRegularIndex));
             });
         }
     }

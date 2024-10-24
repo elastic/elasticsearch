@@ -15,10 +15,8 @@ import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -28,7 +26,6 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedStar;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
-import org.elasticsearch.xpack.esql.core.expression.predicate.fulltext.MatchQueryPredicate;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Or;
@@ -47,6 +44,7 @@ import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.FunctionResolutionStrategy;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FilteredExpression;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.RLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
@@ -925,42 +923,32 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
 
     @Override
     public Expression visitMatchBooleanExpression(EsqlBaseParser.MatchBooleanExpressionContext ctx) {
-        Double boost = visitBoostExpression(ctx.boostExpression());
-        Fuzziness fuzziness = visitFuzzinessExpression(ctx.fuzzinessExpression());
-
-        return new MatchQueryPredicate(
-            source(ctx),
-            expression(ctx.valueExpression()),
-            visitString(ctx.queryString).fold().toString(),
-            boost,
-            fuzziness
-        );
+        Expression boostExp = visitBoostExpression(ctx.boostExpression());
+        Expression fuzzinessExp = visitFuzzinessExpression(ctx.fuzzinessExpression());
+        return Match.operator(source(ctx), expression(ctx.fieldExp), expression(ctx.queryString), boostExp, fuzzinessExp);
     }
 
     @Override
-    public Double visitBoostExpression(EsqlBaseParser.BoostExpressionContext ctx) {
+    public Expression visitBoostExpression(EsqlBaseParser.BoostExpressionContext ctx) {
         if (ctx == null) {
             return null;
         }
-        return (Double) visitDecimalValue(ctx.decimalValue()).value();
+        return expression(ctx.operatorExpression());
     }
 
     @Override
-    public Fuzziness visitFuzzinessExpression(EsqlBaseParser.FuzzinessExpressionContext ctx) {
+    public Expression visitFuzzinessExpression(EsqlBaseParser.FuzzinessExpressionContext ctx) {
         if (ctx == null) {
             return null;
         }
 
-        if (ctx.fuzzinessValue() == null) {
+        EsqlBaseParser.FuzzinessValueContext fuzzinessValue = ctx.fuzzinessValue();
+        if (fuzzinessValue == null) {
             // Default value for query string query
-            return Fuzziness.TWO;
-        } else {
-            try {
-                return Fuzziness.fromString(ctx.fuzzinessValue().getText());
-            } catch (IllegalArgumentException | ElasticsearchParseException e) {
-                throw new ParsingException(source(ctx), "Invalid fuzziness value: [{}]", ctx.fuzzinessValue().getText());
-            }
+            return new Literal(source(ctx), 2, DataType.INTEGER);
+        } else if (fuzzinessValue.operatorExpression() != null) {
+            return expression(fuzzinessValue.operatorExpression());
         }
-
+        return new Literal(source(fuzzinessValue), fuzzinessValue.getText(), DataType.KEYWORD);
     }
 }

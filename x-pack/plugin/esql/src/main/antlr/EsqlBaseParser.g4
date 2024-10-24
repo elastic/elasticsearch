@@ -77,7 +77,7 @@ regexBooleanExpression
     ;
 
 matchBooleanExpression
-    : valueExpression (boostExpression)? COLON queryString=string (fuzzinessExpression)?
+    : fieldExp=valueExpression (boostExpression)? COLON queryString=valueExpression (fuzzinessExpression)?
     ;
 
 fuzzinessExpression
@@ -85,12 +85,12 @@ fuzzinessExpression
     ;
 
 fuzzinessValue
-    : distance=INTEGER_LITERAL
-    | auto=AUTO(COLON INTEGER_LITERAL (COMMA INTEGER_LITERAL)?)?
+    : distance=operatorExpression
+    | AUTO(COLON INTEGER_LITERAL (COMMA INTEGER_LITERAL)?)?
     ;
 
 boostExpression
-    : DEV_CARET decimalValue;
+    : DEV_CARET operatorExpression;
 
 valueExpression
     : operatorExpression                                                                      #valueExpressionDefault

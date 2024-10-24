@@ -1170,13 +1170,14 @@ public class EsqlBaseParser extends ParserConfig {
 
   @SuppressWarnings("CheckReturnValue")
   public static class MatchBooleanExpressionContext extends ParserRuleContext {
-    public StringContext queryString;
-    public ValueExpressionContext valueExpression() {
-      return getRuleContext(ValueExpressionContext.class,0);
-    }
+    public ValueExpressionContext fieldExp;
+    public ValueExpressionContext queryString;
     public TerminalNode COLON() { return getToken(EsqlBaseParser.COLON, 0); }
-    public StringContext string() {
-      return getRuleContext(StringContext.class,0);
+    public List<ValueExpressionContext> valueExpression() {
+      return getRuleContexts(ValueExpressionContext.class);
+    }
+    public ValueExpressionContext valueExpression(int i) {
+      return getRuleContext(ValueExpressionContext.class,i);
     }
     public BoostExpressionContext boostExpression() {
       return getRuleContext(BoostExpressionContext.class,0);
@@ -1212,7 +1213,7 @@ public class EsqlBaseParser extends ParserConfig {
       enterOuterAlt(_localctx, 1);
       {
       setState(232);
-      valueExpression();
+      ((MatchBooleanExpressionContext)_localctx).fieldExp = valueExpression();
       setState(234);
       _errHandler.sync(this);
       _la = _input.LA(1);
@@ -1226,7 +1227,7 @@ public class EsqlBaseParser extends ParserConfig {
       setState(236);
       match(COLON);
       setState(237);
-      ((MatchBooleanExpressionContext)_localctx).queryString = string();
+      ((MatchBooleanExpressionContext)_localctx).queryString = valueExpression();
       setState(239);
       _errHandler.sync(this);
       switch ( getInterpreter().adaptivePredict(_input,13,_ctx) ) {
@@ -1309,14 +1310,17 @@ public class EsqlBaseParser extends ParserConfig {
 
   @SuppressWarnings("CheckReturnValue")
   public static class FuzzinessValueContext extends ParserRuleContext {
-    public Token distance;
+    public OperatorExpressionContext distance;
     public Token auto;
+    public OperatorExpressionContext operatorExpression() {
+      return getRuleContext(OperatorExpressionContext.class,0);
+    }
+    public TerminalNode AUTO() { return getToken(EsqlBaseParser.AUTO, 0); }
+    public TerminalNode COLON() { return getToken(EsqlBaseParser.COLON, 0); }
     public List<TerminalNode> INTEGER_LITERAL() { return getTokens(EsqlBaseParser.INTEGER_LITERAL); }
     public TerminalNode INTEGER_LITERAL(int i) {
       return getToken(EsqlBaseParser.INTEGER_LITERAL, i);
     }
-    public TerminalNode AUTO() { return getToken(EsqlBaseParser.AUTO, 0); }
-    public TerminalNode COLON() { return getToken(EsqlBaseParser.COLON, 0); }
     public TerminalNode COMMA() { return getToken(EsqlBaseParser.COMMA, 0); }
     @SuppressWarnings("this-escape")
     public FuzzinessValueContext(ParserRuleContext parent, int invokingState) {
@@ -1344,15 +1348,15 @@ public class EsqlBaseParser extends ParserConfig {
     try {
       setState(255);
       _errHandler.sync(this);
-      switch (_input.LA(1)) {
-      case INTEGER_LITERAL:
+      switch ( getInterpreter().adaptivePredict(_input,17,_ctx) ) {
+      case 1:
         enterOuterAlt(_localctx, 1);
         {
         setState(245);
-        ((FuzzinessValueContext)_localctx).distance = match(INTEGER_LITERAL);
+        ((FuzzinessValueContext)_localctx).distance = operatorExpression(0);
         }
         break;
-      case AUTO:
+      case 2:
         enterOuterAlt(_localctx, 2);
         {
         setState(246);
@@ -1383,8 +1387,6 @@ public class EsqlBaseParser extends ParserConfig {
         }
         }
         break;
-      default:
-        throw new NoViableAltException(this);
       }
     }
     catch (RecognitionException re) {
@@ -1401,8 +1403,8 @@ public class EsqlBaseParser extends ParserConfig {
   @SuppressWarnings("CheckReturnValue")
   public static class BoostExpressionContext extends ParserRuleContext {
     public TerminalNode DEV_CARET() { return getToken(EsqlBaseParser.DEV_CARET, 0); }
-    public DecimalValueContext decimalValue() {
-      return getRuleContext(DecimalValueContext.class,0);
+    public OperatorExpressionContext operatorExpression() {
+      return getRuleContext(OperatorExpressionContext.class,0);
     }
     @SuppressWarnings("this-escape")
     public BoostExpressionContext(ParserRuleContext parent, int invokingState) {
@@ -1433,7 +1435,7 @@ public class EsqlBaseParser extends ParserConfig {
       setState(257);
       match(DEV_CARET);
       setState(258);
-      decimalValue();
+      operatorExpression(0);
       }
     }
     catch (RecognitionException re) {
@@ -5895,26 +5897,26 @@ public class EsqlBaseParser extends ParserConfig {
     "\r\u0001\u0000\u0000\u0000\u00e8\u00ea\u0003\u0016\u000b\u0000\u00e9\u00eb"+
     "\u0003\u0014\n\u0000\u00ea\u00e9\u0001\u0000\u0000\u0000\u00ea\u00eb\u0001"+
     "\u0000\u0000\u0000\u00eb\u00ec\u0001\u0000\u0000\u0000\u00ec\u00ed\u0005"+
-    "A\u0000\u0000\u00ed\u00ef\u0003p8\u0000\u00ee\u00f0\u0003\u0010\b\u0000"+
-    "\u00ef\u00ee\u0001\u0000\u0000\u0000\u00ef\u00f0\u0001\u0000\u0000\u0000"+
-    "\u00f0\u000f\u0001\u0000\u0000\u0000\u00f1\u00f3\u0005B\u0000\u0000\u00f2"+
-    "\u00f4\u0003\u0012\t\u0000\u00f3\u00f2\u0001\u0000\u0000\u0000\u00f3\u00f4"+
-    "\u0001\u0000\u0000\u0000\u00f4\u0011\u0001\u0000\u0000\u0000\u00f5\u0100"+
-    "\u0005\u001a\u0000\u0000\u00f6\u00fd\u0005 \u0000\u0000\u00f7\u00f8\u0005"+
-    "A\u0000\u0000\u00f8\u00fb\u0005\u001a\u0000\u0000\u00f9\u00fa\u0005\""+
-    "\u0000\u0000\u00fa\u00fc\u0005\u001a\u0000\u0000\u00fb\u00f9\u0001\u0000"+
+    "A\u0000\u0000\u00ed\u00ef\u0003\u0016\u000b\u0000\u00ee\u00f0\u0003\u0010"+
+    "\b\u0000\u00ef\u00ee\u0001\u0000\u0000\u0000\u00ef\u00f0\u0001\u0000\u0000"+
+    "\u0000\u00f0\u000f\u0001\u0000\u0000\u0000\u00f1\u00f3\u0005B\u0000\u0000"+
+    "\u00f2\u00f4\u0003\u0012\t\u0000\u00f3\u00f2\u0001\u0000\u0000\u0000\u00f3"+
+    "\u00f4\u0001\u0000\u0000\u0000\u00f4\u0011\u0001\u0000\u0000\u0000\u00f5"+
+    "\u0100\u0003\u0018\f\u0000\u00f6\u00fd\u0005 \u0000\u0000\u00f7\u00f8"+
+    "\u0005A\u0000\u0000\u00f8\u00fb\u0005\u001a\u0000\u0000\u00f9\u00fa\u0005"+
+    "\"\u0000\u0000\u00fa\u00fc\u0005\u001a\u0000\u0000\u00fb\u00f9\u0001\u0000"+
     "\u0000\u0000\u00fb\u00fc\u0001\u0000\u0000\u0000\u00fc\u00fe\u0001\u0000"+
     "\u0000\u0000\u00fd\u00f7\u0001\u0000\u0000\u0000\u00fd\u00fe\u0001\u0000"+
     "\u0000\u0000\u00fe\u0100\u0001\u0000\u0000\u0000\u00ff\u00f5\u0001\u0000"+
     "\u0000\u0000\u00ff\u00f6\u0001\u0000\u0000\u0000\u0100\u0013\u0001\u0000"+
-    "\u0000\u0000\u0101\u0102\u0005@\u0000\u0000\u0102\u0103\u0003l6\u0000"+
-    "\u0103\u0015\u0001\u0000\u0000\u0000\u0104\u010a\u0003\u0018\f\u0000\u0105"+
-    "\u0106\u0003\u0018\f\u0000\u0106\u0107\u0003r9\u0000\u0107\u0108\u0003"+
-    "\u0018\f\u0000\u0108\u010a\u0001\u0000\u0000\u0000\u0109\u0104\u0001\u0000"+
-    "\u0000\u0000\u0109\u0105\u0001\u0000\u0000\u0000\u010a\u0017\u0001\u0000"+
-    "\u0000\u0000\u010b\u010c\u0006\f\uffff\uffff\u0000\u010c\u0110\u0003\u001a"+
-    "\r\u0000\u010d\u010e\u0007\u0000\u0000\u0000\u010e\u0110\u0003\u0018\f"+
-    "\u0003\u010f\u010b\u0001\u0000\u0000\u0000\u010f\u010d\u0001\u0000\u0000"+
+    "\u0000\u0000\u0101\u0102\u0005@\u0000\u0000\u0102\u0103\u0003\u0018\f"+
+    "\u0000\u0103\u0015\u0001\u0000\u0000\u0000\u0104\u010a\u0003\u0018\f\u0000"+
+    "\u0105\u0106\u0003\u0018\f\u0000\u0106\u0107\u0003r9\u0000\u0107\u0108"+
+    "\u0003\u0018\f\u0000\u0108\u010a\u0001\u0000\u0000\u0000\u0109\u0104\u0001"+
+    "\u0000\u0000\u0000\u0109\u0105\u0001\u0000\u0000\u0000\u010a\u0017\u0001"+
+    "\u0000\u0000\u0000\u010b\u010c\u0006\f\uffff\uffff\u0000\u010c\u0110\u0003"+
+    "\u001a\r\u0000\u010d\u010e\u0007\u0000\u0000\u0000\u010e\u0110\u0003\u0018"+
+    "\f\u0003\u010f\u010b\u0001\u0000\u0000\u0000\u010f\u010d\u0001\u0000\u0000"+
     "\u0000\u0110\u0119\u0001\u0000\u0000\u0000\u0111\u0112\n\u0002\u0000\u0000"+
     "\u0112\u0113\u0007\u0001\u0000\u0000\u0113\u0118\u0003\u0018\f\u0003\u0114"+
     "\u0115\n\u0001\u0000\u0000\u0115\u0116\u0007\u0000\u0000\u0000\u0116\u0118"+

@@ -124,10 +124,10 @@ at the expense of slightly larger storage footprint.
 Users can rely on these specialized codecs being applied by default when using `logsdb` index mode.
 
 Doc values encoding for numeric fields in `logsdb` follows a static sequence of codecs, applying each one in the
-following order: delta encoding, offset encoding, GCD encoding, and finally Frame Of Reference (FOR) encoding.
-The decision to apply each encoding is based on heuristics determined by the data distribution. For example, before
-applying delta encoding, the algorithm checks if the data is monotonically non-decreasing or non-increasing. If the data
-fits this pattern, delta encoding is applied; otherwise, the next encoding is considered.
+following order: delta encoding, offset encoding, Greatest Common Divisor GCD encoding, and finally Frame Of Reference
+(FOR) encoding. The decision to apply each encoding is based on heuristics determined by the data distribution.
+For example, before applying delta encoding, the algorithm checks if the data is monotonically non-decreasing or
+non-increasing. If the data fits this pattern, delta encoding is applied; otherwise, the next encoding is considered.
 
 The encoding is specific to each Lucene segment and is also re-applied at segment merging time. The merged Lucene segment
 may use a different encoding compared to the original Lucene segments, based on the characteristics of the merged data.
@@ -148,7 +148,7 @@ The following methods are applied sequentially:
   a compression method that determines the smallest number of bits required to encode a block of values and uses
   bit-packing to fit such values into larger 64-bit blocks.
 
-For keyword fields, Run Length Encoding (RLE) is applied to the ordinals, which represent positions in the Lucene
+For keyword fields, **Run Length Encoding (RLE)** is applied to the ordinals, which represent positions in the Lucene
 segment-level keyword dictionary. This compression is used when multiple consecutive documents share the same keyword.
 
 [discrete]

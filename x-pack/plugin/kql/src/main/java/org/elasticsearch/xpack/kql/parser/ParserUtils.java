@@ -16,6 +16,7 @@ import org.apache.logging.log4j.util.Strings;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 public final class ParserUtils {
 
@@ -28,6 +29,24 @@ public final class ParserUtils {
     private static final String UNQUOTED_LITERAL_TERM_DELIMITER = " ";
     private static final char ESCAPE_CHAR = '\\';
     private static final char QUOTE_CHAR = '"';
+    private static final Set<Character> QUERY_STRING_SPECIAL_CHARS = Set.of(
+        '*',
+        '+',
+        '-',
+        '!',
+        '(',
+        ')',
+        '{',
+        '}',
+        '[',
+        ']',
+        '^',
+        '"',
+        '~',
+        '?',
+        ':',
+        '\\'
+    );
 
     private ParserUtils() {
 
@@ -69,6 +88,26 @@ public final class ParserUtils {
 
             return false;
         });
+    }
+
+    public static String escapeQueryString(String queryText, boolean preseveWildcards) {
+        StringBuilder sb = new StringBuilder();
+
+        for (int i = 0; i < queryText.length();) {
+            char currentChar = queryText.charAt(i++);
+
+            if ((currentChar == '&' || currentChar == '|') && i < queryText.length() && currentChar == queryText.charAt(i)) {
+                sb.append('\\').append(currentChar).append(queryText.charAt(i++));
+            } else if (currentChar == '*' && preseveWildcards) {
+                sb.append(currentChar);
+            } else if (QUERY_STRING_SPECIAL_CHARS.contains(currentChar)) {
+                sb.append('\\').append(currentChar);
+            } else {
+                sb.append(currentChar);
+            }
+        }
+
+        return sb.toString();
     }
 
     private static List<String> extractTextTokems(ParserRuleContext ctx) {

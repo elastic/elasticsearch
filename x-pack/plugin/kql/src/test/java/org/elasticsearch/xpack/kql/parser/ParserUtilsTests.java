@@ -23,6 +23,7 @@ import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.kql.parser.KqlBaseParser.QUOTED_STRING;
 import static org.elasticsearch.xpack.kql.parser.KqlBaseParser.UNQUOTED_LITERAL;
 import static org.elasticsearch.xpack.kql.parser.KqlBaseParser.WILDCARD;
+import static org.elasticsearch.xpack.kql.parser.ParserUtils.escapeQueryString;
 import static org.elasticsearch.xpack.kql.parser.ParserUtils.extractText;
 import static org.elasticsearch.xpack.kql.parser.ParserUtils.hasWildcard;
 import static org.hamcrest.Matchers.equalTo;
@@ -132,30 +133,57 @@ public class ParserUtilsTests extends ESTestCase {
     }
 
     public void testHasWildcard() {
-        {
-            // No children
-            assertFalse(hasWildcard(parserRuleContext(List.of())));
+        // No children
+        assertFalse(hasWildcard(parserRuleContext(List.of())));
 
-            // Lone wildcard
-            assertTrue(hasWildcard(parserRuleContext(wildcardNode())));
-            assertTrue(hasWildcard(parserRuleContext(randomTextNodeListWithNode(wildcardNode()))));
+        // Lone wildcard
+        assertTrue(hasWildcard(parserRuleContext(wildcardNode())));
+        assertTrue(hasWildcard(parserRuleContext(randomTextNodeListWithNode(wildcardNode()))));
 
-            // All children are literals
-            assertFalse(hasWildcard(parserRuleContext(randomList(1, randomInt(100), this::randomLiteralNode))));
+        // All children are literals
+        assertFalse(hasWildcard(parserRuleContext(randomList(1, randomInt(100), this::randomLiteralNode))));
 
-            // Quoted string
-            assertFalse(hasWildcard(parserRuleContext(randomQuotedStringNode())));
+        // Quoted string
+        assertFalse(hasWildcard(parserRuleContext(randomQuotedStringNode())));
 
-            // Literal node containing the wildcard character
-            assertTrue(hasWildcard(parserRuleContext(terminalNode(UNQUOTED_LITERAL, "f*oo"))));
-            assertTrue(hasWildcard(parserRuleContext(terminalNode(UNQUOTED_LITERAL, "*foo"))));
-            assertTrue(hasWildcard(parserRuleContext(terminalNode(UNQUOTED_LITERAL, "foo*"))));
+        // Literal node containing the wildcard character
+        assertTrue(hasWildcard(parserRuleContext(terminalNode(UNQUOTED_LITERAL, "f*oo"))));
+        assertTrue(hasWildcard(parserRuleContext(terminalNode(UNQUOTED_LITERAL, "*foo"))));
+        assertTrue(hasWildcard(parserRuleContext(terminalNode(UNQUOTED_LITERAL, "foo*"))));
 
-            // Literal node containing the wildcard characters (escaped)
-            assertFalse(hasWildcard(parserRuleContext(terminalNode(UNQUOTED_LITERAL, "f\\*oo"))));
-            assertFalse(hasWildcard(parserRuleContext(terminalNode(UNQUOTED_LITERAL, "\\*foo"))));
-            assertFalse(hasWildcard(parserRuleContext(terminalNode(UNQUOTED_LITERAL, "foo\\*"))));
-        }
+        // Literal node containing the wildcard characters (escaped)
+        assertFalse(hasWildcard(parserRuleContext(terminalNode(UNQUOTED_LITERAL, "f\\*oo"))));
+        assertFalse(hasWildcard(parserRuleContext(terminalNode(UNQUOTED_LITERAL, "\\*foo"))));
+        assertFalse(hasWildcard(parserRuleContext(terminalNode(UNQUOTED_LITERAL, "foo\\*"))));
+    }
+
+    public void testEscapeQueryString() {
+        // Quotes
+        assertThat(escapeQueryString("\"The Pink Panther\"", true), equalTo("\\\"The Pink Panther\\\""));
+
+        // Escape chars
+        assertThat(escapeQueryString("The Pink \\ Panther", true), equalTo("The Pink \\\\ Panther"));
+
+        // Field operations
+        assertThat(escapeQueryString("title:Do it right", true), equalTo("title\\:Do it right"));
+        assertThat(escapeQueryString("title:(pink panther)", true), equalTo("title\\:\\(pink panther\\)"));
+        assertThat(escapeQueryString("title:-pink", true), equalTo("title\\:\\-pink"));
+        assertThat(escapeQueryString("title:+pink", true), equalTo("title\\:\\+pink"));
+        assertThat(escapeQueryString("title:pink~", true), equalTo("title\\:pink\\~"));
+        assertThat(escapeQueryString("title:pink~3.5", true), equalTo("title\\:pink\\~3.5"));
+        assertThat(escapeQueryString("title:pink panther^4", true), equalTo("title\\:pink panther\\^4"));
+        assertThat(escapeQueryString("rating:[0 TO 5]", true), equalTo("rating\\:\\[0 TO 5\\]"));
+        assertThat(escapeQueryString("rating:{0 TO 5}", true), equalTo("rating\\:\\{0 TO 5\\}"));
+
+        // Boolean operators
+        assertThat(escapeQueryString("foo || bar", true), equalTo("foo \\|| bar"));
+        assertThat(escapeQueryString("foo && bar", true), equalTo("foo \\&& bar"));
+        assertThat(escapeQueryString("!foo", true), equalTo("\\!foo"));
+
+        // Wildcards:
+        assertThat(escapeQueryString("te?t", true), equalTo("te\\?t"));
+        assertThat(escapeQueryString("foo*", true), equalTo("foo*"));
+        assertThat(escapeQueryString("foo*", false), equalTo("foo\\*"));
     }
 
     private ParserRuleContext parserRuleContext(ParseTree child) {

@@ -563,7 +563,7 @@ field param - keep root array:
         index: test
         sort: id
 
-  - match: { hits.hits.0._source.kw_default: [ "A", "B" ] }
+  - match: { hits.hits.0._source.kw_default: [ "B", "A" ] }
   - match: { hits.hits.0._source.kw_arrays: [ "B", "A" ] }
   - match: { hits.hits.0._source.kw_all: [ "B", "A" ] }
 
@@ -629,7 +629,7 @@ field param - keep nested array:
         sort: id
 
   - match: { hits.hits.0._source.path.to.ratio: 10.0 }
-  - match: { hits.hits.0._source.path.to.kw_default: [ "A", "B" ] }
+  - match: { hits.hits.0._source.path.to.kw_default: [ "B", "A" ] }
   - match: { hits.hits.0._source.path.to.kw_arrays: [ "B", "A" ] }
   - match: { hits.hits.0._source.path.to.kw_all: [ "B", "A" ] }
 
@@ -1128,7 +1128,7 @@ index param - field ordering:
         index: test
 
   - length: { hits.hits.0._source: 4 }
-  - match: { hits.hits.0._source: { "a": "2", "b": [ { "bb": 100, "aa": 200 }, { "aa": 300, "bb": 400 } ], "c": [30, 20, 10], "d": [ { "bb": 10, "aa": 20 }, { "aa": 30, "bb": 40 } ] } }
+  - match: { hits.hits.0._source: { "a": "2", "b": [ { "bb": 100, "aa": 200 }, { "aa": 300, "bb": 400 } ], "c": ["30", "20", "10"], "d": [ { "bb": 10, "aa": 20 }, { "aa": 30, "bb": 40 } ] } }
 
 
 ---

@@ -70,22 +70,6 @@ case, for instance, for DNS A records, HTTP headers, or log entries that represe
 For more details on this setting and ways to refine or bypass it, check out <<synthetic-source-keep, this section>>.
 
 [discrete]
-[[logsdb-data-streams]]
-=== LogsDB for logs data streams
-
-In Elasticsearch, `logsdb` mode is applied by default for data streams whose name matches the pattern `logs-*-*`.
-This pattern identifies a logs data stream, and Elasticsearch automatically configures the data stream to use LogsDB.
-We recommend using `logsdb` index mode for <<data-streams, data streams>> by means of standard or custom (component)
-templates.
-
-Users can opt out of `logsdb` index mode by overriding the `index.mode` setting in the index settings or by
-using composable or index templates to customize the indexing configuration. This allows for flexibility in choosing
-the appropriate indexing mode for different data streams if LogsDB is not desired.
-
-For data streams not matching the pattern `logs-*-*` and for standalone indices, users can still use the `index.mode`
-setting to enable LogsDB.
-
-[discrete]
 [[logsdb-sort-settings]]
 === Index sort settings
 

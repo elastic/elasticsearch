@@ -1248,6 +1248,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 concreteLocalIndices
             );
 
+            // localShardIterators is empty since there are no matching indices. In such cases,
+            // we update the local cluster's status from RUNNING to SUCCESSFUL right away.
             if (localShardIterators.isEmpty()
                 && clusters != SearchResponse.Clusters.EMPTY
                 && clusters.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY) != null) {

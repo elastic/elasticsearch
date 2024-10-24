@@ -340,6 +340,13 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
     }
 
     /**
+     * {@code true} if this cluster consists of nodes with several release versions
+     */
+    public boolean isMixedVersionCluster() {
+        return minNodeVersion.equals(maxNodeVersion) == false;
+    }
+
+    /**
      * Returns the version of the node with the oldest version in the cluster that is not a client node
      *
      * If there are no non-client nodes, Version.CURRENT will be returned.

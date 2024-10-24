@@ -194,7 +194,7 @@ public abstract class ESAllocationTestCase extends ESTestCase {
     protected static Set<DiscoveryNodeRole> MASTER_DATA_ROLES = Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE);
 
     protected static DiscoveryNode newNode(String nodeId) {
-        return newNode(nodeId, (Version) null);
+        return DiscoveryNodeUtils.builder(nodeId).roles(MASTER_DATA_ROLES).build();
     }
 
     protected static DiscoveryNode newNode(String nodeName, String nodeId, Map<String, String> attributes) {

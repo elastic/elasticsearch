@@ -37,7 +37,12 @@ public class DiscoveryNodeUtils {
         return builder(id).address(address).build();
     }
 
+    @Deprecated
     public static DiscoveryNode create(String id, TransportAddress address, Version version) {
+        return builder(id).address(address).version(version).build();
+    }
+
+    public static DiscoveryNode create(String id, TransportAddress address, VersionInformation version) {
         return builder(id).address(address).version(version).build();
     }
 

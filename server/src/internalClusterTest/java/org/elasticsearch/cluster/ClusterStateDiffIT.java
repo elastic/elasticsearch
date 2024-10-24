@@ -147,7 +147,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                 for (Map.Entry<String, DiscoveryNode> node : clusterStateFromDiffs.nodes().getNodes().entrySet()) {
                     DiscoveryNode node1 = clusterState.nodes().get(node.getKey());
                     DiscoveryNode node2 = clusterStateFromDiffs.nodes().get(node.getKey());
-                    assertThat(node1.getVersion(), equalTo(node2.getVersion()));
+                    assertThat(node1.getBuildVersion(), equalTo(node2.getBuildVersion()));
                     assertThat(node1.getAddress(), equalTo(node2.getAddress()));
                     assertThat(node1.getAttributes(), equalTo(node2.getAttributes()));
                 }

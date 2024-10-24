@@ -247,7 +247,7 @@ public class DiscoveryNodeTests extends ESTestCase {
         assertThat(toString, containsString("{" + node.getEphemeralId() + "}"));
         assertThat(toString, containsString("{" + node.getAddress() + "}"));
         assertThat(toString, containsString("{IScdfhilmrstvw}"));// roles
-        assertThat(toString, containsString("{" + node.getVersion() + "}"));
+        assertThat(toString, containsString("{" + node.getBuildVersion() + "}"));
         assertThat(toString, containsString("{test-attr=val}"));// attributes
     }
 }

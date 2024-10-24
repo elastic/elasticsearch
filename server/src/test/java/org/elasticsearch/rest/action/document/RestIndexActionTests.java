@@ -10,7 +10,6 @@
 package org.elasticsearch.rest.action.document;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
@@ -55,10 +54,10 @@ public final class RestIndexActionTests extends RestActionTestCase {
     }
 
     public void testAutoIdDefaultsToOptypeCreate() {
-        checkAutoIdOpType(Version.CURRENT, DocWriteRequest.OpType.CREATE);
+        checkAutoIdOpType(DocWriteRequest.OpType.CREATE);
     }
 
-    private void checkAutoIdOpType(Version minClusterVersion, DocWriteRequest.OpType expectedOpType) {
+    private void checkAutoIdOpType(DocWriteRequest.OpType expectedOpType) {
         SetOnce<Boolean> executeCalled = new SetOnce<>();
         verifyingClient.setExecuteVerifier((actionType, request) -> {
             assertThat(request, instanceOf(IndexRequest.class));
@@ -71,9 +70,7 @@ public final class RestIndexActionTests extends RestActionTestCase {
             .withContent(new BytesArray("{}"), XContentType.JSON)
             .build();
         clusterStateSupplier.set(
-            ClusterState.builder(ClusterName.DEFAULT)
-                .nodes(DiscoveryNodes.builder().add(DiscoveryNodeUtils.builder("test").version(minClusterVersion).build()).build())
-                .build()
+            ClusterState.builder(ClusterName.DEFAULT).nodes(DiscoveryNodes.builder().add(DiscoveryNodeUtils.create("test")).build()).build()
         );
         dispatchRequest(autoIdRequest);
         assertThat(executeCalled.get(), equalTo(true));

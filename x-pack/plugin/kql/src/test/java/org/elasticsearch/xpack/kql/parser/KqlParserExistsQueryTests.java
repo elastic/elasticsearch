@@ -19,12 +19,12 @@ import static org.hamcrest.Matchers.isA;
 
 public class KqlParserExistsQueryTests extends AbstractKqlParserTestCase {
 
-    public void testExistsQueryWithNonExistingField() {
+    public void testParseExistsQueryWithNoMatchingFields() {
         // Using an unquoted literal
-        assertThat(parseKqlQuery(kqlExistsQuery("foo")), isA(MatchNoneQueryBuilder.class));
+        assertThat(parseKqlQuery(kqlExistsQuery("not_a_valid_field")), isA(MatchNoneQueryBuilder.class));
 
         // Using an a quoted string
-        assertThat(parseKqlQuery(kqlExistsQuery("\"foo\"")), isA(MatchNoneQueryBuilder.class));
+        assertThat(parseKqlQuery(kqlExistsQuery("\"not_a_valid_field\"")), isA(MatchNoneQueryBuilder.class));
 
         // Not expanding wildcard with quoted string
         assertThat(parseKqlQuery(kqlExistsQuery("\"mapped_*\"")), isA(MatchNoneQueryBuilder.class));
@@ -33,7 +33,7 @@ public class KqlParserExistsQueryTests extends AbstractKqlParserTestCase {
         assertThat(parseKqlQuery(kqlExistsQuery(OBJECT_FIELD_NAME)), isA(MatchNoneQueryBuilder.class));
     }
 
-    public void testExistsQueryWithASingleField() {
+    public void testParseExistsQueryWithASingleField() {
         for (String fieldName : mappedLeafFields()) {
             ExistsQueryBuilder parsedQuery = asInstanceOf(ExistsQueryBuilder.class, parseKqlQuery(kqlExistsQuery(fieldName)));
             assertThat(parsedQuery.fieldName(), equalTo(fieldName));
@@ -43,7 +43,7 @@ public class KqlParserExistsQueryTests extends AbstractKqlParserTestCase {
         }
     }
 
-    public void testExistsQueryUsingAWildcard() {
+    public void testParseExistsQueryUsingWildcardFieldName() {
         BoolQueryBuilder parsedQuery = asInstanceOf(BoolQueryBuilder.class, parseKqlQuery(kqlExistsQuery("mapped_*")));
         assertThat(parsedQuery.minimumShouldMatch(), equalTo("1"));
         assertThat(parsedQuery.must(), empty());
@@ -53,7 +53,7 @@ public class KqlParserExistsQueryTests extends AbstractKqlParserTestCase {
         assertThat(parsedQuery.should(), containsInAnyOrder(mappedLeafFields().stream().map(QueryBuilders::existsQuery).toArray()));
     }
 
-    private String kqlExistsQuery(String field) {
+    private static String kqlExistsQuery(String field) {
         return wrapWithRandomWhitespaces(field) + wrapWithRandomWhitespaces(":") + wrapWithRandomWhitespaces("*");
     }
 }

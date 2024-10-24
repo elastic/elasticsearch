@@ -65,7 +65,7 @@ class KqlAstBuilder extends KqlBaseBaseVisitor<QueryBuilder> {
             }
         }
 
-        return builder;
+        return rewriteConjonctionQuery(builder);
     }
 
     public QueryBuilder visitOrBooleanQuery(KqlBaseParser.BooleanQueryContext ctx) {
@@ -79,7 +79,7 @@ class KqlAstBuilder extends KqlBaseBaseVisitor<QueryBuilder> {
             }
         }
 
-        return builder;
+        return rewriteDisjunctionQuery(builder);
     }
 
     @Override
@@ -205,6 +205,16 @@ class KqlAstBuilder extends KqlBaseBaseVisitor<QueryBuilder> {
         }
 
         return boolQueryBuilder.should().size() == 1 ? boolQueryBuilder.should().getFirst() : boolQueryBuilder;
+    }
+
+    private QueryBuilder rewriteConjonctionQuery(BoolQueryBuilder boolQueryBuilder) {
+        assert boolQueryBuilder.should().isEmpty() && boolQueryBuilder.filter().isEmpty() && boolQueryBuilder.mustNot().isEmpty();
+
+        if (boolQueryBuilder.must().isEmpty()) {
+            return new MatchNoneQueryBuilder();
+        }
+
+        return boolQueryBuilder.must().size() == 1 ? boolQueryBuilder.must().getFirst() : boolQueryBuilder;
     }
 
     private BiFunction<RangeQueryBuilder, String, RangeQueryBuilder> rangeOperation(Token operator) {

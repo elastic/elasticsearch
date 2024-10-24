@@ -2,8 +2,6 @@
 [[inference-apis]]
 == {infer-cap} APIs
 
-experimental[]
-
 IMPORTANT: The {infer} APIs enable you to use certain services, such as built-in
 {ml} models (ELSER, E5), models uploaded through Eland, Cohere, OpenAI, Azure,
 Google AI Studio or Hugging Face. For built-in models and models uploaded
@@ -21,10 +19,11 @@ the following APIs to manage {infer} models and perform {infer}:
 * <<get-inference-api>>
 * <<post-inference-api>>
 * <<put-inference-api>>
+* <<update-inference-api>>
 
 [[inference-landscape]]
 .A representation of the Elastic inference landscape
-image::images/inference-landscape.png[A representation of the Elastic inference landscape,align="center"]
+image::images/inference-landscape.jpg[A representation of the Elastic inference landscape,align="center"]
 
 An {infer} endpoint enables you to use the corresponding {ml} model without
 manual deployment and apply it to your data at ingestion time through
@@ -35,10 +34,29 @@ Elastic –, then create an {infer} endpoint by the <<put-inference-api>>.
 Now use <<semantic-search-semantic-text, semantic text>> to perform
 <<semantic-search, semantic search>> on your data.
 
+
+[discrete]
+[[default-enpoints]]
+=== Default {infer} endpoints
+
+Your {es} deployment contains some preconfigured {infer} endpoints that makes it easier for you to use them when defining `semantic_text` fields or {infer} processors.
+The following list contains the default {infer} endpoints listed by `inference_id`:
+
+* `.elser-2-elasticsearch`: uses the {ml-docs}/ml-nlp-elser.html[ELSER] built-in trained model for `sparse_embedding` tasks (recommended for English language texts)
+* `.multilingual-e5-small-elasticsearch`: uses the {ml-docs}/ml-nlp-e5.html[E5] built-in trained model for `text_embedding` tasks (recommended for non-English language texts)
+
+Use the `inference_id` of the endpoint in a <<semantic-text,`semantic_text`>> field definition or when creating an <<inference-processor,{infer} processor>>.
+The API call will automatically download and deploy the model which might take a couple of minutes.
+Default {infer} enpoints have {ml-docs}/ml-nlp-auto-scale.html#nlp-model-adaptive-allocations[adaptive allocations] enabled.
+For these models, the minimum number of allocations is `0`. 
+If there is no {infer} activity that uses the endpoint, the number of allocations will scale down to `0` automatically after 15 minutes.
+
+
 include::delete-inference.asciidoc[]
 include::get-inference.asciidoc[]
 include::post-inference.asciidoc[]
 include::put-inference.asciidoc[]
+include::update-inference.asciidoc[]
 include::service-alibabacloud-ai-search.asciidoc[]
 include::service-amazon-bedrock.asciidoc[]
 include::service-anthropic.asciidoc[]
@@ -52,3 +70,4 @@ include::service-google-vertex-ai.asciidoc[]
 include::service-hugging-face.asciidoc[]
 include::service-mistral.asciidoc[]
 include::service-openai.asciidoc[]
+include::service-watsonx-ai.asciidoc[]

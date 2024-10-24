@@ -37,12 +37,10 @@ import org.elasticsearch.common.lucene.search.XMoreLikeThis;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -352,40 +350,32 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
                 } else if (currentFieldName != null) {
                     if (INDEX.match(currentFieldName, parser.getDeprecationHandler())) {
                         item.index = parser.text();
-                    } else if (parser.getRestApiVersion() == RestApiVersion.V_7
-                        && TYPE.match(currentFieldName, parser.getDeprecationHandler())) {
-                            deprecationLogger.compatibleCritical("more_like_this_query_with_types", TYPES_DEPRECATION_MESSAGE);
-                        } else if (ID.match(currentFieldName, parser.getDeprecationHandler())) {
-                            item.id = parser.text();
-                        } else if (DOC.match(currentFieldName, parser.getDeprecationHandler())) {
-                            item.doc = BytesReference.bytes(jsonBuilder().copyCurrentStructure(parser));
-                            item.xContentType = XContentType.JSON;
-                        } else if (FIELDS.match(currentFieldName, parser.getDeprecationHandler())) {
-                            if (token == XContentParser.Token.START_ARRAY) {
-                                List<String> fields = new ArrayList<>();
-                                while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-                                    fields.add(parser.text());
-                                }
-                                item.fields(fields.toArray(new String[fields.size()]));
-                            } else {
-                                throw new ElasticsearchParseException(
-                                    "failed to parse More Like This item. field [fields] must be an array"
-                                );
+                    } else if (ID.match(currentFieldName, parser.getDeprecationHandler())) {
+                        item.id = parser.text();
+                    } else if (DOC.match(currentFieldName, parser.getDeprecationHandler())) {
+                        item.doc = BytesReference.bytes(jsonBuilder().copyCurrentStructure(parser));
+                        item.xContentType = XContentType.JSON;
+                    } else if (FIELDS.match(currentFieldName, parser.getDeprecationHandler())) {
+                        if (token == XContentParser.Token.START_ARRAY) {
+                            List<String> fields = new ArrayList<>();
+                            while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+                                fields.add(parser.text());
                             }
-                        } else if (PER_FIELD_ANALYZER.match(currentFieldName, parser.getDeprecationHandler())) {
-                            item.perFieldAnalyzer(TermVectorsRequest.readPerFieldAnalyzer(parser.map()));
-                        } else if (ROUTING.match(currentFieldName, parser.getDeprecationHandler())) {
-                            item.routing = parser.text();
-                        } else if (VERSION.match(currentFieldName, parser.getDeprecationHandler())) {
-                            item.version = parser.longValue();
-                        } else if (VERSION_TYPE.match(currentFieldName, parser.getDeprecationHandler())) {
-                            item.versionType = VersionType.fromString(parser.text());
+                            item.fields(fields.toArray(new String[fields.size()]));
                         } else {
-                            throw new ElasticsearchParseException(
-                                "failed to parse More Like This item. unknown field [{}]",
-                                currentFieldName
-                            );
+                            throw new ElasticsearchParseException("failed to parse More Like This item. field [fields] must be an array");
                         }
+                    } else if (PER_FIELD_ANALYZER.match(currentFieldName, parser.getDeprecationHandler())) {
+                        item.perFieldAnalyzer(TermVectorsRequest.readPerFieldAnalyzer(parser.map()));
+                    } else if (ROUTING.match(currentFieldName, parser.getDeprecationHandler())) {
+                        item.routing = parser.text();
+                    } else if (VERSION.match(currentFieldName, parser.getDeprecationHandler())) {
+                        item.version = parser.longValue();
+                    } else if (VERSION_TYPE.match(currentFieldName, parser.getDeprecationHandler())) {
+                        item.versionType = VersionType.fromString(parser.text());
+                    } else {
+                        throw new ElasticsearchParseException("failed to parse More Like This item. unknown field [{}]", currentFieldName);
+                    }
                 }
             }
             if (item.id != null && item.doc != null) {
@@ -404,9 +394,6 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
             builder.startObject();
             if (this.index != null) {
                 builder.field(INDEX.getPreferredName(), this.index);
-            }
-            if (builder.getRestApiVersion() == RestApiVersion.V_7) {
-                builder.field(TYPE.getPreferredName(), MapperService.SINGLE_MAPPING_NAME);
             }
             if (this.id != null) {
                 builder.field(ID.getPreferredName(), this.id);

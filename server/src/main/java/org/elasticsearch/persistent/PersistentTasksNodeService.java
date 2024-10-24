@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
 import org.elasticsearch.tasks.Task;
@@ -32,6 +33,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.Executor;
 
 import static java.util.Objects.requireNonNull;
 import static org.elasticsearch.core.Strings.format;
@@ -172,33 +174,57 @@ public class PersistentTasksNodeService implements ClusterStateListener {
             taskInProgress.getTaskName()
         );
 
-        TaskAwareRequest request = new TaskAwareRequest() {
-            TaskId parentTaskId = new TaskId("cluster", taskInProgress.getAllocationId());
-
-            @Override
-            public void setParentTask(TaskId taskId) {
-                throw new UnsupportedOperationException("parent task if for persistent tasks shouldn't change");
-            }
-
-            @Override
-            public void setRequestId(long requestId) {
-                throw new UnsupportedOperationException("does not have a request ID");
-            }
-
-            @Override
-            public TaskId getParentTask() {
-                return parentTaskId;
-            }
-
-            @Override
-            public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-                return executor.createTask(id, type, action, parentTaskId, taskInProgress, headers);
-            }
-        };
-
+        final var request = new PersistentTaskAwareRequest<>(taskInProgress, executor);
         try (var ignored = threadPool.getThreadContext().newTraceContext()) {
             doStartTask(taskInProgress, executor, request);
         }
+    }
+
+    /**
+     * A {@link TaskAwareRequest} which creates the relevant task using a {@link PersistentTasksExecutor}.
+     */
+    private static class PersistentTaskAwareRequest<Params extends PersistentTaskParams> implements TaskAwareRequest {
+        private final PersistentTask<Params> taskInProgress;
+        private final TaskId parentTaskId;
+        private final PersistentTasksExecutor<Params> executor;
+
+        private PersistentTaskAwareRequest(PersistentTask<Params> taskInProgress, PersistentTasksExecutor<Params> executor) {
+            this.taskInProgress = taskInProgress;
+            this.parentTaskId = new TaskId("cluster", taskInProgress.getAllocationId());
+            this.executor = executor;
+        }
+
+        @Override
+        public void setParentTask(TaskId taskId) {
+            throw new UnsupportedOperationException("parent task if for persistent tasks shouldn't change");
+        }
+
+        @Override
+        public void setRequestId(long requestId) {
+            throw new UnsupportedOperationException("does not have a request ID");
+        }
+
+        @Override
+        public TaskId getParentTask() {
+            return parentTaskId;
+        }
+
+        @Override
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+            return executor.createTask(id, type, action, parentTaskId, taskInProgress, headers);
+        }
+    }
+
+    /**
+     * A no-op {@link PersistentTasksExecutor} to create a placeholder task if creating the real task fails for some reason.
+     */
+    private static class PersistentTaskStartupFailureExecutor<Params extends PersistentTaskParams> extends PersistentTasksExecutor<Params> {
+        PersistentTaskStartupFailureExecutor(String taskName, Executor executor) {
+            super(taskName, executor);
+        }
+
+        @Override
+        protected void nodeOperation(AllocatedPersistentTask task, Params params, PersistentTaskState state) {}
     }
 
     private <Params extends PersistentTaskParams> void doStartTask(
@@ -206,7 +232,7 @@ public class PersistentTasksNodeService implements ClusterStateListener {
         PersistentTasksExecutor<Params> executor,
         TaskAwareRequest request
     ) {
-        AllocatedPersistentTask task;
+        final AllocatedPersistentTask task;
         try {
             task = (AllocatedPersistentTask) taskManager.register("persistent", taskInProgress.getTaskName() + "[c]", request);
         } catch (Exception e) {
@@ -220,7 +246,21 @@ public class PersistentTasksNodeService implements ClusterStateListener {
                     + "], removing from persistent tasks",
                 e
             );
-            notifyMasterOfFailedTask(taskInProgress, e);
+
+            // create a no-op placeholder task so that we don't keep trying to start this task while we wait for the cluster state update
+            // which handles the failure
+            final var placeholderTask = (AllocatedPersistentTask) taskManager.register(
+                "persistent",
+                taskInProgress.getTaskName() + "[c]",
+                new PersistentTaskAwareRequest<>(
+                    taskInProgress,
+                    new PersistentTaskStartupFailureExecutor<>(executor.getTaskName(), EsExecutors.DIRECT_EXECUTOR_SERVICE)
+                )
+            );
+            placeholderTask.init(persistentTasksService, taskManager, taskInProgress.getId(), taskInProgress.getAllocationId());
+            taskManager.unregister(placeholderTask);
+            runningTasks.put(taskInProgress.getAllocationId(), placeholderTask);
+            placeholderTask.markAsFailed(e);
             return;
         }
 

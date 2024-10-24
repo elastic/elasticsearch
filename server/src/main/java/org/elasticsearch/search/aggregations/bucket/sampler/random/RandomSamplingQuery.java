@@ -20,6 +20,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
 
 import java.io.IOException;
@@ -76,15 +77,15 @@ public final class RandomSamplingQuery extends Query {
             }
 
             @Override
-            public Scorer scorer(LeafReaderContext context) {
+            public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
                 final SplittableRandom random = new SplittableRandom(BitMixer.mix(hash ^ seed));
                 int maxDoc = context.reader().maxDoc();
-                return new ConstantScoreScorer(
-                    this,
+                Scorer scorer = new ConstantScoreScorer(
                     boost,
                     ScoreMode.COMPLETE_NO_SCORES,
                     new RandomSamplingIterator(maxDoc, p, random::nextInt)
                 );
+                return new DefaultScorerSupplier(scorer);
             }
         };
     }

@@ -3,7 +3,6 @@
   - requires:
       cluster_features: ["gte_v8.10.0"]
       reason: Reloading analyzers for specific synonym set is introduced in 8.10.0
-
   # Create synonyms_set1
   - do:
       synonyms.put_synonym:
@@ -25,6 +24,11 @@
               id: "synonym-rule-1"
             - synonyms: "bye => goodbye"
               id: "synonym-rule-2"
+
+  # This is to ensure that all index shards (write and read) are available. In serverless this can take some time.
+  - do:
+      cluster.health:
+        wait_for_no_initializing_shards: true
 
   # Create my_index1 with synonym_filter that uses synonyms_set1
   - do:

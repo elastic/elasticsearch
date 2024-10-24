@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.services.anthropic.completion;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
@@ -22,6 +23,25 @@ import java.util.Map;
 import static org.hamcrest.Matchers.is;
 
 public class AnthropicChatCompletionTaskSettingsTests extends AbstractBWCWireSerializationTestCase<AnthropicChatCompletionTaskSettings> {
+
+    public void testUpdatedTaskSettings() {
+        var initialSettings = createRandom();
+        var newSettings = createRandom();
+        AnthropicChatCompletionTaskSettings updatedSettings = (AnthropicChatCompletionTaskSettings) initialSettings.updatedTaskSettings(
+            Map.of(
+                AnthropicServiceFields.MAX_TOKENS,
+                newSettings.maxTokens(),
+                AnthropicServiceFields.TEMPERATURE_FIELD,
+                newSettings.temperature(),
+                AnthropicServiceFields.TOP_P_FIELD,
+                newSettings.topP(),
+                AnthropicServiceFields.TOP_K_FIELD,
+                newSettings.topK()
+            )
+        );
+
+        assertEquals(newSettings, updatedSettings);
+    }
 
     public static Map<String, Object> getChatCompletionTaskSettingsMap(
         @Nullable Integer maxTokens,
@@ -52,6 +72,12 @@ public class AnthropicChatCompletionTaskSettingsTests extends AbstractBWCWireSer
 
     public static AnthropicChatCompletionTaskSettings createRandom() {
         return new AnthropicChatCompletionTaskSettings(randomNonNegativeInt(), randomDouble(), randomDouble(), randomInt());
+    }
+
+    public void testIsEmpty() {
+        var randomSettings = createRandom();
+        var stringRep = Strings.toString(randomSettings);
+        assertEquals(stringRep, randomSettings.isEmpty(), stringRep.equals("{}"));
     }
 
     public void testFromMap_WithMaxTokens() {

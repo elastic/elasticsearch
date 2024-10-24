@@ -22,6 +22,7 @@ import static org.elasticsearch.xpack.inference.external.request.azureaistudio.A
 import static org.elasticsearch.xpack.inference.external.request.azureaistudio.AzureAiStudioRequestFields.MESSAGE_CONTENT;
 import static org.elasticsearch.xpack.inference.external.request.azureaistudio.AzureAiStudioRequestFields.PARAMETERS_OBJECT;
 import static org.elasticsearch.xpack.inference.external.request.azureaistudio.AzureAiStudioRequestFields.ROLE;
+import static org.elasticsearch.xpack.inference.external.request.azureaistudio.AzureAiStudioRequestFields.STREAM;
 import static org.elasticsearch.xpack.inference.external.request.azureaistudio.AzureAiStudioRequestFields.USER_ROLE;
 import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioConstants.DO_SAMPLE_FIELD;
 import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioConstants.MAX_NEW_TOKENS_FIELD;
@@ -34,7 +35,8 @@ public record AzureAiStudioChatCompletionRequestEntity(
     @Nullable Double temperature,
     @Nullable Double topP,
     @Nullable Boolean doSample,
-    @Nullable Integer maxNewTokens
+    @Nullable Integer maxNewTokens,
+    boolean stream
 ) implements ToXContentObject {
 
     public AzureAiStudioChatCompletionRequestEntity {
@@ -50,6 +52,10 @@ public record AzureAiStudioChatCompletionRequestEntity(
             createPayAsYouGoRequest(builder, params);
         } else {
             createRealtimeRequest(builder, params);
+        }
+
+        if (stream) {
+            builder.field(STREAM, true);
         }
 
         builder.endObject();

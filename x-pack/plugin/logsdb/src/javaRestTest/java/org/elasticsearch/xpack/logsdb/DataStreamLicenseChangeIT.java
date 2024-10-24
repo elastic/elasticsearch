@@ -18,15 +18,7 @@ import org.junit.ClassRule;
 import java.io.IOException;
 import java.util.List;
 
-public abstract class LogsDbDataStreamLicenseChangeIT extends LogsIndexModeRestTestIT {
-    protected abstract void licenseChange() throws IOException;
-
-    protected abstract List<String> prepareDataStreams() throws IOException;
-
-    protected abstract SourceFieldMapper.Mode initialMode();
-
-    protected abstract SourceFieldMapper.Mode finalMode();
-
+public abstract class DataStreamLicenseChangeIT extends LogsIndexModeRestTestIT {
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
@@ -42,27 +34,57 @@ public abstract class LogsDbDataStreamLicenseChangeIT extends LogsIndexModeRestT
         return cluster.getHttpAddresses();
     }
 
+    protected interface TestCase {
+        String dataStreamName();
+
+        void prepareDataStream() throws IOException;
+
+        String indexMode();
+
+        SourceFieldMapper.Mode initialMode();
+
+        SourceFieldMapper.Mode finalMode();
+
+        void rollover() throws IOException;
+    }
+
+    protected abstract void licenseChange() throws IOException;
+
+    protected abstract void applyInitialLicense() throws IOException;
+
+    protected abstract List<TestCase> cases();
+
     public void testLicenseChange() throws IOException {
-        var dataStreams = prepareDataStreams();
+        applyInitialLicense();
 
-        for (var dataStream : dataStreams) {
-            var indexMode = (String) getSetting(client(), getDataStreamBackingIndex(client(), dataStream, 0), "index.mode");
-            assertEquals("logsdb", indexMode);
+        for (var testCase : cases()) {
+            testCase.prepareDataStream();
 
-            var sourceMode = (String) getSetting(client(), getDataStreamBackingIndex(client(), dataStream, 0), "index.mapping.source.mode");
-            assertEquals(initialMode().toString(), sourceMode);
+            var indexMode = (String) getSetting(client(), getDataStreamBackingIndex(client(), testCase.dataStreamName(), 0), "index.mode");
+            assertEquals(testCase.indexMode(), indexMode);
+
+            var sourceMode = (String) getSetting(
+                client(),
+                getDataStreamBackingIndex(client(), testCase.dataStreamName(), 0),
+                "index.mapping.source.mode"
+            );
+            assertEquals(testCase.initialMode().toString(), sourceMode);
         }
 
         licenseChange();
 
-        for (var dataStream : dataStreams) {
-            rolloverDataStream(client(), dataStream);
+        for (var testCase : cases()) {
+            testCase.rollover();
 
-            var indexMode = (String) getSetting(client(), getDataStreamBackingIndex(client(), dataStream, 1), "index.mode");
-            assertEquals("logsdb", indexMode);
+            var indexMode = (String) getSetting(client(), getDataStreamBackingIndex(client(), testCase.dataStreamName(), 1), "index.mode");
+            assertEquals(testCase.indexMode(), indexMode);
 
-            var sourceMode = (String) getSetting(client(), getDataStreamBackingIndex(client(), dataStream, 1), "index.mapping.source.mode");
-            assertEquals(finalMode().toString(), sourceMode);
+            var sourceMode = (String) getSetting(
+                client(),
+                getDataStreamBackingIndex(client(), testCase.dataStreamName(), 1),
+                "index.mapping.source.mode"
+            );
+            assertEquals(testCase.finalMode().toString(), sourceMode);
         }
     }
 

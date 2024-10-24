@@ -585,7 +585,7 @@ public enum DataType {
     }
 
     public DataType noText() {
-        return this == DataType.TEXT ? DataType.KEYWORD : this;
+        return this == TEXT ? KEYWORD : this;
     }
 
     /**

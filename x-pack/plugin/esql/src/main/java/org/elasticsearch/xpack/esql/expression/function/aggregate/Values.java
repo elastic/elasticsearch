@@ -34,8 +34,6 @@ import java.util.function.Function;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
-import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 
 public class Values extends AggregateFunction implements ToAggregator {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Values", Values::new);
@@ -107,8 +105,7 @@ public class Values extends AggregateFunction implements ToAggregator {
 
     @Override
     public DataType dataType() {
-        DataType t = field().dataType();
-        return t == TEXT ? KEYWORD : t;
+        return field().dataType().noText();
     }
 
     @Override

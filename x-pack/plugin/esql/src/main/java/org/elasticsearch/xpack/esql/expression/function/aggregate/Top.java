@@ -43,8 +43,6 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNullAndFoldable;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
-import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
-import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 
 public class Top extends AggregateFunction implements ToAggregator, SurrogateExpression {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Top", Top::new);
@@ -177,8 +175,7 @@ public class Top extends AggregateFunction implements ToAggregator, SurrogateExp
 
     @Override
     public DataType dataType() {
-        DataType t = field().dataType();
-        return t == TEXT ? KEYWORD : t;
+        return field().dataType().noText();
     }
 
     @Override

@@ -37,8 +37,6 @@ import java.util.function.Function;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
-import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 
 public class Min extends AggregateFunction implements ToAggregator, SurrogateExpression {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Min", Min::new);
@@ -121,8 +119,7 @@ public class Min extends AggregateFunction implements ToAggregator, SurrogateExp
 
     @Override
     public DataType dataType() {
-        DataType t = field().dataType();
-        return t == TEXT ? KEYWORD : t;
+        return field().dataType().noText();
     }
 
     @Override

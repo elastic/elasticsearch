@@ -9,21 +9,22 @@
 
 package org.elasticsearch.server.cli;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 final class SystemJvmOptions {
 
-    static List<String> systemJvmOptions(Settings nodeSettings, final Map<String, String> sysprops) {
+    static List<String> systemJvmOptions(Settings nodeSettings, final Map<String, String> sysprops, Path workingDir) {
         String distroType = sysprops.get("es.distribution.type");
         boolean isHotspot = sysprops.getOrDefault("sun.management.compiler", "").contains("HotSpot");
 
-        return Stream.concat(
+        return Stream.of(
             Stream.of(
                 /*
                  * Cache ttl in seconds for positive DNS lookups noting that this overrides the JDK security property
@@ -37,6 +38,21 @@ final class SystemJvmOptions {
                 "-Des.networkaddress.cache.negative.ttl=10",
                 // Allow to set the security manager.
                 "-Djava.security.manager=allow",
+                // Entitlement agent
+                "-Djdk.attach.allowAttachSelf=true",
+                "-XX:+EnableDynamicAgentLoading",
+                "-Des.entitlement.agentJar="
+                    + workingDir.resolve(
+                        Path.of("lib", "tools", "entitlement-agent", "entitlement-agent-" + Build.current().version() + "-SNAPSHOT.jar")
+                    ),
+                "-Des.entitlement.bridgeJar="
+                    + workingDir.resolve(
+                        Path.of("lib", "tools", "entitlement-bridge", "entitlement-bridge-" + Build.current().version() + "-SNAPSHOT.jar")
+                    ),
+                "-Des.entitlement.runtimeJar="
+                    + workingDir.resolve(
+                        Path.of("lib", "tools", "entitlement-runtime", "entitlement-runtime-" + Build.current().version() + "-SNAPSHOT.jar")
+                    ),
                 // pre-touch JVM emory pages during initialization
                 "-XX:+AlwaysPreTouch",
                 // explicitly set the stack size
@@ -61,15 +77,15 @@ final class SystemJvmOptions {
                 "-Dlog4j2.disable.jmx=true",
                 "-Dlog4j2.formatMsgNoLookups=true",
                 "-Djava.locale.providers=CLDR",
-                maybeEnableNativeAccess(),
-                maybeOverrideDockerCgroup(distroType),
-                maybeSetActiveProcessorCount(nodeSettings),
-                setReplayFile(distroType, isHotspot),
                 // Pass through distribution type
                 "-Des.distribution.type=" + distroType
             ),
+            maybeEnableNativeAccess(),
+            maybeOverrideDockerCgroup(distroType),
+            maybeSetActiveProcessorCount(nodeSettings),
+            maybeSetReplayFile(distroType, isHotspot),
             maybeWorkaroundG1Bug()
-        ).filter(e -> e.isEmpty() == false).collect(Collectors.toList());
+        ).flatMap(s -> s).toList();
     }
 
     /*
@@ -86,42 +102,42 @@ final class SystemJvmOptions {
      * that cgroup statistics are available for the container this process
      * will run in.
      */
-    private static String maybeOverrideDockerCgroup(String distroType) {
+    private static Stream<String> maybeOverrideDockerCgroup(String distroType) {
         if ("docker".equals(distroType)) {
-            return "-Des.cgroups.hierarchy.override=/";
+            return Stream.of("-Des.cgroups.hierarchy.override=/");
         }
-        return "";
+        return Stream.empty();
     }
 
-    private static String setReplayFile(String distroType, boolean isHotspot) {
+    private static Stream<String> maybeSetReplayFile(String distroType, boolean isHotspot) {
         if (isHotspot == false) {
             // the replay file option is only guaranteed for hotspot vms
-            return "";
+            return Stream.empty();
         }
         String replayDir = "logs";
         if ("rpm".equals(distroType) || "deb".equals(distroType)) {
             replayDir = "/var/log/elasticsearch";
         }
-        return "-XX:ReplayDataFile=" + replayDir + "/replay_pid%p.log";
+        return Stream.of("-XX:ReplayDataFile=" + replayDir + "/replay_pid%p.log");
     }
 
     /*
      * node.processors determines thread pool sizes for Elasticsearch. When it
      * is set, we need to also tell the JVM to respect a different value
      */
-    private static String maybeSetActiveProcessorCount(Settings nodeSettings) {
+    private static Stream<String> maybeSetActiveProcessorCount(Settings nodeSettings) {
         if (EsExecutors.NODE_PROCESSORS_SETTING.exists(nodeSettings)) {
             int allocated = EsExecutors.allocatedProcessors(nodeSettings);
-            return "-XX:ActiveProcessorCount=" + allocated;
+            return Stream.of("-XX:ActiveProcessorCount=" + allocated);
         }
-        return "";
+        return Stream.empty();
     }
 
-    private static String maybeEnableNativeAccess() {
+    private static Stream<String> maybeEnableNativeAccess() {
         if (Runtime.version().feature() >= 21) {
-            return "--enable-native-access=org.elasticsearch.nativeaccess,org.apache.lucene.core";
+            return Stream.of("--enable-native-access=org.elasticsearch.nativeaccess,org.apache.lucene.core");
         }
-        return "";
+        return Stream.empty();
     }
 
     /*

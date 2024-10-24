@@ -11,6 +11,8 @@ package org.elasticsearch.entitlement.agent;
 
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.internal.provider.ProviderLocator;
+import org.elasticsearch.entitlement.api.EntitlementChecks;
+import org.elasticsearch.entitlement.api.EntitlementProvider;
 import org.elasticsearch.entitlement.instrumentation.InstrumentationService;
 import org.elasticsearch.entitlement.instrumentation.MethodKey;
 
@@ -24,17 +26,30 @@ import java.util.jar.JarFile;
 public class EntitlementAgent {
 
     public static void premain(String agentArgs, Instrumentation inst) throws Exception {
+        agentmain(agentArgs, inst);
+    }
+
+    public static void agentmain(String agentArgs, Instrumentation inst) throws Exception {
         // Add the bridge library (the one with the entitlement checking interface) to the bootstrap classpath.
         // We can't actually reference the classes here for real before this point because they won't resolve.
-        var bridgeJarName = System.getProperty("es.entitlements.bridgeJar");
+        var bridgeJarName = System.getProperty("es.entitlement.bridgeJar");
         if (bridgeJarName == null) {
-            throw new IllegalArgumentException("System property es.entitlements.bridgeJar is required");
+            throw new IllegalArgumentException("System property es.entitlement.bridgeJar is required");
         }
         addJarToBootstrapClassLoader(inst, bridgeJarName);
 
+        // Ditto runtime library on the system classpath
+        var runtimeJarName = System.getProperty("es.entitlement.runtimeJar");
+        if (runtimeJarName == null) {
+            throw new IllegalArgumentException("System property es.entitlement.runtimeJar is required");
+        }
+        addJarToSystemClassLoader(inst, runtimeJarName);
+
+        // The checks should be available and ready before we start instrumenting methods
+        EntitlementProvider.checks();
+
         Method targetMethod = System.class.getMethod("exit", int.class);
-        Method instrumentationMethod = Class.forName("org.elasticsearch.entitlement.api.EntitlementChecks")
-            .getMethod("checkSystemExit", Class.class, int.class);
+        Method instrumentationMethod = EntitlementChecks.class.getMethod("checkSystemExit", Class.class, int.class);
         Map<MethodKey, Method> methodMap = Map.of(INSTRUMENTER_FACTORY.methodKeyForTarget(targetMethod), instrumentationMethod);
 
         inst.addTransformer(new Transformer(INSTRUMENTER_FACTORY.newInstrumenter("", methodMap), Set.of(internalName(System.class))), true);
@@ -44,6 +59,11 @@ public class EntitlementAgent {
     @SuppressForbidden(reason = "The appendToBootstrapClassLoaderSearch method takes a JarFile")
     private static void addJarToBootstrapClassLoader(Instrumentation inst, String jarString) throws IOException {
         inst.appendToBootstrapClassLoaderSearch(new JarFile(jarString));
+    }
+
+    @SuppressForbidden(reason = "The appendToSystemClassLoaderSearch method takes a JarFile")
+    private static void addJarToSystemClassLoader(Instrumentation inst, String jarString) throws IOException {
+        inst.appendToSystemClassLoaderSearch(new JarFile(jarString));
     }
 
     private static String internalName(Class<?> c) {

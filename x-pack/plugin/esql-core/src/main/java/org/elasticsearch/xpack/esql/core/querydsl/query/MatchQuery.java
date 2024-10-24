@@ -25,10 +25,6 @@ public class MatchQuery extends Query {
 
     private static final Map<String, BiConsumer<MatchQueryBuilder, String>> BUILDER_APPLIERS;
 
-    public static final String BOOST_OPTION = "boost";
-
-    public static final String FUZZINESS_OPTION = "fuzziness";
-
     static {
         // TODO: it'd be great if these could be constants instead of Strings, needs a core change to make the fields public first
         // TODO: add zero terms query support, I'm not sure the best way to parse it yet...
@@ -36,8 +32,8 @@ public class MatchQuery extends Query {
         BUILDER_APPLIERS = Map.ofEntries(
             entry("analyzer", MatchQueryBuilder::analyzer),
             entry("auto_generate_synonyms_phrase_query", (qb, s) -> qb.autoGenerateSynonymsPhraseQuery(Booleans.parseBoolean(s))),
-            entry(FUZZINESS_OPTION, (qb, s) -> qb.fuzziness(Fuzziness.fromString(s))),
-            entry(BOOST_OPTION, (qb, s) -> qb.boost(Float.parseFloat(s))),
+            entry("fuzziness", (qb, s) -> qb.fuzziness(Fuzziness.fromString(s))),
+            entry("boost", (qb, s) -> qb.boost(Float.parseFloat(s))),
             entry("fuzzy_transpositions", (qb, s) -> qb.fuzzyTranspositions(Booleans.parseBoolean(s))),
             entry("fuzzy_rewrite", MatchQueryBuilder::fuzzyRewrite),
             entry("lenient", (qb, s) -> qb.lenient(Booleans.parseBoolean(s))),

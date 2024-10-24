@@ -214,7 +214,7 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
                 // with DFS_QUERY_THEN_FETCH, the local shards are never skipped
                 assertThat(localClusterSearchInfo.getSkippedShards(), equalTo(0));
             } else {
-                assertThat(localClusterSearchInfo.getSkippedShards(), equalTo(localNumShards - 1));
+                assertThat(localClusterSearchInfo.getSkippedShards(), equalTo(localNumShards));
             }
             assertThat(localClusterSearchInfo.getFailedShards(), equalTo(0));
             assertThat(localClusterSearchInfo.getFailures().size(), equalTo(0));
@@ -224,7 +224,7 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
             assertThat(remoteClusterSearchInfo.getTotalShards(), equalTo(remoteNumShards));
             assertThat(remoteClusterSearchInfo.getSuccessfulShards(), equalTo(remoteNumShards));
             if (clusters.isCcsMinimizeRoundtrips()) {
-                assertThat(remoteClusterSearchInfo.getSkippedShards(), equalTo(remoteNumShards - 1));
+                assertThat(remoteClusterSearchInfo.getSkippedShards(), equalTo(remoteNumShards));
             } else {
                 assertThat(remoteClusterSearchInfo.getSkippedShards(), equalTo(remoteNumShards));
             }

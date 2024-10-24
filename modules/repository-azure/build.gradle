@@ -75,7 +75,7 @@ dependencies {
   api "org.ow2.asm:asm:9.3"
 
   runtimeOnly "com.google.crypto.tink:tink:1.14.0"
-  runtimeOnly "com.google.protobuf:protobuf-java:4.27.0"
+  runtimeOnly "com.google.protobuf:protobuf-java:4.27.5"
   runtimeOnly "com.google.code.gson:gson:2.11.0"
   runtimeOnly "org.cryptomator:siv-mode:1.5.2"
 

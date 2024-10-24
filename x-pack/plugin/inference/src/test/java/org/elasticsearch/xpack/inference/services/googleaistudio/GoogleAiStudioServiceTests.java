@@ -1268,7 +1268,7 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
                                "default_value": null,
                                "depends_on": [],
                                "display": "textbox",
-                               "label": "Resource Name",
+                               "label": "Model ID",
                                "order": 2,
                                "required": true,
                                "sensitive": false,

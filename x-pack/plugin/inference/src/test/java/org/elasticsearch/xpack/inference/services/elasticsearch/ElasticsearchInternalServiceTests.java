@@ -1587,7 +1587,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
                        ],
                        "configuration": {
                            "num_allocations": {
-                               "default_value": null,
+                               "default_value": 1,
                                "depends_on": [],
                                "display": "numeric",
                                "label": "Number Allocations",

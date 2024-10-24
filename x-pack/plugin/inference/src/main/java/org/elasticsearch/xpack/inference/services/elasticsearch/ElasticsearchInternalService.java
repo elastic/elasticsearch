@@ -1060,6 +1060,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
                     .setSensitive(false)
                     .setTooltip("The total number of allocations this model is assigned across machine learning nodes.")
                     .setType(ServiceConfigurationFieldType.INTEGER)
+                    .setDefaultValue(1)
                     .build()
             );
 

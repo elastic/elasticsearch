@@ -352,7 +352,7 @@ public class GoogleVertexAiService extends SenderService {
                 LOCATION,
                 new ServiceConfiguration.Builder().setDisplay(ServiceConfigurationDisplayType.TEXTBOX)
                     .setLabel("GCP Region")
-                    .setOrder(2)
+                    .setOrder(3)
                     .setRequired(true)
                     .setSensitive(false)
                     .setTooltip(
@@ -367,7 +367,7 @@ public class GoogleVertexAiService extends SenderService {
                 PROJECT_ID,
                 new ServiceConfiguration.Builder().setDisplay(ServiceConfigurationDisplayType.TEXTBOX)
                     .setLabel("GCP Project")
-                    .setOrder(3)
+                    .setOrder(4)
                     .setRequired(true)
                     .setSensitive(false)
                     .setTooltip(

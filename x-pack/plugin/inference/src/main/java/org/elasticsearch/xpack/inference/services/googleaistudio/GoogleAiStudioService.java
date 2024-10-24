@@ -346,7 +346,7 @@ public class GoogleAiStudioService extends SenderService {
             configurationMap.put(
                 MODEL_ID,
                 new ServiceConfiguration.Builder().setDisplay(ServiceConfigurationDisplayType.TEXTBOX)
-                    .setLabel("Resource Name")
+                    .setLabel("Model ID")
                     .setOrder(2)
                     .setRequired(true)
                     .setSensitive(false)

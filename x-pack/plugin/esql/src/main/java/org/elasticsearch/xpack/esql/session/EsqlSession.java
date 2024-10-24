@@ -623,6 +623,7 @@ public class EsqlSession {
                 entry.getValue().getException()
             );
             if (skipUnavailable) {
+                System.err.println(">>> Cluster SKIPPED with as UNAVAILABLE: " + e);
                 execInfo.swapCluster(
                     clusterAlias,
                     (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setStatus(EsqlExecutionInfo.Cluster.Status.SKIPPED)
@@ -630,6 +631,7 @@ public class EsqlSession {
                         .build()
                 );
             } else {
+                System.err.println(">>> Cluster FAILED with as UNAVAILABLE: " + e);
                 throw e;
             }
         }
@@ -651,6 +653,7 @@ public class EsqlSession {
          * Mark it as SKIPPED with 0 shards searched and took=0.
          */
         for (String c : clustersWithNoMatchingIndices) {
+            System.err.println(">>> Cluster SKIPPED with no matching indices: " + c);
             // TODO: in a follow-on PR, throw a Verification(400 status code) for local and remotes with skip_unavailable=false if
             // they were requested with one or more concrete indices
             // for now we never mark the local cluster as SKIPPED

@@ -20,7 +20,10 @@ public class EntitlementProvider {
     }
 
     private static EntitlementChecks lookupEntitlementChecksImplementation() {
-        List<EntitlementChecks> candidates = ServiceLoader.load(EntitlementChecks.class).stream().map(ServiceLoader.Provider::get).toList();
+        List<EntitlementChecks> candidates = ServiceLoader.load(EntitlementChecks.class, ClassLoader.getSystemClassLoader())
+            .stream()
+            .map(ServiceLoader.Provider::get)
+            .toList();
         if (candidates.isEmpty()) {
             throw new IllegalStateException("No EntitlementChecks service");
         } else if (candidates.size() >= 2) {

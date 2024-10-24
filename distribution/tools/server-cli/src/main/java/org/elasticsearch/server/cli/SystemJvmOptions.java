@@ -40,8 +40,19 @@ final class SystemJvmOptions {
                 "-Djava.security.manager=allow",
                 // Entitlement agent
                 "-Djdk.attach.allowAttachSelf=true",
-                "-Des.entitlement.agentJar=" + workingDir.resolve(Path.of("lib", "tools", "entitlement-agent", "entitlement-agent-" + Build.current().version() + "-SNAPSHOT.jar")),
-                "-Des.entitlement.bridgeJar=" + workingDir.resolve(Path.of("lib", "tools", "entitlement-bridge", "entitlement-bridge-" + Build.current().version() + "-SNAPSHOT.jar")),
+                "-XX:+EnableDynamicAgentLoading",
+                "-Des.entitlement.agentJar="
+                    + workingDir.resolve(
+                        Path.of("lib", "tools", "entitlement-agent", "entitlement-agent-" + Build.current().version() + "-SNAPSHOT.jar")
+                    ),
+                "-Des.entitlement.bridgeJar="
+                    + workingDir.resolve(
+                        Path.of("lib", "tools", "entitlement-bridge", "entitlement-bridge-" + Build.current().version() + "-SNAPSHOT.jar")
+                    ),
+                "-Des.entitlement.runtimeJar="
+                    + workingDir.resolve(
+                        Path.of("lib", "tools", "entitlement-runtime", "entitlement-runtime-" + Build.current().version() + "-SNAPSHOT.jar")
+                    ),
                 // pre-touch JVM emory pages during initialization
                 "-XX:+AlwaysPreTouch",
                 // explicitly set the stack size

@@ -12,6 +12,7 @@ apply plugin: 'elasticsearch.publish'
 dependencies {
   compileOnly project(':libs:elasticsearch-core') // For @SuppressForbidden
   compileOnly project(":libs:elasticsearch-x-content") // for parsing policy files
+  compileOnly project(":libs:elasticsearch-logging")
   compileOnly project(':distribution:tools:entitlement-bridge')
   testImplementation project(":test:framework")
 }

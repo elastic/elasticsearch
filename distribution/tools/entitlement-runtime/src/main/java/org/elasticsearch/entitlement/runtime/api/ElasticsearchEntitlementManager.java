@@ -11,17 +11,24 @@ package org.elasticsearch.entitlement.runtime.api;
 
 import org.elasticsearch.entitlement.api.EntitlementChecks;
 import org.elasticsearch.entitlement.api.EntitlementProvider;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 
 import java.util.Optional;
 
+import static java.lang.StackWalker.Option.RETAIN_CLASS_REFERENCE;
 import static org.elasticsearch.entitlement.runtime.internals.EntitlementInternals.isActive;
 
 /**
  * Implementation of the {@link EntitlementChecks} interface, providing additional
  * API methods for managing the checks.
- * The trampoline module loads this object via SPI.
+ * The bridge module loads this object via SPI.
  */
 public class ElasticsearchEntitlementManager implements EntitlementChecks {
+    public ElasticsearchEntitlementManager() {
+        logger.info("Entitlement manager started - inactive");
+    }
+
     /**
      * @return the same instance of {@link ElasticsearchEntitlementManager} returned by {@link EntitlementProvider}.
      */
@@ -33,6 +40,7 @@ public class ElasticsearchEntitlementManager implements EntitlementChecks {
      * Causes entitlements to be enforced.
      */
     public void activate() {
+        logger.info("Activating entitlement checks");
         isActive = true;
     }
 
@@ -40,7 +48,6 @@ public class ElasticsearchEntitlementManager implements EntitlementChecks {
     public void checkSystemExit(Class<?> callerClass, int status) {
         var requestingModule = requestingModule(callerClass);
         if (isTriviallyAllowed(requestingModule)) {
-            // System.out.println(" - Trivially allowed");
             return;
         }
         // Hard-forbidden until we develop the permission granting scheme
@@ -55,12 +62,11 @@ public class ElasticsearchEntitlementManager implements EntitlementChecks {
                 return callerModule;
             }
         }
-        int framesToSkip = 1  // getCallingClass (this method)
+        int framesToSkip = 1  // requestingModule (this method)
             + 1  // the checkXxx method
-            + 1  // the runtime config method
             + 1  // the instrumented method
         ;
-        Optional<Module> module = StackWalker.getInstance(StackWalker.Option.RETAIN_CLASS_REFERENCE)
+        Optional<Module> module = StackWalker.getInstance(RETAIN_CLASS_REFERENCE)
             .walk(
                 s -> s.skip(framesToSkip)
                     .map(f -> f.getDeclaringClass().getModule())
@@ -71,7 +77,22 @@ public class ElasticsearchEntitlementManager implements EntitlementChecks {
     }
 
     private static boolean isTriviallyAllowed(Module requestingModule) {
-        return isActive == false || (requestingModule == null) || requestingModule == System.class.getModule();
+        if (isActive == false) {
+            logger.trace("Entitlements are inactive");
+            return true;
+        }
+        if (requestingModule == null) {
+            logger.trace("Entire call stack is in the base module layer");
+            return true;
+        }
+        if (requestingModule == System.class.getModule()) {
+            logger.trace("Caller is java.base");
+            return true;
+        }
+        logger.trace("Not trivially allowed");
+        return false;
     }
+
+    private static final Logger logger = LogManager.getLogger(ElasticsearchEntitlementManager.class);
 
 }

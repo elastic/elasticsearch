@@ -14,11 +14,15 @@ import com.sun.tools.attach.AgentLoadException;
 import com.sun.tools.attach.AttachNotSupportedException;
 import com.sun.tools.attach.VirtualMachine;
 
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+
 import java.io.IOException;
 
-final class Entitlement {
+final class EntitlementBootstrap {
 
     static void configure() {
+        logger.debug("Loading agent");
         try {
             VirtualMachine vm = VirtualMachine.attach(Long.toString(ProcessHandle.current().pid()));
             try {
@@ -38,4 +42,6 @@ final class Entitlement {
         }
         return result;
     }
+
+    private static final Logger logger = LogManager.getLogger(EntitlementBootstrap.class);
 }

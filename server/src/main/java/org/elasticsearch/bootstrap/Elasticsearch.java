@@ -198,8 +198,7 @@ class Elasticsearch {
             VectorUtil.class
         );
 
-//        if ("SecurityManager".equalsIgnoreCase(System.getProperty("es.entitlement.mechanism"))) {
-        if (false) {
+        if ("SecurityManager".equalsIgnoreCase(System.getProperty("es.entitlement.mechanism"))) {
             // install SM after natives, shutdown hooks, etc.
             org.elasticsearch.bootstrap.Security.configure(
                 nodeEnv,
@@ -207,7 +206,7 @@ class Elasticsearch {
                 args.pidFile()
             );
         } else {
-            org.elasticsearch.bootstrap.Entitlement.configure();
+            EntitlementBootstrap.configure();
         }
     }
 

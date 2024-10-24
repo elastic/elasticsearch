@@ -12,6 +12,7 @@ package org.elasticsearch.entitlement.agent;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.internal.provider.ProviderLocator;
 import org.elasticsearch.entitlement.api.EntitlementChecks;
+import org.elasticsearch.entitlement.api.EntitlementProvider;
 import org.elasticsearch.entitlement.instrumentation.InstrumentationService;
 import org.elasticsearch.entitlement.instrumentation.MethodKey;
 
@@ -37,9 +38,18 @@ public class EntitlementAgent {
         }
         addJarToBootstrapClassLoader(inst, bridgeJarName);
 
+        // Ditto runtime library on the system classpath
+        var runtimeJarName = System.getProperty("es.entitlement.runtimeJar");
+        if (runtimeJarName == null) {
+            throw new IllegalArgumentException("System property es.entitlement.runtimeJar is required");
+        }
+        addJarToSystemClassLoader(inst, runtimeJarName);
+
+        // The checks should be available and ready before we start instrumenting methods
+        EntitlementProvider.checks();
+
         Method targetMethod = System.class.getMethod("exit", int.class);
-        Method instrumentationMethod = EntitlementChecks.class
-            .getMethod("checkSystemExit", Class.class, int.class);
+        Method instrumentationMethod = EntitlementChecks.class.getMethod("checkSystemExit", Class.class, int.class);
         Map<MethodKey, Method> methodMap = Map.of(INSTRUMENTER_FACTORY.methodKeyForTarget(targetMethod), instrumentationMethod);
 
         inst.addTransformer(new Transformer(INSTRUMENTER_FACTORY.newInstrumenter("", methodMap), Set.of(internalName(System.class))), true);
@@ -49,6 +59,11 @@ public class EntitlementAgent {
     @SuppressForbidden(reason = "The appendToBootstrapClassLoaderSearch method takes a JarFile")
     private static void addJarToBootstrapClassLoader(Instrumentation inst, String jarString) throws IOException {
         inst.appendToBootstrapClassLoaderSearch(new JarFile(jarString));
+    }
+
+    @SuppressForbidden(reason = "The appendToSystemClassLoaderSearch method takes a JarFile")
+    private static void addJarToSystemClassLoader(Instrumentation inst, String jarString) throws IOException {
+        inst.appendToSystemClassLoaderSearch(new JarFile(jarString));
     }
 
     private static String internalName(Class<?> c) {

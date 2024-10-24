@@ -370,7 +370,10 @@ public class JvmOptionsParserTests extends ESTestCase {
         {
             // check validation
             Settings nodeSettings = Settings.builder().put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), 10000).build();
-            var e = expectThrows(IllegalArgumentException.class, () -> SystemJvmOptions.systemJvmOptions(nodeSettings, TEST_SYSPROPS, Path.of("")));
+            var e = expectThrows(
+                IllegalArgumentException.class,
+                () -> SystemJvmOptions.systemJvmOptions(nodeSettings, TEST_SYSPROPS, Path.of(""))
+            );
             assertThat(e.getMessage(), containsString("setting [node.processors] must be <="));
         }
     }

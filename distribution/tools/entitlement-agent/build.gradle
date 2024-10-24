@@ -6,9 +6,6 @@
  * your election, the "Elastic License 2.0", the "GNU Affero General Public
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
-
-import static java.util.stream.Collectors.joining
-
 apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.embedded-providers'
 
@@ -18,10 +15,12 @@ embeddedProviders {
 
 configurations {
   entitlementBridge
+  entitlementRuntime
 }
 
 dependencies {
   entitlementBridge project(":distribution:tools:entitlement-bridge")
+  entitlementRuntime project(":distribution:tools:entitlement-runtime")
   compileOnly project(":libs:elasticsearch-core")
   compileOnly project(":distribution:tools:entitlement-bridge")
   compileOnly project(":distribution:tools:entitlement-runtime")
@@ -38,7 +37,7 @@ tasks.named('test').configure {
   jvmArgumentProviders.add(new CommandLineArgumentProvider() {
     @Override
     Iterable<String> asArguments() {
-      return ["-javaagent:${tasks.jar.archiveFile.get()}", "-Des.entitlement.bridgeJar=${configurations.entitlementBridge.singleFile}"]
+      return ["-javaagent:${tasks.jar.archiveFile.get()}", "-Des.entitlement.bridgeJar=${configurations.entitlementBridge.singleFile}", "-Des.entitlement.runtimeJar=${configurations.entitlementRuntime.singleFile}"]
     }
   })
 

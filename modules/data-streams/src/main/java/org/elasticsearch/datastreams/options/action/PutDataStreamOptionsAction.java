@@ -99,7 +99,7 @@ public class PutDataStreamOptionsAction {
         public Request(TimeValue masterNodeTimeout, TimeValue ackTimeout, String[] names, @Nullable DataStreamFailureStore failureStore) {
             super(masterNodeTimeout, ackTimeout);
             this.names = names;
-            this.options = new DataStreamOptions(failureStore);
+            this.options = new DataStreamOptions(DataStreamFailureStore.resolveExplicitNullValues(failureStore));
         }
 
         @Override

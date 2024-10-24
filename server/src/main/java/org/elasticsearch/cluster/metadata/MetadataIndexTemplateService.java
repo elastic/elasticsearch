@@ -312,12 +312,7 @@ public class MetadataIndexTemplateService {
             }
         }
 
-        final Template finalTemplate = new Template(
-            finalSettings,
-            wrappedMappings,
-            template.template().aliases(),
-            template.template().lifecycle()
-        );
+        final Template finalTemplate = Template.builder(template.template()).settings(finalSettings).mappings(wrappedMappings).build();
         final ComponentTemplate finalComponentTemplate = new ComponentTemplate(
             finalTemplate,
             template.version(),
@@ -348,6 +343,7 @@ public class MetadataIndexTemplateService {
                         composableTemplate,
                         globalRetentionSettings.get()
                     );
+                    validateDataStreamOptions(tempStateWithComponentTemplateAdded.metadata(), composableTemplateName, composableTemplate);
                     validateIndexTemplateV2(composableTemplateName, composableTemplate, tempStateWithComponentTemplateAdded);
                 } catch (Exception e) {
                     if (validationFailure == null) {
@@ -629,7 +625,7 @@ public class MetadataIndexTemplateService {
             // adjusted (to add _doc) and it should be validated
             CompressedXContent mappings = innerTemplate.mappings();
             CompressedXContent wrappedMappings = wrapMappingsIfNecessary(mappings, xContentRegistry);
-            final Template finalTemplate = new Template(finalSettings, wrappedMappings, innerTemplate.aliases(), innerTemplate.lifecycle());
+            final Template finalTemplate = Template.builder(innerTemplate).settings(finalSettings).mappings(wrappedMappings).build();
             finalIndexTemplate = template.toBuilder().template(finalTemplate).build();
         }
 
@@ -690,7 +686,8 @@ public class MetadataIndexTemplateService {
         return overlaps;
     }
 
-    private void validateIndexTemplateV2(String name, ComposableIndexTemplate indexTemplate, ClusterState currentState) {
+    // Visibility for testing
+    void validateIndexTemplateV2(String name, ComposableIndexTemplate indexTemplate, ClusterState currentState) {
         // Workaround for the fact that start_time and end_time are injected by the MetadataCreateDataStreamService upon creation,
         // but when validating templates that create data streams the MetadataCreateDataStreamService isn't used.
         var finalTemplate = indexTemplate.template();
@@ -726,6 +723,7 @@ public class MetadataIndexTemplateService {
         validate(name, templateToValidate);
         validateDataStreamsStillReferenced(currentState, name, templateToValidate);
         validateLifecycle(currentState.metadata(), name, templateToValidate, globalRetentionSettings.get());
+        validateDataStreamOptions(currentState.metadata(), name, templateToValidate);
 
         if (templateToValidate.isDeprecated() == false) {
             validateUseOfDeprecatedComponentTemplates(name, templateToValidate, currentState.metadata().componentTemplates());
@@ -815,6 +813,20 @@ public class MetadataIndexTemplateService {
                 // If all the index patterns start with a dot, we consider that all the connected data streams are internal.
                 boolean isInternalDataStream = template.indexPatterns().stream().allMatch(indexPattern -> indexPattern.charAt(0) == '.');
                 lifecycle.addWarningHeaderIfDataRetentionNotEffective(globalRetention, isInternalDataStream);
+            }
+        }
+    }
+
+    // Visible for testing
+    static void validateDataStreamOptions(Metadata metadata, String indexTemplateName, ComposableIndexTemplate template) {
+        DataStreamOptions dataStreamOptions = resolveDataStreamOptions(template, metadata.componentTemplates());
+        if (dataStreamOptions != null) {
+            if (template.getDataStreamTemplate() == null) {
+                throw new IllegalArgumentException(
+                    "index template ["
+                        + indexTemplateName
+                        + "] specifies data stream options that can only be used in combination with a data stream"
+                );
             }
         }
     }
@@ -1561,7 +1573,7 @@ public class MetadataIndexTemplateService {
     public static DataStreamLifecycle resolveLifecycle(final Metadata metadata, final String templateName) {
         final ComposableIndexTemplate template = metadata.templatesV2().get(templateName);
         assert template != null
-            : "attempted to resolve settings for a template [" + templateName + "] that did not exist in the cluster state";
+            : "attempted to resolve lifecycle for a template [" + templateName + "] that did not exist in the cluster state";
         if (template == null) {
             return null;
         }
@@ -1651,6 +1663,73 @@ public class MetadataIndexTemplateService {
             }
         }
         return builder == null ? null : builder.build();
+    }
+
+    /**
+     * Resolve the given v2 template into a {@link DataStreamOptions} object
+     */
+    @Nullable
+    public static DataStreamOptions resolveDataStreamOptions(final Metadata metadata, final String templateName) {
+        final ComposableIndexTemplate template = metadata.templatesV2().get(templateName);
+        assert template != null
+            : "attempted to resolve data stream options for a template [" + templateName + "] that did not exist in the cluster state";
+        if (template == null) {
+            return null;
+        }
+        return resolveDataStreamOptions(template, metadata.componentTemplates());
+    }
+
+    /**
+     * Resolve the provided v2 template and component templates into a {@link DataStreamOptions} object
+     */
+    @Nullable
+    public static DataStreamOptions resolveDataStreamOptions(
+        ComposableIndexTemplate template,
+        Map<String, ComponentTemplate> componentTemplates
+    ) {
+        Objects.requireNonNull(template, "attempted to resolve data stream for a null template");
+        Objects.requireNonNull(componentTemplates, "attempted to resolve data stream options with null component templates");
+
+        List<DataStreamOptions> dataStreamOptionsList = new ArrayList<>();
+        for (String componentTemplateName : template.composedOf()) {
+            if (componentTemplates.containsKey(componentTemplateName) == false) {
+                continue;
+            }
+            DataStreamOptions dataStreamOptions = componentTemplates.get(componentTemplateName).template().dataStreamOptions();
+            if (dataStreamOptions != null) {
+                dataStreamOptionsList.add(dataStreamOptions);
+            }
+        }
+        // The actual index template's lifecycle has the highest precedence.
+        if (template.template() != null && template.template().dataStreamOptions() != null) {
+            dataStreamOptionsList.add(template.template().dataStreamOptions());
+        }
+        return composeDataStreamOptions(dataStreamOptionsList);
+    }
+
+    /**
+     * This method composes a series of data streams options to a final one. Since currently the data stream options
+     * contains only the failure store configuration which also contains only one field, the composition is a bit trivial.
+     * But we introduce the mechanics that will help extend it really easily.
+     * @param dataStreamOptionsList a sorted list of data stream options in the order that they will be composed
+     * @return the final data stream option configuration
+     */
+    @Nullable
+    public static DataStreamOptions composeDataStreamOptions(List<DataStreamOptions> dataStreamOptionsList) {
+        if (dataStreamOptionsList.isEmpty()) {
+            return null;
+        }
+        DataStreamOptions.Composer composer = null;
+        for (DataStreamOptions current : dataStreamOptionsList) {
+            if (current == Template.NO_DATA_STREAM_OPTIONS) {
+                composer = null;
+            } else if (composer == null) {
+                composer = DataStreamOptions.composer(current);
+            } else {
+                composer.apply(current);
+            }
+        }
+        return composer == null ? null : composer.compose();
     }
 
     /**

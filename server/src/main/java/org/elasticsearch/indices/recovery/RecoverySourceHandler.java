@@ -534,12 +534,9 @@ public class RecoverySourceHandler {
                     );
                 }
             }
-            // When sync ids were used we could use them to check if two shard copies were equivalent,
-            // if that's the case we can skip sending files from the source shard to the target shard.
             // If the shard uses the current replication mechanism, we have to compute the recovery plan,
             // and it is still possible to skip the sending files from the source shard to the target shard
             // using a different mechanism to determine it.
-            // TODO: is this still relevant today?
             cancellableThreads.checkForCancel();
             SubscribableListener
                 // compute the plan

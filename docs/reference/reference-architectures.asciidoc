@@ -55,3 +55,4 @@ Additionally, we have architectures specifically tailored to the ingestion porti
 include::reference-architectures/multi-region-two-datacenter-architecture.asciidoc[]
 include::reference-architectures/elastic-cloud-architecture.asciidoc[]
 include::reference-architectures/self-managed-single-datacenter.asciidoc[]
+include::reference-architectures/three-availability-zone.asciidoc[]

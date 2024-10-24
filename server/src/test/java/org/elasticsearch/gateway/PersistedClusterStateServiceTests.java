@@ -54,6 +54,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.env.BuildVersion;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
@@ -1414,14 +1415,17 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                 assertThat(clusterState.metadata().version(), equalTo(version));
 
             }
+            @UpdateForV9(owner = UpdateForV9.Owner.SEARCH_FOUNDATIONS)
+            BuildVersion overrideVersion = BuildVersion.fromVersionId(Version.V_8_0_0.id);
+
             NodeMetadata prevMetadata = PersistedClusterStateService.nodeMetadata(persistedClusterStateService.getDataPaths());
             assertEquals(BuildVersion.current(), prevMetadata.nodeVersion());
-            PersistedClusterStateService.overrideVersion(Version.V_8_0_0, persistedClusterStateService.getDataPaths());
+            PersistedClusterStateService.overrideVersion(overrideVersion, persistedClusterStateService.getDataPaths());
             NodeMetadata metadata = PersistedClusterStateService.nodeMetadata(persistedClusterStateService.getDataPaths());
-            assertEquals(BuildVersion.fromVersionId(Version.V_8_0_0.id()), metadata.nodeVersion());
+            assertEquals(overrideVersion, metadata.nodeVersion());
             for (Path p : persistedClusterStateService.getDataPaths()) {
                 NodeMetadata individualMetadata = PersistedClusterStateService.nodeMetadata(p);
-                assertEquals(BuildVersion.fromVersionId(Version.V_8_0_0.id()), individualMetadata.nodeVersion());
+                assertEquals(overrideVersion, individualMetadata.nodeVersion());
             }
         }
     }

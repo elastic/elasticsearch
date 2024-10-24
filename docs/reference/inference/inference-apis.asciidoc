@@ -48,7 +48,7 @@ The following list contains the default {infer} endpoints listed by `inference_i
 Use the `inference_id` of the endpoint in a <<semantic-text,`semantic_text`>> field definition or when creating an <<inference-processor,{infer} processor>>.
 The API call will automatically download and deploy the model which might take a couple of minutes.
 Default {infer} enpoints have {ml-docs}/ml-nlp-auto-scale.html#nlp-model-adaptive-allocations[adaptive allocations] enabled.
-For these models, the minimum number of allocations is `0` and the maximum is `8`.
+For these models, the minimum number of allocations is `0`. 
 If there is no {infer} activity that uses the endpoint, the number of allocations will scale down to `0` automatically after 15 minutes.
 
 

@@ -116,7 +116,7 @@ PUT _inference/sparse_embedding/my-elser-model
   "service_settings": {
     "adaptive_allocations": { <1>
       "enabled": true,
-      "min_number_of_allocations": 3,
+      "min_number_of_allocations": 1,
       "max_number_of_allocations": 10
     },
     "num_threads": 1,
@@ -125,7 +125,7 @@ PUT _inference/sparse_embedding/my-elser-model
 }
 ------------------------------------------------------------
 // TEST[skip:TBD]
-<1> Adaptive allocations will be enabled with the minimum of 3 and the maximum of 10 allocations.
+<1> Adaptive allocations will be enabled with the minimum of 1 and the maximum of 10 allocations.
 <2> The `model_id` must be the ID of one of the built-in ELSER models.
 Valid values are `.elser_model_2` and `.elser_model_2_linux-x86_64`.
 For further details, refer to the {ml-docs}/ml-nlp-elser.html[ELSER model documentation].
@@ -237,7 +237,7 @@ PUT _inference/sparse_embedding/use_existing_deployment
 // TEST[skip:TBD]
 <1> The `deployment_id` of the already existing model deployment.
 
-The API response contains the properties of `model_id`, and the threads and allocations settings:
+The API response contains the `model_id`, and the threads and allocations settings from the model deployment:
 
 [source,console-result]
 ------------------------------------------------------------

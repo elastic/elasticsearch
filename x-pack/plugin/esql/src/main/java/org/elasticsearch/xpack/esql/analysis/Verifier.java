@@ -189,9 +189,10 @@ public class Verifier {
             checkFilterMatchConditions(p, failures);
             checkFullTextQueryFunctions(p, failures);
 
-            checkNoScoreManipulation(p, failures);
         });
         checkRemoteEnrich(plan, failures);
+        checkMetadataScoreNameReserved(plan, failures);
+        checkScoreManipulationBetweenMultipleFulltextExpressions(plan, failures);
 
         // gather metrics
         if (failures.isEmpty()) {
@@ -201,10 +202,45 @@ public class Verifier {
         return failures;
     }
 
-    private static void checkNoScoreManipulation(LogicalPlan p, Set<Failure> failures) {
+    private static void checkMetadataScoreNameReserved(LogicalPlan p, Set<Failure> failures) {
         // _score can only be set as metadata attribute
         if (p.inputSet().stream().anyMatch(a -> MetadataAttribute.SCORE.equals(a.name()) && (a instanceof MetadataAttribute) == false)) {
             failures.add(fail(p, "`" + MetadataAttribute.SCORE + "` is a reserved METADATA attribute"));
+        }
+    }
+
+    /**
+     * Check for patterns like this: `... | WHERE match(...) | ... | EVAL whatever = _score | ... | WHERE match(...) ... `.
+     * This is currently disallowed because both such match/qstr/etc. would get pushed down together (as an AND) to ES.
+     * Hence, any such supposedly "intermediate" _score (for the first query) would be meaningless, as it would be identical to the
+     * (final) _score of the combined queries.
+     */
+    private static void checkScoreManipulationBetweenMultipleFulltextExpressions(LogicalPlan p, Set<Failure> failures) {
+        if (p.inputSet().stream().anyMatch(a -> MetadataAttribute.SCORE.equals(a.name()) && a instanceof MetadataAttribute)) {
+            p.forEachDown(Filter.class, f -> {
+                Expression condition = f.condition();
+                // check on instance type of type MatchQueryPredicate or FullTextFunction
+                if (condition instanceof MatchQueryPredicate || condition instanceof FullTextFunction) {
+                    f.forEachDown(Eval.class, eval -> {
+                        List<Alias> fields = eval.fields();
+                        for (Alias alias : fields) {
+                            // check if _score is being manipulated/held as to maintain a 'separate' _score
+                            Expression child = alias.child();
+                            if (child instanceof MetadataAttribute metadataAttribute
+                                && metadataAttribute.name().equals(MetadataAttribute.SCORE)) {
+                                eval.forEachDown(Filter.class, f2 -> {
+                                    Expression f2Condition = f2.condition();
+                                    // check on instance type of type MatchQueryPredicate or FullTextFunction
+                                    if (f2Condition instanceof MatchQueryPredicate || f2Condition instanceof FullTextFunction) {
+                                        failures.add(fail(p, "`_score` manipulation between fulltext expressions"));
+                                    }
+                                });
+                            }
+                            break;
+                        }
+                    });
+                }
+            });
         }
     }
 

@@ -901,7 +901,7 @@ public record IndicesOptions(
     }
 
     /**
-     * @return Whether execution on failure indices is allowed.
+     * @return Whether execution on failure indices are allowed.
      */
     public boolean allowFailureIndices() {
         return gatekeeperOptions.allowFailureIndices();

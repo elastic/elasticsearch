@@ -467,7 +467,6 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
             bulk.append("\r\n");
 
             final Request bulkRequest = new Request("POST", "/_bulk");
-            bulkRequest.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(fieldNamesFieldOk()));
             bulkRequest.setJsonEntity(bulk.toString());
             client().performRequest(bulkRequest);
 

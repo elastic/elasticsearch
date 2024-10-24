@@ -48,7 +48,7 @@ public class CoordinatorRewriteContext extends QueryRewriteContext {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
 
-            String tierPreference = QueryRewriteContext.getTierPreference(context);
+            String tierPreference = context.getTierPreference();
             return tierPreference == null ? ValueFetcher.EMPTY : ValueFetcher.singleton(tierPreference);
         }
 
@@ -63,7 +63,7 @@ public class CoordinatorRewriteContext extends QueryRewriteContext {
                 pattern = Strings.toLowercaseAscii(pattern);
             }
 
-            String tierPreference = QueryRewriteContext.getTierPreference(context);
+            String tierPreference = context.getTierPreference();
             if (tierPreference == null) {
                 return false;
             }
@@ -72,7 +72,7 @@ public class CoordinatorRewriteContext extends QueryRewriteContext {
 
         @Override
         public Query existsQuery(SearchExecutionContext context) {
-            String tierPreference = QueryRewriteContext.getTierPreference(context);
+            String tierPreference = context.getTierPreference();
             if (tierPreference == null) {
                 return new MatchNoDocsQuery();
             }
@@ -156,6 +156,12 @@ public class CoordinatorRewriteContext extends QueryRewriteContext {
     @Override
     public CoordinatorRewriteContext convertToCoordinatorRewriteContext() {
         return this;
+    }
+
+    @Override
+    public String getTierPreference() {
+        // dominant branch first (tier preference is configured)
+        return tier.isEmpty() == false ? tier : null;
     }
 
     /**

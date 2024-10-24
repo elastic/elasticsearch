@@ -29,15 +29,13 @@ public class QueryRewriteContextTests extends ESTestCase {
     public void testGetTierPreference() {
         {
             // cold->hot tier preference
-            IndexMetadata metadata = newIndexMeta(
-                "index",
+            IndexMetadata metadata = newIndexMeta("index",
                 Settings.builder()
                     .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                     .put(DataTier.TIER_PREFERENCE, "data_cold,data_warm,data_hot")
                     .build()
             );
-            QueryRewriteContext context = new QueryRewriteContext(
-                parserConfig(),
+            QueryRewriteContext context = new QueryRewriteContext(parserConfig(),
                 null,
                 System::currentTimeMillis,
                 null,
@@ -54,17 +52,14 @@ public class QueryRewriteContextTests extends ESTestCase {
                 null
             );
 
-            assertThat(QueryRewriteContext.getTierPreference(context), is("data_cold"));
+            assertThat(context.getTierPreference(), is("data_cold"));
         }
 
         {
             // missing tier preference
-            IndexMetadata metadata = newIndexMeta(
-                "index",
-                Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build()
-            );
-            QueryRewriteContext context = new QueryRewriteContext(
-                parserConfig(),
+            IndexMetadata metadata =
+                newIndexMeta("index", Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build());
+            QueryRewriteContext context = new QueryRewriteContext(parserConfig(),
                 null,
                 System::currentTimeMillis,
                 null,
@@ -81,46 +76,42 @@ public class QueryRewriteContextTests extends ESTestCase {
                 null
             );
 
-            assertThat(QueryRewriteContext.getTierPreference(context), is(nullValue()));
+            assertThat(context.getTierPreference(), is(nullValue()));
         }
 
         {
             // coordinator rewrite context
-            IndexMetadata metadata = newIndexMeta(
-                "index",
+            IndexMetadata metadata = newIndexMeta("index",
                 Settings.builder()
                     .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                     .put(DataTier.TIER_PREFERENCE, "data_cold,data_warm,data_hot")
                     .build()
             );
-            CoordinatorRewriteContext coordinatorRewriteContext = new CoordinatorRewriteContext(
-                parserConfig(),
+            CoordinatorRewriteContext coordinatorRewriteContext = new CoordinatorRewriteContext(parserConfig(),
                 null,
                 System::currentTimeMillis,
                 new DateFieldRangeInfo(null, null, new DateFieldMapper.DateFieldType(IndexMetadata.EVENT_INGESTED_FIELD_NAME), null),
                 "data_frozen"
             );
 
-            assertThat(QueryRewriteContext.getTierPreference(coordinatorRewriteContext), is("data_frozen"));
+            assertThat(coordinatorRewriteContext.getTierPreference(), is("data_frozen"));
         }
         {
             // coordinator rewrite context empty tier
-            IndexMetadata metadata = newIndexMeta(
-                "index",
+            IndexMetadata metadata = newIndexMeta("index",
                 Settings.builder()
                     .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                     .put(DataTier.TIER_PREFERENCE, "data_cold,data_warm,data_hot")
                     .build()
             );
-            CoordinatorRewriteContext coordinatorRewriteContext = new CoordinatorRewriteContext(
-                parserConfig(),
+            CoordinatorRewriteContext coordinatorRewriteContext = new CoordinatorRewriteContext(parserConfig(),
                 null,
                 System::currentTimeMillis,
                 new DateFieldRangeInfo(null, null, new DateFieldMapper.DateFieldType(IndexMetadata.EVENT_INGESTED_FIELD_NAME), null),
                 ""
             );
 
-            assertThat(QueryRewriteContext.getTierPreference(coordinatorRewriteContext), is(nullValue()));
+            assertThat(coordinatorRewriteContext.getTierPreference(), is(nullValue()));
         }
     }
 

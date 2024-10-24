@@ -416,13 +416,8 @@ public class QueryRewriteContext {
      * present, then return null.
      */
     @Nullable
-    public static String getTierPreference(QueryRewriteContext context) {
-        if (context instanceof CoordinatorRewriteContext) {
-            String tier = ((CoordinatorRewriteContext) context).tier();
-            // dominant branch first (tier preference is configured)
-            return tier.isEmpty() == false ? tier : null;
-        }
-        Settings settings = context.getIndexSettings().getSettings();
+    public String getTierPreference() {
+        Settings settings = getIndexSettings().getSettings();
         String value = DataTier.TIER_PREFERENCE_SETTING.get(settings);
 
         if (Strings.hasText(value) == false) {

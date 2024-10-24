@@ -53,7 +53,7 @@ public class DataTierFieldMapper extends MetadataFieldMapper {
                 pattern = Strings.toLowercaseAscii(pattern);
             }
 
-            String tierPreference = QueryRewriteContext.getTierPreference(context);
+            String tierPreference = context.getTierPreference();
             if (tierPreference == null) {
                 return false;
             }
@@ -62,7 +62,7 @@ public class DataTierFieldMapper extends MetadataFieldMapper {
 
         @Override
         public Query existsQuery(SearchExecutionContext context) {
-            String tierPreference = QueryRewriteContext.getTierPreference(context);
+            String tierPreference = context.getTierPreference();
             if (tierPreference == null) {
                 return new MatchNoDocsQuery();
             }
@@ -75,7 +75,7 @@ public class DataTierFieldMapper extends MetadataFieldMapper {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
 
-            String tierPreference = QueryRewriteContext.getTierPreference(context);
+            String tierPreference = context.getTierPreference();
             return tierPreference == null ? ValueFetcher.EMPTY : ValueFetcher.singleton(tierPreference);
         }
     }

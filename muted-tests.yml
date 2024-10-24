@@ -282,6 +282,12 @@ tests:
 - class: org.elasticsearch.xpack.security.FileSettingsRoleMappingsRestartIT
   method: testFileSettingsReprocessedOnRestartWithoutVersionChange
   issue: https://github.com/elastic/elasticsearch/issues/115450
+- class: org.elasticsearch.xpack.restart.MLModelDeploymentFullClusterRestartIT
+  method: testDeploymentSurvivesRestart {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/115528
+- class: org.elasticsearch.test.apmintegration.MetricsApmIT
+  method: testApmIntegration
+  issue: https://github.com/elastic/elasticsearch/issues/115415
 
 # Examples:
 #

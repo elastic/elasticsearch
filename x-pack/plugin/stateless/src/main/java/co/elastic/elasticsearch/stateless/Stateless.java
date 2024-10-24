@@ -699,7 +699,7 @@ public class Stateless extends Plugin
             fillVirtualBatchedCompoundCommitCacheCoreThreads = 0;
             fillVirtualBatchedCompoundCommitCacheMaxThreads = 1;
             mergeCoreThreads = 1;
-            mergeMaxThreads = Math.max(processors * 2, 2);
+            mergeMaxThreads = processors;
         } else {
             shardReadMaxThreads = Math.min(processors * 4, 28);
             translogCoreThreads = 0;

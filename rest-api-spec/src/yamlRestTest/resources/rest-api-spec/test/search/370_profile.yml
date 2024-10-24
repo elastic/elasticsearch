@@ -212,7 +212,6 @@ dfs knn vector profiling:
 
   - match: { hits.total.value: 1 }
   - match: { profile.shards.0.dfs.knn.0.query.0.type: "DocAndScoreQuery" }
-  - match: { profile.shards.0.dfs.knn.0.query.0.description: "DocAndScore[100]" }
   - gt: { profile.shards.0.dfs.knn.0.query.0.time_in_nanos: 0 }
   - match: { profile.shards.0.dfs.knn.0.query.0.breakdown.set_min_competitive_score_count: 0 }
   - match: { profile.shards.0.dfs.knn.0.query.0.breakdown.set_min_competitive_score: 0 }
@@ -234,6 +233,47 @@ dfs knn vector profiling:
   - match: { profile.shards.0.dfs.knn.0.collector.0.name: "SimpleTopScoreDocCollector" }
   - match: { profile.shards.0.dfs.knn.0.collector.0.reason: "search_top_hits" }
   - gt: { profile.shards.0.dfs.knn.0.collector.0.time_in_nanos: 0 }
+
+---
+dfs knn vector profiling description:
+  - requires:
+      cluster_features: ["lucene_10_upgrade"]
+      reason: "the profile description changed with Lucene 10"
+  - do:
+      indices.create:
+        index: images
+        body:
+          settings:
+            index.number_of_shards: 1
+          mappings:
+            properties:
+              image:
+                type: "dense_vector"
+                dims: 3
+                index: true
+                similarity: "l2_norm"
+
+  - do:
+      index:
+        index: images
+        id: "1"
+        refresh: true
+        body:
+          image: [1, 5, -20]
+
+  - do:
+      search:
+        index: images
+        body:
+          profile: true
+          knn:
+            field: "image"
+            query_vector: [-5, 9, -12]
+            k: 1
+            num_candidates: 100
+
+  - match: { hits.total.value: 1 }
+  - match: { profile.shards.0.dfs.knn.0.query.0.description: "DocAndScoreQuery[0,...][0.009673266,...],0.009673266" }
 
 ---
 dfs knn vector profiling with vector_operations_count:
@@ -276,7 +316,6 @@ dfs knn vector profiling with vector_operations_count:
 
   - match: { hits.total.value: 1 }
   - match: { profile.shards.0.dfs.knn.0.query.0.type: "DocAndScoreQuery" }
-  - match: { profile.shards.0.dfs.knn.0.query.0.description: "DocAndScore[100]" }
   - match: { profile.shards.0.dfs.knn.0.vector_operations_count: 1 }
   - gt: { profile.shards.0.dfs.knn.0.query.0.time_in_nanos: 0 }
   - match: { profile.shards.0.dfs.knn.0.query.0.breakdown.set_min_competitive_score_count: 0 }
@@ -299,7 +338,6 @@ dfs knn vector profiling with vector_operations_count:
   - match: { profile.shards.0.dfs.knn.0.collector.0.name: "SimpleTopScoreDocCollector" }
   - match: { profile.shards.0.dfs.knn.0.collector.0.reason: "search_top_hits" }
   - gt: { profile.shards.0.dfs.knn.0.collector.0.time_in_nanos: 0 }
-
 
 ---
 dfs profile for search with dfs_query_then_fetch:

@@ -82,6 +82,7 @@ import org.elasticsearch.action.admin.cluster.storedscripts.TransportGetScriptLa
 import org.elasticsearch.action.admin.cluster.storedscripts.TransportGetStoredScriptAction;
 import org.elasticsearch.action.admin.cluster.storedscripts.TransportPutStoredScriptAction;
 import org.elasticsearch.action.admin.cluster.tasks.TransportPendingClusterTasksAction;
+import org.elasticsearch.action.admin.cluster.version.TransportSystemIndexMappingsVersionsAction;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.TransportIndicesAliasesAction;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesAction;
@@ -626,6 +627,7 @@ public class ActionModule extends AbstractModule {
         actions.register(TransportRemoteInfoAction.TYPE, TransportRemoteInfoAction.class);
         actions.register(TransportNodesCapabilitiesAction.TYPE, TransportNodesCapabilitiesAction.class);
         actions.register(TransportNodesFeaturesAction.TYPE, TransportNodesFeaturesAction.class);
+        actions.register(TransportSystemIndexMappingsVersionsAction.TYPE, TransportSystemIndexMappingsVersionsAction.class);
         actions.register(RemoteClusterNodesAction.TYPE, RemoteClusterNodesAction.TransportAction.class);
         actions.register(TransportNodesStatsAction.TYPE, TransportNodesStatsAction.class);
         actions.register(TransportNodesUsageAction.TYPE, TransportNodesUsageAction.class);

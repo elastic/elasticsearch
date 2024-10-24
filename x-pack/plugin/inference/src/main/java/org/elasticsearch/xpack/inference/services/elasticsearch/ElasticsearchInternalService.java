@@ -60,7 +60,6 @@ import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -70,6 +69,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.core.inference.results.ResultUtils.createInvalidChunkedResultException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
@@ -1037,15 +1037,13 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
                     .setTooltip("The name of the model to use for the inference task.")
                     .setType(ServiceConfigurationFieldType.STRING)
                     .setOptions(
-                        new ArrayList<>(
-                            Arrays.asList(
-                                ELSER_V1_MODEL,
-                                ELSER_V2_MODEL,
-                                ELSER_V2_MODEL_LINUX_X86,
-                                MULTILINGUAL_E5_SMALL_MODEL_ID,
-                                MULTILINGUAL_E5_SMALL_MODEL_ID_LINUX_X86
-                            )
-                        ).stream().map(v -> new ServiceConfigurationSelectOption.Builder().setLabelAndValue(v).build()).toList()
+                        Stream.of(
+                            ELSER_V1_MODEL,
+                            ELSER_V2_MODEL,
+                            ELSER_V2_MODEL_LINUX_X86,
+                            MULTILINGUAL_E5_SMALL_MODEL_ID,
+                            MULTILINGUAL_E5_SMALL_MODEL_ID_LINUX_X86
+                        ).map(v -> new ServiceConfigurationSelectOption.Builder().setLabelAndValue(v).build()).toList()
                     )
                     .setDefaultValue(MULTILINGUAL_E5_SMALL_MODEL_ID)
                     .build()

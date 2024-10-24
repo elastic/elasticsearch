@@ -49,13 +49,12 @@ import org.elasticsearch.xpack.inference.services.amazonbedrock.embeddings.Amazo
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.parsePersistedConfigErrorMsg;
@@ -394,7 +393,7 @@ public class AmazonBedrockService extends SenderService {
                     .setTooltip("The model provider for your deployment.")
                     .setType(ServiceConfigurationFieldType.STRING)
                     .setOptions(
-                        new ArrayList<>(Arrays.asList("amazontitan", "anthropic", "ai21labs", "cohere", "meta", "mistral")).stream()
+                        Stream.of("amazontitan", "anthropic", "ai21labs", "cohere", "meta", "mistral")
                             .map(v -> new ServiceConfigurationSelectOption.Builder().setLabelAndValue(v).build())
                             .toList()
                     )

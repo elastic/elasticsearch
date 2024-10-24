@@ -48,13 +48,12 @@ import org.elasticsearch.xpack.inference.services.azureaistudio.embeddings.Azure
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.parsePersistedConfigErrorMsg;
@@ -432,7 +431,7 @@ public class AzureAiStudioService extends SenderService {
                     .setTooltip("Specifies the type of endpoint that is used in your model deployment.")
                     .setType(ServiceConfigurationFieldType.STRING)
                     .setOptions(
-                        new ArrayList<>(Arrays.asList("token", "realtime")).stream()
+                        Stream.of("token", "realtime")
                             .map(v -> new ServiceConfigurationSelectOption.Builder().setLabelAndValue(v).build())
                             .toList()
                     )
@@ -449,7 +448,7 @@ public class AzureAiStudioService extends SenderService {
                     .setTooltip("The model provider for your deployment.")
                     .setType(ServiceConfigurationFieldType.STRING)
                     .setOptions(
-                        new ArrayList<>(Arrays.asList("cohere", "meta", "microsoft_phi", "mistral", "openai", "databricks")).stream()
+                        Stream.of("cohere", "meta", "microsoft_phi", "mistral", "openai", "databricks")
                             .map(v -> new ServiceConfigurationSelectOption.Builder().setLabelAndValue(v).build())
                             .toList()
                     )

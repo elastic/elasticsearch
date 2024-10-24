@@ -50,12 +50,11 @@ import org.elasticsearch.xpack.inference.services.alibabacloudsearch.sparse.Alib
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.inference.TaskType.SPARSE_EMBEDDING;
 import static org.elasticsearch.inference.TaskType.TEXT_EMBEDDING;
@@ -411,16 +410,14 @@ public class AlibabaCloudSearchService extends SenderService {
                     .setTooltip("The name of the model service to use for the {infer} task.")
                     .setType(ServiceConfigurationFieldType.STRING)
                     .setOptions(
-                        new ArrayList<>(
-                            Arrays.asList(
-                                "ops-text-embedding-001",
-                                "ops-text-embedding-zh-001",
-                                "ops-text-embedding-en-001",
-                                "ops-text-embedding-002",
-                                "ops-text-sparse-embedding-001",
-                                "ops-bge-reranker-larger"
-                            )
-                        ).stream().map(v -> new ServiceConfigurationSelectOption.Builder().setLabelAndValue(v).build()).toList()
+                        Stream.of(
+                            "ops-text-embedding-001",
+                            "ops-text-embedding-zh-001",
+                            "ops-text-embedding-en-001",
+                            "ops-text-embedding-002",
+                            "ops-text-sparse-embedding-001",
+                            "ops-bge-reranker-larger"
+                        ).map(v -> new ServiceConfigurationSelectOption.Builder().setLabelAndValue(v).build()).toList()
                     )
                     .build()
             );
@@ -450,7 +447,7 @@ public class AlibabaCloudSearchService extends SenderService {
                     .setTooltip("")
                     .setType(ServiceConfigurationFieldType.STRING)
                     .setOptions(
-                        new ArrayList<>(Arrays.asList("https", "http")).stream()
+                        Stream.of("https", "http")
                             .map(v -> new ServiceConfigurationSelectOption.Builder().setLabelAndValue(v).build())
                             .toList()
                     )

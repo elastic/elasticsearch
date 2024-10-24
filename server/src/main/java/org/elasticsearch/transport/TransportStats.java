@@ -167,8 +167,7 @@ public class TransportStats implements Writeable, ChunkedToXContent {
 
     private boolean assertHistogramsConsistent() {
         assert inboundHandlingTimeBucketFrequencies.length == outboundHandlingTimeBucketFrequencies.length;
-        assert inboundHandlingTimeBucketFrequencies.length == 0
-            || inboundHandlingTimeBucketFrequencies.length == HandlingTimeTracker.BUCKET_COUNT;
+        assert inboundHandlingTimeBucketFrequencies.length == HandlingTimeTracker.BUCKET_COUNT;
         return true;
     }
 

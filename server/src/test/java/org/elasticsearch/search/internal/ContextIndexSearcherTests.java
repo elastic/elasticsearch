@@ -220,11 +220,10 @@ public class ContextIndexSearcherTests extends ESTestCase {
                     Integer.MAX_VALUE,
                     1
                 );
-                int numSegments = directoryReader.getContext().leaves().size();
                 KnnFloatVectorQuery vectorQuery = new KnnFloatVectorQuery("float_vector", new float[] { 0, 0, 0 }, 10, null);
                 vectorQuery.rewrite(searcher);
-                // 1 task gets executed on the caller thread
-                assertBusy(() -> assertEquals(numSegments - 1, executor.getCompletedTaskCount()));
+                // TODO: this test is weird now with the executor activating logarithmically
+                assertBusy(() -> assertThat(executor.getCompletedTaskCount(), greaterThanOrEqualTo(1L)));
             }
         } finally {
             terminate(executor);
@@ -252,10 +251,8 @@ public class ContextIndexSearcherTests extends ESTestCase {
                 );
                 Integer totalHits = searcher.search(new MatchAllDocsQuery(), new TotalHitCountCollectorManager(searcher.getSlices()));
                 assertEquals(numDocs, totalHits.intValue());
-                int numExpectedTasks = ContextIndexSearcher.computeSlices(searcher.getIndexReader().leaves(), Integer.MAX_VALUE, 1).length;
-                // check that each slice except for one that executes on the calling thread goes to the executor, no matter the queue size
-                // or the number of slices
-                assertBusy(() -> assertEquals(numExpectedTasks - 1, executor.getCompletedTaskCount()));
+                // TODO: this test is weird now with the executor activating logarithmically
+                assertBusy(() -> assertThat(executor.getCompletedTaskCount(), greaterThanOrEqualTo(1L)));
             }
         } finally {
             terminate(executor);

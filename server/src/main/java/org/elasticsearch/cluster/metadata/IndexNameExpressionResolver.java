@@ -48,7 +48,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -193,7 +192,7 @@ public class IndexNameExpressionResolver {
         );
         final Collection<String> expressions = resolveExpressions(context, indexExpressions);
         return expressions.stream()
-            .map(x -> state.metadata().getIndicesLookup().get(x))
+            .map(state.metadata().getIndicesLookup()::get)
             .filter(Objects::nonNull)
             .filter(ia -> ia.getType() == Type.DATA_STREAM)
             .map(IndexAbstraction::getName)
@@ -250,23 +249,18 @@ public class IndexNameExpressionResolver {
         if (context.getOptions().expandWildcardExpressions() == false) {
             if (expressions == null || expressions.length == 0 || expressions.length == 1 && Metadata.ALL.equals(expressions[0])) {
                 return List.of();
-            } else {
-                return ExplicitResourceNameFilter.filterUnavailable(
-                    context,
-                    DateMathExpressionResolver.resolve(context, List.of(expressions))
-                );
             }
+            return ExplicitResourceNameFilter.filterUnavailable(context, DateMathExpressionResolver.resolve(context, expressions));
+        }
+        if (expressions == null
+            || expressions.length == 0
+            || expressions.length == 1 && (Metadata.ALL.equals(expressions[0]) || Regex.isMatchAllPattern(expressions[0]))) {
+            return WildcardExpressionResolver.resolveAll(context);
         } else {
-            if (expressions == null
-                || expressions.length == 0
-                || expressions.length == 1 && (Metadata.ALL.equals(expressions[0]) || Regex.isMatchAllPattern(expressions[0]))) {
-                return WildcardExpressionResolver.resolveAll(context);
-            } else {
-                return WildcardExpressionResolver.resolve(
-                    context,
-                    ExplicitResourceNameFilter.filterUnavailable(context, DateMathExpressionResolver.resolve(context, List.of(expressions)))
-                );
-            }
+            return WildcardExpressionResolver.resolve(
+                context,
+                ExplicitResourceNameFilter.filterUnavailable(context, DateMathExpressionResolver.resolve(context, expressions))
+            );
         }
     }
 
@@ -1294,34 +1288,75 @@ public class IndexNameExpressionResolver {
          * </ol>
          */
         public static Collection<String> resolve(Context context, List<String> expressions) {
-            ExpressionList expressionList = new ExpressionList(context, expressions);
             // fast exit if there are no wildcards to evaluate
-            if (expressionList.hasWildcard() == false) {
+            if (context.getOptions().expandWildcardExpressions() == false) {
                 return expressions;
             }
+            int firstWildcardIndex = 0;
+            for (; firstWildcardIndex < expressions.size(); firstWildcardIndex++) {
+                String expression = expressions.get(firstWildcardIndex);
+                if (isWildcard(expression)) {
+                    break;
+                }
+            }
+            if (firstWildcardIndex == expressions.size()) {
+                return expressions;
+            }
+            int startAt = -1;
+            for (int i = expressions.size() - 1; i > firstWildcardIndex; i--) {
+                if ("-*".equals(expressions.get(i))) {
+                    startAt = i + 1;
+                }
+            }
+            if (startAt == expressions.size()) {
+                return Set.of();
+            }
             Set<String> result = new HashSet<>();
-            for (ExpressionList.Expression expression : expressionList) {
-                if (expression.isWildcard()) {
-                    Stream<IndexAbstraction> matchingResources = matchResourcesToWildcard(context, expression.get());
-                    Stream<String> matchingOpenClosedNames = expandToOpenClosed(context, matchingResources);
+            if (startAt == -1) {
+                for (int i = 0; i < firstWildcardIndex; i++) {
+                    result.add(expressions.get(i));
+                }
+                String firstWithWildcard = expressions.get(firstWildcardIndex);
+                Stream<String> matchingOpenClosedNames = expandToOpenClosed(context, matchResourcesToWildcard(context, firstWithWildcard));
+                AtomicBoolean emptyWildcardExpansion = new AtomicBoolean(false);
+                if (context.getOptions().allowNoIndices() == false) {
+                    emptyWildcardExpansion.set(true);
+                    matchingOpenClosedNames = matchingOpenClosedNames.peek(x -> emptyWildcardExpansion.set(false));
+                }
+                matchingOpenClosedNames.forEach(result::add);
+                if (emptyWildcardExpansion.get()) {
+                    throw notFoundException(firstWithWildcard);
+                }
+            }
+            for (int i = Math.max(firstWildcardIndex + 1, startAt); i < expressions.size(); i++) {
+                final String expression = expressions.get(i);
+                boolean isExclusion = expression.charAt(0) == '-';
+                if (isExclusion && result.isEmpty()) {
+                    continue;
+                }
+                if (isWildcard(expression)) {
+                    Stream<String> matchingOpenClosedNames = expandToOpenClosed(
+                        context,
+                        matchResourcesToWildcard(context, isExclusion ? expression.substring(1) : expression)
+                    );
                     AtomicBoolean emptyWildcardExpansion = new AtomicBoolean(false);
                     if (context.getOptions().allowNoIndices() == false) {
                         emptyWildcardExpansion.set(true);
                         matchingOpenClosedNames = matchingOpenClosedNames.peek(x -> emptyWildcardExpansion.set(false));
                     }
-                    if (expression.isExclusion()) {
-                        matchingOpenClosedNames.forEachOrdered(result::remove);
+                    if (isExclusion) {
+                        matchingOpenClosedNames.forEach(result::remove);
                     } else {
-                        matchingOpenClosedNames.forEachOrdered(result::add);
+                        matchingOpenClosedNames.forEach(result::add);
                     }
                     if (emptyWildcardExpansion.get()) {
-                        throw notFoundException(expression.get());
+                        throw notFoundException(expression);
                     }
                 } else {
-                    if (expression.isExclusion()) {
-                        result.remove(expression.get());
+                    if (isExclusion) {
+                        result.remove(expression.substring(1));
                     } else {
-                        result.add(expression.get());
+                        result.add(expression);
                     }
                 }
             }
@@ -1332,9 +1367,9 @@ public class IndexNameExpressionResolver {
             final IndexMetadata.State excludeState;
             if (options.expandWildcardsOpen() && options.expandWildcardsClosed()) {
                 excludeState = null;
-            } else if (options.expandWildcardsOpen() && options.expandWildcardsClosed() == false) {
+            } else if (options.expandWildcardsOpen()) {
                 excludeState = IndexMetadata.State.CLOSE;
-            } else if (options.expandWildcardsClosed() && options.expandWildcardsOpen() == false) {
+            } else if (options.expandWildcardsClosed()) {
                 excludeState = IndexMetadata.State.OPEN;
             } else {
                 assert false : "this shouldn't get called if wildcards expand to none";
@@ -1442,7 +1477,7 @@ public class IndexNameExpressionResolver {
         private static List<String> resolveEmptyOrTrivialWildcard(Context context) {
             final String[] allIndices = resolveEmptyOrTrivialWildcardToAllIndices(context.getOptions(), context.getState().metadata());
             if (context.systemIndexAccessLevel == SystemIndexAccessLevel.ALL) {
-                return List.of(allIndices);
+                return Arrays.asList(allIndices);
             } else {
                 return resolveEmptyOrTrivialWildcardWithAllowedSystemIndices(context, allIndices);
             }
@@ -1507,25 +1542,29 @@ public class IndexNameExpressionResolver {
             // utility class
         }
 
-        public static List<String> resolve(Context context, List<String> expressions) {
-            List<String> result = new ArrayList<>(expressions.size());
-            for (ExpressionList.Expression expression : new ExpressionList(context, expressions)) {
-                result.add(resolveExpression(expression, context::getStartTime));
+        public static String[] resolve(Context context, String... expressions) {
+            boolean wildcardSeen = false;
+            final boolean expandWildcards = context.getOptions().expandWildcardExpressions();
+            String[] result = null;
+            for (int i = 0; i < expressions.length; i++) {
+                String expression = expressions[i];
+                // accepts date-math exclusions that are of the form "-<...{}>", i.e. the "-" is outside the "<>" date-math template
+                boolean isExclusion = wildcardSeen && expression.startsWith("-");
+                wildcardSeen = wildcardSeen || (expandWildcards && isWildcard(expression));
+                String toResolve = isExclusion ? expression.substring(1) : expression;
+                String resolved = resolveExpression(toResolve, context::getStartTime);
+                if (toResolve != resolved) {
+                    if (result == null) {
+                        result = expressions.clone();
+                    }
+                    result[i] = isExclusion ? "-" + resolved : resolved;
+                }
             }
-            return result;
+            return result == null ? expressions : result;
         }
 
         static String resolveExpression(String expression) {
             return resolveExpression(expression, System::currentTimeMillis);
-        }
-
-        static String resolveExpression(ExpressionList.Expression expression, LongSupplier getTime) {
-            if (expression.isExclusion()) {
-                // accepts date-math exclusions that are of the form "-<...{}>", i.e. the "-" is outside the "<>" date-math template
-                return "-" + resolveExpression(expression.get(), getTime);
-            } else {
-                return resolveExpression(expression.get(), getTime);
-            }
         }
 
         static String resolveExpression(String expression, LongSupplier getTime) {
@@ -1555,7 +1594,6 @@ public class IndexNameExpressionResolver {
                 if (c == ESCAPE_CHAR) {
                     if (escapedChar) {
                         beforePlaceHolderSb.append(c);
-                        escape = false;
                     } else {
                         escape = true;
                     }
@@ -1687,13 +1725,26 @@ public class IndexNameExpressionResolver {
          * Returns an expression list with "unavailable" (missing or not acceptable) resource names filtered out.
          * Only explicit resource names are considered for filtering. Wildcard and exclusion expressions are kept in.
          */
-        public static List<String> filterUnavailable(Context context, List<String> expressions) {
+        public static List<String> filterUnavailable(Context context, String... expressions) {
             ensureRemoteIndicesRequireIgnoreUnavailable(context.getOptions(), expressions);
-            List<String> result = new ArrayList<>(expressions.size());
-            for (ExpressionList.Expression expression : new ExpressionList(context, expressions)) {
-                validateAliasOrIndex(expression);
-                if (expression.isWildcard() || expression.isExclusion() || ensureAliasOrIndexExists(context, expression.get())) {
-                    result.add(expression.expression());
+            final boolean expandWildcards = context.getOptions().expandWildcardExpressions();
+            boolean wildcardSeen = false;
+            List<String> result = new ArrayList<>(expressions.length);
+            for (String expression : expressions) {
+                if (Strings.isEmpty(expression)) {
+                    throw notFoundException(expression);
+                }
+                // Expressions can not start with an underscore. This is reserved for APIs. If the check gets here, the API
+                // does not exist and the path is interpreted as an expression. If the expression begins with an underscore,
+                // throw a specific error that is different from the [[IndexNotFoundException]], which is typically thrown
+                // if the expression can't be found.
+                if (expression.charAt(0) == '_') {
+                    throw new InvalidIndexNameException(expression, "must not start with '_'.");
+                }
+                final boolean isWildcard = expandWildcards && isWildcard(expression);
+                wildcardSeen |= isWildcard;
+                if (isWildcard || (wildcardSeen && expression.charAt(0) == '-') || ensureAliasOrIndexExists(context, expression)) {
+                    result.add(expression);
                 }
             }
             return result;
@@ -1736,20 +1787,7 @@ public class IndexNameExpressionResolver {
             return true;
         }
 
-        private static void validateAliasOrIndex(ExpressionList.Expression expression) {
-            if (Strings.isEmpty(expression.expression())) {
-                throw notFoundException(expression.expression());
-            }
-            // Expressions can not start with an underscore. This is reserved for APIs. If the check gets here, the API
-            // does not exist and the path is interpreted as an expression. If the expression begins with an underscore,
-            // throw a specific error that is different from the [[IndexNotFoundException]], which is typically thrown
-            // if the expression can't be found.
-            if (expression.expression().charAt(0) == '_') {
-                throw new InvalidIndexNameException(expression.expression(), "must not start with '_'.");
-            }
-        }
-
-        private static void ensureRemoteIndicesRequireIgnoreUnavailable(IndicesOptions options, List<String> indexExpressions) {
+        private static void ensureRemoteIndicesRequireIgnoreUnavailable(IndicesOptions options, String... indexExpressions) {
             if (options.ignoreUnavailable()) {
                 return;
             }
@@ -1760,7 +1798,7 @@ public class IndexNameExpressionResolver {
             }
         }
 
-        private static void failOnRemoteIndicesNotIgnoringUnavailable(List<String> indexExpressions) {
+        private static void failOnRemoteIndicesNotIgnoringUnavailable(String... indexExpressions) {
             List<String> crossClusterIndices = new ArrayList<>();
             for (String index : indexExpressions) {
                 if (RemoteClusterAware.isRemoteIndexName(index)) {
@@ -1770,57 +1808,6 @@ public class IndexNameExpressionResolver {
             throw new IllegalArgumentException(
                 "Cross-cluster calls are not supported in this context but remote indices were requested: " + crossClusterIndices
             );
-        }
-    }
-
-    /**
-     * Used to iterate expression lists and work out which expression item is a wildcard or an exclusion.
-     */
-    public static final class ExpressionList implements Iterable<ExpressionList.Expression> {
-        private final List<Expression> expressionsList;
-        private final boolean hasWildcard;
-
-        public record Expression(String expression, boolean isWildcard, boolean isExclusion) {
-            public String get() {
-                if (isExclusion()) {
-                    // drop the leading "-" if exclusion because it is easier for callers to handle it like this
-                    return expression().substring(1);
-                } else {
-                    return expression();
-                }
-            }
-        }
-
-        /**
-         * Creates the expression iterable that can be used to easily check which expression item is a wildcard or an exclusion (or both).
-         * The {@param context} is used to check if wildcards ought to be considered or not.
-         */
-        public ExpressionList(Context context, List<String> expressionStrings) {
-            List<Expression> expressionsList = new ArrayList<>(expressionStrings.size());
-            boolean wildcardSeen = false;
-            for (String expressionString : expressionStrings) {
-                boolean isExclusion = expressionString.startsWith("-") && wildcardSeen;
-                if (context.getOptions().expandWildcardExpressions() && isWildcard(expressionString)) {
-                    wildcardSeen = true;
-                    expressionsList.add(new Expression(expressionString, true, isExclusion));
-                } else {
-                    expressionsList.add(new Expression(expressionString, false, isExclusion));
-                }
-            }
-            this.expressionsList = expressionsList;
-            this.hasWildcard = wildcardSeen;
-        }
-
-        /**
-         * Returns {@code true} if the expression contains any wildcard and the options allow wildcard expansion
-         */
-        public boolean hasWildcard() {
-            return this.hasWildcard;
-        }
-
-        @Override
-        public Iterator<ExpressionList.Expression> iterator() {
-            return expressionsList.iterator();
         }
     }
 

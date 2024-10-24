@@ -44,12 +44,7 @@ public class CoordinatorRewriteContext extends QueryRewriteContext {
     private static final ConstantFieldType TIER_FIELD_TYPE = new ConstantFieldType(TIER_FIELD_NAME, Map.of()) {
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            if (format != null) {
-                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
-            }
-
-            String tierPreference = context.getTierPreference();
-            return tierPreference == null ? ValueFetcher.EMPTY : ValueFetcher.singleton(tierPreference);
+            throw new UnsupportedOperationException("fetching field values is not supported on the coordinator node");
         }
 
         @Override
@@ -72,11 +67,7 @@ public class CoordinatorRewriteContext extends QueryRewriteContext {
 
         @Override
         public Query existsQuery(SearchExecutionContext context) {
-            String tierPreference = context.getTierPreference();
-            if (tierPreference == null) {
-                return new MatchNoDocsQuery();
-            }
-            return new MatchAllDocsQuery();
+            throw new UnsupportedOperationException("field exists query is not supported on the coordinator node");
         }
     };
 

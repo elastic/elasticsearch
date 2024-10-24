@@ -532,7 +532,7 @@ public class Docker {
                 )
             );
 
-        if (es.distribution.packaging == Packaging.DOCKER_CLOUD || es.distribution.packaging == Packaging.DOCKER_CLOUD_ESS) {
+        if (es.distribution.packaging == Packaging.DOCKER_CLOUD_ESS) {
             verifyCloudContainerInstallation(es);
         }
     }

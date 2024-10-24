@@ -330,7 +330,13 @@ public class S3BlobStoreRepositoryMetricsTests extends S3BlobStoreRepositoryTest
         final String repository = createRepository(randomRepositoryName());
         final String dataNodeName = internalCluster().getNodeNameThat(DiscoveryNode::canContainData);
         final TestTelemetryPlugin plugin = getPlugin(dataNodeName);
-        final OperationPurpose purpose = randomFrom(OperationPurpose.values());
+        // Exclude snapshot related purpose to avoid trigger assertions for cross-checking purpose and blob names
+        final OperationPurpose purpose = randomFrom(
+            OperationPurpose.REPOSITORY_ANALYSIS,
+            OperationPurpose.CLUSTER_STATE,
+            OperationPurpose.INDICES,
+            OperationPurpose.TRANSLOG
+        );
         final BlobContainer blobContainer = getBlobContainer(dataNodeName, repository);
         final String blobName = randomIdentifier();
 

@@ -1077,22 +1077,6 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
         }
 
         {
-            // bool match query
-            BoolQueryBuilder boolQueryBuilder = QueryBuilders.boolQuery().mustNot(QueryBuilders.matchQuery("_tier", "data_frozen"));
-            List<String> indicesToSearch = List.of(regularIndex, partiallyMountedIndex);
-            SearchRequest request = new SearchRequest().indices(indicesToSearch.toArray(new String[0]))
-                .source(new SearchSourceBuilder().query(boolQueryBuilder));
-
-            assertResponse(client().search(request), searchResponse -> {
-                // as we excluded the frozen tier we shouldn't get any failures
-                assertThat(searchResponse.getFailedShards(), equalTo(0));
-                // we should be receiving all the hits from the index that's in the data_content tier
-                assertNotNull(searchResponse.getHits().getTotalHits());
-                assertThat(searchResponse.getHits().getTotalHits().value(), equalTo((long) numDocsRegularIndex));
-            });
-        }
-
-        {
             // bool prefix, wildcard
             BoolQueryBuilder boolQueryBuilder = QueryBuilders.boolQuery()
                 .mustNot(randomFrom(QueryBuilders.wildcardQuery("_tier", "dat*ozen"), QueryBuilders.prefixQuery("_tier", "data_fro")));

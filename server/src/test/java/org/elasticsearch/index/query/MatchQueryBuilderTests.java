@@ -671,35 +671,4 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
         }
     }
 
-    public void testCoordinatorTierRewriteToMatchAll() throws IOException {
-        QueryBuilder query = new MatchQueryBuilder("_tier", "data_frozen");
-        final String timestampFieldName = "@timestamp";
-        long minTimestamp = 1685714000000L;
-        long maxTimestamp = 1685715000000L;
-        final CoordinatorRewriteContext coordinatorRewriteContext = createCoordinatorRewriteContext(
-            new DateFieldMapper.DateFieldType(timestampFieldName),
-            minTimestamp,
-            maxTimestamp,
-            "data_frozen"
-        );
-
-        QueryBuilder rewritten = query.rewrite(coordinatorRewriteContext);
-        assertThat(rewritten, instanceOf(MatchAllQueryBuilder.class));
-    }
-
-    public void testCoordinatorTierRewriteToMatchNone() throws IOException {
-        QueryBuilder query = QueryBuilders.boolQuery().mustNot(new MatchQueryBuilder("_tier", "data_frozen"));
-        final String timestampFieldName = "@timestamp";
-        long minTimestamp = 1685714000000L;
-        long maxTimestamp = 1685715000000L;
-        final CoordinatorRewriteContext coordinatorRewriteContext = createCoordinatorRewriteContext(
-            new DateFieldMapper.DateFieldType(timestampFieldName),
-            minTimestamp,
-            maxTimestamp,
-            "data_frozen"
-        );
-
-        QueryBuilder rewritten = query.rewrite(coordinatorRewriteContext);
-        assertThat(rewritten, instanceOf(MatchNoneQueryBuilder.class));
-    }
 }

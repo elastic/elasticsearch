@@ -28,7 +28,7 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
         Setting.Property.NodeScope
     );
     private static final String LOGS_PATTERN = "logs-*-*";
-    private boolean isLogsdbEnabled;
+    private volatile boolean isLogsdbEnabled;
 
     LogsdbIndexModeSettingsProvider(final Settings settings) {
         this.isLogsdbEnabled = CLUSTER_LOGSDB_ENABLED.get(settings);

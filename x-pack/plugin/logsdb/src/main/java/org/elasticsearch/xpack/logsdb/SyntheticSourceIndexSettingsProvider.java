@@ -69,8 +69,8 @@ final class SyntheticSourceIndexSettingsProvider implements IndexSettingProvider
         var logsdbSettings = logsdbIndexModeSettingsProvider.getLogsdbModeSetting(dataStreamName, indexTemplateAndCreateRequestSettings);
         if (logsdbSettings != Settings.EMPTY) {
             indexTemplateAndCreateRequestSettings = Settings.builder()
-                .put(indexTemplateAndCreateRequestSettings)
                 .put(logsdbSettings)
+                .put(indexTemplateAndCreateRequestSettings)
                 .build();
         }
 

@@ -28,8 +28,7 @@ import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.plugins.internal.DocumentParsingProvider;
-import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
+import org.elasticsearch.plugins.internal.XContentParserDecorator;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.UpdateCtxMap;
@@ -51,11 +50,9 @@ public class UpdateHelper {
     private static final Logger logger = LogManager.getLogger(UpdateHelper.class);
 
     private final ScriptService scriptService;
-    private final DocumentParsingProvider documentParsingProvider;
 
-    public UpdateHelper(ScriptService scriptService, DocumentParsingProvider documentParsingProvider) {
+    public UpdateHelper(ScriptService scriptService) {
         this.scriptService = scriptService;
-        this.documentParsingProvider = documentParsingProvider;
     }
 
     /**
@@ -183,14 +180,13 @@ public class UpdateHelper {
     Result prepareUpdateIndexRequest(IndexShard indexShard, UpdateRequest request, GetResult getResult, boolean detectNoop) {
         final IndexRequest currentRequest = request.doc();
         final String routing = calculateRouting(getResult, currentRequest);
-        final XContentMeteringParserDecorator meteringParserDecorator = documentParsingProvider.newMeteringParserDecorator(request);
         final Tuple<XContentType, Map<String, Object>> sourceAndContent = XContentHelper.convertToMap(getResult.internalSourceRef(), true);
         final XContentType updateSourceContentType = sourceAndContent.v1();
         final Map<String, Object> updatedSourceAsMap = sourceAndContent.v2();
 
         final boolean noop = XContentHelper.update(
             updatedSourceAsMap,
-            currentRequest.sourceAsMap(meteringParserDecorator),
+            currentRequest.sourceAsMap(XContentParserDecorator.NOOP),
             detectNoop
         ) == false;
 
@@ -228,9 +224,7 @@ public class UpdateHelper {
                 .setIfPrimaryTerm(getResult.getPrimaryTerm())
                 .waitForActiveShards(request.waitForActiveShards())
                 .timeout(request.timeout())
-                .setRefreshPolicy(request.getRefreshPolicy())
-                .setOriginatesFromUpdateByDoc(true);
-            finalIndexRequest.setNormalisedBytesParsed(meteringParserDecorator.meteredDocumentSize().ingestedBytes());
+                .setRefreshPolicy(request.getRefreshPolicy());
             return new Result(finalIndexRequest, DocWriteResponse.Result.UPDATED, updatedSourceAsMap, updateSourceContentType);
         }
     }
@@ -272,8 +266,7 @@ public class UpdateHelper {
                     .setIfPrimaryTerm(getResult.getPrimaryTerm())
                     .waitForActiveShards(request.waitForActiveShards())
                     .timeout(request.timeout())
-                    .setRefreshPolicy(request.getRefreshPolicy())
-                    .setOriginatesFromUpdateByScript(true);
+                    .setRefreshPolicy(request.getRefreshPolicy());
                 return new Result(indexRequest, DocWriteResponse.Result.UPDATED, updatedSourceAsMap, updateSourceContentType);
             }
             case DELETE -> {

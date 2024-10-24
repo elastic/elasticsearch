@@ -20,6 +20,7 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.TermQuery;
@@ -32,6 +33,7 @@ import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.SortedMap;
 import java.util.WeakHashMap;
@@ -67,7 +69,9 @@ public class IndexResolver /*implements ClusterStateListener*/ {
     }
 
     private static void addConcreteIndexInfo(Document doc, Metadata metadata, IndexAbstraction.ConcreteIndex concreteIndex) {
-        doc.add(new KeywordField(DATA_STREAM_FIELD, concreteIndex.getName(), Field.Store.YES));
+        if (concreteIndex.getParentDataStream() != null) {
+            doc.add(new KeywordField(DATA_STREAM_FIELD, concreteIndex.getParentDataStream().getName(), Field.Store.YES));
+        }
         IndexMetadata indexMetadata = metadata.index(concreteIndex.getWriteIndex());
         Map<String, AliasMetadata> aliasMetadatas = indexMetadata.getAliases();
         if (aliasMetadatas != null && aliasMetadatas.isEmpty() == false) {
@@ -127,19 +131,53 @@ public class IndexResolver /*implements ClusterStateListener*/ {
             IndexSearcher searcher = new IndexSearcher(DirectoryReader.open(buildIndex(context.getState())));
             BooleanQuery.Builder topQuery = new BooleanQuery.Builder();
             if (expressions == null || expressions.length == 0) {
-                topQuery.add(new MatchAllDocsQuery(), BooleanClause.Occur.MUST);
+//                topQuery.add(new MatchAllDocsQuery(), BooleanClause.Occur.MUST);
             } else {
-                for (String expression : expressions) {
-                    topQuery.add(
-                        AutomatonQueries.caseInsensitiveWildcardQuery(new Term(NAME_FIELD, expression)),
-                        BooleanClause.Occur.SHOULD
-                    );
+                IndexNameExpressionResolver.ExpressionList exps = new IndexNameExpressionResolver.ExpressionList(
+                    context,
+                    List.of(expressions)
+                );
+                for (var expression : exps) {
+                    if (expression.get().equals("_all")) {
+                        topQuery.add(new MatchAllDocsQuery(), BooleanClause.Occur.SHOULD);
+                    } else if (expression.isWildcard()) {
+                        if (expression.isExclusion()) {
+                            topQuery.add(
+                                AutomatonQueries.caseInsensitiveWildcardQuery(new Term(NAME_FIELD, expression.get().substring(0))),
+                                BooleanClause.Occur.MUST_NOT
+                            );
+                        } else {
+                            topQuery.add(
+                                AutomatonQueries.caseInsensitiveWildcardQuery(new Term(NAME_FIELD, expression.get())),
+                                BooleanClause.Occur.SHOULD
+                            );
+                        }
+                    } else {
+                        // it's not a wildcard
+                        if (expression.isExclusion()) {
+                            topQuery.add(
+                                new TermQuery(new Term(NAME_FIELD, expression.get().substring(0))),
+                                BooleanClause.Occur.MUST_NOT
+                            );
+                        } else {
+                            topQuery.add(
+                                new TermQuery(new Term(NAME_FIELD, expression.get())),
+                                BooleanClause.Occur.SHOULD
+                            );
+                        }
+
+                    }
                 }
             }
+
 
             if (context.includeDataStreams() == false) {
                 topQuery.add(
                     new TermQuery(new Term(TYPE_FIELD, IndexAbstraction.Type.DATA_STREAM.getDisplayName())),
+                    BooleanClause.Occur.MUST_NOT
+                );
+                topQuery.add(
+                    new FieldExistsQuery(DATA_STREAM_FIELD),
                     BooleanClause.Occur.MUST_NOT
                 );
             }
@@ -160,10 +198,7 @@ public class IndexResolver /*implements ClusterStateListener*/ {
             }
 
             if (options.expandWildcardsOpen() == false) {
-                topQuery.add(
-                    new TermQuery(new Term(OPEN_CLOSED_FIELD, IndexMetadata.State.OPEN.toString())),
-                    BooleanClause.Occur.MUST_NOT
-                );
+                topQuery.add(new TermQuery(new Term(OPEN_CLOSED_FIELD, IndexMetadata.State.OPEN.toString())), BooleanClause.Occur.MUST_NOT);
             }
 
             if (options.expandWildcardsHidden() == false) {

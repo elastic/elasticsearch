@@ -11,6 +11,7 @@ package org.elasticsearch.action.admin.indices.create;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.indices.alias.Alias;
@@ -103,7 +104,7 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
             final SystemIndexAccessLevel systemIndexAccessLevel = SystemIndices.getSystemIndexAccessLevel(threadPool.getThreadContext());
             if (systemIndexAccessLevel != SystemIndexAccessLevel.ALL) {
                 if (systemIndexAccessLevel == SystemIndexAccessLevel.RESTRICTED) {
-                    if (systemIndices.getProductSystemIndexNamePredicate(threadPool.getThreadContext()).test(indexName) == false) {
+                    if (new CharacterRunAutomaton(systemIndices.getProductSystemIndexNameAutomaton(threadPool.getThreadContext())).run(indexName) == false) {
                         throw SystemIndices.netNewSystemIndexAccessException(threadPool.getThreadContext(), List.of(indexName));
                     }
                 } else {

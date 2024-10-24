@@ -9,7 +9,9 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
+import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.IndicesRequest;
@@ -86,7 +88,7 @@ public class IndexNameExpressionResolver {
             false,
             request.includeDataStreams(),
             getSystemIndexAccessLevel(),
-            getSystemIndexAccessPredicate(),
+            getSystemIndexAccessAutomaton(),
             getNetNewSystemIndexPredicate()
         );
         return concreteIndexNames(context, request.indices());
@@ -103,7 +105,7 @@ public class IndexNameExpressionResolver {
             false,
             request.includeDataStreams(),
             SystemIndexAccessLevel.BACKWARDS_COMPATIBLE_ONLY,
-            Predicates.always(),
+            Automata.makeAnyString(),
             this.getNetNewSystemIndexPredicate()
         );
         return concreteIndexNames(context, request.indices());
@@ -121,7 +123,7 @@ public class IndexNameExpressionResolver {
             false,
             request.includeDataStreams(),
             getSystemIndexAccessLevel(),
-            getSystemIndexAccessPredicate(),
+            getSystemIndexAccessAutomaton(),
             getNetNewSystemIndexPredicate()
         );
         return concreteIndices(context, request.indices());
@@ -145,7 +147,7 @@ public class IndexNameExpressionResolver {
             state,
             options,
             getSystemIndexAccessLevel(),
-            getSystemIndexAccessPredicate(),
+            getSystemIndexAccessAutomaton(),
             getNetNewSystemIndexPredicate()
         );
         return concreteIndexNames(context, indexExpressions);
@@ -159,7 +161,7 @@ public class IndexNameExpressionResolver {
             false,
             includeDataStreams,
             getSystemIndexAccessLevel(),
-            getSystemIndexAccessPredicate(),
+            getSystemIndexAccessAutomaton(),
             getNetNewSystemIndexPredicate()
         );
         return concreteIndexNames(context, indexExpressions);
@@ -173,7 +175,7 @@ public class IndexNameExpressionResolver {
             false,
             request.includeDataStreams(),
             getSystemIndexAccessLevel(),
-            getSystemIndexAccessPredicate(),
+            getSystemIndexAccessAutomaton(),
             getNetNewSystemIndexPredicate()
         );
         return concreteIndexNames(context, request.indices());
@@ -188,7 +190,7 @@ public class IndexNameExpressionResolver {
             true,
             true,
             getSystemIndexAccessLevel(),
-            getSystemIndexAccessPredicate(),
+            getSystemIndexAccessAutomaton(),
             getNetNewSystemIndexPredicate()
         );
         final Collection<String> expressions = resolveExpressions(context, indexExpressions);
@@ -217,7 +219,7 @@ public class IndexNameExpressionResolver {
             false,
             includeDataStreams,
             getSystemIndexAccessLevel(),
-            getSystemIndexAccessPredicate(),
+            getSystemIndexAccessAutomaton(),
             getNetNewSystemIndexPredicate()
         );
 
@@ -295,7 +297,7 @@ public class IndexNameExpressionResolver {
             false,
             includeDataStreams,
             getSystemIndexAccessLevel(),
-            getSystemIndexAccessPredicate(),
+            getSystemIndexAccessAutomaton(),
             getNetNewSystemIndexPredicate()
         );
         return concreteIndices(context, indexExpressions);
@@ -323,7 +325,7 @@ public class IndexNameExpressionResolver {
             request.includeDataStreams(),
             false,
             getSystemIndexAccessLevel(),
-            getSystemIndexAccessPredicate(),
+            getSystemIndexAccessAutomaton(),
             getNetNewSystemIndexPredicate()
         );
         return concreteIndices(context, request.indices());
@@ -479,11 +481,9 @@ public class IndexNameExpressionResolver {
     }
 
     private void checkSystemIndexAccess(Context context, Set<Index> concreteIndices) {
-        final Predicate<String> systemIndexAccessPredicate = context.getSystemIndexAccessPredicate();
-        if (systemIndexAccessPredicate == Predicates.<String>always()) {
-            return;
-        }
-        doCheckSystemIndexAccess(context, concreteIndices, systemIndexAccessPredicate);
+        final Automaton systemIndexAccessAutomaton = context.getSystemIndexAccessAutomaton();
+        // ATHE: short circuit with accept-any somehow??
+        doCheckSystemIndexAccess(context, concreteIndices, it -> new CharacterRunAutomaton(systemIndexAccessAutomaton).run(it));
     }
 
     private void doCheckSystemIndexAccess(Context context, Set<Index> concreteIndices, Predicate<String> systemIndexAccessPredicate) {
@@ -692,7 +692,7 @@ public class IndexNameExpressionResolver {
             true,
             includeDataStreams,
             getSystemIndexAccessLevel(),
-            getSystemIndexAccessPredicate(),
+            getSystemIndexAccessAutomaton(),
             getNetNewSystemIndexPredicate()
         );
         Index[] indices = concreteIndices(context, index);
@@ -757,7 +757,7 @@ public class IndexNameExpressionResolver {
             true,
             preserveDataStreams,
             getSystemIndexAccessLevel(),
-            getSystemIndexAccessPredicate(),
+            getSystemIndexAccessAutomaton(),
             getNetNewSystemIndexPredicate()
         );
         Collection<String> resolved = resolveExpressions(context, expressions);
@@ -906,7 +906,7 @@ public class IndexNameExpressionResolver {
             false,
             true,
             getSystemIndexAccessLevel(),
-            getSystemIndexAccessPredicate(),
+            getSystemIndexAccessAutomaton(),
             getNetNewSystemIndexPredicate()
         );
         final Collection<String> resolvedExpressions = resolveExpressions(context, expressions);
@@ -1038,18 +1038,18 @@ public class IndexNameExpressionResolver {
         return accessLevel;
     }
 
-    public Predicate<String> getSystemIndexAccessPredicate() {
+    public Automaton getSystemIndexAccessAutomaton() {
         final SystemIndexAccessLevel systemIndexAccessLevel = getSystemIndexAccessLevel();
-        final Predicate<String> systemIndexAccessLevelPredicate;
+        final Automaton systemIndexAccessLevelPredicate;
         if (systemIndexAccessLevel == SystemIndexAccessLevel.NONE) {
-            systemIndexAccessLevelPredicate = Predicates.never();
+            systemIndexAccessLevelPredicate = Automata.makeEmpty();
         } else if (systemIndexAccessLevel == SystemIndexAccessLevel.BACKWARDS_COMPATIBLE_ONLY) {
-            systemIndexAccessLevelPredicate = getNetNewSystemIndexPredicate();
+            systemIndexAccessLevelPredicate = Automata.makeEmpty();// ATHE: I don't think this branch does anything meaningful anymore
         } else if (systemIndexAccessLevel == SystemIndexAccessLevel.ALL) {
-            systemIndexAccessLevelPredicate = Predicates.always();
+            systemIndexAccessLevelPredicate = Automata.makeAnyString();
         } else {
             // everything other than allowed should be included in the deprecation message
-            systemIndexAccessLevelPredicate = systemIndices.getProductSystemIndexNamePredicate(threadContext);
+            systemIndexAccessLevelPredicate = systemIndices.getProductSystemIndexNameAutomaton(threadContext);
         }
         return systemIndexAccessLevelPredicate;
     }
@@ -1072,18 +1072,18 @@ public class IndexNameExpressionResolver {
         private final boolean includeDataStreams;
         private final boolean preserveDataStreams;
         private final SystemIndexAccessLevel systemIndexAccessLevel;
-        private final Predicate<String> systemIndexAccessPredicate;
+        private final Automaton systemIndexAccessAutomaton;
         private final Predicate<String> netNewSystemIndexPredicate;
 
         Context(ClusterState state, IndicesOptions options, SystemIndexAccessLevel systemIndexAccessLevel) {
-            this(state, options, systemIndexAccessLevel, Predicates.always(), Predicates.never());
+            this(state, options, systemIndexAccessLevel, Automata.makeAnyString(), Predicates.never());
         }
 
         Context(
             ClusterState state,
             IndicesOptions options,
             SystemIndexAccessLevel systemIndexAccessLevel,
-            Predicate<String> systemIndexAccessPredicate,
+            Automaton systemIndexAccessAutomaton,
             Predicate<String> netNewSystemIndexPredicate
         ) {
             this(
@@ -1091,7 +1091,7 @@ public class IndexNameExpressionResolver {
                 options,
                 System.currentTimeMillis(),
                 systemIndexAccessLevel,
-                systemIndexAccessPredicate,
+                systemIndexAccessAutomaton,
                 netNewSystemIndexPredicate
             );
         }
@@ -1103,7 +1103,7 @@ public class IndexNameExpressionResolver {
             boolean resolveToWriteIndex,
             boolean includeDataStreams,
             SystemIndexAccessLevel systemIndexAccessLevel,
-            Predicate<String> systemIndexAccessPredicate,
+            Automaton systemIndexAccessAutomaton,
             Predicate<String> netNewSystemIndexPredicate
         ) {
             this(
@@ -1115,7 +1115,7 @@ public class IndexNameExpressionResolver {
                 includeDataStreams,
                 false,
                 systemIndexAccessLevel,
-                systemIndexAccessPredicate,
+                systemIndexAccessAutomaton,
                 netNewSystemIndexPredicate
             );
         }
@@ -1128,7 +1128,7 @@ public class IndexNameExpressionResolver {
             boolean includeDataStreams,
             boolean preserveDataStreams,
             SystemIndexAccessLevel systemIndexAccessLevel,
-            Predicate<String> systemIndexAccessPredicate,
+            Automaton systemIndexAccessAutomaton,
             Predicate<String> netNewSystemIndexPredicate
         ) {
             this(
@@ -1140,7 +1140,7 @@ public class IndexNameExpressionResolver {
                 includeDataStreams,
                 preserveDataStreams,
                 systemIndexAccessLevel,
-                systemIndexAccessPredicate,
+                systemIndexAccessAutomaton,
                 netNewSystemIndexPredicate
             );
         }
@@ -1150,7 +1150,7 @@ public class IndexNameExpressionResolver {
             IndicesOptions options,
             long startTime,
             SystemIndexAccessLevel systemIndexAccessLevel,
-            Predicate<String> systemIndexAccessPredicate,
+            Automaton systemIndexAccessAutomaton,
             Predicate<String> netNewSystemIndexPredicate
         ) {
             this(
@@ -1162,7 +1162,7 @@ public class IndexNameExpressionResolver {
                 false,
                 false,
                 systemIndexAccessLevel,
-                systemIndexAccessPredicate,
+                systemIndexAccessAutomaton,
                 netNewSystemIndexPredicate
             );
         }
@@ -1176,7 +1176,7 @@ public class IndexNameExpressionResolver {
             boolean includeDataStreams,
             boolean preserveDataStreams,
             SystemIndexAccessLevel systemIndexAccessLevel,
-            Predicate<String> systemIndexAccessPredicate,
+            Automaton systemIndexAccessAutomaton,
             Predicate<String> netNewSystemIndexPredicate
         ) {
             this.state = state;
@@ -1187,7 +1187,7 @@ public class IndexNameExpressionResolver {
             this.includeDataStreams = includeDataStreams;
             this.preserveDataStreams = preserveDataStreams;
             this.systemIndexAccessLevel = systemIndexAccessLevel;
-            this.systemIndexAccessPredicate = systemIndexAccessPredicate;
+            this.systemIndexAccessAutomaton = systemIndexAccessAutomaton;
             this.netNewSystemIndexPredicate = netNewSystemIndexPredicate;
         }
 
@@ -1231,8 +1231,8 @@ public class IndexNameExpressionResolver {
         /**
          * Used to determine system index access is allowed in this context (e.g. for this request).
          */
-        public Predicate<String> getSystemIndexAccessPredicate() {
-            return systemIndexAccessPredicate;
+        public Automaton getSystemIndexAccessAutomaton() {
+            return systemIndexAccessAutomaton;
         }
     }
 
@@ -1263,7 +1263,7 @@ public class IndexNameExpressionResolver {
                 .stream()
                 .filter(ia -> context.getOptions().expandWildcardsHidden() || ia.isHidden() == false)
                 .filter(ia -> shouldIncludeIfDataStream(ia, context) || shouldIncludeIfAlias(ia, context))
-                .filter(ia -> ia.isSystem() == false || context.systemIndexAccessPredicate.test(ia.getName()));
+                .filter(ia -> ia.isSystem() == false || new CharacterRunAutomaton(context.systemIndexAccessAutomaton).run(ia.getName()));
 
             Set<String> resolved = expandToOpenClosed(context, ias).collect(Collectors.toSet());
             resolved.addAll(concreteIndices);
@@ -1379,7 +1379,7 @@ public class IndexNameExpressionResolver {
                     || (indexAbstraction.getType() != Type.DATA_STREAM
                         && indexAbstraction.getParentDataStream() == null
                         && context.netNewSystemIndexPredicate.test(indexAbstraction.getName()) == false)
-                    || context.systemIndexAccessPredicate.test(indexAbstraction.getName())
+                    || new CharacterRunAutomaton(context.systemIndexAccessAutomaton).run(indexAbstraction.getName())
             );
             if (context.getOptions().expandWildcardsHidden() == false) {
                 if (wildcardExpression.startsWith(".")) {
@@ -1458,10 +1458,10 @@ public class IndexNameExpressionResolver {
                             if (SystemIndexAccessLevel.BACKWARDS_COMPATIBLE_ONLY.equals(context.systemIndexAccessLevel)) {
                                 return false;
                             } else {
-                                return context.systemIndexAccessPredicate.test(name);
+                                return new CharacterRunAutomaton(context.systemIndexAccessAutomaton).run(name);
                             }
                         } else if (abstraction.getType() == Type.DATA_STREAM || abstraction.getParentDataStream() != null) {
-                            return context.systemIndexAccessPredicate.test(name);
+                            return new CharacterRunAutomaton(context.systemIndexAccessAutomaton).run(name);
                         }
                     } else {
                         return true;
@@ -1834,7 +1834,7 @@ public class IndexNameExpressionResolver {
         }
 
         public ResolverContext(long startTime) {
-            super(null, null, startTime, false, false, false, false, SystemIndexAccessLevel.ALL, Predicates.never(), Predicates.never());
+            super(null, null, startTime, false, false, false, false, SystemIndexAccessLevel.ALL, Automata.makeEmpty(), Predicates.never());
         }
 
         @Override

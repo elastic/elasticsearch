@@ -1432,7 +1432,6 @@ public class AzureOpenAiServiceTests extends ESTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/114385")
     public void testInfer_StreamRequest() throws Exception {
         String responseJson = """
             data: {\
@@ -1491,7 +1490,6 @@ public class AzureOpenAiServiceTests extends ESTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/114385")
     public void testInfer_StreamRequest_ErrorResponse() throws Exception {
         String responseJson = """
             {

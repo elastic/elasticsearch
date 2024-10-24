@@ -20,7 +20,7 @@ Refer to <<elasticsearch-intro-deploy, deployment options>> for a list of produc
 
 Quickly set up {es} and {kib} in Docker for local development or testing, using the https://github.com/elastic/start-local?tab=readme-ov-file#-try-elasticsearch-and-kibana-locally[`start-local` script].
 
-This setup comes with a one-month trial of the Elastic *Platinum* license.
+This setup comes with a one-month trial license that includes all Elastic features.
 After the trial period, the license reverts to *Free and open - Basic*.
 Refer to https://www.elastic.co/subscriptions[Elastic subscriptions] for more information.
 

@@ -250,7 +250,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
     }
 
     public static String blockNodeWithIndex(final String repositoryName, final String indexName) {
-        for (String node : internalCluster().nodesInclude(indexName)) {
+        for (String node : internalCluster().nodesByNameThatIncludeIndex(indexName)) {
             AbstractSnapshotIntegTestCase.<MockRepository>getRepositoryOnNode(repositoryName, node).blockOnDataFiles();
             return node;
         }

@@ -72,7 +72,7 @@ public class RetrySearchIntegTests extends BaseSearchableSnapshotsIntegTestCase 
         ensureGreen(indexName);
 
         final String[] searcherIds = new String[numberOfShards];
-        Set<String> allocatedNodes = internalCluster().nodesInclude(indexName);
+        Set<String> allocatedNodes = internalCluster().nodesByNameThatIncludeIndex(indexName);
         for (String node : allocatedNodes) {
             IndexService indexService = internalCluster().getInstance(IndicesService.class, node).indexServiceSafe(resolveIndex(indexName));
             for (IndexShard indexShard : indexService) {
@@ -93,7 +93,7 @@ public class RetrySearchIntegTests extends BaseSearchableSnapshotsIntegTestCase 
             }
         }
         ensureGreen(indexName);
-        allocatedNodes = internalCluster().nodesInclude(indexName);
+        allocatedNodes = internalCluster().nodesByNameThatIncludeIndex(indexName);
         for (String node : allocatedNodes) {
             IndexService indexService = internalCluster().getInstance(IndicesService.class, node).indexServiceSafe(resolveIndex(indexName));
             for (IndexShard indexShard : indexService) {
@@ -148,7 +148,7 @@ public class RetrySearchIntegTests extends BaseSearchableSnapshotsIntegTestCase 
                 assertThat(resp.pointInTimeId(), equalTo(pitId));
                 assertHitCount(resp, docCount);
             });
-            final Set<String> allocatedNodes = internalCluster().nodesInclude(indexName);
+            final Set<String> allocatedNodes = internalCluster().nodesByNameThatIncludeIndex(indexName);
             for (String allocatedNode : allocatedNodes) {
                 internalCluster().restartNode(allocatedNode);
             }

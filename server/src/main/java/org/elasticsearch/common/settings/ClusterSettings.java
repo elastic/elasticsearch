@@ -221,6 +221,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         DataStreamAutoShardingService.CLUSTER_AUTO_SHARDING_MAX_WRITE_THREADS,
         DataStreamAutoShardingService.CLUSTER_AUTO_SHARDING_MIN_WRITE_THREADS,
         DesiredBalanceComputer.PROGRESS_LOG_INTERVAL_SETTING,
+        DesiredBalanceComputer.MAX_BALANCE_COMPUTATION_TIME_DURING_INDEX_CREATION_SETTING,
         DesiredBalanceReconciler.UNDESIRED_ALLOCATIONS_LOG_INTERVAL_SETTING,
         DesiredBalanceReconciler.UNDESIRED_ALLOCATIONS_LOG_THRESHOLD_SETTING,
         BreakerSettings.CIRCUIT_BREAKER_LIMIT_SETTING,

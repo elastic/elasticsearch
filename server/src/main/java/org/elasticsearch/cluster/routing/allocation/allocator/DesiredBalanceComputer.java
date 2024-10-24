@@ -38,6 +38,7 @@ import java.util.Queue;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 
 import static java.util.stream.Collectors.toUnmodifiableSet;
@@ -49,8 +50,8 @@ public class DesiredBalanceComputer {
 
     private static final Logger logger = LogManager.getLogger(DesiredBalanceComputer.class);
 
-    private final ThreadPool threadPool;
     private final ShardsAllocator delegateAllocator;
+    private final LongSupplier timeSupplier;
 
     // stats
     protected final MeanMetric iterations = new MeanMetric();
@@ -63,12 +64,28 @@ public class DesiredBalanceComputer {
         Setting.Property.NodeScope
     );
 
+    public static final Setting<TimeValue> MAX_BALANCE_COMPUTATION_TIME_DURING_INDEX_CREATION_SETTING = Setting.timeSetting(
+        "cluster.routing.allocation.desired_balance.max_balance_computation_time_during_index_creation",
+        TimeValue.timeValueSeconds(10),
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
     private TimeValue progressLogInterval;
+    private long maxBalanceComputationTimeDuringIndexCreationMillis;
 
     public DesiredBalanceComputer(ClusterSettings clusterSettings, ThreadPool threadPool, ShardsAllocator delegateAllocator) {
-        this.threadPool = threadPool;
+        this(clusterSettings, delegateAllocator, threadPool::relativeTimeInMillis);
+    }
+
+    DesiredBalanceComputer(ClusterSettings clusterSettings, ShardsAllocator delegateAllocator, LongSupplier timeSupplier) {
         this.delegateAllocator = delegateAllocator;
+        this.timeSupplier = timeSupplier;
         clusterSettings.initializeAndWatch(PROGRESS_LOG_INTERVAL_SETTING, value -> this.progressLogInterval = value);
+        clusterSettings.initializeAndWatch(
+            MAX_BALANCE_COMPUTATION_TIME_DURING_INDEX_CREATION_SETTING,
+            value -> this.maxBalanceComputationTimeDuringIndexCreationMillis = value.millis()
+        );
     }
 
     public DesiredBalance compute(
@@ -77,7 +94,6 @@ public class DesiredBalanceComputer {
         Queue<List<MoveAllocationCommand>> pendingDesiredBalanceMoves,
         Predicate<DesiredBalanceInput> isFresh
     ) {
-
         if (logger.isTraceEnabled()) {
             logger.trace(
                 "Recomputing desired balance for [{}]: {}, {}, {}, {}",
@@ -263,11 +279,12 @@ public class DesiredBalanceComputer {
 
         final int iterationCountReportInterval = computeIterationCountReportInterval(routingAllocation);
         final long timeWarningInterval = progressLogInterval.millis();
-        final long computationStartedTime = threadPool.relativeTimeInMillis();
+        final long computationStartedTime = timeSupplier.getAsLong();
         long nextReportTime = computationStartedTime + timeWarningInterval;
 
         int i = 0;
         boolean hasChanges = false;
+        boolean assignedSomeNewlyCreatedShards = false;
         while (true) {
             if (hasChanges) {
                 // Not the first iteration, so every remaining unassigned shard has been ignored, perhaps due to throttling. We must bring
@@ -293,6 +310,11 @@ public class DesiredBalanceComputer {
                 for (final var shardRouting : routingNode) {
                     if (shardRouting.initializing()) {
                         hasChanges = true;
+                        if (shardRouting.primary()
+                            && shardRouting.unassignedInfo() != null
+                            && shardRouting.unassignedInfo().reason() == UnassignedInfo.Reason.INDEX_CREATED) {
+                            assignedSomeNewlyCreatedShards = true;
+                        }
                         clusterInfoSimulator.simulateShardStarted(shardRouting);
                         routingNodes.startShard(shardRouting, changes, 0L);
                     }
@@ -301,14 +323,14 @@ public class DesiredBalanceComputer {
 
             i++;
             final int iterations = i;
-            final long currentTime = threadPool.relativeTimeInMillis();
+            final long currentTime = timeSupplier.getAsLong();
             final boolean reportByTime = nextReportTime <= currentTime;
             final boolean reportByIterationCount = i % iterationCountReportInterval == 0;
             if (reportByTime || reportByIterationCount) {
                 nextReportTime = currentTime + timeWarningInterval;
             }
 
-            if (hasChanges == false) {
+            if (hasIterationConverged(hasChanges, i)) {
                 logger.debug(
                     "Desired balance computation for [{}] converged after [{}] and [{}] iterations",
                     desiredBalanceInput.index(),
@@ -324,8 +346,8 @@ public class DesiredBalanceComputer {
                     "Desired balance computation for [{}] interrupted after [{}] and [{}] iterations as newer cluster state received. "
                         + "Publishing intermediate desired balance and restarting computation",
                     desiredBalanceInput.index(),
-                    i,
-                    TimeValue.timeValueMillis(currentTime - computationStartedTime).toString()
+                    TimeValue.timeValueMillis(currentTime - computationStartedTime).toString(),
+                    i
                 );
                 break;
             }
@@ -339,6 +361,20 @@ public class DesiredBalanceComputer {
                     iterations
                 )
             );
+
+            if (assignedSomeNewlyCreatedShards
+                && currentTime - computationStartedTime >= maxBalanceComputationTimeDuringIndexCreationMillis) {
+                logger.info(
+                    "Desired balance computation for [{}] interrupted after [{}] and [{}] iterations "
+                        + "in order to not delay assignment of newly created index shards for more than [{}]. "
+                        + "Publishing intermediate desired balance and restarting computation",
+                    desiredBalanceInput.index(),
+                    TimeValue.timeValueMillis(currentTime - computationStartedTime).toString(),
+                    i,
+                    TimeValue.timeValueMillis(maxBalanceComputationTimeDuringIndexCreationMillis).toString()
+                );
+                break;
+            }
         }
         iterations.inc(i);
 
@@ -369,6 +405,11 @@ public class DesiredBalanceComputer {
 
         long lastConvergedIndex = hasChanges ? previousDesiredBalance.lastConvergedIndex() : desiredBalanceInput.index();
         return new DesiredBalance(lastConvergedIndex, assignments);
+    }
+
+    // visible for testing
+    boolean hasIterationConverged(boolean hasRoutingChanges, int i) {
+        return hasRoutingChanges == false;
     }
 
     private static Map<ShardId, ShardAssignment> collectShardAssignments(RoutingNodes routingNodes) {

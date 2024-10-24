@@ -273,6 +273,9 @@ tests:
 - class: org.elasticsearch.test.apmintegration.MetricsApmIT
   method: testApmIntegration
   issue: https://github.com/elastic/elasticsearch/issues/115415
+- class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
+  method: test {yaml=reference/esql/esql-across-clusters/line_197}
+  issue: https://github.com/elastic/elasticsearch/issues/115575
 
 # Examples:
 #

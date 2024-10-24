@@ -170,7 +170,10 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
             if (event.localNodeMaster() == false) {
                 onNoLongerMaster();
             }
-            desiredBalanceMetrics.setNodeIsMaster(event.localNodeMaster());
+            // Only update on change, to minimise volatile writes
+            if (event.localNodeMaster() != event.previousState().nodes().isLocalNodeElectedMaster()) {
+                desiredBalanceMetrics.setNodeIsMaster(event.localNodeMaster());
+            }
         });
     }
 

@@ -313,6 +313,11 @@ public class EsqlCapabilities {
         LEAST_GREATEST_FOR_DATENANOS(EsqlCorePlugin.DATE_NANOS_FEATURE_FLAG),
 
         /**
+         * support aggregations on date nanos
+         */
+        DATE_NANOS_AGGREGATIONS(EsqlCorePlugin.DATE_NANOS_FEATURE_FLAG),
+
+        /**
          * Support for datetime in least and greatest functions
          */
         LEAST_GREATEST_FOR_DATES,

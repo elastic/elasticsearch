@@ -56,13 +56,31 @@ template:
               os.version:
                 type: keyword
                 ignore_above: 1024
+              k8s.container.name:
+                type: keyword
+                ignore_above: 1024
+              k8s.cronjob.name:
+                type: keyword
+                ignore_above: 1024
+              k8s.daemonset.name:
+                type: keyword
+                ignore_above: 1024
               k8s.deployment.name:
+                type: keyword
+                ignore_above: 1024
+              k8s.job.name:
                 type: keyword
                 ignore_above: 1024
               k8s.namespace.name:
                 type: keyword
                 ignore_above: 1024
+              k8s.node.hostname:
+                type: keyword
+                ignore_above: 1024
               k8s.node.name:
+                type: keyword
+                ignore_above: 1024
+              k8s.node.uid:
                 type: keyword
                 ignore_above: 1024
               k8s.pod.name:
@@ -71,28 +89,10 @@ template:
               k8s.pod.uid:
                 type: keyword
                 ignore_above: 1024
-              k8s.container.name:
-                type: keyword
-                ignore_above: 1024
-              k8s.cronjob.name:
-                type: keyword
-                ignore_above: 1024
-              k8s.job.name:
-                type: keyword
-                ignore_above: 1024
-              k8s.statefulset.name:
-                type: keyword
-                ignore_above: 1024
-              k8s.daemonset.name:
-                type: keyword
-                ignore_above: 1024
               k8s.replicaset.name:
                 type: keyword
                 ignore_above: 1024
-              k8s.node.uid:
-                type: keyword
-                ignore_above: 1024
-              k8s.node.hostname:
+              k8s.statefulset.name:
                 type: keyword
                 ignore_above: 1024
       service.node.name:

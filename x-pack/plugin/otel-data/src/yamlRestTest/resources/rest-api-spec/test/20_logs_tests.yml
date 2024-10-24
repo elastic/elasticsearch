@@ -194,8 +194,21 @@ host.name pass-through:
         index: logs-generic.otel-default
         refresh: true
         body:
-          - create: {}
-          - '{"@timestamp":"2024-07-18T14:48:33.467654000Z","data_stream":{"dataset":"generic.otel","namespace":"default"}, "resource" : { "attributes": { "k8s.container.name": "myContainerName", "k8s.cronjob.name" : "myCronJobName", "k8s.job.name" : "myJobName", "k8s.statefulset.name" : "myStatefulsetName", "k8s.daemonset.name" : "myDaemonsetName", "k8s.replicaset.name" : "myReplicasetName", "k8s.node.uid" : "myNodeUid", "k8s.node.hostname" : "myNodeHostname" } } }'
+          - create: { }
+          - "@timestamp": 2024-07-18T14:48:33.467654000Z
+            data_stream:
+              dataset: generic.otel
+              namespace: default
+            resource:
+              attributes:
+                k8s.container.name: myContainerName
+                k8s.cronjob.name: myCronJobName
+                k8s.job.name: myJobName
+                k8s.statefulset.name: myStatefulsetName
+                k8s.daemonset.name: myDaemonsetName
+                k8s.replicaset.name: myReplicasetName
+                k8s.node.uid: myNodeUid
+                k8s.node.hostname: myNodeHostname
   - is_false: errors
   - do:
       search:
@@ -203,7 +216,6 @@ host.name pass-through:
         body:
           fields: ["kubernetes.container.name", "kubernetes.cronjob.name", "kubernetes.job.name", "kubernetes.statefulset.name", "kubernetes.daemonset.name", "kubernetes.replicaset.name", "kubernetes.node.uid", "kubernetes.node.hostname" ]
   - length: { hits.hits: 1 }
-  # Query match conditions
   - match: { hits.hits.0.fields.kubernetes\.container\.name : ["myContainerName"] }
   - match: { hits.hits.0.fields.kubernetes\.cronjob\.name : ["myCronJobName"] }
   - match: { hits.hits.0.fields.kubernetes\.job\.name : ["myJobName"] }

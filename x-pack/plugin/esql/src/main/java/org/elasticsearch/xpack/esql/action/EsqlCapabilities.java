@@ -36,7 +36,7 @@ public class EsqlCapabilities {
          * Support for reversing whole grapheme clusters. This is not supported
          * on JDK versions less than 20.
          */
-        FN_REVERSE_GRAPHEME_CLUSTERS(Runtime.version().feature() < 20),
+        FN_REVERSE_GRAPHEME_CLUSTERS(Runtime.version().feature() >= 20),
 
         /**
          * Support for function {@code CBRT}. Done in #108574.
@@ -360,12 +360,12 @@ public class EsqlCapabilities {
         /**
          * QSTR function
          */
-        QSTR_FUNCTION,
+        QSTR_FUNCTION(true),
 
         /**
          * MATCH function
          */
-        MATCH_FUNCTION,
+        MATCH_FUNCTION(true),
 
         /**
          * Don't optimize CASE IS NOT NULL function by not requiring the fields to be not null as well.
@@ -392,6 +392,11 @@ public class EsqlCapabilities {
          * Allow filter per individual aggregation.
          */
         PER_AGG_FILTERING,
+
+        /**
+         * Fix {@link #PER_AGG_FILTERING} grouped by ordinals.
+         */
+        PER_AGG_FILTERING_ORDS,
 
         /**
          * Fix for an optimization that caused wrong results

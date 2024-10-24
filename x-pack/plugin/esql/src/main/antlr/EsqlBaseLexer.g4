@@ -208,7 +208,7 @@ ASTERISK : '*';
 SLASH : '/';
 PERCENT : '%';
 
-MATCH : 'match';
+DEV_MATCH : {this.isDevVersion()}? 'match';
 NESTED_WHERE : WHERE -> type(WHERE);
 
 NAMED_OR_POSITIONAL_PARAM

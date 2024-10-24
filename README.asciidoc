@@ -56,8 +56,8 @@ Quickly set up Elasticsearch and Kibana in Docker for local development or testi
 - If you're using Microsoft Windows, then install https://learn.microsoft.com/en-us/windows/wsl/install[Windows Subsystem for Linux (WSL)].
 
 ==== Trial license
+This setup comes with a one-month trial license that includes all Elastic features.
 
-This setup comes with a one-month trial of the Elastic *Platinum* license.
 After the trial period, the license reverts to *Free and open - Basic*.
 Refer to https://www.elastic.co/subscriptions[Elastic subscriptions] for more information.
 

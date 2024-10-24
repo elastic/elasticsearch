@@ -2515,7 +2515,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             true,
             true,
             true,
-            true,
+            null,
             null,
             null,
             null,

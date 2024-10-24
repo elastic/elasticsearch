@@ -152,6 +152,11 @@ public class SecurityMigrations {
     public static class CleanupRoleMappingDuplicatesMigration implements SecurityMigration {
         @Override
         public void migrate(SecurityIndexManager indexManager, Client client, ActionListener<Void> listener) {
+            if (indexManager.getRoleMappingsCleanupMigrationStatus() == SecurityIndexManager.RoleMappingsCleanupMigrationStatus.SKIP) {
+                listener.onResponse(null);
+                return;
+            }
+
             getRoleMappings(client, ActionListener.wrap(roleMappings -> {
                 List<String> roleMappingsToDelete = getDuplicateRoleMappingNames(roleMappings.mappings());
                 if (roleMappingsToDelete.isEmpty() == false) {
@@ -206,7 +211,7 @@ public class SecurityMigrations {
         @Override
         public boolean checkPreConditions(SecurityIndexManager.State securityIndexManagerState) {
             // If there are operator defined role mappings, make sure they've been loaded in to cluster state before launching migration
-            return securityIndexManagerState.readyForRoleMappingCleanupMigration;
+            return securityIndexManagerState.roleMappingsCleanupMigrationStatus == SecurityIndexManager.RoleMappingsCleanupMigrationStatus.READY;
         }
 
         @Override

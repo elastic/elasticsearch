@@ -35,7 +35,6 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.time.Instant;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;

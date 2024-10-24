@@ -44,21 +44,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  */
 public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilder<T>> extends RetrieverBuilder {
 
-    public record RetrieverSource(RetrieverBuilder retriever, SearchSourceBuilder source) {
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            RetrieverSource that = (RetrieverSource) o;
-            return Objects.equals(retriever, that.retriever) && Objects.equals(source, that.source);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(retriever, source);
-        }
-    }
+    public record RetrieverSource(RetrieverBuilder retriever, SearchSourceBuilder source) {}
 
     protected final int rankWindowSize;
     protected final List<RetrieverSource> innerRetrievers;

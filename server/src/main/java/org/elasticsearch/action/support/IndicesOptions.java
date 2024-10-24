@@ -435,6 +435,8 @@ public record IndicesOptions(
             if (in.getTransportVersion().before(TransportVersions.INTRODUCE_ALL_APPLICABLE_SELECTOR)) {
                 EnumSet<IndexComponentSelector> set = in.readEnumSet(IndexComponentSelector.class);
                 if (set.isEmpty() || set.size() == 2) {
+                    assert set.contains(IndexComponentSelector.DATA) && set.contains(IndexComponentSelector.FAILURES)
+                        : "The enum set only supported ::data and ::failures";
                     return SelectorOptions.ALL_APPLICABLE;
                 } else if (set.contains(IndexComponentSelector.DATA)) {
                     return SelectorOptions.DATA;
@@ -901,7 +903,7 @@ public record IndicesOptions(
     }
 
     /**
-     * @return Whether execution on failure indices are allowed.
+     * @return Whether execution on failure indices is allowed.
      */
     public boolean allowFailureIndices() {
         return gatekeeperOptions.allowFailureIndices();

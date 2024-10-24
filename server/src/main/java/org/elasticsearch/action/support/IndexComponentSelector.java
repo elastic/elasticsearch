@@ -64,16 +64,27 @@ public enum IndexComponentSelector implements Writeable {
         ID_REGISTRY = Collections.unmodifiableMap(idRegistry);
     }
 
+    /**
+     * Retrieves the respective selector when the suffix key is recognised
+     * @param key the suffix key, probably parsed from an expression
+     * @return the selector or null if the key was not recognised.
+     */
     @Nullable
     public static IndexComponentSelector getByKey(String key) {
         return KEY_REGISTRY.get(key);
     }
 
     public static IndexComponentSelector read(StreamInput in) throws IOException {
-        var id = in.readByte();
+        return getById(in.readByte());
+    }
+
+    // Visible for testing
+    static IndexComponentSelector getById(byte id) {
         IndexComponentSelector indexComponentSelector = ID_REGISTRY.get(id);
         if (indexComponentSelector == null) {
-            throw new IllegalArgumentException("Unknown id of index component selector [" + id + "]");
+            throw new IllegalArgumentException(
+                "Unknown id of index component selector [" + id + "], available options are: " + ID_REGISTRY
+            );
         }
         return indexComponentSelector;
     }

@@ -11,12 +11,15 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingRequest;
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingRequestBuilder;
+import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.RoleMapperExpression;
 import org.junit.Before;
 import org.mockito.Mockito;
 
 import java.util.Collections;
+import java.util.Map;
 
+import static org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping.READ_ONLY_ROLE_MAPPING_METADATA_FLAG;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -52,6 +55,30 @@ public class PutRoleMappingRequestTests extends ESTestCase {
             .metadata(Collections.singletonMap("_secret", false))
             .request();
         assertValidationFailure(request, "metadata key");
+    }
+
+    public void testValidateReadyOnlyMetadataKey() {
+        assertValidationFailure(
+            builder.name("test")
+                .roles("superuser")
+                .expression(Mockito.mock(RoleMapperExpression.class))
+                .metadata(Map.of("_secret", false, ExpressionRoleMapping.READ_ONLY_ROLE_MAPPING_METADATA_FLAG, true))
+                .request(),
+            "metadata contains ["
+                + READ_ONLY_ROLE_MAPPING_METADATA_FLAG
+                + "] flag. You cannot create or update role-mappings with a read-only flag"
+        );
+
+        assertValidationFailure(
+            builder.name("test")
+                .roles("superuser")
+                .expression(Mockito.mock(RoleMapperExpression.class))
+                .metadata(Map.of(ExpressionRoleMapping.READ_ONLY_ROLE_MAPPING_METADATA_FLAG, true))
+                .request(),
+            "metadata contains ["
+                + READ_ONLY_ROLE_MAPPING_METADATA_FLAG
+                + "] flag. You cannot create or update role-mappings with a read-only flag"
+        );
     }
 
     private void assertValidationFailure(PutRoleMappingRequest request, String expectedMessage) {

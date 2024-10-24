@@ -23,6 +23,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.bulk.stats.BulkStats;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
@@ -122,7 +123,9 @@ public class RestShardsAction extends AbstractCatAction {
             .addCell("id", "default:false;desc:unique id of node where it lives")
             .addCell("node", "default:true;alias:n;desc:name of node where it lives");
 
-        table.addCell("sync_id", "alias:sync_id;default:false;desc:sync id");
+        if (request.getRestApiVersion() == RestApiVersion.V_8) {
+            table.addCell("sync_id", "alias:sync_id;default:false;desc:sync id");
+        }
 
         table.addCell("unassigned.reason", "alias:ur;default:false;desc:reason shard became unassigned");
         table.addCell("unassigned.at", "alias:ua;default:false;desc:time shard became unassigned (UTC)");
@@ -319,8 +322,9 @@ public class RestShardsAction extends AbstractCatAction {
                 table.addCell(null);
             }
 
-            // Remove sync_id from the API?
-            table.addCell(null);
+            if (request.getRestApiVersion() == RestApiVersion.V_8) {
+                table.addCell(null);
+            }
 
             if (shard.unassignedInfo() != null) {
                 table.addCell(shard.unassignedInfo().reason());

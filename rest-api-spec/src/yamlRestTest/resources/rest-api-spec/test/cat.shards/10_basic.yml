@@ -19,7 +19,6 @@
              ip                               .+   \n
              id                               .+   \n
              node                             .+   \n
-             sync_id                          .+   \n
              unassigned.reason                .+   \n
              unassigned.at                    .+   \n
              unassigned.for                   .+   \n

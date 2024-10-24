@@ -313,7 +313,7 @@ public class AzureBlobStore implements BlobStore {
                 errors.forEach(ex::addSuppressed);
                 throw ex;
             }
-        } catch (RuntimeException e) {
+        } catch (Exception e) {
             throw new IOException("Error deleting batches", e);
         }
     }

@@ -7,12 +7,8 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.entitlement.instrumentation;
+package org.elasticsearch.entitlement.spi;
 
-import java.util.List;
-
-/**
- *
- * @param className the "internal name" of the class: includes the package info, but with periods replaced by slashes
- */
-public record MethodKey(String className, String methodName, List<String> parameterTypes, boolean isStatic) {}
+public interface Instrumenter {
+    byte[] instrumentClass(String className, byte[] classfileBuffer);
+}

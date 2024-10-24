@@ -63,7 +63,8 @@ public class MapperFeatures implements FeatureSpecification {
             RangeFieldMapper.DATE_RANGE_INDEXING_FIX,
             IgnoredSourceFieldMapper.DONT_EXPAND_DOTS_IN_IGNORED_SOURCE,
             SourceFieldMapper.REMOVE_SYNTHETIC_SOURCE_ONLY_VALIDATION,
-            MapperService.LOGSDB_DEFAULT_IGNORE_DYNAMIC_BEYOND_LIMIT
+            MapperService.LOGSDB_DEFAULT_IGNORE_DYNAMIC_BEYOND_LIMIT,
+            IgnoredSourceFieldMapper.ALWAYS_STORE_OBJECT_ARRAYS_IN_NESTED_OBJECTS
         );
     }
 }

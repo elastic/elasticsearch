@@ -7,7 +7,6 @@
 package org.elasticsearch.upgrades;
 
 import org.elasticsearch.client.Request;
-import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -18,7 +17,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 
 import static org.elasticsearch.TransportVersions.SECURITY_ROLE_MAPPINGS_IN_CLUSTER_STATE;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
@@ -61,23 +59,23 @@ public class SecurityIndexRoleMappingCleanupIT extends AbstractUpgradeTestCase {
             assertFalse(roleMappingExistsInSecurityIndex("operator_role_mapping_2"));
             assertTrue(roleMappingExistsInSecurityIndex("no_name_conflict"));
             // Make sure we can create and delete a conflicting role mapping again
-            createNativeRoleMapping("operator_role_mapping_1", Map.of("meta", "test"));
-            deleteNativeRoleMapping("operator_role_mapping_1");
+            createNativeRoleMapping("operator_role_mapping_1", Map.of("meta", "test"), true);
+            deleteNativeRoleMapping("operator_role_mapping_1", true);
         }
     }
 
     @SuppressWarnings("unchecked")
     private boolean roleMappingExistsInSecurityIndex(String mappingName) throws IOException {
         final Request request = new Request("POST", "/.security/_search");
-        RequestOptions.Builder options = request.getOptions().toBuilder();
         request.setJsonEntity(String.format(Locale.ROOT, """
             {"query":{"bool":{"must":[{"term":{"_id":"%s_%s"}}]}}}""", "role-mapping", mappingName));
-        addExpectWarningOption(
-            options,
-            "this request accesses system indices: [.security-7],"
-                + " but in a future major version, direct access to system indices will be prevented by default"
+
+        request.setOptions(
+            expectWarnings(
+                "this request accesses system indices: [.security-7],"
+                    + " but in a future major version, direct access to system indices will be prevented by default"
+            )
         );
-        request.setOptions(options);
 
         Response response = adminClient().performRequest(request);
         assertOK(response);
@@ -87,16 +85,6 @@ public class SecurityIndexRoleMappingCleanupIT extends AbstractUpgradeTestCase {
         return ((List<Object>) hits.get("hits")).isEmpty() == false;
     }
 
-    private void addExpectWarningOption(RequestOptions.Builder options, String message) {
-        Set<String> expectedWarnings = Set.of(message);
-
-        options.setWarningsHandler(warnings -> {
-            final Set<String> actual = Set.copyOf(warnings);
-            // Return true if the warnings aren't what we expected; the client will treat them as a fatal error.
-            return actual.equals(expectedWarnings) == false;
-        });
-    }
-
     private void createNativeRoleMapping(String roleMappingName, Map<String, Object> metadata) throws IOException {
         createNativeRoleMapping(roleMappingName, metadata, false);
     }
@@ -104,12 +92,13 @@ public class SecurityIndexRoleMappingCleanupIT extends AbstractUpgradeTestCase {
     private void createNativeRoleMapping(String roleMappingName, Map<String, Object> metadata, boolean expectWarning) throws IOException {
         final Request request = new Request("POST", "/_security/role_mapping/" + roleMappingName);
         if (expectWarning) {
-            RequestOptions.Builder options = request.getOptions().toBuilder();
-            addExpectWarningOption(
-                options,
-                "A read-only role mapping with the same name ["
-                    + roleMappingName
-                    + "] has been previously defined in a configuration file. Both role mappings will be used to determine role assignments."
+            request.setOptions(
+                expectWarnings(
+                    "A read-only role mapping with the same name ["
+                        + roleMappingName
+                        + "] has been previously defined in a configuration file. "
+                        + "Both role mappings will be used to determine role assignments."
+                )
             );
         }
 
@@ -131,8 +120,19 @@ public class SecurityIndexRoleMappingCleanupIT extends AbstractUpgradeTestCase {
         assertOK(client().performRequest(request));
     }
 
-    private void deleteNativeRoleMapping(String roleMappingName) throws IOException {
+    private void deleteNativeRoleMapping(String roleMappingName, boolean expectWarning) throws IOException {
         final Request request = new Request("DELETE", "/_security/role_mapping/" + roleMappingName);
+        if (expectWarning) {
+            request.setOptions(
+                expectWarnings(
+                    "A read-only role mapping with the same name ["
+                        + roleMappingName
+                        + "] has previously been defined in a configuration file. "
+                        + "The native role mapping was deleted, but the read-only mapping will remain active "
+                        + "and will be used to determine role assignments."
+                )
+            );
+        }
         assertOK(client().performRequest(request));
     }
 

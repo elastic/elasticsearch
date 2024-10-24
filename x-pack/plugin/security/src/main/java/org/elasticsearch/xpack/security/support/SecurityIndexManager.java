@@ -281,7 +281,7 @@ public class SecurityIndexManager implements ClusterStateListener {
         ReservedStateMetadata fileSettingsMetadata = clusterState.metadata().reservedStateMetadata().get(FILE_SETTINGS_METADATA_NAMESPACE);
         boolean hasFileSettingsMetadata = fileSettingsMetadata != null;
         // If there is no fileSettingsMetadata, there should be no reserved state (this is to catch bugs related to
-        // name changes of FILE_SETTINGS_METADATA_NAMESPACE)
+        // name changes to FILE_SETTINGS_METADATA_NAMESPACE)
         assert hasFileSettingsMetadata || clusterState.metadata().reservedStateMetadata().isEmpty();
 
         RoleMappingMetadata roleMappingMetadata = RoleMappingMetadata.getFromClusterState(clusterState);

@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.core.security.action.rolemapping.DeleteRoleMappin
 import org.elasticsearch.xpack.core.security.action.rolemapping.DeleteRoleMappingResponse;
 import org.elasticsearch.xpack.core.security.action.rolemapping.GetRoleMappingsAction;
 import org.elasticsearch.xpack.core.security.action.rolemapping.GetRoleMappingsRequestBuilder;
+import org.elasticsearch.xpack.core.security.action.rolemapping.GetRoleMappingsResponse;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping;
 
 import java.util.Arrays;
@@ -152,7 +153,7 @@ public class SecurityMigrations {
         @Override
         public void migrate(SecurityIndexManager indexManager, Client client, ActionListener<Void> listener) {
             getRoleMappings(client, ActionListener.wrap(roleMappings -> {
-                List<String> roleMappingsToDelete = getDuplicateRoleMappingNames(roleMappings);
+                List<String> roleMappingsToDelete = getDuplicateRoleMappingNames(roleMappings.mappings());
                 if (roleMappingsToDelete.isEmpty() == false) {
                     logger.info("Found [" + roleMappingsToDelete.size() + "] role mappings to cleanup in .security index.");
                     deleteNativeRoleMappings(client, roleMappingsToDelete, listener);
@@ -162,13 +163,13 @@ public class SecurityMigrations {
             }, listener::onFailure));
         }
 
-        private void getRoleMappings(Client client, ActionListener<ExpressionRoleMapping[]> listener) {
+        private void getRoleMappings(Client client, ActionListener<GetRoleMappingsResponse> listener) {
             executeAsyncWithOrigin(
                 client,
                 SECURITY_ORIGIN,
                 GetRoleMappingsAction.INSTANCE,
                 new GetRoleMappingsRequestBuilder(client).request(),
-                ActionListener.wrap(response -> listener.onResponse(response.mappings()), listener::onFailure)
+                listener
             );
         }
 

@@ -11,7 +11,6 @@ package org.elasticsearch.reservedstate.service;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.ClusterState;
@@ -162,11 +161,11 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
         ReservedStateVersion reservedStateVersion,
         ReservedStateVersionCheck versionCheck
     ) {
-        if (Version.CURRENT.before(reservedStateVersion.minCompatibleVersion())) {
+        if (reservedStateVersion.buildVersion().isFutureVersion()) {
             logger.warn(
                 () -> format(
                     "Reserved cluster state version [%s] for namespace [%s] is not compatible with this Elasticsearch node",
-                    reservedStateVersion.minCompatibleVersion(),
+                    reservedStateVersion.buildVersion(),
                     namespace
                 )
             );

@@ -40,6 +40,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
+import static org.elasticsearch.xpack.security.support.SecurityIndexManager.RoleMappingsCleanupMigrationStatus.READY;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SecurityMainIndexMappingVersion.ADD_MANAGE_ROLES_PRIVILEGE;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SecurityMainIndexMappingVersion.ADD_REMOTE_CLUSTER_AND_DESCRIPTION_FIELDS;
 
@@ -211,7 +212,7 @@ public class SecurityMigrations {
         @Override
         public boolean checkPreConditions(SecurityIndexManager.State securityIndexManagerState) {
             // If there are operator defined role mappings, make sure they've been loaded in to cluster state before launching migration
-            return securityIndexManagerState.roleMappingsCleanupMigrationStatus == SecurityIndexManager.RoleMappingsCleanupMigrationStatus.READY;
+            return securityIndexManagerState.roleMappingsCleanupMigrationStatus == READY;
         }
 
         @Override

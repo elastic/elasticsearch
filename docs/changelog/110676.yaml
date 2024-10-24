@@ -1,0 +1,5 @@
+pr: 110676
+summary: Allow querying `index_mode`
+area: Mapping
+type: enhancement
+issues: []

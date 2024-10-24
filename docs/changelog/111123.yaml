@@ -1,0 +1,5 @@
+pr: 111123
+summary: Add Lucene segment-level fields stats
+area: Mapping
+type: enhancement
+issues: []

@@ -1,0 +1,5 @@
+pr: 110928
+summary: Dense vector field types updatable for int4
+area: Vector Search
+type: enhancement
+issues: []

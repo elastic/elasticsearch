@@ -1,0 +1,5 @@
+pr: 111655
+summary: Migrate Inference to `ChunkedToXContent`
+area: Machine Learning
+type: enhancement
+issues: []

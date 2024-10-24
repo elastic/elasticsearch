@@ -1,0 +1,5 @@
+pr: 112100
+summary: Exclude internal data streams from global retention
+area: Data streams
+type: bug
+issues: []

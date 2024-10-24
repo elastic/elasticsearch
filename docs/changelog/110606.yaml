@@ -1,0 +1,5 @@
+pr: 110606
+summary: Adding mapping validation to the simulate ingest API
+area: Ingest Node
+type: enhancement
+issues: []

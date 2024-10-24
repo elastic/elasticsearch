@@ -27,7 +27,7 @@ import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
 @ServerlessScope(Scope.PUBLIC)
 public class RestPutTrainedModelAction extends BaseRestHandler {
 
-    @UpdateForV9
+    @UpdateForV9(owner = UpdateForV9.Owner.MACHINE_LEARNING)
     // one or more routes use ".replaces" with RestApiVersion.V_8 which will require use of REST API compatibility headers to access
     // that route in v9. It is unclear if this was intentional for v9, and the code has been updated to ".deprecateAndKeep" which will
     // continue to emit deprecations warnings but will not require any special headers to access the API in v9.

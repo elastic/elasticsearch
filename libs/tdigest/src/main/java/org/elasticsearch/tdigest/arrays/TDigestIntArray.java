@@ -21,12 +21,13 @@
 
 package org.elasticsearch.tdigest.arrays;
 
+import org.apache.lucene.util.Accountable;
 import org.elasticsearch.core.Releasable;
 
 /**
  * Minimal interface for IntArray-like classes used within TDigest.
  */
-public interface TDigestIntArray extends Releasable {
+public interface TDigestIntArray extends Releasable, Accountable {
     int size();
 
     int get(int index);

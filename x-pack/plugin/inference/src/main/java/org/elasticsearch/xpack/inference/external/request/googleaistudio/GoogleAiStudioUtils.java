@@ -17,6 +17,8 @@ public class GoogleAiStudioUtils {
 
     public static final String GENERATE_CONTENT_ACTION = "generateContent";
 
+    public static final String STREAM_GENERATE_CONTENT_ACTION = "streamGenerateContent";
+
     public static final String BATCH_EMBED_CONTENTS_ACTION = "batchEmbedContents";
 
     private GoogleAiStudioUtils() {}

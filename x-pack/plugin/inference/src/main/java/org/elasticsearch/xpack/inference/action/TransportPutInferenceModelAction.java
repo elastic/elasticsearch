@@ -41,11 +41,15 @@ import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
+import org.elasticsearch.xpack.inference.services.ServiceUtils;
+import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService.OLD_ELSER_SERVICE_NAME;
 
 public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
     PutInferenceModelAction.Request,
@@ -97,7 +101,7 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
         ActionListener<PutInferenceModelAction.Response> listener
     ) throws Exception {
         var requestAsMap = requestToMap(request);
-        var resolvedTaskType = resolveTaskType(request.getTaskType(), (String) requestAsMap.remove(TaskType.NAME));
+        var resolvedTaskType = ServiceUtils.resolveTaskType(request.getTaskType(), (String) requestAsMap.remove(TaskType.NAME));
 
         String serviceName = (String) requestAsMap.remove(ModelConfigurations.SERVICE);
         if (serviceName == null) {
@@ -110,6 +114,10 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
             return;
         }
 
+        if (List.of(OLD_ELSER_SERVICE_NAME, ElasticsearchInternalService.NAME).contains(serviceName)) {
+            // required for BWC of elser service in elasticsearch service TODO remove when elser service deprecated
+            requestAsMap.put(ModelConfigurations.SERVICE, serviceName);
+        }
         var service = serviceRegistry.getService(serviceName);
         if (service.isEmpty()) {
             listener.onFailure(new ElasticsearchStatusException("Unknown service [{}]", RestStatus.BAD_REQUEST, serviceName));
@@ -220,37 +228,4 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }
 
-    /**
-     * task_type can be specified as either a URL parameter or in the
-     * request body. Resolve which to use or throw if the settings are
-     * inconsistent
-     * @param urlTaskType Taken from the URL parameter. ANY means not specified.
-     * @param bodyTaskType Taken from the request body. Maybe null
-     * @return The resolved task type
-     */
-    static TaskType resolveTaskType(TaskType urlTaskType, String bodyTaskType) {
-        if (bodyTaskType == null) {
-            if (urlTaskType == TaskType.ANY) {
-                throw new ElasticsearchStatusException("model is missing required setting [task_type]", RestStatus.BAD_REQUEST);
-            } else {
-                return urlTaskType;
-            }
-        }
-
-        TaskType parsedBodyTask = TaskType.fromStringOrStatusException(bodyTaskType);
-        if (parsedBodyTask == TaskType.ANY) {
-            throw new ElasticsearchStatusException("task_type [any] is not valid type for inference", RestStatus.BAD_REQUEST);
-        }
-
-        if (parsedBodyTask.isAnyOrSame(urlTaskType) == false) {
-            throw new ElasticsearchStatusException(
-                "Cannot resolve conflicting task_type parameter in the request URL [{}] and the request body [{}]",
-                RestStatus.BAD_REQUEST,
-                urlTaskType.toString(),
-                bodyTaskType
-            );
-        }
-
-        return parsedBodyTask;
-    }
 }

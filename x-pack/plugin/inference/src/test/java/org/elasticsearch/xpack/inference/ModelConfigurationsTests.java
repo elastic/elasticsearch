@@ -16,8 +16,8 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.inference.ChunkingSettingsFeatureFlag;
 import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsTests;
-import org.elasticsearch.xpack.inference.services.elser.ElserInternalServiceSettingsTests;
-import org.elasticsearch.xpack.inference.services.elser.ElserMlNodeTaskSettings;
+import org.elasticsearch.xpack.inference.services.elasticsearch.ElserInternalServiceSettingsTests;
+import org.elasticsearch.xpack.inference.services.elasticsearch.ElserMlNodeTaskSettings;
 
 public class ModelConfigurationsTests extends AbstractWireSerializingTestCase<ModelConfigurations> {
 

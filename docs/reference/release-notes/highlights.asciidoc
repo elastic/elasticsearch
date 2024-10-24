@@ -1,5 +1,6 @@
+[chapter]
 [[release-highlights]]
-== What's new in {minor-version}
+= What's new in {minor-version}
 
 coming::[{minor-version}]
 
@@ -11,7 +12,8 @@ For detailed information about this release, see the <<es-release-notes>> and
 // Add previous release to the list
 Other versions:
 
-{ref-bare}/8.15/release-highlights.html[8.15]
+{ref-bare}/8.16/release-highlights.html[8.16]
+| {ref-bare}/8.15/release-highlights.html[8.15]
 | {ref-bare}/8.14/release-highlights.html[8.14]
 | {ref-bare}/8.13/release-highlights.html[8.13]
 | {ref-bare}/8.12/release-highlights.html[8.12]
@@ -30,11 +32,13 @@ Other versions:
 
 endif::[]
 
+// The notable-highlights tag marks entries that
+// should be featured in the Stack Installation and Upgrade Guide:
 // tag::notable-highlights[]
 
 [discrete]
 [[esql_inlinestats]]
-=== ESQL: INLINESTATS
+== ESQL: INLINESTATS
 This adds the `INLINESTATS` command to ESQL which performs a STATS and
 then enriches the results into the output stream. So, this query:
 
@@ -59,7 +63,7 @@ Produces output like:
 
 [discrete]
 [[always_allow_rebalancing_by_default]]
-=== Always allow rebalancing by default
+== Always allow rebalancing by default
 In earlier versions of {es} the `cluster.routing.allocation.allow_rebalance` setting defaults to
 `indices_all_active` which blocks all rebalancing moves while the cluster is in `yellow` or `red` health. This was
 appropriate for the legacy allocator which might do too many rebalancing moves otherwise. Today's allocator has
@@ -71,16 +75,28 @@ version 8.16 `allow_rebalance` setting defaults to `always` unless the legacy al
 
 [discrete]
 [[add_global_retention_in_data_stream_lifecycle]]
-=== Add global retention in data stream lifecycle
-Data stream lifecycle now supports configuring retention on a cluster level, namely global retention. Global retention 
-allows us to configure two different retentions:
+== Add global retention in data stream lifecycle
+Data stream lifecycle now supports configuring retention on a cluster level,
+namely global retention. Global retention \nallows us to configure two different
+retentions:
 
-- `data_streams.lifecycle.retention.default` is applied to all data streams managed by the data stream lifecycle that do not have retention
-defined on the data stream level.
-- `data_streams.lifecycle.retention.max` is applied to all data streams managed by the data stream lifecycle and it allows any data stream 
-data to be deleted after the `max_retention` has passed.
+- `data_streams.lifecycle.retention.default` is applied to all data streams managed
+by the data stream lifecycle that do not have retention defined on the data stream level.
+- `data_streams.lifecycle.retention.max` is applied to all data streams managed by the
+data stream lifecycle and it allows any data stream \ndata to be deleted after the `max_retention` has passed.
 
 {es-pull}111972[#111972]
+
+[discrete]
+[[enable_zstandard_compression_for_indices_with_index_codec_set_to_best_compression]]
+== Enable ZStandard compression for indices with index.codec set to best_compression
+Before DEFLATE compression was used to compress stored fields in indices with index.codec index setting set to
+best_compression, with this change ZStandard is used as compression algorithm to stored fields for indices with
+index.codec index setting set to best_compression. The usage ZStandard results in less storage usage with a
+similar indexing throughput depending on what options are used. Experiments with indexing logs have shown that
+ZStandard offers ~12% lower storage usage and a ~14% higher indexing throughput compared to DEFLATE.
+
+{es-pull}112665[#112665]
 
 // end::notable-highlights[]
 

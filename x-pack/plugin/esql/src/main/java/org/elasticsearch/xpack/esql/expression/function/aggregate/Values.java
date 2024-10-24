@@ -17,6 +17,7 @@ import org.elasticsearch.compute.aggregation.ValuesIntAggregatorFunctionSupplier
 import org.elasticsearch.compute.aggregation.ValuesLongAggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -28,12 +29,27 @@ import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
 
+import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 
 public class Values extends AggregateFunction implements ToAggregator {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Values", Values::new);
+
+    private static final Map<DataType, Function<List<Integer>, AggregatorFunctionSupplier>> SUPPLIERS = Map.ofEntries(
+        Map.entry(DataType.INTEGER, ValuesIntAggregatorFunctionSupplier::new),
+        Map.entry(DataType.LONG, ValuesLongAggregatorFunctionSupplier::new),
+        Map.entry(DataType.DATETIME, ValuesLongAggregatorFunctionSupplier::new),
+        Map.entry(DataType.DATE_NANOS, ValuesLongAggregatorFunctionSupplier::new),
+        Map.entry(DataType.DOUBLE, ValuesDoubleAggregatorFunctionSupplier::new),
+        Map.entry(DataType.KEYWORD, ValuesBytesRefAggregatorFunctionSupplier::new),
+        Map.entry(DataType.TEXT, ValuesBytesRefAggregatorFunctionSupplier::new),
+        Map.entry(DataType.IP, ValuesBytesRefAggregatorFunctionSupplier::new),
+        Map.entry(DataType.VERSION, ValuesBytesRefAggregatorFunctionSupplier::new),
+        Map.entry(DataType.BOOLEAN, ValuesBooleanAggregatorFunctionSupplier::new)
+    );
 
     @FunctionInfo(
         returnType = { "boolean", "date", "double", "integer", "ip", "keyword", "long", "text", "version" },
@@ -56,7 +72,11 @@ public class Values extends AggregateFunction implements ToAggregator {
         Source source,
         @Param(name = "field", type = { "boolean", "date", "double", "integer", "ip", "keyword", "long", "text", "version" }) Expression v
     ) {
-        super(source, v);
+        this(source, v, Literal.TRUE);
+    }
+
+    public Values(Source source, Expression field, Expression filter) {
+        super(source, field, filter, emptyList());
     }
 
     private Values(StreamInput in) throws IOException {
@@ -70,12 +90,17 @@ public class Values extends AggregateFunction implements ToAggregator {
 
     @Override
     protected NodeInfo<Values> info() {
-        return NodeInfo.create(this, Values::new, field());
+        return NodeInfo.create(this, Values::new, field(), filter());
     }
 
     @Override
     public Values replaceChildren(List<Expression> newChildren) {
-        return new Values(source(), newChildren.get(0));
+        return new Values(source(), newChildren.get(0), newChildren.get(1));
+    }
+
+    @Override
+    public Values withFilter(Expression filter) {
+        return new Values(source(), field(), filter);
     }
 
     @Override
@@ -87,7 +112,7 @@ public class Values extends AggregateFunction implements ToAggregator {
     protected TypeResolution resolveType() {
         return TypeResolutions.isType(
             field(),
-            dt -> DataType.isSpatial(dt) == false && dt != UNSIGNED_LONG,
+            SUPPLIERS::containsKey,
             sourceText(),
             DEFAULT,
             "any type except unsigned_long and spatial types"
@@ -97,22 +122,10 @@ public class Values extends AggregateFunction implements ToAggregator {
     @Override
     public AggregatorFunctionSupplier supplier(List<Integer> inputChannels) {
         DataType type = field().dataType();
-        if (type == DataType.INTEGER) {
-            return new ValuesIntAggregatorFunctionSupplier(inputChannels);
+        if (SUPPLIERS.containsKey(type) == false) {
+            // If the type checking did its job, this should never happen
+            throw EsqlIllegalArgumentException.illegalDataType(type);
         }
-        if (type == DataType.LONG || type == DataType.DATETIME) {
-            return new ValuesLongAggregatorFunctionSupplier(inputChannels);
-        }
-        if (type == DataType.DOUBLE) {
-            return new ValuesDoubleAggregatorFunctionSupplier(inputChannels);
-        }
-        if (DataType.isString(type) || type == DataType.IP || type == DataType.VERSION) {
-            return new ValuesBytesRefAggregatorFunctionSupplier(inputChannels);
-        }
-        if (type == DataType.BOOLEAN) {
-            return new ValuesBooleanAggregatorFunctionSupplier(inputChannels);
-        }
-        // TODO cartesian_point, geo_point
-        throw EsqlIllegalArgumentException.illegalDataType(type);
+        return SUPPLIERS.get(type).apply(inputChannels);
     }
 }

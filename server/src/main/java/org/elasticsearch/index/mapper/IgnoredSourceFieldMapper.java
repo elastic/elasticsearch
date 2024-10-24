@@ -57,6 +57,10 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
     public static final TypeParser PARSER = new FixedTypeParser(context -> new IgnoredSourceFieldMapper(context.getIndexSettings()));
 
     static final NodeFeature TRACK_IGNORED_SOURCE = new NodeFeature("mapper.track_ignored_source");
+    static final NodeFeature DONT_EXPAND_DOTS_IN_IGNORED_SOURCE = new NodeFeature("mapper.ignored_source.dont_expand_dots");
+    static final NodeFeature ALWAYS_STORE_OBJECT_ARRAYS_IN_NESTED_OBJECTS = new NodeFeature(
+        "mapper.ignored_source.always_store_object_arrays_in_nested"
+    );
 
     /*
         Setting to disable encoding and writing values for this field.

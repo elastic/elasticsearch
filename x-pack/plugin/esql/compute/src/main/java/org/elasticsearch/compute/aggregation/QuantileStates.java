@@ -18,7 +18,6 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.aggregations.metrics.InternalMedianAbsoluteDeviation;
 import org.elasticsearch.search.aggregations.metrics.TDigestState;
@@ -235,10 +234,7 @@ public final class QuantileStates {
 
         @Override
         public void close() {
-            Releasables.close(
-                Releasables.wrap(LongStream.range(0, digests.size()).mapToObj(i -> (Releasable) digests.get(i)).toList()),
-                digests
-            );
+            Releasables.close(Releasables.wrap(LongStream.range(0, digests.size()).mapToObj(i -> digests.get(i)).toList()), digests);
         }
     }
 }

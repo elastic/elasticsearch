@@ -22,7 +22,7 @@ public enum RestApiVersion {
 
     V_8(8),
 
-    @UpdateForV9 // remove all references to V_7 then delete this annotation
+    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA) // remove all references to V_7 then delete this annotation
     V_7(7);
 
     public final byte major;

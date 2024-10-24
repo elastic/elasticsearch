@@ -42,7 +42,6 @@ public final class NodeMetadata {
 
     private final IndexVersion oldestIndexVersion;
 
-    @UpdateForV9 // version should be non-null in the node metadata from v9 onwards
     private NodeMetadata(
         final String nodeId,
         final BuildVersion buildVersion,
@@ -112,11 +111,7 @@ public final class NodeMetadata {
         return oldestIndexVersion;
     }
 
-    @UpdateForV9
     public void verifyUpgradeToCurrentVersion() {
-        // Enable the following assertion for V9:
-        // assert (nodeVersion.equals(BuildVersion.empty()) == false) : "version is required in the node metadata from v9 onwards";
-
         if (nodeVersion.onOrAfterMinimumCompatible() == false) {
             throw new IllegalStateException(
                 "cannot upgrade a node from version ["
@@ -163,7 +158,7 @@ public final class NodeMetadata {
             this.oldestIndexVersion = IndexVersion.fromId(oldestIndexVersion);
         }
 
-        @UpdateForV9 // version is required in the node metadata from v9 onwards
+        @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA) // version is required in the node metadata from v9 onwards
         public NodeMetadata build() {
             final IndexVersion oldestIndexVersion;
 

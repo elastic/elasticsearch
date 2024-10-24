@@ -12,7 +12,7 @@ console. They are _not_ intended for use by applications. For application
 consumption, use the <<get-trained-models,get trained models API>>.
 ====
 
-Returns configuration and usage information about {infer} trained models.
+Returns configuration and usage information about {ml-docs}/ml-nlp-deploy-models.html[{infer} trained models].
 
 
 [[cat-trained-model-request]]
@@ -116,7 +116,7 @@ include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=cat-v]
 
 [source,console]
 --------------------------------------------------
-GET _cat/ml/trained_models?h=c,o,l,ct,v&v=ture
+GET _cat/ml/trained_models?h=c,o,l,ct,v&v=true
 --------------------------------------------------
 // TEST[skip:kibana sample data]
 

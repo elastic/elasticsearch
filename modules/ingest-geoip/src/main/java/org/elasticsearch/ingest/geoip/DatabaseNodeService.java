@@ -20,11 +20,13 @@ import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.gateway.GatewayService;
@@ -37,6 +39,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.watcher.ResourceWatcherService;
 
 import java.io.Closeable;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.FileAlreadyExistsException;
@@ -51,8 +54,10 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -540,6 +545,35 @@ public final class DatabaseNodeService implements IpDatabaseProvider {
     public Set<String> getConfigDatabases() {
         return configDatabases.getConfigDatabases().keySet();
     }
+
+    public Map<String, ConfigDatabaseDetail> getConfigDatabasesDetail() {
+        Map<String, ConfigDatabaseDetail> allDatabases = new HashMap<>();
+        for (Map.Entry<String, DatabaseReaderLazyLoader> entry : configDatabases.getConfigDatabases().entrySet()) {
+            DatabaseReaderLazyLoader databaseReaderLazyLoader = entry.getValue();
+            try {
+                allDatabases.put(
+                    entry.getKey(),
+                    new ConfigDatabaseDetail(
+                        entry.getKey(),
+                        databaseReaderLazyLoader.getMd5(),
+                        databaseReaderLazyLoader.getBuildDateMillis(),
+                        databaseReaderLazyLoader.getDatabaseType()
+                    )
+                );
+            } catch (FileNotFoundException e) {
+                /*
+                 * Since there is nothing to prevent a database from being deleted while this method is running, it is possible we get an
+                 * exception here because the file no longer exists. We just log it and move on -- it's preferable to synchronization.
+                 */
+                logger.trace(Strings.format("Unable to get metadata for config database %s", entry.getKey()), e);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }
+        return allDatabases;
+    }
+
+    public record ConfigDatabaseDetail(String name, @Nullable String md5, @Nullable Long buildDateInMillis, @Nullable String type) {}
 
     public Set<String> getFilesInTemp() {
         try (Stream<Path> files = Files.list(geoipTmpDirectory)) {

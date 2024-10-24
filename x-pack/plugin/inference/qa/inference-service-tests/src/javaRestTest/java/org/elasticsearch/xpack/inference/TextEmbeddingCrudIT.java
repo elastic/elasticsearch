@@ -38,7 +38,7 @@ public class TextEmbeddingCrudIT extends InferenceBaseRestTest {
         var models = getTrainedModel("_all");
         assertThat(models.toString(), containsString("deployment_id=" + inferenceEntityId));
 
-        Map<String, Object> results = inferOnMockService(
+        Map<String, Object> results = infer(
             inferenceEntityId,
             TaskType.TEXT_EMBEDDING,
             List.of("hello world", "this is the second document")
@@ -57,7 +57,7 @@ public class TextEmbeddingCrudIT extends InferenceBaseRestTest {
             var models = getTrainedModel("_all");
             assertThat(models.toString(), containsString("deployment_id=" + inferenceEntityId));
 
-            Map<String, Object> results = inferOnMockService(
+            Map<String, Object> results = infer(
                 inferenceEntityId,
                 TaskType.TEXT_EMBEDDING,
                 List.of("hello world", "this is the second document")

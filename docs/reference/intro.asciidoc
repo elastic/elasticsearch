@@ -204,7 +204,7 @@ For general content, you have the following options for adding data to {es} indi
 If you're building a website or app, then you can call Elasticsearch APIs using an https://www.elastic.co/guide/en/elasticsearch/client/index.html[{es} client] in the programming language of your choice. If you use the Python client, then check out the `elasticsearch-labs` repo for various https://github.com/elastic/elasticsearch-labs/tree/main/notebooks/search/python-examples[example notebooks]. 
 * {kibana-ref}/connect-to-elasticsearch.html#upload-data-kibana[File upload]: Use the {kib} file uploader to index single files for one-off testing and exploration. The GUI guides you through setting up your index and field mappings.
 * https://github.com/elastic/crawler[Web crawler]: Extract and index web page content into {es} documents.
-* {enterprise-search-ref}/connectors.html[Connectors]: Sync data from various third-party data sources to create searchable, read-only replicas in {es}.
+* <<es-connectors,Connectors>>: Sync data from various third-party data sources to create searchable, read-only replicas in {es}.
 
 [discrete]
 [[es-ingestion-overview-timestamped]]

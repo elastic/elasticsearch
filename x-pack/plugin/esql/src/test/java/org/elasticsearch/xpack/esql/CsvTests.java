@@ -259,6 +259,10 @@ public class CsvTests extends ESTestCase {
                     testCase.requiredCapabilities,
                     everyItem(in(EsqlCapabilities.capabilities(true)))
                 );
+                assumeTrue(
+                    "Capability not supported in this build",
+                    EsqlCapabilities.capabilities(false).containsAll(testCase.requiredCapabilities)
+                );
             } else {
                 for (EsqlCapabilities.Cap c : EsqlCapabilities.Cap.values()) {
                     if (false == c.isEnabled()) {

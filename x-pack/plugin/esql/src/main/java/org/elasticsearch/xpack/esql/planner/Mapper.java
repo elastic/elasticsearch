@@ -131,7 +131,6 @@ public class Mapper {
                     assert enrichExec.mode() == Enrich.Mode.ANY : "enrich must be in ANY mode here";
                     return enrichExec.child();
                 }
-                // TODO: does this handle HashJoin correctly? Are we allowed to push hash joins inside FragmentExec?
                 if (f instanceof UnaryExec unaryExec) {
                     if (f instanceof LimitExec || f instanceof ExchangeExec || f instanceof OrderExec || f instanceof TopNExec) {
                         return f;
@@ -264,6 +263,7 @@ public class Mapper {
             child = aggExec(aggregate, child, AggregatorMode.INITIAL, intermediateAttributes);
         }
         // otherwise create both sides of the aggregate (for parallelism purposes), if no fragment is present
+        // TODO: might be easier long term to end up with just one node and split if necessary instead of doing that always at this stage
         else {
             child = addExchangeForFragment(aggregate, child);
             // exchange was added - use the intermediates for the output

@@ -669,5 +669,4 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
             assertThat(rewritten, instanceOf(MatchAllQueryBuilder.class));
         }
     }
-
 }

@@ -67,7 +67,7 @@ import static org.elasticsearch.index.translog.TranslogConfig.EMPTY_TRANSLOG_BUF
  * A Translog is a per index shard component that records all non-committed index operations in a durable manner.
  * In Elasticsearch there is one Translog instance per {@link org.elasticsearch.index.engine.InternalEngine}.
  * Additionally, since Elasticsearch 2.0 the engine also records a {@link #TRANSLOG_UUID_KEY} with each commit to ensure a strong
- * association between the lucene index an the transaction log file. This UUID is used to prevent accidental recovery from a transaction
+ * association between the lucene index and the transaction log file. This UUID is used to prevent accidental recovery from a transaction
  * log that belongs to a
  * different engine.
  * <p>

@@ -13,13 +13,13 @@ import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.FloatVectorValues;
+import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.FormattedDocValues;
 import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
-import org.elasticsearch.index.fielddata.plain.DenseVectorNumericValues;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.script.field.vectors.BinaryDenseVectorDocValuesField;
@@ -88,18 +88,20 @@ final class VectorDVLeafFieldData implements LeafFieldData {
 
     @Override
     public FormattedDocValues getFormattedValues(DocValueFormat format) {
+        int dims = elementType == ElementType.BIT ? this.dims / Byte.SIZE : this.dims;
         return switch (elementType) {
-            case BYTE, BIT -> new DenseVectorNumericValues(elementType == ElementType.BIT ? this.dims / Byte.SIZE : this.dims) {
+            case BYTE, BIT -> new FormattedDocValues() {
                 private byte[] values;
+                private int valuesCursor;
                 private ByteVectorValues byteVectorValues; // use when indexed
+                private KnnVectorValues.DocIndexIterator iterator; // use when indexed
+                private BinaryDocValues binary; // use when not indexed
 
                 @Override
                 public boolean advanceExact(int docId) throws IOException {
                     if (indexed) {
                         if (byteVectorValues == null) {
                             this.byteVectorValues = reader.getByteVectorValues(field);
-                        }
-                        if (iterator == null) {
                             this.iterator = byteVectorValues.iterator();
                         }
                         if (iterator.advance(docId) == NO_MORE_DOCS) {
@@ -127,21 +129,27 @@ final class VectorDVLeafFieldData implements LeafFieldData {
                     return true;
                 }
 
+                @Override
+                public int docValueCount() {
+                    return dims;
+                }
+
                 public Object nextValue() {
                     return values[valuesCursor++];
                 }
             };
-            case FLOAT -> new DenseVectorNumericValues(dims) {
+            case FLOAT -> new FormattedDocValues() {
                 private float[] values;
+                private int valuesCursor;
                 private FloatVectorValues floatVectorValues; // use when indexed
+                private KnnVectorValues.DocIndexIterator iterator; // use when indexed
+                private BinaryDocValues binary; // use when not indexed
 
                 @Override
                 public boolean advanceExact(int docId) throws IOException {
                     if (indexed) {
                         if (floatVectorValues == null) {
                             this.floatVectorValues = reader.getFloatVectorValues(field);
-                        }
-                        if (iterator == null) {
                             this.iterator = floatVectorValues.iterator();
                         }
                         if (iterator.advance(docId) == NO_MORE_DOCS) {
@@ -167,6 +175,11 @@ final class VectorDVLeafFieldData implements LeafFieldData {
                     }
                     valuesCursor = 0;
                     return true;
+                }
+
+                @Override
+                public int docValueCount() {
+                    return dims;
                 }
 
                 @Override

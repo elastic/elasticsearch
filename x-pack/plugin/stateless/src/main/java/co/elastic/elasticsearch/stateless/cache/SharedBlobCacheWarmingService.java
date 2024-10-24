@@ -750,9 +750,7 @@ public class SharedBlobCacheWarmingService {
             @Override
             public void onResponse(Releasable releasable) {
                 var cacheKey = new FileCacheKey(shardId, blobFile.primaryTerm(), blobFile.blobName());
-                var cacheBlobReader = directory.getCacheBlobReaderForWarming(blobLocation);
-                ByteRange range = cacheBlobReader.getRange(0, Math.toIntExact(blobLocation.fileLength()), blobLocation.fileLength());
-                int endingRegion = getEndingRegion(range.length());
+                int endingRegion = getEndingRegion(blobLocation.fileLength());
 
                 // TODO: Evaluate reducing to fewer fetches in the future. For example, reading multiple fetches in a single read.
                 try (RefCountingListener ref = new RefCountingListener(ActionListener.releaseAfter(listener, releasable))) {
@@ -766,7 +764,7 @@ public class SharedBlobCacheWarmingService {
                                 WarmBlobLocationTask.this,
                                 cacheKey.fileName(),
                                 ByteRange.of(offset, offset + cacheService.getRegionSize()),
-                                cacheBlobReader,
+                                directory.getCacheBlobReaderForWarming(blobLocation),
                                 () -> writeBuffer.get().clear(),
                                 totalBytesCopied::addAndGet,
                                 Stateless.PREWARM_THREAD_POOL
@@ -780,7 +778,7 @@ public class SharedBlobCacheWarmingService {
 
             private int getEndingRegion(long position) {
                 int regionSize = cacheService.getRegionSize();
-                return (int) ((position - (position % regionSize == 0 ? 1 : 0)) / regionSize);
+                return Math.toIntExact((position - (position % regionSize == 0 ? 1 : 0)) / regionSize);
             }
 
             @Override

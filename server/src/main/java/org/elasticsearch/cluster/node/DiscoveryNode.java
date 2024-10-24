@@ -295,16 +295,12 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
     private static VersionInformation inferVersionInformation(Version version) {
         if (version.before(Version.V_8_10_0)) {
             return new VersionInformation(
-                BuildVersion.fromVersionId(version.id()),
+                version,
                 IndexVersion.getMinimumCompatibleIndexVersion(version.id),
                 IndexVersion.fromId(version.id)
             );
         } else {
-            return new VersionInformation(
-                BuildVersion.fromVersionId(version.id()),
-                IndexVersions.MINIMUM_COMPATIBLE,
-                IndexVersion.current()
-            );
+            return new VersionInformation(version, IndexVersions.MINIMUM_COMPATIBLE, IndexVersion.current());
         }
     }
 
@@ -345,11 +341,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         }
         this.roles = Collections.unmodifiableSortedSet(roles);
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_10_X)) {
-            versionInfo = new VersionInformation(
-                BuildVersion.fromVersionId(in.readVInt()),
-                IndexVersion.readVersion(in),
-                IndexVersion.readVersion(in)
-            );
+            versionInfo = new VersionInformation(Version.readVersion(in), IndexVersion.readVersion(in), IndexVersion.readVersion(in));
         } else {
             versionInfo = inferVersionInformation(Version.readVersion(in));
         }
@@ -386,7 +378,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
             o.writeBoolean(role.canContainData());
         });
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_10_X)) {
-            out.writeVInt(versionInfo.buildVersion().id());
+            Version.writeVersion(versionInfo.nodeVersion(), out);
             IndexVersion.writeVersion(versionInfo.minIndexVersion(), out);
             IndexVersion.writeVersion(versionInfo.maxIndexVersion(), out);
         } else {

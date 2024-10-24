@@ -50,7 +50,7 @@ public record VersionInformation(
          * before we can remove Version from here.
          */
         // for the moment, check this is only called with current() so the implied Version is correct
-        assert version.equals(BuildVersion.current());
+        assert version.equals(BuildVersion.current()) : version + " is not " + BuildVersion.current();
     }
 
     @Deprecated

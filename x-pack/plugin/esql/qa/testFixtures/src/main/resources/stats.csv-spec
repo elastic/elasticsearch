@@ -2291,6 +2291,33 @@ m:integer |a:double |x:integer
 74999     |48249.0  |0
 ;
 
+statsWithFilterOnGroups
+required_capability: fix_filter_pushdown_past_stats
+FROM employees
+| STATS v = VALUES(emp_no) by job_positions | WHERE job_positions == "Accountant" | MV_EXPAND v | SORT v
+;
+
+v:integer | job_positions:keyword
+    10001 | Accountant
+    10012 | Accountant
+    10016 | Accountant
+    10023 | Accountant
+    10025 | Accountant
+    10028 | Accountant
+    10034 | Accountant
+    10037 | Accountant
+    10044 | Accountant
+    10045 | Accountant
+    10050 | Accountant
+    10051 | Accountant
+    10066 | Accountant
+    10081 | Accountant
+    10085 | Accountant
+    10089 | Accountant
+    10092 | Accountant
+    10094 | Accountant
+;
+
 
 statsWithFiltering
 required_capability: per_agg_filtering
@@ -2501,4 +2528,130 @@ FROM employees | eval x = [1,2,3], y = 5 + 6 | stats m = max(y) by y+1
 
 m:integer | y+1:integer
 11        | 12
+;
+
+filterIsAlwaysTrue
+required_capability: per_agg_filtering
+FROM employees
+| STATS max = max(salary) WHERE salary > 0
+;
+
+max:integer
+74999
+;
+
+filterIsAlwaysFalse
+required_capability: per_agg_filtering
+FROM employees
+| STATS max = max(salary) WHERE first_name == ""
+;
+
+max:integer
+null
+;
+
+filterSometimesMatches
+required_capability: per_agg_filtering
+FROM employees
+| STATS max = max(salary) WHERE first_name IS NULL
+;
+
+max:integer
+70011
+;
+
+groupingFilterIsAlwaysTrue
+required_capability: per_agg_filtering
+FROM employees
+| MV_EXPAND job_positions
+| STATS max = max(salary) WHERE salary > 0 BY job_positions = SUBSTRING(job_positions, 1, 1)
+| SORT job_positions
+| LIMIT 4
+;
+
+max:integer | job_positions:keyword
+74970       | A
+58121       | B
+74999       | D
+58715       | H
+;
+
+groupingFilterIsAlwaysFalse
+required_capability: per_agg_filtering
+FROM employees
+| MV_EXPAND job_positions
+| STATS max = max(salary) WHERE first_name == "" BY job_positions = SUBSTRING(job_positions, 1, 1)
+| SORT job_positions
+| LIMIT 4
+;
+
+max:integer | job_positions:keyword
+null        | A
+null        | B
+null        | D
+null        | H
+;
+
+groupingFilterSometimesMatches
+required_capability: per_agg_filtering
+FROM employees
+| MV_EXPAND job_positions
+| STATS max = max(salary) WHERE first_name IS NULL BY job_positions = SUBSTRING(job_positions, 1, 1)
+| SORT job_positions
+| LIMIT 4
+;
+
+max:integer | job_positions:keyword
+62233       | A
+39878       | B
+67492       | D
+null        | H
+;
+
+groupingByOrdinalsFilterIsAlwaysTrue
+required_capability: per_agg_filtering
+required_capability: per_agg_filtering_ords
+FROM employees
+| STATS max = max(salary) WHERE salary > 0 BY job_positions
+| SORT job_positions
+| LIMIT 4
+;
+
+max:integer | job_positions:keyword
+74970       | Accountant
+69904       | Architect
+58121       | Business Analyst
+74999       | Data Scientist
+;
+
+groupingByOrdinalsFilterIsAlwaysFalse
+required_capability: per_agg_filtering
+required_capability: per_agg_filtering_ords
+FROM employees
+| STATS max = max(salary) WHERE first_name == "" BY job_positions
+| SORT job_positions
+| LIMIT 4
+;
+
+max:integer | job_positions:keyword
+null        | Accountant
+null        | Architect
+null        | Business Analyst
+null        | Data Scientist
+;
+
+groupingByOrdinalsFilterSometimesMatches
+required_capability: per_agg_filtering
+required_capability: per_agg_filtering_ords
+FROM employees
+| STATS max = max(salary) WHERE first_name IS NULL BY job_positions
+| SORT job_positions
+| LIMIT 4
+;
+
+max:integer | job_positions:keyword
+39878       | Accountant
+62233       | Architect
+39878       | Business Analyst
+67492       | Data Scientist
 ;

@@ -43,6 +43,15 @@ You want to:
 * TBD
 * TBD.
 
+| <<three-availability-zone>>
+
+image:reference-architectures/images/three-availability-zone.png[Image showing a Three Availability zone architecture]
+
+a| 
+You want to:
+
+* TBD
+* TBD
 |
 |===
 

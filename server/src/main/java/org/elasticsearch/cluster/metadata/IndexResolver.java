@@ -18,6 +18,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.AutomatonQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.FieldExistsQuery;
@@ -33,6 +34,7 @@ import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.SortedMap;
@@ -131,23 +133,24 @@ public class IndexResolver /*implements ClusterStateListener*/ {
             IndexSearcher searcher = new IndexSearcher(DirectoryReader.open(buildIndex(context.getState())));
             BooleanQuery.Builder topQuery = new BooleanQuery.Builder();
             if (expressions == null || expressions.length == 0) {
-//                topQuery.add(new MatchAllDocsQuery(), BooleanClause.Occur.MUST);
+                return Collections.emptyList();
             } else {
                 IndexNameExpressionResolver.ExpressionList exps = new IndexNameExpressionResolver.ExpressionList(
                     context,
                     List.of(expressions)
                 );
+                BooleanQuery.Builder expressionsQuery = new BooleanQuery.Builder();
                 for (var expression : exps) {
                     if (expression.get().equals("_all")) {
-                        topQuery.add(new MatchAllDocsQuery(), BooleanClause.Occur.SHOULD);
+                        expressionsQuery.add(new MatchAllDocsQuery(), BooleanClause.Occur.SHOULD);
                     } else if (expression.isWildcard()) {
                         if (expression.isExclusion()) {
-                            topQuery.add(
+                            expressionsQuery.add(
                                 AutomatonQueries.caseInsensitiveWildcardQuery(new Term(NAME_FIELD, expression.get().substring(0))),
                                 BooleanClause.Occur.MUST_NOT
                             );
                         } else {
-                            topQuery.add(
+                            expressionsQuery.add(
                                 AutomatonQueries.caseInsensitiveWildcardQuery(new Term(NAME_FIELD, expression.get())),
                                 BooleanClause.Occur.SHOULD
                             );
@@ -155,31 +158,21 @@ public class IndexResolver /*implements ClusterStateListener*/ {
                     } else {
                         // it's not a wildcard
                         if (expression.isExclusion()) {
-                            topQuery.add(
-                                new TermQuery(new Term(NAME_FIELD, expression.get().substring(0))),
-                                BooleanClause.Occur.MUST_NOT
-                            );
+                            expressionsQuery.add(new TermQuery(new Term(NAME_FIELD, expression.get().substring(0))), BooleanClause.Occur.MUST_NOT);
                         } else {
-                            topQuery.add(
-                                new TermQuery(new Term(NAME_FIELD, expression.get())),
-                                BooleanClause.Occur.SHOULD
-                            );
+                            expressionsQuery.add(new TermQuery(new Term(NAME_FIELD, expression.get())), BooleanClause.Occur.SHOULD);
                         }
-
                     }
                 }
+                topQuery.add(expressionsQuery.build(), BooleanClause.Occur.FILTER);
             }
-
 
             if (context.includeDataStreams() == false) {
                 topQuery.add(
                     new TermQuery(new Term(TYPE_FIELD, IndexAbstraction.Type.DATA_STREAM.getDisplayName())),
                     BooleanClause.Occur.MUST_NOT
                 );
-                topQuery.add(
-                    new FieldExistsQuery(DATA_STREAM_FIELD),
-                    BooleanClause.Occur.MUST_NOT
-                );
+                topQuery.add(new FieldExistsQuery(DATA_STREAM_FIELD), BooleanClause.Occur.MUST_NOT);
             }
 
             var options = context.getOptions();
@@ -201,9 +194,17 @@ public class IndexResolver /*implements ClusterStateListener*/ {
                 topQuery.add(new TermQuery(new Term(OPEN_CLOSED_FIELD, IndexMetadata.State.OPEN.toString())), BooleanClause.Occur.MUST_NOT);
             }
 
+            BooleanQuery.Builder systemHiddenBooleanQuery = new BooleanQuery.Builder();
+            systemHiddenBooleanQuery.add(
+                new AutomatonQuery(new Term(NAME_FIELD), context.getSystemIndexAccessAutomaton()),
+                BooleanClause.Occur.SHOULD
+            );
             if (options.expandWildcardsHidden() == false) {
-                topQuery.add(new TermQuery(new Term(HIDDEN_FIELD, Boolean.TRUE.toString())), BooleanClause.Occur.MUST_NOT);
+                BooleanQuery.Builder hiddenQuery = new BooleanQuery.Builder();
+                hiddenQuery.add(new TermQuery(new Term(HIDDEN_FIELD, Boolean.TRUE.toString())), BooleanClause.Occur.MUST_NOT);
+                systemHiddenBooleanQuery.add(hiddenQuery.build(), BooleanClause.Occur.SHOULD);
             }
+            topQuery.add(systemHiddenBooleanQuery.build(), BooleanClause.Occur.FILTER);
 
             TopDocs results = searcher.search(topQuery.build(), Integer.MAX_VALUE); // ATHE: MAX_VALUE maybe not what we want here
             ArrayList<String> names = new ArrayList<>();

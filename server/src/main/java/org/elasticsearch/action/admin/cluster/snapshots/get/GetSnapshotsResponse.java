@@ -9,7 +9,6 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.get;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
@@ -40,13 +39,7 @@ public class GetSnapshotsResponse extends ActionResponse implements ChunkedToXCo
 
     private final int remaining;
 
-    public GetSnapshotsResponse(
-        List<SnapshotInfo> snapshots,
-        Map<String, ElasticsearchException> failures,
-        @Nullable String next,
-        final int total,
-        final int remaining
-    ) {
+    public GetSnapshotsResponse(List<SnapshotInfo> snapshots, @Nullable String next, final int total, final int remaining) {
         this.snapshots = List.copyOf(snapshots);
         this.next = next;
         this.total = total;

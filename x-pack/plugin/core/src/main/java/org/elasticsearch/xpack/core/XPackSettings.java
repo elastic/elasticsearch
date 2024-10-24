@@ -239,7 +239,7 @@ public class XPackSettings {
     );
 
     public static final Setting<Boolean> EIS_SSL_ENABLED = Setting.boolSetting(
-        "xpack.security.eis.ssl.enabled",
+        "xpack.security.inference.elastic.ssl.enabled",
         true,
         Setting.Property.NodeScope
     );
@@ -279,7 +279,7 @@ public class XPackSettings {
     public static final String HTTP_SSL_PREFIX = SecurityField.setting("http.ssl.");
     private static final SSLConfigurationSettings HTTP_SSL = SSLConfigurationSettings.withPrefix(HTTP_SSL_PREFIX, true);
 
-    public static final String EIS_SSL_PREFIX = SecurityField.setting("eis.ssl.");
+    public static final String EIS_SSL_PREFIX = SecurityField.setting("inference.elastic.ssl.");
 
     private static final SSLConfigurationSettings EIS_SSL = SSLConfigurationSettings.withPrefix(EIS_SSL_PREFIX, true);
 

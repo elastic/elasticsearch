@@ -302,7 +302,14 @@ public class AzureBlobStore implements BlobStore {
                 });
             }, maxConcurrentBatchDeletes).collectList().block();
             if (errors.isEmpty() == false) {
-                final IOException ex = new IOException("Error deleting batches");
+                final int totalErrorCount = errorsCollected.get();
+                final String errorMessage = totalErrorCount > errors.size()
+                    ? "Some errors occurred deleting batches, the first "
+                        + errors.size()
+                        + " are included as suppressed, but the total count was "
+                        + totalErrorCount
+                    : "Some errors occurred deleting batches, all errors included as suppressed";
+                final IOException ex = new IOException(errorMessage);
                 errors.forEach(ex::addSuppressed);
                 throw ex;
             }

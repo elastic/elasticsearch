@@ -12,8 +12,12 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.local.distribution.DistributionType;
+import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
+import org.junit.ClassRule;
 
 public class FleetRestIT extends ESClientYamlSuiteTestCase {
 
@@ -21,14 +25,30 @@ public class FleetRestIT extends ESClientYamlSuiteTestCase {
         super(testCandidate);
     }
 
+    @ClassRule
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
+        .distribution(DistributionType.DEFAULT)
+        .setting("xpack.license.self_generated.type", "trial")
+        .setting("xpack.security.enabled", "true")
+        .rolesFile(Resource.fromClasspath("roles.yml"))
+        .user("elastic_admin", "admin-password", "superuser", true)
+        .user("fleet_unprivileged_secrets", "password", "unprivileged_secrets", true)
+        .build();
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
+
     @Override
     protected Settings restClientSettings() {
-        String authentication = basicAuthHeaderValue("elastic_admin", new SecureString("admin-password".toCharArray()));
-        return Settings.builder().put(super.restClientSettings()).put(ThreadContext.PREFIX + ".Authorization", authentication).build();
+        String token = basicAuthHeaderValue("elastic_admin", new SecureString("admin-password".toCharArray()));
+        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws Exception {
         return ESClientYamlSuiteTestCase.createParameters();
     }
+
 }

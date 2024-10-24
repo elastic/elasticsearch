@@ -379,13 +379,11 @@ public abstract class Engine implements Closeable {
          * {@link IndexCommitRef} prevents the {@link IndexCommitRef} files to be deleted from disk until the reference is closed. As such,
          * the listener must close the reference as soon as it is done with it.
          *
-         * @param shardId         the {@link ShardId} of shard
-         * @param store           the index shard store
-         * @param primaryTerm     the shard's primary term value
+         * @param engine           the index shard {@link Engine}
          * @param indexCommitRef  a reference on the newly created index commit
          * @param additionalFiles the set of filenames that are added by the new commit
          */
-        void onNewCommit(ShardId shardId, Store store, long primaryTerm, IndexCommitRef indexCommitRef, Set<String> additionalFiles);
+        void onNewCommit(Engine engine, IndexCommitRef indexCommitRef, Set<String> additionalFiles);
 
         /**
          * This method is invoked after the policy deleted the given {@link IndexCommit}. A listener is never notified of a deleted commit
@@ -2213,7 +2211,7 @@ public abstract class Engine implements Closeable {
     /**
      * Do not replay translog operations, but make the engine be ready.
      */
-    public abstract void skipTranslogRecovery();
+    public abstract void skipTranslogRecovery() throws IOException;
 
     /**
      * Tries to prune buffered deletes from the version map.

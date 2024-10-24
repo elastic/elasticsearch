@@ -105,6 +105,7 @@ setup:
         index: "test-after-refresh"
         allow_partial_search_results: false
         wait_for_checkpoints: 2
+        wait_for_checkpoints_timeout: 1m
         body: { query: { match_all: {} } }
 
 ---
@@ -115,7 +116,7 @@ setup:
         body:
           - { "allow_partial_search_results": false, wait_for_checkpoints: 1 }
           - { query: { match_all: { } } }
-          - { "allow_partial_search_results": false, wait_for_checkpoints: 2 }
+          - { "allow_partial_search_results": false, wait_for_checkpoints: 2, wait_for_checkpoints_timeout: 1m }
           - { query: { match_all: { } } }
 
   - match: { responses.0._shards.successful: 1 }
@@ -128,7 +129,7 @@ setup:
           - {query: { match_all: {} } }
           - { "index": "test-alias", "allow_partial_search_results": false, wait_for_checkpoints: 1 }
           - { query: { match_all: { } } }
-          - {"index": "test-refresh-disabled", "allow_partial_search_results":  false, wait_for_checkpoints: 2}
+          - { "index": "test-refresh-disabled", "allow_partial_search_results": false, wait_for_checkpoints: 2, wait_for_checkpoints_timeout: 1m }
           - {query: { match_all: {} } }
 
   - match: { responses.0._shards.successful: 1 }

@@ -7424,13 +7424,12 @@ public class InternalEngineTests extends EngineTestCase {
 
         final Engine.IndexCommitListener indexCommitListener = new Engine.IndexCommitListener() {
             @Override
-            public void onNewCommit(
-                ShardId shardId,
-                Store store,
-                long primaryTerm,
-                Engine.IndexCommitRef indexCommitRef,
-                Set<String> additionalFiles
-            ) {
+            public void onNewCommit(Engine engine, Engine.IndexCommitRef indexCommitRef, Set<String> additionalFiles) {
+                assertNotNull(engine);
+                final var engineConfig = engine.config();
+                final var store = engineConfig.getStore();
+                final var shardId = engineConfig.getShardId();
+                final var primaryTerm = engineConfig.getPrimaryTermSupplier().getAsLong();
                 assertNotNull(store);
                 assertTrue(store.hasReferences());
                 assertThat(acquiredCommits.put(indexCommitRef.getIndexCommit(), indexCommitRef), nullValue());

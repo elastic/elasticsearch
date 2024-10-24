@@ -273,6 +273,9 @@ tests:
 - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
   method: test {yaml=reference/esql/esql-across-clusters/line_197}
   issue: https://github.com/elastic/elasticsearch/issues/115575
+- class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
+  method: test {yaml=cluster.stats/30_ccs_stats/cross-cluster search stats search}
+  issue: https://github.com/elastic/elasticsearch/issues/115600
 
 # Examples:
 #

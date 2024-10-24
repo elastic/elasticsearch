@@ -52,7 +52,7 @@ public class LogsDBPlugin extends Plugin {
             return List.of(logsdbIndexModeSettingsProvider);
         }
         return List.of(
-            new SyntheticSourceIndexSettingsProvider(licenseService, parameters.mapperServiceFactory()),
+            new SyntheticSourceIndexSettingsProvider(licenseService, parameters.mapperServiceFactory(), logsdbIndexModeSettingsProvider),
             logsdbIndexModeSettingsProvider
         );
     }

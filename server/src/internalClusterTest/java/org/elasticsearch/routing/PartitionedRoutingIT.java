@@ -160,7 +160,7 @@ public class PartitionedRoutingIT extends ESIntegTestCase {
                             + "] shards for routing ["
                             + routing
                             + "] and got hits ["
-                            + response.getHits().getTotalHits().value
+                            + response.getHits().getTotalHits().value()
                             + "]"
                     );
 
@@ -168,7 +168,7 @@ public class PartitionedRoutingIT extends ESIntegTestCase {
                         response.getTotalShards() + " was not in " + expectedShards + " for " + index,
                         expectedShards.contains(response.getTotalShards())
                     );
-                    assertEquals(expectedDocuments, response.getHits().getTotalHits().value);
+                    assertEquals(expectedDocuments, response.getHits().getTotalHits().value());
 
                     Set<String> found = new HashSet<>();
                     response.getHits().forEach(h -> found.add(h.getId()));
@@ -188,7 +188,7 @@ public class PartitionedRoutingIT extends ESIntegTestCase {
                 prepareSearch().setQuery(QueryBuilders.termQuery("_routing", routing)).setIndices(index).setSize(100),
                 response -> {
                     assertEquals(expectedShards, response.getTotalShards());
-                    assertEquals(expectedDocuments, response.getHits().getTotalHits().value);
+                    assertEquals(expectedDocuments, response.getHits().getTotalHits().value());
 
                     Set<String> found = new HashSet<>();
                     response.getHits().forEach(h -> found.add(h.getId()));

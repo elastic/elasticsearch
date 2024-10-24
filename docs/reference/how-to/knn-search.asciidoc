@@ -59,8 +59,7 @@ since it relies on separate data structures to perform the search. Before
 using the <<include-exclude, `excludes`>> parameter, make sure to review the
 downsides of omitting fields from `_source`.
 
-Another option is to use  <<synthetic-source,synthetic `_source`>> if all
-your index fields support it.
+Another option is to use  <<synthetic-source,synthetic `_source`>>.
 
 [discrete]
 === Ensure data nodes have enough memory

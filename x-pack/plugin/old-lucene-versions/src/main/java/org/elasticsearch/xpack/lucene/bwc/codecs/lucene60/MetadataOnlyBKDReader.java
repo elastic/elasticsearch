@@ -63,14 +63,14 @@ public class MetadataOnlyBKDReader extends PointValues {
         numLeaves = metaIn.readVInt();
         assert numLeaves > 0;
 
-        minPackedValue = new byte[config.packedIndexBytesLength];
-        maxPackedValue = new byte[config.packedIndexBytesLength];
+        minPackedValue = new byte[config.packedIndexBytesLength()];
+        maxPackedValue = new byte[config.packedIndexBytesLength()];
 
-        metaIn.readBytes(minPackedValue, 0, config.packedIndexBytesLength);
-        metaIn.readBytes(maxPackedValue, 0, config.packedIndexBytesLength);
-        final ArrayUtil.ByteArrayComparator comparator = ArrayUtil.getUnsignedComparator(config.bytesPerDim);
-        for (int dim = 0; dim < config.numIndexDims; dim++) {
-            if (comparator.compare(minPackedValue, dim * config.bytesPerDim, maxPackedValue, dim * config.bytesPerDim) > 0) {
+        metaIn.readBytes(minPackedValue, 0, config.packedIndexBytesLength());
+        metaIn.readBytes(maxPackedValue, 0, config.packedIndexBytesLength());
+        final ArrayUtil.ByteArrayComparator comparator = ArrayUtil.getUnsignedComparator(config.bytesPerDim());
+        for (int dim = 0; dim < config.numIndexDims(); dim++) {
+            if (comparator.compare(minPackedValue, dim * config.bytesPerDim(), maxPackedValue, dim * config.bytesPerDim()) > 0) {
                 throw new CorruptIndexException(
                     "minPackedValue "
                         + new BytesRef(minPackedValue)
@@ -104,17 +104,17 @@ public class MetadataOnlyBKDReader extends PointValues {
 
     @Override
     public int getNumDimensions() {
-        return config.numDims;
+        return config.numDims();
     }
 
     @Override
     public int getNumIndexDimensions() {
-        return config.numIndexDims;
+        return config.numIndexDims();
     }
 
     @Override
     public int getBytesPerDimension() {
-        return config.bytesPerDim;
+        return config.bytesPerDim();
     }
 
     @Override

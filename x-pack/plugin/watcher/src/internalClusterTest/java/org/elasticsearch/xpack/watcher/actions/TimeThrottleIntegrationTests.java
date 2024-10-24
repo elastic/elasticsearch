@@ -120,7 +120,7 @@ public class TimeThrottleIntegrationTests extends AbstractWatcherIntegrationTest
             assertResponse(
                 prepareSearch(HistoryStoreField.DATA_STREAM + "*").setSize(0)
                     .setSource(new SearchSourceBuilder().query(QueryBuilders.boolQuery().must(termQuery("watch_id", id)))),
-                searchResponse -> assertThat(searchResponse.getHits().getTotalHits().value, is(oneOf(expectedCount, expectedCount + 1)))
+                searchResponse -> assertThat(searchResponse.getHits().getTotalHits().value(), is(oneOf(expectedCount, expectedCount + 1)))
             );
         });
 

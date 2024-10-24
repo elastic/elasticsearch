@@ -100,7 +100,7 @@ public enum SearchResponseUtils {
     }
 
     public static long getTotalHitsValue(SearchRequestBuilder request) {
-        return getTotalHits(request).value;
+        return getTotalHits(request).value();
     }
 
     public static SearchResponse responseAsSearchResponse(Response searchResponse) throws IOException {

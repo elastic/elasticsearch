@@ -25,6 +25,7 @@ import org.elasticsearch.xcontent.ToXContent;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -92,10 +93,13 @@ public class IndexLifecycleMetadata implements Metadata.Custom {
     }
 
     public Map<String, LifecyclePolicy> getPolicies() {
-        return policyMetadatas.values()
-            .stream()
-            .map(LifecyclePolicyMetadata::getPolicy)
-            .collect(Collectors.toMap(LifecyclePolicy::getName, Function.identity()));
+        // note: this loop is unrolled rather than streaming-style because it's hot enough to show up in a flamegraph
+        Map<String, LifecyclePolicy> policies = new HashMap<>(policyMetadatas.size());
+        for (LifecyclePolicyMetadata policyMetadata : policyMetadatas.values()) {
+            LifecyclePolicy policy = policyMetadata.getPolicy();
+            policies.put(policy.getName(), policy);
+        }
+        return Collections.unmodifiableMap(policies);
     }
 
     @Override

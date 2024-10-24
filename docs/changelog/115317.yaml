@@ -1,0 +1,5 @@
+pr: 115317
+summary: Revert "Add `ResolvedExpression` wrapper"
+area: Indices APIs
+type: bug
+issues: []

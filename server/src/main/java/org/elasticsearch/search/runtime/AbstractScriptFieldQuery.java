@@ -19,6 +19,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.script.AbstractFieldScript;
@@ -69,10 +70,11 @@ public abstract class AbstractScriptFieldQuery<S extends AbstractFieldScript> ex
             }
 
             @Override
-            public Scorer scorer(LeafReaderContext ctx) {
+            public ScorerSupplier scorerSupplier(LeafReaderContext ctx) throws IOException {
                 S scriptContext = scriptContextFunction.apply(ctx);
                 DocIdSetIterator approximation = DocIdSetIterator.all(ctx.reader().maxDoc());
-                return new ConstantScoreScorer(this, score(), scoreMode, createTwoPhaseIterator(scriptContext, approximation));
+                Scorer scorer = new ConstantScoreScorer(score(), scoreMode, createTwoPhaseIterator(scriptContext, approximation));
+                return new DefaultScorerSupplier(scorer);
             }
 
             @Override

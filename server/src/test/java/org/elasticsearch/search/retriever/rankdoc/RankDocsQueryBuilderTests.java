@@ -160,7 +160,7 @@ public class RankDocsQueryBuilderTests extends AbstractQueryTestCase<RankDocsQue
                     // so worst case is we could end up collecting up to 1 + max(topSize , totalHitsThreshold) + rankDocs.length documents
                     // as we could have already filled the priority queue with non-optimal docs
                     assertThat(
-                        col.totalHits.value,
+                        col.totalHits.value(),
                         lessThanOrEqualTo((long) (1 + Math.max(topSize, totalHitsThreshold) + rankDocs.length))
                     );
                     assertEqualTopDocs(col.scoreDocs, rankDocs);
@@ -177,7 +177,7 @@ public class RankDocsQueryBuilderTests extends AbstractQueryTestCase<RankDocsQue
                     );
                     var topDocsManager = new TopScoreDocCollectorManager(topSize, null, Integer.MAX_VALUE);
                     var col = searcher.search(q, topDocsManager);
-                    assertThat(col.totalHits.value, equalTo((long) reader.maxDoc()));
+                    assertThat(col.totalHits.value(), equalTo((long) reader.maxDoc()));
                     assertEqualTopDocs(col.scoreDocs, rankDocs);
                 }
 
@@ -192,7 +192,7 @@ public class RankDocsQueryBuilderTests extends AbstractQueryTestCase<RankDocsQue
                     );
                     var topDocsManager = new TopScoreDocCollectorManager(topSize, null, Integer.MAX_VALUE);
                     var col = searcher.search(q, topDocsManager);
-                    assertThat(col.totalHits.value, equalTo((long) topSize));
+                    assertThat(col.totalHits.value(), equalTo((long) topSize));
                     assertEqualTopDocs(col.scoreDocs, rankDocs);
                 }
 
@@ -209,7 +209,7 @@ public class RankDocsQueryBuilderTests extends AbstractQueryTestCase<RankDocsQue
                     );
                     var topDocsManager = new TopScoreDocCollectorManager(1, null, 0);
                     var col = searcher.search(q, topDocsManager);
-                    assertThat(col.totalHits.value, lessThanOrEqualTo((long) (2 + rankDocs.length)));
+                    assertThat(col.totalHits.value(), lessThanOrEqualTo((long) (2 + rankDocs.length)));
                     assertEqualTopDocs(col.scoreDocs, singleRankDoc);
                 }
             }

@@ -49,7 +49,9 @@ public class TransportSimulateIndexTemplateActionTests extends ESTestCase {
                             matchingTemplate,
                             ComposableIndexTemplate.builder()
                                 .indexPatterns(List.of("test_index*"))
-                                .template(new Template(Settings.builder().put("test-setting", 1).build(), null, null))
+                                .template(
+                                    new Template(Settings.builder().put("test-setting", 1).put("test-setting-2", 2).build(), null, null)
+                                )
                                 .build()
                         )
                     )
@@ -78,6 +80,24 @@ public class TransportSimulateIndexTemplateActionTests extends ESTestCase {
             ) {
                 return Settings.builder().put("test-setting", 0).build();
             }
+        }, new IndexSettingProvider() {
+            @Override
+            public Settings getAdditionalIndexSettings(
+                String indexName,
+                String dataStreamName,
+                IndexMode templateIndexMode,
+                Metadata metadata,
+                Instant resolvedAt,
+                Settings indexTemplateAndCreateRequestSettings,
+                List<CompressedXContent> combinedTemplateMappings
+            ) {
+                return Settings.builder().put("test-setting-2", 10).build();
+            }
+
+            @Override
+            public boolean overrulesTemplateAndRequestSettings() {
+                return true;
+            }
         });
 
         Template resolvedTemplate = TransportSimulateIndexTemplateAction.resolveTemplate(
@@ -92,5 +112,6 @@ public class TransportSimulateIndexTemplateActionTests extends ESTestCase {
         );
 
         assertThat(resolvedTemplate.settings().getAsInt("test-setting", -1), is(1));
+        assertThat(resolvedTemplate.settings().getAsInt("test-setting-2", -1), is(10));
     }
 }

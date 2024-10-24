@@ -390,12 +390,11 @@ public abstract class BlobCacheBufferedIndexInput extends IndexInput implements 
 
     /** Returns default buffer sizes for the given {@link IOContext} */
     public static int bufferSize(IOContext context) {
-        switch (context.context) {
+        switch (context.context()) {
             case MERGE:
                 return MERGE_BUFFER_SIZE;
             case DEFAULT:
             case FLUSH:
-            case READ:
             default:
                 return BUFFER_SIZE;
         }

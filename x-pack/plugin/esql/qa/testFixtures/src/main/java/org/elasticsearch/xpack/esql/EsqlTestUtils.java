@@ -46,6 +46,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.util.DateUtils;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
+import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.RLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
@@ -260,7 +261,7 @@ public final class EsqlTestUtils {
 
     public static final Configuration TEST_CFG = configuration(new QueryPragmas(Settings.EMPTY));
 
-    public static final Verifier TEST_VERIFIER = new Verifier(new Metrics());
+    public static final Verifier TEST_VERIFIER = new Verifier(new Metrics(new EsqlFunctionRegistry()));
 
     private EsqlTestUtils() {}
 
@@ -647,7 +648,7 @@ public final class EsqlTestUtils {
             case KEYWORD -> new BytesRef(randomAlphaOfLength(5));
             case IP -> new BytesRef(InetAddressPoint.encode(randomIp(randomBoolean())));
             case TIME_DURATION -> Duration.ofMillis(randomLongBetween(-604800000L, 604800000L)); // plus/minus 7 days
-            case TEXT -> new BytesRef(randomAlphaOfLength(50));
+            case TEXT, SEMANTIC_TEXT -> new BytesRef(randomAlphaOfLength(50));
             case VERSION -> randomVersion().toBytesRef();
             case GEO_POINT -> GEO.asWkb(GeometryTestUtils.randomPoint());
             case CARTESIAN_POINT -> CARTESIAN.asWkb(ShapeTestUtils.randomPoint());

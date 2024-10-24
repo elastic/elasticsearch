@@ -57,7 +57,7 @@ import java.util.stream.Stream;
 
 import static java.util.Map.entry;
 import static org.elasticsearch.xpack.core.security.support.Automatons.patterns;
-import static org.elasticsearch.xpack.core.security.support.Automatons.unionAndMinimize;
+import static org.elasticsearch.xpack.core.security.support.Automatons.unionAndDeterminize;
 
 /**
  * The name of an index related action always being with `indices:` followed by a sequence of slash-separated terms
@@ -110,7 +110,7 @@ public final class IndexPrivilege extends Privilege {
     private static final Automaton DELETE_AUTOMATON = patterns("indices:data/write/delete*", "indices:data/write/bulk*");
     private static final Automaton WRITE_AUTOMATON = patterns("indices:data/write/*", TransportAutoPutMappingAction.TYPE.name());
     private static final Automaton MONITOR_AUTOMATON = patterns("indices:monitor/*");
-    private static final Automaton MANAGE_AUTOMATON = unionAndMinimize(
+    private static final Automaton MANAGE_AUTOMATON = unionAndDeterminize(
         Arrays.asList(
             MONITOR_AUTOMATON,
             patterns("indices:admin/*", TransportFieldCapabilitiesAction.NAME + "*", GetRollupIndexCapsAction.NAME + "*")
@@ -303,7 +303,7 @@ public final class IndexPrivilege extends Privilege {
         if (actions.isEmpty() == false) {
             automata.add(patterns(actions));
         }
-        return new IndexPrivilege(name, unionAndMinimize(automata));
+        return new IndexPrivilege(name, unionAndDeterminize(automata));
     }
 
     static Map<String, IndexPrivilege> values() {

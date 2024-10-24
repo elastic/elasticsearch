@@ -76,7 +76,7 @@ public class FloatNestedSortingTests extends DoubleNestedSortingTests {
         );
         Sort sort = new Sort(new SortField("field2", nestedComparatorSource));
         TopDocs topDocs = searcher.search(query, 5, sort);
-        assertThat(topDocs.totalHits.value, equalTo(7L));
+        assertThat(topDocs.totalHits.value(), equalTo(7L));
         assertThat(topDocs.scoreDocs.length, equalTo(5));
         assertThat(topDocs.scoreDocs[0].doc, equalTo(11));
         assertThat(((Number) ((FieldDoc) topDocs.scoreDocs[0]).fields[0]).intValue(), equalTo(2));

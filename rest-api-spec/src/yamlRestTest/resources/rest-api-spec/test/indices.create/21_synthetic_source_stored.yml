@@ -319,8 +319,8 @@ object param - nested object array next to other fields:
 ---
 object param - nested object with stored array:
   - requires:
-      cluster_features: ["mapper.synthetic_source_keep", "mapper.bwc_workaround_9_0"]
-      reason: requires tracking ignored source
+      cluster_features: ["mapper.ignored_source.always_store_object_arrays_in_nested", "mapper.bwc_workaround_9_0"]
+      reason: requires fix to object array handling
 
   - do:
       indices.create:
@@ -356,8 +356,11 @@ object param - nested object with stored array:
         sort: name
   - match:  { hits.total.value: 2 }
   - match:  { hits.hits.0._source.name: A }
-  - match: { hits.hits.0._source.nested_array_regular.0.b.c: [ 10, 100] }
-  - match: { hits.hits.0._source.nested_array_regular.1.b.c: [ 20, 200] }
+    # due to a workaround for #115261
+  - match: { hits.hits.0._source.nested_array_regular.0.b.0.c: 10 }
+  - match: { hits.hits.0._source.nested_array_regular.0.b.1.c: 100 }
+  - match: { hits.hits.0._source.nested_array_regular.1.b.0.c: 20 }
+  - match: { hits.hits.0._source.nested_array_regular.1.b.1.c: 200 }
   - match: { hits.hits.1._source.name: B }
   - match: { hits.hits.1._source.nested_array_stored.0.b.0.c: 10 }
   - match: { hits.hits.1._source.nested_array_stored.0.b.1.c: 100 }

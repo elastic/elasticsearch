@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.core.inference.results;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.TaskType;
@@ -50,7 +50,7 @@ public record ChatCompletionResults(List<Result> results) implements InferenceSe
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-        return ChunkedToXContentHelper.array(COMPLETION, results.iterator());
+        return ChunkedToXContent.builder(params).array(COMPLETION, results.iterator());
     }
 
     @Override

@@ -18,6 +18,7 @@ import org.elasticsearch.common.Table;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.Scope;
@@ -51,6 +52,8 @@ public class RestAliasAction extends AbstractCatAction {
     }
 
     @Override
+    @UpdateForV9(owner = UpdateForV9.Owner.DATA_MANAGEMENT)
+    // v7 REST API no longer exists: eliminate ref to RestApiVersion.V_7; reject local parameter in v9 too?
     protected RestChannelConsumer doCatRequest(final RestRequest request, final NodeClient client) {
         final GetAliasesRequest getAliasesRequest = request.hasParam("alias")
             ? new GetAliasesRequest(Strings.commaDelimitedListToStringArray(request.param("alias")))

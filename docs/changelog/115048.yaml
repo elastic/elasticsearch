@@ -1,0 +1,5 @@
+pr: 115048
+summary: Add timeout and cancellation check to rescore phase
+area: Ranking
+type: enhancement
+issues: []

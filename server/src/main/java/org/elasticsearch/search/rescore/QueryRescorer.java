@@ -26,6 +26,7 @@ import static java.util.stream.Collectors.toUnmodifiableSet;
 
 public final class QueryRescorer implements Rescorer {
 
+    private static final int MAX_CALLS_BEFORE_QUERY_TIMEOUT_CHECK = 10;
     public static final Rescorer INSTANCE = new QueryRescorer();
 
     @Override
@@ -39,9 +40,14 @@ public final class QueryRescorer implements Rescorer {
         final QueryRescoreContext rescore = (QueryRescoreContext) rescoreContext;
 
         org.apache.lucene.search.Rescorer rescorer = new org.apache.lucene.search.QueryRescorer(rescore.parsedQuery().query()) {
+            int count = 0;
 
             @Override
             protected float combine(float firstPassScore, boolean secondPassMatches, float secondPassScore) {
+                if (count % MAX_CALLS_BEFORE_QUERY_TIMEOUT_CHECK == 0) {
+                    rescore.checkCancellation();
+                }
+                count++;
                 if (secondPassMatches) {
                     return rescore.scoreMode.combine(
                         firstPassScore * rescore.queryWeight(),

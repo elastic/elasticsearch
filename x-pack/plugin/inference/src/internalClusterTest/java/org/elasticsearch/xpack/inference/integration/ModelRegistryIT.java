@@ -14,6 +14,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.Model;
@@ -251,7 +252,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         }
 
         AtomicReference<List<UnparsedModel>> modelHolder = new AtomicReference<>();
-        blockingCall(listener -> modelRegistry.getAllModels(listener), modelHolder, exceptionHolder);
+        blockingCall(listener -> modelRegistry.getAllModels(randomBoolean(), listener), modelHolder, exceptionHolder);
         assertNull(exceptionHolder.get());
         assertThat(modelHolder.get(), hasSize(modelCount));
         var getAllModels = modelHolder.get();
@@ -333,14 +334,14 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         }
 
         AtomicReference<List<UnparsedModel>> modelHolder = new AtomicReference<>();
-        blockingCall(listener -> modelRegistry.getAllModels(listener), modelHolder, exceptionHolder);
+        blockingCall(listener -> modelRegistry.getAllModels(randomBoolean(), listener), modelHolder, exceptionHolder);
         assertNull(exceptionHolder.get());
         assertThat(modelHolder.get(), hasSize(totalModelCount));
         var getAllModels = modelHolder.get();
         assertReturnModelIsModifiable(modelHolder.get().get(0));
 
         // same result but configs should have been persisted this time
-        blockingCall(listener -> modelRegistry.getAllModels(listener), modelHolder, exceptionHolder);
+        blockingCall(listener -> modelRegistry.getAllModels(randomBoolean(), listener), modelHolder, exceptionHolder);
         assertNull(exceptionHolder.get());
         assertThat(modelHolder.get(), hasSize(totalModelCount));
 
@@ -387,7 +388,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
 
         AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
         AtomicReference<List<UnparsedModel>> modelHolder = new AtomicReference<>();
-        blockingCall(listener -> modelRegistry.getAllModels(listener), modelHolder, exceptionHolder);
+        blockingCall(listener -> modelRegistry.getAllModels(randomBoolean(), listener), modelHolder, exceptionHolder);
         assertNull(exceptionHolder.get());
         assertThat(modelHolder.get(), hasSize(2));
         var getAllModels = modelHolder.get();
@@ -403,6 +404,44 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
             assertEquals(configsById.get(id).getTaskType(), getAllModels.get(i).taskType());
             assertEquals(configsById.get(id).getConfigurations().getService(), getAllModels.get(i).service());
         }
+    }
+
+    public void testGetAllModels_withDoNotPersist() throws Exception {
+        int defaultModelCount = 2;
+        var serviceName = "foo";
+        var service = mock(InferenceService.class);
+
+        var defaultConfigs = new ArrayList<Model>();
+        var defaultIds = new ArrayList<InferenceService.DefaultConfigId>();
+        for (int i = 0; i < defaultModelCount; i++) {
+            var id = "default-" + i;
+            var taskType = randomFrom(TaskType.values());
+            defaultConfigs.add(createModel(id, taskType, serviceName));
+            defaultIds.add(new InferenceService.DefaultConfigId(id, taskType, service));
+        }
+
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            var listener = (ActionListener<List<Model>>) invocation.getArguments()[0];
+            listener.onResponse(defaultConfigs);
+            return Void.TYPE;
+        }).when(service).defaultConfigs(any());
+
+        defaultIds.forEach(modelRegistry::addDefaultIds);
+
+        AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
+        AtomicReference<List<UnparsedModel>> modelHolder = new AtomicReference<>();
+        blockingCall(listener -> modelRegistry.getAllModels(false, listener), modelHolder, exceptionHolder);
+        assertNull(exceptionHolder.get());
+        assertThat(modelHolder.get(), hasSize(2));
+
+        expectThrows(IndexNotFoundException.class, () -> client().admin().indices().prepareGetIndex().addIndices(".inference").get());
+
+        // this time check the index is created
+        blockingCall(listener -> modelRegistry.getAllModels(true, listener), modelHolder, exceptionHolder);
+        assertNull(exceptionHolder.get());
+        assertThat(modelHolder.get(), hasSize(2));
+        assertInferenceIndexExists();
     }
 
     public void testGet_WithDefaults() throws InterruptedException {
@@ -513,6 +552,12 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         assertReturnModelIsModifiable(modelHolder.get().get(0));
     }
 
+    private void assertInferenceIndexExists() {
+        var indexResponse = client().admin().indices().prepareGetIndex().addIndices(".inference").get();
+        assertNotNull(indexResponse.getSettings());
+        assertNotNull(indexResponse.getMappings());
+    }
+
     @SuppressWarnings("unchecked")
     private void assertReturnModelIsModifiable(UnparsedModel unparsedModel) {
         var settings = unparsedModel.settings();
@@ -551,7 +596,6 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
             );
             default -> throw new IllegalArgumentException("task type " + taskType + " is not supported");
         };
-
     }
 
     protected <T> void blockingCall(Consumer<ActionListener<T>> function, AtomicReference<T> response, AtomicReference<Exception> error)

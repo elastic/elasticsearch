@@ -48,7 +48,7 @@ public class PlanExecutor {
         this.preAnalyzer = new PreAnalyzer();
         this.functionRegistry = new EsqlFunctionRegistry();
         this.mapper = new Mapper(functionRegistry);
-        this.metrics = new Metrics();
+        this.metrics = new Metrics(functionRegistry);
         this.verifier = new Verifier(metrics);
         this.planningMetricsManager = new PlanningMetricsManager(meterRegistry);
     }

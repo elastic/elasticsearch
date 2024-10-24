@@ -1,0 +1,6 @@
+pr: 115312
+summary: "ESQL: Fix filtered grouping on ords"
+area: ES|QL
+type: bug
+issues:
+ - 114897

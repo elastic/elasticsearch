@@ -74,7 +74,7 @@ public class OverrideNodeVersionCommand extends ElasticsearchNodeCommand {
                 "found ["
                     + nodeMetadata
                     + "] which is compatible with current version ["
-                    + Version.CURRENT
+                    + BuildVersion.current()
                     + "], so there is no need to override the version checks"
             );
         } catch (IllegalStateException e) {
@@ -86,10 +86,10 @@ public class OverrideNodeVersionCommand extends ElasticsearchNodeCommand {
             (nodeMetadata.nodeVersion().onOrAfterMinimumCompatible() == false ? TOO_OLD_MESSAGE : TOO_NEW_MESSAGE).replace(
                 "V_OLD",
                 nodeMetadata.nodeVersion().toString()
-            ).replace("V_NEW", nodeMetadata.nodeVersion().toString()).replace("V_CUR", Version.CURRENT.toString())
+            ).replace("V_NEW", nodeMetadata.nodeVersion().toString()).replace("V_CUR", BuildVersion.current().toString())
         );
 
-        PersistedClusterStateService.overrideVersion(Version.CURRENT, paths);
+        PersistedClusterStateService.overrideVersion(BuildVersion.current(), paths);
 
         terminal.println(SUCCESS_MESSAGE);
     }

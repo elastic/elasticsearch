@@ -3340,7 +3340,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                 new SearchSourceBuilder().query(query).highlighter(new HighlightBuilder().field("*").highlighterType(highlighterType))
             ),
             response -> {
-                assertThat(response.getHits().getTotalHits().value, equalTo(1L));
+                assertThat(response.getHits().getTotalHits().value(), equalTo(1L));
                 assertThat(response.getHits().getAt(0).getHighlightFields().get("text").fragments().length, equalTo(1));
             }
         );
@@ -3412,7 +3412,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                     .highlighter(new HighlightBuilder().field("*"))
             ),
             response -> {
-                assertThat(response.getHits().getTotalHits().value, equalTo(1L));
+                assertThat(response.getHits().getTotalHits().value(), equalTo(1L));
                 HighlightField highlightField = response.getHits().getAt(0).getHighlightFields().get("keyword_field");
                 assertThat(highlightField.fragments()[0].string(), equalTo("<em>some text</em>"));
             }
@@ -3569,7 +3569,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                             .should(QueryBuilders.termQuery("field", "hello"))
                     ),
                 response -> {
-                    assertThat(response.getHits().getTotalHits().value, equalTo(1L));
+                    assertThat(response.getHits().getTotalHits().value(), equalTo(1L));
                     assertHighlight(response, 0, "field", 0, 1, equalTo("<x>hello</x> world"));
                 }
             );

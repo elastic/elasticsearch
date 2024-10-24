@@ -563,7 +563,7 @@ setup:
   - match: { values.1.0: "Payroll Specialist" }
 
 ---
-values:
+"values function":
   - requires:
       cluster_features: esql.agg_values
       reason: "values is available in 8.14+"

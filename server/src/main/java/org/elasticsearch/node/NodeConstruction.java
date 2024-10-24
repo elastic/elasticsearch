@@ -415,8 +415,8 @@ class NodeConstruction {
             Constants.OS_ARCH,
             Constants.JVM_VENDOR,
             Constants.JVM_NAME,
-            Constants.JAVA_VERSION,
-            Constants.JVM_VERSION
+            System.getProperty("java.version"),
+            Runtime.version().toString()
         );
         logger.info("JVM home [{}], using bundled JDK [{}]", System.getProperty("java.home"), jvmInfo.getUsingBundledJdk());
         logger.info("JVM arguments {}", Arrays.toString(jvmInfo.getInputArguments()));
@@ -1099,6 +1099,8 @@ class NodeConstruction {
             telemetryProvider.getTracer()
         );
 
+        final ShutdownPrepareService shutdownPrepareService = new ShutdownPrepareService(settings, httpServerTransport, terminationHandler);
+
         modules.add(
             loadPersistentTasksService(
                 settingsModule,
@@ -1200,6 +1202,7 @@ class NodeConstruction {
             b.bind(CompatibilityVersions.class).toInstance(compatibilityVersions);
             b.bind(DataStreamAutoShardingService.class).toInstance(dataStreamAutoShardingService);
             b.bind(FailureStoreMetrics.class).toInstance(failureStoreMetrics);
+            b.bind(ShutdownPrepareService.class).toInstance(shutdownPrepareService);
         });
 
         if (ReadinessService.enabled(environment)) {

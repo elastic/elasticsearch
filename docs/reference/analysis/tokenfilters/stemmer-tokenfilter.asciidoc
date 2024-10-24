@@ -173,7 +173,6 @@ http://bvg.udc.es/recursos_lingua/stemming.jsp[`minimal_galician`] (Plural step 
 German::
 https://dl.acm.org/citation.cfm?id=1141523[*`light_german`*],
 https://snowballstem.org/algorithms/german/stemmer.html[`german`],
-https://snowballstem.org/algorithms/german2/stemmer.html[`german2`],
 http://members.unine.ch/jacques.savoy/clef/morpho.pdf[`minimal_german`]
 
 Greek::

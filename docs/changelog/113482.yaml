@@ -1,0 +1,27 @@
+pr: 113482
+summary: The 'persian' analyzer has stemmer by default
+area: Analysis
+type: breaking
+issues:
+- 113050
+breaking:
+  title: The 'persian' analyzer has stemmer by default
+  area: Analysis
+  details: >-
+    Lucene 10 has added a final stemming step to its PersianAnalyzer that Elasticsearch
+    exposes as 'persian' analyzer. Existing indices will keep the old
+    non-stemming behaviour while new indices will see the updated behaviour with
+    added stemming.
+    Users that wish to maintain the non-stemming behaviour need to define their
+    own analyzer as outlined in
+    https://www.elastic.co/guide/en/elasticsearch/reference/8.15/analysis-lang-analyzer.html#persian-analyzer.
+    Users that wish to use the new stemming behaviour for existing indices will
+    have to reindex their data.
+  impact: >-
+    Indexing with the 'persian' analyzer will produce slightly different tokens.
+    Users should check if this impacts their search results. If they wish to
+    maintain the legacy non-stemming behaviour they can define their own
+    analyzer equivalent as explained in
+    https://www.elastic.co/guide/en/elasticsearch/reference/8.15/analysis-lang-analyzer.html#persian-analyzer.
+  notable: false
+

@@ -194,7 +194,14 @@ public enum DataType {
      * inside alongside time-series aggregations. These fields are not parsable from the
      * mapping and should be hidden from users.
      */
-    PARTIAL_AGG(builder().esType("partial_agg").unknownSize());
+    PARTIAL_AGG(builder().esType("partial_agg").unknownSize()),
+    /**
+     * String fields that are split into chunks, where each chunk has attached embeddings
+     * used for semantic search. Generally ESQL only sees {@code semantic_text} fields when
+     * loaded from the index and ESQL will load these fields as strings without their attached
+     * chunks or embeddings.
+     */
+    SEMANTIC_TEXT(builder().esType("semantic_text").unknownSize());
 
     /**
      * Types that are actively being built. These types are not returned
@@ -203,7 +210,8 @@ public enum DataType {
      * check that sending them to a function produces a sane error message.
      */
     public static final Map<DataType, FeatureFlag> UNDER_CONSTRUCTION = Map.ofEntries(
-        Map.entry(DATE_NANOS, EsqlCorePlugin.DATE_NANOS_FEATURE_FLAG)
+        Map.entry(DATE_NANOS, EsqlCorePlugin.DATE_NANOS_FEATURE_FLAG),
+        Map.entry(SEMANTIC_TEXT, EsqlCorePlugin.SEMANTIC_TEXT_FEATURE_FLAG)
     );
 
     private final String typeName;

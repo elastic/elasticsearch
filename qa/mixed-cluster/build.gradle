@@ -71,6 +71,7 @@ BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
       numberOfNodes = 4
       setting 'path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
       setting 'xpack.security.enabled', 'false'
+      setting "xpack.license.self_generated.type", "trial"
       /* There is a chance we have more master changes than "normal", so to avoid this test from failing,
        we increase the threshold (as this purpose of this test isn't to test that specific indicator). */
       if (bwcVersion.onOrAfter(Version.fromString("8.4.0"))) {

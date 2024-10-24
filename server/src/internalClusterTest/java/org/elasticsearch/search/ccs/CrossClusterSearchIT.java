@@ -685,7 +685,7 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
             assertNotNull(localClusterSearchInfo);
             Cluster remoteClusterSearchInfo = clusters.getCluster(REMOTE_CLUSTER);
             assertNotNull(remoteClusterSearchInfo);
-            assertThat(Objects.requireNonNull(response.getHits().getTotalHits()).value, greaterThan(2L));
+            assertThat(Objects.requireNonNull(response.getHits().getTotalHits()).value(), greaterThan(2L));
             for (var hit : response.getHits()) {
                 assertThat(hit.getIndex(), anyOf(equalTo("datemath-2001-01-01-14"), equalTo("remotemath-2001-01-01-14")));
             }

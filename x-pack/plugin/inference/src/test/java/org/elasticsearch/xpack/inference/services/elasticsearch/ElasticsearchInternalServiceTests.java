@@ -1561,8 +1561,8 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
 
     public void testIsDefaultId() {
         var service = createService(mock(Client.class));
-        assertTrue(service.isDefaultId(".elser-2"));
-        assertTrue(service.isDefaultId(".multi-e5-small"));
+        assertTrue(service.isDefaultId(".elser-2-elasticsearch"));
+        assertTrue(service.isDefaultId(".multilingual-e5-small-elasticsearch"));
         assertFalse(service.isDefaultId("foo"));
     }
 

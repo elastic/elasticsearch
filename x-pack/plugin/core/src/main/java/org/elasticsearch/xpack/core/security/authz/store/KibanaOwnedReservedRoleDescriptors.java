@@ -152,8 +152,11 @@ class KibanaOwnedReservedRoleDescriptors {
                 // Data telemetry reads mappings, metadata and stats of indices
                 RoleDescriptor.IndicesPrivileges.builder().indices("*").privileges("view_index_metadata", "monitor").build(),
                 // Endpoint diagnostic information. Kibana reads from these indices to send
-                // telemetry
-                RoleDescriptor.IndicesPrivileges.builder().indices(".logs-endpoint.diagnostic.collection-*").privileges("read").build(),
+                // telemetry and also creates the index when policies are first created
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".logs-endpoint.diagnostic.collection-*")
+                    .privileges("read", "create_index")
+                    .build(),
                 // Fleet secrets. Kibana can only write to this index.
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(".fleet-secrets*")
@@ -277,17 +280,19 @@ class KibanaOwnedReservedRoleDescriptors {
                     )
                     .build(),
                 // Endpoint specific action responses. Kibana reads and writes (for third party
-                // agents) to the index
-                // to display action responses to the user.
+                // agents) to the index to display action responses to the user.
+                // `create_index`: is necessary in order to ensure that the DOT datastream index is
+                // created by Kibana in order to avoid errors on the Elastic Defend side when streaming
+                // documents to it.
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(".logs-endpoint.action.responses-*")
-                    .privileges("auto_configure", "read", "write")
+                    .privileges("auto_configure", "read", "write", "create_index")
                     .build(),
                 // Endpoint specific actions. Kibana reads and writes to this index to track new
                 // actions and display them.
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(".logs-endpoint.actions-*")
-                    .privileges("auto_configure", "read", "write")
+                    .privileges("auto_configure", "read", "write", "create_index")
                     .build(),
                 // Legacy Osquery manager specific action responses. Kibana reads from these to
                 // display responses to the user.
@@ -475,7 +480,7 @@ class KibanaOwnedReservedRoleDescriptors {
                 RoleDescriptor.IndicesPrivileges.builder().indices(".slo-observability.*").privileges("all").build(),
                 // Endpoint heartbeat. Kibana reads from these to determine metering/billing for
                 // endpoints.
-                RoleDescriptor.IndicesPrivileges.builder().indices(".logs-endpoint.heartbeat-*").privileges("read").build(),
+                RoleDescriptor.IndicesPrivileges.builder().indices(".logs-endpoint.heartbeat-*").privileges("read", "create_index").build(),
                 // For connectors telemetry. Will be removed once we switched to connectors API
                 RoleDescriptor.IndicesPrivileges.builder().indices(".elastic-connectors*").privileges("read").build() },
             null,

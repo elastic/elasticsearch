@@ -22,7 +22,6 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata.State;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.ResolvedExpression;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -1581,27 +1580,16 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             .put(indexBuilder("test-1").state(State.OPEN).putAlias(AliasMetadata.builder("alias-1")));
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
 
+        assertEquals(new HashSet<>(Arrays.asList("alias-0", "alias-1")), indexNameExpressionResolver.resolveExpressions(state, "alias-*"));
         assertEquals(
-            Set.of(new ResolvedExpression("alias-0"), new ResolvedExpression("alias-1")),
-            indexNameExpressionResolver.resolveExpressions(state, "alias-*")
-        );
-        assertEquals(
-            Set.of(new ResolvedExpression("test-0"), new ResolvedExpression("alias-0"), new ResolvedExpression("alias-1")),
+            new HashSet<>(Arrays.asList("test-0", "alias-0", "alias-1")),
             indexNameExpressionResolver.resolveExpressions(state, "test-0", "alias-*")
         );
         assertEquals(
-            Set.of(
-                new ResolvedExpression("test-0"),
-                new ResolvedExpression("test-1"),
-                new ResolvedExpression("alias-0"),
-                new ResolvedExpression("alias-1")
-            ),
+            new HashSet<>(Arrays.asList("test-0", "test-1", "alias-0", "alias-1")),
             indexNameExpressionResolver.resolveExpressions(state, "test-*", "alias-*")
         );
-        assertEquals(
-            Set.of(new ResolvedExpression("test-1"), new ResolvedExpression("alias-1")),
-            indexNameExpressionResolver.resolveExpressions(state, "*-1")
-        );
+        assertEquals(new HashSet<>(Arrays.asList("test-1", "alias-1")), indexNameExpressionResolver.resolveExpressions(state, "*-1"));
     }
 
     public void testFilteringAliases() {
@@ -1610,25 +1598,16 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             .put(indexBuilder("test-1").state(State.OPEN).putAlias(AliasMetadata.builder("alias-1")));
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
 
-        Set<ResolvedExpression> resolvedExpressions = Set.of(new ResolvedExpression("alias-0"), new ResolvedExpression("alias-1"));
+        Set<String> resolvedExpressions = new HashSet<>(Arrays.asList("alias-0", "alias-1"));
         String[] strings = indexNameExpressionResolver.filteringAliases(state, "test-0", resolvedExpressions);
         assertArrayEquals(new String[] { "alias-0" }, strings);
 
         // concrete index supersedes filtering alias
-        resolvedExpressions = Set.of(
-            new ResolvedExpression("test-0"),
-            new ResolvedExpression("alias-0"),
-            new ResolvedExpression("alias-1")
-        );
+        resolvedExpressions = new HashSet<>(Arrays.asList("test-0", "alias-0", "alias-1"));
         strings = indexNameExpressionResolver.filteringAliases(state, "test-0", resolvedExpressions);
         assertNull(strings);
 
-        resolvedExpressions = Set.of(
-            new ResolvedExpression("test-0"),
-            new ResolvedExpression("test-1"),
-            new ResolvedExpression("alias-0"),
-            new ResolvedExpression("alias-1")
-        );
+        resolvedExpressions = new HashSet<>(Arrays.asList("test-0", "test-1", "alias-0", "alias-1"));
         strings = indexNameExpressionResolver.filteringAliases(state, "test-0", resolvedExpressions);
         assertNull(strings);
     }
@@ -1642,7 +1621,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                     .putAlias(AliasMetadata.builder("test-alias-non-filtering"))
             );
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
-        Set<ResolvedExpression> resolvedExpressions = indexNameExpressionResolver.resolveExpressions(state, "test-*");
+        Set<String> resolvedExpressions = indexNameExpressionResolver.resolveExpressions(state, "test-*");
 
         String[] strings = indexNameExpressionResolver.indexAliases(state, "test-0", x -> true, x -> true, true, resolvedExpressions);
         Arrays.sort(strings);
@@ -1677,28 +1656,28 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
         {
             // Only resolve aliases with with that refer to dataStreamName1
-            Set<ResolvedExpression> resolvedExpressions = indexNameExpressionResolver.resolveExpressions(state, "l*");
+            Set<String> resolvedExpressions = indexNameExpressionResolver.resolveExpressions(state, "l*");
             String index = backingIndex1.getIndex().getName();
             String[] result = indexNameExpressionResolver.indexAliases(state, index, x -> true, x -> true, true, resolvedExpressions);
             assertThat(result, arrayContainingInAnyOrder("logs_foo", "logs", "logs_bar"));
         }
         {
             // Only resolve aliases with with that refer to dataStreamName2
-            Set<ResolvedExpression> resolvedExpressions = indexNameExpressionResolver.resolveExpressions(state, "l*");
+            Set<String> resolvedExpressions = indexNameExpressionResolver.resolveExpressions(state, "l*");
             String index = backingIndex2.getIndex().getName();
             String[] result = indexNameExpressionResolver.indexAliases(state, index, x -> true, x -> true, true, resolvedExpressions);
             assertThat(result, arrayContainingInAnyOrder("logs_baz", "logs_baz2"));
         }
         {
             // Null is returned, because skipping identity check and resolvedExpressions contains the backing index name
-            Set<ResolvedExpression> resolvedExpressions = indexNameExpressionResolver.resolveExpressions(state, "l*");
+            Set<String> resolvedExpressions = indexNameExpressionResolver.resolveExpressions(state, "l*");
             String index = backingIndex2.getIndex().getName();
             String[] result = indexNameExpressionResolver.indexAliases(state, index, x -> true, x -> true, false, resolvedExpressions);
             assertThat(result, nullValue());
         }
         {
             // Null is returned, because the wildcard expands to a list of aliases containing an unfiltered alias for dataStreamName1
-            Set<ResolvedExpression> resolvedExpressions = indexNameExpressionResolver.resolveExpressions(state, "l*");
+            Set<String> resolvedExpressions = indexNameExpressionResolver.resolveExpressions(state, "l*");
             String index = backingIndex1.getIndex().getName();
             String[] result = indexNameExpressionResolver.indexAliases(
                 state,
@@ -1712,7 +1691,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         }
         {
             // Null is returned, because an unfiltered alias is targeting the same data stream
-            Set<ResolvedExpression> resolvedExpressions = indexNameExpressionResolver.resolveExpressions(state, "logs_bar", "logs");
+            Set<String> resolvedExpressions = indexNameExpressionResolver.resolveExpressions(state, "logs_bar", "logs");
             String index = backingIndex1.getIndex().getName();
             String[] result = indexNameExpressionResolver.indexAliases(
                 state,
@@ -1726,7 +1705,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         }
         {
             // The filtered alias is returned because although we target the data stream name, skipIdentity is true
-            Set<ResolvedExpression> resolvedExpressions = indexNameExpressionResolver.resolveExpressions(state, dataStreamName1, "logs");
+            Set<String> resolvedExpressions = indexNameExpressionResolver.resolveExpressions(state, dataStreamName1, "logs");
             String index = backingIndex1.getIndex().getName();
             String[] result = indexNameExpressionResolver.indexAliases(
                 state,
@@ -1740,7 +1719,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         }
         {
             // Null is returned because we target the data stream name and skipIdentity is false
-            Set<ResolvedExpression> resolvedExpressions = indexNameExpressionResolver.resolveExpressions(state, dataStreamName1, "logs");
+            Set<String> resolvedExpressions = indexNameExpressionResolver.resolveExpressions(state, dataStreamName1, "logs");
             String index = backingIndex1.getIndex().getName();
             String[] result = indexNameExpressionResolver.indexAliases(
                 state,
@@ -1763,13 +1742,13 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             );
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
 
-        Set<ResolvedExpression> resolvedExpressions = Set.of(new ResolvedExpression("test-0"), new ResolvedExpression("test-alias"));
+        Set<String> resolvedExpressions = new HashSet<>(Arrays.asList("test-0", "test-alias"));
         String[] aliases = indexNameExpressionResolver.indexAliases(state, "test-0", x -> true, x -> true, false, resolvedExpressions);
         assertNull(aliases);
         aliases = indexNameExpressionResolver.indexAliases(state, "test-0", x -> true, x -> true, true, resolvedExpressions);
         assertArrayEquals(new String[] { "test-alias" }, aliases);
 
-        resolvedExpressions = Collections.singleton(new ResolvedExpression("other-alias"));
+        resolvedExpressions = Collections.singleton("other-alias");
         aliases = indexNameExpressionResolver.indexAliases(state, "test-0", x -> true, x -> true, false, resolvedExpressions);
         assertArrayEquals(new String[] { "other-alias" }, aliases);
         aliases = indexNameExpressionResolver.indexAliases(state, "test-0", x -> true, x -> true, true, resolvedExpressions);
@@ -1790,7 +1769,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             x -> true,
             x -> true,
             true,
-            Set.of(new ResolvedExpression("test-0"), new ResolvedExpression("test-alias"))
+            new HashSet<>(Arrays.asList("test-0", "test-alias"))
         );
         Arrays.sort(strings);
         assertArrayEquals(new String[] { "test-alias" }, strings);
@@ -1872,7 +1851,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             x -> true,
             x -> true,
             true,
-            Set.of(new ResolvedExpression("test-0"), new ResolvedExpression("test-1"), new ResolvedExpression("test-alias"))
+            new HashSet<>(Arrays.asList("test-0", "test-1", "test-alias"))
         );
         Arrays.sort(strings);
         assertArrayEquals(new String[] { "test-alias" }, strings);
@@ -1910,7 +1889,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             x -> true,
             x -> true,
             true,
-            Set.of(new ResolvedExpression("test-0"), new ResolvedExpression("test-alias"))
+            new HashSet<>(Arrays.asList("test-0", "test-alias"))
         );
         Arrays.sort(strings);
         assertArrayEquals(new String[] { "test-alias" }, strings);
@@ -1946,7 +1925,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             x -> true,
             x -> true,
             true,
-            Set.of(new ResolvedExpression("test-0"), new ResolvedExpression("test-1"), new ResolvedExpression("test-alias"))
+            new HashSet<>(Arrays.asList("test-0", "test-1", "test-alias"))
         );
         Arrays.sort(strings);
         assertArrayEquals(new String[] { "test-alias" }, strings);
@@ -1987,7 +1966,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             x -> true,
             x -> true,
             true,
-            Set.of(new ResolvedExpression("test-0"), new ResolvedExpression("test-1"), new ResolvedExpression("test-alias"))
+            new HashSet<>(Arrays.asList("test-0", "test-1", "test-alias"))
         );
         Arrays.sort(strings);
         assertArrayEquals(new String[] { "test-alias" }, strings);

@@ -63,7 +63,7 @@ public class TransportInferenceUsageAction extends XPackUsageFeatureTransportAct
         ClusterState state,
         ActionListener<XPackUsageFeatureResponse> listener
     ) {
-        GetInferenceModelAction.Request getInferenceModelAction = new GetInferenceModelAction.Request("_all", TaskType.ANY);
+        GetInferenceModelAction.Request getInferenceModelAction = new GetInferenceModelAction.Request("_all", TaskType.ANY, false);
         client.execute(GetInferenceModelAction.INSTANCE, getInferenceModelAction, listener.delegateFailureAndWrap((delegate, response) -> {
             Map<String, InferenceFeatureSetUsage.ModelStats> stats = new TreeMap<>();
             for (ModelConfigurations model : response.getEndpoints()) {

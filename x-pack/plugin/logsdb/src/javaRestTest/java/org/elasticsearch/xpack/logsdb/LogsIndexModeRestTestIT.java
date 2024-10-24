@@ -98,4 +98,15 @@ public abstract class LogsIndexModeRestTestIT extends ESRestTestCase {
         request.setJsonEntity("{ \"transient\": { \"" + settingName + "\": " + settingValue + " } }");
         return client.performRequest(request);
     }
+
+    @SuppressWarnings("unchecked")
+    protected static Map<String, Object> getMapping(final RestClient client, final String indexName) throws IOException {
+        final Request request = new Request("GET", "/" + indexName + "/_mapping");
+
+        Map<String, Object> mappings = ((Map<String, Map<String, Object>>) entityAsMap(client.performRequest(request)).get(indexName)).get(
+            "mappings"
+        );
+
+        return mappings;
+    }
 }

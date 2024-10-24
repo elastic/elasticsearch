@@ -238,9 +238,8 @@ public final class GeoIpProcessor extends AbstractProcessor {
             boolean ignoreMissing = readBooleanProperty(type, processorTag, config, "ignore_missing", false);
             boolean firstOnly = readBooleanProperty(type, processorTag, config, "first_only", true);
 
-            // Validating the download_database_on_pipeline_creation even if the result
-            // is not used directly by the factory.
-            downloadDatabaseOnPipelineCreation(type, config, processorTag);
+            // validate (and consume) the download_database_on_pipeline_creation property even though the result is not used by the factory
+            readBooleanProperty(type, processorTag, config, "download_database_on_pipeline_creation", true);
 
             // noop, should be removed in 9.0
             Object value = config.remove("fallback_to_default_databases");
@@ -319,8 +318,15 @@ public final class GeoIpProcessor extends AbstractProcessor {
             );
         }
 
-        public static boolean downloadDatabaseOnPipelineCreation(String type, Map<String, Object> config, String processorTag) {
-            return readBooleanProperty(type, processorTag, config, "download_database_on_pipeline_creation", true);
+        /**
+         * Get the value of the "download_database_on_pipeline_creation" property from a processor's config map.
+         * <p>
+         * As with the actual property definition, the default value of the property is 'true'. Unlike the actual
+         * property definition, this method doesn't consume (that is, <code>config.remove</code>) the property from
+         * the config map.
+         */
+        public static boolean downloadDatabaseOnPipelineCreation(Map<String, Object> config) {
+            return (boolean) config.getOrDefault("download_database_on_pipeline_creation", true);
         }
     }
 

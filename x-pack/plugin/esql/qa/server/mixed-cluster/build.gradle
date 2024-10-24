@@ -1,5 +1,6 @@
 
 import org.elasticsearch.gradle.Version
+import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.util.GradleUtils
 import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
@@ -27,7 +28,7 @@ GradleUtils.extendSourceSet(project, "javaRestTest", "yamlRestTest")
 
 // ESQL is available in 8.11 or later
 def supportedVersion = bwcVersion -> {
-  return bwcVersion.onOrAfter(Version.fromString("8.11.0"));
+  return bwcVersion.onOrAfter(Version.fromString("8.11.0")) && bwcVersion != VersionProperties.elasticsearchVersion
 }
 
 BuildParams.bwcVersions.withWireCompatible(supportedVersion) { bwcVersion, baseName ->

@@ -78,5 +78,4 @@ public class FieldNamesFieldMapperTests extends MetadataMapperTestCase {
             ex.getMessage()
         );
     }
-
 }

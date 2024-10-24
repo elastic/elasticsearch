@@ -1122,12 +1122,7 @@ public class VerifierTests extends ESTestCase {
         assumeTrue("Match operator is available just for snapshots", EsqlCapabilities.Cap.MATCH_OPERATOR_COLON.isEnabled());
 
         assertEquals(
-            "1:63: [:] operator requires a mapped index field, found [name]",
-            error("from test | eval name = concat(first_name, last_name) | where name:\"Anna\"")
-        );
-
-        assertEquals(
-            "1:19: [:] operator requires a text or keyword field, but [salary] has type [integer]",
+            "1:19: first argument of [salary:\"100\"] must be [string], found value [salary] type [integer]",
             error("from test | where salary:\"100\"")
         );
 
@@ -1140,11 +1135,6 @@ public class VerifierTests extends ESTestCase {
         assertEquals(
             "1:51: Invalid condition [first_name:\"Anna\" OR new_salary > 100]. " + "[:] operator can't be used as part of an or condition",
             error("from test | eval new_salary = salary + 10 | where first_name:\"Anna\" OR new_salary > 100")
-        );
-
-        assertEquals(
-            "1:45: [:] operator requires a mapped index field, found [fn]",
-            error("from test | rename first_name as fn | where fn:\"Anna\"")
         );
     }
 

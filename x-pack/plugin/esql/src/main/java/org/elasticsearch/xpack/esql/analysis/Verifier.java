@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
-import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.core.capabilities.Unresolvable;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
@@ -21,7 +20,6 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.expression.predicate.BinaryOperator;
-import org.elasticsearch.xpack.esql.core.expression.predicate.fulltext.MatchQueryPredicate;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.BinaryLogic;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Or;
@@ -193,7 +191,6 @@ public class Verifier {
             checkBinaryComparison(p, failures);
             checkForSortableDataTypes(p, failures);
 
-            checkMatchQueryPredicates(p, failures);
             checkFullTextQueryFunctions(p, failures);
         });
         checkRemoteEnrich(plan, failures);
@@ -629,59 +626,6 @@ public class Verifier {
         });
     }
 
-    private static void checkMatchQueryPredicates(LogicalPlan plan, Set<Failure> failures) {
-        if (plan instanceof Filter f) {
-            Expression condition = f.condition();
-            checkMatchPredicateArgumentTypes(plan, failures);
-            checkCommandsBeforeExpression(
-                plan,
-                condition,
-                MatchQueryPredicate.class,
-                lp -> lp instanceof Limit == false,
-                e -> "[:] operator",
-                failures
-            );
-            checkNotPresentInDisjunctions(condition, MatchQueryPredicate.class, mqp -> "[:] operator", failures);
-        } else {
-            plan.forEachExpression(
-                MatchQueryPredicate.class,
-                ftf -> { failures.add(fail(ftf, "[:] operator is only supported in WHERE commands")); }
-            );
-        }
-    }
-
-    /**
-     * Currently any filter condition using MATCH needs to be pushed down to the Lucene query.
-     * Conditions that use a combination of MATCH and ES|QL functions (e.g. `title MATCH "anna" OR DATE_EXTRACT("year", date) > 2010)
-     * cannot be pushed down to Lucene.
-     * Another condition is for MATCH to use index fields that have been mapped as text or keyword.
-     * We are using canPushToSource at the Verifier level because we want to detect any condition that cannot be pushed down
-     * early in the execution, rather than fail at the compute engine level.
-     * In the future we will be able to handle MATCH at the compute and we will no longer need these checks.
-     */
-    private static void checkMatchPredicateArgumentTypes(LogicalPlan plan, Set<Failure> failures) {
-        if (plan instanceof Filter f) {
-            Expression condition = f.condition();
-
-            condition.forEachDown(MatchQueryPredicate.class, mqp -> {
-                var field = mqp.field();
-                if (field instanceof FieldAttribute == false) {
-                    failures.add(fail(mqp, "[:] operator requires a mapped index field, found [" + field.sourceText() + "]"));
-                }
-
-                if (DataType.isString(field.dataType()) == false) {
-                    var message = LoggerMessageFormat.format(
-                        null,
-                        "[:] operator requires a text or keyword field, but [{}] has type [{}]",
-                        field.sourceText(),
-                        field.dataType().esType()
-                    );
-                    failures.add(fail(mqp, message));
-                }
-            });
-        }
-    }
-
     /**
      * Checks a whether a condition contains a disjunction with the specified typeToken. Adds to failure if it does.
      *
@@ -721,7 +665,7 @@ public class Verifier {
     ) {
         parentExpression.forEachDown(typeToken, ftp -> {
             failures.add(
-                fail(or, "Invalid condition [{}]. " + elementName.apply(ftp) + " can't be used as part of an or condition", or.sourceText())
+                fail(or, "Invalid condition [{}]. {} can't be used as part of an or condition", or.sourceText(), elementName.apply(ftp))
             );
         });
     }
@@ -740,7 +684,7 @@ public class Verifier {
                 condition,
                 QueryString.class,
                 lp -> (lp instanceof Filter || lp instanceof OrderBy || lp instanceof EsRelation),
-                e -> "[" + e.functionName() + "] function",
+                qsf -> "[" + qsf.functionName() + "] " + qsf.functionType(),
                 failures
             );
             checkCommandsBeforeExpression(
@@ -748,14 +692,19 @@ public class Verifier {
                 condition,
                 Match.class,
                 lp -> (lp instanceof Limit == false),
-                e -> "[" + e.functionName() + "] function",
+                m -> "[" + m.functionName() + "] " + m.functionType(),
                 failures
             );
-            checkNotPresentInDisjunctions(condition, FullTextFunction.class, ftf -> "[" + ftf.functionName() + "] function", failures);
+            checkNotPresentInDisjunctions(
+                condition,
+                FullTextFunction.class,
+                ftf -> "[" + ftf.functionName() + "] " + ftf.functionType(),
+                failures
+            );
             checkFullTextFunctionsParents(condition, failures);
         } else {
             plan.forEachExpression(FullTextFunction.class, ftf -> {
-                failures.add(fail(ftf, "[{}] function is only supported in WHERE commands", ftf.functionName()));
+                failures.add(fail(ftf, "[{}] {} is only supported in WHERE commands", ftf.functionName(), ftf.functionType()));
             });
         }
     }

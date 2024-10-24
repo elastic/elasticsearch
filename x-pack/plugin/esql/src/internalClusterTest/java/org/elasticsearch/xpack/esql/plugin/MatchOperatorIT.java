@@ -12,6 +12,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
 import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
@@ -29,7 +30,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-//@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE", reason = "debug")
+@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE", reason = "debug")
 public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
 
     @Before
@@ -147,7 +148,10 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
             """;
 
         var error = expectThrows(VerificationException.class, () -> run(query));
-        assertThat(error.getMessage(), containsString("[:] operator requires a mapped index field, found [upper_content]"));
+        assertThat(
+            error.getMessage(),
+            containsString("[:] operator cannot operate on [upper_content], which is not a field from an index mapping")
+        );
     }
 
     public void testWhereMatchOverWrittenColumn() {
@@ -159,7 +163,10 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
             """;
 
         var error = expectThrows(VerificationException.class, () -> run(query));
-        assertThat(error.getMessage(), containsString("[:] operator requires a mapped index field, found [content]"));
+        assertThat(
+            error.getMessage(),
+            containsString("[:] operator cannot operate on [content], which is not a field from an index mapping")
+        );
     }
 
     public void testWhereMatchAfterStats() {
@@ -195,7 +202,10 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
             """;
 
         var error = expectThrows(ElasticsearchException.class, () -> run(query));
-        assertThat(error.getMessage(), containsString("[:] operator requires a mapped index field, found [content]"));
+        assertThat(
+            error.getMessage(),
+            containsString("[:] operator cannot operate on [\"a brown fox\"], which is not a field from an index mapping")
+        );
     }
 
     public void testMatchWithinEval() {
@@ -215,7 +225,7 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
             """;
 
         var error = expectThrows(VerificationException.class, () -> run(query));
-        assertThat(error.getMessage(), containsString("[:] operator requires a text or keyword field, but [id] has type [integer]"));
+        assertThat(error.getMessage(), containsString("first argument of [id:\"fox\"] must be [string], found value [id] type [integer]"));
     }
 
     private void createAndPopulateIndex() {

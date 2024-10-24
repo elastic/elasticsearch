@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.security.authc.support.mapper.ClusterStateRoleMap
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
 
 public class TransportDeleteRoleMappingAction extends HandledTransportAction<DeleteRoleMappingRequest, DeleteRoleMappingResponse> {
-
     private final NativeRoleMappingStore roleMappingStore;
     private final ClusterStateRoleMapper clusterStateRoleMapper;
 
@@ -45,17 +44,19 @@ public class TransportDeleteRoleMappingAction extends HandledTransportAction<Del
 
     @Override
     protected void doExecute(Task task, DeleteRoleMappingRequest request, ActionListener<DeleteRoleMappingResponse> listener) {
-        if (clusterStateRoleMapper.hasMapping(request.getName())) {
-            // Since it's allowed to add a mapping with the same name in the native role mapping store as the file_settings namespace,
-            // a warning header is added to signal to the caller that this could be a problem.
-            HeaderWarning.addWarning(
-                "A read only role mapping with the same name ["
-                    + request.getName()
-                    + "] has been previously been defined in a configuration file. The role mapping ["
-                    + request.getName()
-                    + "] defined in the configuration file is read only, will not be deleted, and will remain active."
-            );
-        }
-        roleMappingStore.deleteRoleMapping(request, listener.safeMap(DeleteRoleMappingResponse::new));
+        roleMappingStore.deleteRoleMapping(request, listener.safeMap(found -> {
+            if (found && clusterStateRoleMapper.hasMapping(request.getName())) {
+                // Allow to delete a mapping with the same name in the native role mapping store as the file_settings namespace, but
+                // add a warning header to signal to the caller that this could be a problem.
+                HeaderWarning.addWarning(
+                    "A read-only role mapping with the same name ["
+                        + request.getName()
+                        + "] has previously been defined in a configuration file. "
+                        + "The native role mapping was deleted, but the read-only mapping will remain active "
+                        + "and will be used to determine role assignments."
+                );
+            }
+            return new DeleteRoleMappingResponse(found);
+        }));
     }
 }

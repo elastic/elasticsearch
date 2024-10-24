@@ -241,6 +241,12 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
                 }
             }
 
+            SourceLoader sourceLoader = null;
+            if (storedFieldsSpec.requiresSource()) {
+                sourceLoader = shardContexts.get(shard).newSourceLoader.get();
+                storedFieldsSpec = storedFieldsSpec.merge(new StoredFieldsSpec(true, false, sourceLoader.requiredStoredFields()));
+            }
+
             if (rowStrideReaders.isEmpty()) {
                 return;
             }
@@ -259,7 +265,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
             }
             BlockLoaderStoredFieldsFromLeafLoader storedFields = new BlockLoaderStoredFieldsFromLeafLoader(
                 storedFieldLoader.getLoader(ctx, null),
-                storedFieldsSpec.requiresSource() ? shardContexts.get(shard).newSourceLoader.get().leaf(ctx.reader(), null) : null
+                sourceLoader != null ? sourceLoader.leaf(ctx.reader(), null) : null
             );
             for (int p = 0; p < docs.count(); p++) {
                 int doc = docs.get(p);
@@ -381,13 +387,18 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
                 FieldWork field = fields[f];
                 rowStride[f] = field.rowStride(ctx);
                 storedFieldsSpec = storedFieldsSpec.merge(field.loader.rowStrideStoredFieldSpec());
-                storedFields = new BlockLoaderStoredFieldsFromLeafLoader(
-                    StoredFieldLoader.fromSpec(storedFieldsSpec).getLoader(ctx, null),
-                    storedFieldsSpec.requiresSource() ? shardContexts.get(shard).newSourceLoader.get().leaf(ctx.reader(), null) : null
-                );
-                if (false == storedFieldsSpec.equals(StoredFieldsSpec.NO_REQUIREMENTS)) {
-                    trackStoredFields(storedFieldsSpec, false);
-                }
+            }
+            SourceLoader sourceLoader = null;
+            if (storedFieldsSpec.requiresSource()) {
+                sourceLoader = shardContexts.get(shard).newSourceLoader.get();
+                storedFieldsSpec = storedFieldsSpec.merge(new StoredFieldsSpec(true, false, sourceLoader.requiredStoredFields()));
+            }
+            storedFields = new BlockLoaderStoredFieldsFromLeafLoader(
+                StoredFieldLoader.fromSpec(storedFieldsSpec).getLoader(ctx, null),
+                sourceLoader != null ? sourceLoader.leaf(ctx.reader(), null) : null
+            );
+            if (false == storedFieldsSpec.equals(StoredFieldsSpec.NO_REQUIREMENTS)) {
+                trackStoredFields(storedFieldsSpec, false);
             }
         }
 

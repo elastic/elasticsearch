@@ -20,7 +20,7 @@ import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingRe
 import org.elasticsearch.xpack.security.authc.support.mapper.ClusterStateRoleMapper;
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
 
-import static org.elasticsearch.xpack.security.authc.support.mapper.ClusterStateRoleMapper.RESERVED_ROLE_MAPPING_SUFFIX;
+import static org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping.validateNoReadOnlySuffix;
 
 public class TransportPutRoleMappingAction extends HandledTransportAction<PutRoleMappingRequest, PutRoleMappingResponse> {
 
@@ -41,14 +41,14 @@ public class TransportPutRoleMappingAction extends HandledTransportAction<PutRol
 
     @Override
     protected void doExecute(Task task, final PutRoleMappingRequest request, final ActionListener<PutRoleMappingResponse> listener) {
-        validateMappingName(request.getName());
+        validateNoReadOnlySuffix(request.getName());
         if (clusterStateRoleMapper.hasMapping(request.getName())) {
             // Allow to define a mapping with the same name in the native role mapping store as the file_settings namespace, but add a
             // warning header to signal to the caller that this could be a problem.
             HeaderWarning.addWarning(
-                "A read only role mapping with the same name ["
+                "A read-only role mapping with the same name ["
                     + request.getName()
-                    + "] has been previously been defined in a configuration file. "
+                    + "] has been previously defined in a configuration file. "
                     + "Both role mappings will be used to determine role assignments."
             );
         }
@@ -56,13 +56,5 @@ public class TransportPutRoleMappingAction extends HandledTransportAction<PutRol
             request,
             ActionListener.wrap(created -> listener.onResponse(new PutRoleMappingResponse(created)), listener::onFailure)
         );
-    }
-
-    private static void validateMappingName(String mappingName) {
-        if (mappingName.endsWith(RESERVED_ROLE_MAPPING_SUFFIX)) {
-            throw new IllegalArgumentException(
-                "Invalid mapping name [" + mappingName + "]. [" + RESERVED_ROLE_MAPPING_SUFFIX + "] is not an allowed suffix"
-            );
-        }
     }
 }

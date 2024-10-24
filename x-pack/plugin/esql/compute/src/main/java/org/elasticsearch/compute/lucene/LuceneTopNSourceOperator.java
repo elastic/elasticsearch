@@ -15,9 +15,9 @@ import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.ScoreMode;
-import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopFieldCollector;
+import org.apache.lucene.search.TopFieldCollectorManager;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DocBlock;
@@ -243,26 +243,27 @@ public class LuceneTopNSourceOperator extends LuceneOperator {
     }
 
     PerShardCollector newPerShardCollector(ShardContext shardContext, List<SortBuilder<?>> sorts, int limit) throws IOException {
-        Optional<SortAndFormats> sortAndFormats = shardContext.buildSort(sorts);
-        if (sortAndFormats.isEmpty()) {
-            throw new IllegalStateException("sorts must not be disabled in TopN");
-        }
-        return new PerShardCollector(shardContext, sortAndFormats.get().sort, limit);
+        return new PerShardCollector(shardContext, sorts, limit);
     }
 
     static class PerShardCollector {
         protected ShardContext shardContext;
-        private TopFieldCollector collector;
+        protected TopFieldCollector collector;
         private int leafIndex;
         private LeafCollector leafCollector;
         private Thread currentThread;
 
         PerShardCollector() {}
 
-        PerShardCollector(ShardContext shardContext, Sort sort, int limit) {
+        PerShardCollector(ShardContext shardContext, List<SortBuilder<?>> sorts, int limit) throws IOException {
             this.shardContext = shardContext;
+            Optional<SortAndFormats> sortAndFormats = shardContext.buildSort(sorts);
+            if (sortAndFormats.isEmpty()) {
+                throw new IllegalStateException("sorts must not be disabled in TopN");
+            }
+
             // We don't use CollectorManager here as we don't retrieve the total hits and sort by score.
-            this.collector = TopFieldCollector.create(sort, limit, 0);
+            this.collector = new TopFieldCollectorManager(sortAndFormats.get().sort, limit, null, 0, false).newCollector();
         }
 
         LeafCollector getLeafCollector(LeafReaderContext leafReaderContext) throws IOException {

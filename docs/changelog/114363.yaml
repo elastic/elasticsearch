@@ -1,0 +1,5 @@
+pr: 114363
+summary: Give the kibana system user permission to read security entities
+area: Infra/Core
+type: enhancement
+issues: []

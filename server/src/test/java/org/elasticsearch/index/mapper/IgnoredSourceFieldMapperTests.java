@@ -532,6 +532,38 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
             {"bool_value":true,"int_value":[10,20,30]}""", syntheticSource);
     }
 
+    public void testIndexStoredArraySourceSingleLeafElement() throws IOException {
+        DocumentMapper documentMapper = createMapperServiceWithStoredArraySource(syntheticSourceMapping(b -> {
+            b.startObject("int_value").field("type", "integer").endObject();
+        })).documentMapper();
+        var syntheticSource = syntheticSource(documentMapper, b -> b.array("int_value", new int[] { 10 }));
+        assertEquals("{\"int_value\":10}", syntheticSource);
+        ParsedDocument doc = documentMapper.parse(source(syntheticSource));
+        assertNull(doc.rootDoc().getField("_ignored_source"));
+    }
+
+    public void testIndexStoredArraySourceSingleLeafElementAndNull() throws IOException {
+        DocumentMapper documentMapper = createMapperServiceWithStoredArraySource(syntheticSourceMapping(b -> {
+            b.startObject("value").field("type", "keyword").endObject();
+        })).documentMapper();
+        var syntheticSource = syntheticSource(documentMapper, b -> b.array("value", new String[] { "foo", null }));
+        assertEquals("{\"value\":[\"foo\",null]}", syntheticSource);
+    }
+
+    public void testIndexStoredArraySourceSingleObjectElement() throws IOException {
+        DocumentMapper documentMapper = createMapperServiceWithStoredArraySource(syntheticSourceMapping(b -> {
+            b.startObject("path").startObject("properties");
+            {
+                b.startObject("int_value").field("type", "integer").endObject();
+            }
+            b.endObject().endObject();
+        })).documentMapper();
+        var syntheticSource = syntheticSource(documentMapper, b -> {
+            b.startArray("path").startObject().field("int_value", 10).endObject().endArray();
+        });
+        assertEquals("{\"path\":[{\"int_value\":10}]}", syntheticSource);
+    }
+
     public void testFieldStoredArraySourceRootValueArray() throws IOException {
         DocumentMapper documentMapper = createMapperService(syntheticSourceMapping(b -> {
             b.startObject("int_value").field("type", "integer").field(Mapper.SYNTHETIC_SOURCE_KEEP_PARAM, "arrays").endObject();
@@ -867,6 +899,155 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
                 {"boolean_value":%s,"path":{"to":[{"some":{"name":"A"}},{"some":{"name":"B"}},{"another":{"name":"C"}}]}}""", booleanValue),
             syntheticSource
         );
+    }
+
+    public void testConflictingFieldNameAfterArray() throws IOException {
+        DocumentMapper documentMapper = createMapperService(syntheticSourceMapping(b -> {
+            b.startObject("path").startObject("properties");
+            {
+                b.startObject("to").startObject("properties");
+                {
+                    b.startObject("id").field("type", "integer").field("synthetic_source_keep", "arrays").endObject();
+                }
+                b.endObject().endObject();
+                b.startObject("id").field("type", "float").endObject();
+            }
+            b.endObject().endObject();
+        })).documentMapper();
+
+        var syntheticSource = syntheticSource(documentMapper, b -> {
+            b.startObject("path");
+            {
+                b.startArray("to");
+                {
+                    b.startObject().array("id", 1, 20, 3).endObject();
+                    b.startObject().field("id", 10).endObject();
+                }
+                b.endArray();
+                b.field("id", "0.1");
+            }
+            b.endObject();
+        });
+        assertEquals("""
+            {"path":{"id":0.1,"to":{"id":[1,20,3,10]}}}""", syntheticSource);
+    }
+
+    public void testArrayWithNestedObjects() throws IOException {
+        DocumentMapper documentMapper = createMapperService(syntheticSourceMapping(b -> {
+            b.startObject("path").startObject("properties");
+            {
+                b.startObject("to").field("type", "nested").startObject("properties");
+                {
+                    b.startObject("id").field("type", "integer").field("synthetic_source_keep", "arrays").endObject();
+                }
+                b.endObject().endObject();
+            }
+            b.endObject().endObject();
+        })).documentMapper();
+
+        var syntheticSource = syntheticSource(documentMapper, b -> {
+            b.startArray("path");
+            {
+                b.startObject().startArray("to");
+                {
+                    b.startObject().array("id", 1, 20, 3).endObject();
+                    b.startObject().field("id", 10).endObject();
+                }
+                b.endArray().endObject();
+                b.startObject().startObject("to").field("id", "0.1").endObject().endObject();
+            }
+            b.endArray();
+        });
+        assertEquals("""
+            {"path":{"to":[{"id":[1,20,3]},{"id":10},{"id":0}]}}""", syntheticSource);
+    }
+
+    public void testObjectArrayWithinNestedObjects() throws IOException {
+        DocumentMapper documentMapper = createMapperService(syntheticSourceMapping(b -> {
+            b.startObject("path").startObject("properties");
+            {
+                b.startObject("to").field("type", "nested").startObject("properties");
+                {
+                    b.startObject("obj").startObject("properties");
+                    {
+                        b.startObject("id").field("type", "integer").field("synthetic_source_keep", "arrays").endObject();
+                    }
+                    b.endObject().endObject();
+                }
+                b.endObject().endObject();
+            }
+            b.endObject().endObject();
+        })).documentMapper();
+
+        var syntheticSource = syntheticSource(documentMapper, b -> {
+            b.startObject("path");
+            {
+                b.startObject("to");
+                {
+                    b.startArray("obj");
+                    {
+                        b.startObject().array("id", 1, 20, 3).endObject();
+                        b.startObject().field("id", 10).endObject();
+                    }
+                    b.endArray();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        });
+        assertEquals("""
+            {"path":{"to":{"obj":[{"id":[1,20,3]},{"id":10}]}}}""", syntheticSource);
+    }
+
+    public void testObjectArrayWithinNestedObjectsArray() throws IOException {
+        DocumentMapper documentMapper = createMapperService(syntheticSourceMapping(b -> {
+            b.startObject("path").startObject("properties");
+            {
+                b.startObject("to").field("type", "nested").startObject("properties");
+                {
+                    b.startObject("obj").startObject("properties");
+                    {
+                        b.startObject("id").field("type", "integer").field("synthetic_source_keep", "arrays").endObject();
+                    }
+                    b.endObject().endObject();
+                }
+                b.endObject().endObject();
+            }
+            b.endObject().endObject();
+        })).documentMapper();
+
+        var syntheticSource = syntheticSource(documentMapper, b -> {
+            b.startObject("path");
+            {
+                b.startArray("to");
+                {
+                    b.startObject();
+                    {
+                        b.startArray("obj");
+                        {
+                            b.startObject().array("id", 1, 20, 3).endObject();
+                            b.startObject().field("id", 10).endObject();
+                        }
+                        b.endArray();
+                    }
+                    b.endObject();
+                    b.startObject();
+                    {
+                        b.startArray("obj");
+                        {
+                            b.startObject().array("id", 200, 300, 500).endObject();
+                            b.startObject().field("id", 100).endObject();
+                        }
+                        b.endArray();
+                    }
+                    b.endObject();
+                }
+                b.endArray();
+            }
+            b.endObject();
+        });
+        assertEquals("""
+            {"path":{"to":[{"obj":[{"id":[1,20,3]},{"id":10}]},{"obj":[{"id":[200,300,500]},{"id":100}]}]}}""", syntheticSource);
     }
 
     public void testArrayWithinArray() throws IOException {

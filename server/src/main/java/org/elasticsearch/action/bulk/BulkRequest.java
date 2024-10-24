@@ -23,6 +23,7 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -503,6 +504,10 @@ public class BulkRequest extends ActionRequest
      * substitutions in the event of a simulated request.
      */
     public Map<String, ComponentTemplate> getComponentTemplateSubstitutions() throws IOException {
+        return Map.of();
+    }
+
+    public Map<String, ComposableIndexTemplate> getIndexTemplateSubstitutions() throws IOException {
         return Map.of();
     }
 

@@ -71,7 +71,7 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
     public static final AllocationStatus.State DEFAULT_WAITFOR_STATE = AllocationStatus.State.STARTED;
     public static final int DEFAULT_NUM_ALLOCATIONS = 1;
     public static final int DEFAULT_NUM_THREADS = 1;
-    public static final int DEFAULT_QUEUE_CAPACITY = 1024;
+    public static final int DEFAULT_QUEUE_CAPACITY = 10_000;
     public static final Priority DEFAULT_PRIORITY = Priority.NORMAL;
 
     public StartTrainedModelDeploymentAction() {
@@ -89,7 +89,7 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
         /**
          * If the queue is created then we can OOM when we create the queue.
          */
-        private static final int MAX_QUEUE_CAPACITY = 1_000_000;
+        private static final int MAX_QUEUE_CAPACITY = 100_000;
 
         public static final ParseField MODEL_ID = new ParseField("model_id");
         public static final ParseField DEPLOYMENT_ID = new ParseField("deployment_id");

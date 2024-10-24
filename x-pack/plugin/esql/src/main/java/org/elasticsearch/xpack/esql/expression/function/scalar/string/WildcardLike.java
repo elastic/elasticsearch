@@ -43,7 +43,23 @@ public class WildcardLike extends org.elasticsearch.xpack.esql.core.expression.p
         The following wildcard characters are supported:
 
         * `*` matches zero or more characters.
-        * `?` matches one character.""", examples = @Example(file = "docs", tag = "like"))
+        * `?` matches one character.""", detailedDescription = """
+        Matching the exact characters `*` and `.` will require escaping.
+        The escape character is backslash `\\`. Since also backslash is a special character in string literals,
+        it will require further escaping.
+
+        [source.merge.styled,esql]
+        ----
+        include::{esql-specs}/string.csv-spec[tag=likeEscapingSingleQuotes]
+        ----
+
+        To reduce the overhead of escaping, we suggest using triple quotes strings `\"\"\"`
+
+        [source.merge.styled,esql]
+        ----
+        include::{esql-specs}/string.csv-spec[tag=likeEscapingTripleQuotes]
+        ----
+        """, examples = @Example(file = "docs", tag = "like"))
     public WildcardLike(
         Source source,
         @Param(name = "str", type = { "keyword", "text" }, description = "A literal expression.") Expression left,

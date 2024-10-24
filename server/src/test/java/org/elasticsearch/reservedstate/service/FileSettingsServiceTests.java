@@ -250,7 +250,7 @@ public class FileSettingsServiceTests extends ESTestCase {
         fileSettingsService.start();
         fileSettingsService.clusterChanged(new ClusterChangedEvent("test", clusterService.state(), ClusterState.EMPTY_STATE));
         // second file change; contents still don't matter
-        writeTestFile(fileSettingsService.watchedFile(), "{}");
+        overwriteTestFile(fileSettingsService.watchedFile(), "{}");
 
         // wait for listener to be called (once for initial processing, once for subsequent update)
         assertTrue(latch.await(20, TimeUnit.SECONDS));
@@ -355,6 +355,12 @@ public class FileSettingsServiceTests extends ESTestCase {
     private void writeTestFile(Path path, String contents) throws IOException {
         Path tempFilePath = createTempFile();
         Files.writeString(tempFilePath, contents);
-        Files.move(tempFilePath, path, StandardCopyOption.ATOMIC_MOVE);
+        Files.move(tempFilePath, path, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+    }
+
+    private void overwriteTestFile(Path path, String contents) throws IOException {
+        Path tempFilePath = createTempFile();
+        Files.writeString(tempFilePath, contents);
+        Files.move(tempFilePath, path, StandardCopyOption.REPLACE_EXISTING);
     }
 }

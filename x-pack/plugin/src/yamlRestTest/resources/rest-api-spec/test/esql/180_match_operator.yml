@@ -121,7 +121,7 @@ setup:
 
   - match: { status: 400 }
   - match: { error.type: verification_exception }
-  - match: { error.reason: "Found 1 problem\nline 1:60: [:] operator requires a mapped index field, found [upper_content]" }
+  - match: { error.reason: "Found 1 problem\nline 1:60: [:] operator cannot operate on [upper_content], which is not a field from an index mapping" }
 
 ---
 "match on overwritten column":
@@ -135,7 +135,7 @@ setup:
 
   - match: { status: 400 }
   - match: { error.type: verification_exception }
-  - match: { error.reason: "Found 1 problem\nline 1:78: [:] operator requires a mapped index field, found [content]" }
+  - match: { error.reason: "Found 1 problem\nline 1:78: [:] operator cannot operate on [content], which is not a field from an index mapping" }
 
 ---
 "match after stats":
@@ -191,4 +191,4 @@ setup:
 
   - match: { status: 400 }
   - match: { error.type: verification_exception }
-  - match: { error.reason: "Found 1 problem\nline 1:19: [:] operator requires a text or keyword field, but [id] has type [integer]" }
+  - match: { error.reason: "Found 1 problem\nline 1:19: first argument of [id:\"fox\"] must be [string], found value [id] type [integer]" }

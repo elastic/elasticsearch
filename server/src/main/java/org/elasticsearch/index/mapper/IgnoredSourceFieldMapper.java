@@ -61,6 +61,9 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
     static final NodeFeature IGNORED_SOURCE_AS_TOP_LEVEL_METADATA_ARRAY_FIELD = new NodeFeature(
         "mapper.ignored_source_as_top_level_metadata_array_field"
     );
+    static final NodeFeature ALWAYS_STORE_OBJECT_ARRAYS_IN_NESTED_OBJECTS = new NodeFeature(
+        "mapper.ignored_source.always_store_object_arrays_in_nested"
+    );
 
     /*
         Setting to disable encoding and writing values for this field.

@@ -216,7 +216,7 @@ public class S3ClientSettingsTests extends ESTestCase {
         assertEquals(50, ClientConfiguration.DEFAULT_MAX_CONNECTIONS);
     }
 
-    public void testNonDefaultRetryPolicy() {
+    public void testStatelessDefaultRetryPolicy() {
         final var s3ClientSettings = S3ClientSettings.load(Settings.EMPTY).get("default");
         final var clientConfiguration = S3Service.buildConfiguration(s3ClientSettings, true);
         assertThat(clientConfiguration.getRetryPolicy(), is(S3Service.RETRYABLE_403_RETRY_POLICY));

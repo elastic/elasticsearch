@@ -212,7 +212,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
                 RolloverRequest rolloverRequest = new RolloverRequest(dataStream, null);
                 rolloverRequest.setIndicesOptions(
                     IndicesOptions.builder(rolloverRequest.indicesOptions())
-                        .selectorOptions(IndicesOptions.SelectorOptions.ONLY_FAILURES)
+                        .selectorOptions(IndicesOptions.SelectorOptions.FAILURES)
                         .build()
                 );
                 // We are executing a lazy rollover because it is an action specialised for this situation, when we want an

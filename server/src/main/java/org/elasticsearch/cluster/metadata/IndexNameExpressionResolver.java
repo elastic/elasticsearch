@@ -246,27 +246,30 @@ public class IndexNameExpressionResolver {
         }
     }
 
+    /**
+     * Resolve the expression to the set of indices, aliases, and, optionally, data streams that the expression matches.
+     * If {@param preserveDataStreams} is {@code true}, data streams that are covered by the wildcards from the
+     * {@param expressions} are returned as-is, without expanding them further to their respective backing indices.
+     */
     protected static Collection<String> resolveExpressions(Context context, String... expressions) {
+        // If we do not expand wildcards, then empty or _all expression result in an empty list
         if (context.getOptions().expandWildcardExpressions() == false) {
             if (expressions == null || expressions.length == 0 || expressions.length == 1 && Metadata.ALL.equals(expressions[0])) {
                 return List.of();
-            } else {
-                return ExplicitResourceNameFilter.filterUnavailable(
-                    context,
-                    DateMathExpressionResolver.resolve(context, List.of(expressions))
-                );
             }
         } else {
             if (expressions == null
                 || expressions.length == 0
                 || expressions.length == 1 && (Metadata.ALL.equals(expressions[0]) || Regex.isMatchAllPattern(expressions[0]))) {
                 return WildcardExpressionResolver.resolveAll(context);
-            } else {
-                return WildcardExpressionResolver.resolve(
-                    context,
-                    ExplicitResourceNameFilter.filterUnavailable(context, DateMathExpressionResolver.resolve(context, List.of(expressions)))
-                );
             }
+        }
+        List<String> resolvedDataMath = DateMathExpressionResolver.resolve(context, List.of(expressions));
+        List<String> onlyAvailableResourcesAndWildcards = ExplicitResourceNameFilter.filterUnavailable(context, resolvedDataMath);
+        if (context.getOptions().expandWildcardExpressions()) {
+            return WildcardExpressionResolver.resolve(context, onlyAvailableResourcesAndWildcards);
+        } else {
+            return onlyAvailableResourcesAndWildcards;
         }
     }
 

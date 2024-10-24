@@ -1,0 +1,85 @@
+[role="xpack"]
+[[update-inference-api]]
+=== Update inference API
+
+Updates an {infer} endpoint.
+
+IMPORTANT: The {infer} APIs enable you to use certain services, such as built-in {ml} models (ELSER, E5), models uploaded through Eland, Cohere, OpenAI, Azure, Google AI Studio, Google Vertex AI, Anthropic, Watsonx.ai, or Hugging Face.
+For built-in models and models uploaded through Eland, the {infer} APIs offer an alternative way to use and manage trained models.
+However, if you do not plan to use the {infer} APIs to use these models or if you want to use non-NLP models, use the <<ml-df-trained-models-apis>>.
+
+
+[discrete]
+[[update-inference-api-request]]
+==== {api-request-title}
+
+`POST _inference/<inference_id>/_update`
+
+`POST _inference/<task_type>/<inference_id>/_update`
+
+
+[discrete]
+[[update-inference-api-prereqs]]
+==== {api-prereq-title}
+
+* Requires the `manage_inference` <<privileges-list-cluster,cluster privilege>> (the built-in inference_admin role grants this privilege)
+* Requires an existing {infer} endpoint, created by using the <<put-inference-api>>
+
+
+[discrete]
+[[update-inference-api-desc]]
+==== {api-description-title}
+
+The update inference API enables you to update the task_settings, secrets, and/or num_allocations of an existing {infer} endpoint.
+
+To use the update API, you can modify `task_settings`, secrets (within `service_settings`), or `num_allocations`, depending on the specific endpoint service and task_type you've created.
+To view the updatable `task_settings`, the field names of secrets (specific to each service), and the services where `num_allocations` is applicable (only for the `elasticsearch` service), refer to the following list of services available through the {infer} API.
+You will find the available task types next to each service name.
+Click the links to review the service configuration details:
+
+* <<infer-service-alibabacloud-ai-search,AlibabaCloud AI Search>> (`completion`, `rerank`, `sparse_embedding`, `text_embedding`)
+* <<infer-service-amazon-bedrock,Amazon Bedrock>> (`completion`, `text_embedding`)
+* <<infer-service-anthropic,Anthropic>> (`completion`)
+* <<infer-service-azure-ai-studio,Azure AI Studio>> (`completion`, `text_embedding`)
+* <<infer-service-azure-openai,Azure OpenAI>> (`completion`, `text_embedding`)
+* <<infer-service-cohere,Cohere>> (`completion`, `rerank`, `text_embedding`)
+* <<infer-service-elasticsearch,Elasticsearch>> (`rerank`, `sparse_embedding`, `text_embedding` - this service is for built-in models and models uploaded through Eland)
+* <<infer-service-elser,ELSER>> (`sparse_embedding`)
+* <<infer-service-google-ai-studio,Google AI Studio>> (`completion`, `text_embedding`)
+* <<infer-service-google-vertex-ai,Google Vertex AI>> (`rerank`, `text_embedding`) 
+* <<infer-service-hugging-face,Hugging Face>> (`text_embedding`)
+* <<infer-service-mistral,Mistral>> (`text_embedding`)
+* <<infer-service-openai,OpenAI>> (`completion`, `text_embedding`)
+
+
+[discrete]
+[[update-inference-api-path-params]]
+==== {api-path-parms-title}
+
+`<inference_id>`::
+(Required, string)
+The unique identifier of the {infer} endpoint.
+
+
+`<task_type>`::
+(Optional, string)
+The type of {infer} task that the model performs.
+Refer to the service list in the <<put-inference-api-desc,API description section>> for the available task types.
+
+
+[discrete]
+[[update-inference-api-example]]
+==== {api-examples-title}
+
+The following example shows how to update an API key of an {infer} endpoint called `my-inference-endpoint`:
+
+[source,console]
+------------------------------------------------------------
+POST _inference/my-inference-endpoint/_update
+{
+ "service_settings": {
+   "api_key": "<API_KEY>"
+ }
+}
+------------------------------------------------------------
+// TEST[skip:TBD]

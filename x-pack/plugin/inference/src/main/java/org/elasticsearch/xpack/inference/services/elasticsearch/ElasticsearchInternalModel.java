@@ -82,22 +82,25 @@ public abstract class ElasticsearchInternalModel extends Model {
         ActionListener<Boolean> listener
     );
 
+    public boolean usesExistingDeployment() {
+        return internalServiceSettings.getDeploymentId() != null;
+    }
+
     @Override
     public ElasticsearchInternalServiceSettings getServiceSettings() {
         return (ElasticsearchInternalServiceSettings) super.getServiceSettings();
     }
 
-    public void updateNumAllocation(Integer numAllocations) {
-        this.internalServiceSettings = new ElasticsearchInternalServiceSettings(
-            numAllocations,
-            this.internalServiceSettings.getNumThreads(),
-            this.internalServiceSettings.modelId(),
-            this.internalServiceSettings.getAdaptiveAllocationsSettings()
-        );
+    public void updateNumAllocations(Integer numAllocations) {
+        this.internalServiceSettings.setNumAllocations(numAllocations);
     }
 
     @Override
     public String toString() {
         return Strings.toString(this.getConfigurations());
+    }
+
+    public String mlNodeDeploymentId() {
+        return internalServiceSettings.getDeploymentId() == null ? getInferenceEntityId() : internalServiceSettings.getDeploymentId();
     }
 }

@@ -21,6 +21,7 @@ import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -37,13 +38,22 @@ final class SyntheticSourceIndexSettingsProvider implements IndexSettingProvider
 
     private final SyntheticSourceLicenseService syntheticSourceLicenseService;
     private final CheckedFunction<IndexMetadata, MapperService, IOException> mapperServiceFactory;
+    private final LogsdbIndexModeSettingsProvider logsdbIndexModeSettingsProvider;
 
     SyntheticSourceIndexSettingsProvider(
         SyntheticSourceLicenseService syntheticSourceLicenseService,
-        CheckedFunction<IndexMetadata, MapperService, IOException> mapperServiceFactory
+        CheckedFunction<IndexMetadata, MapperService, IOException> mapperServiceFactory,
+        LogsdbIndexModeSettingsProvider logsdbIndexModeSettingsProvider
     ) {
         this.syntheticSourceLicenseService = syntheticSourceLicenseService;
         this.mapperServiceFactory = mapperServiceFactory;
+        this.logsdbIndexModeSettingsProvider = logsdbIndexModeSettingsProvider;
+    }
+
+    @Override
+    public boolean overrulesTemplateAndRequestSettings() {
+        // Indicates that the provider value takes precedence over any user setting.
+        return true;
     }
 
     @Override
@@ -56,13 +66,23 @@ final class SyntheticSourceIndexSettingsProvider implements IndexSettingProvider
         Settings indexTemplateAndCreateRequestSettings,
         List<CompressedXContent> combinedTemplateMappings
     ) {
+        var logsdbSettings = logsdbIndexModeSettingsProvider.getLogsdbModeSetting(dataStreamName, indexTemplateAndCreateRequestSettings);
+        if (logsdbSettings != Settings.EMPTY) {
+            indexTemplateAndCreateRequestSettings = Settings.builder()
+                .put(logsdbSettings)
+                .put(indexTemplateAndCreateRequestSettings)
+                .build();
+        }
+
         // This index name is used when validating component and index templates, we should skip this check in that case.
         // (See MetadataIndexTemplateService#validateIndexTemplateV2(...) method)
         boolean isTemplateValidation = "validate-index-name".equals(indexName);
         if (newIndexHasSyntheticSourceUsage(indexName, templateIndexMode, indexTemplateAndCreateRequestSettings, combinedTemplateMappings)
             && syntheticSourceLicenseService.fallbackToStoredSource(isTemplateValidation)) {
             LOGGER.debug("creation of index [{}] with synthetic source without it being allowed", indexName);
-            // TODO: handle falling back to stored source
+            return Settings.builder()
+                .put(SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.STORED.toString())
+                .build();
         }
         return Settings.EMPTY;
     }

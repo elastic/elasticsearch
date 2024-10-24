@@ -41,8 +41,6 @@ import java.util.ArrayDeque;
 import java.util.List;
 import java.util.function.BiConsumer;
 
-import static org.apache.lucene.index.SortedSetDocValues.NO_MORE_ORDS;
-
 /**
  * A {@link SingleDimensionValuesSource} for global ordinals.
  */
@@ -247,9 +245,8 @@ class GlobalOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
                 @Override
                 public void collect(int doc, long bucket) throws IOException {
                     if (dvs.advanceExact(doc)) {
-                        long ord;
-                        while ((ord = dvs.nextOrd()) != NO_MORE_ORDS) {
-                            currentValue = ord;
+                        for (int i = 0; i < dvs.docValueCount(); i++) {
+                            currentValue = dvs.nextOrd();
                             next.collect(doc, bucket);
                         }
                     } else if (missingBucket) {
@@ -306,8 +303,8 @@ class GlobalOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
                 public void collect(int doc, long bucket) throws IOException {
                     if (currentValueIsSet == false) {
                         if (dvs.advanceExact(doc)) {
-                            long ord;
-                            while ((ord = dvs.nextOrd()) != NO_MORE_ORDS) {
+                            for (int i = 0; i < dvs.docValueCount(); i++) {
+                                long ord = dvs.nextOrd();
                                 if (term.equals(lookup.lookupOrd(ord))) {
                                     currentValueIsSet = true;
                                     currentValue = ord;

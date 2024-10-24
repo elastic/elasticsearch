@@ -82,7 +82,7 @@ public class PutRoleMappingRequest extends ActionRequest implements WriteRequest
                 validationException = addValidationError(
                     "metadata contains ["
                         + READ_ONLY_ROLE_MAPPING_METADATA_FLAG
-                        + "] flag. You cannot create or update role-mappings with this flag",
+                        + "] flag. You cannot create or update role-mappings with a read-only flag",
                     validationException
                 );
             } else {

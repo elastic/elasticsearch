@@ -20,6 +20,8 @@ import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingRe
 import org.elasticsearch.xpack.security.authc.support.mapper.ClusterStateRoleMapper;
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
 
+import static org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping.validateNoReadOnlySuffix;
+
 public class TransportPutRoleMappingAction extends HandledTransportAction<PutRoleMappingRequest, PutRoleMappingResponse> {
 
     private final NativeRoleMappingStore roleMappingStore;
@@ -39,6 +41,7 @@ public class TransportPutRoleMappingAction extends HandledTransportAction<PutRol
 
     @Override
     protected void doExecute(Task task, final PutRoleMappingRequest request, final ActionListener<PutRoleMappingResponse> listener) {
+        validateNoReadOnlySuffix(request.getName());
         if (clusterStateRoleMapper.hasMapping(request.getName())) {
             // Allow to define a mapping with the same name in the native role mapping store as the file_settings namespace, but add a
             // warning header to signal to the caller that this could be a problem.

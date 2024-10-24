@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.security.support;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
+import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.core.TimeValue;
@@ -23,6 +25,9 @@ import org.elasticsearch.xpack.core.security.support.SecurityMigrationTaskParams
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.concurrent.Executor;
+
+import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
 public class SecurityMigrationExecutor extends PersistentTasksExecutor<SecurityMigrationTaskParams> {
 
@@ -63,7 +68,15 @@ public class SecurityMigrationExecutor extends PersistentTasksExecutor<SecurityM
             return;
         }
 
-        applyOutstandingMigrations(task, params.getMigrationVersion(), listener);
+        refreshSecurityIndex(
+            new ThreadedActionListener<>(
+                this.getExecutor(),
+                ActionListener.wrap(
+                    refreshResponse -> applyOutstandingMigrations(task, params.getMigrationVersion(), listener),
+                    listener::onFailure
+                )
+            )
+        );
     }
 
     private void applyOutstandingMigrations(AllocatedPersistentTask task, int currentMigrationVersion, ActionListener<Void> listener) {
@@ -83,13 +96,17 @@ public class SecurityMigrationExecutor extends PersistentTasksExecutor<SecurityM
                         response -> updateMigrationVersion(
                             migrationEntry.getKey(),
                             securityIndexManager.getConcreteIndexName(),
-                            new ThreadedActionListener<>(
-                                this.getExecutor(),
-                                ActionListener.wrap(
-                                    updateResponse -> applyOutstandingMigrations(task, migrationEntry.getKey(), listener),
-                                    listener::onFailure
-                                )
-                            )
+                            new ThreadedActionListener<>(this.getExecutor(), ActionListener.wrap(updateResponse -> {
+                                refreshSecurityIndex(
+                                    new ThreadedActionListener<>(
+                                        this.getExecutor(),
+                                        ActionListener.wrap(
+                                            refreshResponse -> applyOutstandingMigrations(task, migrationEntry.getKey(), listener),
+                                            listener::onFailure
+                                        )
+                                    )
+                                );
+                            }, listener::onFailure))
                         ),
                         listener::onFailure
                     )
@@ -98,6 +115,21 @@ public class SecurityMigrationExecutor extends PersistentTasksExecutor<SecurityM
             logger.info("Security migrations applied until version: [" + currentMigrationVersion + "]");
             listener.onResponse(null);
         }
+    }
+
+    /**
+     * Refresh security index to make sure that docs that were migrated are visible to the next migration and to prevent version conflicts
+     * or unexpected behaviour by APIs relying on migrated docs.
+     */
+    private void refreshSecurityIndex(ActionListener<Void> listener) {
+        RefreshRequest refreshRequest = new RefreshRequest(securityIndexManager.getConcreteIndexName());
+        executeAsyncWithOrigin(
+            client,
+            SECURITY_ORIGIN,
+            RefreshAction.INSTANCE,
+            refreshRequest,
+            ActionListener.wrap(response -> listener.onResponse(null), listener::onFailure)
+        );
     }
 
     private void updateMigrationVersion(int migrationVersion, String indexName, ActionListener<Void> listener) {

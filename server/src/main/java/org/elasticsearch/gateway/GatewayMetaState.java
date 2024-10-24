@@ -181,6 +181,7 @@ public class GatewayMetaState implements Closeable {
         Metadata metadata = onDiskState.metadata;
         long lastAcceptedVersion = onDiskState.lastAcceptedVersion;
         long currentTerm = onDiskState.currentTerm;
+        assert onDiskState.empty() == false : "Cluster state should exist on disk";
 
         PersistedState persistedState = null;
         boolean success = false;

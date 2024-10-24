@@ -75,7 +75,7 @@ public enum IndexMode {
         }
 
         @Override
-        public CompressedXContent getDefaultMapping() {
+        public CompressedXContent getDefaultMapping(final IndexSettings indexSettings) {
             return null;
         }
 
@@ -120,8 +120,8 @@ public enum IndexMode {
         public void validateSourceFieldMapper(SourceFieldMapper sourceFieldMapper) {}
 
         @Override
-        public boolean isSyntheticSourceEnabled() {
-            return false;
+        public SourceFieldMapper.Mode defaultSourceMode() {
+            return SourceFieldMapper.Mode.STORED;
         }
     },
     TIME_SERIES("time_series") {
@@ -171,7 +171,7 @@ public enum IndexMode {
         }
 
         @Override
-        public CompressedXContent getDefaultMapping() {
+        public CompressedXContent getDefaultMapping(final IndexSettings indexSettings) {
             return DEFAULT_TIME_SERIES_TIMESTAMP_MAPPING;
         }
 
@@ -217,14 +217,14 @@ public enum IndexMode {
 
         @Override
         public void validateSourceFieldMapper(SourceFieldMapper sourceFieldMapper) {
-            if (sourceFieldMapper.isSynthetic() == false) {
-                throw new IllegalArgumentException("time series indices only support synthetic source");
+            if (sourceFieldMapper.enabled() == false) {
+                throw new IllegalArgumentException("_source can not be disabled in index using [" + IndexMode.TIME_SERIES + "] index mode");
             }
         }
 
         @Override
-        public boolean isSyntheticSourceEnabled() {
-            return true;
+        public SourceFieldMapper.Mode defaultSourceMode() {
+            return SourceFieldMapper.Mode.SYNTHETIC;
         }
     },
     LOGSDB("logsdb") {
@@ -249,8 +249,10 @@ public enum IndexMode {
         }
 
         @Override
-        public CompressedXContent getDefaultMapping() {
-            return DEFAULT_LOGS_TIMESTAMP_MAPPING;
+        public CompressedXContent getDefaultMapping(final IndexSettings indexSettings) {
+            return indexSettings != null && indexSettings.getIndexSortConfig().hasPrimarySortOnField(HOST_NAME)
+                ? DEFAULT_LOGS_TIMESTAMP_MAPPING_WITH_HOSTNAME
+                : DEFAULT_TIME_SERIES_TIMESTAMP_MAPPING;
         }
 
         @Override
@@ -292,14 +294,14 @@ public enum IndexMode {
 
         @Override
         public void validateSourceFieldMapper(SourceFieldMapper sourceFieldMapper) {
-            if (sourceFieldMapper.isSynthetic() == false) {
-                throw new IllegalArgumentException("Indices with with index mode [" + IndexMode.LOGSDB + "] only support synthetic source");
+            if (sourceFieldMapper.enabled() == false) {
+                throw new IllegalArgumentException("_source can not be disabled in index using [" + IndexMode.LOGSDB + "] index mode");
             }
         }
 
         @Override
-        public boolean isSyntheticSourceEnabled() {
-            return true;
+        public SourceFieldMapper.Mode defaultSourceMode() {
+            return SourceFieldMapper.Mode.SYNTHETIC;
         }
 
         @Override
@@ -307,6 +309,8 @@ public enum IndexMode {
             return CodecService.BEST_COMPRESSION_CODEC;
         }
     };
+
+    private static final String HOST_NAME = "host.name";
 
     private static void validateTimeSeriesSettings(Map<Setting<?>, Object> settings) {
         settingRequiresTimeSeries(settings, IndexMetadata.INDEX_ROUTING_PATH);
@@ -324,48 +328,33 @@ public enum IndexMode {
         return "[" + IndexSettings.MODE.getKey() + "=time_series]";
     }
 
-    public static final CompressedXContent DEFAULT_TIME_SERIES_TIMESTAMP_MAPPING;
+    private static CompressedXContent createDefaultMapping(boolean includeHostName) throws IOException {
+        return new CompressedXContent((builder, params) -> {
+            builder.startObject(MapperService.SINGLE_MAPPING_NAME)
+                .startObject(DataStreamTimestampFieldMapper.NAME)
+                .field("enabled", true)
+                .endObject()
+                .startObject("properties")
+                .startObject(DataStreamTimestampFieldMapper.DEFAULT_PATH)
+                .field("type", DateFieldMapper.CONTENT_TYPE)
+                .endObject();
 
-    static {
-        try {
-            DEFAULT_TIME_SERIES_TIMESTAMP_MAPPING = new CompressedXContent(
-                ((builder, params) -> builder.startObject(MapperService.SINGLE_MAPPING_NAME)
-                    .startObject(DataStreamTimestampFieldMapper.NAME)
-                    .field("enabled", true)
-                    .endObject()
-                    .startObject("properties")
-                    .startObject(DataStreamTimestampFieldMapper.DEFAULT_PATH)
-                    .field("type", DateFieldMapper.CONTENT_TYPE)
-                    .field("ignore_malformed", "false")
-                    .endObject()
-                    .endObject()
-                    .endObject())
-            );
-        } catch (IOException e) {
-            throw new AssertionError(e);
-        }
+            if (includeHostName) {
+                builder.startObject(HOST_NAME).field("type", KeywordFieldMapper.CONTENT_TYPE).field("ignore_above", 1024).endObject();
+            }
+
+            return builder.endObject().endObject();
+        });
     }
 
-    public static final CompressedXContent DEFAULT_LOGS_TIMESTAMP_MAPPING;
+    private static final CompressedXContent DEFAULT_TIME_SERIES_TIMESTAMP_MAPPING;
+
+    private static final CompressedXContent DEFAULT_LOGS_TIMESTAMP_MAPPING_WITH_HOSTNAME;
 
     static {
         try {
-            DEFAULT_LOGS_TIMESTAMP_MAPPING = new CompressedXContent(
-                ((builder, params) -> builder.startObject(MapperService.SINGLE_MAPPING_NAME)
-                    .startObject(DataStreamTimestampFieldMapper.NAME)
-                    .field("enabled", true)
-                    .endObject()
-                    .startObject("properties")
-                    .startObject(DataStreamTimestampFieldMapper.DEFAULT_PATH)
-                    .field("type", DateFieldMapper.CONTENT_TYPE)
-                    .endObject()
-                    .startObject("host.name")
-                    .field("type", KeywordFieldMapper.CONTENT_TYPE)
-                    .field("ignore_above", 1024)
-                    .endObject()
-                    .endObject()
-                    .endObject())
-            );
+            DEFAULT_TIME_SERIES_TIMESTAMP_MAPPING = createDefaultMapping(false);
+            DEFAULT_LOGS_TIMESTAMP_MAPPING_WITH_HOSTNAME = createDefaultMapping(true);
         } catch (IOException e) {
             throw new AssertionError(e);
         }
@@ -421,7 +410,7 @@ public enum IndexMode {
      * Get default mapping for this index or {@code null} if there is none.
      */
     @Nullable
-    public abstract CompressedXContent getDefaultMapping();
+    public abstract CompressedXContent getDefaultMapping(IndexSettings indexSettings);
 
     /**
      * Build the {@link FieldMapper} for {@code _id}.
@@ -471,9 +460,9 @@ public enum IndexMode {
     public abstract void validateSourceFieldMapper(SourceFieldMapper sourceFieldMapper);
 
     /**
-     * @return whether synthetic source is the only allowed source mode.
+     * @return default source mode for this mode
      */
-    public abstract boolean isSyntheticSourceEnabled();
+    public abstract SourceFieldMapper.Mode defaultSourceMode();
 
     public String getDefaultCodec() {
         return CodecService.DEFAULT_CODEC;

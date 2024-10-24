@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.document.Field;
 import org.apache.lucene.document.LongField;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
@@ -79,11 +80,16 @@ public final class DateFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "date";
     public static final String DATE_NANOS_CONTENT_TYPE = "date_nanos";
-    public static final DateFormatter DEFAULT_DATE_TIME_FORMATTER = DateFormatter.forPattern("strict_date_optional_time||epoch_millis");
+    public static final Locale DEFAULT_LOCALE = Locale.ENGLISH;
+    // although the locale doesn't affect the results, tests still check formatter equality, which does include locale
+    public static final DateFormatter DEFAULT_DATE_TIME_FORMATTER = DateFormatter.forPattern("strict_date_optional_time||epoch_millis")
+        .withLocale(DEFAULT_LOCALE);
     public static final DateFormatter DEFAULT_DATE_TIME_NANOS_FORMATTER = DateFormatter.forPattern(
         "strict_date_optional_time_nanos||epoch_millis"
-    );
-    private static final DateMathParser EPOCH_MILLIS_PARSER = DateFormatter.forPattern("epoch_millis").toDateMathParser();
+    ).withLocale(DEFAULT_LOCALE);
+    private static final DateMathParser EPOCH_MILLIS_PARSER = DateFormatter.forPattern("epoch_millis")
+        .withLocale(DEFAULT_LOCALE)
+        .toDateMathParser();
 
     public enum Resolution {
         MILLISECONDS(CONTENT_TYPE, NumericType.DATE, DateMillisDocValuesField::new) {
@@ -232,7 +238,7 @@ public final class DateFieldMapper extends FieldMapper {
         private final Parameter<Locale> locale = new Parameter<>(
             "locale",
             false,
-            () -> Locale.ROOT,
+            () -> DEFAULT_LOCALE,
             (n, c, o) -> LocaleUtils.parse(o.toString()),
             m -> toType(m).locale,
             (xContentBuilder, n, v) -> xContentBuilder.field(n, v.toString()),
@@ -682,7 +688,7 @@ public final class DateFieldMapper extends FieldMapper {
             long pivotLong = resolution.convert(pivotTime);
             // As we already apply boost in AbstractQueryBuilder::toQuery, we always passing a boost of 1.0 to distanceFeatureQuery
             if (isIndexed()) {
-                return LongPoint.newDistanceFeatureQuery(name(), 1.0f, originLong, pivotLong);
+                return LongField.newDistanceFeatureQuery(name(), 1.0f, originLong, pivotLong);
             } else {
                 return new LongScriptFieldDistanceFeatureQuery(
                     new Script(""),
@@ -953,7 +959,7 @@ public final class DateFieldMapper extends FieldMapper {
         }
 
         if (indexed && hasDocValues) {
-            context.doc().add(new LongField(fieldType().name(), timestamp));
+            context.doc().add(new LongField(fieldType().name(), timestamp, Field.Store.NO));
         } else if (hasDocValues) {
             context.doc().add(new SortedNumericDocValuesField(fieldType().name(), timestamp));
         } else if (indexed) {

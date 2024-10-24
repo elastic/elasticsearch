@@ -30,7 +30,6 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.function.Function;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
@@ -44,7 +43,7 @@ public class Least extends EsqlScalarFunction implements OptionalArgument {
     private DataType dataType;
 
     @FunctionInfo(
-        returnType = { "boolean", "double", "integer", "ip", "keyword", "long", "text", "version" },
+        returnType = { "boolean", "date", "date_nanos", "double", "integer", "ip", "keyword", "long", "text", "version" },
         description = "Returns the minimum value from multiple columns. "
             + "This is similar to <<esql-mv_min>> except it is intended to run on multiple columns at once.",
         examples = @Example(file = "math", tag = "least")
@@ -53,12 +52,12 @@ public class Least extends EsqlScalarFunction implements OptionalArgument {
         Source source,
         @Param(
             name = "first",
-            type = { "boolean", "double", "integer", "ip", "keyword", "long", "text", "version" },
+            type = { "boolean", "date", "date_nanos", "double", "integer", "ip", "keyword", "long", "text", "version" },
             description = "First of the columns to evaluate."
         ) Expression first,
         @Param(
             name = "rest",
-            type = { "boolean", "double", "integer", "ip", "keyword", "long", "text", "version" },
+            type = { "boolean", "date", "date_nanos", "double", "integer", "ip", "keyword", "long", "text", "version" },
             description = "The rest of the columns to evaluate.",
             optional = true
         ) List<Expression> rest
@@ -136,7 +135,7 @@ public class Least extends EsqlScalarFunction implements OptionalArgument {
     }
 
     @Override
-    public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         // force datatype initialization
         var dataType = dataType();
 
@@ -152,14 +151,10 @@ public class Least extends EsqlScalarFunction implements OptionalArgument {
         if (dataType == DataType.INTEGER) {
             return new LeastIntEvaluator.Factory(source(), factories);
         }
-        if (dataType == DataType.LONG) {
+        if (dataType == DataType.LONG || dataType == DataType.DATETIME || dataType == DataType.DATE_NANOS) {
             return new LeastLongEvaluator.Factory(source(), factories);
         }
-        if (dataType == DataType.KEYWORD
-            || dataType == DataType.TEXT
-            || dataType == DataType.IP
-            || dataType == DataType.VERSION
-            || dataType == DataType.UNSUPPORTED) {
+        if (DataType.isString(dataType) || dataType == DataType.IP || dataType == DataType.VERSION || dataType == DataType.UNSUPPORTED) {
 
             return new LeastBytesRefEvaluator.Factory(source(), factories);
         }

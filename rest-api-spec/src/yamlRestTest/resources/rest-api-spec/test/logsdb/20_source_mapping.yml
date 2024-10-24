@@ -1,21 +1,29 @@
 ---
-stored _source mode is not supported:
+synthetic _source is default:
   - requires:
-      test_runner_features: [capabilities]
-      capabilities:
-        - method: PUT
-          path: /{index}
-          capabilities: [logsdb_index_mode]
-      reason: "Support for 'logsdb' index mode capability required"
-
-  - skip:
-      known_issues:
-        - cluster_feature: "gte_v8.15.0"
-          fixed_by: "gte_v8.16.0"
-      reason: "Development of logs index mode spans 8.15 and 8.16"
+      cluster_features: ["mapper.source.remove_synthetic_source_only_validation"]
+      reason: requires new validation logic
 
   - do:
-      catch: bad_request
+      indices.create:
+        index: test-default-source
+        body:
+          settings:
+            index:
+              mode: logsdb
+  - do:
+      indices.get:
+        index: test-default-source
+
+  - match: { test-default-source.mappings._source.mode: "synthetic" }
+
+---
+stored _source mode is supported:
+  - requires:
+      cluster_features: ["mapper.source.remove_synthetic_source_only_validation"]
+      reason: requires new validation logic
+
+  - do:
       indices.create:
         index: test-stored-source
         body:
@@ -25,31 +33,17 @@ stored _source mode is not supported:
           mappings:
             _source:
               mode: stored
-            properties:
-              "@timestamp":
-                type: date
-              host.name:
-                type: keyword
+  - do:
+      indices.get:
+        index: test-stored-source
 
-  - match: { error.type: "mapper_parsing_exception" }
-  - match: { error.root_cause.0.type: "mapper_parsing_exception" }
-  - match: { error.reason: "Failed to parse mapping: Indices with with index mode [logsdb] only support synthetic source" }
+  - match: { test-stored-source.mappings._source.mode: "stored" }
 
 ---
 disabled _source is not supported:
   - requires:
-      test_runner_features: [capabilities]
-      capabilities:
-        - method: PUT
-          path: /{index}
-          capabilities: [logsdb_index_mode]
-      reason: "Support for 'logsdb' index mode capability required"
-
-  - skip:
-      known_issues:
-        - cluster_feature: "gte_v8.15.0"
-          fixed_by: "gte_v8.16.0"
-      reason: "Development of logs index mode spans 8.15 and 8.16"
+      cluster_features: ["mapper.source.remove_synthetic_source_only_validation"]
+      reason: requires new error message
 
   - do:
       catch: bad_request
@@ -62,20 +56,15 @@ disabled _source is not supported:
           mappings:
             _source:
               enabled: false
-            properties:
-              "@timestamp":
-                type: date
-              host.name:
-                type: keyword
 
   - match: { error.type: "mapper_parsing_exception" }
   - match: { error.root_cause.0.type: "mapper_parsing_exception" }
-  - match: { error.reason: "Failed to parse mapping: Indices with with index mode [logsdb] only support synthetic source" }
+  - match: { error.reason: "Failed to parse mapping: _source can not be disabled in index using [logsdb] index mode" }
 
   - do:
       catch: bad_request
       indices.create:
-        index: test-disabled-source
+        index: test-disabled-mode-source
         body:
           settings:
             index:
@@ -83,12 +72,81 @@ disabled _source is not supported:
           mappings:
             _source:
               mode: disabled
-            properties:
-              "@timestamp":
-                type: date
-              host.name:
-                type: keyword
 
   - match: { error.type: "mapper_parsing_exception" }
   - match: { error.root_cause.0.type: "mapper_parsing_exception" }
-  - match: { error.reason: "Failed to parse mapping: Indices with with index mode [logsdb] only support synthetic source" }
+  - match: { error.reason: "Failed to parse mapping: _source can not be disabled in index using [logsdb] index mode" }
+
+---
+include/exclude is not supported with synthetic _source:
+  - requires:
+      cluster_features: ["mapper.source.remove_synthetic_source_only_validation"]
+      reason: requires new validation logic
+
+  - do:
+      catch: '/filtering the stored _source is incompatible with synthetic source/'
+      indices.create:
+        index: test-includes
+        body:
+          settings:
+            index:
+              mode: logsdb
+          mappings:
+            _source:
+              includes: [a]
+
+  - do:
+      catch: '/filtering the stored _source is incompatible with synthetic source/'
+      indices.create:
+        index: test-excludes
+        body:
+          settings:
+            index:
+              mode: logsdb
+          mappings:
+            _source:
+              excludes: [b]
+
+---
+include/exclude is supported with stored _source:
+  - requires:
+      cluster_features: ["mapper.source.remove_synthetic_source_only_validation"]
+      reason: requires new validation logic
+
+  - do:
+      indices.create:
+        index: test-includes
+        body:
+          settings:
+            index:
+              mode: logsdb
+          mappings:
+            _source:
+              mode: stored
+              includes: [a]
+
+  - do:
+      indices.get:
+        index: test-includes
+
+  - match: { test-includes.mappings._source.mode: "stored" }
+  - match: { test-includes.mappings._source.includes: ["a"] }
+
+  - do:
+      indices.create:
+        index: test-excludes
+        body:
+          settings:
+            index:
+              mode: logsdb
+          mappings:
+            _source:
+              mode: stored
+              excludes: [b]
+
+  - do:
+      indices.get:
+        index: test-excludes
+
+  - match: { test-excludes.mappings._source.mode: "stored" }
+  - match: { test-excludes.mappings._source.excludes: ["b"] }

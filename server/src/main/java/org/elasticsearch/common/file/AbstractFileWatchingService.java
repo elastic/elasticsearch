@@ -77,6 +77,15 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
 
     protected abstract void processInitialFileMissing() throws InterruptedException, ExecutionException, IOException;
 
+    /**
+     * Defaults to generic {@link #processFileChanges()} behavior.
+     * An implementation can override this to define different file handling when the file is processed during
+     * initial service start.
+     */
+    protected void processFileOnServiceStart() throws IOException, ExecutionException, InterruptedException {
+        processFileChanges();
+    }
+
     public final void addFileChangedListener(FileChangedListener listener) {
         eventListeners.add(listener);
     }
@@ -174,7 +183,7 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
 
             if (Files.exists(path)) {
                 logger.debug("found initial operator settings file [{}], applying...", path);
-                processSettingsAndNotifyListeners();
+                processSettingsOnServiceStartAndNotifyListeners();
             } else {
                 processInitialFileMissing();
                 // Notify everyone we don't have any initial file settings
@@ -290,15 +299,34 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
         } while (true);
     }
 
-    void processSettingsAndNotifyListeners() throws InterruptedException {
+    void processSettingsOnServiceStartAndNotifyListeners() throws InterruptedException {
         try {
-            processFileChanges();
+            processFileOnServiceStart();
             for (var listener : eventListeners) {
                 listener.watchedFileChanged();
             }
         } catch (IOException | ExecutionException e) {
             logger.error(() -> "Error processing watched file: " + watchedFile(), e);
         }
+    }
+
+    void processSettingsAndNotifyListeners() throws InterruptedException {
+        try {
+            processFileChanges();
+        } catch (IOException | ExecutionException e) {
+            onProcessFileChangesException(e);
+            return;
+        }
+        for (var listener : eventListeners) {
+            listener.watchedFileChanged();
+        }
+    }
+
+    /**
+     * Called for checked exceptions only.
+     */
+    protected void onProcessFileChangesException(Exception e) {
+        logger.error(() -> "Error processing watched file: " + watchedFile(), e);
     }
 
     // package private for testing

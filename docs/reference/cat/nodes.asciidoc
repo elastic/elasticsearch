@@ -13,7 +13,7 @@ They are _not_ intended for use by applications.
 For application consumption, use the <<cluster-nodes-info,nodes info API>>.
 ====
 
-Returns information about a cluster's nodes.
+Returns information about a <<modules-node,cluster's nodes>>.
 
 [[cat-nodes-api-request]]
 ==== {api-request-title}

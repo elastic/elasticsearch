@@ -1194,6 +1194,114 @@ a:keyword           | upper:keyword         | lower:keyword
 π/2 + a + B + Λ ºC  | Π/2 + A + B + Λ ºC    | π/2 + a + b + λ ºc
 ;
 
+reverse
+required_capability: fn_reverse
+from employees | sort emp_no | eval name_reversed = REVERSE(first_name) | keep emp_no, first_name, name_reversed | limit 1;
+
+emp_no:integer  | first_name:keyword    | name_reversed:keyword
+10001           | Georgi                | igroeG
+;
+
+reverseRow
+required_capability: fn_reverse
+// tag::reverse[]
+ROW message = "Some Text" | EVAL message_reversed = REVERSE(message);
+// end::reverse[]
+
+// tag::reverse-result[]
+message:keyword | message_reversed:keyword
+Some Text       | txeT emoS
+// end::reverse-result[]
+;
+
+reverseEmoji
+required_capability: fn_reverse
+// tag::reverseEmoji[]
+ROW bending_arts = "💧🪨🔥💨" | EVAL bending_arts_reversed = REVERSE(bending_arts);
+// end::reverseEmoji[]
+
+// tag::reverseEmoji-result[]
+bending_arts:keyword | bending_arts_reversed:keyword
+💧🪨🔥💨             | 💨🔥🪨💧
+// end::reverseEmoji-result[]
+;
+
+reverseEmoji2
+required_capability: fn_reverse
+ROW off_on_holiday = "🏠➡️🚌➡️✈️➡️🏝️" | EVAL back_home_again = REVERSE(off_on_holiday);
+
+off_on_holiday:keyword | back_home_again:keyword
+🏠➡️🚌➡️✈️➡️🏝️        | 🏝️➡️✈️➡️🚌➡️🏠
+;
+
+reverseGraphemeClusters
+required_capability: fn_reverse
+required_capability: fn_reverse_grapheme_clusters
+ROW message = "áéíóúàèìòùâêîôû😊👍🏽🎉💖कंठाी" | EVAL message_reversed = REVERSE(message);
+
+message:keyword                | message_reversed:keyword
+áéíóúàèìòùâêîôû😊👍🏽🎉💖कंठाी    | ठाीकं💖🎉👍🏽😊ûôîêâùòìèàúóíéá
+;
+
+reverseMultiValue
+required_capability: fn_reverse
+FROM employees | SORT emp_no | EVAL jobs_reversed = REVERSE(job_positions) | KEEP job*, emp_no | LIMIT 5;
+
+warning:Line 1:53: evaluation of [REVERSE(job_positions)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:53: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+job_positions:keyword                                                   | jobs_reversed:keyword | emp_no:integer
+["Accountant",  "Senior Python Developer"]                              | null                  | 10001
+Senior Team Lead                                                        | daeL maeT roineS      | 10002
+null                                                                    | null                  | 10003
+[Head Human Resources, Reporting Analyst, Support Engineer, Tech Lead]  | null                  | 10004
+null                                                                    | null                  | 10005
+;
+
+reverseNested
+required_capability: fn_reverse
+FROM employees | SORT emp_no | EVAL name_reversed = REVERSE(REVERSE(first_name)), eq = name_reversed == first_name | KEEP first_name, name_reversed, eq, emp_no | LIMIT 5;
+
+first_name:keyword  | name_reversed:keyword | eq:boolean    | emp_no:integer
+Georgi              | Georgi                | true          | 10001
+Bezalel             | Bezalel               | true          | 10002
+Parto               | Parto                 | true          | 10003
+Chirstian           | Chirstian             | true          | 10004
+Kyoichi             | Kyoichi               | true          | 10005
+;
+
+reverseRowNull
+required_capability: fn_reverse
+ROW x = null | EVAL y = REVERSE(x);
+
+x:null      | y:null
+null        | null
+;
+
+
+reverseRowInlineCastWithNull
+required_capability: fn_reverse
+ROW x = 1 | EVAL y = REVERSE((null + 1)::string);
+
+x:integer   | y:string
+1           | null
+;
+
+reverseWithTextFields
+required_capability: fn_reverse
+FROM books 
+| EVAL title_reversed = REVERSE(title), author_reversed_twice = REVERSE(REVERSE(author)), eq = author_reversed_twice == author 
+| KEEP title, title_reversed, author, author_reversed_twice, eq, book_no
+| SORT book_no
+| WHERE book_no IN ("1211", "1463")
+| LIMIT 2;
+
+title:text                                      | title_reversed:text                           | author:text               | author_reversed_twice:text    | eq:boolean    | book_no:keyword
+The brothers Karamazov                          | vozamaraK srehtorb ehT                        | Fyodor Dostoevsky         | Fyodor Dostoevsky             | true          | 1211
+Realms of Tolkien: Images of Middle-earth       | htrae-elddiM fo segamI :neikloT fo smlaeR     | J. R. R. Tolkien          | J. R. R. Tolkien              | true          | 1463
+;
+
+
 values
 required_capability: agg_values
 
@@ -1691,4 +1799,60 @@ warning:Line 1:29: java.lang.IllegalArgumentException: single-value function enc
 
 x:keyword
 null
+;
+
+
+likeEscapingSingleQuotes
+// tag::likeEscapingSingleQuotes[]
+ROW message = "foo * bar"
+| WHERE message LIKE "foo \\* bar"
+// end::likeEscapingSingleQuotes[]
+;
+
+// tag::likeEscapingSingleQuotes-result[]
+message:keyword
+foo * bar
+// end::likeEscapingSingleQuotes-result[]
+;
+
+
+likeEscapingTripleQuotes
+// tag::likeEscapingTripleQuotes[]
+ROW message = "foo * bar"
+| WHERE message LIKE """foo \* bar"""
+// end::likeEscapingTripleQuotes[]
+;
+
+// tag::likeEscapingTripleQuotes-result[]
+message:keyword
+foo * bar
+// end::likeEscapingTripleQuotes-result[]
+;
+
+
+rlikeEscapingSingleQuotes
+// tag::rlikeEscapingSingleQuotes[]
+ROW message = "foo ( bar"
+| WHERE message RLIKE "foo \\( bar"
+// end::rlikeEscapingSingleQuotes[]
+;
+
+// tag::rlikeEscapingSingleQuotes-result[]
+message:keyword
+foo ( bar
+// end::rlikeEscapingSingleQuotes-result[]
+;
+
+
+rlikeEscapingTripleQuotes
+// tag::rlikeEscapingTripleQuotes[]
+ROW message = "foo ( bar"
+| WHERE message RLIKE """foo \( bar"""
+// end::rlikeEscapingTripleQuotes[]
+;
+
+// tag::rlikeEscapingTripleQuotes-result[]
+message:keyword
+foo ( bar
+// end::rlikeEscapingTripleQuotes-result[]
 ;

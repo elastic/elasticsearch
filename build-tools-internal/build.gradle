@@ -384,6 +384,15 @@ tasks.named("jar") {
   exclude("classpath.index")
 }
 
+spotless {
+  java {
+    // IDEs can sometimes run annotation processors that leave files in
+    // here, causing Spotless to complain. Even though this path ought not
+    // to exist, exclude it anyway in order to avoid spurious failures.
+    toggleOffOn()
+  }
+}
+
 def resolveMainWrapperVersion() {
   new URL("https://raw.githubusercontent.com/elastic/elasticsearch/main/build-tools-internal/src/main/resources/minimumGradleVersion").text.trim()
 }

@@ -22,7 +22,6 @@ import org.elasticsearch.lucene.spatial.Component2DVisitor;
 import org.elasticsearch.lucene.spatial.CoordinateEncoder;
 import org.elasticsearch.lucene.spatial.GeometryDocValueReader;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
@@ -30,10 +29,6 @@ import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 
 import java.io.IOException;
 import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
-import java.util.function.Function;
-import java.util.function.Predicate;
 
 import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils.asGeometryDocValueReader;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils.asLuceneComponent2D;
@@ -59,47 +54,6 @@ public abstract class SpatialRelatesFunction extends BinarySpatialFunction
     }
 
     /**
-     * Mark the function as expecting the specified fields to arrive as doc-values.
-     */
-    public abstract SpatialRelatesFunction withDocValues(Set<FieldAttribute> attributes);
-
-    /**
-     * Push-down to Lucene is only possible if one field is an indexed spatial field, and the other is a constant spatial or string column.
-     */
-    public boolean canPushToSource(Predicate<FieldAttribute> isAggregatable) {
-        // The use of foldable here instead of SpatialEvaluatorFieldKey.isConstant is intentional to match the behavior of the
-        // Lucene pushdown code in EsqlTranslationHandler::SpatialRelatesTranslator
-        // We could enhance both places to support ReferenceAttributes that refer to constants, but that is a larger change
-        return isPushableFieldAttribute(left(), isAggregatable) && right().foldable()
-            || isPushableFieldAttribute(right(), isAggregatable) && left().foldable();
-    }
-
-    private static boolean isPushableFieldAttribute(Expression exp, Predicate<FieldAttribute> isAggregatable) {
-        return exp instanceof FieldAttribute fa
-            && fa.getExactInfo().hasExact()
-            && isAggregatable.test(fa)
-            && DataType.isSpatial(fa.dataType());
-    }
-
-    @Override
-    public int hashCode() {
-        // NB: the hashcode is currently used for key generation so
-        // to avoid clashes between aggs with the same arguments, add the class name as variation
-        return Objects.hash(getClass(), children(), leftDocValues, rightDocValues);
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        if (super.equals(obj)) {
-            SpatialRelatesFunction other = (SpatialRelatesFunction) obj;
-            return Objects.equals(other.children(), children())
-                && Objects.equals(other.leftDocValues, leftDocValues)
-                && Objects.equals(other.rightDocValues, rightDocValues);
-        }
-        return false;
-    }
-
-    /**
      * Produce a map of rules defining combinations of incoming types to the evaluator factory that should be used.
      */
     abstract Map<SpatialEvaluatorFactory.SpatialEvaluatorKey, SpatialEvaluatorFactory<?, ?>> evaluatorRules();
@@ -112,23 +66,8 @@ public abstract class SpatialRelatesFunction extends BinarySpatialFunction
     }
 
     @Override
-    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(
-        Function<Expression, EvalOperator.ExpressionEvaluator.Factory> toEvaluator
-    ) {
+    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         return SpatialEvaluatorFactory.makeSpatialEvaluator(this, evaluatorRules(), toEvaluator);
-    }
-
-    /**
-     * When performing local physical plan optimization, it is necessary to know if this function has a field attribute.
-     * This is because the planner might push down a spatial aggregation to lucene, which results in the field being provided
-     * as doc-values instead of source values, and this function needs to know if it should use doc-values or not.
-     */
-    public boolean hasFieldAttribute(Set<FieldAttribute> foundAttributes) {
-        return foundField(left(), foundAttributes) || foundField(right(), foundAttributes);
-    }
-
-    protected boolean foundField(Expression expression, Set<FieldAttribute> foundAttributes) {
-        return expression instanceof FieldAttribute field && foundAttributes.contains(field);
     }
 
     protected static class SpatialRelations extends BinarySpatialComparator<Boolean> {

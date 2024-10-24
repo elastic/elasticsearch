@@ -52,12 +52,18 @@ public class MapperFeatures implements FeatureSpecification {
             IndexSettings.IGNORE_ABOVE_INDEX_LEVEL_SETTING,
             SourceFieldMapper.SYNTHETIC_SOURCE_COPY_TO_INSIDE_OBJECTS_FIX,
             TimeSeriesRoutingHashFieldMapper.TS_ROUTING_HASH_FIELD_PARSES_BYTES_REF,
-            FlattenedFieldMapper.IGNORE_ABOVE_WITH_ARRAYS_SUPPORT
+            FlattenedFieldMapper.IGNORE_ABOVE_WITH_ARRAYS_SUPPORT,
+            DenseVectorFieldMapper.BBQ_FORMAT
         );
     }
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
-        return Set.of(RangeFieldMapper.DATE_RANGE_INDEXING_FIX, IgnoredSourceFieldMapper.DONT_EXPAND_DOTS_IN_IGNORED_SOURCE);
+        return Set.of(
+            RangeFieldMapper.DATE_RANGE_INDEXING_FIX,
+            IgnoredSourceFieldMapper.DONT_EXPAND_DOTS_IN_IGNORED_SOURCE,
+            SourceFieldMapper.REMOVE_SYNTHETIC_SOURCE_ONLY_VALIDATION,
+            IgnoredSourceFieldMapper.ALWAYS_STORE_OBJECT_ARRAYS_IN_NESTED_OBJECTS
+        );
     }
 }

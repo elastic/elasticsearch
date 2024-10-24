@@ -95,12 +95,12 @@ public class AnthropicChatCompletionRequestTests extends ESTestCase {
 
     public static AnthropicChatCompletionRequest createRequest(String apiKey, String input, String model, int maxTokens) {
         var chatCompletionModel = AnthropicChatCompletionModelTests.createChatCompletionModel(apiKey, model, maxTokens);
-        return new AnthropicChatCompletionRequest(List.of(input), chatCompletionModel);
+        return new AnthropicChatCompletionRequest(List.of(input), chatCompletionModel, false);
     }
 
     public static AnthropicChatCompletionRequest createRequest(String url, String apiKey, String input, String model, int maxTokens) {
         var chatCompletionModel = AnthropicChatCompletionModelTests.createChatCompletionModel(url, apiKey, model, maxTokens);
-        return new AnthropicChatCompletionRequest(List.of(input), chatCompletionModel);
+        return new AnthropicChatCompletionRequest(List.of(input), chatCompletionModel, false);
     }
 
     private static String buildAnthropicUri() {

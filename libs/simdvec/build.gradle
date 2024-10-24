@@ -7,6 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
+import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.internal.precommit.CheckForbiddenApisTask
 
 apply plugin: 'elasticsearch.publish'
@@ -20,6 +21,20 @@ dependencies {
 
   testImplementation(project(":test:framework")) {
     exclude group: 'org.elasticsearch', module: 'elasticsearch-native'
+  }
+}
+
+// compileMain21Java does not exist within idea (see MrJarPlugin) so we cannot reference directly by name
+tasks.matching { it.name == "compileMain21Java" }.configureEach {
+  options.compilerArgs << '--add-modules=jdk.incubator.vector'
+  // we remove Werror, since incubating suppression (-Xlint:-incubating)
+  // is only support since JDK 22
+  options.compilerArgs -= '-Werror'
+}
+
+tasks.named('test').configure {
+  if (BuildParams.getRuntimeJavaVersion().majorVersion.toInteger() >= 21) {
+    jvmArgs '--add-modules=jdk.incubator.vector'
   }
 }
 

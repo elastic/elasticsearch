@@ -1,0 +1,6 @@
+pr: 114407
+summary: Fix synthetic source handling for `bit` type in `dense_vector` field
+area: Search
+type: bug
+issues:
+  - 114402

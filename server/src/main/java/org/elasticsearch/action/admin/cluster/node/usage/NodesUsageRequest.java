@@ -11,7 +11,7 @@ package org.elasticsearch.action.admin.cluster.node.usage;
 
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 
-public class NodesUsageRequest extends BaseNodesRequest<NodesUsageRequest> {
+public class NodesUsageRequest extends BaseNodesRequest {
 
     private boolean restActions;
     private boolean aggregations;

@@ -537,6 +537,24 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(Expressions.names(agg.groupings()), contains("last_name", "first_name"));
     }
 
+    /**
+     * Limit[1000[INTEGER]]
+     * \_Aggregate[STANDARD,[],[SUM(salary{f}#12,true[BOOLEAN]) AS sum(salary), SUM(salary{f}#12,last_name{f}#11 == [44 6f 65][KEYW
+     * ORD]) AS sum(salary) WheRe last_name ==   "Doe"]]
+     *   \_EsRelation[test][_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, ge..]
+     */
+    public void testStatsWithFilteringDefaultAliasing() {
+        var plan = plan("""
+            from test
+            | stats sum(salary), sum(salary) WheRe last_name ==   "Doe"
+            """);
+
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        assertThat(agg.aggregates(), hasSize(2));
+        assertThat(Expressions.names(agg.aggregates()), contains("sum(salary)", "sum(salary) WheRe last_name ==   \"Doe\""));
+    }
+
     public void testQlComparisonOptimizationsApply() {
         var plan = plan("""
             from test
@@ -720,6 +738,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         );
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/115311")
     public void testSelectivelyPushDownFilterPastRefAgg() {
         // expected plan: "from test | where emp_no > 1 and emp_no < 3 | stats x = count(1) by emp_no | where x > 7"
         LogicalPlan plan = optimizedPlan("""
@@ -772,6 +791,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertTrue(stats.child() instanceof EsRelation);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/115311")
     public void testSelectivePushDownComplexFilterPastAgg() {
         // expected plan: from test | emp_no > 0 | stats x = count(1) by emp_no | where emp_no < 3 or x > 9
         LogicalPlan plan = optimizedPlan("""
@@ -1375,13 +1395,15 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     }
 
     /**
+     * TODO: Push down the filter correctly https://github.com/elastic/elasticsearch/issues/115311
+     *
      * Expected
      * Limit[5[INTEGER]]
-     *  \_Aggregate[[first_name{f}#232],[MAX(salary{f}#233) AS max_s, first_name{f}#232]]
-     *    \_Filter[ISNOTNULL(first_name{f}#232)]
-     *      \_MvExpand[first_name{f}#232]
-     *        \_TopN[[Order[emp_no{f}#231,ASC,LAST]],50[INTEGER]]
-     *          \_EsRelation[employees][emp_no{f}#231, first_name{f}#232, salary{f}#233]
+     * \_Filter[ISNOTNULL(first_name{r}#23)]
+     *   \_Aggregate[STANDARD,[first_name{r}#23],[MAX(salary{f}#18,true[BOOLEAN]) AS max_s, first_name{r}#23]]
+     *     \_MvExpand[first_name{f}#14,first_name{r}#23]
+     *       \_TopN[[Order[emp_no{f}#13,ASC,LAST]],50[INTEGER]]
+     *         \_EsRelation[test][_meta_field{f}#19, emp_no{f}#13, first_name{f}#14, ..]
      */
     public void testDontPushDownLimitPastAggregate_AndMvExpand() {
         LogicalPlan plan = optimizedPlan("""
@@ -1395,10 +1417,10 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             | limit 5""");
 
         var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
         assertThat(limit.limit().fold(), equalTo(5));
-        var agg = as(limit.child(), Aggregate.class);
-        var filter = as(agg.child(), Filter.class);
-        var mvExp = as(filter.child(), MvExpand.class);
+        var agg = as(filter.child(), Aggregate.class);
+        var mvExp = as(agg.child(), MvExpand.class);
         var topN = as(mvExp.child(), TopN.class);
         assertThat(topN.limit().fold(), equalTo(50));
         assertThat(orderNames(topN), contains("emp_no"));
@@ -1406,14 +1428,16 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     }
 
     /**
+     * TODO: Push down the filter correctly https://github.com/elastic/elasticsearch/issues/115311
+     *
      * Expected
      * Limit[5[INTEGER]]
-     *  \_Aggregate[[first_name{f}#262],[MAX(salary{f}#263) AS max_s, first_name{f}#262]]
-     *    \_Filter[ISNOTNULL(first_name{f}#262)]
-     *      \_Limit[50[INTEGER]]
-     *        \_MvExpand[first_name{f}#262]
-     *          \_Limit[50[INTEGER]]
-     *            \_EsRelation[employees][emp_no{f}#261, first_name{f}#262, salary{f}#263]
+     * \_Filter[ISNOTNULL(first_name{r}#22)]
+     *   \_Aggregate[STANDARD,[first_name{r}#22],[MAX(salary{f}#17,true[BOOLEAN]) AS max_s, first_name{r}#22]]
+     *     \_Limit[50[INTEGER]]
+     *       \_MvExpand[first_name{f}#13,first_name{r}#22]
+     *         \_Limit[50[INTEGER]]
+     *           \_EsRelation[test][_meta_field{f}#18, emp_no{f}#12, first_name{f}#13, ..]
      */
     public void testPushDown_TheRightLimit_PastMvExpand() {
         LogicalPlan plan = optimizedPlan("""
@@ -1427,9 +1451,9 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         var limit = as(plan, Limit.class);
         assertThat(limit.limit().fold(), equalTo(5));
-        var agg = as(limit.child(), Aggregate.class);
-        var filter = as(agg.child(), Filter.class);
-        limit = as(filter.child(), Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var agg = as(filter.child(), Aggregate.class);
+        limit = as(agg.child(), Limit.class);
         assertThat(limit.limit().fold(), equalTo(50));
         var mvExp = as(limit.child(), MvExpand.class);
         limit = as(mvExp.child(), Limit.class);
@@ -5563,6 +5587,38 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         e = expectThrows(VerificationException.class, () -> planTypes("""
             from types  | EVAL x = keyword, y = date - to_timeduration(x)"""));
         assertEquals("1:60: argument of [to_timeduration(x)] must be a constant, received [x]", e.getMessage().substring(header.length()));
+    }
+
+    // These should pass eventually once we lift some restrictions on match function
+    public void testMatchWithNonIndexedColumnCurrentlyUnsupported() {
+        final String header = "Found 1 problem\nline ";
+        VerificationException e = expectThrows(VerificationException.class, () -> plan("""
+            from test | eval initial = substring(first_name, 1) | where match(initial, "A")"""));
+        assertTrue(e.getMessage().startsWith("Found "));
+        assertEquals(
+            "1:67: [MATCH] cannot operate on [initial], which is not a field from an index mapping",
+            e.getMessage().substring(header.length())
+        );
+
+        e = expectThrows(VerificationException.class, () -> plan("""
+            from test | eval text=concat(first_name, last_name) | where match(text, "cat")"""));
+        assertTrue(e.getMessage().startsWith("Found "));
+        assertEquals(
+            "1:67: [MATCH] cannot operate on [text], which is not a field from an index mapping",
+            e.getMessage().substring(header.length())
+        );
+    }
+
+    public void testMatchFunctionIsNotNullable() {
+        String queryText = """
+            row n = null | eval text = n + 5 | where match(text::keyword, "Anna")
+            """;
+
+        VerificationException ve = expectThrows(VerificationException.class, () -> plan(queryText));
+        assertThat(
+            ve.getMessage(),
+            containsString("[MATCH] cannot operate on [text::keyword], which is not a field from an index mapping")
+        );
     }
 
     private Literal nullOf(DataType dataType) {

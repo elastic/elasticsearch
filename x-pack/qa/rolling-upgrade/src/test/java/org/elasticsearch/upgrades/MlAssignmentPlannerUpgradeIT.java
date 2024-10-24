@@ -7,14 +7,12 @@
 
 package org.elasticsearch.upgrades;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.Strings;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.rest.RestTestLegacyFeatures;
@@ -71,10 +69,6 @@ public class MlAssignmentPlannerUpgradeIT extends AbstractUpgradeTestCase {
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/101926")
     public void testMlAssignmentPlannerUpgrade() throws Exception {
-        @UpdateForV9(owner = UpdateForV9.Owner.MACHINE_LEARNING) // upgrade will always be from v8, condition can be removed
-        var originalClusterAtLeastV8 = isOriginalClusterVersionAtLeast(Version.V_8_0_0);
-        // These tests assume the original cluster is v8 - testing for features on the _current_ cluster will break for NEW
-        assumeTrue("NLP model deployments added in 8.0", originalClusterAtLeastV8);
         assumeFalse("This test deploys multiple models which cannot be accommodated on a single processor", IS_SINGLE_PROCESSOR_TEST);
 
         logger.info("Starting testMlAssignmentPlannerUpgrade, model size {}", RAW_MODEL_SIZE);

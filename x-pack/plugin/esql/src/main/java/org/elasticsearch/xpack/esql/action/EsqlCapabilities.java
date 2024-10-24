@@ -75,6 +75,11 @@ public class EsqlCapabilities {
         FN_SUBSTRING_EMPTY_NULL,
 
         /**
+         * All functions that take TEXT should never emit TEXT, only KEYWORD. #114334
+         */
+        FUNCTIONS_NEVER_EMIT_TEXT,
+
+        /**
          * Support for the {@code INLINESTATS} syntax.
          */
         INLINESTATS(EsqlPlugin.INLINESTATS_FEATURE_FLAG),

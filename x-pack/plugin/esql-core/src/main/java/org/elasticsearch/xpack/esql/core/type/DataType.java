@@ -584,6 +584,10 @@ public enum DataType {
         return new Builder();
     }
 
+    public DataType noText() {
+        return this == TEXT ? KEYWORD : this;
+    }
+
     /**
      * Named parameters with default values. It's just easier to do this with
      * a builder in java....

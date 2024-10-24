@@ -164,6 +164,6 @@ public abstract class UnaryScalarFunction extends EsqlScalarFunction {
 
     @Override
     public DataType dataType() {
-        return field.dataType();
+        return field.dataType().noText();
     }
 }

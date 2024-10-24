@@ -58,11 +58,11 @@ ROW zero="0"::double
 
 convertToString
 required_capability: casting_operator
-ROW one=1::keyword, two=2::text, three=3::string
+ROW one=1::keyword, two=2::double, three=3::string
 ;
 
- one:keyword   | two:keyword   | three:keyword
-1              |2              |3
+one:keyword | two:double | three:keyword
+1           | 2.0        | 3
 ;
 
 convertToDatetime

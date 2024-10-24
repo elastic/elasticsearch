@@ -1289,6 +1289,7 @@ x:integer   | y:string
 
 reverseWithTextFields
 required_capability: fn_reverse
+required_capability: functions_never_emit_text
 FROM books 
 | EVAL title_reversed = REVERSE(title), author_reversed_twice = REVERSE(REVERSE(author)), eq = author_reversed_twice == author 
 | KEEP title, title_reversed, author, author_reversed_twice, eq, book_no
@@ -1296,7 +1297,7 @@ FROM books
 | WHERE book_no IN ("1211", "1463")
 | LIMIT 2;
 
-title:text                                      | title_reversed:text                           | author:text               | author_reversed_twice:text    | eq:boolean    | book_no:keyword
+title:text                                      | title_reversed:keyword                        | author:text               | author_reversed_twice:keyword | eq:boolean    | book_no:keyword
 The brothers Karamazov                          | vozamaraK srehtorb ehT                        | Fyodor Dostoevsky         | Fyodor Dostoevsky             | true          | 1211
 Realms of Tolkien: Images of Middle-earth       | htrae-elddiM fo segamI :neikloT fo smlaeR     | J. R. R. Tolkien          | J. R. R. Tolkien              | true          | 1463
 ;

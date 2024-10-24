@@ -24,11 +24,13 @@ boolean | integer | | integer
 boolean | ip | ip | ip
 boolean | ip | | ip
 boolean | keyword | keyword | keyword
+boolean | keyword | text | keyword
 boolean | keyword | | keyword
 boolean | long | long | long
 boolean | long | | long
-boolean | text | text | text
-boolean | text | | text
+boolean | text | keyword | keyword
+boolean | text | text | keyword
+boolean | text | | keyword
 boolean | unsigned_long | unsigned_long | unsigned_long
 boolean | unsigned_long | | unsigned_long
 boolean | version | version | version

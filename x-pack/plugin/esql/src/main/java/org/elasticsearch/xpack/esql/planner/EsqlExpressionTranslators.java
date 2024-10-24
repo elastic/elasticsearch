@@ -87,7 +87,6 @@ public final class EsqlExpressionTranslators {
         new ExpressionTranslators.Nots(),
         new ExpressionTranslators.Likes(),
         new ExpressionTranslators.StringQueries(),
-        new ExpressionTranslators.Matches(),
         new ExpressionTranslators.MultiMatches(),
         new MatchFunctionTranslator(),
         new QueryStringFunctionTranslator(),
@@ -530,7 +529,13 @@ public final class EsqlExpressionTranslators {
     public static class MatchFunctionTranslator extends ExpressionTranslator<Match> {
         @Override
         protected Query asQuery(Match match, TranslatorHandler handler) {
-            return new MatchQuery(match.source(), ((FieldAttribute) match.field()).name(), match.queryAsText(), Map.of());
+            return new MatchQuery(
+                match.source(),
+                ((FieldAttribute) match.field()).name(),
+                match.queryAsText(),
+                match.boost(),
+                match.fuzziness()
+            );
         }
     }
 

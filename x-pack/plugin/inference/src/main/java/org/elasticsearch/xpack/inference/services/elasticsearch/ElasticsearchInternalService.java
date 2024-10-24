@@ -13,6 +13,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.core.Nullable;
@@ -34,7 +35,6 @@ import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.action.GetDeploymentStatsAction;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
-import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentStats;
@@ -913,7 +913,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
                     listener.onFailure(
                         new ElasticsearchStatusException(
                             "Deployment [{}] uses model [{}] which does not match the model [{}] in the request.",
-                            RestStatus.BAD_REQUEST, // TODO better message
+                            RestStatus.BAD_REQUEST,
                             deploymentId,
                             response.get().getModelId(),
                             modelId
@@ -933,21 +933,22 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
                 checkTaskTypeForMlNodeModel(response.get().getModelId(), taskType, l.delegateFailureAndWrap((l2, compatibleTaskType) -> {
                     l2.onResponse(updatedSettings);
                 }));
+            } else {
+                listener.onFailure(new ElasticsearchStatusException("Cannot find deployment [{}]", RestStatus.NOT_FOUND, deploymentId));
             }
         }));
     }
 
     private void getDeployment(String deploymentId, ActionListener<Optional<AssignmentStats>> listener) {
         client.execute(
-            GetTrainedModelsStatsAction.INSTANCE,
-            new GetTrainedModelsStatsAction.Request(deploymentId),
+            GetDeploymentStatsAction.INSTANCE,
+            new GetDeploymentStatsAction.Request(deploymentId),
             listener.delegateFailureAndWrap((l, response) -> {
                 l.onResponse(
-                    response.getResources()
+                    response.getStats()
                         .results()
                         .stream()
-                        .filter(s -> s.getDeploymentStats() != null && s.getDeploymentStats().getDeploymentId().equals(deploymentId))
-                        .map(GetTrainedModelsStatsAction.Response.TrainedModelStats::getDeploymentStats)
+                        .filter(s -> s.getDeploymentId() != null && s.getDeploymentId().equals(deploymentId))
                         .findFirst()
                 );
             })

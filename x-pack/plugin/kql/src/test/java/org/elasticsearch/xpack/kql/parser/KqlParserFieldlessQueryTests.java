@@ -9,13 +9,14 @@ package org.elasticsearch.xpack.kql.parser;
 
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryStringQueryBuilder;
 
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.equalTo;
 
 public class KqlParserFieldlessQueryTests extends AbstractKqlParserTestCase {
 
-    public void testFieldlessQuery() {
+    public void testLiteralFieldlessQuery() {
         // Single word
         assertMultiMatchQuery(parseKqlQuery("foo"), "foo", MultiMatchQueryBuilder.Type.BEST_FIELDS);
         // Multiple words
@@ -24,6 +25,23 @@ public class KqlParserFieldlessQueryTests extends AbstractKqlParserTestCase {
         assertMultiMatchQuery(parseKqlQuery("foo \\* baz"), "foo * baz", MultiMatchQueryBuilder.Type.BEST_FIELDS);
         // Wrapping terms into parentheses
         assertMultiMatchQuery(parseKqlQuery("foo baz"), "foo baz", MultiMatchQueryBuilder.Type.BEST_FIELDS);
+    }
+
+    public void testWildcardFieldlessQuery() {
+        // Single word
+        assertQueryStringBuilder(parseKqlQuery("foo*"), "foo*");
+        assertQueryStringBuilder(parseKqlQuery("*foo"), "*foo");
+        assertQueryStringBuilder(parseKqlQuery("fo*o"), "fo*o");
+
+        // Multiple words
+        assertQueryStringBuilder(parseKqlQuery("fo* bar"), "fo* bar");
+        assertQueryStringBuilder(parseKqlQuery("foo * bar"), "foo * bar");
+        assertQueryStringBuilder(parseKqlQuery("* foo bar"), "* foo bar");
+        assertQueryStringBuilder(parseKqlQuery("foo bar *"), "foo bar *");
+
+        // Check query string special chars are escaped
+        assertQueryStringBuilder(parseKqlQuery("foo*[bar]"), "foo*\\[bar\\]");
+        assertQueryStringBuilder(parseKqlQuery("+foo* -bar"), "\\+foo* \\-bar");
     }
 
     public void testMatchPhraseQuery() {
@@ -43,5 +61,10 @@ public class KqlParserFieldlessQueryTests extends AbstractKqlParserTestCase {
         assertThat(multiMatchQuery.lenient(), equalTo(true));
         assertThat(multiMatchQuery.type(), equalTo(expectedType));
         assertThat(multiMatchQuery.value(), equalTo(expectedValue));
+    }
+
+    private void assertQueryStringBuilder(QueryBuilder query, String expectedValue) {
+        QueryStringQueryBuilder queryStringQuery = asInstanceOf(QueryStringQueryBuilder.class, query);
+        assertThat(queryStringQuery.queryString(), equalTo(expectedValue));
     }
 }

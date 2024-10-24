@@ -61,7 +61,7 @@ public class CategorizeRawBlockHash extends AbstractCategorizeBlockHash {
 
     @Override
     public void close() {
-        // TODO
+        evaluator.close();
     }
 
     /**
@@ -102,7 +102,9 @@ public class CategorizeRawBlockHash extends AbstractCategorizeBlockHash {
             if (vVector == null) {
                 return eval(vBlock.getPositionCount(), vBlock);
             }
-            return eval(vBlock.getPositionCount(), vVector).asBlock();
+            try (IntVector vector = eval(vBlock.getPositionCount(), vVector)) {
+                return vector.asBlock();
+            }
         }
 
         public IntBlock eval(int positionCount, BytesRefBlock vBlock) {

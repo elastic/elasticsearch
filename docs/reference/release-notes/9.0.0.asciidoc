@@ -1,0 +1,49 @@
+[[release-notes-9.0.0]]
+== {es} version 9.0.0
+
+The following list are changes in 9.0.0 as compared to the latest 8.x release. This combines all
+release notes from the 9.0.0 pre-releases (alpha,beta,rc).
+
+Also see <<breaking-changes-9.0,Breaking changes in 9.0>>.
+
+//See https://www.elastic.co/guide/en/elasticsearch/reference/8.0/migrating-8.0.html#breaking-changes-8.0 for example formatting
+
+[[known-issues-9.0.0]]
+[float]
+=== Known issues
+
+
+[[breaking-9.0.0]]
+[float]
+=== Breaking changes
+
+
+[[breaking-java-9.0.0]]
+[float]
+=== Breaking Java changes
+[[breaking-rest-9.0.0]]
+
+
+[[deprecation-9.0.0]]
+[float]
+=== Deprecations
+
+[[feature-9.0.0]]
+[float]
+=== New features
+
+[[enhancement-9.0.0]]
+[float]
+=== Enhancements
+
+[[bug-9.0.0]]
+[float]
+=== Bug fixes
+
+[[regression-9.0.0]]
+[float]
+=== Regressions
+
+[[upgrade-9.0.0]]
+[float]
+=== Upgrades

@@ -109,6 +109,14 @@ public class CreateFromDeploymentIT extends InferenceBaseRestTest {
         );
     }
 
+    public void testDeploymentDoesNotExist() {
+        var deploymentId = "missing_deployment";
+
+        var inferenceId = "inference_on_missing_deployment";
+        var e = expectThrows(ResponseException.class, () -> putModel(inferenceId, endpointConfig(deploymentId), TaskType.SPARSE_EMBEDDING));
+        assertThat(e.getMessage(), containsString("Cannot find deployment [missing_deployment]"));
+    }
+
     public void testNumAllocationsIsUpdated() throws IOException {
         var modelId = "update_num_allocations";
         var deploymentId = modelId;

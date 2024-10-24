@@ -10,7 +10,7 @@ deprecated[8.15.0, This query has been replaced by <<query-dsl-sparse-vector-que
 .Deprecation usage note
 ****
 You can continue using `rank_features` fields with `text_expansion` queries in the current version.
-However, if you plan to upgrade, we recommend updating mappings to use the `sparse_vector` field type and reindexing your data.
+However, if you plan to upgrade, we recommend updating mappings to use the `sparse_vector` field type and <<docs-reindex,reindexing your data>>.
 This will allow you to take advantage of the new capabilities and improvements available in newer versions.
 ****
 

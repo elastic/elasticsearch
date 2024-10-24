@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.enrich;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.search.SearchRequest;
@@ -50,6 +51,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -113,12 +115,26 @@ public class EnrichPolicyResolver {
         final boolean includeLocal = remoteClusters.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
         lookupPolicies(remoteClusters, includeLocal, unresolvedPolicies, listener.map(lookupResponses -> {
             final EnrichResolution enrichResolution = new EnrichResolution();
+
+            Map<String, LookupResponse> lookupResponsesToProcess = new HashMap<>();
+
+            for (Map.Entry<String, LookupResponse> entry : lookupResponses.entrySet()) {
+                String clusterAlias = entry.getKey();
+                if (entry.getValue().connectionError != null) {
+                    enrichResolution.addUnavailableCluster(clusterAlias, entry.getValue().connectionError);
+                    remoteClusters.remove(clusterAlias);
+                } else {
+                    lookupResponsesToProcess.put(clusterAlias, entry.getValue());
+                }
+            }
+
             for (UnresolvedPolicy unresolved : unresolvedPolicies) {
                 Tuple<ResolvedEnrichPolicy, String> resolved = mergeLookupResults(
                     unresolved,
                     calculateTargetClusters(unresolved.mode, includeLocal, remoteClusters),
-                    lookupResponses
+                    lookupResponsesToProcess
                 );
+
                 if (resolved.v1() != null) {
                     enrichResolution.addResolvedPolicy(unresolved.name, unresolved.mode, resolved.v1());
                 } else {
@@ -155,6 +171,7 @@ public class EnrichPolicyResolver {
         final List<String> failures = new ArrayList<>();
         for (String cluster : targetClusters) {
             LookupResponse lookupResult = lookupResults.get(cluster);
+            assert lookupResult.connectionError == null : "Should never have a non-null connectionError here";
             if (lookupResult != null) {
                 ResolvedEnrichPolicy policy = lookupResult.policies.get(policyName);
                 if (policy != null) {
@@ -261,22 +278,34 @@ public class EnrichPolicyResolver {
             if (remotePolicies.isEmpty() == false) {
                 for (String cluster : remoteClusters) {
                     ActionListener<LookupResponse> lookupListener = refs.acquire(resp -> lookupResponses.put(cluster, resp));
-                    getRemoteConnection(
-                        cluster,
-                        lookupListener.delegateFailureAndWrap(
-                            (delegate, connection) -> transportService.sendRequest(
+                    getRemoteConnection(cluster, new ActionListener<>() {
+                        @Override
+                        public void onResponse(Transport.Connection connection) {
+                            transportService.sendRequest(
                                 connection,
                                 RESOLVE_ACTION_NAME,
                                 new LookupRequest(cluster, remotePolicies),
                                 TransportRequestOptions.EMPTY,
-                                new ActionListenerResponseHandler<>(
-                                    delegate,
-                                    LookupResponse::new,
-                                    threadPool.executor(ThreadPool.Names.SEARCH)
-                                )
-                            )
-                        )
-                    );
+                                new ActionListenerResponseHandler<>(lookupListener.delegateResponse((l, e) -> {
+                                    if (ExceptionsHelper.isRemoteUnavailableException(e)
+                                        && remoteClusterService.isSkipUnavailable(cluster)) {
+                                        l.onResponse(new LookupResponse(e));
+                                    } else {
+                                        l.onFailure(e);
+                                    }
+                                }), LookupResponse::new, threadPool.executor(ThreadPool.Names.SEARCH))
+                            );
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            if (ExceptionsHelper.isRemoteUnavailableException(e) && remoteClusterService.isSkipUnavailable(cluster)) {
+                                lookupListener.onResponse(new LookupResponse(e));
+                            } else {
+                                lookupListener.onFailure(e);
+                            }
+                        }
+                    });
                 }
             }
             // local cluster
@@ -323,16 +352,26 @@ public class EnrichPolicyResolver {
     private static class LookupResponse extends TransportResponse {
         final Map<String, ResolvedEnrichPolicy> policies;
         final Map<String, String> failures;
+        // does not need to be Writable since this indicates a failure to contact a remote cluster
+        final transient Exception connectionError;
+
+        LookupResponse(Exception connectionError) {
+            this.policies = Collections.emptyMap();
+            this.failures = Collections.emptyMap();
+            this.connectionError = connectionError;
+        }
 
         LookupResponse(Map<String, ResolvedEnrichPolicy> policies, Map<String, String> failures) {
             this.policies = policies;
             this.failures = failures;
+            this.connectionError = null;
         }
 
         LookupResponse(StreamInput in) throws IOException {
             PlanStreamInput planIn = new PlanStreamInput(in, in.namedWriteableRegistry(), null);
             this.policies = planIn.readMap(StreamInput::readString, ResolvedEnrichPolicy::new);
             this.failures = planIn.readMap(StreamInput::readString, StreamInput::readString);
+            this.connectionError = null;
         }
 
         @Override

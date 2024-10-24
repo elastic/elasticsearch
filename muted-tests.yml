@@ -357,6 +357,9 @@ tests:
 - class: org.elasticsearch.xpack.inference.DefaultEndPointsIT
   method: testInferDeploysDefaultE5
   issue: https://github.com/elastic/elasticsearch/issues/115361
+- class: org.elasticsearch.repositories.s3.S3BlobContainerRetriesTests
+  method: testReadRetriesAfterMeaningfulProgress
+  issue: https://github.com/elastic/elasticsearch/issues/115583
 
 # Examples:
 #

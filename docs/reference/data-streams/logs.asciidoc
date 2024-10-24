@@ -10,7 +10,7 @@ stream. The exact impact will vary depending on your data set.
 
 The following features are enabled in a logs data stream:
 
-* <<synthetic-source,Synthetic source>>, which omits storing the `_source` field. When the document source is requested, it is synthesized from document fields upon retrieval.
+* <<synthetic-source,synthetic source>>, which omits storing the `_source` field. When the document source is requested, it is synthesized from document fields upon retrieval.
 
 * Index sorting. This yields a lower storage footprint. By default indices are sorted by `host.name` and `@timestamp` fields at index time.
 
@@ -57,12 +57,12 @@ DELETE _index_template/my-index-template
 [[logsdb-synthtic-source]]
 === Synthetic source
 
-By default, `logsdb` mode uses <<synthetic-source,Synthetic source>>, which omits storing the original `_source`
+By default, `logsdb` mode uses <<synthetic-source,synthetic source>>, which omits storing the original `_source`
 field and synthesizes it from doc values or stored fields upon document retrieval. Synthetic source comes with a few
 restrictions which you can read more about in the <<synthetic-source,documentation>> section dedicated to it.
 
 NOTE: When dealing with multi-value fields, the `index.mapping.synthetic_source_keep` setting controls how field values
-are preserved for <<synthetic-source,Synthetic source>> reconstruction. In `logsdb`, the default value is `arrays`,
+are preserved for <<synthetic-source,synthetic source>> reconstruction. In `logsdb`, the default value is `arrays`,
 which retains both duplicate values and the order of entries but not necessarily the exact structure when it comes to
 array elements or objects. Preserving duplicates and ordering could be critical for some log fields. This could be the
 case, for instance, for DNS A records, HTTP headers, or log entries that represent sequential or repeated events.
@@ -189,10 +189,10 @@ NOTE: When automatically injected, `host.name` and `@timestamp` contribute to th
 When `logsdb` index mode uses synthetic `_source`, and `doc_values` are disabled for a field in the mapping,
 Elasticsearch may set the `store` setting to `true` for that field as a last resort option to ensure that the field's
 data is still available for reconstructing the document’s source when retrieving it via
-<<synthetic-source,Synthetic source>>.
+<<synthetic-source,synthetic source>>.
 
 For example, this happens with text fields when `store` is `false` and there is no suitable multi-field available to
-reconstruct the original value in <<synthetic-source,Synthetic source>>.
+reconstruct the original value in <<synthetic-source,synthetic source>>.
 
 This automatic adjustment allows synthetic source to work correctly, even when doc values are not enabled for certain
 fields.

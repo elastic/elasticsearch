@@ -26,6 +26,7 @@ However, if you do not plan to use the {infer} APIs to use these models or if yo
 (the built-in `inference_admin` and `inference_user` roles grant this privilege)
 * You must use a client that supports streaming.
 
+
 [discrete]
 [[stream-inference-api-desc]]
 ==== {api-description-title}

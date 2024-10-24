@@ -128,7 +128,15 @@ public abstract class BaseRestHandler implements RestHandler {
                 request.contentStream().setHandler(new HttpBody.ChunkHandler() {
                     @Override
                     public void onNext(ReleasableBytesReference chunk, boolean isLast) {
-                        chunkConsumer.handleChunk(channel, chunk, isLast);
+                        try {
+                            chunkConsumer.handleChunk(channel, chunk, isLast);
+                        } catch (Exception e) {
+                            // Release the chunk if the handler fails before releasing it in exceptional cases
+                            if (chunk.hasReferences()) {
+                                chunk.decRef();
+                            }
+                            throw e;
+                        }
                     }
 
                     @Override

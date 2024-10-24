@@ -44,7 +44,21 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  */
 public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilder<T>> extends RetrieverBuilder {
 
-    public record RetrieverSource(RetrieverBuilder retriever, SearchSourceBuilder source) {}
+    public record RetrieverSource(RetrieverBuilder retriever, SearchSourceBuilder source) {
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            RetrieverSource that = (RetrieverSource) o;
+            return Objects.equals(retriever, that.retriever) && Objects.equals(source, that.source);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(retriever, source);
+        }
+    }
 
     protected final int rankWindowSize;
     protected final List<RetrieverSource> innerRetrievers;
@@ -231,21 +245,6 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
         }
         retrieverBuilder.extractToSearchSourceBuilder(sourceBuilder, true);
 
-        // apply the pre-filters
-        if (preFilterQueryBuilders.size() > 0) {
-            QueryBuilder query = sourceBuilder.query();
-            BoolQueryBuilder newQuery = new BoolQueryBuilder();
-            if (query != null) {
-                newQuery.must(query);
-            }
-            preFilterQueryBuilders.forEach(newQuery::filter);
-            sourceBuilder.query(newQuery);
-        }
-        addSort(sourceBuilder);
-        return sourceBuilder;
-    }
-
-    protected void addSort(SearchSourceBuilder sourceBuilder) {
         // Record the shard id in the sort result
         List<SortBuilder<?>> sortBuilders = sourceBuilder.sorts() != null ? new ArrayList<>(sourceBuilder.sorts()) : new ArrayList<>();
         if (sortBuilders.isEmpty()) {

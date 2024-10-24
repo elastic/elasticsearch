@@ -73,6 +73,7 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
                 choice -> choice.equals(GEO_POINT_FIELD_NAME)
                     || choice.equals(GEO_POINT_ALIAS_FIELD_NAME)
                     || choice.equals(INT_RANGE_FIELD_NAME)
+                    || choice.equals(DATE_ALIAS_FIELD_NAME)
                     || choice.equals(DATE_RANGE_FIELD_NAME)
                     || choice.equals(DATE_NANOS_FIELD_NAME), // TODO: needs testing for date_nanos type
                 AbstractQueryTestCase::getRandomFieldName

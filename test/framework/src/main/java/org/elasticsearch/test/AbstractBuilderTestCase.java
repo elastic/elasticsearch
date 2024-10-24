@@ -136,28 +136,36 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
     protected static final String[] MAPPED_FIELD_NAMES = new String[] {
         TEXT_FIELD_NAME,
         TEXT_ALIAS_FIELD_NAME,
+        KEYWORD_FIELD_NAME,
         INT_FIELD_NAME,
+        INT_ALIAS_FIELD_NAME,
         INT_RANGE_FIELD_NAME,
         DOUBLE_FIELD_NAME,
         BOOLEAN_FIELD_NAME,
         DATE_NANOS_FIELD_NAME,
         DATE_FIELD_NAME,
+        DATE_ALIAS_FIELD_NAME,
         DATE_RANGE_FIELD_NAME,
         OBJECT_FIELD_NAME,
         GEO_POINT_FIELD_NAME,
-        GEO_POINT_ALIAS_FIELD_NAME };
+        GEO_POINT_ALIAS_FIELD_NAME,
+        BINARY_FIELD_NAME };
     protected static final String[] MAPPED_LEAF_FIELD_NAMES = new String[] {
         TEXT_FIELD_NAME,
         TEXT_ALIAS_FIELD_NAME,
+        KEYWORD_FIELD_NAME,
         INT_FIELD_NAME,
+        INT_ALIAS_FIELD_NAME,
         INT_RANGE_FIELD_NAME,
         DOUBLE_FIELD_NAME,
         BOOLEAN_FIELD_NAME,
         DATE_NANOS_FIELD_NAME,
         DATE_FIELD_NAME,
+        DATE_ALIAS_FIELD_NAME,
         DATE_RANGE_FIELD_NAME,
         GEO_POINT_FIELD_NAME,
-        GEO_POINT_ALIAS_FIELD_NAME };
+        GEO_POINT_ALIAS_FIELD_NAME,
+        BINARY_FIELD_NAME };
 
     private static final Map<String, String> ALIAS_TO_CONCRETE_FIELD_NAME = new HashMap<>();
     static {

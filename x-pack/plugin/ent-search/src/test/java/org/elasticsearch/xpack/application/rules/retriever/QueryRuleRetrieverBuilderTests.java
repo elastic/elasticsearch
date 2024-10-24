@@ -40,7 +40,7 @@ public class QueryRuleRetrieverBuilderTests extends AbstractXContentTestCase<Que
                 : List.of(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLengthBetween(5, 10)),
             EnterpriseSearchModuleTestUtils.randomMatchCriteria(),
             TestRetrieverBuilder.createRandomTestRetrieverBuilder(),
-            randomIntBetween(1, 10)
+            randomIntBetween(1, 100)
         );
     }
 
@@ -94,15 +94,12 @@ public class QueryRuleRetrieverBuilderTests extends AbstractXContentTestCase<Que
     }
 
     public void testParserDefaults() throws IOException {
+        // Inner retriever content only sent to parser
         String json = """
             {
-                "retriever": {
-                    "rule": {
-                        "match_criteria": { "foo": "bar" },
-                        "ruleset_ids": [ "baz" ],
-                        "retriever": { "standard": { "query": { "query_string": { "query": "i like pugs" } } } }
-                    }
-                }
+                "match_criteria": { "foo": "bar" },
+                "ruleset_ids": [ "baz" ],
+                "retriever": { "standard": { "query": { "query_string": { "query": "i like pugs" } } } }
             }""";
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
@@ -115,21 +112,27 @@ public class QueryRuleRetrieverBuilderTests extends AbstractXContentTestCase<Que
     }
 
     public void testQueryRuleRetrieverParsing() throws IOException {
-        String restContent = "{"
-            + "  \"retriever\": {"
-            + "    \"rule\": {"
-            + "      \"retriever\": {"
-            + "        \"test\": {"
-            + "          \"value\": \"my-test-retriever\""
-            + "        }"
-            + "      },"
-            + "      \"ruleset_ids\": [ \"baz\" ],"
-            + "      \"match_criteria\": { \"key\": \"value\" },"
-            + "      \"rank_window_size\": 100,"
-            + "      \"_name\": \"my_rule_retriever\""
-            + "    }"
-            + "  }"
-            + "}";
+        String restContent = """
+            {
+                "retriever": {
+                    "rule": {
+                        "retriever": {
+                            "test": {
+                                "value": "my-test-retriever"
+                            }
+                        },
+                        "ruleset_ids": [
+                            "baz"
+                        ],
+                        "match_criteria": {
+                            "key": "value"
+                        },
+                        "rank_window_size": 100,
+                        "_name": "my_rule_retriever"
+                    }
+                }
+            }""";
+
         SearchUsageHolder searchUsageHolder = new UsageService().getSearchUsageHolder();
         try (XContentParser jsonParser = createParser(JsonXContent.jsonXContent, restContent)) {
             SearchSourceBuilder source = new SearchSourceBuilder().parseXContent(jsonParser, true, searchUsageHolder, nf -> true);

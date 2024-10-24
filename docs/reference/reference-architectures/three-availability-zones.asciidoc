@@ -43,6 +43,7 @@ The following list are important conderations for this architecture:
 **** Shard distribution should be enforced using the https://www.elastic.co/guide/en/elasticsearch/reference/current/size-your-shards.html#avoid-node-hotspots['total shards per node'] index level setting 
 
 TIP: For consistent index level settings is it easiest to use index lifecycle management with index templates, please see the section below for more detail.
+
 * https://www.elastic.co/guide/en/elasticsearch/reference/8.16/data-tiers.html[ILM (Information Lifecycle Management): Considerations]
 ** Hot:
 *** Use this tier for ingestion. (Note:  we are assuming for this pattern no updates to the data once written).

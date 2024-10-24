@@ -43,7 +43,7 @@ You want to:
 * TBD
 * TBD.
 
-| <<three-availability-zone>>
+| <<three-availability-zones>>
 
 image:reference-architectures/images/three-availability-zone.png[Image showing a Three Availability zone architecture]
 
@@ -64,4 +64,4 @@ Additionally, we have architectures specifically tailored to the ingestion porti
 include::reference-architectures/multi-region-two-datacenter-architecture.asciidoc[]
 include::reference-architectures/elastic-cloud-architecture.asciidoc[]
 include::reference-architectures/self-managed-single-datacenter.asciidoc[]
-include::reference-architectures/three-availability-zone.asciidoc[]
+include::reference-architectures/three-availability-zones.asciidoc[]

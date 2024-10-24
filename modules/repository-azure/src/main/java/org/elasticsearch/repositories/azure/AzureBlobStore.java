@@ -282,9 +282,10 @@ public class AzureBlobStore implements BlobStore {
         final BlobBatchAsyncClient batchAsyncClient = new BlobBatchClientBuilder(
             azureBlobServiceClient.getAsyncClient().getBlobContainerAsyncClient(container)
         ).buildAsyncClient();
+        final List<Throwable> errors;
+        final AtomicInteger errorsCollected = new AtomicInteger(0);
         try {
-            final AtomicInteger errorsCollected = new AtomicInteger(0);
-            final List<Throwable> errors = blobNames.buffer(deletionBatchSize).flatMap(blobs -> {
+            errors = blobNames.buffer(deletionBatchSize).flatMap(blobs -> {
                 final BlobBatch blobBatch = batchAsyncClient.getBlobBatch();
                 blobs.forEach(blob -> blobBatch.deleteBlob(container, blob));
                 return batchAsyncClient.submitBatch(blobBatch).then(Mono.<Throwable>empty()).onErrorResume(t -> {
@@ -301,20 +302,20 @@ public class AzureBlobStore implements BlobStore {
                     }
                 });
             }, maxConcurrentBatchDeletes).collectList().block();
-            if (errors.isEmpty() == false) {
-                final int totalErrorCount = errorsCollected.get();
-                final String errorMessage = totalErrorCount > errors.size()
-                    ? "Some errors occurred deleting batches, the first "
-                        + errors.size()
-                        + " are included as suppressed, but the total count was "
-                        + totalErrorCount
-                    : "Some errors occurred deleting batches, all errors included as suppressed";
-                final IOException ex = new IOException(errorMessage);
-                errors.forEach(ex::addSuppressed);
-                throw ex;
-            }
         } catch (Exception e) {
             throw new IOException("Error deleting batches", e);
+        }
+        if (errors.isEmpty() == false) {
+            final int totalErrorCount = errorsCollected.get();
+            final String errorMessage = totalErrorCount > errors.size()
+                ? "Some errors occurred deleting batches, the first "
+                    + errors.size()
+                    + " are included as suppressed, but the total count was "
+                    + totalErrorCount
+                : "Some errors occurred deleting batches, all errors included as suppressed";
+            final IOException ex = new IOException(errorMessage);
+            errors.forEach(ex::addSuppressed);
+            throw ex;
         }
     }
 

@@ -271,7 +271,7 @@ public class AzureBlobStoreRepositoryMetricsTests extends AzureBlobStoreReposito
             IOException.class,
             () -> container.deleteBlobsIgnoringIfNotExists(randomPurpose(), blobsToDelete.iterator())
         );
-        assertEquals(exception.getSuppressed().length, Math.min(failedBatches, 10));
+        assertEquals(Math.min(failedBatches, 10), exception.getSuppressed().length);
         assertEquals(
             (numberOfBatches - failedBatches) + (failedBatches * (MAX_RETRIES + 1L)),
             getLongCounterTotal(dataNodeName, RepositoriesMetrics.METRIC_REQUESTS_TOTAL)

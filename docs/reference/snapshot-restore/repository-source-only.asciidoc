@@ -27,6 +27,9 @@ As a result, indices adopting synthetic source cannot be restored. When you rest
  * The mapping of the restored index is empty, but the original mapping is available from the types top
    level `meta` element.
 
+ * Information such as document count, deleted document count and store size are not available for such indices
+   since these indices do not contain the relevant data structures to retrieve this information from. Therefore,
+   this information is not shown for such indices in APIs such as the <<cat-indices,cat indices API>>.
 ==================================================
 
 Before registering a source-only repository, use {kib} or the

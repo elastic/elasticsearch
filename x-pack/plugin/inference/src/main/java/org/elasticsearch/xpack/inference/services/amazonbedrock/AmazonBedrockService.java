@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.services.amazonbedrock;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.IOUtils;
@@ -44,8 +45,8 @@ import org.elasticsearch.xpack.inference.services.amazonbedrock.embeddings.Amazo
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
-import static org.elasticsearch.TransportVersions.ML_INFERENCE_AMAZON_BEDROCK_ADDED;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.parsePersistedConfigErrorMsg;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
@@ -264,7 +265,12 @@ public class AmazonBedrockService extends SenderService {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return ML_INFERENCE_AMAZON_BEDROCK_ADDED;
+        return TransportVersions.V_8_15_0;
+    }
+
+    @Override
+    public Set<TaskType> supportedStreamingTasks() {
+        return COMPLETION_ONLY;
     }
 
     /**

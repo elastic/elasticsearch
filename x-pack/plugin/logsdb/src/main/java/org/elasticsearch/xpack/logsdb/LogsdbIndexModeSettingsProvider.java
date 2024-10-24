@@ -42,25 +42,22 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
     public Settings getAdditionalIndexSettings(
         final String indexName,
         final String dataStreamName,
-        boolean isTimeSeries,
+        IndexMode templateIndexMode,
         final Metadata metadata,
         final Instant resolvedAt,
         final Settings settings,
         final List<CompressedXContent> combinedTemplateMappings
     ) {
-        if (isLogsdbEnabled == false || dataStreamName == null) {
-            return Settings.EMPTY;
-        }
+        return getLogsdbModeSetting(dataStreamName, settings);
+    }
 
-        final IndexMode indexMode = resolveIndexMode(settings.get(IndexSettings.MODE.getKey()));
-        if (indexMode != null) {
-            return Settings.EMPTY;
-        }
-
-        if (matchesLogsPattern(dataStreamName)) {
+    Settings getLogsdbModeSetting(final String dataStreamName, final Settings settings) {
+        if (isLogsdbEnabled
+            && dataStreamName != null
+            && resolveIndexMode(settings.get(IndexSettings.MODE.getKey())) == null
+            && matchesLogsPattern(dataStreamName)) {
             return Settings.builder().put("index.mode", IndexMode.LOGSDB.getName()).build();
         }
-
         return Settings.EMPTY;
     }
 
@@ -71,5 +68,4 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
     private IndexMode resolveIndexMode(final String mode) {
         return mode != null ? Enum.valueOf(IndexMode.class, mode.toUpperCase(Locale.ROOT)) : null;
     }
-
 }

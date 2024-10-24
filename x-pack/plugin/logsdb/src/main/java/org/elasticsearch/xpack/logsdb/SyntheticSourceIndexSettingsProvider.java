@@ -21,6 +21,7 @@ import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -37,39 +38,58 @@ final class SyntheticSourceIndexSettingsProvider implements IndexSettingProvider
 
     private final SyntheticSourceLicenseService syntheticSourceLicenseService;
     private final CheckedFunction<IndexMetadata, MapperService, IOException> mapperServiceFactory;
+    private final LogsdbIndexModeSettingsProvider logsdbIndexModeSettingsProvider;
 
     SyntheticSourceIndexSettingsProvider(
         SyntheticSourceLicenseService syntheticSourceLicenseService,
-        CheckedFunction<IndexMetadata, MapperService, IOException> mapperServiceFactory
+        CheckedFunction<IndexMetadata, MapperService, IOException> mapperServiceFactory,
+        LogsdbIndexModeSettingsProvider logsdbIndexModeSettingsProvider
     ) {
         this.syntheticSourceLicenseService = syntheticSourceLicenseService;
         this.mapperServiceFactory = mapperServiceFactory;
+        this.logsdbIndexModeSettingsProvider = logsdbIndexModeSettingsProvider;
+    }
+
+    @Override
+    public boolean overrulesTemplateAndRequestSettings() {
+        // Indicates that the provider value takes precedence over any user setting.
+        return true;
     }
 
     @Override
     public Settings getAdditionalIndexSettings(
         String indexName,
         String dataStreamName,
-        boolean isTimeSeries,
+        IndexMode templateIndexMode,
         Metadata metadata,
         Instant resolvedAt,
         Settings indexTemplateAndCreateRequestSettings,
         List<CompressedXContent> combinedTemplateMappings
     ) {
+        var logsdbSettings = logsdbIndexModeSettingsProvider.getLogsdbModeSetting(dataStreamName, indexTemplateAndCreateRequestSettings);
+        if (logsdbSettings != Settings.EMPTY) {
+            indexTemplateAndCreateRequestSettings = Settings.builder()
+                .put(logsdbSettings)
+                .put(indexTemplateAndCreateRequestSettings)
+                .build();
+        }
+
         // This index name is used when validating component and index templates, we should skip this check in that case.
         // (See MetadataIndexTemplateService#validateIndexTemplateV2(...) method)
         boolean isTemplateValidation = "validate-index-name".equals(indexName);
-        if (newIndexHasSyntheticSourceUsage(indexName, isTimeSeries, indexTemplateAndCreateRequestSettings, combinedTemplateMappings)
+        if (newIndexHasSyntheticSourceUsage(indexName, templateIndexMode, indexTemplateAndCreateRequestSettings, combinedTemplateMappings)
             && syntheticSourceLicenseService.fallbackToStoredSource(isTemplateValidation)) {
             LOGGER.debug("creation of index [{}] with synthetic source without it being allowed", indexName);
-            // TODO: handle falling back to stored source
+            return Settings.builder()
+                .put(SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.STORED.toString())
+                .build();
         }
         return Settings.EMPTY;
     }
 
     boolean newIndexHasSyntheticSourceUsage(
         String indexName,
-        boolean isTimeSeries,
+        IndexMode templateIndexMode,
         Settings indexTemplateAndCreateRequestSettings,
         List<CompressedXContent> combinedTemplateMappings
     ) {
@@ -79,15 +99,17 @@ final class SyntheticSourceIndexSettingsProvider implements IndexSettingProvider
             return false;
         }
 
-        var tmpIndexMetadata = buildIndexMetadataForMapperService(indexName, isTimeSeries, indexTemplateAndCreateRequestSettings);
-        try (var mapperService = mapperServiceFactory.apply(tmpIndexMetadata)) {
-            // combinedTemplateMappings can be null when creating system indices
-            // combinedTemplateMappings can be empty when creating a normal index that doesn't match any template and without mapping.
-            if (combinedTemplateMappings == null || combinedTemplateMappings.isEmpty()) {
-                combinedTemplateMappings = List.of(new CompressedXContent("{}"));
+        try {
+            var tmpIndexMetadata = buildIndexMetadataForMapperService(indexName, templateIndexMode, indexTemplateAndCreateRequestSettings);
+            try (var mapperService = mapperServiceFactory.apply(tmpIndexMetadata)) {
+                // combinedTemplateMappings can be null when creating system indices
+                // combinedTemplateMappings can be empty when creating a normal index that doesn't match any template and without mapping.
+                if (combinedTemplateMappings == null || combinedTemplateMappings.isEmpty()) {
+                    combinedTemplateMappings = List.of(new CompressedXContent("{}"));
+                }
+                mapperService.merge(MapperService.SINGLE_MAPPING_NAME, combinedTemplateMappings, MapperService.MergeReason.INDEX_TEMPLATE);
+                return mapperService.documentMapper().sourceMapper().isSynthetic();
             }
-            mapperService.merge(MapperService.SINGLE_MAPPING_NAME, combinedTemplateMappings, MapperService.MergeReason.INDEX_TEMPLATE);
-            return mapperService.documentMapper().sourceMapper().isSynthetic();
         } catch (AssertionError | Exception e) {
             // In case invalid mappings or setting are provided, then mapper service creation can fail.
             // In that case it is ok to return false here. The index creation will fail anyway later, so need to fallback to stored source.
@@ -99,7 +121,7 @@ final class SyntheticSourceIndexSettingsProvider implements IndexSettingProvider
     // Create a dummy IndexMetadata instance that can be used to create a MapperService in order to check whether synthetic source is used:
     private IndexMetadata buildIndexMetadataForMapperService(
         String indexName,
-        boolean isTimeSeries,
+        IndexMode templateIndexMode,
         Settings indexTemplateAndCreateRequestSettings
     ) {
         var tmpIndexMetadata = IndexMetadata.builder(indexName);
@@ -117,7 +139,7 @@ final class SyntheticSourceIndexSettingsProvider implements IndexSettingProvider
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, shardReplicas)
             .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID());
 
-        if (isTimeSeries) {
+        if (templateIndexMode == IndexMode.TIME_SERIES) {
             finalResolvedSettings.put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES);
             // Avoid failing because index.routing_path is missing (in case fields are marked as dimension)
             finalResolvedSettings.putList(INDEX_ROUTING_PATH.getKey(), List.of("path"));

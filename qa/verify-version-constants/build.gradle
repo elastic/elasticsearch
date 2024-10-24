@@ -19,7 +19,7 @@ dependencies {
   testImplementation project(':modules:rest-root')
 }
 
-BuildParams.bwcVersions.withIndexCompatible { bwcVersion, baseName ->
+buildParams.bwcVersions.withIndexCompatible { bwcVersion, baseName ->
   def baseCluster = testClusters.register(baseName) {
       version = bwcVersion.toString()
       setting 'xpack.security.enabled', 'true'

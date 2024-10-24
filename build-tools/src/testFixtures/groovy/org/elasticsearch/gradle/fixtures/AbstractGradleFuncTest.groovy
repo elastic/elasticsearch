@@ -168,7 +168,6 @@ abstract class AbstractGradleFuncTest extends Specification {
           ${extraPlugins.collect { p -> "id '$p'" }.join('\n')}
         }
         import org.elasticsearch.gradle.Architecture
-        import org.elasticsearch.gradle.internal.info.BuildParams
 
         import org.elasticsearch.gradle.internal.BwcVersions
         import org.elasticsearch.gradle.Version
@@ -182,7 +181,7 @@ abstract class AbstractGradleFuncTest extends Specification {
         ]
 
         BwcVersions versions = new BwcVersions(currentVersion, versionList)
-        BuildParams.init { it.setBwcVersions(provider(() -> versions)) }
+        buildParams.getBwcVersionsProperty().set(versions)
         """
     }
 

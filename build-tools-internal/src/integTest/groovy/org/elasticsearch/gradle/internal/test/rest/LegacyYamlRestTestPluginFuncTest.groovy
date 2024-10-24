@@ -10,6 +10,7 @@
 package org.elasticsearch.gradle.internal.test.rest
 
 import spock.lang.IgnoreIf
+import spock.lang.IgnoreRest
 
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.fixtures.AbstractRestResourcesFuncTest
@@ -20,20 +21,20 @@ import org.gradle.testkit.runner.TaskOutcome
 class LegacyYamlRestTestPluginFuncTest extends AbstractRestResourcesFuncTest {
 
     def setup() {
+        configurationCacheCompatible = true
         buildApiRestrictionsDisabled = true
     }
 
 
     def "yamlRestTest does nothing when there are no tests"() {
         given:
+        internalBuild()
         buildFile << """
-        plugins {
-          id 'elasticsearch.legacy-yaml-rest-test'
-        }
+            apply plugin: 'elasticsearch.legacy-yaml-rest-test'
         """
 
         when:
-        def result = gradleRunner("yamlRestTest").build()
+        def result = gradleRunner("yamlRestTest", '--stacktrace').build()
 
         then:
         result.task(':yamlRestTest').outcome == TaskOutcome.NO_SOURCE
@@ -67,7 +68,7 @@ class LegacyYamlRestTestPluginFuncTest extends AbstractRestResourcesFuncTest {
         file("src/yamlRestTest/java/MockIT.java") << "import org.junit.Test;class MockIT { @Test public void doNothing() { }}"
 
         when:
-        def result = gradleRunner("yamlRestTest", "printYamlRestTestClasspath").build()
+        def result = gradleRunner("yamlRestTest", "printYamlRestTestClasspath", '--stacktrace').build()
 
         then:
         result.task(':yamlRestTest').outcome == TaskOutcome.SKIPPED

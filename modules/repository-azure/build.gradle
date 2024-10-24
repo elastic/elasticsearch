@@ -329,7 +329,7 @@ tasks.register("workloadIdentityYamlRestTest", RestIntegTestTask) {
   // omitting key and sas_token so that we use a bearer token from workload identity
 }
 
-if (BuildParams.inFipsJvm) {
+if (buildParams.inFipsJvm) {
   // Cannot override the trust store in FIPS mode, and these tasks require a HTTPS fixture
   tasks.named("managedIdentityYamlRestTest").configure { enabled = false }
   tasks.named("workloadIdentityYamlRestTest").configure { enabled = false }

@@ -25,7 +25,7 @@ dependencies {
   testImplementation project(path: xpackModule('analytics'))
 }
 
-if (BuildParams.isSnapshotBuild() == false) {
+if (buildParams.isSnapshotBuild() == false) {
   tasks.named("test").configure {
     systemProperty 'es.index_mode_feature_flag_registered', 'true'
   }

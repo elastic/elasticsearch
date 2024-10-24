@@ -92,10 +92,10 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("azure.client.default.account", System.getProperty("test.azure.account"));
         if (hasSasToken) {
-            logger.info("Using SAS token authentication");
+            logger.info("--> Using SAS token authentication");
             secureSettings.setString("azure.client.default.sas_token", System.getProperty("test.azure.sas_token"));
         } else {
-            logger.info("Using key authentication");
+            logger.info("--> Using key authentication");
             secureSettings.setString("azure.client.default.key", System.getProperty("test.azure.key"));
         }
         return secureSettings;

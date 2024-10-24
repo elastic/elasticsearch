@@ -66,6 +66,13 @@ public class QueryRuleRetrieverBuilderTests extends AbstractXContentTestCase<Que
     }
 
     @Override
+    protected String[] getShuffleFieldsExceptions() {
+        return new String[] {
+            QueryRuleRetrieverBuilder.MATCH_CRITERIA_FIELD.getPreferredName(),
+            QueryRuleRetrieverBuilder.RULESET_IDS_FIELD.getPreferredName() };
+    }
+
+    @Override
     protected NamedXContentRegistry xContentRegistry() {
         List<NamedXContentRegistry.Entry> entries = new SearchModule(Settings.EMPTY, List.of()).getNamedXContents();
         entries.add(
@@ -117,7 +124,7 @@ public class QueryRuleRetrieverBuilderTests extends AbstractXContentTestCase<Que
             + "        }"
             + "      },"
             + "      \"ruleset_ids\": [ \"baz\" ],"
-            + "      \"match_criteria\": \"my-inference-id\","
+            + "      \"match_criteria\": { \"key\": \"value\" },"
             + "      \"rank_window_size\": 100,"
             + "      \"_name\": \"my_rule_retriever\""
             + "    }"

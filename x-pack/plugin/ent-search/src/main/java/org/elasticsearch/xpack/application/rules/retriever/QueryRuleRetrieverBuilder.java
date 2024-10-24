@@ -55,7 +55,7 @@ public final class QueryRuleRetrieverBuilder extends CompoundRetrieverBuilder<Qu
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<QueryRuleRetrieverBuilder, RetrieverParserContext> PARSER = new ConstructingObjectParser<>(
-        "rule",
+        NAME,
         args -> {
             List<String> rulesetIds = (List<String>) args[0];
             Map<String, Object> matchCriteria = (Map<String, Object>) args[1];
@@ -152,6 +152,7 @@ public final class QueryRuleRetrieverBuilder extends CompoundRetrieverBuilder<Qu
         builder.startObject(MATCH_CRITERIA_FIELD.getPreferredName());
         builder.mapContents(matchCriteria);
         builder.endObject();
+        builder.field(RETRIEVER_FIELD.getPreferredName(), innerRetrievers.getFirst().retriever());
     }
 
     @Override

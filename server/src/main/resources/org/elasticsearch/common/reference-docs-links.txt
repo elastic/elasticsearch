@@ -28,7 +28,6 @@ BOOTSTRAP_CHECK_PKI_REALM                                       bootstrap-checks
 BOOTSTRAP_CHECK_ROLE_MAPPINGS                                   bootstrap-checks-xpack.html#bootstrap-checks-xpack-role-mappings
 BOOTSTRAP_CHECK_TLS                                             bootstrap-checks-xpack.html#bootstrap-checks-tls
 BOOTSTRAP_CHECK_TOKEN_SSL                                       bootstrap-checks-xpack.html#bootstrap-checks-xpack-token-ssl
-BOOTSTRAP_CHECK_SECURITY_MINIMAL_SETUP                          security-minimal-setup.html
 CONTACT_SUPPORT                                                 troubleshooting.html#troubleshooting-contact-support
 UNASSIGNED_SHARDS                                               red-yellow-cluster-status.html
 EXECUTABLE_JNA_TMPDIR                                           executable-jna-tmpdir.html

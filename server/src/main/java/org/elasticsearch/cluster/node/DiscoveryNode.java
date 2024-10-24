@@ -21,6 +21,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.StringLiteralDeduplicator;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.UpdateForV9;
+import org.elasticsearch.env.BuildVersion;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.node.Node;
@@ -486,14 +488,22 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         return this.versionInfo;
     }
 
+    public BuildVersion getBuildVersion() {
+        return versionInfo.buildVersion();
+    }
+
+    @Deprecated
     public Version getVersion() {
         return this.versionInfo.nodeVersion();
     }
 
+    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA)
     public OptionalInt getPre811VersionId() {
         // Even if Version is removed from this class completely it will need to read the version ID
         // off the wire for old node versions, so the value of this variable can be obtained from that
-        int versionId = versionInfo.nodeVersion().id;
+        // We can probably remove this in V9, but there may still be some BwC uses required
+        // for ML and Transforms. This needs checking!
+        int versionId = versionInfo.buildVersion().id();
         if (versionId >= Version.V_8_11_0.id) {
             return OptionalInt.empty();
         }
@@ -564,7 +574,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
             appendRoleAbbreviations(stringBuilder, "");
             stringBuilder.append('}');
         }
-        stringBuilder.append('{').append(versionInfo.nodeVersion()).append('}');
+        stringBuilder.append('{').append(versionInfo.buildVersion()).append('}');
         stringBuilder.append('{').append(versionInfo.minIndexVersion()).append('-').append(versionInfo.maxIndexVersion()).append('}');
     }
 
@@ -601,7 +611,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
             builder.value(role.roleName());
         }
         builder.endArray();
-        builder.field("version", versionInfo.nodeVersion());
+        builder.field("version", versionInfo.buildVersion().toString());
         builder.field("min_index_version", versionInfo.minIndexVersion());
         builder.field("max_index_version", versionInfo.maxIndexVersion());
         builder.endObject();

@@ -203,7 +203,6 @@ import org.elasticsearch.search.aggregations.pipeline.InternalSimpleValue;
 import org.elasticsearch.search.aggregations.pipeline.InternalStatsBucket;
 import org.elasticsearch.search.aggregations.pipeline.MaxBucketPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.MinBucketPipelineAggregationBuilder;
-import org.elasticsearch.search.aggregations.pipeline.MovAvgPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PercentilesBucketPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.SerialDiffPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.StatsBucketPipelineAggregationBuilder;
@@ -816,16 +815,6 @@ public class SearchModule {
                 SerialDiffPipelineAggregationBuilder::parse
             )
         );
-        if (RestApiVersion.minimumSupported() == RestApiVersion.V_7) {
-            registerPipelineAggregation(
-                new PipelineAggregationSpec(
-                    MovAvgPipelineAggregationBuilder.NAME_V7,
-                    MovAvgPipelineAggregationBuilder::new,
-                    MovAvgPipelineAggregationBuilder.PARSER
-                )
-            );
-        }
-
         registerFromPlugin(plugins, SearchPlugin::getPipelineAggregations, this::registerPipelineAggregation);
     }
 

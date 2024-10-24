@@ -202,17 +202,33 @@ public class XPackSettingsTests extends ESTestCase {
             .filter(key -> key.startsWith("xpack.security.inference.elastic.ssl"))
             .toList();
 
-        // None of them allow insecure password
+        // Check if all options are available
         List.of(
-            "xpack.security.inference.elastic.ssl.keystore.password",
-            "xpack.security.inference.elastic.ssl.keystore.key_password",
-            "xpack.security.inference.elastic.ssl.key_passphrase",
+            "xpack.security.inference.elastic.ssl.cipher_suites",
+            "xpack.security.inference.elastic.ssl.supported_protocols",
+            "xpack.security.inference.elastic.ssl.truststore.path",
+            "xpack.security.inference.elastic.ssl.truststore.secure_password",
+            "xpack.security.inference.elastic.ssl.truststore.algorithm",
+            "xpack.security.inference.elastic.ssl.truststore.type",
+            "xpack.security.inference.elastic.ssl.trust_restrictions.path",
+            "xpack.security.inference.elastic.ssl.trust_restrictions.x509_fields",
+            "xpack.security.inference.elastic.ssl.certificate_authorities",
+            "xpack.security.inference.elastic.ssl.client_authentication",
+            "xpack.security.inference.elastic.ssl.verification_mode",
             "xpack.security.inference.elastic.ssl.truststore.password",
+            "xpack.security.inference.elastic.ssl.keystore.path",
+            "xpack.security.inference.elastic.ssl.keystore.secure_password",
+            "xpack.security.inference.elastic.ssl.keystore.algorithm",
+            "xpack.security.inference.elastic.ssl.keystore.type",
+            "xpack.security.inference.elastic.ssl.keystore.secure_key_password",
+            "xpack.security.inference.elastic.ssl.key",
+            "xpack.security.inference.elastic.ssl.secure_key_passphrase",
+            "xpack.security.inference.elastic.ssl.certificate",
             "xpack.security.inference.elastic.ssl.keystore.password",
             "xpack.security.inference.elastic.ssl.keystore.key_password",
             "xpack.security.inference.elastic.ssl.key_passphrase",
-            "xpack.security.inference.elastic.ssl.truststore.password"
-        ).forEach(key -> assertThat(eisSslSettingKeys, not(hasItem(key))));
+            "xpack.security.inference.elastic.ssl.enabled"
+        ).forEach(key -> assertThat(eisSslSettingKeys, hasItem(key)));
     }
 
     private boolean isSecretkeyFactoryAlgoAvailable(String algorithmId) {

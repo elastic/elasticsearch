@@ -14,6 +14,7 @@ import com.sun.tools.attach.AgentLoadException;
 import com.sun.tools.attach.AttachNotSupportedException;
 import com.sun.tools.attach.VirtualMachine;
 
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
@@ -21,6 +22,7 @@ import java.io.IOException;
 
 final class EntitlementBootstrap {
 
+    @SuppressForbidden(reason = "VirtualMachine.loadAgent is the only way to attach the agent dynamically")
     static void configure() {
         logger.debug("Loading agent");
         try {

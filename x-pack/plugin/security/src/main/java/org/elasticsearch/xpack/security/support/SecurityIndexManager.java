@@ -300,7 +300,7 @@ public class SecurityIndexManager implements ClusterStateListener {
         assert hasFileSettingsMetadata || clusterState.metadata().reservedStateMetadata().isEmpty();
 
         // If no file based role mappings available -> migration not needed
-        if (hasFileSettingsMetadata == false) {
+        if (hasFileSettingsMetadata == false || fileSettingsMetadata.keys(ReservedRoleMappingAction.NAME).isEmpty()) {
             return RoleMappingsCleanupMigrationStatus.SKIP;
         }
 

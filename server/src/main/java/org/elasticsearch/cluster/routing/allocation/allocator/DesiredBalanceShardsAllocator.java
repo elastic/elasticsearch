@@ -41,7 +41,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -65,7 +64,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
     private volatile DesiredBalance currentDesiredBalance = DesiredBalance.INITIAL;
     private volatile boolean resetCurrentDesiredBalance = false;
     private final Set<String> processedNodeShutdowns = new HashSet<>();
-    private final AtomicBoolean nodeIsMaster = new AtomicBoolean(false);
+    private final DesiredBalanceMetrics desiredBalanceMetrics;
 
     // stats
     protected final CounterMetric computationsSubmitted = new CounterMetric();
@@ -106,6 +105,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         DesiredBalanceReconcilerAction reconciler,
         TelemetryProvider telemetryProvider
     ) {
+        this.desiredBalanceMetrics = new DesiredBalanceMetrics(telemetryProvider.getMeterRegistry());
         this.delegateAllocator = delegateAllocator;
         this.threadPool = threadPool;
         this.reconciler = reconciler;
@@ -113,8 +113,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         this.desiredBalanceReconciler = new DesiredBalanceReconciler(
             clusterService.getClusterSettings(),
             threadPool,
-            telemetryProvider.getMeterRegistry(),
-            nodeIsMaster
+            desiredBalanceMetrics
         );
         this.desiredBalanceComputation = new ContinuousComputation<>(threadPool.generic()) {
 
@@ -171,7 +170,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
             if (event.localNodeMaster() == false) {
                 onNoLongerMaster();
             }
-            nodeIsMaster.set(event.localNodeMaster());
+            desiredBalanceMetrics.setNodeIsMaster(event.localNodeMaster());
         });
     }
 
@@ -310,9 +309,9 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
             computedShardMovements.sum(),
             cumulativeComputationTime.count(),
             cumulativeReconciliationTime.count(),
-            desiredBalanceReconciler.unassignedShards.get(),
-            desiredBalanceReconciler.totalAllocations.get(),
-            desiredBalanceReconciler.undesiredAllocations.get()
+            desiredBalanceMetrics.unassignedShards(),
+            desiredBalanceMetrics.totalAllocations(),
+            desiredBalanceMetrics.undesiredAllocations()
         );
     }
 
@@ -322,10 +321,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
             queue.completeAllAsNotMaster();
             pendingDesiredBalanceMoves.clear();
             desiredBalanceReconciler.clear();
-
-            desiredBalanceReconciler.unassignedShards.set(0);
-            desiredBalanceReconciler.totalAllocations.set(0);
-            desiredBalanceReconciler.undesiredAllocations.set(0);
+            desiredBalanceMetrics.zeroAllMetrics();
         }
     }
 

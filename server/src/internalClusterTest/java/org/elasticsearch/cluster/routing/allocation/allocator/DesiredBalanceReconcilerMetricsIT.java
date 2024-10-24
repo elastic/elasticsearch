@@ -61,9 +61,9 @@ public class DesiredBalanceReconcilerMetricsIT extends ESIntegTestCase {
         testTelemetryPlugin.resetMeter();
         testTelemetryPlugin.collect();
         Matcher<Collection<?>> matcher = shouldBePublishing ? not(empty()) : empty();
-        assertThat(testTelemetryPlugin.getLongGaugeMeasurement("es.allocator.desired_balance.shards.unassigned.current"), matcher);
-        assertThat(testTelemetryPlugin.getLongGaugeMeasurement("es.allocator.desired_balance.shards.current"), matcher);
-        assertThat(testTelemetryPlugin.getLongGaugeMeasurement("es.allocator.desired_balance.allocations.undesired.current"), matcher);
-        assertThat(testTelemetryPlugin.getDoubleGaugeMeasurement("es.allocator.desired_balance.allocations.undesired.ratio"), matcher);
+        assertThat(testTelemetryPlugin.getLongGaugeMeasurement(DesiredBalanceMetrics.UNASSIGNED_SHARDS_METRIC_NAME), matcher);
+        assertThat(testTelemetryPlugin.getLongGaugeMeasurement(DesiredBalanceMetrics.TOTAL_SHARDS_METRIC_NAME), matcher);
+        assertThat(testTelemetryPlugin.getLongGaugeMeasurement(DesiredBalanceMetrics.UNDESIRED_ALLOCATION_COUNT_METRIC_NAME), matcher);
+        assertThat(testTelemetryPlugin.getDoubleGaugeMeasurement(DesiredBalanceMetrics.UNDESIRED_ALLOCATION_RATIO_METRIC_NAME), matcher);
     }
 }

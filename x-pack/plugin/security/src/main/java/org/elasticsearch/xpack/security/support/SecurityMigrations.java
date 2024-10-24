@@ -41,6 +41,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.RoleMappingsCleanupMigrationStatus.READY;
+import static org.elasticsearch.xpack.security.support.SecurityIndexManager.RoleMappingsCleanupMigrationStatus.SKIP;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SecurityMainIndexMappingVersion.ADD_MANAGE_ROLES_PRIVILEGE;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SecurityMainIndexMappingVersion.ADD_REMOTE_CLUSTER_AND_DESCRIPTION_FIELDS;
 
@@ -153,10 +154,11 @@ public class SecurityMigrations {
     public static class CleanupRoleMappingDuplicatesMigration implements SecurityMigration {
         @Override
         public void migrate(SecurityIndexManager indexManager, Client client, ActionListener<Void> listener) {
-            if (indexManager.getRoleMappingsCleanupMigrationStatus() == SecurityIndexManager.RoleMappingsCleanupMigrationStatus.SKIP) {
+            if (indexManager.getRoleMappingsCleanupMigrationStatus() == SKIP) {
                 listener.onResponse(null);
                 return;
             }
+            assert indexManager.getRoleMappingsCleanupMigrationStatus() == READY;
 
             getRoleMappings(client, ActionListener.wrap(roleMappings -> {
                 List<String> roleMappingsToDelete = getDuplicateRoleMappingNames(roleMappings.mappings());

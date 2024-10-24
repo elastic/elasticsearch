@@ -266,7 +266,7 @@ include::repository-shared-settings.asciidoc[]
 
 `max_concurrent_batch_deletes`::
 
-    (integer) Sets the maximum number of concurrent batch delete requests that will be submitted for any individual bulk delete. Note that the effective number of concurrent deletes is further limited by the Azure client connection and event loop thread limits. Defaults to 10, minimum is 1.
+    (integer) Sets the maximum number of concurrent batch delete requests that will be submitted for any individual bulk delete with `BlobBatch`. Note that the effective number of concurrent deletes is further limited by the Azure client connection and event loop thread limits. Defaults to 10, minimum is 1.
 
 [[repository-azure-validation]]
 ==== Repository validation rules

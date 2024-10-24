@@ -280,7 +280,7 @@ public class SecurityIndexManager implements ClusterStateListener {
     /**
      * Check if a role mappings cleanup migration is needed or has already been performed and if the cluster is ready for a cleanup
      * migration
-     * 
+     *
      * @param clusterState current cluster state
      * @param migrationsVersion current migration version
      *

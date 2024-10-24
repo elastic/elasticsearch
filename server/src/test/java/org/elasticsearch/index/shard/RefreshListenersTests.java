@@ -437,9 +437,8 @@ public class RefreshListenersTests extends ESTestCase {
                         ) {
                             assertTrue("document not found", getResult.exists());
                             assertEquals(iteration, getResult.version());
-                            org.apache.lucene.document.Document document = getResult.docIdAndVersion().reader.document(
-                                getResult.docIdAndVersion().docId
-                            );
+                            org.apache.lucene.document.Document document = getResult.docIdAndVersion().reader.storedFields()
+                                .document(getResult.docIdAndVersion().docId);
                             assertThat(document.getValues("test"), arrayContaining(testFieldValue));
                         }
                     } catch (Exception t) {

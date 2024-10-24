@@ -9,15 +9,10 @@ package org.elasticsearch.compute.aggregation.blockhash;
 
 $if(BytesRef)$
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamInput;
 $endif$
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
-$if(BytesRef)$
-import org.elasticsearch.common.util.BytesRefArray;
-$endif$
 import org.elasticsearch.common.util.$Hash$;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SeenGroupIds;
@@ -58,8 +53,6 @@ $endif$
 import org.elasticsearch.core.ReleasableIterator;
 
 $if(BytesRef)$
-import java.io.IOException;
-
 $else$
 import java.util.BitSet;
 
@@ -250,26 +243,21 @@ $if(BytesRef)$
          * without and still read from the block.
          */
         // TODO replace with takeBytesRefsOwnership ?!
+        final BytesRef spare = new BytesRef();
         if (seenNull) {
             try (var builder = blockFactory.newBytesRefBlockBuilder(Math.toIntExact(hash.size() + 1))) {
                 builder.appendNull();
-                BytesRef spare = new BytesRef();
                 for (long i = 0; i < hash.size(); i++) {
                     builder.appendBytesRef(hash.get(i, spare));
                 }
                 return new BytesRefBlock[] { builder.build() };
             }
         }
-
-        final int size = Math.toIntExact(hash.size());
-        try (BytesStreamOutput out = new BytesStreamOutput()) {
-            hash.getBytesRefs().writeTo(out);
-            try (StreamInput in = out.bytes().streamInput()) {
-                return new BytesRefBlock[] {
-                    blockFactory.newBytesRefArrayVector(new BytesRefArray(in, BigArrays.NON_RECYCLING_INSTANCE), size).asBlock() };
+        try (var builder = blockFactory.newBytesRefBlockBuilder(Math.toIntExact(hash.size()))) {
+            for (long i = 0; i < hash.size(); i++) {
+                builder.appendBytesRef(hash.get(i, spare));
             }
-        } catch (IOException e) {
-            throw new IllegalStateException(e);
+            return new BytesRefBlock[] { builder.build() };
         }
 $else$
         if (seenNull) {

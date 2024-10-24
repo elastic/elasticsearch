@@ -67,6 +67,7 @@ import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.PhysicalOperat
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -176,7 +177,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                     sortBuilders.add(sort.sortBuilder());
                 }
             } else {
-                sortBuilders = null;
+                sortBuilders = Collections.emptyList();
             }
             luceneFactory = new ScoringLuceneTopNSourceOperator.Factory(
                 shardContexts,

@@ -51,7 +51,7 @@ public final class ScoringLuceneTopNSourceOperator extends LuceneTopNSourceOpera
             int limit,
             List<SortBuilder<?>> sorts
         ) {
-            super(contexts, queryFunction, dataPartitioning, taskConcurrency, maxPageSize, limit, sorts, ScoreMode.TOP_DOCS_WITH_SCORES);
+            super(contexts, queryFunction, dataPartitioning, taskConcurrency, maxPageSize, limit, sorts, ScoreMode.COMPLETE);
         }
 
         @Override
@@ -106,9 +106,9 @@ public final class ScoringLuceneTopNSourceOperator extends LuceneTopNSourceOpera
         FieldDoc fieldDoc = (FieldDoc) scoreDoc;
         if (Float.isNaN(fieldDoc.score)) {
             if (sorts != null) {
-                return (Float) fieldDoc.fields[sorts.size() + 1];
+                return (Float) fieldDoc.fields[sorts.size()];
             } else {
-                return (Float) fieldDoc.fields[1];
+                return (Float) fieldDoc.fields[0];
             }
         } else {
             return fieldDoc.score;
@@ -121,11 +121,10 @@ public final class ScoringLuceneTopNSourceOperator extends LuceneTopNSourceOpera
         Sort sort;
         if (sortAndFormats.isPresent()) {
             var l = new ArrayList<>(Arrays.asList(sortAndFormats.get().sort.getSort()));
-            l.add(SortField.FIELD_DOC);
             l.add(SortField.FIELD_SCORE);
             sort = new Sort(l.toArray(SortField[]::new));
         } else {
-            sort = new Sort(SortField.FIELD_DOC, SortField.FIELD_SCORE);
+            sort = new Sort();
         }
         return new ScoringPerShardCollector(shardContext, sort, limit);
     }

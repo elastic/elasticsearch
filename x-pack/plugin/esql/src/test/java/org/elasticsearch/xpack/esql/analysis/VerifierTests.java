@@ -1565,6 +1565,7 @@ public class VerifierTests extends ESTestCase {
         assertTrue(logicalPlan.resolved());
         return logicalPlan.output();
     }
+
     private void query(String query) {
         defaultAnalyzer.analyze(parser.createStatement(query));
     }
@@ -1624,8 +1625,7 @@ public class VerifierTests extends ESTestCase {
     public void testScoreFarQstrClauses() {
         assumeTrue("'METADATA _score' is disabled", EsqlCapabilities.Cap.METADATA_SCORE.isEnabled());
         assertEquals(
-            "1:65: [QSTR] function cannot be used after EVAL\n" +
-                "line 1:83: `_score` manipulation between fulltext expressions",
+            "1:65: [QSTR] function cannot be used after EVAL\n" + "line 1:83: `_score` manipulation between fulltext expressions",
             error("from foo metadata _score | where qstr(\"a\") | eval fs = _score | where qstr(\"b\") | keep fs, _score")
         );
     }

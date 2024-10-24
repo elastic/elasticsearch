@@ -32,6 +32,114 @@
         },
         {
           "name" : "query",
+          "type" : "keyword",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        },
+        {
+          "name" : "boost",
+          "type" : "double",
+          "optional" : true,
+          "description" : "Boost value for the query."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "keyword",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "keyword",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        },
+        {
+          "name" : "boost",
+          "type" : "double",
+          "optional" : true,
+          "description" : "Boost value for the query."
+        },
+        {
+          "name" : "boost",
+          "type" : "integer",
+          "optional" : true,
+          "description" : "Query fuzziness"
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "keyword",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "keyword",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        },
+        {
+          "name" : "boost",
+          "type" : "double",
+          "optional" : true,
+          "description" : "Boost value for the query."
+        },
+        {
+          "name" : "boost",
+          "type" : "keyword",
+          "optional" : true,
+          "description" : "Query fuzziness"
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "keyword",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "keyword",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        },
+        {
+          "name" : "boost",
+          "type" : "integer",
+          "optional" : true,
+          "description" : "Boost value for the query."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "keyword",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
           "type" : "text",
           "optional" : false,
           "description" : "Text you wish to find in the provided field."

@@ -214,7 +214,8 @@ public class SecurityMigrations {
         @Override
         public boolean checkPreConditions(SecurityIndexManager.State securityIndexManagerState) {
             // If there are operator defined role mappings, make sure they've been loaded in to cluster state before launching migration
-            return securityIndexManagerState.roleMappingsCleanupMigrationStatus == READY;
+            return securityIndexManagerState.roleMappingsCleanupMigrationStatus == READY
+                || securityIndexManagerState.roleMappingsCleanupMigrationStatus == SKIP;
         }
 
         @Override

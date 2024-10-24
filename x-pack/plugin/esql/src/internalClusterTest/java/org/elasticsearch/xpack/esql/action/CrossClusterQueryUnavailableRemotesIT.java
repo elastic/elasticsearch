@@ -40,7 +40,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
-public class CrossClusterQueryUnavailableIT extends AbstractMultiClustersTestCase {
+public class CrossClusterQueryUnavailableRemotesIT extends AbstractMultiClustersTestCase {
     private static final String REMOTE_CLUSTER = "cluster-a";
 
     @Override

@@ -34,9 +34,12 @@ import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -887,7 +890,16 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
             Request request = esqlRequest("FROM " + index + " | KEEP emp_id | SORT emp_id | LIMIT 100");
             ResponseException error = expectThrows(ResponseException.class, () -> performRequestWithRemoteSearchUser(request));
             assertThat(error.getResponse().getStatusLine().getStatusCode(), equalTo(400));
-            assertThat(error.getMessage(), containsString(" Unknown index [" + index + "]"));
+            String expectedIndexExpressionInError = index.replace("*", "my_remote_cluster");
+            Pattern p = Pattern.compile("Unknown index \\[([^\\]]+)\\]");
+            Matcher m = p.matcher(error.getMessage());
+            assertTrue("Pattern matcher to parse error message did not find matching string: " + error.getMessage(), m.find());
+            String unknownIndexExpressionInErrorMessage = m.group(1);
+            Set<String> actualUnknownIndexes = org.elasticsearch.common.Strings.commaDelimitedListToSet(
+                unknownIndexExpressionInErrorMessage
+            );
+            Set<String> expectedUnknownIndexes = org.elasticsearch.common.Strings.commaDelimitedListToSet(expectedIndexExpressionInError);
+            assertThat(actualUnknownIndexes, equalTo(expectedUnknownIndexes));
         }
 
         for (var index : List.of(

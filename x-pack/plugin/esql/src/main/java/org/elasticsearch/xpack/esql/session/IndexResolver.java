@@ -159,8 +159,6 @@ public class IndexResolver {
             concreteIndices.put(ir.getIndexName(), ir.getIndexMode());
         }
         Map<String, FieldCapabilitiesFailure> unavailableRemotes = determineUnavailableRemoteClusters(fieldCapsResponse.getFailures());
-        System.err.println("BBB IndexResolver: unavailableRemotes: " + unavailableRemotes.keySet());
-        System.err.println("BBB IndexResolver: concreteIndices: " + concreteIndices);
         return IndexResolution.valid(new EsIndex(indexPattern, rootFields, concreteIndices), unavailableRemotes);
     }
 
@@ -168,19 +166,9 @@ public class IndexResolver {
     static Map<String, FieldCapabilitiesFailure> determineUnavailableRemoteClusters(List<FieldCapabilitiesFailure> failures) {
         Map<String, FieldCapabilitiesFailure> unavailableRemotes = new HashMap<>();
         for (FieldCapabilitiesFailure failure : failures) {
-            System.err.printf(
-                ">>> AAA IndexResolver: for remote [%s]; FieldCapsFailure: [%s]\n",
-                Arrays.toString(failure.getIndices()),
-                failure.getException()
-            );
             if (ExceptionsHelper.isRemoteUnavailableException(failure.getException())) {
                 for (String indexExpression : failure.getIndices()) {
                     if (indexExpression.indexOf(RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR) > 0) {
-                        System.err.printf(
-                            ">>> AAA IndexResolver: for remote [%s]; MARKED AS REMOTE UNAVAIALBLE: [%s]\n",
-                            RemoteClusterAware.parseClusterAlias(indexExpression),
-                            failure.getException()
-                        );
                         unavailableRemotes.put(RemoteClusterAware.parseClusterAlias(indexExpression), failure);
                     }
                 }

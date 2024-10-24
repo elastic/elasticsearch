@@ -82,7 +82,7 @@ public class ElasticsearchEntitlementManager implements EntitlementChecks {
             return true;
         }
         if (requestingModule == null) {
-            logger.trace("Entire call stack is in the base module layer");
+            logger.trace("Entire call stack is in the boot module layer");
             return true;
         }
         if (requestingModule == System.class.getModule()) {

@@ -64,7 +64,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
-import java.util.regex.Pattern;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -414,17 +413,19 @@ public class ServerSentEventsRestActionListenerTests extends ESIntegTestCase {
         assertThat(collector.stringsVerified.getLast(), equalTo(expectedExceptionAsServerSentEvent));
     }
 
-    public void testNoStream() throws IOException {
-        var pattern = Pattern.compile("^\uFEFFevent: message\ndata: \\{\"result\":\".*\"}\n\n\uFEFFevent: message\ndata: \\[DONE]\n\n$");
+    public void testNoStream() {
+        var collector = new RandomStringCollector();
+        var expectedTestCount = randomIntBetween(2, 30);
         var request = new Request(RestRequest.Method.POST.name(), NO_STREAM_ROUTE);
-        var response = getRestClient().performRequest(request);
-        assertThat(response.getStatusLine().getStatusCode(), is(HttpStatus.SC_OK));
-        var responseString = EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8);
-
-        assertThat(
-            "Expected " + responseString + " to match pattern " + pattern.pattern(),
-            pattern.matcher(responseString).matches(),
-            is(true)
+        request.setOptions(
+            RequestOptions.DEFAULT.toBuilder()
+                .setHttpAsyncResponseConsumerFactory(() -> new AsyncResponseConsumer(collector))
+                .addParameter(REQUEST_COUNT, String.valueOf(expectedTestCount))
+                .build()
         );
+        var response = callAsync(request);
+        assertThat(response.getStatusLine().getStatusCode(), is(HttpStatus.SC_OK));
+        assertThat(collector.stringsVerified.size(), equalTo(2)); // single payload count + done byte
+        assertThat(collector.stringsVerified.peekLast(), equalTo("[DONE]"));
     }
 }

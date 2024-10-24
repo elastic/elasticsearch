@@ -260,9 +260,9 @@ public class IndexNameExpressionResolver {
             if (expressions == null
                 || expressions.length == 0
                 || expressions.length == 1 && (Metadata.ALL.equals(expressions[0]) || Regex.isMatchAllPattern(expressions[0]))) {
-                return WildcardExpressionResolver.resolveAll(context);
+                return IndexResolver.concreteIndexNames(context, expressions);
             } else {
-                return WildcardExpressionResolver.resolve(
+                return IndexResolver.concreteIndexNames(
                     context,
                     ExplicitResourceNameFilter.filterUnavailable(context, DateMathExpressionResolver.resolve(context, List.of(expressions)))
                 );

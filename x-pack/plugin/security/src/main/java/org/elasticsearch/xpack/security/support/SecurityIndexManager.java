@@ -281,11 +281,13 @@ public class SecurityIndexManager implements ClusterStateListener {
     /**
      * Check if a role mappings cleanup migration is needed or has already been performed and if the cluster is ready for a cleanup
      * migration
+     * 
+     * @param clusterState current cluster state
+     * @param migrationsVersion current migration version
+     *
+     * @return RoleMappingsCleanupMigrationStatus
      */
-    private static RoleMappingsCleanupMigrationStatus getRoleMappingsCleanupMigrationStatus(
-        ClusterState clusterState,
-        int migrationsVersion
-    ) {
+    static RoleMappingsCleanupMigrationStatus getRoleMappingsCleanupMigrationStatus(ClusterState clusterState, int migrationsVersion) {
         // Migration already finished
         if (migrationsVersion >= SecurityMigrations.CLEANUP_ROLE_MAPPING_DUPLICATES_MIGRATION_VERSION) {
             return RoleMappingsCleanupMigrationStatus.DONE;

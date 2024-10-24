@@ -9,7 +9,6 @@
 
 package org.elasticsearch.reservedstate.service;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
@@ -26,6 +25,7 @@ import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.env.BuildVersion;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.reservedstate.action.ReservedClusterSettingsAction;
 import org.elasticsearch.tasks.TaskManager;
@@ -250,7 +250,7 @@ public class FileSettingsServiceTests extends ESTestCase {
         fileSettingsService.start();
         fileSettingsService.clusterChanged(new ClusterChangedEvent("test", clusterService.state(), ClusterState.EMPTY_STATE));
         // second file change; contents still don't matter
-        writeTestFile(fileSettingsService.watchedFile(), "{}");
+        overwriteTestFile(fileSettingsService.watchedFile(), "{}");
 
         // wait for listener to be called (once for initial processing, once for subsequent update)
         assertTrue(latch.await(20, TimeUnit.SECONDS));
@@ -277,7 +277,7 @@ public class FileSettingsServiceTests extends ESTestCase {
                     throw new RuntimeException(e);
                 }
             }).start();
-            return new ReservedStateChunk(Map.of(), new ReservedStateVersion(1L, Version.CURRENT));
+            return new ReservedStateChunk(Map.of(), new ReservedStateVersion(1L, BuildVersion.current()));
         }).when(controller).parse(any(String.class), any());
 
         doAnswer((Answer<Void>) invocation -> {
@@ -355,6 +355,12 @@ public class FileSettingsServiceTests extends ESTestCase {
     private void writeTestFile(Path path, String contents) throws IOException {
         Path tempFilePath = createTempFile();
         Files.writeString(tempFilePath, contents);
-        Files.move(tempFilePath, path, StandardCopyOption.ATOMIC_MOVE);
+        Files.move(tempFilePath, path, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+    }
+
+    private void overwriteTestFile(Path path, String contents) throws IOException {
+        Path tempFilePath = createTempFile();
+        Files.writeString(tempFilePath, contents);
+        Files.move(tempFilePath, path, StandardCopyOption.REPLACE_EXISTING);
     }
 }

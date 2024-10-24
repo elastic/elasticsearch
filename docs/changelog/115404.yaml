@@ -1,0 +1,5 @@
+pr: 115404
+summary: Fix NPE in Get Deployment Stats
+area: Machine Learning
+type: bug
+issues: []

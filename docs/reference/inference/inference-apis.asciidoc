@@ -42,8 +42,8 @@ Now use <<semantic-search-semantic-text, semantic text>> to perform
 Your {es} deployment contains some preconfigured {infer} endpoints that makes it easier for you to use them when defining `semantic_text` fields or {infer} processors.
 The following list contains the default {infer} endpoints listed by `inference_id`:
 
-* `.elser-2`: uses the {ml-docs}/ml-nlp-elser.html[ELSER] built-in trained model for `sparse_embedding` tasks (recommended for English language texts)
-* `.multi-e5-small`: uses the {ml-docs}/ml-nlp-e5.html[E5] built-in trained model for `text_embedding` tasks (recommended for non-English language texts)
+* `.elser-2-elasticsearch`: uses the {ml-docs}/ml-nlp-elser.html[ELSER] built-in trained model for `sparse_embedding` tasks (recommended for English language texts)
+* `.multilingual-e5-small-elasticsearch`: uses the {ml-docs}/ml-nlp-e5.html[E5] built-in trained model for `text_embedding` tasks (recommended for non-English language texts)
 
 Use the `inference_id` of the endpoint in a <<semantic-text,`semantic_text`>> field definition or when creating an <<inference-processor,{infer} processor>>.
 The API call will automatically download and deploy the model which might take a couple of minutes.

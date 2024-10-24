@@ -69,7 +69,7 @@ include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=adaptive-allocation-min-number]
 (Required, string)
 The name of the model to use for the {infer} task.
 It can be the ID of either a built-in model (for example, `.multilingual-e5-small` for E5), a text embedding model already
-{ml-docs}/ml-nlp-import-model.html#ml-nlp-import-script[uploaded through Eland], or a `deployment_id` of an already existing trained model deployment.
+{ml-docs}/ml-nlp-import-model.html#ml-nlp-import-script[uploaded through Eland].
 
 `num_allocations`:::
 (Required, integer)

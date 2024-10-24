@@ -41,7 +41,7 @@ end::chunking-settings[]
 tag::chunking-settings-max-chunking-size[]
 Specifies the maximum size of a chunk in words.
 Defaults to `250`.
-This value cannot be higher than `300` or lower than `20` (for `sentence` strategy) or `15` (for `word` strategy). 
+This value cannot be higher than `300` or lower than `20` (for `sentence` strategy) or `10` (for `word` strategy). 
 end::chunking-settings-max-chunking-size[]
 
 tag::chunking-settings-overlap[]

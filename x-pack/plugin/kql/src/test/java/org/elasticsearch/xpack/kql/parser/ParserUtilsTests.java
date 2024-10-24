@@ -141,7 +141,7 @@ public class ParserUtilsTests extends ESTestCase {
         assertTrue(hasWildcard(parserRuleContext(randomTextNodeListWithNode(wildcardNode()))));
 
         // All children are literals
-        assertFalse(hasWildcard(parserRuleContext(randomList(1, randomInt(100), this::randomLiteralNode))));
+        assertFalse(hasWildcard(parserRuleContext(randomList(1, randomInt(100), ParserUtilsTests::randomLiteralNode))));
 
         // Quoted string
         assertFalse(hasWildcard(parserRuleContext(randomQuotedStringNode())));
@@ -186,30 +186,32 @@ public class ParserUtilsTests extends ESTestCase {
         assertThat(escapeQueryString("foo*", false), equalTo("foo\\*"));
     }
 
-    private ParserRuleContext parserRuleContext(ParseTree child) {
+    private static ParserRuleContext parserRuleContext(ParseTree child) {
         return parserRuleContext(List.of(child));
     }
 
-    private ParserRuleContext parserRuleContext(List<ParseTree> children) {
+    private static ParserRuleContext parserRuleContext(List<ParseTree> children) {
         ParserRuleContext ctx = new ParserRuleContext(null, randomInt());
         ctx.children = children;
         return ctx;
     }
 
-    private TerminalNode terminalNode(int type, String text) {
+    private static TerminalNode terminalNode(int type, String text) {
         Token symbol = mock(Token.class);
         when(symbol.getType()).thenReturn(type);
         when(symbol.getText()).thenReturn(text);
         return new TerminalNodeImpl(symbol);
     }
 
-    private List<ParseTree> randomTextNodeListWithNode(TerminalNode node) {
-        List<ParseTree> nodes = new ArrayList<>(Stream.concat(Stream.generate(this::randomTextNode).limit(100), Stream.of(node)).toList());
+    private static List<ParseTree> randomTextNodeListWithNode(TerminalNode node) {
+        List<ParseTree> nodes = new ArrayList<>(
+            Stream.concat(Stream.generate(ParserUtilsTests::randomTextNode).limit(100), Stream.of(node)).toList()
+        );
         Collections.shuffle(nodes, random());
         return nodes;
     }
 
-    private TerminalNode randomTextNode() {
+    private static TerminalNode randomTextNode() {
         return switch (randomInt() % 3) {
             case 0 -> wildcardNode();
             case 1 -> randomQuotedStringNode();
@@ -217,23 +219,23 @@ public class ParserUtilsTests extends ESTestCase {
         };
     }
 
-    private TerminalNode quotedStringNode(String quotedStringText) {
+    private static TerminalNode quotedStringNode(String quotedStringText) {
         return terminalNode(QUOTED_STRING, "\"" + quotedStringText + "\"");
     }
 
-    private TerminalNode randomQuotedStringNode() {
+    private static TerminalNode randomQuotedStringNode() {
         return quotedStringNode(randomIdentifier());
     }
 
-    private TerminalNode literalNode(String literalText) {
+    private static TerminalNode literalNode(String literalText) {
         return terminalNode(UNQUOTED_LITERAL, literalText);
     }
 
-    private TerminalNode randomLiteralNode() {
+    private static TerminalNode randomLiteralNode() {
         return terminalNode(UNQUOTED_LITERAL, randomIdentifier());
     }
 
-    private TerminalNode wildcardNode() {
+    private static TerminalNode wildcardNode() {
         return terminalNode(WILDCARD, "*");
     }
 }

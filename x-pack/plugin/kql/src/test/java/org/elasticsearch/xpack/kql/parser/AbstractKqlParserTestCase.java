@@ -9,8 +9,13 @@ package org.elasticsearch.xpack.kql.parser;
 
 import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.index.query.MatchQueryBuilder;
+import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryStringQueryBuilder;
+import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.test.AbstractBuilderTestCase;
 
 import java.io.BufferedReader;
@@ -24,9 +29,13 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import static org.hamcrest.Matchers.anEmptyMap;
+import static org.hamcrest.Matchers.equalTo;
 
 public abstract class AbstractKqlParserTestCase extends AbstractBuilderTestCase {
 
@@ -90,5 +99,40 @@ public abstract class AbstractKqlParserTestCase extends AbstractBuilderTestCase 
         SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
 
         return parser.parseKqlQuery(kqlQuery, searchExecutionContext);
+    }
+
+    protected static void assertMultiMatchQuery(QueryBuilder query, String expectedValue, MultiMatchQueryBuilder.Type expectedType) {
+        MultiMatchQueryBuilder multiMatchQuery = asInstanceOf(MultiMatchQueryBuilder.class, query);
+        assertThat(multiMatchQuery.fields(), anEmptyMap());
+        assertThat(multiMatchQuery.lenient(), equalTo(true));
+        assertThat(multiMatchQuery.type(), equalTo(expectedType));
+        assertThat(multiMatchQuery.value(), equalTo(expectedValue));
+    }
+
+    protected static void assertQueryStringBuilder(QueryBuilder query, String expectedValue) {
+        QueryStringQueryBuilder queryStringQuery = asInstanceOf(QueryStringQueryBuilder.class, query);
+        assertThat(queryStringQuery.queryString(), equalTo(expectedValue));
+    }
+
+    protected static void assertTermQueryBuilder(QueryBuilder queryBuilder, String expectedFieldName, String expectedValue) {
+        TermQueryBuilder termQuery = asInstanceOf(TermQueryBuilder.class, queryBuilder);
+        assertThat(termQuery.fieldName(), equalTo(expectedFieldName));
+        assertThat(termQuery.value(), equalTo(expectedValue));
+    }
+
+    protected static void assertMatchQueryBuilder(QueryBuilder queryBuilder, String expectedFieldName, String expectedValue) {
+        MatchQueryBuilder matchQuery = asInstanceOf(MatchQueryBuilder.class, queryBuilder);
+        assertThat(matchQuery.fieldName(), equalTo(expectedFieldName));
+        assertThat(matchQuery.value(), equalTo(expectedValue));
+    }
+
+    protected static void assertRangeQueryBuilder(
+        QueryBuilder queryBuilder,
+        String expectedFieldName,
+        Consumer<RangeQueryBuilder> codeBlock
+    ) {
+        RangeQueryBuilder rangeQuery = asInstanceOf(RangeQueryBuilder.class, queryBuilder);
+        assertThat(rangeQuery.fieldName(), equalTo(expectedFieldName));
+        codeBlock.accept(rangeQuery);
     }
 }

@@ -385,11 +385,6 @@ public class EsqlCapabilities {
         DATE_DIFF_YEAR_CALENDARIAL,
 
         /**
-         * Support named parameters for field names.
-         */
-        NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES(Build.current().isSnapshot()),
-
-        /**
          * Fix sorting not allowed on _source and counters.
          */
         SORTING_ON_SOURCE_AND_COUNTERS_FORBIDDEN,
@@ -431,7 +426,12 @@ public class EsqlCapabilities {
         /**
          * This enables 60_usage.yml "Basic ESQL usage....non-snapshot" version test. See also the previous capability.
          */
-        NON_SNAPSHOT_TEST_FOR_TELEMETRY(Build.current().isSnapshot() == false);
+        NON_SNAPSHOT_TEST_FOR_TELEMETRY(Build.current().isSnapshot() == false),
+
+        /**
+         * Support simplified syntax for named parameters for field and function names.
+         */
+        NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES_SIMPLIFIED_SYNTAX(Build.current().isSnapshot());
 
         private final boolean enabled;
 

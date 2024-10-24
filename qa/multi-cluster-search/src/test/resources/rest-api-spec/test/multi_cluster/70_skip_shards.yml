@@ -166,8 +166,7 @@
   - match: { hits.total.value: 0 }
   - match: { _shards.total: 2 }
   - match: { _shards.successful: 2 }
-    # When all shards are skipped current logic returns 1 to produce a valid search result
-  - match: { _shards.skipped : 1}
+  - match: { _shards.skipped : 2}
   - match: { _shards.failed: 0 }
 
   # check that skipped when we don't match the alias with a terms query
@@ -183,8 +182,7 @@
   - match: { hits.total.value: 0 }
   - match: { _shards.total: 2 }
   - match: { _shards.successful: 2 }
-    # When all shards are skipped current logic returns 1 to produce a valid search result
-  - match: { _shards.skipped : 1}
+  - match: { _shards.skipped : 2}
   - match: { _shards.failed: 0 }
 
   # check that skipped when we don't match the alias with a prefix query
@@ -200,8 +198,7 @@
   - match: { hits.total.value: 0 }
   - match: { _shards.total: 2 }
   - match: { _shards.successful: 2 }
-    # When all shards are skipped current logic returns 1 to produce a valid search result
-  - match: { _shards.skipped : 1}
+  - match: { _shards.skipped : 2}
   - match: { _shards.failed: 0 }
 
   # check that skipped when we don't match the alias with a wildcard query
@@ -217,7 +214,6 @@
   - match: { hits.total.value: 0 }
   - match: { _shards.total: 2 }
   - match: { _shards.successful: 2 }
-    # When all shards are skipped current logic returns 1 to produce a valid search result
-  - match: { _shards.skipped : 1}
+  - match: { _shards.skipped : 2}
   - match: { _shards.failed: 0 }
 

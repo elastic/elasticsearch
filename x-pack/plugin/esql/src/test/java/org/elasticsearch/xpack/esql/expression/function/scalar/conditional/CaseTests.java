@@ -166,7 +166,7 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
                             new TestCaseSupplier.TypedData(rhs, otherType, "rhs")
                         );
                         return testCase(
-                            type.noText(),
+                            type,
                             typedData,
                             lhsOrRhs ? lhs : rhs,
                             toStringMatcher(1, false),
@@ -333,7 +333,7 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
                                 new TestCaseSupplier.TypedData(rhs, otherType, "rhs")
                             );
                             return testCase(
-                                type.noText(),
+                                type,
                                 typedData,
                                 lhsOrRhs ? lhs : rhs,
                                 startsWith("CaseEagerEvaluator[conditions=[ConditionEvaluator[condition="),

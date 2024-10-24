@@ -201,7 +201,7 @@
 ---
 "Create lookup index with two shards":
   - requires:
-      test_runner_features: [ capabilities, default_shards ]
+      test_runner_features: [ capabilities ]
       capabilities:
         - method: PUT
           path: /{index}

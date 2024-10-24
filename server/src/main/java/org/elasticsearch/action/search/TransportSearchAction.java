@@ -1247,6 +1247,29 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 indicesAndAliases,
                 concreteLocalIndices
             );
+
+            // localShardIterators is empty since there are no matching indices. In such cases,
+            // we update the local cluster's status from RUNNING to SUCCESSFUL right away. Before
+            // we attempt to do that, we must ensure that the local cluster was specified in the user's
+            // search request. This is done by trying to fetch the local cluster via getCluster() and
+            // checking for a non-null return value. If the local cluster was never specified, its status
+            // update can be skipped.
+            if (localShardIterators.isEmpty()
+                && clusters != SearchResponse.Clusters.EMPTY
+                && clusters.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY) != null) {
+                clusters.swapCluster(
+                    RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
+                    (alias, v) -> new SearchResponse.Cluster.Builder(v).setStatus(SearchResponse.Cluster.Status.SUCCESSFUL)
+                        .setTotalShards(0)
+                        .setSuccessfulShards(0)
+                        .setSkippedShards(0)
+                        .setFailedShards(0)
+                        .setFailures(Collections.emptyList())
+                        .setTook(TimeValue.timeValueMillis(0))
+                        .setTimedOut(false)
+                        .build()
+                );
+            }
         }
         final GroupShardsIterator<SearchShardIterator> shardIterators = mergeShardsIterators(localShardIterators, remoteShardIterators);
 

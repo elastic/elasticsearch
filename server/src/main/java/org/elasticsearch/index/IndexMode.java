@@ -42,6 +42,7 @@ import java.io.IOException;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.BooleanSupplier;
@@ -606,7 +607,10 @@ public enum IndexMode {
         ) {
             IndexMode indexMode = templateIndexMode;
             if (indexMode == null) {
-                indexMode = IndexSettings.MODE.get(indexTemplateAndCreateRequestSettings);
+                String modeName = indexTemplateAndCreateRequestSettings.get(IndexSettings.MODE.getKey());
+                if (modeName != null) {
+                    indexMode = IndexMode.valueOf(modeName.toUpperCase(Locale.ROOT));
+                }
             }
             if (indexMode == LOOKUP) {
                 return Settings.builder()

@@ -21,7 +21,9 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping.READ_ONLY_ROLE_MAPPING_METADATA_FLAG;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class PutRoleMappingRequestTests extends ESTestCase {
 
@@ -78,6 +80,38 @@ public class PutRoleMappingRequestTests extends ESTestCase {
             "metadata contains ["
                 + READ_ONLY_ROLE_MAPPING_METADATA_FLAG
                 + "] flag. You cannot create or update role-mappings with a read-only flag"
+        );
+    }
+
+    public void testValidateMetadataKeySkipped() {
+        assertThat(
+            builder.name("test")
+                .roles("superuser")
+                .expression(Mockito.mock(RoleMapperExpression.class))
+                .metadata(Map.of("_secret", false, ExpressionRoleMapping.READ_ONLY_ROLE_MAPPING_METADATA_FLAG, true))
+                .request()
+                .validate(false),
+            is(nullValue())
+        );
+
+        assertThat(
+            builder.name("test")
+                .roles("superuser")
+                .expression(Mockito.mock(RoleMapperExpression.class))
+                .metadata(Map.of(ExpressionRoleMapping.READ_ONLY_ROLE_MAPPING_METADATA_FLAG, true))
+                .request()
+                .validate(false),
+            is(nullValue())
+        );
+
+        assertThat(
+            builder.name("test")
+                .roles("superuser")
+                .expression(Mockito.mock(RoleMapperExpression.class))
+                .metadata(Map.of("_secret", false))
+                .request()
+                .validate(false),
+            is(nullValue())
         );
     }
 

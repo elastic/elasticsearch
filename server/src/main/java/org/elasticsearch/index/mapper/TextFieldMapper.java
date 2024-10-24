@@ -598,8 +598,8 @@ public final class TextFieldMapper extends FieldMapper {
             }
             Automaton automaton = Operations.concatenate(automata);
             AutomatonQuery query = method == null
-                ? new AutomatonQuery(new Term(name(), value + "*"), automaton, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, false)
-                : new AutomatonQuery(new Term(name(), value + "*"), automaton, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, false, method);
+                ? new AutomatonQuery(new Term(name(), value + "*"), automaton, false)
+                : new AutomatonQuery(new Term(name(), value + "*"), automaton, false, method);
             return new BooleanQuery.Builder().add(query, BooleanClause.Occur.SHOULD)
                 .add(new TermQuery(new Term(parentField.name(), value)), BooleanClause.Occur.SHOULD)
                 .build();
@@ -1007,20 +1007,8 @@ public final class TextFieldMapper extends FieldMapper {
             if (isStored()) {
                 return new BlockStoredFieldsReader.BytesFromStringsBlockLoader(name());
             }
-            if (isSyntheticSource && syntheticSourceDelegate == null) {
-                /*
-                 * When we're in synthetic source mode we don't currently
-                 * support text fields that are not stored and are not children
-                 * of perfect keyword fields. We'd have to load from the parent
-                 * field and then convert the result to a string. In this case,
-                 * even if we would synthesize the source, the current field
-                 * would be missing.
-                 */
-                return null;
-            }
             SourceValueFetcher fetcher = SourceValueFetcher.toString(blContext.sourcePaths(name()));
-            var sourceMode = blContext.indexSettings().getIndexMappingSourceMode();
-            return new BlockSourceReader.BytesRefsBlockLoader(fetcher, blockReaderDisiLookup(blContext), sourceMode);
+            return new BlockSourceReader.BytesRefsBlockLoader(fetcher, blockReaderDisiLookup(blContext));
         }
 
         /**

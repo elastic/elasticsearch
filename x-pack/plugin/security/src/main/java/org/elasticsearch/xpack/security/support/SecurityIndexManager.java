@@ -89,6 +89,13 @@ public class SecurityIndexManager implements ClusterStateListener {
         PRIMARY_SHARDS
     }
 
+    public enum RoleMappingsCleanupMigrationStatus {
+        READY,
+        NOT_READY,
+        SKIP,
+        DONE
+    }
+
     private final Client client;
     private final SystemIndexDescriptor systemIndexDescriptor;
 
@@ -272,29 +279,44 @@ public class SecurityIndexManager implements ClusterStateListener {
     }
 
     /**
-     * Check to see if there are any file based role mappings and if they have been loaded into cluster state. If the
-     * {@link ReservedStateMetadata} file_settings namespace contains role mapping names, it means that there should be the same number of
-     * cluster state role mappings available. If they're not available yet using {@code RoleMappingMetadata.getFromClusterState()}, they
-     * have not yet been synchronized.
+     * Check if a role mappings cleanup migration is needed or has already been performed and if the cluster is ready for a cleanup
+     * migration
      */
-    private static boolean isReadyForRoleMappingCleanupMigration(ClusterState clusterState) {
+    private static RoleMappingsCleanupMigrationStatus getRoleMappingsCleanupMigrationStatus(
+        ClusterState clusterState,
+        int migrationsVersion
+    ) {
+        // Migration already finished
+        if (migrationsVersion >= SecurityMigrations.CLEANUP_ROLE_MAPPING_DUPLICATES_MIGRATION_VERSION) {
+            return RoleMappingsCleanupMigrationStatus.DONE;
+        }
+
         ReservedStateMetadata fileSettingsMetadata = clusterState.metadata().reservedStateMetadata().get(FILE_SETTINGS_METADATA_NAMESPACE);
         boolean hasFileSettingsMetadata = fileSettingsMetadata != null;
         // If there is no fileSettingsMetadata, there should be no reserved state (this is to catch bugs related to
         // name changes to FILE_SETTINGS_METADATA_NAMESPACE)
         assert hasFileSettingsMetadata || clusterState.metadata().reservedStateMetadata().isEmpty();
 
+        // If no file based role mappings available -> migration not needed
+        if (hasFileSettingsMetadata == false) {
+            return RoleMappingsCleanupMigrationStatus.SKIP;
+        }
+
         RoleMappingMetadata roleMappingMetadata = RoleMappingMetadata.getFromClusterState(clusterState);
-        return hasFileSettingsMetadata == false
-            || (reservedMappingsHasExpectedSize(roleMappingMetadata, fileSettingsMetadata)
-                && roleMappingMetadata.hasAnyMappingWithFallbackName() == false);
+
+        // If there are file based role mappings, make sure they have the latest format (name available) and that they have all been
+        // synced to cluster state (same size as the reserved state keys)
+        if (roleMappingMetadata.getRoleMappings().size() == fileSettingsMetadata.keys(ReservedRoleMappingAction.NAME).size()
+            && roleMappingMetadata.hasAnyMappingWithFallbackName() == false) {
+            return RoleMappingsCleanupMigrationStatus.READY;
+        }
+
+        // If none of the above conditions are met, wait for a state change to re-evaluate if the cluster is ready for migration
+        return RoleMappingsCleanupMigrationStatus.NOT_READY;
     }
 
-    private static boolean reservedMappingsHasExpectedSize(
-        RoleMappingMetadata roleMappingMetadata,
-        ReservedStateMetadata fileSettingsMetadata
-    ) {
-        return roleMappingMetadata.getRoleMappings().size() == fileSettingsMetadata.keys(ReservedRoleMappingAction.NAME).size();
+    public RoleMappingsCleanupMigrationStatus getRoleMappingsCleanupMigrationStatus() {
+        return state.roleMappingsCleanupMigrationStatus;
     }
 
     @Override
@@ -314,9 +336,12 @@ public class SecurityIndexManager implements ClusterStateListener {
         Tuple<Boolean, Boolean> available = checkIndexAvailable(event.state());
         final boolean indexAvailableForWrite = available.v1();
         final boolean indexAvailableForSearch = available.v2();
-        final boolean readyForRoleMappingCleanupMigration = isReadyForRoleMappingCleanupMigration(event.state());
-        final boolean mappingIsUpToDate = indexMetadata == null || checkIndexMappingUpToDate(event.state());
         final int migrationsVersion = getMigrationVersionFromIndexMetadata(indexMetadata);
+        final RoleMappingsCleanupMigrationStatus roleMappingsCleanupMigrationStatus = getRoleMappingsCleanupMigrationStatus(
+            event.state(),
+            migrationsVersion
+        );
+        final boolean mappingIsUpToDate = indexMetadata == null || checkIndexMappingUpToDate(event.state());
         final SystemIndexDescriptor.MappingsVersion minClusterMappingVersion = getMinSecurityIndexMappingVersion(event.state());
         final int indexMappingVersion = loadIndexMappingVersion(systemIndexDescriptor.getAliasName(), event.state());
         final String concreteIndexName = indexMetadata == null
@@ -345,7 +370,7 @@ public class SecurityIndexManager implements ClusterStateListener {
             indexAvailableForWrite,
             mappingIsUpToDate,
             createdOnLatestVersion,
-            readyForRoleMappingCleanupMigration,
+            roleMappingsCleanupMigrationStatus,
             migrationsVersion,
             minClusterMappingVersion,
             indexMappingVersion,
@@ -739,7 +764,7 @@ public class SecurityIndexManager implements ClusterStateListener {
             false,
             false,
             false,
-            false,
+            null,
             null,
             null,
             null,
@@ -755,7 +780,7 @@ public class SecurityIndexManager implements ClusterStateListener {
         public final boolean indexAvailableForWrite;
         public final boolean mappingUpToDate;
         public final boolean createdOnLatestVersion;
-        public final boolean readyForRoleMappingCleanupMigration;
+        public final RoleMappingsCleanupMigrationStatus roleMappingsCleanupMigrationStatus;
         public final Integer migrationsVersion;
         // Min mapping version supported by the descriptors in the cluster
         public final SystemIndexDescriptor.MappingsVersion minClusterMappingVersion;
@@ -774,7 +799,7 @@ public class SecurityIndexManager implements ClusterStateListener {
             boolean indexAvailableForWrite,
             boolean mappingUpToDate,
             boolean createdOnLatestVersion,
-            boolean readyForRoleMappingCleanupMigration,
+            RoleMappingsCleanupMigrationStatus roleMappingsCleanupMigrationStatus,
             Integer migrationsVersion,
             SystemIndexDescriptor.MappingsVersion minClusterMappingVersion,
             Integer indexMappingVersion,
@@ -791,7 +816,7 @@ public class SecurityIndexManager implements ClusterStateListener {
             this.mappingUpToDate = mappingUpToDate;
             this.migrationsVersion = migrationsVersion;
             this.createdOnLatestVersion = createdOnLatestVersion;
-            this.readyForRoleMappingCleanupMigration = readyForRoleMappingCleanupMigration;
+            this.roleMappingsCleanupMigrationStatus = roleMappingsCleanupMigrationStatus;
             this.minClusterMappingVersion = minClusterMappingVersion;
             this.indexMappingVersion = indexMappingVersion;
             this.concreteIndexName = concreteIndexName;
@@ -812,7 +837,7 @@ public class SecurityIndexManager implements ClusterStateListener {
                 && indexAvailableForWrite == state.indexAvailableForWrite
                 && mappingUpToDate == state.mappingUpToDate
                 && createdOnLatestVersion == state.createdOnLatestVersion
-                && readyForRoleMappingCleanupMigration == state.readyForRoleMappingCleanupMigration
+                && roleMappingsCleanupMigrationStatus == state.roleMappingsCleanupMigrationStatus
                 && Objects.equals(indexMappingVersion, state.indexMappingVersion)
                 && Objects.equals(migrationsVersion, state.migrationsVersion)
                 && Objects.equals(minClusterMappingVersion, state.minClusterMappingVersion)
@@ -835,7 +860,7 @@ public class SecurityIndexManager implements ClusterStateListener {
                 indexAvailableForWrite,
                 mappingUpToDate,
                 createdOnLatestVersion,
-                readyForRoleMappingCleanupMigration,
+                roleMappingsCleanupMigrationStatus,
                 migrationsVersion,
                 minClusterMappingVersion,
                 indexMappingVersion,
@@ -860,8 +885,8 @@ public class SecurityIndexManager implements ClusterStateListener {
                 + mappingUpToDate
                 + ", createdOnLatestVersion="
                 + createdOnLatestVersion
-                + ", readyForRoleMappingCleanupMigration="
-                + readyForRoleMappingCleanupMigration
+                + ", roleMappingsCleanupMigrationStatus="
+                + roleMappingsCleanupMigrationStatus
                 + ", migrationsVersion="
                 + migrationsVersion
                 + ", minClusterMappingVersion="

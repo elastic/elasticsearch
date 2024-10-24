@@ -32,15 +32,27 @@ import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
-import static org.elasticsearch.xpack.esql.core.type.DataType.isRepresentable;
-import static org.elasticsearch.xpack.esql.core.type.DataType.isSpatial;
 
 public class Max extends AggregateFunction implements ToAggregator, SurrogateExpression {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Max", Max::new);
+
+    private static final Map<DataType, Function<List<Integer>, AggregatorFunctionSupplier>> SUPPLIERS = Map.ofEntries(
+        Map.entry(DataType.BOOLEAN, MaxBooleanAggregatorFunctionSupplier::new),
+        Map.entry(DataType.LONG, MaxLongAggregatorFunctionSupplier::new),
+        Map.entry(DataType.DATETIME, MaxLongAggregatorFunctionSupplier::new),
+        Map.entry(DataType.DATE_NANOS, MaxLongAggregatorFunctionSupplier::new),
+        Map.entry(DataType.INTEGER, MaxIntAggregatorFunctionSupplier::new),
+        Map.entry(DataType.DOUBLE, MaxDoubleAggregatorFunctionSupplier::new),
+        Map.entry(DataType.IP, MaxIpAggregatorFunctionSupplier::new),
+        Map.entry(DataType.KEYWORD, MaxBytesRefAggregatorFunctionSupplier::new),
+        Map.entry(DataType.TEXT, MaxBytesRefAggregatorFunctionSupplier::new),
+        Map.entry(DataType.VERSION, MaxBytesRefAggregatorFunctionSupplier::new)
+    );
 
     @FunctionInfo(
         returnType = { "boolean", "double", "integer", "long", "date", "ip", "keyword", "text", "long", "version" },
@@ -98,7 +110,7 @@ public class Max extends AggregateFunction implements ToAggregator, SurrogateExp
     protected TypeResolution resolveType() {
         return TypeResolutions.isType(
             field(),
-            t -> isRepresentable(t) && t != UNSIGNED_LONG && isSpatial(t) == false,
+            SUPPLIERS::containsKey,
             sourceText(),
             DEFAULT,
             "representable except unsigned_long and spatial types"
@@ -113,25 +125,11 @@ public class Max extends AggregateFunction implements ToAggregator, SurrogateExp
     @Override
     public final AggregatorFunctionSupplier supplier(List<Integer> inputChannels) {
         DataType type = field().dataType();
-        if (type == DataType.BOOLEAN) {
-            return new MaxBooleanAggregatorFunctionSupplier(inputChannels);
+        if (SUPPLIERS.containsKey(type) == false) {
+            // If the type checking did its job, this should never happen
+            throw EsqlIllegalArgumentException.illegalDataType(type);
         }
-        if (type == DataType.LONG || type == DataType.DATETIME) {
-            return new MaxLongAggregatorFunctionSupplier(inputChannels);
-        }
-        if (type == DataType.INTEGER) {
-            return new MaxIntAggregatorFunctionSupplier(inputChannels);
-        }
-        if (type == DataType.DOUBLE) {
-            return new MaxDoubleAggregatorFunctionSupplier(inputChannels);
-        }
-        if (type == DataType.IP) {
-            return new MaxIpAggregatorFunctionSupplier(inputChannels);
-        }
-        if (type == DataType.VERSION || DataType.isString(type)) {
-            return new MaxBytesRefAggregatorFunctionSupplier(inputChannels);
-        }
-        throw EsqlIllegalArgumentException.illegalDataType(type);
+        return SUPPLIERS.get(type).apply(inputChannels);
     }
 
     @Override

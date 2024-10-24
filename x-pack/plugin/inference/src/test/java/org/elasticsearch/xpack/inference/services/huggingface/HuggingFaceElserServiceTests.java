@@ -131,7 +131,7 @@ public class HuggingFaceElserServiceTests extends ESTestCase {
         }
     }
 
-    public void testGetConfiguration() throws IOException {
+    public void testGetConfiguration() throws Exception {
         try (
             var service = new HuggingFaceElserService(
                 HttpRequestSenderTests.createSenderFactory(threadPool, clientManager),

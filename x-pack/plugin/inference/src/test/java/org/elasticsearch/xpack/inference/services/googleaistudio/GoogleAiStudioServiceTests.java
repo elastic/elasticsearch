@@ -1226,7 +1226,7 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
         }
     }
 
-    public void testGetConfiguration() throws IOException {
+    public void testGetConfiguration() throws Exception {
         try (var service = createGoogleAiStudioService()) {
             String content = XContentHelper.stripWhitespace("""
                 {

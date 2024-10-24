@@ -12,6 +12,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
@@ -41,6 +42,7 @@ import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceModel;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
+import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
@@ -116,7 +118,7 @@ public class HuggingFaceElserService extends HuggingFaceBaseService {
     }
 
     @Override
-    public InferenceServiceConfiguration getConfiguration() {
+    public InferenceServiceConfiguration getConfiguration() throws Exception {
         return new InferenceServiceConfiguration.Builder().setProvider(NAME)
             .setTaskTypes(supportedTaskTypes())
             .setConfiguration(HuggingFaceElserService.Configuration.get())
@@ -134,7 +136,11 @@ public class HuggingFaceElserService extends HuggingFaceBaseService {
     }
 
     private static class Configuration {
-        public static Map<String, ServiceConfiguration> get() {
+        public static Map<String, ServiceConfiguration> get() throws Exception {
+            return configuration.getOrCompute();
+        }
+
+        private static final LazyInitializable<Map<String, ServiceConfiguration>, ?> configuration = new LazyInitializable<>(() -> {
             var configurationMap = new HashMap<String, ServiceConfiguration>();
 
             configurationMap.put(
@@ -152,7 +158,7 @@ public class HuggingFaceElserService extends HuggingFaceBaseService {
             configurationMap.putAll(DefaultSecretSettings.toServiceConfiguration());
             configurationMap.putAll(RateLimitSettings.toServiceConfiguration());
 
-            return configurationMap;
-        }
+            return Collections.unmodifiableMap(configurationMap);
+        });
     }
 }

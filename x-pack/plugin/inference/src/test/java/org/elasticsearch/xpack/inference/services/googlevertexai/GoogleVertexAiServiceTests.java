@@ -962,7 +962,7 @@ public class GoogleVertexAiServiceTests extends ESTestCase {
     // testInfer tested via end-to-end notebook tests in AppEx repo
 
     @SuppressWarnings("checkstyle:LineLength")
-    public void testGetConfiguration() throws IOException {
+    public void testGetConfiguration() throws Exception {
         try (var service = createGoogleVertexAiService()) {
             String content = XContentHelper.stripWhitespace(
                 """

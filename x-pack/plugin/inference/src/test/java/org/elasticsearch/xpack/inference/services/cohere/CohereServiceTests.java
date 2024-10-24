@@ -1690,7 +1690,7 @@ public class CohereServiceTests extends ESTestCase {
             .hasErrorContaining("how dare you");
     }
 
-    public void testGetConfiguration() throws IOException {
+    public void testGetConfiguration() throws Exception {
         try (var service = createCohereService()) {
             String content = XContentHelper.stripWhitespace("""
                 {

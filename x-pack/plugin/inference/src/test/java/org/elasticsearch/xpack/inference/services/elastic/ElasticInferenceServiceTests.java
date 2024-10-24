@@ -495,7 +495,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
         }
     }
 
-    public void testGetConfiguration() throws IOException {
+    public void testGetConfiguration() throws Exception {
         try (var service = createServiceWithMockSender()) {
             String content = XContentHelper.stripWhitespace("""
                 {

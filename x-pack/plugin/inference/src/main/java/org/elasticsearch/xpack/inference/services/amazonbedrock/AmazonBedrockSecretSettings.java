@@ -13,6 +13,7 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.SecretSettings;
@@ -22,6 +23,7 @@ import org.elasticsearch.inference.configuration.ServiceConfigurationFieldType;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -62,31 +64,8 @@ public class AmazonBedrockSecretSettings implements SecretSettings {
         return new AmazonBedrockSecretSettings(secureAccessKey, secureSecretKey);
     }
 
-    public static Map<String, ServiceConfiguration> toServiceConfiguration() {
-        var configurationMap = new HashMap<String, ServiceConfiguration>();
-        configurationMap.put(
-            ACCESS_KEY_FIELD,
-            new ServiceConfiguration.Builder().setDisplay(ServiceConfigurationDisplayType.TEXTBOX)
-                .setLabel("Access Key")
-                .setOrder(1)
-                .setRequired(true)
-                .setSensitive(true)
-                .setTooltip("A valid AWS access key that has permissions to use Amazon Bedrock.")
-                .setType(ServiceConfigurationFieldType.STRING)
-                .build()
-        );
-        configurationMap.put(
-            SECRET_KEY_FIELD,
-            new ServiceConfiguration.Builder().setDisplay(ServiceConfigurationDisplayType.TEXTBOX)
-                .setLabel("Secret Key")
-                .setOrder(2)
-                .setRequired(true)
-                .setSensitive(true)
-                .setTooltip("A valid AWS secret key that is paired with the access_key.")
-                .setType(ServiceConfigurationFieldType.STRING)
-                .build()
-        );
-        return configurationMap;
+    public static Map<String, ServiceConfiguration> toServiceConfiguration() throws Exception {
+        return Configuration.get();
     }
 
     public AmazonBedrockSecretSettings(SecureString accessKey, SecureString secretKey) {
@@ -142,5 +121,38 @@ public class AmazonBedrockSecretSettings implements SecretSettings {
     @Override
     public SecretSettings newSecretSettings(Map<String, Object> newSecrets) {
         return fromMap(new HashMap<>(newSecrets));
+    }
+
+    private static class Configuration {
+        public static Map<String, ServiceConfiguration> get() throws Exception {
+            return configuration.getOrCompute();
+        }
+
+        private static final LazyInitializable<Map<String, ServiceConfiguration>, ?> configuration = new LazyInitializable<>(() -> {
+            var configurationMap = new HashMap<String, ServiceConfiguration>();
+            configurationMap.put(
+                ACCESS_KEY_FIELD,
+                new ServiceConfiguration.Builder().setDisplay(ServiceConfigurationDisplayType.TEXTBOX)
+                    .setLabel("Access Key")
+                    .setOrder(1)
+                    .setRequired(true)
+                    .setSensitive(true)
+                    .setTooltip("A valid AWS access key that has permissions to use Amazon Bedrock.")
+                    .setType(ServiceConfigurationFieldType.STRING)
+                    .build()
+            );
+            configurationMap.put(
+                SECRET_KEY_FIELD,
+                new ServiceConfiguration.Builder().setDisplay(ServiceConfigurationDisplayType.TEXTBOX)
+                    .setLabel("Secret Key")
+                    .setOrder(2)
+                    .setRequired(true)
+                    .setSensitive(true)
+                    .setTooltip("A valid AWS secret key that is paired with the access_key.")
+                    .setType(ServiceConfigurationFieldType.STRING)
+                    .build()
+            );
+            return Collections.unmodifiableMap(configurationMap);
+        });
     }
 }

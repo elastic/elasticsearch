@@ -13,6 +13,7 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.SecretSettings;
@@ -22,6 +23,7 @@ import org.elasticsearch.inference.configuration.ServiceConfigurationFieldType;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -56,20 +58,8 @@ public class GoogleVertexAiSecretSettings implements SecretSettings {
         return new GoogleVertexAiSecretSettings(secureServiceAccountJson);
     }
 
-    public static Map<String, ServiceConfiguration> toServiceConfiguration() {
-        var configurationMap = new HashMap<String, ServiceConfiguration>();
-        configurationMap.put(
-            SERVICE_ACCOUNT_JSON,
-            new ServiceConfiguration.Builder().setDisplay(ServiceConfigurationDisplayType.TEXTBOX)
-                .setLabel("Credentials JSON")
-                .setOrder(1)
-                .setRequired(true)
-                .setSensitive(true)
-                .setTooltip("API Key for the provider you're connecting to.")
-                .setType(ServiceConfigurationFieldType.STRING)
-                .build()
-        );
-        return configurationMap;
+    public static Map<String, ServiceConfiguration> toServiceConfiguration() throws Exception {
+        return Configuration.get();
     }
 
     public GoogleVertexAiSecretSettings(SecureString serviceAccountJson) {
@@ -125,5 +115,27 @@ public class GoogleVertexAiSecretSettings implements SecretSettings {
     @Override
     public SecretSettings newSecretSettings(Map<String, Object> newSecrets) {
         return GoogleVertexAiSecretSettings.fromMap(new HashMap<>(newSecrets));
+    }
+
+    private static class Configuration {
+        public static Map<String, ServiceConfiguration> get() throws Exception {
+            return configuration.getOrCompute();
+        }
+
+        private static final LazyInitializable<Map<String, ServiceConfiguration>, ?> configuration = new LazyInitializable<>(() -> {
+            var configurationMap = new HashMap<String, ServiceConfiguration>();
+            configurationMap.put(
+                SERVICE_ACCOUNT_JSON,
+                new ServiceConfiguration.Builder().setDisplay(ServiceConfigurationDisplayType.TEXTBOX)
+                    .setLabel("Credentials JSON")
+                    .setOrder(1)
+                    .setRequired(true)
+                    .setSensitive(true)
+                    .setTooltip("API Key for the provider you're connecting to.")
+                    .setType(ServiceConfigurationFieldType.STRING)
+                    .build()
+            );
+            return Collections.unmodifiableMap(configurationMap);
+        });
     }
 }

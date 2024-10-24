@@ -502,7 +502,7 @@ public class AlibabaCloudSearchServiceTests extends ESTestCase {
     }
 
     @SuppressWarnings("checkstyle:LineLength")
-    public void testGetConfiguration() throws IOException {
+    public void testGetConfiguration() throws Exception {
         try (var service = new AlibabaCloudSearchService(mock(HttpRequestSender.Factory.class), createWithEmptySettings(threadPool))) {
             String content = XContentHelper.stripWhitespace(
                 """

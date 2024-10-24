@@ -1688,7 +1688,7 @@ public class OpenAiServiceTests extends ESTestCase {
     }
 
     @SuppressWarnings("checkstyle:LineLength")
-    public void testGetConfiguration() throws IOException {
+    public void testGetConfiguration() throws Exception {
         try (var service = createOpenAiService()) {
             String content = XContentHelper.stripWhitespace(
                 """

@@ -1512,7 +1512,7 @@ public class AzureOpenAiServiceTests extends ESTestCase {
     }
 
     @SuppressWarnings("checkstyle:LineLength")
-    public void testGetConfiguration() throws IOException {
+    public void testGetConfiguration() throws Exception {
         try (var service = createAzureOpenAiService()) {
             String content = XContentHelper.stripWhitespace(
                 """

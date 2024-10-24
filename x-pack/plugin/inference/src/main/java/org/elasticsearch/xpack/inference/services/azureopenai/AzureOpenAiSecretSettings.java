@@ -13,6 +13,7 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.SecretSettings;
@@ -22,6 +23,7 @@ import org.elasticsearch.inference.configuration.ServiceConfigurationFieldType;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -67,31 +69,8 @@ public class AzureOpenAiSecretSettings implements SecretSettings {
         return new AzureOpenAiSecretSettings(secureApiToken, secureEntraId);
     }
 
-    public static Map<String, ServiceConfiguration> toServiceConfiguration() {
-        var configurationMap = new HashMap<String, ServiceConfiguration>();
-        configurationMap.put(
-            API_KEY,
-            new ServiceConfiguration.Builder().setDisplay(ServiceConfigurationDisplayType.TEXTBOX)
-                .setLabel("API Key")
-                .setOrder(1)
-                .setRequired(false)
-                .setSensitive(true)
-                .setTooltip("You must provide either an API key or an Entra ID.")
-                .setType(ServiceConfigurationFieldType.STRING)
-                .build()
-        );
-        configurationMap.put(
-            ENTRA_ID,
-            new ServiceConfiguration.Builder().setDisplay(ServiceConfigurationDisplayType.TEXTBOX)
-                .setLabel("Entra ID")
-                .setOrder(2)
-                .setRequired(false)
-                .setSensitive(true)
-                .setTooltip("You must provide either an API key or an Entra ID.")
-                .setType(ServiceConfigurationFieldType.STRING)
-                .build()
-        );
-        return configurationMap;
+    public static Map<String, ServiceConfiguration> toServiceConfiguration() throws Exception {
+        return AzureOpenAiSecretSettings.Configuration.get();
     }
 
     public AzureOpenAiSecretSettings(@Nullable SecureString apiKey, @Nullable SecureString entraId) {
@@ -160,5 +139,38 @@ public class AzureOpenAiSecretSettings implements SecretSettings {
     @Override
     public SecretSettings newSecretSettings(Map<String, Object> newSecrets) {
         return AzureOpenAiSecretSettings.fromMap(new HashMap<>(newSecrets));
+    }
+
+    private static class Configuration {
+        public static Map<String, ServiceConfiguration> get() throws Exception {
+            return configuration.getOrCompute();
+        }
+
+        private static final LazyInitializable<Map<String, ServiceConfiguration>, ?> configuration = new LazyInitializable<>(() -> {
+            var configurationMap = new HashMap<String, ServiceConfiguration>();
+            configurationMap.put(
+                API_KEY,
+                new ServiceConfiguration.Builder().setDisplay(ServiceConfigurationDisplayType.TEXTBOX)
+                    .setLabel("API Key")
+                    .setOrder(1)
+                    .setRequired(false)
+                    .setSensitive(true)
+                    .setTooltip("You must provide either an API key or an Entra ID.")
+                    .setType(ServiceConfigurationFieldType.STRING)
+                    .build()
+            );
+            configurationMap.put(
+                ENTRA_ID,
+                new ServiceConfiguration.Builder().setDisplay(ServiceConfigurationDisplayType.TEXTBOX)
+                    .setLabel("Entra ID")
+                    .setOrder(2)
+                    .setRequired(false)
+                    .setSensitive(true)
+                    .setTooltip("You must provide either an API key or an Entra ID.")
+                    .setType(ServiceConfigurationFieldType.STRING)
+                    .build()
+            );
+            return Collections.unmodifiableMap(configurationMap);
+        });
     }
 }

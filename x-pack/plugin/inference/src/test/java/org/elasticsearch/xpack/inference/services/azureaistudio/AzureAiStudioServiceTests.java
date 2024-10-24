@@ -1391,7 +1391,7 @@ public class AzureAiStudioServiceTests extends ESTestCase {
             .hasErrorContaining("You didn't provide an API key...");
     }
 
-    public void testGetConfiguration() throws IOException {
+    public void testGetConfiguration() throws Exception {
         try (var service = createService()) {
             String content = XContentHelper.stripWhitespace("""
                 {

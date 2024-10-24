@@ -151,7 +151,7 @@ public class AmazonBedrockServiceTests extends ESTestCase {
         }
     }
 
-    public void testGetConfiguration() throws IOException {
+    public void testGetConfiguration() throws Exception {
         try (var service = createAmazonBedrockService()) {
             String content = XContentHelper.stripWhitespace("""
                 {

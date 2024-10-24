@@ -15,6 +15,7 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
@@ -224,7 +225,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
     }
 
     @Override
-    public InferenceServiceConfiguration getConfiguration() {
+    public InferenceServiceConfiguration getConfiguration() throws Exception {
         return new InferenceServiceConfiguration.Builder().setProvider(NAME)
             .setTaskTypes(supportedTaskTypes())
             .setConfiguration(ElasticsearchInternalService.Configuration.get())
@@ -1024,7 +1025,11 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
     }
 
     private static class Configuration {
-        public static Map<String, ServiceConfiguration> get() {
+        public static Map<String, ServiceConfiguration> get() throws Exception {
+            return configuration.getOrCompute();
+        }
+
+        private static final LazyInitializable<Map<String, ServiceConfiguration>, ?> configuration = new LazyInitializable<>(() -> {
             var configurationMap = new HashMap<String, ServiceConfiguration>();
 
             configurationMap.put(
@@ -1075,7 +1080,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
                     .build()
             );
 
-            return configurationMap;
-        }
+            return Collections.unmodifiableMap(configurationMap);
+        });
     }
 }

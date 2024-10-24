@@ -72,7 +72,6 @@ import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -1575,7 +1574,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
         assertFalse(service.isDefaultId("foo"));
     }
 
-    public void testGetConfiguration() throws IOException {
+    public void testGetConfiguration() throws Exception {
         try (var service = createService(mock(Client.class))) {
             String content = XContentHelper.stripWhitespace("""
                 {

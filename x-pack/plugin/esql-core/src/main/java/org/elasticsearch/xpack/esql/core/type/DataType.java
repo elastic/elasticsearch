@@ -584,6 +584,13 @@ public enum DataType {
         return new Builder();
     }
 
+    public boolean isDate() {
+        return switch (this) {
+            case DATETIME, DATE_NANOS -> true;
+            default -> false;
+        };
+    }
+
     /**
      * Named parameters with default values. It's just easier to do this with
      * a builder in java....

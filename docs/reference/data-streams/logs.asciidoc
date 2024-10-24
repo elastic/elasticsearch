@@ -169,7 +169,7 @@ segment-level keyword dictionary. This compression is used when multiple consecu
 
 [discrete]
 [[logsdb-ignored-settings]]
-=== `ignore_malformed`, `ignore_above`, `ignore_dynamic_beyond_limit` and `_ignored_source`
+=== `ignore_malformed`, `ignore_above`, `ignore_dynamic_beyond_limit`
 
 By default, `logsdb` index mode sets `ignore_malformed` to `true`. This setting allows documents with malformed fields
 to be indexed without causing indexing failures, ensuring that log data ingestion continues smoothly even when some
@@ -197,13 +197,6 @@ indexing, ensuring continued log ingestion without errors.
 NOTE: When automatically injected, `host.name` and `@timestamp` contribute to the limit of mapped fields. When
 `host.name` is mapped with `subobjects: true` it consists of two fields. When `host.name` is mapped with
 `subobjects: false` it only consists of one field.
-
-`logsdb` index mode uses a special field named `_ignored_source` that allows retrieving values for fields that have been
-ignored for various reasons (e.g., due to malformed data or indexing rules). This field ensures that even ignored
-field values can be accessed if needed. The `_ignored_source` field is not returned by default and must be explicitly
-requested via the <<search-fields,fields or stored fields>> API using `_ignored_source` as the field name.
-Additionally, the field is encoded, and the encoding format may change over time, so users should not rely on the
-encoding or the field name remaining the same.
 
 [discrete]
 [[logsdb-nodocvalue-fields]]

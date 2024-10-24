@@ -1586,6 +1586,13 @@ setup:
       cluster_features: ["simulate.support.non.template.mapping"]
       reason: "ingest simulate support for indices with mappings that didn't come from templates added in 8.17"
 
+  # A global match-everything legacy template is added to the cluster sometimes (rarely). We have to get rid of this template if it exists
+  # because this test is making sure we get correct behavior when an index matches *no* template:
+  - do:
+      indices.delete_template:
+        name:   '*'
+        ignore: 404
+
   # First, make sure that validation fails before we create the index (since we are only defining to bar field but trying to index a value
   # for foo.
   - do:

@@ -38,7 +38,7 @@ public abstract class BlockHash implements Releasable, SeenGroupIds {
 
     protected final BlockFactory blockFactory;
 
-    protected BlockHash(BlockFactory blockFactory) {
+    BlockHash(BlockFactory blockFactory) {
         this.blockFactory = blockFactory;
     }
 

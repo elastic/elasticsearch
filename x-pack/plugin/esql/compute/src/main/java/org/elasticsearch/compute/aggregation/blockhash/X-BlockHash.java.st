@@ -63,7 +63,7 @@ $endif$
 /**
  * Maps a {@link $Type$Block} column to group ids.
  */
-public final class $Type$BlockHash extends BlockHash {
+final class $Type$BlockHash extends BlockHash {
     private final int channel;
     final $Hash$ hash;
 
@@ -105,7 +105,7 @@ public final class $Type$BlockHash extends BlockHash {
         }
     }
 
-    public IntVector add($Type$Vector vector) {
+    IntVector add($Type$Vector vector) {
 $if(BytesRef)$
         BytesRef scratch = new BytesRef();
 $endif$
@@ -125,7 +125,7 @@ $endif$
         }
     }
 
-    public IntBlock add($Type$Block block) {
+    IntBlock add($Type$Block block) {
 $if(BytesRef)$
         var ordinals = block.asOrdinals();
         if (ordinals != null) {

@@ -9,8 +9,6 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.MatchAllDocsQuery;
-import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.DataStream;

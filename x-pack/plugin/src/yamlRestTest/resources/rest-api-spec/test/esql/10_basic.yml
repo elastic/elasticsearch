@@ -430,14 +430,14 @@ setup:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ named_parameter_for_field_and_function_names ]
+          capabilities: [ named_parameter_for_field_and_function_names_simplified_syntax ]
       reason: "named or positional parameters for field names"
 
   - do:
       esql.query:
         body:
           query: 'from test | stats x = count(?f1), y = sum(?f2) by ?f3 | sort ?f3 | keep ?f3, x, y  | limit 3'
-          params: [{"f1" : {"value" : "time", "kind" : "identifier" }}, {"f2" : { "value" : "count", "kind" : "identifier" }}, {"f3" : { "value" : "color", "kind" : "identifier" }}]
+          params: [{"f1" : {"identifier" : "time"}}, {"f2" : { "identifier" : "count" }}, {"f3" : { "identifier" : "color"}}]
 
   - length: {columns: 3}
   - match: {columns.0.name: "color"}

@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -150,9 +151,10 @@ public class FilterAllocationDecider extends AllocationDecider {
                 return allocation.decision(
                     Decision.NO,
                     NAME,
-                    "node does not match index setting [%s] filters [%s]",
+                    "node does not match index setting [%s] filters [%s]; for more information, see [%s]",
                     IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX,
-                    indexRequireFilters
+                    indexRequireFilters,
+                    ReferenceDocs.ALLOCATION_EXPLAIN_SETTING_CONFLICT
                 );
             }
         }
@@ -161,9 +163,10 @@ public class FilterAllocationDecider extends AllocationDecider {
                 return allocation.decision(
                     Decision.NO,
                     NAME,
-                    "node does not match index setting [%s] filters [%s]",
+                    "node does not match index setting [%s] filters [%s]; for more information, see [%s]",
                     IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_PREFIX,
-                    indexIncludeFilters
+                    indexIncludeFilters,
+                    ReferenceDocs.ALLOCATION_EXPLAIN_SETTING_CONFLICT
                 );
             }
         }

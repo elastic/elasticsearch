@@ -81,6 +81,7 @@ you might expect otherwise.
 
 ===== Unassigned primary shard
 
+[[allocation-explain-setting-conflict]]
 ====== Conflicting settings
 The following request gets an allocation explanation for an unassigned primary
 shard.

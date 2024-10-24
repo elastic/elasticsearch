@@ -1526,6 +1526,10 @@ public class IndexNameExpressionResolver {
             // utility class
         }
 
+        /**
+         * Resolves date math expressions. If this is a noop the given {@code expressions} list is returned without copying.
+         * As a result callers of this method should not mutate the returned list. Mutating it may come with unexpected side effects.
+         */
         public static List<String> resolve(Context context, List<String> expressions) {
             boolean wildcardSeen = false;
             final boolean expandWildcards = context.getOptions().expandWildcardExpressions();

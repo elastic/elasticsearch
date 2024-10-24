@@ -80,7 +80,7 @@ public final class DocumentParser {
         final RootDocumentParserContext context;
         final XContentType xContentType = source.getXContentType();
 
-        XContentMeteringParserDecorator meteringParserDecorator = source.getDocumentSizeObserver();
+        XContentMeteringParserDecorator meteringParserDecorator = source.getMeteringParserDecorator();
         try (
             XContentParser parser = meteringParserDecorator.decorate(
                 XContentHelper.createParser(parserConfiguration, source.source(), xContentType)

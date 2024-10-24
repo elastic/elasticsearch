@@ -146,7 +146,6 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
      * rawTimestamp field is used on the coordinate node, it doesn't need to be serialised.
      */
     private Object rawTimestamp;
-    private long normalisedBytesParsed = -1;
 
     public IndexRequest(StreamInput in) throws IOException {
         this(null, in);
@@ -181,7 +180,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         dynamicTemplates = in.readMap(StreamInput::readString);
         if (in.getTransportVersion().onOrAfter(PIPELINES_HAVE_RUN_FIELD_ADDED)
             && in.getTransportVersion().before(TransportVersions.V_8_13_0)) {
-            in.readBoolean();
+            in.readBoolean(); // obsolete, prior to tracking normalisedBytesParsed
         }
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             this.listExecutedPipelines = in.readBoolean();
@@ -194,18 +193,20 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         }
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
             requireDataStream = in.readBoolean();
-            normalisedBytesParsed = in.readZLong();
         } else {
             requireDataStream = false;
         }
 
-        if (in.getTransportVersion().onOrAfter(TransportVersions.INDEX_REQUEST_UPDATE_BY_SCRIPT_ORIGIN)
-            && in.getTransportVersion().before(TransportVersions.INDEX_REQUEST_REMOVE_ORIGIN_FLAGS)) {
-            in.readBoolean();
-        }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.INDEX_REQUEST_UPDATE_BY_DOC_ORIGIN)
-            && in.getTransportVersion().before(TransportVersions.INDEX_REQUEST_REMOVE_ORIGIN_FLAGS)) {
-            in.readBoolean();
+        if (in.getTransportVersion().before(TransportVersions.INDEX_REQUEST_REMOVE_METERING)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
+                in.readZLong(); // obsolete normalisedBytesParsed
+            }
+            if (in.getTransportVersion().onOrAfter(TransportVersions.INDEX_REQUEST_UPDATE_BY_SCRIPT_ORIGIN)) {
+                in.readBoolean(); // obsolete originatesFromUpdateByScript
+            }
+            if (in.getTransportVersion().onOrAfter(TransportVersions.INDEX_REQUEST_UPDATE_BY_DOC_ORIGIN)) {
+                in.readBoolean(); // obsolete originatesFromUpdateByDoc
+            }
         }
     }
 
@@ -754,7 +755,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         out.writeMap(dynamicTemplates, StreamOutput::writeString);
         if (out.getTransportVersion().onOrAfter(PIPELINES_HAVE_RUN_FIELD_ADDED)
             && out.getTransportVersion().before(TransportVersions.V_8_13_0)) {
-            out.writeBoolean(normalisedBytesParsed != -1L);
+            out.writeBoolean(false); // obsolete, prior to tracking normalisedBytesParsed
         }
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             out.writeBoolean(listExecutedPipelines);
@@ -765,17 +766,18 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
 
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
             out.writeBoolean(requireDataStream);
-            out.writeZLong(normalisedBytesParsed);
         }
 
-        if (out.getTransportVersion().onOrAfter(TransportVersions.INDEX_REQUEST_UPDATE_BY_SCRIPT_ORIGIN)
-            && out.getTransportVersion().before(TransportVersions.INDEX_REQUEST_REMOVE_ORIGIN_FLAGS)) {
-            out.writeBoolean(false);
-        }
-
-        if (out.getTransportVersion().onOrAfter(TransportVersions.INDEX_REQUEST_UPDATE_BY_DOC_ORIGIN)
-            && out.getTransportVersion().before(TransportVersions.INDEX_REQUEST_REMOVE_ORIGIN_FLAGS)) {
-            out.writeBoolean(false);
+        if (out.getTransportVersion().before(TransportVersions.INDEX_REQUEST_REMOVE_METERING)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
+                out.writeZLong(-1);  // obsolete normalisedBytesParsed
+            }
+            if (out.getTransportVersion().onOrAfter(TransportVersions.INDEX_REQUEST_UPDATE_BY_SCRIPT_ORIGIN)) {
+                out.writeBoolean(false); // obsolete originatesFromUpdateByScript
+            }
+            if (out.getTransportVersion().onOrAfter(TransportVersions.INDEX_REQUEST_UPDATE_BY_DOC_ORIGIN)) {
+                out.writeBoolean(false); // obsolete originatesFromUpdateByDoc
+            }
         }
     }
 
@@ -923,24 +925,6 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     public void setRawTimestamp(Object rawTimestamp) {
         assert this.rawTimestamp == null : "rawTimestamp only set in ingest phase, it can't be set twice";
         this.rawTimestamp = rawTimestamp;
-    }
-
-    /**
-     * Returns a number of bytes observed when parsing a document in earlier stages of ingestion (like update/ingest service)
-     * Defaults to -1 when a document size was not observed in earlier stages.
-     * @return a number of bytes observed
-     */
-    public long getNormalisedBytesParsed() {
-        return normalisedBytesParsed;
-    }
-
-    /**
-     * Sets number of bytes observed by a <code>DocumentSizeObserver</code>
-     * @return an index request
-     */
-    public IndexRequest setNormalisedBytesParsed(long normalisedBytesParsed) {
-        this.normalisedBytesParsed = normalisedBytesParsed;
-        return this;
     }
 
     /**

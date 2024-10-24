@@ -49,8 +49,8 @@ public class CrossClusterQueryUnavailableIT extends AbstractMultiClustersTestCas
     }
 
     @Override
-    protected Map<String, Boolean> skipUnavailableForRemoteClusters() {
-        return Map.of(REMOTE_CLUSTER, randomBoolean());
+    protected boolean reuseClusters() {
+        return false;
     }
 
     @Override
@@ -74,38 +74,19 @@ public class CrossClusterQueryUnavailableIT extends AbstractMultiClustersTestCas
         }
     }
 
-    // TODO: test is flaky - sometimes the call to field-caps returns an error and sometimes it just has the cluster
-    // missing entirely, so need a better way to consistently induce "remote unavailable" exceptions
-    public void testCCSExecutionAgainstDisconnectedRemotes() throws Exception {
+    public void testCCSAgainstDisconnectedRemoteWithSkipUnavailableTrue() throws Exception {
         Map<String, Object> testClusterInfo = setupTwoClusters();
         int localNumShards = (Integer) testClusterInfo.get("local.num_shards");
-        boolean skipUnavailable = (Boolean) testClusterInfo.get("remote.skip_unavailable");
+        setSkipUnavailable(true);
 
-        final String[] nodeNames = cluster(REMOTE_CLUSTER).getNodeNames();
-        // MP TODO: this fails with java.lang.UnsupportedOperationException: current test cluster is immutable - can I use this?
-        // final MockTransportService instance = MockTransportService.getInstance(nodeNames[0]);
-        // instance.addConnectBehavior(... ? )
+        try {
+            // close the remote cluster so that it is unavailable
+            cluster(REMOTE_CLUSTER).close();
 
-        for (String nodeName : nodeNames) {
-            cluster(REMOTE_CLUSTER).stopNode(nodeName);
-        }
-        cluster(REMOTE_CLUSTER).ensureAtLeastNumDataNodes(0);
-        waitForRemoteClusterRed(cluster(REMOTE_CLUSTER).client());
-        // TODO: is there a better method to call here to wait until the cluster is "offline"
-        // cluster(REMOTE_CLUSTER).assertRequestsFinished() always fails for me
-        // assertBusy(()-> cluster(REMOTE_CLUSTER).assertRequestsFinished());
+            Tuple<Boolean, Boolean> includeCCSMetadata = randomIncludeCCSMetadata();
+            Boolean requestIncludeMeta = includeCCSMetadata.v1();
+            boolean responseExpectMeta = includeCCSMetadata.v2();
 
-        Tuple<Boolean, Boolean> includeCCSMetadata = randomIncludeCCSMetadata();
-        Boolean requestIncludeMeta = includeCCSMetadata.v1();
-        boolean responseExpectMeta = includeCCSMetadata.v2();
-
-        if (skipUnavailable == false) {
-            final Exception exception = expectThrows(
-                Exception.class,
-                () -> runQuery("from logs-*,*:logs-* | stats sum (v)", requestIncludeMeta)
-            );
-            assertThat(ExceptionsHelper.isRemoteUnavailableException(exception), is(true));
-        } else {
             try (EsqlQueryResponse resp = runQuery("from logs-*,*:logs-* | stats sum (v)", requestIncludeMeta)) {
                 List<List<Object>> values = getValuesList(resp);
                 assertThat(values, hasSize(1));
@@ -143,7 +124,107 @@ public class CrossClusterQueryUnavailableIT extends AbstractMultiClustersTestCas
                 // ensure that the _clusters metadata is present only if requested
                 assertClusterMetadataInResponse(resp, responseExpectMeta);
             }
+        } finally {
+            clearSkipUnavailable();
         }
+    }
+
+    public void testRemoteOnlyCCSAgainstDisconnectedRemoteWithSkipUnavailableTrue() throws Exception {
+        Map<String, Object> testClusterInfo = setupTwoClusters();
+        setSkipUnavailable(true);
+
+        try {
+            // close the remote cluster so that it is unavailable
+            cluster(REMOTE_CLUSTER).close();
+
+            Tuple<Boolean, Boolean> includeCCSMetadata = randomIncludeCCSMetadata();
+            Boolean requestIncludeMeta = includeCCSMetadata.v1();
+            boolean responseExpectMeta = includeCCSMetadata.v2();
+
+            try (EsqlQueryResponse resp = runQuery("FROM " + REMOTE_CLUSTER + ":logs-* | STATS sum (v)", requestIncludeMeta)) {
+                List<List<Object>> values = getValuesList(resp);
+                assertThat(values, hasSize(0));
+
+                EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
+                assertNotNull(executionInfo);
+                assertThat(executionInfo.isCrossClusterSearch(), is(true));
+                long overallTookMillis = executionInfo.overallTook().millis();
+                assertThat(overallTookMillis, greaterThanOrEqualTo(0L));
+                assertThat(executionInfo.includeCCSMetadata(), equalTo(responseExpectMeta));
+
+                assertThat(executionInfo.clusterAliases(), equalTo(Set.of(REMOTE_CLUSTER)));
+
+                EsqlExecutionInfo.Cluster remoteCluster = executionInfo.getCluster(REMOTE_CLUSTER);
+                assertThat(remoteCluster.getIndexExpression(), equalTo("logs-*"));
+                assertThat(remoteCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SKIPPED));
+                assertThat(remoteCluster.getTook().millis(), greaterThanOrEqualTo(0L));
+                assertThat(remoteCluster.getTook().millis(), lessThanOrEqualTo(overallTookMillis));
+                assertThat(remoteCluster.getTotalShards(), equalTo(0));
+                assertThat(remoteCluster.getSuccessfulShards(), equalTo(0));
+                assertThat(remoteCluster.getSkippedShards(), equalTo(0));
+                assertThat(remoteCluster.getFailedShards(), equalTo(0));
+
+                // ensure that the _clusters metadata is present only if requested
+                assertClusterMetadataInResponse(resp, responseExpectMeta);
+            }
+        } finally {
+            clearSkipUnavailable();
+        }
+    }
+
+    public void testCCSAgainstDisconnectedRemoteWithSkipUnavailableFalse() throws Exception {
+        setupTwoClusters();
+        setSkipUnavailable(false);
+
+        try {
+            // close the remote cluster so that it is unavailable
+            cluster(REMOTE_CLUSTER).close();
+
+            Tuple<Boolean, Boolean> includeCCSMetadata = randomIncludeCCSMetadata();
+            Boolean requestIncludeMeta = includeCCSMetadata.v1();
+
+            final Exception exception = expectThrows(
+                Exception.class,
+                () -> runQuery("FROM logs-*,*:logs-* | STATS sum (v)", requestIncludeMeta)
+            );
+            assertThat(ExceptionsHelper.isRemoteUnavailableException(exception), is(true));
+        } finally {
+            clearSkipUnavailable();
+        }
+    }
+
+    public void testRemoteOnlyCCSAgainstDisconnectedRemoteWithSkipUnavailableFalse() throws Exception {
+        setupTwoClusters();
+        setSkipUnavailable(false);
+
+        try {
+            // close the remote cluster so that it is unavailable
+            cluster(REMOTE_CLUSTER).close();
+
+            Tuple<Boolean, Boolean> includeCCSMetadata = randomIncludeCCSMetadata();
+            Boolean requestIncludeMeta = includeCCSMetadata.v1();
+
+            final Exception exception = expectThrows(Exception.class, () -> runQuery("FROM *:logs-* | STATS sum (v)", requestIncludeMeta));
+            assertThat(ExceptionsHelper.isRemoteUnavailableException(exception), is(true));
+        } finally {
+            clearSkipUnavailable();
+        }
+    }
+
+    private void setSkipUnavailable(boolean skip) {
+        client(LOCAL_CLUSTER).admin()
+            .cluster()
+            .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+            .setPersistentSettings(Settings.builder().put("cluster.remote." + REMOTE_CLUSTER + ".skip_unavailable", skip).build())
+            .get();
+    }
+
+    private void clearSkipUnavailable() {
+        client(LOCAL_CLUSTER).admin()
+            .cluster()
+            .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+            .setPersistentSettings(Settings.builder().putNull("cluster.remote." + REMOTE_CLUSTER + ".skip_unavailable").build())
+            .get();
     }
 
     private static void assertClusterMetadataInResponse(EsqlQueryResponse resp, boolean responseExpectMeta) {

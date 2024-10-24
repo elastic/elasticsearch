@@ -925,6 +925,10 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     public Expression visitMatchBooleanExpression(EsqlBaseParser.MatchBooleanExpressionContext ctx) {
         Expression boostExp = visitBoostExpression(ctx.boostExpression());
         Expression fuzzinessExp = visitFuzzinessExpression(ctx.fuzzinessExpression());
+        // If fuzziness is set, but boost is not, set boost to 1 to fill the optional parameter
+        if (fuzzinessExp != null && boostExp == null) {
+            boostExp = new Literal(source(ctx), 1, DataType.INTEGER);
+        }
         return Match.operator(source(ctx), expression(ctx.fieldExp), expression(ctx.queryString), boostExp, fuzzinessExp);
     }
 

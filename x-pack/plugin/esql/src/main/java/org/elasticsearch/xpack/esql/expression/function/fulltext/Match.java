@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.function.fulltext;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -23,6 +24,7 @@ import org.elasticsearch.xpack.esql.core.querydsl.query.QueryStringQuery;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypeConverter;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -33,6 +35,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FOURTH;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
@@ -143,14 +146,14 @@ public class Match extends FullTextFunction implements Validatable, TwoOptionalA
             .and(super.resolveNonQueryParamTypes());
         if (boost != null) {
             typeResolution = typeResolution.and(
-                isNotNull(boost, sourceText(), THIRD).and(isNumeric(field, sourceText(), THIRD).and(isFoldable(field, sourceText(), THIRD)))
+                isNotNull(boost, sourceText(), THIRD).and(isNumeric(boost, sourceText(), THIRD).and(isFoldable(boost, sourceText(), THIRD)))
             );
         }
         if (fuzziness != null) {
             typeResolution = typeResolution.and(
                 isNotNull(fuzziness, sourceText(), FOURTH).and(
-                    isType(fuzziness, dt -> dt == DataType.INTEGER, sourceText(), FOURTH, "integer,keyword").or(
-                        isString(fuzziness, sourceText(), FOURTH).and(isFoldable(fuzziness, sourceText(), FOURTH))
+                    isType(fuzziness, dt -> dt == DataType.INTEGER || dt == DataType.KEYWORD, sourceText(), FOURTH, "integer,keyword").and(
+                        isFoldable(fuzziness, sourceText(), FOURTH)
                     )
                 )
             );
@@ -206,14 +209,24 @@ public class Match extends FullTextFunction implements Validatable, TwoOptionalA
         if (boost == null) {
             return null;
         }
-        return (Double) boost.fold();
+        return (Double) DataTypeConverter.convert(boost.fold(), DataType.DOUBLE);
     }
 
     public Fuzziness fuzziness() {
         if (fuzziness == null) {
             return null;
         }
-        return Fuzziness.fromString(fuzziness.fold().toString());
+
+        Object fuzinessAsObject = fuzziness.fold();
+        if (fuzinessAsObject instanceof BytesRef bytesRefValue) {
+            return Fuzziness.fromString(bytesRefValue.utf8ToString());
+        } else if (fuzinessAsObject instanceof Integer intValue) {
+            return Fuzziness.fromEdits(intValue);
+        }
+
+        throw new IllegalArgumentException(
+            format(null, "{} argument in {} {} needs to be resolved to a string or integer", THIRD, functionName(), functionType())
+        );
     }
 
     @Override

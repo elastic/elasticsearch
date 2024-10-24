@@ -263,6 +263,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException> requestCacheKeyDifferentiator;
     private final MapperMetrics mapperMetrics;
     private final PostRecoveryMerger postRecoveryMerger;
+    private final List<? extends SlowLogFieldProvider> slowLogFieldProviders;
 
     @Override
     protected void doStart() {
@@ -381,6 +382,8 @@ public class IndicesService extends AbstractLifecycleComponent
         this.timestampFieldMapperService = new TimestampFieldMapperService(settings, threadPool, this);
 
         this.postRecoveryMerger = new PostRecoveryMerger(settings, threadPool.executor(ThreadPool.Names.FORCE_MERGE), this::getShardOrNull);
+
+        this.slowLogFieldProviders = pluginsService.loadServiceProviders(SlowLogFieldProvider.class);
     }
 
     private static final String DANGLING_INDICES_UPDATE_THREAD_NAME = "DanglingIndices#updateTask";
@@ -1438,7 +1441,6 @@ public class IndicesService extends AbstractLifecycleComponent
 
     // pkg-private for testing
     SlowLogFieldProvider loadSlowLogFieldProvider() {
-        List<? extends SlowLogFieldProvider> slowLogFieldProviders = pluginsService.loadServiceProviders(SlowLogFieldProvider.class);
         return new SlowLogFieldProvider() {
             @Override
             public void init(IndexSettings indexSettings) {

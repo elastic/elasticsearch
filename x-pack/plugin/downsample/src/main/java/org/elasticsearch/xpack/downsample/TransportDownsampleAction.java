@@ -670,7 +670,6 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         final XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
 
         addDynamicTemplates(builder);
-        addRootSubobjects(sourceIndexMappings, builder);
 
         builder.startObject("properties");
 
@@ -687,12 +686,6 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
             .mappingSource()
             .uncompressed()
             .utf8ToString();
-    }
-
-    private static void addRootSubobjects(Map<String, Object> sourceIndexMappings, XContentBuilder builder) throws IOException {
-        if (sourceIndexMappings.containsKey("subobjects")) {
-            builder.field("subobjects", sourceIndexMappings.get("subobjects"));
-        }
     }
 
     private static void addMetricFields(

@@ -627,43 +627,37 @@ public class Verifier {
     }
 
     /**
-     * Checks a whether a condition contains a disjunction with the specified typeToken. Adds to failure if it does.
+     * Checks whether a condition contains a disjunction with the specified typeToken. Adds to failure if it does.
      *
-     * @param condition condition to check for disjunctions
-     * @param typeToken type that is forbidden in disjunctions
+     * @param condition        condition to check for disjunctions
      * @param typeNameProvider provider for the type name to add in the failure message
-     * @param failures failures collection to add to
-     * @param <E> type of the token to look for
+     * @param failures         failures collection to add to
      */
-    private static <E extends Expression> void checkNotPresentInDisjunctions(
+    private static void checkNotPresentInDisjunctions(
         Expression condition,
-        Class<E> typeToken,
-        java.util.function.Function<E, String> typeNameProvider,
+        java.util.function.Function<FullTextFunction, String> typeNameProvider,
         Set<Failure> failures
     ) {
         condition.forEachUp(Or.class, or -> {
-            checkNotPresentInDisjunctions(or.left(), or, typeToken, typeNameProvider, failures);
-            checkNotPresentInDisjunctions(or.right(), or, typeToken, typeNameProvider, failures);
+            checkNotPresentInDisjunctions(or.left(), or, typeNameProvider, failures);
+            checkNotPresentInDisjunctions(or.right(), or, typeNameProvider, failures);
         });
     }
 
     /**
-     * Checks a whether a condition contains a disjunction with the specified typeToken. Adds to failure if it does.
+     * Checks whether a condition contains a disjunction with the specified typeToken. Adds to failure if it does.
      *
      * @param parentExpression parent expression to add to the failure message
      * @param or               disjunction that is being checked
-     * @param typeToken        type that is forbidden in disjunctions
      * @param failures         failures collection to add to
-     * @param <E>              type of the token to look for
      */
-    private static <E extends Expression> void checkNotPresentInDisjunctions(
+    private static void checkNotPresentInDisjunctions(
         Expression parentExpression,
         Or or,
-        Class<E> typeToken,
-        java.util.function.Function<E, String> elementName,
+        java.util.function.Function<FullTextFunction, String> elementName,
         Set<Failure> failures
     ) {
-        parentExpression.forEachDown(typeToken, ftp -> {
+        parentExpression.forEachDown(FullTextFunction.class, ftp -> {
             failures.add(
                 fail(or, "Invalid condition [{}]. {} can't be used as part of an or condition", or.sourceText(), elementName.apply(ftp))
             );
@@ -697,7 +691,6 @@ public class Verifier {
             );
             checkNotPresentInDisjunctions(
                 condition,
-                FullTextFunction.class,
                 ftf -> "[" + ftf.functionName() + "] " + ftf.functionType(),
                 failures
             );

@@ -4,6 +4,9 @@
     "github>elastic/renovate-config:only-chainguard",
     ":disableDependencyDashboard"
   ],
+  "schedule": [
+    "after 1pm on tuesday"
+  ],
   "labels": [">non-issue", ":Delivery/Packaging", "Team:Delivery"],
   "baseBranches": ["main", "8.x"],
   "packageRules": [

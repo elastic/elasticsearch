@@ -1,0 +1,6 @@
+pr: 115459
+summary: Adds access to flags no_sub_matches and no_overlapping_matches to hyphenation-decompounder-tokenfilter
+area: Search
+type: enhancement
+issues:
+  - 97849

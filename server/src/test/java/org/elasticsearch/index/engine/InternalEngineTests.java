@@ -1341,9 +1341,6 @@ public class InternalEngineTests extends EngineTestCase {
 
     void syncFlush(IndexWriter writer, InternalEngine engine, String syncId) throws IOException {
         try (var ignored = engine.acquireEnsureOpenRef()) {
-            Map<String, String> userData = new HashMap<>();
-            writer.getLiveCommitData().forEach(e -> userData.put(e.getKey(), e.getValue()));
-            writer.setLiveCommitData(userData.entrySet());
             writer.commit();
         }
     }

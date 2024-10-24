@@ -15,18 +15,24 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
 import org.elasticsearch.inference.ChunkingOptions;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceResults;
+import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
+import org.elasticsearch.inference.ServiceConfiguration;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.configuration.ServiceConfigurationDisplayType;
+import org.elasticsearch.inference.configuration.ServiceConfigurationFieldType;
+import org.elasticsearch.inference.configuration.ServiceConfigurationSelectOption;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.inference.ChunkingSettingsFeatureFlag;
 import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingFloatResults;
@@ -63,11 +69,16 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.core.inference.results.ResultUtils.createInvalidChunkedResultException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
+import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalServiceSettings.MODEL_ID;
+import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalServiceSettings.NUM_ALLOCATIONS;
+import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalServiceSettings.NUM_THREADS;
+import static org.elasticsearch.xpack.inference.services.elasticsearch.ElserModels.ELSER_V1_MODEL;
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElserModels.ELSER_V2_MODEL;
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElserModels.ELSER_V2_MODEL_LINUX_X86;
 
@@ -103,7 +114,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
     }
 
     @Override
-    protected EnumSet<TaskType> supportedTaskTypes() {
+    public EnumSet<TaskType> supportedTaskTypes() {
         return EnumSet.of(TaskType.RERANK, TaskType.TEXT_EMBEDDING, TaskType.SPARSE_EMBEDDING);
     }
 
@@ -142,7 +153,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
 
             throwIfNotEmptyMap(config, name());
 
-            String modelId = (String) serviceSettingsMap.get(ElasticsearchInternalServiceSettings.MODEL_ID);
+            String modelId = (String) serviceSettingsMap.get(MODEL_ID);
             String deploymentId = (String) serviceSettingsMap.get(ElasticsearchInternalServiceSettings.DEPLOYMENT_ID);
             if (deploymentId != null) {
                 validateAgainstDeployment(modelId, deploymentId, taskType, modelListener.delegateFailureAndWrap((l, settings) -> {
@@ -212,6 +223,14 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         }
     }
 
+    @Override
+    public InferenceServiceConfiguration getConfiguration() throws Exception {
+        return new InferenceServiceConfiguration.Builder().setProvider(NAME)
+            .setTaskTypes(supportedTaskTypes())
+            .setConfiguration(ElasticsearchInternalService.Configuration.get())
+            .build();
+    }
+
     private void customElandCase(
         String inferenceEntityId,
         TaskType taskType,
@@ -220,7 +239,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         ChunkingSettings chunkingSettings,
         ActionListener<Model> modelListener
     ) {
-        String modelId = (String) serviceSettingsMap.get(ElasticsearchInternalServiceSettings.MODEL_ID);
+        String modelId = (String) serviceSettingsMap.get(MODEL_ID);
         var request = new GetTrainedModelsAction.Request(modelId);
 
         var getModelsListener = modelListener.<GetTrainedModelsAction.Response>delegateFailureAndWrap((delegate, response) -> {
@@ -439,7 +458,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
             chunkingSettings = ChunkingSettingsBuilder.fromMap(removeFromMapOrDefaultEmpty(config, ModelConfigurations.CHUNKING_SETTINGS));
         }
 
-        String modelId = (String) serviceSettingsMap.get(ElasticsearchInternalServiceSettings.MODEL_ID);
+        String modelId = (String) serviceSettingsMap.get(MODEL_ID);
         if (modelId == null) {
             throw new IllegalArgumentException("Error parsing request config, model id is missing");
         }
@@ -1003,5 +1022,65 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         } else {
             return null;
         }
+    }
+
+    private static class Configuration {
+        public static Map<String, ServiceConfiguration> get() throws Exception {
+            return configuration.getOrCompute();
+        }
+
+        private static final LazyInitializable<Map<String, ServiceConfiguration>, ?> configuration = new LazyInitializable<>(() -> {
+            var configurationMap = new HashMap<String, ServiceConfiguration>();
+
+            configurationMap.put(
+                MODEL_ID,
+                new ServiceConfiguration.Builder().setDisplay(ServiceConfigurationDisplayType.DROPDOWN)
+                    .setLabel("Model ID")
+                    .setOrder(1)
+                    .setRequired(true)
+                    .setSensitive(false)
+                    .setTooltip("The name of the model to use for the inference task.")
+                    .setType(ServiceConfigurationFieldType.STRING)
+                    .setOptions(
+                        Stream.of(
+                            ELSER_V1_MODEL,
+                            ELSER_V2_MODEL,
+                            ELSER_V2_MODEL_LINUX_X86,
+                            MULTILINGUAL_E5_SMALL_MODEL_ID,
+                            MULTILINGUAL_E5_SMALL_MODEL_ID_LINUX_X86
+                        ).map(v -> new ServiceConfigurationSelectOption.Builder().setLabelAndValue(v).build()).toList()
+                    )
+                    .setDefaultValue(MULTILINGUAL_E5_SMALL_MODEL_ID)
+                    .build()
+            );
+
+            configurationMap.put(
+                NUM_ALLOCATIONS,
+                new ServiceConfiguration.Builder().setDisplay(ServiceConfigurationDisplayType.NUMERIC)
+                    .setLabel("Number Allocations")
+                    .setOrder(2)
+                    .setRequired(true)
+                    .setSensitive(false)
+                    .setTooltip("The total number of allocations this model is assigned across machine learning nodes.")
+                    .setType(ServiceConfigurationFieldType.INTEGER)
+                    .setDefaultValue(1)
+                    .build()
+            );
+
+            configurationMap.put(
+                NUM_THREADS,
+                new ServiceConfiguration.Builder().setDisplay(ServiceConfigurationDisplayType.NUMERIC)
+                    .setLabel("Number Threads")
+                    .setOrder(3)
+                    .setRequired(true)
+                    .setSensitive(false)
+                    .setTooltip("Sets the number of threads used by each model allocation during inference.")
+                    .setType(ServiceConfigurationFieldType.INTEGER)
+                    .setDefaultValue(2)
+                    .build()
+            );
+
+            return Collections.unmodifiableMap(configurationMap);
+        });
     }
 }

@@ -1283,10 +1283,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
 
         // build a doc with enough words to make numChunks of chunks
         int numWords = numChunks * wordsPerChunk;
-        var docBuilder = new StringBuilder();
-        for (int i = 0; i < numWords; i++) {
-            docBuilder.append("word ");
-        }
+        var input = "word ".repeat(numWords);
 
         // how many response objects to return in each batch
         int[] numResponsesPerBatch = new int[numBatches];
@@ -1341,7 +1338,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
         service.chunkedInfer(
             model,
             null,
-            List.of(docBuilder.toString()),
+            List.of(input),
             Map.of(),
             InputType.SEARCH,
             new ChunkingOptions(null, null),

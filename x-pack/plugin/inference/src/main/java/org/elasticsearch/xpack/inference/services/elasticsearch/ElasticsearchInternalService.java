@@ -1041,7 +1041,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
             });
 
             var maybeDeployListener = runNextListener.delegateResponse(
-                (l, exception) -> maybeStartDeployment(esModel, exception, inferenceRequest, runNextListener)
+                (l, exception) -> maybeStartDeployment(esModel, exception, inferenceRequest, l)
             );
 
             client.execute(InferModelAction.INSTANCE, inferenceRequest, maybeDeployListener);

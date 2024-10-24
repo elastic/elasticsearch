@@ -569,6 +569,8 @@ PUT _cluster/settings
 }
 ----
 
+See this https://www.youtube.com/watch?v=tZKbDegt4-M[fixing "max shards open" video] for an example troubleshooting walkthrough. For more information, see <<troubleshooting-shards-capacity-issues,Troubleshooting shards capacity>>.
+
 [discrete]
 [[troubleshooting-max-docs-limit]]
 ==== Number of documents in the shard cannot exceed [2147483519]

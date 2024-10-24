@@ -199,19 +199,19 @@ public class XPackSettingsTests extends ESTestCase {
 
         final List<String> eisSslSettingKeys = allSettings.stream()
             .map(Setting::getKey)
-            .filter(key -> key.startsWith("xpack.security.eis.ssl"))
+            .filter(key -> key.startsWith("xpack.security.inference.elastic.ssl"))
             .toList();
 
         // None of them allow insecure password
         List.of(
-            "xpack.security.eis.ssl.keystore.password",
-            "xpack.security.eis.ssl.keystore.key_password",
-            "xpack.security.eis.ssl.key_passphrase",
-            "xpack.security.eis.ssl.truststore.password",
-            "xpack.security.eis.ssl.keystore.password",
-            "xpack.security.eis.ssl.keystore.key_password",
-            "xpack.security.eis.ssl.key_passphrase",
-            "xpack.security.eis.ssl.truststore.password"
+            "xpack.security.inference.elastic.ssl.keystore.password",
+            "xpack.security.inference.elastic.ssl.keystore.key_password",
+            "xpack.security.inference.elastic.ssl.key_passphrase",
+            "xpack.security.inference.elastic.ssl.truststore.password",
+            "xpack.security.inference.elastic.ssl.keystore.password",
+            "xpack.security.inference.elastic.ssl.keystore.key_password",
+            "xpack.security.inference.elastic.ssl.key_passphrase",
+            "xpack.security.inference.elastic.ssl.truststore.password"
         ).forEach(key -> assertThat(eisSslSettingKeys, not(hasItem(key))));
     }
 

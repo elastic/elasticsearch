@@ -51,7 +51,7 @@ final class SyntheticSourceIndexSettingsProvider implements IndexSettingProvider
     }
 
     @Override
-    public boolean overrulesTemplateAndRequestSettings() {
+    public boolean overrulesSettings() {
         // Indicates that the provider value takes precedence over any user setting.
         return true;
     }

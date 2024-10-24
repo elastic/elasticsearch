@@ -726,7 +726,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                 }
 
                 @Override
-                public boolean overrulesTemplateAndRequestSettings() {
+                public boolean overrulesSettings() {
                     return true;
                 }
             })
@@ -769,7 +769,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                 }
 
                 @Override
-                public boolean overrulesTemplateAndRequestSettings() {
+                public boolean overrulesSettings() {
                     return true;
                 }
             })
@@ -812,7 +812,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                 }
 
                 @Override
-                public boolean overrulesTemplateAndRequestSettings() {
+                public boolean overrulesSettings() {
                     return true;
                 }
             })
@@ -855,7 +855,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                 }
 
                 @Override
-                public boolean overrulesTemplateAndRequestSettings() {
+                public boolean overrulesSettings() {
                     return true;
                 }
             })
@@ -864,6 +864,66 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         assertThat(aggregatedIndexSettings.get("template_setting"), equalTo("overrule_value"));
         assertThat(aggregatedIndexSettings.get("request_setting"), equalTo("value2"));
         assertThat(aggregatedIndexSettings.get("other_setting"), equalTo("other_value"));
+    }
+
+    public void testAggregateSettingsProviderUsesSettingsFromProvider() {
+        IndexTemplateMetadata templateMetadata = addMatchingTemplate(builder -> {
+            builder.settings(Settings.builder().put("template_setting", "value1"));
+        });
+        Metadata metadata = new Metadata.Builder().templates(Map.of("template_1", templateMetadata)).build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).build();
+        request.settings(Settings.builder().put("request_setting", "value2").build());
+
+        Settings aggregatedIndexSettings = aggregateIndexSettings(
+            clusterState,
+            request,
+            templateMetadata.settings(),
+            null,
+            null,
+            Settings.EMPTY,
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+            randomShardLimitService(),
+            Set.of(new IndexSettingProvider() {
+                @Override
+                public Settings getAdditionalIndexSettings(
+                    String indexName,
+                    String dataStreamName,
+                    IndexMode templateIndexMode,
+                    Metadata metadata,
+                    Instant resolvedAt,
+                    Settings incomingSettings,
+                    List<CompressedXContent> combinedTemplateMappings
+                ) {
+                    return Settings.builder().put("provided_setting_1", "value_3").put("provided_setting_2", "value_4").build();
+                }
+            }, new IndexSettingProvider() {
+                @Override
+                public Settings getAdditionalIndexSettings(
+                    String indexName,
+                    String dataStreamName,
+                    IndexMode templateIndexMode,
+                    Metadata metadata,
+                    Instant resolvedAt,
+                    Settings incomingSettings,
+                    List<CompressedXContent> combinedTemplateMappings
+                ) {
+                    if (incomingSettings.hasValue("provided_setting_1")) {
+                        return Settings.builder().put("provided_setting_2", "value_6").put("request_setting", "value_5").build();
+                    }
+                    return Settings.builder().put("request_setting", "value_5").build();
+                }
+
+                @Override
+                public boolean overrulesSettings() {
+                    return true;
+                }
+            })
+        );
+
+        assertThat(aggregatedIndexSettings.get("template_setting"), equalTo("value1"));
+        assertThat(aggregatedIndexSettings.get("request_setting"), equalTo("value_5"));
+        assertThat(aggregatedIndexSettings.get("provided_setting_1"), equalTo("value_3"));
+        assertThat(aggregatedIndexSettings.get("provided_setting_2"), equalTo("value_6"));
     }
 
     public void testInvalidAliasName() {

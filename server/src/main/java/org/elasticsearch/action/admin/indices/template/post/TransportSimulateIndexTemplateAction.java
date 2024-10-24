@@ -285,7 +285,7 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
             MetadataCreateIndexService.validateAdditionalSettings(provider, result, additionalSettings);
             dummySettings.put(result);
             additionalSettings.put(result);
-            if (provider.overrulesTemplateAndRequestSettings()) {
+            if (provider.overrulesSettings()) {
                 overrulingSettings.addAll(result.keySet());
             }
         }

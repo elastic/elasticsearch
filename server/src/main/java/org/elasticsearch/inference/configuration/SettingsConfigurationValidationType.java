@@ -11,25 +11,24 @@ package org.elasticsearch.inference.configuration;
 
 import java.util.Locale;
 
-public enum ServiceConfigurationDisplayType {
-    TEXT,
-    TEXTBOX,
-    TEXTAREA,
-    NUMERIC,
-    TOGGLE,
-    DROPDOWN;
+public enum SettingsConfigurationValidationType {
+    LESS_THAN,
+    GREATER_THAN,
+    LIST_TYPE,
+    INCLUDED_IN,
+    REGEX;
 
     @Override
     public String toString() {
         return name().toLowerCase(Locale.ROOT);
     }
 
-    public static ServiceConfigurationDisplayType displayType(String type) {
-        for (ServiceConfigurationDisplayType displayType : ServiceConfigurationDisplayType.values()) {
+    public static SettingsConfigurationValidationType validationType(String type) {
+        for (SettingsConfigurationValidationType displayType : SettingsConfigurationValidationType.values()) {
             if (displayType.name().equalsIgnoreCase(type)) {
                 return displayType;
             }
         }
-        throw new IllegalArgumentException("Unknown " + ServiceConfigurationDisplayType.class.getSimpleName() + " [" + type + "].");
+        throw new IllegalArgumentException("Unknown " + SettingsConfigurationValidationType.class.getSimpleName() + " [" + type + "].");
     }
 }

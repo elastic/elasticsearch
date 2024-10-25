@@ -9,22 +9,22 @@
 
 package org.elasticsearch.inference.configuration;
 
-import org.elasticsearch.inference.ServiceConfigurationTestUtils;
+import org.elasticsearch.inference.SettingsConfigurationTestUtils;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class ServiceConfigurationDisplayTypeTests extends ESTestCase {
+public class SettingsConfigurationDisplayTypeTests extends ESTestCase {
 
     public void testDisplayType_WithValidConfigurationDisplayTypeString() {
-        ServiceConfigurationDisplayType displayType = ServiceConfigurationTestUtils.getRandomServiceConfigurationDisplayType();
-        assertThat(ServiceConfigurationDisplayType.displayType(displayType.toString()), equalTo(displayType));
+        SettingsConfigurationDisplayType displayType = SettingsConfigurationTestUtils.getRandomSettingsConfigurationDisplayType();
+        assertThat(SettingsConfigurationDisplayType.displayType(displayType.toString()), equalTo(displayType));
     }
 
     public void testDisplayType_WithInvalidConfigurationDisplayTypeString_ExpectIllegalArgumentException() {
         expectThrows(
             IllegalArgumentException.class,
-            () -> ServiceConfigurationDisplayType.displayType("invalid configuration display type")
+            () -> SettingsConfigurationDisplayType.displayType("invalid configuration display type")
         );
     }
 }

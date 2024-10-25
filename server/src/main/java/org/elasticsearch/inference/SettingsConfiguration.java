@@ -16,11 +16,11 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.configuration.ServiceConfigurationDependency;
-import org.elasticsearch.inference.configuration.ServiceConfigurationDisplayType;
-import org.elasticsearch.inference.configuration.ServiceConfigurationFieldType;
-import org.elasticsearch.inference.configuration.ServiceConfigurationSelectOption;
-import org.elasticsearch.inference.configuration.ServiceConfigurationValidation;
+import org.elasticsearch.inference.configuration.SettingsConfigurationDependency;
+import org.elasticsearch.inference.configuration.SettingsConfigurationDisplayType;
+import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
+import org.elasticsearch.inference.configuration.SettingsConfigurationSelectOption;
+import org.elasticsearch.inference.configuration.SettingsConfigurationValidation;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -45,19 +45,19 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 /**
  * Represents the configuration field settings for an inference provider.
  */
-public class ServiceConfiguration implements Writeable, ToXContentObject {
+public class SettingsConfiguration implements Writeable, ToXContentObject {
 
     @Nullable
     private final String category;
     @Nullable
     private final Object defaultValue;
     @Nullable
-    private final List<ServiceConfigurationDependency> dependsOn;
+    private final List<SettingsConfigurationDependency> dependsOn;
     @Nullable
-    private final ServiceConfigurationDisplayType display;
+    private final SettingsConfigurationDisplayType display;
     private final String label;
     @Nullable
-    private final List<ServiceConfigurationSelectOption> options;
+    private final List<SettingsConfigurationSelectOption> options;
     @Nullable
     private final Integer order;
     @Nullable
@@ -67,48 +67,48 @@ public class ServiceConfiguration implements Writeable, ToXContentObject {
     @Nullable
     private final String tooltip;
     @Nullable
-    private final ServiceConfigurationFieldType type;
+    private final SettingsConfigurationFieldType type;
     @Nullable
     private final List<String> uiRestrictions;
     @Nullable
-    private final List<ServiceConfigurationValidation> validations;
+    private final List<SettingsConfigurationValidation> validations;
     @Nullable
     private final Object value;
 
     /**
-     * Constructs a new {@link ServiceConfiguration} instance with specified properties.
+     * Constructs a new {@link SettingsConfiguration} instance with specified properties.
      *
      * @param category       The category of the configuration field.
      * @param defaultValue   The default value for the configuration.
-     * @param dependsOn      A list of {@link ServiceConfigurationDependency} indicating dependencies on other configurations.
-     * @param display        The display type, defined by {@link ServiceConfigurationDisplayType}.
+     * @param dependsOn      A list of {@link SettingsConfigurationDependency} indicating dependencies on other configurations.
+     * @param display        The display type, defined by {@link SettingsConfigurationDisplayType}.
      * @param label          The display label associated with the config field.
-     * @param options        A list of {@link ServiceConfigurationSelectOption} for selectable options.
+     * @param options        A list of {@link SettingsConfigurationSelectOption} for selectable options.
      * @param order          The order in which this configuration appears.
      * @param placeholder    A placeholder text for the configuration field.
      * @param required       A boolean indicating whether the configuration is required.
      * @param sensitive      A boolean indicating whether the configuration contains sensitive information.
      * @param tooltip        A tooltip text providing additional information about the configuration.
-     * @param type           The type of the configuration field, defined by {@link ServiceConfigurationFieldType}.
+     * @param type           The type of the configuration field, defined by {@link SettingsConfigurationFieldType}.
      * @param uiRestrictions A list of UI restrictions in string format.
-     * @param validations    A list of {@link ServiceConfigurationValidation} for validating the configuration.
+     * @param validations    A list of {@link SettingsConfigurationValidation} for validating the configuration.
      * @param value          The current value of the configuration.
      */
-    private ServiceConfiguration(
+    private SettingsConfiguration(
         String category,
         Object defaultValue,
-        List<ServiceConfigurationDependency> dependsOn,
-        ServiceConfigurationDisplayType display,
+        List<SettingsConfigurationDependency> dependsOn,
+        SettingsConfigurationDisplayType display,
         String label,
-        List<ServiceConfigurationSelectOption> options,
+        List<SettingsConfigurationSelectOption> options,
         Integer order,
         String placeholder,
         boolean required,
         boolean sensitive,
         String tooltip,
-        ServiceConfigurationFieldType type,
+        SettingsConfigurationFieldType type,
         List<String> uiRestrictions,
-        List<ServiceConfigurationValidation> validations,
+        List<SettingsConfigurationValidation> validations,
         Object value
     ) {
         this.category = category;
@@ -128,21 +128,21 @@ public class ServiceConfiguration implements Writeable, ToXContentObject {
         this.value = value;
     }
 
-    public ServiceConfiguration(StreamInput in) throws IOException {
+    public SettingsConfiguration(StreamInput in) throws IOException {
         this.category = in.readString();
         this.defaultValue = in.readGenericValue();
-        this.dependsOn = in.readOptionalCollectionAsList(ServiceConfigurationDependency::new);
-        this.display = in.readEnum(ServiceConfigurationDisplayType.class);
+        this.dependsOn = in.readOptionalCollectionAsList(SettingsConfigurationDependency::new);
+        this.display = in.readEnum(SettingsConfigurationDisplayType.class);
         this.label = in.readString();
-        this.options = in.readOptionalCollectionAsList(ServiceConfigurationSelectOption::new);
+        this.options = in.readOptionalCollectionAsList(SettingsConfigurationSelectOption::new);
         this.order = in.readOptionalInt();
         this.placeholder = in.readOptionalString();
         this.required = in.readBoolean();
         this.sensitive = in.readBoolean();
         this.tooltip = in.readOptionalString();
-        this.type = in.readEnum(ServiceConfigurationFieldType.class);
+        this.type = in.readEnum(SettingsConfigurationFieldType.class);
         this.uiRestrictions = in.readOptionalStringCollectionAsList();
-        this.validations = in.readOptionalCollectionAsList(ServiceConfigurationValidation::new);
+        this.validations = in.readOptionalCollectionAsList(SettingsConfigurationValidation::new);
         this.value = in.readGenericValue();
     }
 
@@ -163,25 +163,25 @@ public class ServiceConfiguration implements Writeable, ToXContentObject {
     static final ParseField VALUE_FIELD = new ParseField("value");
 
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<ServiceConfiguration, Void> PARSER = new ConstructingObjectParser<>(
+    private static final ConstructingObjectParser<SettingsConfiguration, Void> PARSER = new ConstructingObjectParser<>(
         "service_configuration",
         true,
         args -> {
             int i = 0;
-            return new ServiceConfiguration.Builder().setCategory((String) args[i++])
+            return new SettingsConfiguration.Builder().setCategory((String) args[i++])
                 .setDefaultValue(args[i++])
-                .setDependsOn((List<ServiceConfigurationDependency>) args[i++])
-                .setDisplay((ServiceConfigurationDisplayType) args[i++])
+                .setDependsOn((List<SettingsConfigurationDependency>) args[i++])
+                .setDisplay((SettingsConfigurationDisplayType) args[i++])
                 .setLabel((String) args[i++])
-                .setOptions((List<ServiceConfigurationSelectOption>) args[i++])
+                .setOptions((List<SettingsConfigurationSelectOption>) args[i++])
                 .setOrder((Integer) args[i++])
                 .setPlaceholder((String) args[i++])
                 .setRequired((Boolean) args[i++])
                 .setSensitive((Boolean) args[i++])
                 .setTooltip((String) args[i++])
-                .setType((ServiceConfigurationFieldType) args[i++])
+                .setType((SettingsConfigurationFieldType) args[i++])
                 .setUiRestrictions((List<String>) args[i++])
-                .setValidations((List<ServiceConfigurationValidation>) args[i++])
+                .setValidations((List<SettingsConfigurationValidation>) args[i++])
                 .setValue(args[i])
                 .build();
         }
@@ -201,15 +201,15 @@ public class ServiceConfiguration implements Writeable, ToXContentObject {
             }
             throw new XContentParseException("Unsupported token [" + p.currentToken() + "]");
         }, DEFAULT_VALUE_FIELD, ObjectParser.ValueType.VALUE);
-        PARSER.declareObjectArray(optionalConstructorArg(), (p, c) -> ServiceConfigurationDependency.fromXContent(p), DEPENDS_ON_FIELD);
+        PARSER.declareObjectArray(optionalConstructorArg(), (p, c) -> SettingsConfigurationDependency.fromXContent(p), DEPENDS_ON_FIELD);
         PARSER.declareField(
             optionalConstructorArg(),
-            (p, c) -> ServiceConfigurationDisplayType.displayType(p.text()),
+            (p, c) -> SettingsConfigurationDisplayType.displayType(p.text()),
             DISPLAY_FIELD,
             ObjectParser.ValueType.STRING_OR_NULL
         );
         PARSER.declareString(constructorArg(), LABEL_FIELD);
-        PARSER.declareObjectArray(optionalConstructorArg(), (p, c) -> ServiceConfigurationSelectOption.fromXContent(p), OPTIONS_FIELD);
+        PARSER.declareObjectArray(optionalConstructorArg(), (p, c) -> SettingsConfigurationSelectOption.fromXContent(p), OPTIONS_FIELD);
         PARSER.declareInt(optionalConstructorArg(), ORDER_FIELD);
         PARSER.declareStringOrNull(optionalConstructorArg(), PLACEHOLDER_FIELD);
         PARSER.declareBoolean(optionalConstructorArg(), REQUIRED_FIELD);
@@ -217,12 +217,12 @@ public class ServiceConfiguration implements Writeable, ToXContentObject {
         PARSER.declareStringOrNull(optionalConstructorArg(), TOOLTIP_FIELD);
         PARSER.declareField(
             optionalConstructorArg(),
-            (p, c) -> p.currentToken() == XContentParser.Token.VALUE_NULL ? null : ServiceConfigurationFieldType.fieldType(p.text()),
+            (p, c) -> p.currentToken() == XContentParser.Token.VALUE_NULL ? null : SettingsConfigurationFieldType.fieldType(p.text()),
             TYPE_FIELD,
             ObjectParser.ValueType.STRING_OR_NULL
         );
         PARSER.declareStringArray(optionalConstructorArg(), UI_RESTRICTIONS_FIELD);
-        PARSER.declareObjectArray(optionalConstructorArg(), (p, c) -> ServiceConfigurationValidation.fromXContent(p), VALIDATIONS_FIELD);
+        PARSER.declareObjectArray(optionalConstructorArg(), (p, c) -> SettingsConfigurationValidation.fromXContent(p), VALIDATIONS_FIELD);
         PARSER.declareField(
             optionalConstructorArg(),
             (p, c) -> parseConfigurationValue(p),
@@ -239,11 +239,11 @@ public class ServiceConfiguration implements Writeable, ToXContentObject {
         return defaultValue;
     }
 
-    public List<ServiceConfigurationDependency> getDependsOn() {
+    public List<SettingsConfigurationDependency> getDependsOn() {
         return dependsOn;
     }
 
-    public ServiceConfigurationDisplayType getDisplay() {
+    public SettingsConfigurationDisplayType getDisplay() {
         return display;
     }
 
@@ -251,7 +251,7 @@ public class ServiceConfiguration implements Writeable, ToXContentObject {
         return label;
     }
 
-    public List<ServiceConfigurationSelectOption> getOptions() {
+    public List<SettingsConfigurationSelectOption> getOptions() {
         return options;
     }
 
@@ -275,7 +275,7 @@ public class ServiceConfiguration implements Writeable, ToXContentObject {
         return tooltip;
     }
 
-    public ServiceConfigurationFieldType getType() {
+    public SettingsConfigurationFieldType getType() {
         return type;
     }
 
@@ -283,7 +283,7 @@ public class ServiceConfiguration implements Writeable, ToXContentObject {
         return uiRestrictions;
     }
 
-    public List<ServiceConfigurationValidation> getValidations() {
+    public List<SettingsConfigurationValidation> getValidations() {
         return validations;
     }
 
@@ -294,7 +294,7 @@ public class ServiceConfiguration implements Writeable, ToXContentObject {
     /**
      * Parses a configuration value from a parser context.
      * This method can parse strings, numbers, booleans, objects, and null values, matching the types commonly
-     * supported in {@link ServiceConfiguration}.
+     * supported in {@link SettingsConfiguration}.
      *
      * @param p the {@link org.elasticsearch.xcontent.XContentParser} instance from which to parse the configuration value.
      */
@@ -365,13 +365,13 @@ public class ServiceConfiguration implements Writeable, ToXContentObject {
         return builder;
     }
 
-    public static ServiceConfiguration fromXContent(XContentParser parser) throws IOException {
+    public static SettingsConfiguration fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
     }
 
-    public static ServiceConfiguration fromXContentBytes(BytesReference source, XContentType xContentType) {
+    public static SettingsConfiguration fromXContentBytes(BytesReference source, XContentType xContentType) {
         try (XContentParser parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, source, xContentType)) {
-            return ServiceConfiguration.fromXContent(parser);
+            return SettingsConfiguration.fromXContent(parser);
         } catch (IOException e) {
             throw new ElasticsearchParseException("Failed to parse service configuration.", e);
         }
@@ -403,14 +403,14 @@ public class ServiceConfiguration implements Writeable, ToXContentObject {
         map.put(DEFAULT_VALUE_FIELD.getPreferredName(), defaultValue);
 
         Optional.ofNullable(dependsOn)
-            .ifPresent(d -> map.put(DEPENDS_ON_FIELD.getPreferredName(), d.stream().map(ServiceConfigurationDependency::toMap).toList()));
+            .ifPresent(d -> map.put(DEPENDS_ON_FIELD.getPreferredName(), d.stream().map(SettingsConfigurationDependency::toMap).toList()));
 
         Optional.ofNullable(display).ifPresent(d -> map.put(DISPLAY_FIELD.getPreferredName(), d.toString()));
 
         map.put(LABEL_FIELD.getPreferredName(), label);
 
         Optional.ofNullable(options)
-            .ifPresent(o -> map.put(OPTIONS_FIELD.getPreferredName(), o.stream().map(ServiceConfigurationSelectOption::toMap).toList()));
+            .ifPresent(o -> map.put(OPTIONS_FIELD.getPreferredName(), o.stream().map(SettingsConfigurationSelectOption::toMap).toList()));
 
         Optional.ofNullable(order).ifPresent(o -> map.put(ORDER_FIELD.getPreferredName(), o));
 
@@ -426,7 +426,7 @@ public class ServiceConfiguration implements Writeable, ToXContentObject {
         Optional.ofNullable(uiRestrictions).ifPresent(u -> map.put(UI_RESTRICTIONS_FIELD.getPreferredName(), u));
 
         Optional.ofNullable(validations)
-            .ifPresent(v -> map.put(VALIDATIONS_FIELD.getPreferredName(), v.stream().map(ServiceConfigurationValidation::toMap).toList()));
+            .ifPresent(v -> map.put(VALIDATIONS_FIELD.getPreferredName(), v.stream().map(SettingsConfigurationValidation::toMap).toList()));
 
         map.put(VALUE_FIELD.getPreferredName(), value);
 
@@ -437,7 +437,7 @@ public class ServiceConfiguration implements Writeable, ToXContentObject {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        ServiceConfiguration that = (ServiceConfiguration) o;
+        SettingsConfiguration that = (SettingsConfiguration) o;
         return required == that.required
             && sensitive == that.sensitive
             && Objects.equals(category, that.category)
@@ -480,18 +480,18 @@ public class ServiceConfiguration implements Writeable, ToXContentObject {
 
         private String category;
         private Object defaultValue;
-        private List<ServiceConfigurationDependency> dependsOn;
-        private ServiceConfigurationDisplayType display;
+        private List<SettingsConfigurationDependency> dependsOn;
+        private SettingsConfigurationDisplayType display;
         private String label;
-        private List<ServiceConfigurationSelectOption> options;
+        private List<SettingsConfigurationSelectOption> options;
         private Integer order;
         private String placeholder;
         private boolean required;
         private boolean sensitive;
         private String tooltip;
-        private ServiceConfigurationFieldType type;
+        private SettingsConfigurationFieldType type;
         private List<String> uiRestrictions;
-        private List<ServiceConfigurationValidation> validations;
+        private List<SettingsConfigurationValidation> validations;
         private Object value;
 
         public Builder setCategory(String category) {
@@ -504,12 +504,12 @@ public class ServiceConfiguration implements Writeable, ToXContentObject {
             return this;
         }
 
-        public Builder setDependsOn(List<ServiceConfigurationDependency> dependsOn) {
+        public Builder setDependsOn(List<SettingsConfigurationDependency> dependsOn) {
             this.dependsOn = dependsOn;
             return this;
         }
 
-        public Builder setDisplay(ServiceConfigurationDisplayType display) {
+        public Builder setDisplay(SettingsConfigurationDisplayType display) {
             this.display = display;
             return this;
         }
@@ -519,7 +519,7 @@ public class ServiceConfiguration implements Writeable, ToXContentObject {
             return this;
         }
 
-        public Builder setOptions(List<ServiceConfigurationSelectOption> options) {
+        public Builder setOptions(List<SettingsConfigurationSelectOption> options) {
             this.options = options;
             return this;
         }
@@ -549,7 +549,7 @@ public class ServiceConfiguration implements Writeable, ToXContentObject {
             return this;
         }
 
-        public Builder setType(ServiceConfigurationFieldType type) {
+        public Builder setType(SettingsConfigurationFieldType type) {
             this.type = type;
             return this;
         }
@@ -559,7 +559,7 @@ public class ServiceConfiguration implements Writeable, ToXContentObject {
             return this;
         }
 
-        public Builder setValidations(List<ServiceConfigurationValidation> validations) {
+        public Builder setValidations(List<SettingsConfigurationValidation> validations) {
             this.validations = validations;
             return this;
         }
@@ -569,8 +569,8 @@ public class ServiceConfiguration implements Writeable, ToXContentObject {
             return this;
         }
 
-        public ServiceConfiguration build() {
-            return new ServiceConfiguration(
+        public SettingsConfiguration build() {
+            return new SettingsConfiguration(
                 category,
                 defaultValue,
                 dependsOn,

@@ -25,12 +25,10 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
@@ -40,17 +38,21 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
 public class InferenceServiceConfiguration implements Writeable, ToXContentObject {
 
     private final String provider;
-    private final EnumSet<TaskType> taskTypes;
-    private final Map<String, ServiceConfiguration> configuration;
+    private final List<TaskSettingsConfiguration> taskTypes;
+    private final Map<String, SettingsConfiguration> configuration;
 
     /**
      * Constructs a new {@link InferenceServiceConfiguration} instance with specified properties.
      *
      * @param provider       The name of the service provider.
-     * @param taskTypes      A list of {@link TaskType} supported by the service provider.
-     * @param configuration  The configuration of the service provider, defined by {@link ServiceConfiguration}.
+     * @param taskTypes      A list of {@link TaskSettingsConfiguration} supported by the service provider.
+     * @param configuration  The configuration of the service provider, defined by {@link SettingsConfiguration}.
      */
-    private InferenceServiceConfiguration(String provider, EnumSet<TaskType> taskTypes, Map<String, ServiceConfiguration> configuration) {
+    private InferenceServiceConfiguration(
+        String provider,
+        List<TaskSettingsConfiguration> taskTypes,
+        Map<String, SettingsConfiguration> configuration
+    ) {
         this.provider = provider;
         this.taskTypes = taskTypes;
         this.configuration = configuration;
@@ -58,8 +60,8 @@ public class InferenceServiceConfiguration implements Writeable, ToXContentObjec
 
     public InferenceServiceConfiguration(StreamInput in) throws IOException {
         this.provider = in.readString();
-        this.taskTypes = in.readEnumSet(TaskType.class);
-        this.configuration = in.readMap(ServiceConfiguration::new);
+        this.taskTypes = in.readCollectionAsList(TaskSettingsConfiguration::new);
+        this.configuration = in.readMap(SettingsConfiguration::new);
     }
 
     static final ParseField PROVIDER_FIELD = new ParseField("provider");
@@ -73,15 +75,15 @@ public class InferenceServiceConfiguration implements Writeable, ToXContentObjec
         args -> {
             List<String> taskTypes = (ArrayList<String>) args[1];
             return new InferenceServiceConfiguration.Builder().setProvider((String) args[0])
-                .setTaskTypes(EnumSet.copyOf(taskTypes.stream().map(TaskType::fromString).collect(Collectors.toList())))
-                .setConfiguration((Map<String, ServiceConfiguration>) args[2])
+                .setTaskTypes((List<TaskSettingsConfiguration>) args[1])
+                .setConfiguration((Map<String, SettingsConfiguration>) args[2])
                 .build();
         }
     );
 
     static {
         PARSER.declareString(constructorArg(), PROVIDER_FIELD);
-        PARSER.declareStringArray(constructorArg(), TASK_TYPES_FIELD);
+        PARSER.declareObjectArray(constructorArg(), (p, c) -> TaskSettingsConfiguration.fromXContent(p), TASK_TYPES_FIELD);
         PARSER.declareObject(constructorArg(), (p, c) -> p.map(), CONFIGURATION_FIELD);
     }
 
@@ -89,11 +91,11 @@ public class InferenceServiceConfiguration implements Writeable, ToXContentObjec
         return provider;
     }
 
-    public EnumSet<TaskType> getTaskTypes() {
+    public List<TaskSettingsConfiguration> getTaskTypes() {
         return taskTypes;
     }
 
-    public Map<String, ServiceConfiguration> getConfiguration() {
+    public Map<String, SettingsConfiguration> getConfiguration() {
         return configuration;
     }
 
@@ -156,20 +158,20 @@ public class InferenceServiceConfiguration implements Writeable, ToXContentObjec
     public static class Builder {
 
         private String provider;
-        private EnumSet<TaskType> taskTypes;
-        private Map<String, ServiceConfiguration> configuration;
+        private List<TaskSettingsConfiguration> taskTypes;
+        private Map<String, SettingsConfiguration> configuration;
 
         public Builder setProvider(String provider) {
             this.provider = provider;
             return this;
         }
 
-        public Builder setTaskTypes(EnumSet<TaskType> taskTypes) {
+        public Builder setTaskTypes(List<TaskSettingsConfiguration> taskTypes) {
             this.taskTypes = taskTypes;
             return this;
         }
 
-        public Builder setConfiguration(Map<String, ServiceConfiguration> configuration) {
+        public Builder setConfiguration(Map<String, SettingsConfiguration> configuration) {
             this.configuration = configuration;
             return this;
         }

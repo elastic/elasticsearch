@@ -27,51 +27,36 @@ import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
-/**
- * Represents a dependency within a connector configuration, defining a specific field and its associated value.
- * This class is used to encapsulate configuration dependencies in a structured format.
- */
-public class ServiceConfigurationDependency implements Writeable, ToXContentObject {
-
-    private final String field;
+public class SettingsConfigurationSelectOption implements Writeable, ToXContentObject {
+    private final String label;
     private final Object value;
 
-    /**
-     * Constructs a new instance of ServiceConfigurationDependency.
-     *
-     * @param field The name of the field in the service dependency.
-     * @param value The value associated with the field.
-     */
-    public ServiceConfigurationDependency(String field, Object value) {
-        this.field = field;
+    private SettingsConfigurationSelectOption(String label, Object value) {
+        this.label = label;
         this.value = value;
     }
 
-    public ServiceConfigurationDependency(StreamInput in) throws IOException {
-        this.field = in.readString();
+    public SettingsConfigurationSelectOption(StreamInput in) throws IOException {
+        this.label = in.readString();
         this.value = in.readGenericValue();
     }
 
-    private static final ParseField FIELD_FIELD = new ParseField("field");
+    private static final ParseField LABEL_FIELD = new ParseField("label");
     private static final ParseField VALUE_FIELD = new ParseField("value");
 
-    private static final ConstructingObjectParser<ServiceConfigurationDependency, Void> PARSER = new ConstructingObjectParser<>(
-        "service_configuration_dependency",
+    private static final ConstructingObjectParser<SettingsConfigurationSelectOption, Void> PARSER = new ConstructingObjectParser<>(
+        "service_configuration_select_option",
         true,
-        args -> new ServiceConfigurationDependency.Builder().setField((String) args[0]).setValue(args[1]).build()
+        args -> new SettingsConfigurationSelectOption.Builder().setLabel((String) args[0]).setValue(args[1]).build()
     );
 
     static {
-        PARSER.declareString(constructorArg(), FIELD_FIELD);
+        PARSER.declareString(constructorArg(), LABEL_FIELD);
         PARSER.declareField(constructorArg(), (p, c) -> {
             if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
                 return p.text();
             } else if (p.currentToken() == XContentParser.Token.VALUE_NUMBER) {
                 return p.numberValue();
-            } else if (p.currentToken() == XContentParser.Token.VALUE_BOOLEAN) {
-                return p.booleanValue();
-            } else if (p.currentToken() == XContentParser.Token.VALUE_NULL) {
-                return null;
             }
             throw new XContentParseException("Unsupported token [" + p.currentToken() + "]");
         }, VALUE_FIELD, ObjectParser.ValueType.VALUE);
@@ -81,7 +66,7 @@ public class ServiceConfigurationDependency implements Writeable, ToXContentObje
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         {
-            builder.field(FIELD_FIELD.getPreferredName(), field);
+            builder.field(LABEL_FIELD.getPreferredName(), label);
             builder.field(VALUE_FIELD.getPreferredName(), value);
         }
         builder.endObject();
@@ -90,18 +75,18 @@ public class ServiceConfigurationDependency implements Writeable, ToXContentObje
 
     public Map<String, Object> toMap() {
         Map<String, Object> map = new HashMap<>();
-        map.put(FIELD_FIELD.getPreferredName(), field);
+        map.put(LABEL_FIELD.getPreferredName(), label);
         map.put(VALUE_FIELD.getPreferredName(), value);
         return map;
     }
 
-    public static ServiceConfigurationDependency fromXContent(XContentParser parser) throws IOException {
+    public static SettingsConfigurationSelectOption fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(field);
+        out.writeString(label);
         out.writeGenericValue(value);
     }
 
@@ -109,22 +94,22 @@ public class ServiceConfigurationDependency implements Writeable, ToXContentObje
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        ServiceConfigurationDependency that = (ServiceConfigurationDependency) o;
-        return Objects.equals(field, that.field) && Objects.equals(value, that.value);
+        SettingsConfigurationSelectOption that = (SettingsConfigurationSelectOption) o;
+        return Objects.equals(label, that.label) && Objects.equals(value, that.value);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(field, value);
+        return Objects.hash(label, value);
     }
 
     public static class Builder {
 
-        private String field;
+        private String label;
         private Object value;
 
-        public Builder setField(String field) {
-            this.field = field;
+        public Builder setLabel(String label) {
+            this.label = label;
             return this;
         }
 
@@ -133,8 +118,15 @@ public class ServiceConfigurationDependency implements Writeable, ToXContentObje
             return this;
         }
 
-        public ServiceConfigurationDependency build() {
-            return new ServiceConfigurationDependency(field, value);
+        public Builder setLabelAndValue(String labelAndValue) {
+            this.label = labelAndValue;
+            this.value = labelAndValue;
+            return this;
+        }
+
+        public SettingsConfigurationSelectOption build() {
+            return new SettingsConfigurationSelectOption(label, value);
         }
     }
+
 }

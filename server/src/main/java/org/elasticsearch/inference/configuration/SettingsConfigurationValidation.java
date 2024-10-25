@@ -30,36 +30,36 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
  * Represents a configuration validation entity, encapsulating a validation constraint and its corresponding type.
  * This class is used to define and handle specific validation rules or requirements within a configuration context.
  */
-public class ServiceConfigurationValidation implements Writeable, ToXContentObject {
+public class SettingsConfigurationValidation implements Writeable, ToXContentObject {
 
     private final Object constraint;
-    private final ServiceConfigurationValidationType type;
+    private final SettingsConfigurationValidationType type;
 
     /**
-     * Constructs a new ServiceConfigurationValidation instance with specified constraint and type.
+     * Constructs a new SettingsConfigurationValidation instance with specified constraint and type.
      * This constructor initializes the object with a given validation constraint and its associated validation type.
      *
      * @param constraint The validation constraint (string, number or list), represented as generic Object type.
-     * @param type       The type of configuration validation, specified as an instance of {@link ServiceConfigurationValidationType}.
+     * @param type       The type of configuration validation, specified as an instance of {@link SettingsConfigurationValidationType}.
      */
-    private ServiceConfigurationValidation(Object constraint, ServiceConfigurationValidationType type) {
+    private SettingsConfigurationValidation(Object constraint, SettingsConfigurationValidationType type) {
         this.constraint = constraint;
         this.type = type;
     }
 
-    public ServiceConfigurationValidation(StreamInput in) throws IOException {
+    public SettingsConfigurationValidation(StreamInput in) throws IOException {
         this.constraint = in.readGenericValue();
-        this.type = in.readEnum(ServiceConfigurationValidationType.class);
+        this.type = in.readEnum(SettingsConfigurationValidationType.class);
     }
 
     private static final ParseField CONSTRAINT_FIELD = new ParseField("constraint");
     private static final ParseField TYPE_FIELD = new ParseField("type");
 
-    private static final ConstructingObjectParser<ServiceConfigurationValidation, Void> PARSER = new ConstructingObjectParser<>(
+    private static final ConstructingObjectParser<SettingsConfigurationValidation, Void> PARSER = new ConstructingObjectParser<>(
         "service_configuration_validation",
         true,
-        args -> new ServiceConfigurationValidation.Builder().setConstraint(args[0])
-            .setType((ServiceConfigurationValidationType) args[1])
+        args -> new SettingsConfigurationValidation.Builder().setConstraint(args[0])
+            .setType((SettingsConfigurationValidationType) args[1])
             .build()
     );
 
@@ -72,7 +72,7 @@ public class ServiceConfigurationValidation implements Writeable, ToXContentObje
         );
         PARSER.declareField(
             constructorArg(),
-            (p, c) -> ServiceConfigurationValidationType.validationType(p.text()),
+            (p, c) -> SettingsConfigurationValidationType.validationType(p.text()),
             TYPE_FIELD,
             ObjectParser.ValueType.STRING
         );
@@ -109,7 +109,7 @@ public class ServiceConfigurationValidation implements Writeable, ToXContentObje
         return Map.of(CONSTRAINT_FIELD.getPreferredName(), constraint, TYPE_FIELD.getPreferredName(), type.toString());
     }
 
-    public static ServiceConfigurationValidation fromXContent(XContentParser parser) throws IOException {
+    public static SettingsConfigurationValidation fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
     }
 
@@ -123,7 +123,7 @@ public class ServiceConfigurationValidation implements Writeable, ToXContentObje
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        ServiceConfigurationValidation that = (ServiceConfigurationValidation) o;
+        SettingsConfigurationValidation that = (SettingsConfigurationValidation) o;
         return Objects.equals(constraint, that.constraint) && type == that.type;
     }
 
@@ -135,20 +135,20 @@ public class ServiceConfigurationValidation implements Writeable, ToXContentObje
     public static class Builder {
 
         private Object constraint;
-        private ServiceConfigurationValidationType type;
+        private SettingsConfigurationValidationType type;
 
         public Builder setConstraint(Object constraint) {
             this.constraint = constraint;
             return this;
         }
 
-        public Builder setType(ServiceConfigurationValidationType type) {
+        public Builder setType(SettingsConfigurationValidationType type) {
             this.type = type;
             return this;
         }
 
-        public ServiceConfigurationValidation build() {
-            return new ServiceConfigurationValidation(constraint, type);
+        public SettingsConfigurationValidation build() {
+            return new SettingsConfigurationValidation(constraint, type);
         }
     }
 }

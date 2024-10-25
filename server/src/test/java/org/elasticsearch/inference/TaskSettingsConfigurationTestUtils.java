@@ -10,23 +10,22 @@
 package org.elasticsearch.inference;
 
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomInt;
 
-public class InferenceServiceConfigurationTestUtils {
+public class TaskSettingsConfigurationTestUtils {
 
-    public static InferenceServiceConfiguration getRandomServiceConfigurationField() {
-        return new InferenceServiceConfiguration.Builder().setProvider(randomAlphaOfLength(10))
-            .setTaskTypes(getRandomTaskTypeConfiguration())
+    public static TaskSettingsConfiguration getRandomTaskSettingsConfigurationField() {
+        return new TaskSettingsConfiguration.Builder().setTaskType(getRandomTaskType())
             .setConfiguration(getRandomServiceConfiguration(10))
             .build();
     }
 
-    private static List<TaskSettingsConfiguration> getRandomTaskTypeConfiguration() {
-        return List.of(TaskSettingsConfigurationTestUtils.getRandomTaskSettingsConfigurationField());
+    private static TaskType getRandomTaskType() {
+        TaskType[] values = TaskType.values();
+        return values[randomInt(values.length - 1)];
     }
 
     private static Map<String, SettingsConfiguration> getRandomServiceConfiguration(int numFields) {

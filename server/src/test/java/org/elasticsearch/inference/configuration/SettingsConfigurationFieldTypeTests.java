@@ -9,20 +9,20 @@
 
 package org.elasticsearch.inference.configuration;
 
-import org.elasticsearch.inference.ServiceConfigurationTestUtils;
+import org.elasticsearch.inference.SettingsConfigurationTestUtils;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class ServiceConfigurationFieldTypeTests extends ESTestCase {
+public class SettingsConfigurationFieldTypeTests extends ESTestCase {
 
     public void testFieldType_WithValidConfigurationFieldTypeString() {
-        ServiceConfigurationFieldType fieldType = ServiceConfigurationTestUtils.getRandomConfigurationFieldType();
-        assertThat(ServiceConfigurationFieldType.fieldType(fieldType.toString()), equalTo(fieldType));
+        SettingsConfigurationFieldType fieldType = SettingsConfigurationTestUtils.getRandomConfigurationFieldType();
+        assertThat(SettingsConfigurationFieldType.fieldType(fieldType.toString()), equalTo(fieldType));
     }
 
     public void testFieldType_WithInvalidConfigurationFieldTypeString_ExpectIllegalArgumentException() {
-        assertThrows(IllegalArgumentException.class, () -> ServiceConfigurationFieldType.fieldType("invalid field type"));
+        assertThrows(IllegalArgumentException.class, () -> SettingsConfigurationFieldType.fieldType("invalid field type"));
     }
 
 }

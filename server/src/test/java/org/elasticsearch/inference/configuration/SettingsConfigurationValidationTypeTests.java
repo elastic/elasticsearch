@@ -9,21 +9,21 @@
 
 package org.elasticsearch.inference.configuration;
 
-import org.elasticsearch.inference.ServiceConfigurationTestUtils;
+import org.elasticsearch.inference.SettingsConfigurationTestUtils;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class ServiceConfigurationValidationTypeTests extends ESTestCase {
+public class SettingsConfigurationValidationTypeTests extends ESTestCase {
 
     public void testValidationType_WithValidConfigurationValidationTypeString() {
-        ServiceConfigurationValidationType validationType = ServiceConfigurationTestUtils.getRandomConfigurationValidationType();
+        SettingsConfigurationValidationType validationType = SettingsConfigurationTestUtils.getRandomConfigurationValidationType();
 
-        assertThat(ServiceConfigurationValidationType.validationType(validationType.toString()), equalTo(validationType));
+        assertThat(SettingsConfigurationValidationType.validationType(validationType.toString()), equalTo(validationType));
     }
 
     public void testValidationType_WithInvalidConfigurationValidationTypeString_ExpectIllegalArgumentException() {
-        assertThrows(IllegalArgumentException.class, () -> ServiceConfigurationValidationType.validationType("invalid validation type"));
+        assertThrows(IllegalArgumentException.class, () -> SettingsConfigurationValidationType.validationType("invalid validation type"));
     }
 
 }

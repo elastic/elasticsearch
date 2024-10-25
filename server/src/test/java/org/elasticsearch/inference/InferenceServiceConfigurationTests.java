@@ -30,8 +30,96 @@ public class InferenceServiceConfigurationTests extends ESTestCase {
             {
                "provider": "some_provider",
                "task_types": [
-                  "text_embedding",
-                  "completion"
+                  {
+               "task_type": "text_embedding",
+               "configuration": {
+                    "text_field_configuration": {
+                        "default_value": null,
+                        "depends_on": [
+                            {
+                                "field": "some_field",
+                                "value": true
+                            }
+                        ],
+                        "display": "textbox",
+                        "label": "Very important field",
+                        "options": [],
+                        "order": 4,
+                        "required": true,
+                        "sensitive": true,
+                        "tooltip": "Wow, this tooltip is useful.",
+                        "type": "str",
+                        "ui_restrictions": [],
+                        "validations": null,
+                        "value": ""
+                    },
+                    "numeric_field_configuration": {
+                        "default_value": 3,
+                        "depends_on": null,
+                        "display": "numeric",
+                        "label": "Very important numeric field",
+                        "options": [],
+                        "order": 2,
+                        "required": true,
+                        "sensitive": false,
+                        "tooltip": "Wow, this tooltip is useful.",
+                        "type": "int",
+                        "ui_restrictions": [],
+                        "validations": [
+                            {
+                                "constraint": 0,
+                                "type": "greater_than"
+                            }
+                        ],
+                        "value": ""
+                    }
+               }
+            },
+            {
+               "task_type": "completion",
+               "configuration": {
+                    "text_field_configuration": {
+                        "default_value": null,
+                        "depends_on": [
+                            {
+                                "field": "some_field",
+                                "value": true
+                            }
+                        ],
+                        "display": "textbox",
+                        "label": "Very important field",
+                        "options": [],
+                        "order": 4,
+                        "required": true,
+                        "sensitive": true,
+                        "tooltip": "Wow, this tooltip is useful.",
+                        "type": "str",
+                        "ui_restrictions": [],
+                        "validations": null,
+                        "value": ""
+                    },
+                    "numeric_field_configuration": {
+                        "default_value": 3,
+                        "depends_on": null,
+                        "display": "numeric",
+                        "label": "Very important numeric field",
+                        "options": [],
+                        "order": 2,
+                        "required": true,
+                        "sensitive": false,
+                        "tooltip": "Wow, this tooltip is useful.",
+                        "type": "int",
+                        "ui_restrictions": [],
+                        "validations": [
+                            {
+                                "constraint": 0,
+                                "type": "greater_than"
+                            }
+                        ],
+                        "value": ""
+                    }
+               }
+            }
                ],
                "configuration": {
                     "text_field_configuration": {

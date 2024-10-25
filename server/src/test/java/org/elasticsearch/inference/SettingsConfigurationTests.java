@@ -12,9 +12,9 @@ package org.elasticsearch.inference;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.inference.configuration.ServiceConfigurationDependency;
-import org.elasticsearch.inference.configuration.ServiceConfigurationSelectOption;
-import org.elasticsearch.inference.configuration.ServiceConfigurationValidation;
+import org.elasticsearch.inference.configuration.SettingsConfigurationDependency;
+import org.elasticsearch.inference.configuration.SettingsConfigurationSelectOption;
+import org.elasticsearch.inference.configuration.SettingsConfigurationValidation;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
@@ -28,7 +28,7 @@ import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.hamcrest.CoreMatchers.equalTo;
 
-public class ServiceConfigurationTests extends ESTestCase {
+public class SettingsConfigurationTests extends ESTestCase {
 
     public void testToXContent() throws IOException {
         String content = XContentHelper.stripWhitespace("""
@@ -59,12 +59,12 @@ public class ServiceConfigurationTests extends ESTestCase {
             }
             """);
 
-        ServiceConfiguration configuration = ServiceConfiguration.fromXContentBytes(new BytesArray(content), XContentType.JSON);
+        SettingsConfiguration configuration = SettingsConfiguration.fromXContentBytes(new BytesArray(content), XContentType.JSON);
         boolean humanReadable = true;
         BytesReference originalBytes = toShuffledXContent(configuration, XContentType.JSON, ToXContent.EMPTY_PARAMS, humanReadable);
-        ServiceConfiguration parsed;
+        SettingsConfiguration parsed;
         try (XContentParser parser = createParser(XContentType.JSON.xContent(), originalBytes)) {
-            parsed = ServiceConfiguration.fromXContent(parser);
+            parsed = SettingsConfiguration.fromXContent(parser);
         }
         assertToXContentEquivalent(originalBytes, toXContent(parsed, XContentType.JSON, humanReadable), XContentType.JSON);
     }
@@ -107,12 +107,12 @@ public class ServiceConfigurationTests extends ESTestCase {
             }
             """);
 
-        ServiceConfiguration configuration = ServiceConfiguration.fromXContentBytes(new BytesArray(content), XContentType.JSON);
+        SettingsConfiguration configuration = SettingsConfiguration.fromXContentBytes(new BytesArray(content), XContentType.JSON);
         boolean humanReadable = true;
         BytesReference originalBytes = toShuffledXContent(configuration, XContentType.JSON, ToXContent.EMPTY_PARAMS, humanReadable);
-        ServiceConfiguration parsed;
+        SettingsConfiguration parsed;
         try (XContentParser parser = createParser(XContentType.JSON.xContent(), originalBytes)) {
-            parsed = ServiceConfiguration.fromXContent(parser);
+            parsed = SettingsConfiguration.fromXContent(parser);
         }
         assertToXContentEquivalent(originalBytes, toXContent(parsed, XContentType.JSON, humanReadable), XContentType.JSON);
     }
@@ -125,12 +125,12 @@ public class ServiceConfigurationTests extends ESTestCase {
             }
             """);
 
-        ServiceConfiguration configuration = ServiceConfiguration.fromXContentBytes(new BytesArray(content), XContentType.JSON);
+        SettingsConfiguration configuration = SettingsConfiguration.fromXContentBytes(new BytesArray(content), XContentType.JSON);
         boolean humanReadable = true;
         BytesReference originalBytes = toShuffledXContent(configuration, XContentType.JSON, ToXContent.EMPTY_PARAMS, humanReadable);
-        ServiceConfiguration parsed;
+        SettingsConfiguration parsed;
         try (XContentParser parser = createParser(XContentType.JSON.xContent(), originalBytes)) {
-            parsed = ServiceConfiguration.fromXContent(parser);
+            parsed = SettingsConfiguration.fromXContent(parser);
         }
         assertToXContentEquivalent(originalBytes, toXContent(parsed, XContentType.JSON, humanReadable), XContentType.JSON);
     }
@@ -188,18 +188,18 @@ public class ServiceConfigurationTests extends ESTestCase {
             }
             """);
 
-        ServiceConfiguration configuration = ServiceConfiguration.fromXContentBytes(new BytesArray(content), XContentType.JSON);
+        SettingsConfiguration configuration = SettingsConfiguration.fromXContentBytes(new BytesArray(content), XContentType.JSON);
         boolean humanReadable = true;
         BytesReference originalBytes = toShuffledXContent(configuration, XContentType.JSON, ToXContent.EMPTY_PARAMS, humanReadable);
-        ServiceConfiguration parsed;
+        SettingsConfiguration parsed;
         try (XContentParser parser = createParser(XContentType.JSON.xContent(), originalBytes)) {
-            parsed = ServiceConfiguration.fromXContent(parser);
+            parsed = SettingsConfiguration.fromXContent(parser);
         }
         assertToXContentEquivalent(originalBytes, toXContent(parsed, XContentType.JSON, humanReadable), XContentType.JSON);
     }
 
     public void testToMap() {
-        ServiceConfiguration configField = ServiceConfigurationTestUtils.getRandomServiceConfigurationField();
+        SettingsConfiguration configField = SettingsConfigurationTestUtils.getRandomSettingsConfigurationField();
         Map<String, Object> configFieldAsMap = configField.toMap();
 
         if (configField.getCategory() != null) {
@@ -213,7 +213,7 @@ public class ServiceConfigurationTests extends ESTestCase {
         if (configField.getDependsOn() != null) {
             List<Map<String, Object>> dependsOnAsList = configField.getDependsOn()
                 .stream()
-                .map(ServiceConfigurationDependency::toMap)
+                .map(SettingsConfigurationDependency::toMap)
                 .toList();
             assertThat(configFieldAsMap.get("depends_on"), equalTo(dependsOnAsList));
         } else {
@@ -231,7 +231,7 @@ public class ServiceConfigurationTests extends ESTestCase {
         if (configField.getOptions() != null) {
             List<Map<String, Object>> optionsAsList = configField.getOptions()
                 .stream()
-                .map(ServiceConfigurationSelectOption::toMap)
+                .map(SettingsConfigurationSelectOption::toMap)
                 .toList();
             assertThat(configFieldAsMap.get("options"), equalTo(optionsAsList));
         } else {
@@ -274,7 +274,7 @@ public class ServiceConfigurationTests extends ESTestCase {
         if (configField.getValidations() != null) {
             List<Map<String, Object>> validationsAsList = configField.getValidations()
                 .stream()
-                .map(ServiceConfigurationValidation::toMap)
+                .map(SettingsConfigurationValidation::toMap)
                 .toList();
             assertThat(configFieldAsMap.get("validations"), equalTo(validationsAsList));
         } else {

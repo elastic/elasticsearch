@@ -9,7 +9,7 @@
 
 package org.elasticsearch.inference.configuration;
 
-public enum ServiceConfigurationFieldType {
+public enum SettingsConfigurationFieldType {
     STRING("str"),
     INTEGER("int"),
     LIST("list"),
@@ -17,7 +17,7 @@ public enum ServiceConfigurationFieldType {
 
     private final String value;
 
-    ServiceConfigurationFieldType(String value) {
+    SettingsConfigurationFieldType(String value) {
         this.value = value;
     }
 
@@ -26,12 +26,12 @@ public enum ServiceConfigurationFieldType {
         return this.value;
     }
 
-    public static ServiceConfigurationFieldType fieldType(String type) {
-        for (ServiceConfigurationFieldType fieldType : ServiceConfigurationFieldType.values()) {
+    public static SettingsConfigurationFieldType fieldType(String type) {
+        for (SettingsConfigurationFieldType fieldType : SettingsConfigurationFieldType.values()) {
             if (fieldType.value.equals(type)) {
                 return fieldType;
             }
         }
-        throw new IllegalArgumentException("Unknown " + ServiceConfigurationFieldType.class.getSimpleName() + " [" + type + "].");
+        throw new IllegalArgumentException("Unknown " + SettingsConfigurationFieldType.class.getSimpleName() + " [" + type + "].");
     }
 }

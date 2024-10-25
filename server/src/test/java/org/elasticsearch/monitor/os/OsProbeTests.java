@@ -204,7 +204,7 @@ public class OsProbeTests extends ESTestCase {
             case 2 -> {
                 assertNotNull(cgroup);
                 assertThat(cgroup.getCpuAcctControlGroup(), equalTo("/" + hierarchy));
-                assertThat(cgroup.getCpuAcctUsageNanos(), equalTo("364869866063000"));
+                assertThat(cgroup.getCpuAcctUsageNanos(), equalTo(new BigInteger("364869866063000")));
                 assertThat(cgroup.getCpuControlGroup(), equalTo("/" + hierarchy));
                 assertThat(cgroup.getCpuCfsPeriodMicros(), equalTo(100000L));
                 assertThat(cgroup.getCpuCfsQuotaMicros(), equalTo(50000L));

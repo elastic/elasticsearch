@@ -315,8 +315,8 @@ public class DesiredBalanceComputer {
                             && shardRouting.unassignedInfo().reason() == UnassignedInfo.Reason.INDEX_CREATED) {
                             // TODO: we could include more cases that would cause early publishing of desired balance in case of a long
                             // computation. e.g.:
-                            //  - unassigned search replicas in case the shard has no assigned shard replicas
-                            //  - other reasons for an unassigned shard such as NEW_INDEX_RESTORED
+                            // - unassigned search replicas in case the shard has no assigned shard replicas
+                            // - other reasons for an unassigned shard such as NEW_INDEX_RESTORED
                             assignedSomeNewlyCreatedShards = true;
                         }
                         clusterInfoSimulator.simulateShardStarted(shardRouting);

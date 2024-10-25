@@ -47,6 +47,7 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextExpansionConfi
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextExpansionConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextSimilarityConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextSimilarityConfigUpdate;
+import org.elasticsearch.xpack.inference.DefaultElserFeatureFlag;
 import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.inference.chunking.EmbeddingRequestChunker;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
@@ -113,7 +114,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         Map<String, Object> config,
         ActionListener<Model> modelListener
     ) {
-        if (inferenceEntityId.equals(DEFAULT_ELSER_ID)) {
+        if (DefaultElserFeatureFlag.isEnabled() && inferenceEntityId.equals(DEFAULT_ELSER_ID)) {
             modelListener.onFailure(
                 new ElasticsearchStatusException(
                     "[{}] is a reserved inference Id. Cannot create a new inference endpoint with a reserved Id",
@@ -769,6 +770,8 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
     }
 
     public List<DefaultConfigId> defaultConfigIds() {
+        assert DefaultElserFeatureFlag.isEnabled();
+
         return List.of(
             new DefaultConfigId(DEFAULT_ELSER_ID, TaskType.SPARSE_EMBEDDING, this),
             new DefaultConfigId(DEFAULT_E5_ID, TaskType.TEXT_EMBEDDING, this)
@@ -817,13 +820,18 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
     }
 
     public void defaultConfigs(ActionListener<List<Model>> defaultsListener) {
-        preferredModelVariantFn.accept(defaultsListener.delegateFailureAndWrap((delegate, preferredModelVariant) -> {
-            if (PreferredModelVariant.LINUX_X86_OPTIMIZED.equals(preferredModelVariant)) {
-                defaultsListener.onResponse(defaultConfigsLinuxOptimized());
-            } else {
-                defaultsListener.onResponse(defaultConfigsPlatfromAgnostic());
-            }
-        }));
+        if (DefaultElserFeatureFlag.isEnabled()) {
+            preferredModelVariantFn.accept(defaultsListener.delegateFailureAndWrap((delegate, preferredModelVariant) -> {
+                if (PreferredModelVariant.LINUX_X86_OPTIMIZED.equals(preferredModelVariant)) {
+                    defaultsListener.onResponse(defaultConfigsLinuxOptimized());
+                } else {
+                    defaultsListener.onResponse(defaultConfigsPlatfromAgnostic());
+                }
+            }));
+        } else {
+            logger.error("Attempted to add default configs with the feature flag disabled");
+            assert false;
+        }
     }
 
     private List<Model> defaultConfigsLinuxOptimized() {
@@ -865,6 +873,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
 
     @Override
     boolean isDefaultId(String inferenceId) {
+        assert DefaultElserFeatureFlag.isEnabled();
         return DEFAULT_ELSER_ID.equals(inferenceId) || DEFAULT_E5_ID.equals(inferenceId);
     }
 

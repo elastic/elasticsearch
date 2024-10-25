@@ -31,6 +31,7 @@ import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.inference.DefaultElserFeatureFlag;
 import org.elasticsearch.xpack.inference.model.TestModel;
 import org.junit.After;
 import org.junit.Before;
@@ -294,53 +295,62 @@ public class ModelRegistryTests extends ESTestCase {
     }
 
     public void testIdMatchedDefault() {
-        var defaultConfigIds = new ArrayList<InferenceService.DefaultConfigId>();
-        defaultConfigIds.add(new InferenceService.DefaultConfigId("foo", TaskType.SPARSE_EMBEDDING, mock(InferenceService.class)));
-        defaultConfigIds.add(new InferenceService.DefaultConfigId("bar", TaskType.SPARSE_EMBEDDING, mock(InferenceService.class)));
+        if (DefaultElserFeatureFlag.isEnabled()) {
 
-        var matched = ModelRegistry.idMatchedDefault("bar", defaultConfigIds);
-        assertEquals(defaultConfigIds.get(1), matched.get());
-        matched = ModelRegistry.idMatchedDefault("baz", defaultConfigIds);
-        assertFalse(matched.isPresent());
+            var defaultConfigIds = new ArrayList<InferenceService.DefaultConfigId>();
+            defaultConfigIds.add(new InferenceService.DefaultConfigId("foo", TaskType.SPARSE_EMBEDDING, mock(InferenceService.class)));
+            defaultConfigIds.add(new InferenceService.DefaultConfigId("bar", TaskType.SPARSE_EMBEDDING, mock(InferenceService.class)));
+
+            var matched = ModelRegistry.idMatchedDefault("bar", defaultConfigIds);
+            assertEquals(defaultConfigIds.get(1), matched.get());
+            matched = ModelRegistry.idMatchedDefault("baz", defaultConfigIds);
+            assertFalse(matched.isPresent());
+        }
     }
 
     public void testTaskTypeMatchedDefaults() {
-        var defaultConfigIds = new ArrayList<InferenceService.DefaultConfigId>();
-        defaultConfigIds.add(new InferenceService.DefaultConfigId("s1", TaskType.SPARSE_EMBEDDING, mock(InferenceService.class)));
-        defaultConfigIds.add(new InferenceService.DefaultConfigId("s2", TaskType.SPARSE_EMBEDDING, mock(InferenceService.class)));
-        defaultConfigIds.add(new InferenceService.DefaultConfigId("d1", TaskType.TEXT_EMBEDDING, mock(InferenceService.class)));
-        defaultConfigIds.add(new InferenceService.DefaultConfigId("c1", TaskType.COMPLETION, mock(InferenceService.class)));
+        if (DefaultElserFeatureFlag.isEnabled()) {
 
-        var matched = ModelRegistry.taskTypeMatchedDefaults(TaskType.SPARSE_EMBEDDING, defaultConfigIds);
-        assertThat(matched, contains(defaultConfigIds.get(0), defaultConfigIds.get(1)));
-        matched = ModelRegistry.taskTypeMatchedDefaults(TaskType.TEXT_EMBEDDING, defaultConfigIds);
-        assertThat(matched, contains(defaultConfigIds.get(2)));
-        matched = ModelRegistry.taskTypeMatchedDefaults(TaskType.RERANK, defaultConfigIds);
-        assertThat(matched, empty());
+            var defaultConfigIds = new ArrayList<InferenceService.DefaultConfigId>();
+            defaultConfigIds.add(new InferenceService.DefaultConfigId("s1", TaskType.SPARSE_EMBEDDING, mock(InferenceService.class)));
+            defaultConfigIds.add(new InferenceService.DefaultConfigId("s2", TaskType.SPARSE_EMBEDDING, mock(InferenceService.class)));
+            defaultConfigIds.add(new InferenceService.DefaultConfigId("d1", TaskType.TEXT_EMBEDDING, mock(InferenceService.class)));
+            defaultConfigIds.add(new InferenceService.DefaultConfigId("c1", TaskType.COMPLETION, mock(InferenceService.class)));
+
+            var matched = ModelRegistry.taskTypeMatchedDefaults(TaskType.SPARSE_EMBEDDING, defaultConfigIds);
+            assertThat(matched, contains(defaultConfigIds.get(0), defaultConfigIds.get(1)));
+            matched = ModelRegistry.taskTypeMatchedDefaults(TaskType.TEXT_EMBEDDING, defaultConfigIds);
+            assertThat(matched, contains(defaultConfigIds.get(2)));
+            matched = ModelRegistry.taskTypeMatchedDefaults(TaskType.RERANK, defaultConfigIds);
+            assertThat(matched, empty());
+        }
     }
 
     public void testDuplicateDefaultIds() {
-        var client = mockBulkClient();
-        var registry = new ModelRegistry(client);
+        if (DefaultElserFeatureFlag.isEnabled()) {
 
-        var id = "my-inference";
-        var mockServiceA = mock(InferenceService.class);
-        when(mockServiceA.name()).thenReturn("service-a");
-        var mockServiceB = mock(InferenceService.class);
-        when(mockServiceB.name()).thenReturn("service-b");
+            var client = mockBulkClient();
+            var registry = new ModelRegistry(client);
 
-        registry.addDefaultIds(new InferenceService.DefaultConfigId(id, randomFrom(TaskType.values()), mockServiceA));
-        var ise = expectThrows(
-            IllegalStateException.class,
-            () -> registry.addDefaultIds(new InferenceService.DefaultConfigId(id, randomFrom(TaskType.values()), mockServiceB))
-        );
-        assertThat(
-            ise.getMessage(),
-            containsString(
-                "Cannot add default endpoint to the inference endpoint registry with duplicate inference id [my-inference] declared by "
-                    + "service [service-b]. The inference Id is already use by [service-a] service."
-            )
-        );
+            var id = "my-inference";
+            var mockServiceA = mock(InferenceService.class);
+            when(mockServiceA.name()).thenReturn("service-a");
+            var mockServiceB = mock(InferenceService.class);
+            when(mockServiceB.name()).thenReturn("service-b");
+
+            registry.addDefaultIds(new InferenceService.DefaultConfigId(id, randomFrom(TaskType.values()), mockServiceA));
+            var ise = expectThrows(
+                IllegalStateException.class,
+                () -> registry.addDefaultIds(new InferenceService.DefaultConfigId(id, randomFrom(TaskType.values()), mockServiceB))
+            );
+            assertThat(
+                ise.getMessage(),
+                containsString(
+                    "Cannot add default endpoint to the inference endpoint registry with duplicate inference id [my-inference] declared by "
+                        + "service [service-b]. The inference Id is already use by [service-a] service."
+                )
+            );
+        }
     }
 
     private Client mockBulkClient() {

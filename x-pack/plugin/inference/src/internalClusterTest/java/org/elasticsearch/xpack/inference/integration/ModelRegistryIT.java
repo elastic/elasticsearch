@@ -31,6 +31,7 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.inference.DefaultElserFeatureFlag;
 import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsTests;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
@@ -316,8 +317,9 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
             listener.onResponse(defaultConfigs);
             return Void.TYPE;
         }).when(service).defaultConfigs(any());
-
-        defaultIds.forEach(modelRegistry::addDefaultIds);
+        if (DefaultElserFeatureFlag.isEnabled()) {
+            defaultIds.forEach(modelRegistry::addDefaultIds);
+        }
 
         AtomicReference<Boolean> putModelHolder = new AtomicReference<>();
         AtomicReference<Exception> exceptionHolder = new AtomicReference<>();

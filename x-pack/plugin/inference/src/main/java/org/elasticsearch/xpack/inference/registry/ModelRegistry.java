@@ -49,6 +49,7 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.inference.DefaultElserFeatureFlag;
 import org.elasticsearch.xpack.inference.InferenceIndex;
 import org.elasticsearch.xpack.inference.InferenceSecretsIndex;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
@@ -117,19 +118,23 @@ public class ModelRegistry {
      * @param defaultConfigIds The defaults
      */
     public void addDefaultIds(InferenceService.DefaultConfigId defaultConfigIds) {
-        var matched = idMatchedDefault(defaultConfigIds.inferenceId(), this.defaultConfigIds);
-        if (matched.isPresent()) {
-            throw new IllegalStateException(
-                "Cannot add default endpoint to the inference endpoint registry with duplicate inference id ["
-                    + defaultConfigIds.inferenceId()
-                    + "] declared by service ["
-                    + defaultConfigIds.service().name()
-                    + "]. The inference Id is already use by ["
-                    + matched.get().service().name()
-                    + "] service."
-            );
+        if (DefaultElserFeatureFlag.isEnabled()) {
+            var matched = idMatchedDefault(defaultConfigIds.inferenceId(), this.defaultConfigIds);
+            if (matched.isPresent()) {
+                throw new IllegalStateException(
+                    "Cannot add default endpoint to the inference endpoint registry with duplicate inference id ["
+                        + defaultConfigIds.inferenceId()
+                        + "] declared by service ["
+                        + defaultConfigIds.service().name()
+                        + "]. The inference Id is already use by ["
+                        + matched.get().service().name()
+                        + "] service."
+                );
+            }
+            this.defaultConfigIds.add(defaultConfigIds);
+        } else {
+            logger.error("Attempted to addDefaultIds [{}] with the feature flag disabled", defaultConfigIds.inferenceId());
         }
-        this.defaultConfigIds.add(defaultConfigIds);
     }
 
     /**
@@ -142,7 +147,7 @@ public class ModelRegistry {
             // There should be a hit for the configurations
             if (searchResponse.getHits().getHits().length == 0) {
                 var maybeDefault = idMatchedDefault(inferenceEntityId, defaultConfigIds);
-                if (maybeDefault.isPresent()) {
+                if (DefaultElserFeatureFlag.isEnabled() && maybeDefault.isPresent()) {
                     getDefaultConfig(true, maybeDefault.get(), listener);
                 } else {
                     delegate.onFailure(inferenceNotFoundException(inferenceEntityId));
@@ -173,7 +178,7 @@ public class ModelRegistry {
             // There should be a hit for the configurations
             if (searchResponse.getHits().getHits().length == 0) {
                 var maybeDefault = idMatchedDefault(inferenceEntityId, defaultConfigIds);
-                if (maybeDefault.isPresent()) {
+                if (DefaultElserFeatureFlag.isEnabled() && maybeDefault.isPresent()) {
                     getDefaultConfig(true, maybeDefault.get(), listener);
                 } else {
                     delegate.onFailure(inferenceNotFoundException(inferenceEntityId));
@@ -209,8 +214,12 @@ public class ModelRegistry {
     public void getModelsByTaskType(TaskType taskType, ActionListener<List<UnparsedModel>> listener) {
         ActionListener<SearchResponse> searchListener = listener.delegateFailureAndWrap((delegate, searchResponse) -> {
             var modelConfigs = parseHitsAsModels(searchResponse.getHits()).stream().map(ModelRegistry::unparsedModelFromMap).toList();
-            var defaultConfigsForTaskType = taskTypeMatchedDefaults(taskType, defaultConfigIds);
-            addAllDefaultConfigsIfMissing(true, modelConfigs, defaultConfigsForTaskType, delegate);
+            if (DefaultElserFeatureFlag.isEnabled()) {
+                var defaultConfigsForTaskType = taskTypeMatchedDefaults(taskType, defaultConfigIds);
+                addAllDefaultConfigsIfMissing(true, modelConfigs, defaultConfigsForTaskType, delegate);
+            } else {
+                delegate.onResponse(modelConfigs);
+            }
         });
 
         QueryBuilder queryBuilder = QueryBuilders.constantScoreQuery(QueryBuilders.termsQuery(TASK_TYPE_FIELD, taskType.toString()));
@@ -240,7 +249,11 @@ public class ModelRegistry {
     public void getAllModels(boolean persistDefaultEndpoints, ActionListener<List<UnparsedModel>> listener) {
         ActionListener<SearchResponse> searchListener = listener.delegateFailureAndWrap((delegate, searchResponse) -> {
             var foundConfigs = parseHitsAsModels(searchResponse.getHits()).stream().map(ModelRegistry::unparsedModelFromMap).toList();
-            addAllDefaultConfigsIfMissing(persistDefaultEndpoints, foundConfigs, defaultConfigIds, delegate);
+            if (DefaultElserFeatureFlag.isEnabled()) {
+                addAllDefaultConfigsIfMissing(persistDefaultEndpoints, foundConfigs, defaultConfigIds, delegate);
+            } else {
+                delegate.onResponse(foundConfigs);
+            }
         });
 
         // In theory the index should only contain model config documents
@@ -264,26 +277,32 @@ public class ModelRegistry {
         List<InferenceService.DefaultConfigId> matchedDefaults,
         ActionListener<List<UnparsedModel>> listener
     ) {
-        var foundIds = foundConfigs.stream().map(UnparsedModel::inferenceEntityId).collect(Collectors.toSet());
-        var missing = matchedDefaults.stream().filter(d -> foundIds.contains(d.inferenceId()) == false).toList();
+        if (DefaultElserFeatureFlag.isEnabled()) {
 
-        if (missing.isEmpty()) {
-            listener.onResponse(foundConfigs);
-        } else {
-            var groupedListener = new GroupedActionListener<UnparsedModel>(
-                missing.size(),
-                listener.delegateFailure((delegate, listOfModels) -> {
-                    var allConfigs = new ArrayList<UnparsedModel>();
-                    allConfigs.addAll(foundConfigs);
-                    allConfigs.addAll(listOfModels);
-                    allConfigs.sort(Comparator.comparing(UnparsedModel::inferenceEntityId));
-                    delegate.onResponse(allConfigs);
-                })
-            );
+            var foundIds = foundConfigs.stream().map(UnparsedModel::inferenceEntityId).collect(Collectors.toSet());
+            var missing = matchedDefaults.stream().filter(d -> foundIds.contains(d.inferenceId()) == false).toList();
 
-            for (var required : missing) {
-                getDefaultConfig(persistDefaultEndpoints, required, groupedListener);
+            if (missing.isEmpty()) {
+                listener.onResponse(foundConfigs);
+            } else {
+                var groupedListener = new GroupedActionListener<UnparsedModel>(
+                    missing.size(),
+                    listener.delegateFailure((delegate, listOfModels) -> {
+                        var allConfigs = new ArrayList<UnparsedModel>();
+                        allConfigs.addAll(foundConfigs);
+                        allConfigs.addAll(listOfModels);
+                        allConfigs.sort(Comparator.comparing(UnparsedModel::inferenceEntityId));
+                        delegate.onResponse(allConfigs);
+                    })
+                );
+
+                for (var required : missing) {
+                    getDefaultConfig(persistDefaultEndpoints, required, groupedListener);
+                }
             }
+        } else {
+            logger.error("Attempted to add default configs with the feature flag disabled");
+            assert false;
         }
     }
 
@@ -292,40 +311,52 @@ public class ModelRegistry {
         InferenceService.DefaultConfigId defaultConfig,
         ActionListener<UnparsedModel> listener
     ) {
-        defaultConfig.service().defaultConfigs(listener.delegateFailureAndWrap((delegate, models) -> {
-            boolean foundModel = false;
-            for (var m : models) {
-                if (m.getInferenceEntityId().equals(defaultConfig.inferenceId())) {
-                    foundModel = true;
-                    if (persistDefaultEndpoints) {
-                        storeDefaultEndpoint(m, () -> listener.onResponse(modelToUnparsedModel(m)));
-                    } else {
-                        listener.onResponse(modelToUnparsedModel(m));
-                    }
-                    break;
-                }
-            }
+        if (DefaultElserFeatureFlag.isEnabled()) {
 
-            if (foundModel == false) {
-                listener.onFailure(
-                    new IllegalStateException("Configuration not found for default inference id [" + defaultConfig.inferenceId() + "]")
-                );
-            }
-        }));
+            defaultConfig.service().defaultConfigs(listener.delegateFailureAndWrap((delegate, models) -> {
+                boolean foundModel = false;
+                for (var m : models) {
+                    if (m.getInferenceEntityId().equals(defaultConfig.inferenceId())) {
+                        foundModel = true;
+                        if (persistDefaultEndpoints) {
+                            storeDefaultEndpoint(m, () -> listener.onResponse(modelToUnparsedModel(m)));
+                        } else {
+                            listener.onResponse(modelToUnparsedModel(m));
+                        }
+                        break;
+                    }
+                }
+
+                if (foundModel == false) {
+                    listener.onFailure(
+                        new IllegalStateException("Configuration not found for default inference id [" + defaultConfig.inferenceId() + "]")
+                    );
+                }
+            }));
+        } else {
+            logger.error("Attempted to get default configs with the feature flag disabled");
+            assert false;
+        }
     }
 
     private void storeDefaultEndpoint(Model preconfigured, Runnable runAfter) {
-        var responseListener = ActionListener.<Boolean>wrap(success -> {
-            logger.debug("Added default inference endpoint [{}]", preconfigured.getInferenceEntityId());
-        }, exception -> {
-            if (exception instanceof ResourceAlreadyExistsException) {
-                logger.debug("Default inference id [{}] already exists", preconfigured.getInferenceEntityId());
-            } else {
-                logger.error("Failed to store default inference id [" + preconfigured.getInferenceEntityId() + "]", exception);
-            }
-        });
+        if (DefaultElserFeatureFlag.isEnabled()) {
 
-        storeModel(preconfigured, ActionListener.runAfter(responseListener, runAfter));
+            var responseListener = ActionListener.<Boolean>wrap(success -> {
+                logger.debug("Added default inference endpoint [{}]", preconfigured.getInferenceEntityId());
+            }, exception -> {
+                if (exception instanceof ResourceAlreadyExistsException) {
+                    logger.debug("Default inference id [{}] already exists", preconfigured.getInferenceEntityId());
+                } else {
+                    logger.error("Failed to store default inference id [" + preconfigured.getInferenceEntityId() + "]", exception);
+                }
+            });
+
+            storeModel(preconfigured, ActionListener.runAfter(responseListener, runAfter));
+        } else {
+            logger.error("Attempted to store default endpoint with the feature flag disabled");
+            assert false;
+        }
     }
 
     private ArrayList<ModelConfigMap> parseHitsAsModels(SearchHits hits) {
@@ -673,6 +704,7 @@ public class ModelRegistry {
         TaskType taskType,
         List<InferenceService.DefaultConfigId> defaultConfigIds
     ) {
+        assert DefaultElserFeatureFlag.isEnabled();
         return defaultConfigIds.stream()
             .filter(defaultConfigId -> defaultConfigId.taskType().equals(taskType))
             .collect(Collectors.toList());

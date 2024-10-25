@@ -56,6 +56,7 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextEmbeddingConfi
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextExpansionConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextSimilarityConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TokenizationConfigUpdate;
+import org.elasticsearch.xpack.inference.DefaultElserFeatureFlag;
 import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsTests;
 import org.elasticsearch.xpack.inference.chunking.EmbeddingRequestChunker;
@@ -1445,10 +1446,13 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
     }
 
     public void testIsDefaultId() {
-        var service = createService(mock(Client.class));
-        assertTrue(service.isDefaultId(".elser-2-elasticsearch"));
-        assertTrue(service.isDefaultId(".multilingual-e5-small-elasticsearch"));
-        assertFalse(service.isDefaultId("foo"));
+        if (DefaultElserFeatureFlag.isEnabled()) {
+
+            var service = createService(mock(Client.class));
+            assertTrue(service.isDefaultId(".elser-2-elasticsearch"));
+            assertTrue(service.isDefaultId(".multilingual-e5-small-elasticsearch"));
+            assertFalse(service.isDefaultId("foo"));
+        }
     }
 
     private ElasticsearchInternalService createService(Client client) {

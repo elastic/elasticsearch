@@ -35,7 +35,7 @@ public class DefaultDistributionDescriptor implements DistributionDescriptor {
     }
 
     public Path getDistributionDir() {
-        return distributionDir.resolve("elasticsearch-" + version + (snapshot ? "-SNAPSHOT" : ""));
+        return distributionDir.resolve("elasticsearch-" + version);
     }
 
     public DistributionType getType() {

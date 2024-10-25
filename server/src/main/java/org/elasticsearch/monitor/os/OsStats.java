@@ -619,9 +619,9 @@ public class OsStats implements Writeable, ToXContentFragment {
                     out.writeString(numberOfTimesThrottled);
                     out.writeString(timeThrottledNanos);
                 } else {
-                    out.writeLong(Long.parseLong(numberOfElapsedPeriods));
-                    out.writeLong(Long.parseLong(numberOfTimesThrottled));
-                    out.writeLong(Long.parseLong(timeThrottledNanos));
+                    out.writeLong(new BigInteger(numberOfElapsedPeriods).longValue());
+                    out.writeLong(new BigInteger(numberOfTimesThrottled).longValue());
+                    out.writeLong(new BigInteger(timeThrottledNanos).longValue());
                 }
             }
 

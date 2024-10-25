@@ -33,7 +33,7 @@ public class OsStatsTests extends ESTestCase {
         OsStats.Swap swap = new OsStats.Swap(swapTotal, randomLongBetween(0, swapTotal));
         OsStats.Cgroup cgroup = new OsStats.Cgroup(
             randomAlphaOfLength(8),
-            BigInteger.valueOf(randomNonNegativeLong()),
+            randomUnsignedLongBetween(BigInteger.ZERO, BigInteger.valueOf(Long.MAX_VALUE)),
             randomAlphaOfLength(8),
             randomNonNegativeLong(),
             randomNonNegativeLong(),

@@ -10,6 +10,7 @@ import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -23,7 +24,12 @@ import org.junit.Before;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.xpack.core.security.action.UpdateIndexMigrationVersionAction.MIGRATION_VERSION_CUSTOM_DATA_KEY;
+import static org.elasticsearch.xpack.core.security.action.UpdateIndexMigrationVersionAction.MIGRATION_VERSION_CUSTOM_KEY;
+import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7;
 
 public abstract class AbstractUpgradeTestCase extends ESRestTestCase {
 
@@ -161,4 +167,24 @@ public abstract class AbstractUpgradeTestCase extends ESRestTestCase {
             }
         });
     }
+
+    @SuppressWarnings("unchecked")
+    protected static void waitForSecurityMigrationCompletion(RestClient adminClient, int version) throws Exception {
+        final Request request = new Request("GET", "_cluster/state/metadata/" + INTERNAL_SECURITY_MAIN_INDEX_7);
+        assertBusy(() -> {
+            Response response = adminClient.performRequest(request);
+            assertOK(response);
+            Map<String, Object> responseMap = responseAsMap(response);
+            Map<String, Object> indicesMetadataMap = (Map<String, Object>) ((Map<String, Object>) responseMap.get("metadata")).get(
+                "indices"
+            );
+            assertNotNull(indicesMetadataMap);
+            Map<String, Object> securityIndexMetadata = (Map<String, Object>) indicesMetadataMap.get(INTERNAL_SECURITY_MAIN_INDEX_7);
+            assertNotNull(securityIndexMetadata);
+            Map<String, Object> migrationVersionCustom = ((Map<String, Object>) securityIndexMetadata.get(MIGRATION_VERSION_CUSTOM_KEY));
+            assertNotNull(migrationVersionCustom);
+            assertTrue(Integer.parseInt(migrationVersionCustom.get(MIGRATION_VERSION_CUSTOM_DATA_KEY).toString()) >= version);
+        });
+    }
+
 }

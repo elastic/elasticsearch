@@ -1,0 +1,5 @@
+pr: 115668
+summary: Limit the number of tasks that a single search can submit
+area: Search
+type: bug
+issues: []

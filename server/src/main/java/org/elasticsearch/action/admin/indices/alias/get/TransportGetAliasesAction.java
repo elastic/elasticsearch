@@ -8,6 +8,7 @@
  */
 package org.elasticsearch.action.admin.indices.alias.get;
 
+import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportLocalClusterStateAction;
@@ -157,7 +158,9 @@ public class TransportGetAliasesAction extends TransportLocalClusterStateAction<
         if (systemIndexAccessLevel == SystemIndexAccessLevel.NONE) {
             systemIndexAccessAllowPredicate = Predicates.never();
         } else if (systemIndexAccessLevel == SystemIndexAccessLevel.RESTRICTED) {
-            systemIndexAccessAllowPredicate = systemIndices.getProductSystemIndexNamePredicate(threadContext);
+            systemIndexAccessAllowPredicate = new CharacterRunAutomaton(
+                systemIndices.getProductSystemIndexNameAutomaton(threadContext)
+            )::run;
         } else {
             throw new IllegalArgumentException("Unexpected system index access level: " + systemIndexAccessLevel);
         }

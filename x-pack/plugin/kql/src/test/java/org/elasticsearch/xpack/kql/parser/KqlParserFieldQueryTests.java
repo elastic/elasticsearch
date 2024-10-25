@@ -73,7 +73,6 @@ public class KqlParserFieldQueryTests extends AbstractKqlParserTestCase {
     }
 
     public void testParseDateFieldQuery() {
-
         assertRangeQueryBuilder(parseKqlQuery(kqlFieldQuery(DATE_FIELD_NAME, "2010-06-03")), DATE_FIELD_NAME, (rangeQuery) -> {
             assertThat(rangeQuery.from(), equalTo("2010-06-03"));
             assertThat(rangeQuery.includeLower(), equalTo(true));
@@ -86,7 +85,6 @@ public class KqlParserFieldQueryTests extends AbstractKqlParserTestCase {
             // Check we can use quoted value as well
             assertThat(parseKqlQuery(kqlFieldQuery(DATE_FIELD_NAME, quoteString("2010-06-03"))), equalTo(rangeQuery));
         });
-
     }
 
     public void testParseUnquotedLiteralMatchFieldsQuery() {

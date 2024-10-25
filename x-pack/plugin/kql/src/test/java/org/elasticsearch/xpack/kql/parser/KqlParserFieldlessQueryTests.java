@@ -34,6 +34,18 @@ public class KqlParserFieldlessQueryTests extends AbstractKqlParserTestCase {
 
         // Wrapping terms into parentheses
         assertMultiMatchQuery(parseKqlQuery("(foo baz)"), "foo baz", MultiMatchQueryBuilder.Type.BEST_FIELDS);
+
+        // Trailing operators AND, NOT, OR are terms of the match query
+        assertMultiMatchQuery(parseKqlQuery("foo AND"), "foo AND", MultiMatchQueryBuilder.Type.BEST_FIELDS);
+        assertMultiMatchQuery(parseKqlQuery("foo OR"), "foo OR", MultiMatchQueryBuilder.Type.BEST_FIELDS);
+        assertMultiMatchQuery(parseKqlQuery("foo NOT"), "foo NOT", MultiMatchQueryBuilder.Type.BEST_FIELDS);
+
+        // Leading operators AND, NOT, OR are terms of the match query
+        assertMultiMatchQuery(parseKqlQuery("AND foo"), "AND foo", MultiMatchQueryBuilder.Type.BEST_FIELDS);
+        assertMultiMatchQuery(parseKqlQuery("OR foo"), "OR foo", MultiMatchQueryBuilder.Type.BEST_FIELDS);
+
+        // Lone NOT operator
+        assertMultiMatchQuery(parseKqlQuery("NOT"), "NOT", MultiMatchQueryBuilder.Type.BEST_FIELDS);
     }
 
     public void testParseWildcardQuery() {
@@ -51,6 +63,15 @@ public class KqlParserFieldlessQueryTests extends AbstractKqlParserTestCase {
         // Check query string special chars are escaped
         assertQueryStringBuilder(parseKqlQuery("foo*[bar]"), "foo*\\[bar\\]");
         assertQueryStringBuilder(parseKqlQuery("+foo* -bar"), "\\+foo* \\-bar");
+
+        // Trailing operators AND, NOT, OR are terms of the match query
+        assertQueryStringBuilder(parseKqlQuery("foo* AND"), "foo* AND");
+        assertQueryStringBuilder(parseKqlQuery("foo* OR"), "foo* OR");
+        assertQueryStringBuilder(parseKqlQuery("foo* NOT"), "foo* NOT");
+
+        // Leading operators AND, NOT, OR are terms of the match query
+        assertQueryStringBuilder(parseKqlQuery("AND foo*"), "AND foo*");
+        assertQueryStringBuilder(parseKqlQuery("OR foo*"), "OR foo*");
     }
 
     public void testParseQuotedStringQuery() {

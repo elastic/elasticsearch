@@ -119,16 +119,6 @@ public class KqlParserBooleanQueryTests extends AbstractKqlParserTestCase {
         }
     }
 
-    public void testIgnoreTrailingOperatorsDuringParsing() throws IOException {
-        List<String> supportedQueries = readQueries(SUPPORTED_QUERY_FILE_PATH, Predicate.not(BOOLEAN_QUERY_FILTER));
-
-        for (String query : supportedQueries) {
-            // KQL ignore the following trailing operators
-            assertThat(parseKqlQuery(query), equalTo(parseKqlQuery(Strings.format("%s AND", query))));
-            assertThat(parseKqlQuery(query), equalTo(parseKqlQuery(Strings.format("%s OR", query))));
-        }
-    }
-
     public void testOperatorPrecedence() throws IOException {
         KqlParser parser = new KqlParser();
         SearchExecutionContext searchExecutionContext = createSearchExecutionContext();

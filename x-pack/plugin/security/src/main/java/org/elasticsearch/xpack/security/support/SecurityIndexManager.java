@@ -271,10 +271,19 @@ public class SecurityIndexManager implements ClusterStateListener {
      * Check if the index was created on the latest index version available in the cluster
      */
     private static boolean isCreatedOnLatestVersion(IndexMetadata indexMetadata) {
-        final IndexVersion indexVersionCreated = indexMetadata != null
-            ? SETTING_INDEX_VERSION_CREATED.get(indexMetadata.getSettings())
-            : null;
-        return indexVersionCreated != null && indexVersionCreated.onOrAfter(IndexVersion.current());
+        if (indexMetadata == null) {
+            return false;
+        }
+
+        final Integer indexCreatedOnMigrationVersion = SecuritySystemIndices.MAIN_INDEX_CREATED_ON_MIGRATION_VERSION.get(
+            indexMetadata.getSettings()
+        );
+
+        // 1 is the first migration, before the MAIN_INDEX_CREATED_ON_MIGRATION_VERSION was introduced
+        if (indexCreatedOnMigrationVersion > 1) {
+            return indexCreatedOnMigrationVersion.equals(SecurityMigrations.MIGRATIONS_BY_VERSION.lastKey());
+        }
+        return SETTING_INDEX_VERSION_CREATED.get(indexMetadata.getSettings()).onOrAfter(IndexVersion.current());
     }
 
     /**

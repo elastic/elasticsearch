@@ -1881,6 +1881,10 @@ public class AnalyzerTests extends ESTestCase {
         int first = supplier.get();
         int second = randomValueOtherThan(first, supplier);
         Function<String, String> noText = (type) -> type.equals("text") ? "keyword" : type;
+        assumeTrue(
+            "Ignore tests with TEXT and KEYWORD combinations because they are now valid",
+            noText.apply(fields[first][0]).equals(noText.apply(fields[second][0])) == false
+        );
 
         String signature = "mv_append(" + fields[first][0] + ", " + fields[second][0] + ")";
         verifyUnsupported(

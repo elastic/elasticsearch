@@ -27,6 +27,7 @@ public final class ParserUtils {
     private static final String UNQUOTED_LITERAL_TERM_DELIMITER = " ";
     private static final char ESCAPE_CHAR = '\\';
     private static final char QUOTE_CHAR = '"';
+    private static final char WILDCARD_CHAR = '"';
 
     private ParserUtils() {
         throw new UnsupportedOperationException("No need to instantiate this class");
@@ -102,11 +103,11 @@ public final class ParserUtils {
         if (preserveWildcards) {
             StringBuilder escapedQuery = new StringBuilder(queryText.length());
             StringBuilder subpart = new StringBuilder(queryText.length());
-            for (int i = 0; i < queryText.length(); i++) {
-                char currentChar = queryText.charAt(i);
-                if (currentChar == '*') {
+
+            for (char currentChar : queryText.toCharArray()) {
+                if (currentChar == WILDCARD_CHAR) {
                     escapedQuery.append(QueryParser.escape(subpart.toString())).append(currentChar);
-                    subpart = new StringBuilder(queryText.length() - i);
+                    subpart.setLength(0);
                 } else {
                     subpart.append(currentChar);
                 }

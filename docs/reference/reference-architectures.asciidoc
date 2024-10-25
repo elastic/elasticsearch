@@ -5,6 +5,8 @@ Elasticsearch Reference Architectures serve as essential blueprints for deployin
 
 TIP: You can host {es} on your own hardware or send your data to {es} on {ecloud} or serverless. 
 
+These reference architectures are recommendations and should be adapted to fit your specific environment and needs. Each solution can vary based on the unique requirements and conditions of your setup.
+
 [discrete]
 [[reference-architectures-time-series-2]]
 === Architectures

@@ -560,9 +560,9 @@ public class OsStats implements Writeable, ToXContentFragment {
          */
         public static class CpuStat implements Writeable, ToXContentFragment {
 
-            private final String numberOfElapsedPeriods;
-            private final String numberOfTimesThrottled;
-            private final String timeThrottledNanos;
+            private final BigInteger numberOfElapsedPeriods;
+            private final BigInteger numberOfTimesThrottled;
+            private final BigInteger timeThrottledNanos;
 
             /**
              * The number of elapsed periods.
@@ -570,7 +570,7 @@ public class OsStats implements Writeable, ToXContentFragment {
              * @return the number of elapsed periods as measured by
              * {@code cpu.cfs_period_us}
              */
-            public String getNumberOfElapsedPeriods() {
+            public BigInteger getNumberOfElapsedPeriods() {
                 return numberOfElapsedPeriods;
             }
 
@@ -580,7 +580,7 @@ public class OsStats implements Writeable, ToXContentFragment {
              *
              * @return the number of times
              */
-            public String getNumberOfTimesThrottled() {
+            public BigInteger getNumberOfTimesThrottled() {
                 return numberOfTimesThrottled;
             }
 
@@ -590,11 +590,15 @@ public class OsStats implements Writeable, ToXContentFragment {
              *
              * @return the total time in nanoseconds
              */
-            public String getTimeThrottledNanos() {
+            public BigInteger getTimeThrottledNanos() {
                 return timeThrottledNanos;
             }
 
-            public CpuStat(final String numberOfElapsedPeriods, final String numberOfTimesThrottled, final String timeThrottledNanos) {
+            public CpuStat(
+                final BigInteger numberOfElapsedPeriods,
+                final BigInteger numberOfTimesThrottled,
+                final BigInteger timeThrottledNanos
+            ) {
                 this.numberOfElapsedPeriods = numberOfElapsedPeriods;
                 this.numberOfTimesThrottled = numberOfTimesThrottled;
                 this.timeThrottledNanos = timeThrottledNanos;
@@ -602,26 +606,26 @@ public class OsStats implements Writeable, ToXContentFragment {
 
             CpuStat(final StreamInput in) throws IOException {
                 if (in.getTransportVersion().onOrAfter(TransportVersions.CPU_STAT_STRING_PARSING)) {
-                    numberOfElapsedPeriods = in.readString();
-                    numberOfTimesThrottled = in.readString();
-                    timeThrottledNanos = in.readString();
+                    numberOfElapsedPeriods = in.readBigInteger();
+                    numberOfTimesThrottled = in.readBigInteger();
+                    timeThrottledNanos = in.readBigInteger();
                 } else {
-                    numberOfElapsedPeriods = Long.toString(in.readLong());
-                    numberOfTimesThrottled = Long.toString(in.readLong());
-                    timeThrottledNanos = Long.toString(in.readLong());
+                    numberOfElapsedPeriods = BigInteger.valueOf(in.readLong());
+                    numberOfTimesThrottled = BigInteger.valueOf(in.readLong());
+                    timeThrottledNanos = BigInteger.valueOf(in.readLong());
                 }
             }
 
             @Override
             public void writeTo(final StreamOutput out) throws IOException {
                 if (out.getTransportVersion().onOrAfter(TransportVersions.CPU_STAT_STRING_PARSING)) {
-                    out.writeString(numberOfElapsedPeriods);
-                    out.writeString(numberOfTimesThrottled);
-                    out.writeString(timeThrottledNanos);
+                    out.writeBigInteger(numberOfElapsedPeriods);
+                    out.writeBigInteger(numberOfTimesThrottled);
+                    out.writeBigInteger(timeThrottledNanos);
                 } else {
-                    out.writeLong(new BigInteger(numberOfElapsedPeriods).longValue());
-                    out.writeLong(new BigInteger(numberOfTimesThrottled).longValue());
-                    out.writeLong(new BigInteger(timeThrottledNanos).longValue());
+                    out.writeLong(numberOfElapsedPeriods.longValue());
+                    out.writeLong(numberOfTimesThrottled.longValue());
+                    out.writeLong(timeThrottledNanos.longValue());
                 }
             }
 

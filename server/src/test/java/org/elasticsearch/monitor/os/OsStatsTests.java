@@ -22,7 +22,7 @@ public class OsStatsTests extends ESTestCase {
 
     public void testSerialization() throws IOException {
         int numLoadAverages = randomIntBetween(1, 5);
-        double loadAverages[] = new double[numLoadAverages];
+        double[] loadAverages = new double[numLoadAverages];
         for (int i = 0; i < loadAverages.length; i++) {
             loadAverages[i] = randomDouble();
         }
@@ -38,9 +38,9 @@ public class OsStatsTests extends ESTestCase {
             randomNonNegativeLong(),
             randomNonNegativeLong(),
             new OsStats.Cgroup.CpuStat(
-                Long.toString(randomNonNegativeLong()),
-                Long.toString(randomNonNegativeLong()),
-                Long.toString(randomNonNegativeLong())
+                randomUnsignedLongBetween(BigInteger.ZERO, BigInteger.valueOf(Long.MAX_VALUE).multiply(BigInteger.TWO)),
+                randomUnsignedLongBetween(BigInteger.ZERO, BigInteger.valueOf(Long.MAX_VALUE).multiply(BigInteger.TWO)),
+                randomUnsignedLongBetween(BigInteger.ZERO, BigInteger.valueOf(Long.MAX_VALUE).multiply(BigInteger.TWO))
             ),
             randomAlphaOfLength(8),
             Long.toString(randomNonNegativeLong()),

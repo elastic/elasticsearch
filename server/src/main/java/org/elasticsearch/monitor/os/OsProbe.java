@@ -436,17 +436,17 @@ public class OsProbe {
      * @throws IOException if an I/O exception occurs reading {@code cpu.stat} for the control group
      */
     private OsStats.Cgroup.CpuStat getCgroupCpuAcctCpuStat(final String controlGroup) throws IOException {
-        final String SENTINEL_VALUE = "-1";
+        final var SENTINEL_VALUE = BigInteger.valueOf(-1);
         final List<String> lines = readSysFsCgroupCpuAcctCpuStat(controlGroup);
-        String numberOfPeriods = SENTINEL_VALUE;
-        String numberOfTimesThrottled = SENTINEL_VALUE;
-        String timeThrottledNanos = SENTINEL_VALUE;
+        var numberOfPeriods = SENTINEL_VALUE;
+        var numberOfTimesThrottled = SENTINEL_VALUE;
+        var timeThrottledNanos = SENTINEL_VALUE;
         for (final String line : lines) {
             final String[] fields = line.split("\\s+");
             switch (fields[0]) {
-                case "nr_periods" -> numberOfPeriods = fields[1];
-                case "nr_throttled" -> numberOfTimesThrottled = fields[1];
-                case "throttled_time" -> timeThrottledNanos = fields[1];
+                case "nr_periods" -> numberOfPeriods = new BigInteger(fields[1]);
+                case "nr_throttled" -> numberOfTimesThrottled = new BigInteger(fields[1]);
+                case "throttled_time" -> timeThrottledNanos = new BigInteger(fields[1]);
             }
         }
         assert numberOfPeriods.equals(SENTINEL_VALUE) == false;
@@ -711,9 +711,9 @@ public class OsProbe {
                 cgroupCpuAcctCpuCfsPeriodMicros = cpuLimits[1];
 
                 cpuStat = new OsStats.Cgroup.CpuStat(
-                    cpuStatsMap.get("nr_periods").toString(),
-                    cpuStatsMap.get("nr_throttled").toString(),
-                    cpuStatsMap.get("throttled_usec").multiply(THOUSAND).toString()
+                    cpuStatsMap.get("nr_periods"),
+                    cpuStatsMap.get("nr_throttled"),
+                    cpuStatsMap.get("throttled_usec").multiply(THOUSAND)
                 );
 
                 cgroupMemoryLimitInBytes = getCgroupV2MemoryLimitInBytes(memoryControlGroup);

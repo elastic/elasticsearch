@@ -6,8 +6,6 @@
  */
 package org.elasticsearch.upgrades;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
@@ -154,8 +152,6 @@ public abstract class AbstractUpgradeTestCase extends ESRestTestCase {
             }
         });
     }
-
-    private static final Logger log = LogManager.getLogger(AbstractUpgradeTestCase.class);
 
     protected static void waitForSecurityMigrationCompletion(RestClient adminClient, int version) throws Exception {
         final Request request = new Request("GET", "_cluster/state/metadata/.security-7");

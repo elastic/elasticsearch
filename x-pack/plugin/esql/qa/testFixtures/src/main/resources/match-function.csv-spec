@@ -1,0 +1,199 @@
+###############################################
+# Tests for Match function
+#
+
+matchWithField
+required_capability: match_function
+
+// tag::match-with-field[]
+from books 
+| where match(author, "Faulkner")
+| keep book_no, author 
+| sort book_no 
+| limit 5;
+// end::match-with-field[]
+
+// tag::match-with-field-result[]
+book_no:keyword | author:text
+2378            | [Carol Faulkner, Holly Byers Ochoa, Lucretia Mott]
+2713            | William Faulkner
+2847            | Colleen Faulkner
+2883            | William Faulkner
+3293            | Danny Faulkner
+;
+// end::match-with-field-result[]
+
+matchWithMultipleFunctions
+required_capability: match_function
+
+from books 
+| where match(title, "Return") AND match(author, "Tolkien")  
+| keep book_no, title;
+ignoreOrder:true
+
+book_no:keyword | title:text
+2714            | Return of the King Being the Third Part of The Lord of the Rings
+7350            | Return of the Shadow
+;
+
+matchWithQueryExpressions
+required_capability: match_function
+
+from books 
+| where match(title, CONCAT("Return ", " King"))  
+| keep book_no, title;
+ignoreOrder:true
+
+book_no:keyword | title:text
+2714            | Return of the King Being the Third Part of The Lord of the Rings
+7350            | Return of the Shadow
+;
+
+matchAfterKeep
+required_capability: match_function
+
+from books 
+| keep book_no, author 
+| where match(author, "Faulkner")
+| sort book_no 
+| limit 5;
+
+book_no:keyword | author:text
+2378            | [Carol Faulkner, Holly Byers Ochoa, Lucretia Mott]
+2713            | William Faulkner
+2847            | Colleen Faulkner
+2883            | William Faulkner
+3293            | Danny Faulkner
+;
+
+matchAfterDrop
+required_capability: match_function
+
+from books 
+| drop ratings, description, year, publisher, title, author.keyword
+| where match(author, "Faulkner")
+| keep book_no, author
+| sort book_no 
+| limit 5;
+
+book_no:keyword | author:text
+2378            | [Carol Faulkner, Holly Byers Ochoa, Lucretia Mott]
+2713            | William Faulkner
+2847            | Colleen Faulkner
+2883            | William Faulkner
+3293            | Danny Faulkner
+;
+
+matchAfterEval
+required_capability: match_function
+
+from books 
+| eval stars = to_long(ratings / 2.0) 
+| where match(author, "Faulkner")
+| sort book_no 
+| keep book_no, author, stars
+| limit 5;
+
+book_no:keyword | author:text                                           | stars:long
+2378            | [Carol Faulkner, Holly Byers Ochoa, Lucretia Mott]    | 3
+2713            | William Faulkner                                      | 2
+2847            | Colleen Faulkner                                      | 3
+2883            | William Faulkner                                      | 2
+3293            | Danny Faulkner                                        | 2
+;
+
+matchWithConjunction
+required_capability: match_function
+
+from books 
+| where match(title, "Rings") and ratings > 4.6
+| keep book_no, title;
+ignoreOrder:true
+
+book_no:keyword | title:text
+4023            |A Tolkien Compass: Including J. R. R. Tolkien's Guide to the Names in The Lord of the Rings
+7140            |The Lord of the Rings Poster Collection: Six Paintings by Alan Lee (No. 1)     
+;
+
+matchWithFunctionPushedToLucene
+required_capability: match_function
+
+from hosts 
+| where match(host, "beta") and cidr_match(ip1, "127.0.0.2/32", "127.0.0.3/32") 
+| keep card, host, ip0, ip1;
+ignoreOrder:true
+
+card:keyword   |host:keyword   |ip0:ip                   |ip1:ip
+eth1           |beta           |127.0.0.1                |127.0.0.2
+;
+
+matchWithNonPushableConjunction
+required_capability: match_function
+
+from books 
+| where match(title, "Rings") and length(title) > 75
+| keep book_no, title;
+ignoreOrder:true
+
+book_no:keyword | title:text
+4023            | A Tolkien Compass: Including J. R. R. Tolkien's Guide to the Names in The Lord of the Rings
+;
+
+matchWithMultipleWhereClauses
+required_capability: match_function
+
+from books 
+| where match(title, "rings") 
+| where match(title, "lord") 
+| keep book_no, title;
+ignoreOrder:true
+
+book_no:keyword | title:text
+2675            | The Lord of the Rings - Boxed Set           
+2714            | Return of the King Being the Third Part of The Lord of the Rings
+4023            | A Tolkien Compass: Including J. R. R. Tolkien's Guide to the Names in The Lord of the Rings
+7140            | The Lord of the Rings Poster Collection: Six Paintings by Alan Lee (No. 1)
+;
+
+matchMultivaluedField
+required_capability: match_function
+
+from employees 
+| where match(job_positions, "Tech Lead") and match(job_positions, "Reporting Analyst") 
+| keep emp_no, first_name, last_name;
+ignoreOrder:true
+
+emp_no:integer | first_name:keyword | last_name:keyword
+10004          | Chirstian          | Koblick        
+10010          | Duangkaew          | Piveteau       
+10011          | Mary               | Sluis          
+10088          | Jungsoon           | Syrzycki       
+10093          | Sailaja            | Desikan        
+10097          | Remzi              | Waschkowski    
+;
+
+testMultiValuedFieldWithConjunction
+required_capability: match_function
+
+from employees 
+| where match(job_positions, "Data Scientist") and match(job_positions, "Support Engineer")
+| keep emp_no, first_name, last_name;
+ignoreOrder:true
+
+emp_no:integer | first_name:keyword | last_name:keyword  
+10043          | Yishay             | Tzvieli      
+;
+
+testMatchAndQueryStringFunctions
+required_capability: match_function
+required_capability: qstr_function
+
+from employees 
+| where match(job_positions, "Data Scientist") and qstr("job_positions: (Support Engineer) and gender: F")
+| keep emp_no, first_name, last_name;
+ignoreOrder:true
+
+emp_no:integer | first_name:keyword | last_name:keyword  
+10041          | Uri                 | Lenart         
+10043          | Yishay              | Tzvieli        
+;

@@ -29,6 +29,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.lucene.grouping.TopFieldGroups;
 import org.elasticsearch.search.DocValueFormat;
@@ -190,7 +191,7 @@ public final class SearchPhaseController {
      */
     static SortedTopDocs sortDocs(
         boolean ignoreFrom,
-        final Collection<TopDocs> topDocs,
+        final List<TopDocs> topDocs,
         int from,
         int size,
         List<CompletionSuggestion> reducedCompletionSuggestions
@@ -233,22 +234,22 @@ public final class SearchPhaseController {
         return new SortedTopDocs(scoreDocs, isSortedByField, sortFields, groupField, groupValues, numSuggestDocs);
     }
 
-    static TopDocs mergeTopDocs(Collection<TopDocs> results, int topN, int from) {
+    static TopDocs mergeTopDocs(List<TopDocs> results, int topN, int from) {
         if (results.isEmpty()) {
             return null;
         }
-        final TopDocs topDocs = results.stream().findFirst().get();
+        final TopDocs topDocs = results.getFirst();
         final TopDocs mergedTopDocs;
         final int numShards = results.size();
         if (numShards == 1 && from == 0) { // only one shard and no pagination we can just return the topDocs as we got them.
             return topDocs;
         } else if (topDocs instanceof TopFieldGroups firstTopDocs) {
             final Sort sort = new Sort(firstTopDocs.fields);
-            final TopFieldGroups[] shardTopDocs = results.toArray(new TopFieldGroups[numShards]);
+            final TopFieldGroups[] shardTopDocs = results.toArray(new TopFieldGroups[0]);
             mergedTopDocs = TopFieldGroups.merge(sort, from, topN, shardTopDocs, false);
         } else if (topDocs instanceof TopFieldDocs firstTopDocs) {
             final Sort sort = checkSameSortTypes(results, firstTopDocs.fields);
-            final TopFieldDocs[] shardTopDocs = results.toArray(new TopFieldDocs[numShards]);
+            final TopFieldDocs[] shardTopDocs = results.toArray(new TopFieldDocs[0]);
             mergedTopDocs = TopDocs.merge(sort, from, topN, shardTopDocs);
         } else {
             final TopDocs[] shardTopDocs = results.toArray(new TopDocs[numShards]);
@@ -462,8 +463,7 @@ public final class SearchPhaseController {
                     : "not enough hits fetched. index [" + index + "] length: " + fetchResult.hits().getHits().length;
                 SearchHit searchHit = fetchResult.hits().getHits()[index];
                 searchHit.shard(fetchResult.getSearchShardTarget());
-                if (reducedQueryPhase.queryPhaseRankCoordinatorContext != null) {
-                    assert shardDoc instanceof RankDoc;
+                if (shardDoc instanceof RankDoc) {
                     searchHit.setRank(((RankDoc) shardDoc).rank);
                     searchHit.score(shardDoc.score);
                     long shardAndDoc = ShardDocSortField.encodeShardAndDoc(shardDoc.shardIndex, shardDoc.doc);
@@ -525,17 +525,7 @@ public final class SearchPhaseController {
                 topDocs.add(td.topDocs);
             }
         }
-        return reducedQueryPhase(
-            queryResults,
-            Collections.emptyList(),
-            topDocs,
-            topDocsStats,
-            0,
-            true,
-            aggReduceContextBuilder,
-            null,
-            true
-        );
+        return reducedQueryPhase(queryResults, null, topDocs, topDocsStats, 0, true, aggReduceContextBuilder, null, true);
     }
 
     /**
@@ -549,7 +539,7 @@ public final class SearchPhaseController {
      */
     static ReducedQueryPhase reducedQueryPhase(
         Collection<? extends SearchPhaseResult> queryResults,
-        List<DelayableWriteable<InternalAggregations>> bufferedAggs,
+        @Nullable List<DelayableWriteable<InternalAggregations>> bufferedAggs,
         List<TopDocs> bufferedTopDocs,
         TopDocsStats topDocsStats,
         int numReducePhases,
@@ -643,7 +633,12 @@ public final class SearchPhaseController {
             reducedSuggest = new Suggest(Suggest.reduce(groupedSuggestions));
             reducedCompletionSuggestions = reducedSuggest.filter(CompletionSuggestion.class);
         }
-        final InternalAggregations aggregations = reduceAggs(aggReduceContextBuilder, performFinalReduce, bufferedAggs);
+        final InternalAggregations aggregations = bufferedAggs == null
+            ? null
+            : InternalAggregations.topLevelReduceDelayable(
+                bufferedAggs,
+                performFinalReduce ? aggReduceContextBuilder.forFinalReduction() : aggReduceContextBuilder.forPartialReduction()
+            );
         final SearchProfileResultsBuilder profileBuilder = profileShardResults.isEmpty()
             ? null
             : new SearchProfileResultsBuilder(profileShardResults);
@@ -680,19 +675,6 @@ public final class SearchPhaseController {
             from,
             false
         );
-    }
-
-    private static InternalAggregations reduceAggs(
-        AggregationReduceContext.Builder aggReduceContextBuilder,
-        boolean performFinalReduce,
-        List<DelayableWriteable<InternalAggregations>> toReduce
-    ) {
-        return toReduce.isEmpty()
-            ? null
-            : InternalAggregations.topLevelReduceDelayable(
-                toReduce,
-                performFinalReduce ? aggReduceContextBuilder.forFinalReduction() : aggReduceContextBuilder.forPartialReduction()
-            );
     }
 
     /**
@@ -735,6 +717,12 @@ public final class SearchPhaseController {
             return DEFAULT_SIZE;
         }
         SearchSourceBuilder source = request.source();
+        if (source.rankBuilder() != null) {
+            // if we have a RankBuilder defined, it needs to have access to all the documents in order to rerank them
+            // so we override size here and keep all `rank_window_size` docs.
+            // Pagination is taking place later through RankFeaturePhaseRankCoordinatorContext#rankAndPaginate
+            return source.rankBuilder().rankWindowSize();
+        }
         return (source.size() == -1 ? DEFAULT_SIZE : source.size()) + (source.from() == -1 ? SearchService.DEFAULT_FROM : source.from());
     }
 
@@ -887,8 +875,8 @@ public final class SearchPhaseController {
 
         void add(TopDocsAndMaxScore topDocs, boolean timedOut, Boolean terminatedEarly) {
             if (trackTotalHitsUpTo != SearchContext.TRACK_TOTAL_HITS_DISABLED) {
-                totalHits += topDocs.topDocs.totalHits.value;
-                if (topDocs.topDocs.totalHits.relation == Relation.GREATER_THAN_OR_EQUAL_TO) {
+                totalHits += topDocs.topDocs.totalHits.value();
+                if (topDocs.topDocs.totalHits.relation() == Relation.GREATER_THAN_OR_EQUAL_TO) {
                     totalHitsRelation = TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO;
                 }
             }

@@ -20,7 +20,7 @@ import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFiel
 import org.elasticsearch.xpack.core.ml.notifications.NotificationsIndex;
 import org.elasticsearch.xpack.core.template.IndexTemplateConfig;
 import org.elasticsearch.xpack.core.template.IndexTemplateRegistry;
-import org.elasticsearch.xpack.core.template.LifecyclePolicyConfig;
+import org.elasticsearch.xpack.core.template.JsonLifecyclePolicyConfig;
 
 import java.util.HashMap;
 import java.util.List;
@@ -149,13 +149,13 @@ public class MlIndexTemplateRegistry extends IndexTemplateRegistry {
         return composableIndexTemplateConfigs;
     }
 
-    private static final LifecyclePolicyConfig LIFECYCLE_POLICY_CONFIG = new LifecyclePolicyConfig(
+    private static final JsonLifecyclePolicyConfig LIFECYCLE_POLICY_CONFIG = new JsonLifecyclePolicyConfig(
         ML_SIZE_BASED_ILM_POLICY_NAME,
         ROOT_RESOURCE_PATH + "size_based_ilm_policy.json"
     );
 
     @Override
-    protected List<LifecyclePolicyConfig> getLifecycleConfigs() {
+    protected List<JsonLifecyclePolicyConfig> getLifecycleConfigs() {
         return List.of(LIFECYCLE_POLICY_CONFIG);
     }
 

@@ -97,3 +97,24 @@ ingest-pipelines:
   - metrics-apm@pipeline:
       dependencies:
         - apm@pipeline
+
+lifecycle-policies:
+  - logs-apm.app_logs@lifecycle
+  - logs-apm.error_logs@lifecycle
+  - metrics-apm.app_metrics@lifecycle
+  - metrics-apm.internal_metrics@lifecycle
+  - metrics-apm.service_destination_10m_metrics@lifecycle
+  - metrics-apm.service_destination_1m_metrics@lifecycle
+  - metrics-apm.service_destination_60m_metrics@lifecycle
+  - metrics-apm.service_summary_10m_metrics@lifecycle
+  - metrics-apm.service_summary_1m_metrics@lifecycle
+  - metrics-apm.service_summary_60m_metrics@lifecycle
+  - metrics-apm.service_transaction_10m_metrics@lifecycle
+  - metrics-apm.service_transaction_1m_metrics@lifecycle
+  - metrics-apm.service_transaction_60m_metrics@lifecycle
+  - metrics-apm.transaction_10m_metrics@lifecycle
+  - metrics-apm.transaction_1m_metrics@lifecycle
+  - metrics-apm.transaction_60m_metrics@lifecycle
+  - traces-apm.rum_traces@lifecycle
+  - traces-apm.sampled_traces@lifecycle
+  - traces-apm.traces@lifecycle

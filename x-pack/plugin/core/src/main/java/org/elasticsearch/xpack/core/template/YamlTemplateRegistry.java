@@ -23,6 +23,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.yaml.YamlXContent;
+import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -48,6 +49,7 @@ public abstract class YamlTemplateRegistry extends IndexTemplateRegistry {
     private final Map<String, ComponentTemplate> componentTemplates;
     private final Map<String, ComposableIndexTemplate> composableIndexTemplates;
     private final List<IngestPipelineConfig> ingestPipelines;
+    private final List<LifecyclePolicy> lifecyclePolicies;
     private final FeatureService featureService;
     private volatile boolean enabled;
 
@@ -84,6 +86,7 @@ public abstract class YamlTemplateRegistry extends IndexTemplateRegistry {
             final List<Object> componentTemplateNames = (List<Object>) resources.get("component-templates");
             final List<Object> indexTemplateNames = (List<Object>) resources.get("index-templates");
             final List<Object> ingestPipelineConfigs = (List<Object>) resources.get("ingest-pipelines");
+            final List<Object> lifecyclePolicyConfigs = (List<Object>) resources.get("lifecycle-policies");
 
             componentTemplates = Optional.ofNullable(componentTemplateNames)
                 .orElse(Collections.emptyList())
@@ -109,6 +112,13 @@ public abstract class YamlTemplateRegistry extends IndexTemplateRegistry {
                         (List<String>) pipelineConfig.getValue().get("dependencies")
                     );
                 })
+                .collect(Collectors.toList());
+            lifecyclePolicies = Optional.ofNullable(lifecyclePolicyConfigs)
+                .orElse(Collections.emptyList())
+                .stream()
+                .map(o -> (String) o)
+                .filter(templateFilter)
+                .map(this::loadLifecyclePolicy)
                 .collect(Collectors.toList());
             this.featureService = featureService;
         } catch (IOException e) {
@@ -178,6 +188,15 @@ public abstract class YamlTemplateRegistry extends IndexTemplateRegistry {
         }
     }
 
+    @Override
+    public List<LifecyclePolicy> getLifecyclePolicies() {
+        if (enabled) {
+            return lifecyclePolicies;
+        } else {
+            return Collections.emptyList();
+        }
+    }
+
     protected abstract String getVersionProperty();
 
     private ComponentTemplate loadComponentTemplate(String name, int version) {
@@ -224,6 +243,16 @@ public abstract class YamlTemplateRegistry extends IndexTemplateRegistry {
             dependencies,
             this.getClass()
         );
+    }
+
+    // IndexTemplateRegistry ensures that ILM lifecycle policies are not loaded
+    // when in DSL only mode.
+    private LifecyclePolicy loadLifecyclePolicy(String name) {
+        return new YamlLifecyclePolicyConfig(
+            name,
+            "/lifecycle-policies/" + name + ".yaml",
+        this.getClass()
+        ).load(LifecyclePolicyConfig.DEFAULT_X_CONTENT_REGISTRY);
     }
 
     @Override

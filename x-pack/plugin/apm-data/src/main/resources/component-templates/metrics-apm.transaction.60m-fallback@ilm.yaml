@@ -7,5 +7,5 @@ template:
   settings:
     index:
       lifecycle:
-        name: metrics-apm.transaction_60m_metrics-default_policy
-        prefer_ilm: false
+        name: metrics-apm.transaction_60m_metrics@lifecycle
+        prefer_ilm: true

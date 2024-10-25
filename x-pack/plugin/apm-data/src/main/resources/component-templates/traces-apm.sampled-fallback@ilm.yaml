@@ -7,5 +7,5 @@ template:
   settings:
     index:
       lifecycle:
-        name: traces-apm.sampled_traces-default_policy
-        prefer_ilm: false
+        name: traces-apm.sampled_traces@lifecycle
+        prefer_ilm: true

@@ -24,7 +24,7 @@ import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.template.IndexTemplateConfig;
 import org.elasticsearch.xpack.core.template.IndexTemplateRegistry;
-import org.elasticsearch.xpack.core.template.LifecyclePolicyConfig;
+import org.elasticsearch.xpack.core.template.JsonLifecyclePolicyConfig;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -99,8 +99,8 @@ public class ProfilingIndexTemplateRegistry extends IndexTemplateRegistry {
         return true;
     }
 
-    private static final List<LifecyclePolicyConfig> LIFECYCLE_POLICY_CONFIGS = List.of(
-        new LifecyclePolicyConfig(
+    private static final List<JsonLifecyclePolicyConfig> LIFECYCLE_POLICY_CONFIGS = List.of(
+        new JsonLifecyclePolicyConfig(
             "profiling-60-days",
             "/profiling/ilm-policy/profiling-60-days.json",
             Map.of(PROFILING_TEMPLATE_VERSION_VARIABLE, String.valueOf(INDEX_TEMPLATE_VERSION))
@@ -108,7 +108,7 @@ public class ProfilingIndexTemplateRegistry extends IndexTemplateRegistry {
     );
 
     @Override
-    protected List<LifecyclePolicyConfig> getLifecycleConfigs() {
+    protected List<JsonLifecyclePolicyConfig> getLifecycleConfigs() {
         return LIFECYCLE_POLICY_CONFIGS;
     }
 
@@ -329,7 +329,7 @@ public class ProfilingIndexTemplateRegistry extends IndexTemplateRegistry {
             if (ilmMetadata == null) {
                 return false;
             }
-            for (LifecyclePolicyConfig lifecyclePolicy : LIFECYCLE_POLICY_CONFIGS) {
+            for (JsonLifecyclePolicyConfig lifecyclePolicy : LIFECYCLE_POLICY_CONFIGS) {
                 LifecyclePolicy existingPolicy = ilmMetadata.getPolicies().get(lifecyclePolicy.getPolicyName());
                 if (existingPolicy == null || getVersion(existingPolicy, "current") < INDEX_TEMPLATE_VERSION) {
                     return false;

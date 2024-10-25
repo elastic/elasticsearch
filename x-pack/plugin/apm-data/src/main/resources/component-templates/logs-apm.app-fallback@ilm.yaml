@@ -7,5 +7,5 @@ template:
   settings:
     index:
       lifecycle:
-        name: logs-apm.app_logs-default_policy
-        prefer_ilm: false
+        name: logs-apm.app_logs@lifecycle
+        prefer_ilm: true

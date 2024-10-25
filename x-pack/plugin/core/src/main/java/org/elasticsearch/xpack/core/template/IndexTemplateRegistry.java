@@ -104,7 +104,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
         this.clusterService = clusterService;
         if (isDataStreamsLifecycleOnlyMode(clusterService.getSettings()) == false) {
             this.lifecyclePolicies = getLifecycleConfigs().stream()
-                .map(config -> config.load(LifecyclePolicyConfig.DEFAULT_X_CONTENT_REGISTRY))
+                .map(config -> config.load(JsonLifecyclePolicyConfig.DEFAULT_X_CONTENT_REGISTRY))
                 .toList();
         } else {
             this.lifecyclePolicies = List.of();
@@ -122,7 +122,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
      *
      * @return The lifecycle policies configurations that pertain to this template registry.
      */
-    protected List<LifecyclePolicyConfig> getLifecycleConfigs() {
+    protected List<JsonLifecyclePolicyConfig> getLifecycleConfigs() {
         return List.of();
     }
 

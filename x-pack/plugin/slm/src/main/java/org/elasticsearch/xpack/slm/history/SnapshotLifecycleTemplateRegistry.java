@@ -21,7 +21,7 @@ import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.template.IndexTemplateConfig;
 import org.elasticsearch.xpack.core.template.IndexTemplateRegistry;
-import org.elasticsearch.xpack.core.template.LifecyclePolicyConfig;
+import org.elasticsearch.xpack.core.template.JsonLifecyclePolicyConfig;
 
 import java.util.Collections;
 import java.util.List;
@@ -87,8 +87,8 @@ public class SnapshotLifecycleTemplateRegistry extends IndexTemplateRegistry {
         return COMPOSABLE_INDEX_TEMPLATE_CONFIGS;
     }
 
-    private static final List<LifecyclePolicyConfig> LIFECYCLE_POLICY_CONFIGS = List.of(
-        new LifecyclePolicyConfig(SLM_POLICY_NAME, "/slm-history-ilm-policy.json")
+    private static final List<JsonLifecyclePolicyConfig> LIFECYCLE_POLICY_CONFIGS = List.of(
+        new JsonLifecyclePolicyConfig(SLM_POLICY_NAME, "/slm-history-ilm-policy.json")
     );
 
     @Override
@@ -100,7 +100,7 @@ public class SnapshotLifecycleTemplateRegistry extends IndexTemplateRegistry {
     }
 
     @Override
-    protected List<LifecyclePolicyConfig> getLifecycleConfigs() {
+    protected List<JsonLifecyclePolicyConfig> getLifecycleConfigs() {
         return LIFECYCLE_POLICY_CONFIGS;
     }
 

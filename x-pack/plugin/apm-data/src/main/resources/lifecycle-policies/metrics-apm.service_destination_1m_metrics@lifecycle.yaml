@@ -1,0 +1,16 @@
+---
+_meta:
+  description: Default ILM policy for APM managed datastreams
+  managed: true
+phases:
+  hot:
+    actions:
+      rollover:
+        max_age: 7d
+        max_primary_shard_size: 50gb
+      set_priority:
+        priority: 100
+  delete:
+    min_age: 90d
+    actions:
+      delete: {}

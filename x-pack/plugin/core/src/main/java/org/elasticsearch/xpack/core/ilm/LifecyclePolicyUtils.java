@@ -23,6 +23,7 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.template.resources.TemplateResources;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -35,30 +36,37 @@ public class LifecyclePolicyUtils {
     private LifecyclePolicyUtils() {};
 
     /**
-     * Loads a built-in index lifecycle policy and returns its source.
+     * Loads a built-in index lifecycle policy and returns its source with the given parser.
      */
     public static LifecyclePolicy loadPolicy(
         String name,
         String resource,
         Map<String, String> variables,
-        NamedXContentRegistry xContentRegistry
+        NamedXContentRegistry xContentRegistry,
+        XContentType contentType
     ) {
         try {
             String source = TemplateResources.load(resource);
             source = replaceVariables(source, variables);
             validate(source);
 
-            try (
-                XContentParser parser = XContentType.JSON.xContent()
-                    .createParser(XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry), source)
-            ) {
-                LifecyclePolicy policy = LifecyclePolicy.parse(parser, name);
-                policy.validate();
-                return policy;
-            }
+            return parsePolicy(source, name, xContentRegistry, contentType);
         } catch (Exception e) {
             throw new IllegalArgumentException("unable to load policy [" + name + "] from [" + resource + "]", e);
         }
+    }
+
+    public static LifecyclePolicy parsePolicy(
+        String rawPolicy,
+        String name,
+        NamedXContentRegistry xContentRegistry,
+        XContentType contentType
+    ) throws IOException {
+        XContentParser parser = contentType.xContent()
+            .createParser(XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry), rawPolicy);
+        LifecyclePolicy policy = LifecyclePolicy.parse(parser, name);
+        policy.validate();
+        return policy;
     }
 
     private static String replaceVariables(String template, Map<String, String> variables) {

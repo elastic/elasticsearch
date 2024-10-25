@@ -16,7 +16,7 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.template.IndexTemplateConfig;
 import org.elasticsearch.xpack.core.template.IndexTemplateRegistry;
-import org.elasticsearch.xpack.core.template.LifecyclePolicyConfig;
+import org.elasticsearch.xpack.core.template.JsonLifecyclePolicyConfig;
 import org.elasticsearch.xpack.core.watcher.support.WatcherIndexTemplateRegistryField;
 import org.elasticsearch.xpack.watcher.Watcher;
 
@@ -66,13 +66,13 @@ public class WatcherIndexTemplateRegistry extends IndexTemplateRegistry {
         return ilmManagementEnabled ? TEMPLATES_WATCH_HISTORY : TEMPLATES_WATCH_HISTORY_NO_ILM;
     }
 
-    private static final LifecyclePolicyConfig LIFECYCLE_POLICIES = new LifecyclePolicyConfig(
+    private static final JsonLifecyclePolicyConfig LIFECYCLE_POLICIES = new JsonLifecyclePolicyConfig(
         "watch-history-ilm-policy-16",
         "/watch-history-ilm-policy.json"
     );
 
     @Override
-    protected List<LifecyclePolicyConfig> getLifecycleConfigs() {
+    protected List<JsonLifecyclePolicyConfig> getLifecycleConfigs() {
         return List.of(LIFECYCLE_POLICIES);
     }
 

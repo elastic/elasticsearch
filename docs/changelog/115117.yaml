@@ -1,0 +1,6 @@
+pr: 115117
+summary: Report JVM stats for all memory pools (97046)
+area: Infra/Core
+type: bug
+issues:
+ - 97046

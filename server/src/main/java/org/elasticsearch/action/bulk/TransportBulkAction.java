@@ -418,7 +418,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
             if (targetFailureStore) {
                 rolloverRequest.setIndicesOptions(
                     IndicesOptions.builder(rolloverRequest.indicesOptions())
-                        .selectorOptions(IndicesOptions.SelectorOptions.ONLY_FAILURES)
+                        .selectorOptions(IndicesOptions.SelectorOptions.FAILURES)
                         .build()
                 );
             }

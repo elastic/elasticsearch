@@ -47,6 +47,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -469,27 +470,112 @@ public class CrossClustersEnrichIT extends AbstractMultiClustersTestCase {
         }
     }
 
+    public void testEnrichRemoteWithVendorNoSort() {
+        Tuple<Boolean, Boolean> includeCCSMetadata = randomIncludeCCSMetadata();
+        Boolean requestIncludeMeta = includeCCSMetadata.v1();
+        boolean responseExpectMeta = includeCCSMetadata.v2();
+
+        for (Enrich.Mode hostMode : List.of(Enrich.Mode.ANY, Enrich.Mode.REMOTE)) {
+            var query = String.format(Locale.ROOT, """
+                FROM *:events,events
+                | LIMIT 100
+                | eval ip= TO_STR(host)
+                | %s
+                | %s
+                | stats c = COUNT(*) by vendor
+                """, enrichHosts(hostMode), enrichVendors(Enrich.Mode.REMOTE));
+            try (EsqlQueryResponse resp = runQuery(query, requestIncludeMeta)) {
+                var values = getValuesList(resp);
+                values.sort(Comparator.comparing(o -> (String) o.get(1), Comparator.nullsLast(Comparator.naturalOrder())));
+                assertThat(
+                    values,
+                    equalTo(
+                        List.of(
+                            List.of(6L, "Apple"),
+                            List.of(7L, "Microsoft"),
+                            List.of(1L, "Redhat"),
+                            List.of(2L, "Samsung"),
+                            List.of(1L, "Sony"),
+                            List.of(2L, "Suse"),
+                            Arrays.asList(3L, (String) null)
+                        )
+                    )
+                );
+                EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
+                assertThat(executionInfo.includeCCSMetadata(), equalTo(responseExpectMeta));
+                assertThat(executionInfo.clusterAliases(), equalTo(Set.of("", "c1", "c2")));
+                assertCCSExecutionInfoDetails(executionInfo);
+            }
+        }
+    }
+
     public void testTopNThenEnrichRemote() {
+        Tuple<Boolean, Boolean> includeCCSMetadata = randomIncludeCCSMetadata();
+        Boolean requestIncludeMeta = includeCCSMetadata.v1();
+        boolean responseExpectMeta = includeCCSMetadata.v2();
+
         String query = String.format(Locale.ROOT, """
             FROM *:events,events
             | eval ip= TO_STR(host)
-            | SORT ip
+            | SORT timestamp, user, ip
             | LIMIT 5
-            | %s
+            | %s | KEEP host, timestamp, user, os
             """, enrichHosts(Enrich.Mode.REMOTE));
-        var error = expectThrows(VerificationException.class, () -> runQuery(query, randomBoolean()).close());
-        assertThat(error.getMessage(), containsString("ENRICH with remote policy can't be executed after LIMIT"));
+        try (EsqlQueryResponse resp = runQuery(query, requestIncludeMeta)) {
+            assertThat(
+                getValuesList(resp),
+                equalTo(
+                    List.of(
+                        List.of("192.168.1.2", 1L, "andres", "Windows"),
+                        List.of("192.168.1.3", 1L, "matthew", "MacOS"),
+                        Arrays.asList("192.168.1.25", 1L, "park", (String) null),
+                        List.of("192.168.1.5", 2L, "akio", "Android"),
+                        List.of("192.168.1.6", 2L, "sergio", "iOS")
+                    )
+                )
+            );
+            EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
+            assertThat(executionInfo.includeCCSMetadata(), equalTo(responseExpectMeta));
+            assertThat(executionInfo.clusterAliases(), equalTo(Set.of("", "c1", "c2")));
+            assertCCSExecutionInfoDetails(executionInfo);
+        }
     }
 
     public void testLimitThenEnrichRemote() {
+        Tuple<Boolean, Boolean> includeCCSMetadata = randomIncludeCCSMetadata();
+        Boolean requestIncludeMeta = includeCCSMetadata.v1();
+        boolean responseExpectMeta = includeCCSMetadata.v2();
+
         String query = String.format(Locale.ROOT, """
             FROM *:events,events
-            | LIMIT 10
+            | LIMIT 25
             | eval ip= TO_STR(host)
-            | %s
+            | %s | KEEP host, timestamp, user, os
             """, enrichHosts(Enrich.Mode.REMOTE));
-        var error = expectThrows(VerificationException.class, () -> runQuery(query, randomBoolean()).close());
-        assertThat(error.getMessage(), containsString("ENRICH with remote policy can't be executed after LIMIT"));
+        try (EsqlQueryResponse resp = runQuery(query, requestIncludeMeta)) {
+            var values = getValuesList(resp);
+            values.sort(
+                Comparator.comparingLong((List<Object> o) -> (Long) o.get(1))
+                    .thenComparing(o -> (String) o.get(0))
+                    .thenComparing(o -> (String) o.get(2))
+            );
+            assertThat(
+                values.subList(0, 5),
+                equalTo(
+                    List.of(
+                        List.of("192.168.1.2", 1L, "andres", "Windows"),
+                        Arrays.asList("192.168.1.25", 1L, "park", (String) null),
+                        List.of("192.168.1.3", 1L, "matthew", "MacOS"),
+                        List.of("192.168.1.5", 2L, "akio", "Android"),
+                        List.of("192.168.1.5", 2L, "simon", "Android")
+                    )
+                )
+            );
+            EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
+            assertThat(executionInfo.includeCCSMetadata(), equalTo(responseExpectMeta));
+            assertThat(executionInfo.clusterAliases(), equalTo(Set.of("", "c1", "c2")));
+            assertCCSExecutionInfoDetails(executionInfo);
+        }
     }
 
     public void testAggThenEnrichRemote() {

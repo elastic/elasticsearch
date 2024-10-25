@@ -191,6 +191,8 @@ public class Mapper {
         if (p instanceof MvExpand mvExpand) {
             MvExpandExec result = new MvExpandExec(mvExpand.source(), map(mvExpand.child()), mvExpand.target(), mvExpand.expanded());
             if (mvExpand.limit() != null && mvExpand.limit() >= 0) {
+                // MvExpand could have an inner limit
+                // see PushDownAndCombineLimits rule
                 return new LimitExec(result.source(), result, new Literal(Source.EMPTY, mvExpand.limit(), DataType.INTEGER));
             }
             return result;

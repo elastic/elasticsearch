@@ -34,6 +34,13 @@ public final class PushDownAndCombineLimits extends OptimizerRules.OptimizerRule
             if (unary instanceof Eval || unary instanceof Project || unary instanceof RegexExtract || unary instanceof Enrich) {
                 return unary.replaceChild(limit.replaceChild(unary.child()));
             } else if (unary instanceof MvExpand mvx) {
+                // MV_EXPAND can increase the number of rows, so we cannot just push the limit down
+                // (we also have to preserve the LIMIT afterwards)
+                //
+                // To avoid infinite loops, ie.
+                // | MV_EXPAND | LIMIT -> | LIMIT | MV_EXPAND | LIMIT -> ... | MV_EXPAND | LIMIT
+                // we add an inner limit to MvExpand and just push down the existing limit, ie.
+                // | MV_EXPAND | LIMIT N -> | LIMIT N | MV_EXPAND (with limit N)
                 var limitSource = limit.limit();
                 var limitVal = (int) limitSource.fold();
                 Integer mvxLimit = mvx.limit();

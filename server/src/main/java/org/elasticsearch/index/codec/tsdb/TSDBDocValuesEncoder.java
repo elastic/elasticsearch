@@ -176,7 +176,7 @@ public class TSDBDocValuesEncoder {
      * Encode the given longs using a combination of delta-coding, GCD factorization and bit packing.
      */
     void encode(long[] in, DataOutput out) throws IOException {
-        // assert in.length == numericBlockSize;
+        assert in.length == numericBlockSize;
 
         deltaEncode(0, 0, in, out);
     }
@@ -194,7 +194,7 @@ public class TSDBDocValuesEncoder {
      * </ul>
      */
     void encodeOrdinals(long[] in, DataOutput out, int bitsPerOrd) throws IOException {
-        // assert in.length == numericBlockSize;
+        assert in.length == numericBlockSize;
         int numRuns = 1;
         long firstValue = in[0];
         long previousValue = firstValue;
@@ -261,7 +261,7 @@ public class TSDBDocValuesEncoder {
     }
 
     void decodeOrdinals(DataInput in, long[] out, int bitsPerOrd) throws IOException {
-        // assert out.length == numericBlockSize : out.length;
+        assert out.length == numericBlockSize : out.length;
 
         long v1 = in.readVLong();
         int encoding = Long.numberOfTrailingZeros(~v1);
@@ -295,7 +295,7 @@ public class TSDBDocValuesEncoder {
 
     /** Decode longs that have been encoded with {@link #encode}. */
     void decode(DataInput in, long[] out) throws IOException {
-        // assert out.length == numericBlockSize : out.length;
+        assert out.length == numericBlockSize : out.length;
 
         final int token = in.readVInt();
         final int bitsPerValue = token >>> 3;

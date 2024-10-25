@@ -16,12 +16,6 @@ NOT (foo_field:foo AND) foo_field:foo bar
 foo_field: "foo bar
 foo_field: foo bar"
 
-
-// Invalid boolean queries
-AND foo
-OR foo
-NOT foo:
-
 // Can't nest grouping terms parentheses
 foo_field:(foo (bar))
 

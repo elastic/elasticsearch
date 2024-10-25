@@ -349,20 +349,6 @@ tests:
 - class: org.elasticsearch.xpack.security.operator.OperatorPrivilegesIT
   method: testEveryActionIsEitherOperatorOnlyOrNonOperator
   issue: https://github.com/elastic/elasticsearch/issues/102992
-- class: org.elasticsearch.bootstrap.SpawnerNoBootstrapTests
-  issue: https://github.com/elastic/elasticsearch/issues/114555
-- class: org.elasticsearch.xpack.watcher.trigger.schedule.engine.TickerScheduleEngineTests
-  method: testAddWithNoLastCheckedTimeButHasActivationTimeExecutesBeforeInitialInterval
-  issue: https://github.com/elastic/elasticsearch/issues/115339
-- class: org.elasticsearch.xpack.watcher.trigger.schedule.engine.TickerScheduleEngineTests
-  method: testAddWithLastCheckedTimeExecutesBeforeInitialInterval
-  issue: https://github.com/elastic/elasticsearch/issues/115356
-- class: org.elasticsearch.xpack.watcher.trigger.schedule.engine.TickerScheduleEngineTests
-  method: testWatchWithLastCheckedTimeExecutesBeforeInitialInterval
-  issue: https://github.com/elastic/elasticsearch/issues/115354
-- class: org.elasticsearch.xpack.watcher.trigger.schedule.engine.TickerScheduleEngineTests
-  method: testWatchWithNoLastCheckedTimeButHasActivationTimeExecutesBeforeInitialInterval
-  issue: https://github.com/elastic/elasticsearch/issues/115368
 - class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
   method: test {p0=search.vectors/42_knn_search_int4_flat/Vector similarity with filter only}
   issue: https://github.com/elastic/elasticsearch/issues/115475

@@ -87,6 +87,7 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.LongSupplier;
 import java.util.function.ToLongFunction;
 
@@ -202,7 +203,7 @@ final class DefaultSearchContext extends SearchContext {
                     engineSearcher.getQueryCache(),
                     engineSearcher.getQueryCachingPolicy(),
                     lowLevelCancellation,
-                    executor,
+                    wrapExecutor(executor),
                     maximumNumberOfSlices,
                     minimumDocsPerSlice
                 );
@@ -227,6 +228,30 @@ final class DefaultSearchContext extends SearchContext {
                 close();
             }
         }
+    }
+
+    private static Executor wrapExecutor(Executor executor) {
+        if (executor instanceof ThreadPoolExecutor tpe) {
+            // let this searcher fork to a limited maximum number of tasks, to protect against situations where Lucene may
+            // submit too many segment level tasks. With enough parallel search requests and segments per shards, they may all see
+            // an empty queue and start parallelizing, filling up the queue very quickly and causing rejections, due to
+            // many small tasks in the queue that become no-op because the active caller thread will execute them instead.
+            // Note that despite all tasks are completed, TaskExecutor#invokeAll leaves the leftover no-op tasks in queue hence
+            // they contribute to the queue size until they are removed from it.
+            AtomicInteger segmentLevelTasks = new AtomicInteger(0);
+            return command -> {
+                if (segmentLevelTasks.get() > tpe.getMaximumPoolSize()) {
+                    command.run();
+                    return;
+                }
+                if (segmentLevelTasks.incrementAndGet() > tpe.getMaximumPoolSize()) {
+                    command.run();
+                } else {
+                    executor.execute(command);
+                }
+            };
+        }
+        return executor;
     }
 
     static long getFieldCardinality(String field, IndexService indexService, DirectoryReader directoryReader) {

@@ -78,17 +78,32 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.FutureTask;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.RunnableFuture;
 import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.function.ToLongFunction;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -959,11 +974,92 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
         assertEquals(-1, DefaultSearchContext.getFieldCardinality("field", indexService, null));
     }
 
+    public void testDoNotCreateMoreTasksThanAvailableThreads() throws IOException, ExecutionException, InterruptedException {
+        int executorPoolSize = randomIntBetween(2, 5);
+        int numIters = randomIntBetween(10, 50);
+        int numSegmentTasks = randomIntBetween(50, 100);
+        AtomicInteger completedTasks = new AtomicInteger(0);
+        ThreadPoolExecutor executor = new ThreadPoolExecutor(
+            executorPoolSize,
+            executorPoolSize,
+            0L,
+            TimeUnit.MILLISECONDS,
+            new LinkedBlockingQueue<>()
+        );
+        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.AbortPolicy());
+        DefaultSearchContext[] contexts = new DefaultSearchContext[numIters];
+        List<Future<?>> futures = new ArrayList<>(numIters);
+        for (int i = 0; i < numIters; i++) {
+            contexts[i] = createDefaultSearchContext(executor, randomFrom(SearchService.ResultsType.DFS, SearchService.ResultsType.QUERY));
+        }
+        try {
+            for (int i = 0; i < numIters; i++) {
+                // simulate multiple concurrent search operations that parallelize each their execution across many segment level tasks
+                // via Lucene's TaskExecutor. Segment level tasks are never rejected (they execute on the caller upon rejection), but
+                // the top-level execute call is subject to rejection once the queue is filled with segment level tasks. That is why
+                // we want to limit the number of tasks that each search can parallelize to
+                // NOTE: DefaultSearchContext does not provide the executor to the searcher once it sees maxPoolSize items in the queue.
+                DefaultSearchContext searchContext = contexts[i];
+                AtomicInteger segmentTasksCompleted = new AtomicInteger(0);
+                RunnableFuture<Void> task = new FutureTask<>(() -> {
+                    Collection<Callable<Void>> tasks = new ArrayList<>();
+                    for (int j = 0; j < numSegmentTasks; j++) {
+                        tasks.add(() -> {
+                            segmentTasksCompleted.incrementAndGet();
+                            completedTasks.incrementAndGet();
+                            return null;
+                        });
+                    }
+                    try {
+                        searchContext.searcher().getTaskExecutor().invokeAll(tasks);
+                        // invokeAll is blocking, hence at this point we are done executing all the sub-tasks, but the queue may
+                        // still be filled up with no-op leftover tasks
+                        assertEquals(numSegmentTasks, segmentTasksCompleted.get());
+                    } catch (IOException e) {
+                        throw new UncheckedIOException(e);
+                    } finally {
+                        completedTasks.incrementAndGet();
+                    }
+                    return null;
+                });
+                futures.add(task);
+                executor.execute(task);
+            }
+            for (Future<?> future : futures) {
+                future.get();
+            }
+            assertEquals((long) numIters * numSegmentTasks + numIters, completedTasks.get());
+        } finally {
+            terminate(executor);
+            for (DefaultSearchContext searchContext : contexts) {
+                searchContext.indexShard().getThreadPool().shutdown();
+                searchContext.close();
+            }
+        }
+        // make sure that we do parallelize execution across segments
+        assertThat(executor.getCompletedTaskCount(), greaterThan((long) numIters));
+        // while not creating too many segment level tasks
+        assertThat(executor.getCompletedTaskCount(), lessThanOrEqualTo((long) numIters * executorPoolSize + numIters));
+    }
+
+    private DefaultSearchContext createDefaultSearchContext(Executor executor, SearchService.ResultsType resultsType) throws IOException {
+        return createDefaultSearchContext(Settings.EMPTY, null, executor, resultsType);
+    }
+
     private DefaultSearchContext createDefaultSearchContext(Settings providedIndexSettings) throws IOException {
         return createDefaultSearchContext(providedIndexSettings, null);
     }
 
     private DefaultSearchContext createDefaultSearchContext(Settings providedIndexSettings, XContentBuilder mappings) throws IOException {
+        return createDefaultSearchContext(providedIndexSettings, mappings, null, randomFrom(SearchService.ResultsType.values()));
+    }
+
+    private DefaultSearchContext createDefaultSearchContext(
+        Settings providedIndexSettings,
+        XContentBuilder mappings,
+        Executor executor,
+        SearchService.ResultsType resultsType
+    ) throws IOException {
         TimeValue timeout = new TimeValue(randomIntBetween(1, 100));
         ShardSearchRequest shardSearchRequest = mock(ShardSearchRequest.class);
         when(shardSearchRequest.searchType()).thenReturn(SearchType.DEFAULT);
@@ -1047,9 +1143,9 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
                 timeout,
                 null,
                 false,
-                null,
-                randomFrom(SearchService.ResultsType.values()),
-                randomBoolean(),
+                executor,
+                resultsType,
+                executor != null || randomBoolean(),
                 randomInt()
             );
         }

@@ -577,6 +577,7 @@ abbrev:keyword | scalerank:integer |             location:geo_point             
 
 byTwoCalculatedSecondOverwrites
 required_capability: inlinestats_v2
+required_capability: stats_alias_collision_warnings
 
 FROM airports
 | WHERE abbrev IS NOT NULL
@@ -587,6 +588,7 @@ FROM airports
 | SORT abbrev DESC
 | LIMIT 3
 ;
+warning:Line 5:4: Field 'x' shadowed by field at line 6:3
 
 abbrev:keyword | scalerank:integer |             location:geo_point             | x:double | min_sl:integer
            ZRH |                 3 | POINT(8.56221279534765 47.4523895064915)   |       10 | 2
@@ -596,6 +598,7 @@ abbrev:keyword | scalerank:integer |             location:geo_point             
 
 byTwoCalculatedSecondOverwritesReferencingFirst
 required_capability: inlinestats_v2
+required_capability: stats_alias_collision_warnings
 
 FROM airports
 | WHERE abbrev IS NOT NULL
@@ -607,6 +610,7 @@ FROM airports
 | SORT abbrev DESC
 | LIMIT 3
 ;
+warning:Line 6:4: Field 'x' shadowed by field at line 7:3
 
 abbrev:keyword | scalerank:integer |             location:geo_point             | x:double | min_sl:integer
            ZRH |                 3 | POINT(8.56221279534765 47.4523895064915)   |       10 | 2
@@ -617,6 +621,7 @@ abbrev:keyword | scalerank:integer |             location:geo_point             
 
 groupShadowsAgg
 required_capability: inlinestats_v2
+required_capability: stats_alias_collision_warnings
 
 FROM airports
 | WHERE abbrev IS NOT NULL
@@ -628,6 +633,7 @@ FROM airports
 | SORT abbrev DESC
 | LIMIT 3
 ;
+warning:Line 5:3: Field 'lat_10' shadowed by field at line 6:4
 
 abbrev:keyword | scalerank:integer |             location:geo_point             | lat_10:double | lon_10:double | min_sl:integer
            ZRH |                 3 | POINT(8.56221279534765 47.4523895064915)   |            50 |            10 | 2

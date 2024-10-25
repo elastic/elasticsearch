@@ -994,9 +994,19 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         }
     }
 
-    // Iterates over the batch sending 1 request at a time to avoid
-    // filling the ml node inference queue.
+    /**
+     * Iterates over the batch executing a limited number requests at a time to avoid
+     * filling the ML node inference queue.
+     *
+     * First, a single request is executed, which can also trigger deploying a model
+     * if necessary. When this request is successfully executed, a callback executes
+     * N requests in parallel next. Each of these requests also has a callback that
+     * executes one more request, so that at all time N requests are in-flight. This
+     * continues until all requests are executed.
+     */
     class BatchIterator {
+        private static final int NUM_REQUESTS_INFLIGHT = 20; // * batch size = 200
+
         private final AtomicInteger index = new AtomicInteger();
         private final ElasticsearchInternalModel esModel;
         private final List<EmbeddingRequestChunker.BatchRequestAndListener> requestAndListeners;
@@ -1016,30 +1026,27 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         }
 
         void run() {
-            inferenceExecutor.execute(this::inferBatchAndRunAfter);
+            // The first request may deploy the model, and upon completion runs
+            // NUM_REQUESTS_INFLIGHT in parallel.
+            inferenceExecutor.execute(() -> inferBatch(NUM_REQUESTS_INFLIGHT, true));
         }
 
-        private void inferBatchAndRunAfter() {
-            int NUM_REQUESTS_INFLIGHT = 20; // * batch size = 200
-            int requestCount = 0;
-            // loop does not include the final request
-            while (requestCount < NUM_REQUESTS_INFLIGHT - 1 && index.get() < requestAndListeners.size() - 1) {
-
-                var batch = requestAndListeners.get(index.get());
-                executeRequest(batch);
-                requestCount++;
-                index.incrementAndGet();
+        private void inferBatch(int runAfterCount, boolean maybeDeploy) {
+            int batchIndex = index.getAndIncrement();
+            if (batchIndex >= requestAndListeners.size()) {
+                return;
             }
-
-            var batch = requestAndListeners.get(index.get());
-            executeRequest(batch, () -> {
-                if (index.incrementAndGet() < requestAndListeners.size()) {
-                    run(); // start the next batch
+            executeRequest(batchIndex, maybeDeploy, () -> {
+                for (int i = 0; i < runAfterCount; i++) {
+                    // Subsequent requests may not deploy the model, because the first request
+                    // already did so. Upon completion, it runs one more request.
+                    inferenceExecutor.execute(() -> inferBatch(1, false));
                 }
             });
         }
 
-        private void executeRequest(EmbeddingRequestChunker.BatchRequestAndListener batch) {
+        private void executeRequest(int batchIndex, boolean maybeDeploy, Runnable runAfter) {
+            EmbeddingRequestChunker.BatchRequestAndListener batch = requestAndListeners.get(batchIndex);
             var inferenceRequest = buildInferenceRequest(
                 esModel.mlNodeDeploymentId(),
                 EmptyConfigUpdate.INSTANCE,
@@ -1047,36 +1054,19 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
                 inputType,
                 timeout
             );
+            logger.trace("Executing batch index={}", batchIndex);
 
-            ActionListener<InferModelAction.Response> mlResultsListener = batch.listener()
+            ActionListener<InferModelAction.Response> listener = batch.listener()
                 .delegateFailureAndWrap(
                     (l, inferenceResult) -> translateToChunkedResult(esModel.getTaskType(), inferenceResult.getInferenceResults(), l)
                 );
-
-            var maybeDeployListener = mlResultsListener.delegateResponse(
-                (l, exception) -> maybeStartDeployment(esModel, exception, inferenceRequest, l)
-            );
-
-            client.execute(InferModelAction.INSTANCE, inferenceRequest, maybeDeployListener);
-        }
-
-        private void executeRequest(EmbeddingRequestChunker.BatchRequestAndListener batch, Runnable runAfter) {
-            var inferenceRequest = buildInferenceRequest(
-                esModel.mlNodeDeploymentId(),
-                EmptyConfigUpdate.INSTANCE,
-                batch.batch().inputs(),
-                inputType,
-                timeout
-            );
-
-            ActionListener<InferModelAction.Response> mlResultsListener = batch.listener()
-                .delegateFailureAndWrap(
-                    (l, inferenceResult) -> translateToChunkedResult(esModel.getTaskType(), inferenceResult.getInferenceResults(), l)
-                );
-
-            // schedule the next request once the results have been processed
-            var runNextListener = ActionListener.runAfter(mlResultsListener, runAfter);
-            client.execute(InferModelAction.INSTANCE, inferenceRequest, runNextListener);
+            if (runAfter != null) {
+                listener = ActionListener.runAfter(listener, runAfter);
+            }
+            if (maybeDeploy) {
+                listener = listener.delegateResponse((l, exception) -> maybeStartDeployment(esModel, exception, inferenceRequest, l));
+            }
+            client.execute(InferModelAction.INSTANCE, inferenceRequest, listener);
         }
     }
 }

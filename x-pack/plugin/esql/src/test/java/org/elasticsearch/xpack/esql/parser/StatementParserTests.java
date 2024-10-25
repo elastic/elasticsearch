@@ -1642,7 +1642,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     List.of(new Order(EMPTY, attribute("f.5.*"), Order.OrderDirection.ASC, Order.NullsPosition.LAST))
                 ),
                 attribute("f.6*"),
-                attribute("f.6*")
+                attribute("f.6*"),
+                null
             ),
             statement(
                 """
@@ -1677,7 +1678,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     List.of(new Order(EMPTY, attribute("f.11..f.12.*"), Order.OrderDirection.ASC, Order.NullsPosition.LAST))
                 ),
                 attribute("f.*.13.f.14*"),
-                attribute("f.*.13.f.14*")
+                attribute("f.*.13.f.14*"),
+                null
             ),
             statement(
                 """

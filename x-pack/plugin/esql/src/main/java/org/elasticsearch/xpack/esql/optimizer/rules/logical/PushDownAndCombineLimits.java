@@ -33,6 +33,14 @@ public final class PushDownAndCombineLimits extends OptimizerRules.OptimizerRule
         } else if (limit.child() instanceof UnaryPlan unary) {
             if (unary instanceof Eval || unary instanceof Project || unary instanceof RegexExtract || unary instanceof Enrich) {
                 return unary.replaceChild(limit.replaceChild(unary.child()));
+            } else if (unary instanceof MvExpand mvx) {
+                var limitSource = limit.limit();
+                var limitVal = (int) limitSource.fold();
+                Integer mvxLimit = mvx.limit();
+                if (mvxLimit == null || mvxLimit < 0 || mvxLimit > limitVal) {
+                    mvx = new MvExpand(mvx.source(), mvx.child(), mvx.target(), mvx.expanded(), limitVal);
+                }
+                return mvx.replaceChild(limit.replaceChild(mvx.child()));
             }
             // check if there's a 'visible' descendant limit lower than the current one
             // and if so, align the current limit since it adds no value

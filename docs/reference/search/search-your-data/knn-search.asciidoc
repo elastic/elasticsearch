@@ -782,6 +782,11 @@ scored by their nearest passage vector (e.g. `"paragraph.vector"`).
 What if you wanted to filter by some document metadata? You can do this by adding `filter` to your
 `knn` clause. `filter` can be run based on both: the top-level document metadata and `nested` field metadata.
 
+Note: To ensure correct results: each individual filter must be either over
+the top-level metadata or `nested` metadata. However, a single knn search
+supports multiple filters, where some filters can be over the top-level metadata
+and some over nested.
+
 [source,console]
 ----
 POST passage_vectors/_search
@@ -883,6 +888,47 @@ POST passage_vectors/_search
                 "paragraph.language" : "EN"
             }
         }
+    }
+}
+----
+//TEST[continued]
+
+
+Filtering by nested and the top level metadata: makes kNN search only consider vectors with
+`"paragraph.language": "EN"` and which parent's `"creation_time"` falls within the provided range.
+
+[source,console]
+----
+POST passage_vectors/_search
+{
+    "fields": [
+        "creation_time",
+        "full_text"
+    ],
+    "_source": false,
+    "knn": {
+        "query_vector": [
+            0.45,
+            45
+        ],
+        "field": "paragraph.vector",
+        "k": 2,
+        "num_candidates": 2,
+        "filter": [
+            {
+                "match": {
+                    "paragraph.language": "EN"
+                }
+            },
+            {
+                "range": {
+                    "creation_time": {
+                        "gte": "2019-05-01",
+                        "lte": "2019-05-05"
+                    }
+                }
+            }
+        ]
     }
 }
 ----

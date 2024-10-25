@@ -194,17 +194,14 @@ public class KnnScoreDocQueryBuilder extends AbstractQueryBuilder<KnnScoreDocQue
             if (filterQueries.isEmpty()) {
                 return exactKnnQuery;
             } else {
-                BoolQueryBuilder filterQueryChildren = new BoolQueryBuilder();
-                for (QueryBuilder query : this.filterQueries) {
-                    filterQueryChildren.filter(query);
-                }
-                // filter can be both over parents or nested docs,
-                // so add them as should clauses to a filter
                 BoolQueryBuilder boolQuery = new BoolQueryBuilder();
                 boolQuery.must(exactKnnQuery);
-                boolQuery.filter(
-                    new BoolQueryBuilder().should(filterQueryChildren).should(new ToChildBlockJoinQueryBuilder(filterQueryChildren))
-                );
+                for (QueryBuilder filter : this.filterQueries) {
+                    // filter can be both over parents or nested docs, so add them as should clauses to a filter
+                    BoolQueryBuilder adjustedFilter = new BoolQueryBuilder().should(filter)
+                        .should(new ToChildBlockJoinQueryBuilder(filter));
+                    boolQuery.filter(adjustedFilter);
+                }
                 return boolQuery;
             }
         }

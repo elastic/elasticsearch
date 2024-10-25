@@ -152,38 +152,12 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
             spec.getParameters().getBuildParams().set(buildParams);
         });
 
-        // BuildParams.init(params -> {
-        // params.reset();
-        // params.setRuntimeJavaHome(actualRuntimeJavaHome);
-        // params.setJavaToolChainSpec(resolveToolchainSpecFromEnv());
-        // params.setRuntimeJavaVersion(
-        // actualRuntimeJavaHome.map(
-        // javaHome -> determineJavaVersion(
-        // "runtime java.home",
-        // javaHome,
-        // isRuntimeJavaHomeExplicitlySet
-        // ? minimumRuntimeVersion
-        // : JavaVersion.toVersion(VersionProperties.getBundledJdkMajorVersion())
-        // )
-        // )
-        // );
-        // params.setIsRuntimeJavaHomeSet(isRuntimeJavaHomeExplicitlySet);
-        // params.setRuntimeJavaDetails(runtimeJdkMetaData.map(m -> formatJavaVendorDetails(m)));
-        // params.setJavaVersions(getAvailableJavaVersions());
-        // params.setMinimumCompilerVersion(minimumCompilerVersion);
-        // params.setMinimumRuntimeVersion(minimumRuntimeVersion);
-        // params.setGradleJavaVersion(Jvm.current().getJavaVersion());
-        // params.setGitRevision(gitInfo.getRevision());
-        // params.setGitOrigin(gitInfo.getOrigin());
-        // params.setBuildDate(ZonedDateTime.now(ZoneOffset.UTC));
-        // params.setTestSeed(getTestSeed());
-        // params.setIsCi(
-        // System.getenv("JENKINS_URL") != null || System.getenv("BUILDKITE_BUILD_URL") != null || System.getProperty("isCI") != null
-        // );
-        // params.setDefaultParallel(ParallelDetector.findDefaultParallel(project));
-        // params.setIsSnapshotBuild(Util.getBooleanProperty("build.snapshot", true));
-        // params.setBwcVersions(bwcVersionsProvider);
-        // });
+        BuildParams.init(params -> {
+            params.reset();
+            params.setIsCi(
+                System.getenv("JENKINS_URL") != null || System.getenv("BUILDKITE_BUILD_URL") != null || System.getProperty("isCI") != null
+            );
+        });
 
         // Enforce the minimum compiler version
         assertMinimumCompilerVersion(minimumCompilerVersion);

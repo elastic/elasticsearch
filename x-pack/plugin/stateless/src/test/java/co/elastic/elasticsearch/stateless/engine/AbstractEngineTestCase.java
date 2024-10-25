@@ -68,7 +68,6 @@ import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.index.mapper.ParsedDocument.DocumentSize;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
@@ -81,6 +80,7 @@ import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.indices.IndexingMemoryController;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
+import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
@@ -499,7 +499,7 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
             source,
             XContentType.JSON,
             null,
-            DocumentSize.UNKNOWN
+            XContentMeteringParserDecorator.UNKNOWN_SIZE
         );
         return new Engine.Index(Uid.encodeId(id), 1L, doc);
     }

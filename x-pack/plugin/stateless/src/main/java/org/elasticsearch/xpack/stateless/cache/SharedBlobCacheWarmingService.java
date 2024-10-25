@@ -27,6 +27,7 @@ import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.commits.VirtualBatchedCompoundCommit;
 import co.elastic.elasticsearch.stateless.lucene.BlobStoreCacheDirectory;
 import co.elastic.elasticsearch.stateless.lucene.FileCacheKey;
+import co.elastic.elasticsearch.stateless.lucene.IndexBlobStoreCacheDirectory;
 import co.elastic.elasticsearch.stateless.recovery.metering.RecoveryMetricsCollector;
 import co.elastic.elasticsearch.stateless.utils.IndexingShardRecoveryComparator;
 
@@ -544,14 +545,14 @@ public class SharedBlobCacheWarmingService {
 
             if (startRegion == endRegion) {
                 BlobRegion blobRegion = new BlobRegion(location.blobFile(), startRegion);
-                enqueue(blobRegion, fileName, location, position, length, listener);
+                enqueueLocation(blobRegion, fileName, location, position, length, listener);
             } else {
                 try (var listeners = new RefCountingListener(listener)) {
                     for (int r = startRegion; r <= endRegion; r++) {
                         // adjust the position & length to the region
                         var range = ByteRange.of(Math.max(start, (long) r * regionSize), Math.min(end, (r + 1L) * regionSize));
                         BlobRegion blobRegion = new BlobRegion(location.blobFile(), r);
-                        enqueue(blobRegion, fileName, location, range.start(), range.length(), listeners.acquire());
+                        enqueueLocation(blobRegion, fileName, location, range.start(), range.length(), listeners.acquire());
                     }
                 }
             }
@@ -591,7 +592,23 @@ public class SharedBlobCacheWarmingService {
             }));
         }
 
-        private void enqueue(
+        private boolean canSkipLocation(String fileName, long position, long length) {
+            if (warmingRun.type != Type.INDEXING && warmingRun.type != Type.INDEXING_EARLY) {
+                return false;
+            }
+            if (length > Short.MAX_VALUE) {
+                // length is too long to be contained in replicated section
+                return false;
+            }
+            assert directory instanceof IndexBlobStoreCacheDirectory : directory.getClass() + " is not an IndexBlobStoreCacheDirectory";
+            var dir = (IndexBlobStoreCacheDirectory) directory;
+            int region = (int) (dir.getPosition(fileName, position, (int) length) / cacheService.getRegionSize());
+            // region 0 is already loaded by this point while resolving full set of commit files and safe to skip.
+            // See co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService#readIndexingShardState
+            return region == 0;
+        }
+
+        private void enqueueLocation(
             BlobRegion blobRegion,
             String fileName,
             BlobLocation blobLocation,
@@ -599,6 +616,11 @@ public class SharedBlobCacheWarmingService {
             long length,
             ActionListener<Void> listener
         ) {
+            if (canSkipLocation(fileName, position, length)) {
+                listener.onResponse(null);
+                return;
+            }
+
             var blobRanges = queues.computeIfAbsent(blobRegion, BlobRangesQueue::new);
             if (blobRanges.add(fileName, blobLocation, position, length, listener)) {
                 scheduleWarmingTask(new WarmingTask(blobRanges));
@@ -662,7 +684,7 @@ public class SharedBlobCacheWarmingService {
 
     private abstract class AbstractWarmer implements Releasable {
 
-        private final WarmingRun warmingRun;
+        protected final WarmingRun warmingRun;
         private final ShardId shardId;
         private final int fileCount;
         private final int segmentCount;

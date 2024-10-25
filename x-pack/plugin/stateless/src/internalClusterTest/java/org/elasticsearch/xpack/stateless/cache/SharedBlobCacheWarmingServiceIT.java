@@ -56,6 +56,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
@@ -188,9 +189,6 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), CACHE_SIZE.getStringRep())
             .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), REGION_SIZE.getStringRep())
             .put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), REGION_SIZE.getStringRep())
-            // TODO ES-9345 The test waits for warming to complete and then fails the object store accesses, but once ES-9345 is merged
-            // it will need to wait for the shard to be started for that.
-            .put(StatelessCommitService.STATELESS_COMMIT_USE_INTERNAL_FILES_REPLICATED_CONTENT.getKey(), false)
             .build();
         var indexNodeA = startIndexNode(cacheSettings);
 
@@ -202,6 +200,8 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
                     .put(MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY.getKey(), 1)
                     .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                     .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    // Causes extra reads when randomly enabled by the test framework, so it is disabled in this test, see ES-9898
+                    .put(IndexSettings.BLOOM_FILTER_ID_FIELD_ENABLED_SETTING.getKey(), false)
                     .put(EngineConfig.USE_COMPOUND_FILE, randomBoolean())
             )
         );
@@ -266,6 +266,8 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
                     .put(MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY.getKey(), 1)
                     .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                     .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    // Causes extra reads when randomly enabled by the test framework, so it is disabled in this test, see ES-9898
+                    .put(IndexSettings.BLOOM_FILTER_ID_FIELD_ENABLED_SETTING.getKey(), false)
                     .put(EngineConfig.USE_COMPOUND_FILE, randomBoolean())
             )
         );
@@ -409,8 +411,10 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
             )
         );
 
-        indexDocs(indexName, randomIntBetween(100, 10000));
-        refresh(indexName);
+        for (int i = 0; i < randomIntBetween(2, 10); i++) {
+            indexDocs(indexName, randomIntBetween(100, 1000));
+            flushAndRefresh(indexName);
+        }
 
         ensureStableCluster(2);
 

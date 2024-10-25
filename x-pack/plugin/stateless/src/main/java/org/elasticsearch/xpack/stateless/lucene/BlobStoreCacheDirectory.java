@@ -130,6 +130,14 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
         return blobFileRanges != null ? blobFileRanges.blobLocation() : null;
     }
 
+    /**
+     * Returns position of the file in the surrounding blob
+     */
+    public long getPosition(String fileName, long pos, int length) {
+        var blobFileRanges = currentMetadata.get(fileName);
+        return blobFileRanges != null ? blobFileRanges.getPosition(pos, length) : pos;
+    }
+
     StatelessSharedBlobCacheService getCacheService() {
         return cacheService;
     }

@@ -68,7 +68,6 @@ public abstract class DockerEnvironmentAwareTestContainer extends GenericContain
         Assume.assumeTrue("Docker probing succesful", DOCKER_PROBING_SUCCESSFUL);
         withLogConsumer(new Slf4jLogConsumer(LOGGER));
         BootstrapForTesting.doWithSecurityManagerDisabled(super::start);
-        super.start();
     }
 
     @Override

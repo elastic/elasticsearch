@@ -65,8 +65,6 @@ tests:
 - class: org.elasticsearch.xpack.restart.CoreFullClusterRestartIT
   method: testSnapshotRestore {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/111799
-- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
-  issue: https://github.com/elastic/elasticsearch/issues/112147
 - class: org.elasticsearch.smoketest.WatcherYamlRestIT
   method: test {p0=watcher/usage/10_basic/Test watcher usage stats output}
   issue: https://github.com/elastic/elasticsearch/issues/112189

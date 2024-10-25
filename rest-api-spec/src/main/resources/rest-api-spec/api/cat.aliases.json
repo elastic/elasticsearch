@@ -36,10 +36,6 @@
         "type":"string",
         "description":"a short version of the Accept header, e.g. json, yaml"
       },
-      "local":{
-        "type":"boolean",
-        "description":"Return local information, do not retrieve the state from master node (default: false)"
-      },
       "h":{
         "type":"list",
         "description":"Comma-separated list of column names to display"

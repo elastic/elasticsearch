@@ -38,4 +38,9 @@ public interface BuildExtension {
      * Returns the {@link BuildVersion} for a given version identifier.
      */
     BuildVersion fromVersionId(int versionId);
+
+    /**
+     * Returns the {@link BuildVersion} for a given version string.
+     */
+    BuildVersion fromString(String version);
 }

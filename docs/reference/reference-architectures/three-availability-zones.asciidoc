@@ -1,0 +1,73 @@
+[[three-availability-zones]]
+== Time Series HA Architecture: Three availability zones
+
+This article outlines a scalable and highly available architecture for Elasticsearch using three availability zones. The architecture encompasses all essential components of the Elastic Stack and serves as a foundational blueprint to ensure your deployment is resilient and ready to handle any desired workload. While this overview includes high-level representations of data flow, detailed implementation will be covered in subsequent documentation.
+
+[discrete]
+[[three-availability-zones-use-case]]
+=== Use Case
+
+This architecture is intended for organizations that need to: 
+
+* Be resilient to hardware failures
+* Ensure availability during operational maintenance of any given (zone i.e. POD in the diagram)
+* Maintain a single copy of the data during maintenance
+* Leverage a Frozen Data tier as part of the Information Lifecycle
+* Leverage a Snapshot Repository for additional recovery options 
+* Be used for data that is written once and not updated (e.g. logs, metrics or even an accounting ledger where balance updates are done via additional offsetting entries)
+
+[discrete]
+[[three-availability-zones-architecture]]
+=== Architecture
+
+image::images/three-availability-zone.png["A three-availability-zones time-series architecture"]
+
+[discrete]
+[[three-availability-zones-considerations]]
+=== Important Considerations
+
+The following list are important conderations for this architecture:
+
+* Maintenance will be done only on one POD at a time.
+* A yellow cluster state is acceptable during maintenance.  (This will be due to replica shards being unassigned.)
+* Sample Initial Settings / Configuration:
+** 3 Master Nodes  6 Hot Data Nodes; 3 Frozen Nodes
+** 1 Primary; 1 Replica
+** Machine Learning Nodes - Optional (1 per POD-1, 2, 3 )
+** Index - total_shards_per_node = 1 (assuming there will be always more nodes than shards needed).  This will prevent hot-spotting.  This should; however,  be relaxed to total_shards_per_node = 2 if the number of nodes and required number of shards are equal or close to equal due to the shard allocation processes being opportunistic. (i.e. if overly aggressive, shards could be placed in a way to create a situation where a shard could not be allocated - and create a yellow cluster state)
+** Set up a repository for the frozen tier.
+* **Shard Management** 
+** The most important foundational step to maintaining performance as you scale is proper shard sizing, location, count, and shard distribution. For a complete understanding of what shards are and how they should be used please review, https://www.elastic.co/guide/en/elasticsearch/reference/current/index.html[Shard sizing].
+*** **Sizing:** Maintain shard sizes within recommended ranges and aim for an optimal number of shards.
+*** **Distribution:** In a distributed system, any distributed process is only as fast as the slowest node. As a result, it is optimal to maintain indexes with a primary shard count that is a multiple of the node count in a given tier. This creates even distribution of processing and prevents hotspots.
+**** Shard distribution should be enforced using the https://www.elastic.co/guide/en/elasticsearch/reference/current/size-your-shards.html#avoid-node-hotspots['total shards per node'] index level setting 
+
+TIP: For consistent index level settings is it easiest to use index lifecycle management with index templates, please see the section below for more detail.
+
+* https://www.elastic.co/guide/en/elasticsearch/reference/8.16/data-tiers.html[ILM (Information Lifecycle Management): Considerations]
+** Hot:
+*** Use this tier for ingestion. (Note:  we are assuming for this pattern no updates to the data once written).
+*** Use this tier for fastest reads on the most current data.
+** Warm / Cold - not considered for this pattern.
+** Frozen:
+*** Data is persisted in a repository; however, it is accessed from the node’s cache.  It may not be as fast as the Hot tier; however, it can still be fast depending on the caching strategy.  
+*** Frozen does not mean slow - it means immutable and saved in durable storage.
+
+* https://www.elastic.co/guide/en/elasticsearch/reference/8.16/snapshots-take-snapshot.html#automate-snapshots-slm[SLM (Snapshot Lifecycle Management): Considerations]
+* *Limitations of this pattern*
+** No region resilience
+** Only a single copy of (some of … i.e. the most recently written data that is not yet part of a snapshot) data exists during maintenance windows - (Note:  This could be addressed by adding data nodes to POD 3 and setting the sharding strategy to 1 Primary and 2 Replicas)
+** Assumes write once (no updating of documents)
+* **Benefits of this pattern**
+** Reduces cost by leveraging the Frozen tier as soon as that makes sense from an ingest and most frequently read documents perspective
+** Significantly reduces the likelihood of hot-spotting due to the sharding strategy
+** Eliminates network and disk overhead caused by rebalancing attempts that would occur during maintenance due to setting forced awareness.
+
+[discrete]
+[[three-availability-zones-resources]]
+=== Resources and references
+
+* <<shard-size-best-practices,Size your shards>>
+* https://www.elastic.co/guide/en/elasticsearch/reference/current/index.html[Elasticsearch Documentation]
+* https://www.elastic.co/guide/en/kibana/current/index.html[Kibana Documentation]
+

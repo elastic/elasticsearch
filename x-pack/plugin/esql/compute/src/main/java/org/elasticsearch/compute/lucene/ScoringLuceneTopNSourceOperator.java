@@ -127,6 +127,7 @@ public final class ScoringLuceneTopNSourceOperator extends LuceneTopNSourceOpera
         Sort sort;
         if (sortAndFormats.isPresent()) {
             var l = new ArrayList<>(Arrays.asList(sortAndFormats.get().sort.getSort()));
+            l.add(SortField.FIELD_DOC);
             l.add(SortField.FIELD_SCORE);
             sort = new Sort(l.toArray(SortField[]::new));
         } else {

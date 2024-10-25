@@ -789,7 +789,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                 final SubscribableListener<Void> onDone = new SubscribableListener<>();
                 task.accept(() -> onDone.onResponse(null));
                 if (onDone.isDone()) {
-                    // keep going on the current thread, no need to
+                    // keep going on the current thread, no need to fork
                     task = pollNextTaskOrReleasePermit();
                 } else {
                     onDone.addListener(new ActionListener<>() {

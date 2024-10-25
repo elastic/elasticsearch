@@ -23,68 +23,74 @@ To achieve these goals we'll use different Elasticsearch queries to perform full
 [[full-text-filter-tutorial-create-index]]
 === Step 1: Create an index
 
-Create the `cooking_blog` index and its mapping to get started.
+Create the `cooking_blog` index to get started:
 
 [source,console]
 ----
 PUT /cooking_blog
+----
+// TESTSETUP
+
+Now define the mappings for the index:
+
+[source,console]
+----
+PUT /cooking_blog/_mapping
 {
-  "mappings": {
-    "properties": {
-      "title": {
-        "type": "text",
-        "analyzer": "standard", <1>
-        "fields": { <2>
-          "keyword": {
-            "type": "keyword",
-            "ignore_above": 256 <3>
-          }
+  "properties": {
+    "title": {
+      "type": "text",
+      "analyzer": "standard", <1>
+      "fields": { <2>
+        "keyword": {
+          "type": "keyword",
+          "ignore_above": 256 <3>
         }
-      },
-      "description": {
-        "type": "text",
-        "fields": {
-          "keyword": {
-            "type": "keyword"
-          }
-        }
-      },
-      "author": {
-        "type": "text",
-        "fields": {
-          "keyword": {
-            "type": "keyword"
-          }
-        }
-      },
-      "date": {
-        "type": "date",
-        "format": "yyyy-MM-dd"
-      },
-      "category": {
-        "type": "text",
-        "fields": {
-          "keyword": {
-            "type": "keyword"
-          }
-        }
-      },
-      "tags": {
-        "type": "text",
-        "fields": {
-          "keyword": {
-            "type": "keyword"
-          }
-        }
-      },
-      "rating": {
-        "type": "float"
       }
+    },
+    "description": {
+      "type": "text",
+      "fields": {
+        "keyword": {
+          "type": "keyword"
+        }
+      }
+    },
+    "author": {
+      "type": "text",
+      "fields": {
+        "keyword": {
+          "type": "keyword"
+        }
+      }
+    },
+    "date": {
+      "type": "date",
+      "format": "yyyy-MM-dd"
+    },
+    "category": {
+      "type": "text",
+      "fields": {
+        "keyword": {
+          "type": "keyword"
+        }
+      }
+    },
+    "tags": {
+      "type": "text",
+      "fields": {
+        "keyword": {
+          "type": "keyword"
+        }
+      }
+    },
+    "rating": {
+      "type": "float"
     }
   }
 }
 ----
-// TESTSETUP
+// TEST
 <1> The `standard` analyzer is used by default for `text` fields if an `analyzer` isn't specified. It's included here for demonstration purposes.
 <2> <<multi-fields,Multi-fields>> are used to index `text` fields as both `text` and `keyword` <<mapping-types,data types>>. This enables both full-text search and exact matching/filtering on the same field.
 Note that if you used <<dynamic-field-mapping,dynamic mapping>>, these multi-fields would be created automatically.
@@ -108,9 +114,9 @@ Note that `text` fields are analyzed and multi-fields are generated at index tim
 
 [source,console]
 ----
-POST /cooking_blog/_bulk
+POST /cooking_blog/_bulk?refresh=wait_for
 {"index":{"_id":"1"}}
-{"title":"Perfect Pancakes: A Fluffy Breakfast Delight","description":"Learn the secrets to making pancakes so fluffy you won't believe your tastebuds. This recipe uses buttermilk and a special folding technique to create light, airy pancakes that are perfect for lazy Sunday mornings.","author":"Maria Rodriguez","date":"2023-05-01","category":"Breakfast","tags":["pancakes","breakfast","easy recipes"],"rating":4.8}
+{"title":"Perfect Pancakes: A Fluffy Breakfast Delight","description":"Learn the secrets to making the fluffiest pancakes, so amazing you won't believe your tastebuds. This recipe uses buttermilk and a special folding technique to create light, airy pancakes that are perfect for lazy Sunday mornings.","author":"Maria Rodriguez","date":"2023-05-01","category":"Breakfast","tags":["pancakes","breakfast","easy recipes"],"rating":4.8}
 {"index":{"_id":"2"}}
 {"title":"Spicy Thai Green Curry: A Vegetarian Adventure","description":"Dive into the flavors of Thailand with this vibrant green curry. Packed with vegetables and aromatic herbs, this dish is both healthy and satisfying. Don't worry about the heat - you can easily adjust the spice level to your liking.","author":"Liam Chen","date":"2023-05-05","category":"Main Course","tags":["thai","vegetarian","curry","spicy"],"rating":4.6}
 {"index":{"_id":"3"}}
@@ -120,7 +126,7 @@ POST /cooking_blog/_bulk
 {"index":{"_id":"5"}}
 {"title":"Crispy Oven-Fried Chicken","description":"Get that perfect crunch without the deep fryer! This oven-fried chicken recipe delivers crispy, juicy results every time. A healthier take on the classic comfort food.","author":"Maria Rodriguez","date":"2023-05-20","category":"Main Course","tags":["chicken","oven-fried","healthy"],"rating":4.9}
 ----
-// TEST
+// TEST[continued]
 
 [discrete]
 [[full-text-filter-tutorial-match-query]]

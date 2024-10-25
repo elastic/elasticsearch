@@ -1104,7 +1104,7 @@ class KqlBaseParser extends Parser {
                     {
                     setState(118);
                     _la = _input.LA(1);
-                    if ( !(_la==AND || _la==OR) ) {
+                    if ( !((((_la) & ~0x3f) == 0 && ((1L << _la) & 28L) != 0)) ) {
                     _errHandler.recoverInline(this);
                     }
                     else {
@@ -1321,7 +1321,7 @@ class KqlBaseParser extends Parser {
         "op\u0001\u0000\u0000\u0000p|\u0001\u0000\u0000\u0000qs\u0007\u0002\u0000"+
         "\u0000rq\u0001\u0000\u0000\u0000st\u0001\u0000\u0000\u0000tr\u0001\u0000"+
         "\u0000\u0000tu\u0001\u0000\u0000\u0000uw\u0001\u0000\u0000\u0000vx\u0007"+
-        "\u0000\u0000\u0000wv\u0001\u0000\u0000\u0000wx\u0001\u0000\u0000\u0000"+
+        "\u0003\u0000\u0000wv\u0001\u0000\u0000\u0000wx\u0001\u0000\u0000\u0000"+
         "x|\u0001\u0000\u0000\u0000y|\u0007\u0003\u0000\u0000z|\u0005\u000f\u0000"+
         "\u0000{j\u0001\u0000\u0000\u0000{r\u0001\u0000\u0000\u0000{y\u0001\u0000"+
         "\u0000\u0000{z\u0001\u0000\u0000\u0000|\u0017\u0001\u0000\u0000\u0000"+

@@ -73,6 +73,7 @@ foo:OR
 foo:NOT
 foo AND
 foo OR
+foo NOT
 AND foo
 OR foo
 NOT

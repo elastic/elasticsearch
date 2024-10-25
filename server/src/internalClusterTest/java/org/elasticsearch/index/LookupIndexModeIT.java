@@ -104,7 +104,7 @@ public class LookupIndexModeIT extends ESIntegTestCase {
             request.indexFilter(new MatchQueryBuilder("_index_mode", "lookup"));
             var resp = client().fieldCaps(request).actionGet();
             assertThat(resp.getIndexResponses(), hasSize(1));
-            FieldCapabilitiesIndexResponse indexResponse = resp.getIndexResponses().getFirst();
+            FieldCapabilitiesIndexResponse indexResponse = resp.getIndexResponses().get(0);
             assertThat(indexResponse.getIndexMode(), equalTo(IndexMode.LOOKUP));
             assertThat(indexResponse.getIndexName(), equalTo("hosts"));
         }

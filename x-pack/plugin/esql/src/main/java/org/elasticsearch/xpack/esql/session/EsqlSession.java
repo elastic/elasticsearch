@@ -261,8 +261,8 @@ public class EsqlSession {
         ActionListener<Result> listener
     ) {
         LogicalPlan firstPhase = Phased.extractFirstPhase(optimizedPlan);
+        updateExecutionInfoAtEndOfPlanning(executionInfo);
         if (firstPhase == null) {
-            updateExecutionInfoAtEndOfPlanning(executionInfo);
             runPhase.accept(logicalPlanToPhysicalPlan(optimizedPlan, request), listener);
         } else {
             executePhased(new ArrayList<>(), optimizedPlan, request, executionInfo, firstPhase, runPhase, listener);
@@ -344,6 +344,7 @@ public class EsqlSession {
                 .collect(Collectors.toSet());
             Map<String, Exception> unavailableClusters = enrichResolution.getUnavailableClusters();
             preAnalyzeIndices(parsed, executionInfo, unavailableClusters, l.delegateFailureAndWrap((ll, indexResolution) -> {
+                // MP TODO: add some tests for invalid index resolution to updateExecutionInfo from those
                 if (indexResolution.isValid()) {
                     updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, indexResolution);
                     updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.getUnavailableClusters());

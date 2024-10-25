@@ -165,14 +165,16 @@ public class EnrichPolicyResolver {
         Collection<String> targetClusters,
         Map<String, LookupResponse> lookupResults
     ) {
-        assert targetClusters.isEmpty() == false;
         String policyName = unresolved.name;
+        if (targetClusters.isEmpty()) {
+            return Tuple.tuple(null, "enrich policy [" + policyName + "] cannot be resolved since remote clusters are unavailable");
+        }
         final Map<String, ResolvedEnrichPolicy> policies = new HashMap<>();
         final List<String> failures = new ArrayList<>();
         for (String cluster : targetClusters) {
             LookupResponse lookupResult = lookupResults.get(cluster);
-            assert lookupResult.connectionError == null : "Should never have a non-null connectionError here";
             if (lookupResult != null) {
+                assert lookupResult.connectionError == null : "Should never have a non-null connectionError here";
                 ResolvedEnrichPolicy policy = lookupResult.policies.get(policyName);
                 if (policy != null) {
                     policies.put(cluster, policy);

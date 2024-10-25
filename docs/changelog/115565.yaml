@@ -1,0 +1,5 @@
+pr: 115565
+summary: Upgrade protobuf-java to version 4.27.5 in repository-azure
+area: Discovery-Plugins
+type: upgrade
+issues: []

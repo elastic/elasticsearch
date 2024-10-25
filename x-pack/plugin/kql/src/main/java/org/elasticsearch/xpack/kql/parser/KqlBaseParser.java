@@ -977,6 +977,7 @@ class KqlBaseParser extends Parser {
     public static class FieldQueryValueContext extends ParserRuleContext {
         public TerminalNode AND() { return getToken(KqlBaseParser.AND, 0); }
         public TerminalNode OR() { return getToken(KqlBaseParser.OR, 0); }
+        public TerminalNode NOT() { return getToken(KqlBaseParser.NOT, 0); }
         public List<TerminalNode> UNQUOTED_LITERAL() { return getTokens(KqlBaseParser.UNQUOTED_LITERAL); }
         public TerminalNode UNQUOTED_LITERAL(int i) {
             return getToken(KqlBaseParser.UNQUOTED_LITERAL, i);
@@ -985,7 +986,6 @@ class KqlBaseParser extends Parser {
         public TerminalNode WILDCARD(int i) {
             return getToken(KqlBaseParser.WILDCARD, i);
         }
-        public TerminalNode NOT() { return getToken(KqlBaseParser.NOT, 0); }
         public TerminalNode QUOTED_STRING() { return getToken(KqlBaseParser.QUOTED_STRING, 0); }
         public FieldQueryValueContext(ParserRuleContext parent, int invokingState) {
             super(parent, invokingState);
@@ -1021,11 +1021,11 @@ class KqlBaseParser extends Parser {
                 setState(106);
                 _errHandler.sync(this);
                 _la = _input.LA(1);
-                if (_la==AND || _la==OR) {
+                if ((((_la) & ~0x3f) == 0 && ((1L << _la) & 28L) != 0)) {
                     {
                     setState(105);
                     _la = _input.LA(1);
-                    if ( !(_la==AND || _la==OR) ) {
+                    if ( !((((_la) & ~0x3f) == 0 && ((1L << _la) & 28L) != 0)) ) {
                     _errHandler.recoverInline(this);
                     }
                     else {
@@ -1315,7 +1315,7 @@ class KqlBaseParser extends Parser {
         "\u0000\u0000bh\u0003\u0016\u000b\u0000cd\u0005\n\u0000\u0000de\u0003\u0016"+
         "\u000b\u0000ef\u0005\u000b\u0000\u0000fh\u0001\u0000\u0000\u0000gb\u0001"+
         "\u0000\u0000\u0000gc\u0001\u0000\u0000\u0000h\u0015\u0001\u0000\u0000"+
-        "\u0000ik\u0007\u0000\u0000\u0000ji\u0001\u0000\u0000\u0000jk\u0001\u0000"+
+        "\u0000ik\u0007\u0003\u0000\u0000ji\u0001\u0000\u0000\u0000jk\u0001\u0000"+
         "\u0000\u0000km\u0001\u0000\u0000\u0000ln\u0007\u0002\u0000\u0000ml\u0001"+
         "\u0000\u0000\u0000no\u0001\u0000\u0000\u0000om\u0001\u0000\u0000\u0000"+
         "op\u0001\u0000\u0000\u0000p|\u0001\u0000\u0000\u0000qs\u0007\u0002\u0000"+

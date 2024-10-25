@@ -77,7 +77,7 @@ fieldLessQuery
     ;
 
 fieldQueryValue
-    : (AND|OR)? (UNQUOTED_LITERAL | WILDCARD )+
+    : (AND|OR|NOT)? (UNQUOTED_LITERAL | WILDCARD )+
     | (UNQUOTED_LITERAL | WILDCARD )+ (NOT|AND|OR)?
     | (NOT|AND|OR)
     | QUOTED_STRING

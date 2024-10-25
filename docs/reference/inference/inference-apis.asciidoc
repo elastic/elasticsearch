@@ -19,6 +19,7 @@ the following APIs to manage {infer} models and perform {infer}:
 * <<get-inference-api>>
 * <<post-inference-api>>
 * <<put-inference-api>>
+* <<stream-inference-api>>
 * <<update-inference-api>>
 
 [[inference-landscape]]
@@ -56,6 +57,7 @@ include::delete-inference.asciidoc[]
 include::get-inference.asciidoc[]
 include::post-inference.asciidoc[]
 include::put-inference.asciidoc[]
+include::stream-inference.asciidoc[]
 include::update-inference.asciidoc[]
 include::service-alibabacloud-ai-search.asciidoc[]
 include::service-amazon-bedrock.asciidoc[]

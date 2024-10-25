@@ -19,8 +19,7 @@ import java.time.Instant;
 import java.util.Map;
 
 import static org.elasticsearch.upgrades.LogsIndexModeRollingUpgradeIT.getWriteBackingIndex;
-import static org.elasticsearch.upgrades.LogsdbIndexingRollingUpgradeIT.getIndexSettingsWithDefaults;
-import static org.elasticsearch.upgrades.LogsdbIndexingRollingUpgradeIT.startTrial;
+import static org.elasticsearch.upgrades.LogsdbIndexingRollingUpgradeIT.*;
 import static org.elasticsearch.upgrades.TsdbIT.TEMPLATE;
 import static org.elasticsearch.upgrades.TsdbIT.formatInstant;
 import static org.hamcrest.Matchers.equalTo;
@@ -43,17 +42,7 @@ public class TsdbIndexingRollingUpgradeIT extends AbstractRollingUpgradeTestCase
         String dataStreamName = "k9s";
         if (isOldCluster()) {
             startTrial();
-            final String INDEX_TEMPLATE = """
-                {
-                    "index_patterns": ["$PATTERN"],
-                    "template": $TEMPLATE,
-                    "data_stream": {
-                    }
-                }""";
-            String templateName = "2";
-            var putIndexTemplateRequest = new Request("POST", "/_index_template/" + templateName);
-            putIndexTemplateRequest.setJsonEntity(INDEX_TEMPLATE.replace("$TEMPLATE", TEMPLATE).replace("$PATTERN", dataStreamName));
-            assertOK(client().performRequest(putIndexTemplateRequest));
+            createTemplate(dataStreamName, "2", TEMPLATE);
 
             Instant startTime = Instant.now().minusSeconds(60 * 60);
             bulkIndex(dataStreamName, 4096, startTime);

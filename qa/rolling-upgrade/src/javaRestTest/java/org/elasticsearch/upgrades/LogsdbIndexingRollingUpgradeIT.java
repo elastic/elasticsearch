@@ -73,18 +73,7 @@ public class LogsdbIndexingRollingUpgradeIT extends AbstractRollingUpgradeTestCa
         if (isOldCluster()) {
             startTrial();
             enableLogsdbByDefault();
-
-            final String INDEX_TEMPLATE = """
-                {
-                    "index_patterns": ["$PATTERN"],
-                    "template": $TEMPLATE,
-                    "data_stream": {
-                    }
-                }""";
-            String templateName = "3";
-            var putIndexTemplateRequest = new Request("POST", "/_index_template/" + templateName);
-            putIndexTemplateRequest.setJsonEntity(INDEX_TEMPLATE.replace("$TEMPLATE", TEMPLATE).replace("$PATTERN", dataStreamName));
-            assertOK(client().performRequest(putIndexTemplateRequest));
+            createTemplate(dataStreamName, "3", TEMPLATE);
 
             Instant startTime = Instant.now().minusSeconds(60 * 60);
             bulkIndex(dataStreamName, 4096, startTime);
@@ -119,6 +108,19 @@ public class LogsdbIndexingRollingUpgradeIT extends AbstractRollingUpgradeTestCa
             search(dataStreamName);
             query(dataStreamName);
         }
+    }
+
+    static void createTemplate(String dataStreamName, String id, String template) throws IOException {
+        final String INDEX_TEMPLATE = """
+            {
+                "index_patterns": ["$DATASTREAM"],
+                "template": $TEMPLATE,
+                "data_stream": {
+                }
+            }""";
+        var putIndexTemplateRequest = new Request("POST", "/_index_template/" + id);
+        putIndexTemplateRequest.setJsonEntity(INDEX_TEMPLATE.replace("$TEMPLATE", template).replace("$DATASTREAM", dataStreamName));
+        assertOK(client().performRequest(putIndexTemplateRequest));
     }
 
     static void bulkIndex(String dataStreamName, int numDocs, Instant startTime) throws Exception {

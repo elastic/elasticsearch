@@ -15,10 +15,7 @@ import org.elasticsearch.test.cluster.LogType;
 import org.hamcrest.Matcher;
 import org.junit.ClassRule;
 
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Path;
+import java.io.InputStream;
 
 import static org.hamcrest.Matchers.is;
 
@@ -42,13 +39,7 @@ public class JsonLogsFormatAndParseIT extends JsonLogsIntegTestCase {
     }
 
     @Override
-    protected String getLogFileName() {
-        // TODO @jozala REFACTOR to be removed
-        return "server.log";
-    }
-
-    @Override
-    protected BufferedReader openReader(Path logFile) {
-        return new BufferedReader(new InputStreamReader(cluster.getNodeLog(0, LogType.SERVER_JSON), StandardCharsets.UTF_8));
+    protected InputStream openLogsStream() {
+        return cluster.getNodeLog(0, LogType.SERVER_JSON);
     }
 }

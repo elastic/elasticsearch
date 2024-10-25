@@ -22,8 +22,8 @@ import org.elasticsearch.test.cluster.util.resource.Resource;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 public class LocalClusterSpec implements ClusterSpec {
@@ -103,7 +103,6 @@ public class LocalClusterSpec implements ClusterSpec {
         private final List<SystemPropertyProvider> systemPropertyProviders;
         private final Map<String, String> systemProperties;
         private final List<String> jvmArgs;
-        private final Function<Map<String, String>, Map<String, String>> settingsModifier;
         private Version version;
 
         public LocalNodeSpec(
@@ -125,8 +124,7 @@ public class LocalClusterSpec implements ClusterSpec {
             Map<String, Resource> extraConfigFiles,
             List<SystemPropertyProvider> systemPropertyProviders,
             Map<String, String> systemProperties,
-            List<String> jvmArgs,
-            Function<Map<String, String>, Map<String, String>> settingsModifier
+            List<String> jvmArgs
         ) {
             this.cluster = cluster;
             this.name = name;
@@ -147,7 +145,6 @@ public class LocalClusterSpec implements ClusterSpec {
             this.systemPropertyProviders = systemPropertyProviders;
             this.systemProperties = systemProperties;
             this.jvmArgs = jvmArgs;
-            this.settingsModifier = settingsModifier;
         }
 
         void setVersion(Version version) {
@@ -159,7 +156,7 @@ public class LocalClusterSpec implements ClusterSpec {
         }
 
         public String getName() {
-            return name == null ? cluster.getName() + "-" + cluster.getNodes().indexOf(this) : name;
+            return name;
         }
 
         public Version getVersion() {
@@ -204,10 +201,6 @@ public class LocalClusterSpec implements ClusterSpec {
 
         public List<String> getJvmArgs() {
             return jvmArgs;
-        }
-
-        public Function<Map<String, String>, Map<String, String>> getSettingsModifier() {
-            return settingsModifier;
         }
 
         public boolean isSecurityEnabled() {
@@ -346,15 +339,14 @@ public class LocalClusterSpec implements ClusterSpec {
                         n.extraConfigFiles,
                         n.systemPropertyProviders,
                         n.systemProperties,
-                        n.jvmArgs,
-                        n.settingsModifier
+                        n.jvmArgs
                     )
                 )
                 .toList();
 
             newCluster.setNodes(nodeSpecs);
 
-            return nodeSpecs.stream().filter(n -> n.getName().equals(this.getName())).findFirst().get();
+            return nodeSpecs.stream().filter(n -> Objects.equals(n.getName(), this.getName())).findFirst().get();
         }
     }
 }

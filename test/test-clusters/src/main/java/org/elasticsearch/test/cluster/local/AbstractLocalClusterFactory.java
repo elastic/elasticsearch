@@ -51,6 +51,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
@@ -114,23 +115,17 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
         private DistributionDescriptor distributionDescriptor;
 
         public Node(Path baseWorkingDir, DistributionResolver distributionResolver, LocalNodeSpec spec) {
-            this(baseWorkingDir, distributionResolver, spec, null, false);
+            this(baseWorkingDir, distributionResolver, spec, false);
         }
 
-        public Node(
-            Path baseWorkingDir,
-            DistributionResolver distributionResolver,
-            LocalNodeSpec spec,
-            String suffix,
-            boolean usesSecureSecretsFile
-        ) {
+        public Node(Path baseWorkingDir, DistributionResolver distributionResolver, LocalNodeSpec spec, boolean usesSecureSecretsFile) {
             this.usesSecureSecretsFile = usesSecureSecretsFile;
             this.objectMapper = new ObjectMapper();
             this.baseWorkingDir = baseWorkingDir;
             this.distributionResolver = distributionResolver;
             this.spec = spec;
-            this.name = suffix == null ? spec.getName() : spec.getName() + "-" + suffix;
-            this.workingDir = baseWorkingDir.resolve(name);
+            this.name = spec.getName();
+            this.workingDir = baseWorkingDir.resolve(name != null ? name : UUID.randomUUID().toString());
             this.repoDir = baseWorkingDir.resolve("repo");
             this.dataDir = workingDir.resolve("data");
             this.logsDir = workingDir.resolve("logs");
@@ -386,13 +381,13 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
                 // Write settings to elasticsearch.yml
                 Map<String, String> finalSettings = new HashMap<>();
                 finalSettings.put("cluster.name", spec.getCluster().getName());
-                finalSettings.put("node.name", name);
+                if (name != null) {
+                    finalSettings.put("node.name", name);
+                }
                 finalSettings.put("path.repo", repoDir.toString());
                 finalSettings.put("path.data", dataDir.toString());
                 finalSettings.put("path.logs", logsDir.toString());
                 finalSettings.putAll(spec.resolveSettings());
-                // TODO @jozala - settings modifier? is this a right solution? Is there a better approach?
-                finalSettings = spec.getSettingsModifier().apply(finalSettings);
 
                 Files.writeString(
                     configFile,

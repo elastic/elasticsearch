@@ -9,15 +9,21 @@
 
 package org.elasticsearch.test.cluster.local;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.test.cluster.SettingsProvider;
 import org.elasticsearch.test.cluster.local.LocalClusterSpec.LocalNodeSpec;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 public class DefaultSettingsProvider implements SettingsProvider {
+
+    private static final Logger LOGGER = LogManager.getLogger(DefaultSettingsProvider.class);
+
     @Override
     public Map<String, String> get(LocalNodeSpec nodeSpec) {
         Map<String, String> settings = new HashMap<>();
@@ -70,17 +76,20 @@ public class DefaultSettingsProvider implements SettingsProvider {
             .stream()
             .filter(LocalNodeSpec::isMasterEligible)
             .map(LocalNodeSpec::getName)
+            .filter(Objects::nonNull)
             .collect(Collectors.joining(","));
 
         if (masterEligibleNodes.isEmpty()) {
-            throw new IllegalStateException(
-                "Cannot start cluster '" + nodeSpec.getCluster().getName() + "' as it configured with no master-eligible nodes."
+            LOGGER.warn(
+                "Cluster configured with no master-eligible nodes. It may cause split-brain if more than one node is in the cluster."
             );
         }
 
-        settings.put("cluster.initial_master_nodes", "[" + masterEligibleNodes + "]");
-        settings.put("discovery.seed_providers", "file");
-        settings.put("discovery.seed_hosts", "[]");
+        if (masterEligibleNodes.isEmpty() == false) {
+            settings.put("cluster.initial_master_nodes", "[" + masterEligibleNodes + "]");
+            settings.put("discovery.seed_providers", "file");
+            settings.put("discovery.seed_hosts", "[]");
+        }
 
         return settings;
     }

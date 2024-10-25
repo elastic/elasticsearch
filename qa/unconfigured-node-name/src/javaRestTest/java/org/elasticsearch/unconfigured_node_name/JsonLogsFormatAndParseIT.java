@@ -15,11 +15,7 @@ import org.elasticsearch.test.cluster.LogType;
 import org.hamcrest.Matcher;
 import org.junit.ClassRule;
 
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
-import java.nio.file.Path;
-import java.util.Map;
-import java.util.stream.Collectors;
+import java.io.InputStream;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -27,32 +23,22 @@ public class JsonLogsFormatAndParseIT extends JsonLogsIntegTestCase {
     private static final String OS_NAME = System.getProperty("os.name");
     private static final boolean WINDOWS = OS_NAME.startsWith("Windows");
 
-    // These match the values defined in org.elasticsearch.gradle.testclusters.ElasticsearchNode
-    private static final String COMPUTERNAME = "WindowsComputername";
-    private static final String HOSTNAME = "LinuxDarwinHostname";
+    private static final String COMPUTERNAME = "WindowsTestComputername";
+    private static final String HOSTNAME = "LinuxDarwinTestHostname";
 
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .setting("xpack.security.enabled", "false")
-        .withNode(localNodeSpecBuilder -> localNodeSpecBuilder.name(OS_NAME.startsWith("Windows") ? COMPUTERNAME : HOSTNAME))
-        // TODO @jozala -
-        .settingsModifier(
-            settings -> settings.entrySet()
-                .stream()
-                .filter(it -> it.getKey().equals("node.name") == false)
-                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))
+        .withNode(
+            localNodeSpecBuilder -> localNodeSpecBuilder.withoutName()
+                .environment("HOSTNAME", HOSTNAME)
+                .environment("COMPUTERNAME", COMPUTERNAME)
         )
         .build();
 
     @Override
     protected String getTestRestCluster() {
         return cluster.getHttpAddresses();
-    }
-
-    @Override
-    protected String getLogFileName() {
-        // TODO @jozala REFACTOR - not needed anymore - delete it after refactoring
-        return "server.log";
     }
 
     @Override
@@ -64,7 +50,7 @@ public class JsonLogsFormatAndParseIT extends JsonLogsIntegTestCase {
     }
 
     @Override
-    protected BufferedReader openReader(Path logFile) {
-        return new BufferedReader(new InputStreamReader(cluster.getNodeLog(0, LogType.SERVER_JSON)));
+    protected InputStream openLogsStream() {
+        return cluster.getNodeLog(0, LogType.SERVER_JSON);
     }
 }

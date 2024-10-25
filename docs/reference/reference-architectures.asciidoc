@@ -61,6 +61,8 @@ You want to:
 
 Additionally, we have architectures specifically tailored to the ingestion portion of your architecture and these can be found at, https://www.elastic.co/guide/en/ingest/current/use-case-arch.html[Ingest Architectures]
 
+include::reference-architectures/components.asciidoc[]
+
 include::reference-architectures/multi-region-two-datacenter-architecture.asciidoc[]
 
 include::reference-architectures/elastic-cloud-architecture.asciidoc[]

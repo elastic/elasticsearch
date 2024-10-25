@@ -327,9 +327,6 @@ tests:
 - class: org.elasticsearch.xpack.inference.TextEmbeddingCrudIT
   method: testPutE5Small_withPlatformAgnosticVariant
   issue: https://github.com/elastic/elasticsearch/issues/113983
-- class: org.elasticsearch.ingest.geoip.DatabaseNodeServiceIT
-  method: testGzippedDatabase
-  issue: https://github.com/elastic/elasticsearch/issues/113752
 - class: org.elasticsearch.xpack.rank.rrf.RRFRankClientYamlTestSuiteIT
   method: test {yaml=rrf/800_rrf_with_text_similarity_reranker_retriever/explain using rrf retriever and text-similarity}
   issue: https://github.com/elastic/elasticsearch/issues/114757
@@ -346,9 +343,6 @@ tests:
 - class: org.elasticsearch.xpack.security.operator.OperatorPrivilegesIT
   method: testEveryActionIsEitherOperatorOnlyOrNonOperator
   issue: https://github.com/elastic/elasticsearch/issues/102992
-- class: org.elasticsearch.ingest.geoip.DatabaseNodeServiceIT
-  method: testNonGzippedDatabase
-  issue: https://github.com/elastic/elasticsearch/issues/113821
 - class: org.elasticsearch.xpack.inference.DefaultEndPointsIT
   method: testInferDeploysDefaultE5
   issue: https://github.com/elastic/elasticsearch/issues/115361

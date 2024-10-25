@@ -23,7 +23,7 @@ import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.kql.parser.KqlBaseParser.QUOTED_STRING;
 import static org.elasticsearch.xpack.kql.parser.KqlBaseParser.UNQUOTED_LITERAL;
 import static org.elasticsearch.xpack.kql.parser.KqlBaseParser.WILDCARD;
-import static org.elasticsearch.xpack.kql.parser.ParserUtils.escapeQueryString;
+import static org.elasticsearch.xpack.kql.parser.ParserUtils.escapeLuceneQueryString;
 import static org.elasticsearch.xpack.kql.parser.ParserUtils.extractText;
 import static org.elasticsearch.xpack.kql.parser.ParserUtils.hasWildcard;
 import static org.hamcrest.Matchers.equalTo;
@@ -192,32 +192,33 @@ public class ParserUtilsTests extends ESTestCase {
         }
     }
 
-    public void testEscapeQueryString() {
+    public void testEscapeLuceneQueryString() {
         // Quotes
-        assertThat(escapeQueryString("\"The Pink Panther\"", true), equalTo("\\\"The Pink Panther\\\""));
+        assertThat(escapeLuceneQueryString("\"The Pink Panther\"", true), equalTo("\\\"The Pink Panther\\\""));
 
         // Escape chars
-        assertThat(escapeQueryString("The Pink \\ Panther", true), equalTo("The Pink \\\\ Panther"));
+        assertThat(escapeLuceneQueryString("The Pink \\ Panther", true), equalTo("The Pink \\\\ Panther"));
 
         // Field operations
-        assertThat(escapeQueryString("title:Do it right", true), equalTo("title\\:Do it right"));
-        assertThat(escapeQueryString("title:(pink panther)", true), equalTo("title\\:\\(pink panther\\)"));
-        assertThat(escapeQueryString("title:-pink", true), equalTo("title\\:\\-pink"));
-        assertThat(escapeQueryString("title:+pink", true), equalTo("title\\:\\+pink"));
-        assertThat(escapeQueryString("title:pink~", true), equalTo("title\\:pink\\~"));
-        assertThat(escapeQueryString("title:pink~3.5", true), equalTo("title\\:pink\\~3.5"));
-        assertThat(escapeQueryString("title:pink panther^4", true), equalTo("title\\:pink panther\\^4"));
-        assertThat(escapeQueryString("rating:[0 TO 5]", true), equalTo("rating\\:\\[0 TO 5\\]"));
-        assertThat(escapeQueryString("rating:{0 TO 5}", true), equalTo("rating\\:\\{0 TO 5\\}"));
+        assertThat(escapeLuceneQueryString("title:Do it right", true), equalTo("title\\:Do it right"));
+        assertThat(escapeLuceneQueryString("title:(pink panther)", true), equalTo("title\\:\\(pink panther\\)"));
+        assertThat(escapeLuceneQueryString("title:-pink", true), equalTo("title\\:\\-pink"));
+        assertThat(escapeLuceneQueryString("title:+pink", true), equalTo("title\\:\\+pink"));
+        assertThat(escapeLuceneQueryString("title:pink~", true), equalTo("title\\:pink\\~"));
+        assertThat(escapeLuceneQueryString("title:pink~3.5", true), equalTo("title\\:pink\\~3.5"));
+        assertThat(escapeLuceneQueryString("title:pink panther^4", true), equalTo("title\\:pink panther\\^4"));
+        assertThat(escapeLuceneQueryString("rating:[0 TO 5]", true), equalTo("rating\\:\\[0 TO 5\\]"));
+        assertThat(escapeLuceneQueryString("rating:{0 TO 5}", true), equalTo("rating\\:\\{0 TO 5\\}"));
 
         // Boolean operators
-        assertThat(escapeQueryString("foo || bar", true), equalTo("foo \\|\\| bar"));
-        assertThat(escapeQueryString("foo && bar", true), equalTo("foo \\&\\& bar"));
-        assertThat(escapeQueryString("!foo", true), equalTo("\\!foo"));
+        assertThat(escapeLuceneQueryString("foo || bar", true), equalTo("foo \\|\\| bar"));
+        assertThat(escapeLuceneQueryString("foo && bar", true), equalTo("foo \\&\\& bar"));
+        assertThat(escapeLuceneQueryString("!foo", true), equalTo("\\!foo"));
 
         // Wildcards:
-        assertThat(escapeQueryString("te?t", true), equalTo("te\\?t"));
-        assertThat(escapeQueryString("foo*", false), equalTo("foo\\*"));
+        assertThat(escapeLuceneQueryString("te?t", true), equalTo("te\\?t"));
+        assertThat(escapeLuceneQueryString("foo*", true), equalTo("foo*"));
+        assertThat(escapeLuceneQueryString("foo*", false), equalTo("foo\\*"));
     }
 
     private static ParserRuleContext parserRuleContext(ParseTree child) {

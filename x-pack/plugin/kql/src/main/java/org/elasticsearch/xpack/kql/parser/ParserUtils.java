@@ -20,6 +20,10 @@ import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+/**
+ * Utility class for parsing and processing KQL expressions.
+ * Provides methods for type-safe parsing, text extraction, and string escaping/unescaping.
+ */
 public final class ParserUtils {
 
     private static final String UNQUOTED_LITERAL_TERM_DELIMITER = " ";
@@ -30,6 +34,14 @@ public final class ParserUtils {
 
     }
 
+    /**
+     * Performs type-safe parsing using the provided visitor.
+     *
+     * @param visitor The visitor to use to do the parsing
+     * @param ctx The parser tree to visit
+     * @param type The expected return type class
+     * @return The parsed result, casted to the expected type
+     */
     @SuppressWarnings("unchecked")
     public static <T> T typedParsing(ParseTreeVisitor<?> visitor, ParserRuleContext ctx, Class<T> type) {
         Object result = ctx.accept(visitor);
@@ -49,10 +61,23 @@ public final class ParserUtils {
         );
     }
 
+    /**
+     * Extracts text from a parser tree context by joining all terminal nodes with a space delimiter.
+     *
+     * @param ctx The parser tree context
+     *
+     * @return The extracted text
+     */
     public static String extractText(ParserRuleContext ctx) {
-        return String.join(UNQUOTED_LITERAL_TERM_DELIMITER, extractTextTokems(ctx));
+        return String.join(UNQUOTED_LITERAL_TERM_DELIMITER, extractTextTokens(ctx));
     }
 
+    /**
+     * Checks if the given context contains any unescaped wildcard characters.
+     *
+     * @param ctx The tree context to check
+     * @return true if wildcards are present, false otherwise
+     */
     public static boolean hasWildcard(ParserRuleContext ctx) {
         return ctx.children.stream().anyMatch(childNode -> {
             if (childNode instanceof TerminalNode terminalNode) {
@@ -68,15 +93,22 @@ public final class ParserUtils {
         });
     }
 
-    public static String escapeQueryString(String queryText, boolean preseveWildcards) {
-        if (preseveWildcards) {
+    /**
+     * Escapes special characters in a query string for use in Lucene queries.
+     *
+     * @param queryText The query text to escape
+     * @param preserveWildcards If true, does not escape wildcard characters (*)
+     * @return The escaped query string
+     */
+    public static String escapeLuceneQueryString(String queryText, boolean preserveWildcards) {
+        if (preserveWildcards) {
             return Stream.of(queryText.split("[*]]")).map(QueryParser::escape).collect(Collectors.joining("*"));
         }
 
         return QueryParser.escape(queryText);
     }
 
-    private static List<String> extractTextTokems(ParserRuleContext ctx) {
+    private static List<String> extractTextTokens(ParserRuleContext ctx) {
         assert ctx.children != null;
         List<String> textTokens = new ArrayList<>(ctx.children.size());
 

@@ -1543,13 +1543,17 @@ public class SettingTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> setting.get(Settings.builder().put("long.setting", "9223372036854775808").build())
         );
-        assertThat(e.getMessage(),
-            equalTo("Failed to parse value [9223372036854775808] for setting [long.setting] must be <= 9223372036854775807"));
+        assertThat(
+            e.getMessage(),
+            equalTo("Failed to parse value [9223372036854775808] for setting [long.setting] must be <= 9223372036854775807")
+        );
         var e2 = expectThrows(
             IllegalArgumentException.class,
             () -> setting.get(Settings.builder().put("long.setting", "-9223372036854775809").build())
         );
-        assertThat(e2.getMessage(),
-            equalTo("Failed to parse value [-9223372036854775809] for setting [long.setting] must be >= -9223372036854775808"));
+        assertThat(
+            e2.getMessage(),
+            equalTo("Failed to parse value [-9223372036854775809] for setting [long.setting] must be >= -9223372036854775808")
+        );
     }
 }

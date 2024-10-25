@@ -1537,8 +1537,14 @@ public class Setting<T> implements ToXContentObject {
     }
 
     private static IllegalArgumentException newNumericBoundsException(String s, String key, boolean isFiltered, String type, long bound) {
-        String err = "Failed to parse value" + (isFiltered ? "" : " [" + s + "]") +
-            " for setting [" + key + "] must be " + type + " " + bound;
+        String err = "Failed to parse value"
+            + (isFiltered ? "" : " [" + s + "]")
+            + " for setting ["
+            + key
+            + "] must be "
+            + type
+            + " "
+            + bound;
         throw new IllegalArgumentException(err);
     }
 

@@ -9,6 +9,8 @@
 
 package org.elasticsearch.multiproject;
 
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
@@ -20,6 +22,8 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
+
+import java.util.Map;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -45,10 +49,7 @@ public class MultiProjectResolverTests extends ESTestCase {
     }
 
     public void testGetById() {
-        var projects = randomMap(0, 5, () -> {
-            var id = new ProjectId(randomUUID());
-            return Tuple.tuple(id, ProjectMetadata.builder(id).build());
-        });
+        var projects = createProjects();
         var expectedProject = ProjectMetadata.builder(new ProjectId(randomUUID())).build();
         projects.put(expectedProject.id(), expectedProject);
         var metadata = Metadata.builder().projectMetadata(projects).build();
@@ -60,10 +61,7 @@ public class MultiProjectResolverTests extends ESTestCase {
     }
 
     public void testFallback() {
-        var projects = randomMap(0, 5, () -> {
-            var id = new ProjectId(randomUUID());
-            return Tuple.tuple(id, ProjectMetadata.builder(id).build());
-        });
+        var projects = createProjects();
         var expectedProject = ProjectMetadata.builder(Metadata.DEFAULT_PROJECT_ID).build();
         projects.put(expectedProject.id(), expectedProject);
         var metadata = Metadata.builder().projectMetadata(projects).build();
@@ -74,12 +72,39 @@ public class MultiProjectResolverTests extends ESTestCase {
     }
 
     public void testGetByIdNonExisting() {
-        var projects = randomMap(0, 5, () -> {
-            var id = new ProjectId(randomUUID());
-            return Tuple.tuple(id, ProjectMetadata.builder(id).build());
-        });
+        var projects = createProjects();
         var metadata = Metadata.builder().projectMetadata(projects).build();
         threadPool.getThreadContext().putHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER, randomUUID());
         assertThrows(IllegalArgumentException.class, () -> resolver.getProjectMetadata(metadata));
+    }
+
+    public void testGetAllProjectIds() {
+        var projects = createProjects();
+        var randomProject = ProjectMetadata.builder(new ProjectId(randomUUID())).build();
+        projects.put(randomProject.id(), randomProject);
+        var state = ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder().projectMetadata(projects).build()).build();
+        var actualProjects = resolver.getProjectIds(state);
+        assertEquals(projects.size(), actualProjects.size());
+        for (ProjectId projectId : projects.keySet()) {
+            assertTrue(actualProjects.contains(projectId));
+        }
+    }
+
+    public void testGetProjectIdsWithHeader() {
+        var projects = createProjects();
+        var expectedProject = ProjectMetadata.builder(new ProjectId(randomUUID())).build();
+        projects.put(expectedProject.id(), expectedProject);
+        var state = ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder().projectMetadata(projects).build()).build();
+        threadPool.getThreadContext().putHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER, expectedProject.id().id());
+        var actualProjects = resolver.getProjectIds(state);
+        assertEquals(1, actualProjects.size());
+        assertEquals(expectedProject.id(), actualProjects.iterator().next());
+    }
+
+    private static Map<ProjectId, ProjectMetadata> createProjects() {
+        return randomMap(0, 5, () -> {
+            var id = new ProjectId(randomUUID());
+            return Tuple.tuple(id, ProjectMetadata.builder(id).build());
+        });
     }
 }

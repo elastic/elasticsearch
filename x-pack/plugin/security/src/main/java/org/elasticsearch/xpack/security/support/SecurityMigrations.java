@@ -185,15 +185,14 @@ public class SecurityMigrations {
             ActionListener<DeleteRoleMappingResponse> groupListener = new GroupedActionListener<>(
                 names.size(),
                 ActionListener.wrap(responses -> {
-                    Map<Boolean, List<DeleteRoleMappingResponse>> deletesPartitionedByFound = responses.stream()
-                        .collect(Collectors.partitioningBy(DeleteRoleMappingResponse::isFound));
-                    if (deletesPartitionedByFound.containsKey(false)) {
+                    long foundRoleMappings = responses.stream().filter(DeleteRoleMappingResponse::isFound).count();
+                    if (responses.size() > foundRoleMappings) {
                         logger.warn(
-                            "[" + deletesPartitionedByFound.get(false).size() + "] Role mappings not found during role mapping clean up."
+                            "[" + (responses.size() - foundRoleMappings) + "] Role mappings not found during role mapping clean up."
                         );
                     }
-                    if (deletesPartitionedByFound.containsKey(true)) {
-                        logger.info("Deleted [" + deletesPartitionedByFound.get(true) + "] duplicated role mapping from .security index");
+                    if (foundRoleMappings > 0) {
+                        logger.info("Deleted [" + foundRoleMappings + "] duplicated role mapping from .security index");
                     }
                     listener.onResponse(null);
                 }, listener::onFailure)
@@ -213,7 +212,8 @@ public class SecurityMigrations {
 
         @Override
         public boolean checkPreConditions(SecurityIndexManager.State securityIndexManagerState) {
-            // If there are operator defined role mappings, make sure they've been loaded in to cluster state before launching migration
+            // Block migration until expected role mappings are in cluster state and in the correct format or skip if no role mappings
+            // are expected
             return securityIndexManagerState.roleMappingsCleanupMigrationStatus == READY
                 || securityIndexManagerState.roleMappingsCleanupMigrationStatus == SKIP;
         }
@@ -232,12 +232,7 @@ public class SecurityMigrations {
         protected static List<String> getDuplicateRoleMappingNames(ExpressionRoleMapping... roleMappings) {
             // Partition role mappings on if they're cluster state role mappings (true) or native role mappings (false)
             Map<Boolean, List<ExpressionRoleMapping>> partitionedRoleMappings = Arrays.stream(roleMappings)
-                .collect(
-                    Collectors.partitioningBy(
-                        roleMapping -> roleMapping.getMetadata().get(ExpressionRoleMapping.READ_ONLY_ROLE_MAPPING_METADATA_FLAG) != null
-                            && (boolean) roleMapping.getMetadata().get(ExpressionRoleMapping.READ_ONLY_ROLE_MAPPING_METADATA_FLAG)
-                    )
-                );
+                .collect(Collectors.partitioningBy(ExpressionRoleMapping::isReadOnly));
 
             Set<String> clusterStateRoleMappings = partitionedRoleMappings.get(true)
                 .stream()

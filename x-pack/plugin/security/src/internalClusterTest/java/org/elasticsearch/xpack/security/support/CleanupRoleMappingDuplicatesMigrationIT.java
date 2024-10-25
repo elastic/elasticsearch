@@ -123,13 +123,13 @@ public class CleanupRoleMappingDuplicatesMigrationIT extends SecurityIntegTestCa
         // Write role mappings with fallback name, this should block any security migration
         writeJSONFile(masterNode, TEST_JSON_WITH_ROLE_MAPPINGS, logger, versionCounter);
         assertTrue(fileBasedRoleMappingsWrittenListener.v1().await(20, TimeUnit.SECONDS));
-        waitForSecurityMigrationCompletion(SecurityMigrations.CLEANUP_ROLE_MAPPING_DUPLICATES_MIGRATION_VERSION);
+        waitForMigrationCompletion(SecurityMigrations.CLEANUP_ROLE_MAPPING_DUPLICATES_MIGRATION_VERSION);
 
         // First migration is on a new index, so should skip all migrations. If we reset, it should re-trigger and run all migrations
         resetMigration();
 
         // Wait for the first migration to finish
-        waitForSecurityMigrationCompletion(SecurityMigrations.CLEANUP_ROLE_MAPPING_DUPLICATES_MIGRATION_VERSION);
+        waitForMigrationCompletion(SecurityMigrations.CLEANUP_ROLE_MAPPING_DUPLICATES_MIGRATION_VERSION);
 
         assertAllRoleMappings(
             "everyone_kibana_alone" + ExpressionRoleMapping.READ_ONLY_ROLE_MAPPING_SUFFIX,
@@ -155,13 +155,13 @@ public class CleanupRoleMappingDuplicatesMigrationIT extends SecurityIntegTestCa
         // Write role mappings with fallback name, this should block any security migration
         writeJSONFile(masterNode, TEST_JSON_WITH_ROLE_MAPPINGS, logger, versionCounter);
         assertTrue(fileBasedRoleMappingsWrittenListener.v1().await(20, TimeUnit.SECONDS));
-        waitForSecurityMigrationCompletion(SecurityMigrations.CLEANUP_ROLE_MAPPING_DUPLICATES_MIGRATION_VERSION);
+        waitForMigrationCompletion(SecurityMigrations.CLEANUP_ROLE_MAPPING_DUPLICATES_MIGRATION_VERSION);
 
         // First migration is on a new index, so should skip all migrations. If we reset, it should re-trigger and run all migrations
         resetMigration();
 
         // Wait for the first migration to finish
-        waitForSecurityMigrationCompletion(SecurityMigrations.CLEANUP_ROLE_MAPPING_DUPLICATES_MIGRATION_VERSION);
+        waitForMigrationCompletion(SecurityMigrations.CLEANUP_ROLE_MAPPING_DUPLICATES_MIGRATION_VERSION);
 
         assertAllRoleMappings(
             "everyone_kibana_alone" + ExpressionRoleMapping.READ_ONLY_ROLE_MAPPING_SUFFIX,
@@ -187,13 +187,13 @@ public class CleanupRoleMappingDuplicatesMigrationIT extends SecurityIntegTestCa
         // Write role mappings with fallback name, this should block any security migration
         writeJSONFile(masterNode, TEST_JSON_WITH_ROLE_MAPPINGS, logger, versionCounter);
         assertTrue(fileBasedRoleMappingsWrittenListener.v1().await(20, TimeUnit.SECONDS));
-        waitForSecurityMigrationCompletion(SecurityMigrations.CLEANUP_ROLE_MAPPING_DUPLICATES_MIGRATION_VERSION);
+        waitForMigrationCompletion(SecurityMigrations.CLEANUP_ROLE_MAPPING_DUPLICATES_MIGRATION_VERSION);
 
         // First migration is on a new index, so should skip all migrations. If we reset, it should re-trigger and run all migrations
         resetMigration();
 
         // Wait for the first migration to finish
-        waitForSecurityMigrationCompletion(SecurityMigrations.CLEANUP_ROLE_MAPPING_DUPLICATES_MIGRATION_VERSION);
+        waitForMigrationCompletion(SecurityMigrations.CLEANUP_ROLE_MAPPING_DUPLICATES_MIGRATION_VERSION);
 
         assertAllRoleMappings(
             "everyone_kibana_alone" + ExpressionRoleMapping.READ_ONLY_ROLE_MAPPING_SUFFIX,
@@ -216,15 +216,14 @@ public class CleanupRoleMappingDuplicatesMigrationIT extends SecurityIntegTestCa
 
         // Create a native role mapping to create security index and trigger migration
         createNativeRoleMapping("everyone_fleet_alone");
-        waitForSecurityMigrationCompletion(SecurityMigrations.CLEANUP_ROLE_MAPPING_DUPLICATES_MIGRATION_VERSION);
+        waitForMigrationCompletion(SecurityMigrations.CLEANUP_ROLE_MAPPING_DUPLICATES_MIGRATION_VERSION);
         // First migration is on a new index, so should skip all migrations. If we reset, it should re-trigger and run all migrations
         resetMigration();
         // Wait for the first migration to finish
-        waitForSecurityMigrationCompletion(SecurityMigrations.CLEANUP_ROLE_MAPPING_DUPLICATES_MIGRATION_VERSION - 1);
+        waitForMigrationCompletion(SecurityMigrations.CLEANUP_ROLE_MAPPING_DUPLICATES_MIGRATION_VERSION - 1);
 
         // Make sure migration didn't run yet (blocked by the fallback name)
         assertMigrationLessThan(SecurityMigrations.CLEANUP_ROLE_MAPPING_DUPLICATES_MIGRATION_VERSION);
-
         ClusterService clusterService = internalCluster().getInstance(ClusterService.class);
         SecurityIndexManager.RoleMappingsCleanupMigrationStatus status = SecurityIndexManager.getRoleMappingsCleanupMigrationStatus(
             clusterService.state(),
@@ -234,7 +233,7 @@ public class CleanupRoleMappingDuplicatesMigrationIT extends SecurityIntegTestCa
 
         // Write file without fallback name in it to unblock migration
         writeJSONFile(masterNode, TEST_JSON_WITH_ROLE_MAPPINGS, logger, versionCounter);
-        waitForSecurityMigrationCompletion(SecurityMigrations.CLEANUP_ROLE_MAPPING_DUPLICATES_MIGRATION_VERSION);
+        waitForMigrationCompletion(SecurityMigrations.CLEANUP_ROLE_MAPPING_DUPLICATES_MIGRATION_VERSION);
     }
 
     public void testSkipMigrationNoFileBasedMappings() throws Exception {
@@ -245,13 +244,13 @@ public class CleanupRoleMappingDuplicatesMigrationIT extends SecurityIntegTestCa
         createNativeRoleMapping("everyone_fleet_alone");
         assertAllRoleMappings("everyone_kibana_alone", "everyone_fleet_alone");
 
-        waitForSecurityMigrationCompletion(SecurityMigrations.CLEANUP_ROLE_MAPPING_DUPLICATES_MIGRATION_VERSION);
+        waitForMigrationCompletion(SecurityMigrations.CLEANUP_ROLE_MAPPING_DUPLICATES_MIGRATION_VERSION);
 
         // First migration is on a new index, so should skip all migrations. If we reset, it should re-trigger and run all migrations
         resetMigration();
 
         // Wait for the first migration to finish
-        waitForSecurityMigrationCompletion(SecurityMigrations.CLEANUP_ROLE_MAPPING_DUPLICATES_MIGRATION_VERSION);
+        waitForMigrationCompletion(SecurityMigrations.CLEANUP_ROLE_MAPPING_DUPLICATES_MIGRATION_VERSION);
 
         assertAllRoleMappings("everyone_kibana_alone", "everyone_fleet_alone");
     }
@@ -280,7 +279,7 @@ public class CleanupRoleMappingDuplicatesMigrationIT extends SecurityIntegTestCa
     private void resetMigration() {
         client().execute(
             UpdateIndexMigrationVersionAction.INSTANCE,
-            // -1 is a hack, since running a migration on version 0 on a new cluster will cause all migration to skipped (not needed)
+            // -1 is a hack, since running a migration on version 0 on a new cluster will cause all migrations to be skipped (not needed)
             new UpdateIndexMigrationVersionAction.Request(TimeValue.MAX_VALUE, -1, INTERNAL_SECURITY_MAIN_INDEX_7)
         ).actionGet();
     }
@@ -320,7 +319,7 @@ public class CleanupRoleMappingDuplicatesMigrationIT extends SecurityIntegTestCa
         return Integer.parseInt(indexMetadata.getCustomData(MIGRATION_VERSION_CUSTOM_KEY).get(MIGRATION_VERSION_CUSTOM_DATA_KEY));
     }
 
-    protected void waitForSecurityMigrationCompletion(int version) throws Exception {
+    private void waitForMigrationCompletion(int version) throws Exception {
         assertBusy(() -> assertMigrationVersionAtLeast(version));
     }
 }

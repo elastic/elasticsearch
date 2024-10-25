@@ -50,16 +50,17 @@ public class DatabaseNodeServiceIT extends AbstractGeoIpIT {
         String databaseName = randomAlphaOfLength(20) + "-" + databaseFileName;
         byte[] mmdbBytes = getBytesForFile(databaseFileName);
         final DatabaseNodeService databaseNodeService = internalCluster().getInstance(DatabaseNodeService.class);
-        /*
-         * If DatabaseNodeService::checkDatabases runs it will sometimes (rarely) remove the database we are using in this test while we
-         * are trying to assert things about it. So we disable checkDatabase.
-         */
-        databaseNodeService.doNotCheckDatabases = true;
         assertNull(databaseNodeService.getDatabase(databaseName));
         int numChunks = indexData(databaseName, mmdbBytes);
-        retrieveDatabase(databaseNodeService, databaseName, mmdbBytes, numChunks);
-        assertBusy(() -> assertNotNull(databaseNodeService.getDatabase(databaseName)));
-        assertValidDatabase(databaseNodeService, databaseName, databaseType);
+        /*
+         * If DatabaseNodeService::checkDatabases runs it will sometimes (rarely) remove the database we are using in this test while we
+         * are trying to assert things about it. So if it does then we 'just' try again.
+         */
+        assertBusy(() -> {
+            retrieveDatabase(databaseNodeService, databaseName, mmdbBytes, numChunks);
+            assertNotNull(databaseNodeService.getDatabase(databaseName));
+            assertValidDatabase(databaseNodeService, databaseName, databaseType);
+        });
     }
 
     /*
@@ -76,9 +77,15 @@ public class DatabaseNodeServiceIT extends AbstractGeoIpIT {
         final DatabaseNodeService databaseNodeService = internalCluster().getInstance(DatabaseNodeService.class);
         assertNull(databaseNodeService.getDatabase(databaseName));
         int numChunks = indexData(databaseName, gzipBytes);
-        retrieveDatabase(databaseNodeService, databaseName, gzipBytes, numChunks);
-        assertBusy(() -> assertNotNull(databaseNodeService.getDatabase(databaseName)));
-        assertValidDatabase(databaseNodeService, databaseName, databaseType);
+        /*
+         * If DatabaseNodeService::checkDatabases runs it will sometimes (rarely) remove the database we are using in this test while we
+         * are trying to assert things about it. So if it does then we 'just' try again.
+         */
+        assertBusy(() -> {
+            retrieveDatabase(databaseNodeService, databaseName, gzipBytes, numChunks);
+            assertNotNull(databaseNodeService.getDatabase(databaseName));
+            assertValidDatabase(databaseNodeService, databaseName, databaseType);
+        });
     }
 
     /*

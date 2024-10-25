@@ -24,7 +24,7 @@ image::images/elastic-cloud-architecture.png["An Elastic Cloud Architecture"]
 
 The diagram illustrates an Elasticsearch cluster deployed in Elastic Cloud across 3 availability zones (AZ). For production we recommend a minimum of 2 availability zones and 3 availability zones for mission critical applications. See https://www.elastic.co/guide/en/cloud/current/ec-planning.html[Plan for Production] for more details. 
 
-TIP: that even if the cluster is deployed across only two AZ, a third master node is still required for quorum voting and will be created automatically in the third AZ.    
+TIP: Even if the cluster is deployed across only two AZ, a third master node is still required for quorum voting and will be created automatically in the third AZ.    
 
 The number of data nodes shown for each tier (hot and frozen) is illustrative and would be scaled up depending on ingest volume and retention period (see the example below).   Hot nodes contain both primary and replica shards.  By default, primary and replica shards are always guaranteed to be in different availability zones.   Frozen nodes rely on a large high-speed cache and retrieve data from the Snapshot Store as needed.
 

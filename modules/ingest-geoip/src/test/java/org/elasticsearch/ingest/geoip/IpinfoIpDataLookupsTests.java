@@ -544,12 +544,12 @@ public class IpinfoIpDataLookupsTests extends ESTestCase {
                         actual.containsKey(keyMappings.get(key))
                     );
                 } else if (knownMissingKeys.contains(key) == false) {
-                    fail(Strings.format("The reader returned unexpected key [%s]", key));
+                    fail(null, "The reader returned unexpected key [%s]", key);
                 }
             }
             for (String key : actual.keySet()) {
                 if (keyMappings.containsValue(key) == false && knownAdditionalKeys.contains(key) == false) {
-                    fail(Strings.format("Unexpected key [%s] in results", key));
+                    fail(null, "Unexpected key [%s] in results", key);
                 }
             }
         }

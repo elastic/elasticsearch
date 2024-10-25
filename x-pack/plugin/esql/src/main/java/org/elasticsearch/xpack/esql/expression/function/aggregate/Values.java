@@ -52,7 +52,7 @@ public class Values extends AggregateFunction implements ToAggregator {
     );
 
     @FunctionInfo(
-        returnType = { "boolean", "date", "double", "integer", "ip", "keyword", "long", "text", "version" },
+        returnType = { "boolean", "date", "double", "integer", "ip", "keyword", "long", "version" },
         preview = true,
         description = "Returns all values in a group as a multivalued field. The order of the returned values isn't guaranteed. "
             + "If you need the values returned in order use <<esql-mv_sort>>.",
@@ -105,7 +105,7 @@ public class Values extends AggregateFunction implements ToAggregator {
 
     @Override
     public DataType dataType() {
-        return field().dataType();
+        return field().dataType().noText();
     }
 
     @Override

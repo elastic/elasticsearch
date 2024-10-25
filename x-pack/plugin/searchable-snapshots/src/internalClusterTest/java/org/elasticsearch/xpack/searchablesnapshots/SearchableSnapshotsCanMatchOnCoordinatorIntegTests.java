@@ -384,11 +384,9 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
                 }
             } else {
                 assertResponse(client().search(request), newSearchResponse -> {
-                    // When all shards are skipped, at least one of them should be queried in order to
-                    // provide a proper search response.
-                    assertThat(newSearchResponse.getSkippedShards(), equalTo(indexOutsideSearchRangeShardCount - 1));
-                    assertThat(newSearchResponse.getSuccessfulShards(), equalTo(indexOutsideSearchRangeShardCount - 1));
-                    assertThat(newSearchResponse.getFailedShards(), equalTo(1));
+                    assertThat(newSearchResponse.getSkippedShards(), equalTo(indexOutsideSearchRangeShardCount));
+                    assertThat(newSearchResponse.getSuccessfulShards(), equalTo(indexOutsideSearchRangeShardCount));
+                    assertThat(newSearchResponse.getFailedShards(), equalTo(0));
                     assertThat(newSearchResponse.getTotalShards(), equalTo(indexOutsideSearchRangeShardCount));
                 });
 
@@ -748,9 +746,7 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
                 // All the regular index searches succeeded
                 assertThat(newSearchResponse.getSuccessfulShards(), equalTo(totalShards));
                 assertThat(newSearchResponse.getFailedShards(), equalTo(0));
-                // We have to query at least one node to construct a valid response, and we pick
-                // a shard that's available in order to construct the search response
-                assertThat(newSearchResponse.getSkippedShards(), equalTo(totalShards - 1));
+                assertThat(newSearchResponse.getSkippedShards(), equalTo(totalShards));
                 assertThat(newSearchResponse.getTotalShards(), equalTo(totalShards));
                 assertThat(newSearchResponse.getHits().getTotalHits().value(), equalTo(0L));
             });

@@ -218,7 +218,9 @@ public class Match extends FullTextFunction implements Validatable, TwoOptionalA
         }
 
         Object fuzinessAsObject = fuzziness.fold();
-        if (fuzinessAsObject instanceof BytesRef bytesRefValue) {
+        if (fuzinessAsObject instanceof String stringValue) {
+            return Fuzziness.fromString(stringValue);
+        } else if (fuzinessAsObject instanceof BytesRef bytesRefValue) {
             return Fuzziness.fromString(bytesRefValue.utf8ToString());
         } else if (fuzinessAsObject instanceof Integer intValue) {
             return Fuzziness.fromEdits(intValue);

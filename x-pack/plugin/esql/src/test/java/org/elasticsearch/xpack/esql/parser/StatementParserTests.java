@@ -2328,7 +2328,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         var matchField = (UnresolvedAttribute) match.field();
         assertThat(matchField.name(), equalTo("field"));
         assertThat(match.query().fold(), equalTo("value"));
-        assertNull(match.boost());
+        assertThat(match.boost(), equalTo(1.0));
         assertThat(match.fuzziness(), equalTo(fuzinessExpected));
     }
 

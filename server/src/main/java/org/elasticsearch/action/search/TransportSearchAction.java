@@ -37,7 +37,6 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.ResolvedExpression;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
@@ -111,7 +110,6 @@ import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.search.SearchType.DFS_QUERY_THEN_FETCH;
 import static org.elasticsearch.action.search.SearchType.QUERY_THEN_FETCH;
@@ -205,7 +203,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
     private Map<String, OriginalIndices> buildPerIndexOriginalIndices(
         ClusterState clusterState,
-        Set<ResolvedExpression> indicesAndAliases,
+        Set<String> indicesAndAliases,
         String[] indices,
         IndicesOptions indicesOptions
     ) {
@@ -213,9 +211,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         var blocks = clusterState.blocks();
         // optimization: mostly we do not have any blocks so there's no point in the expensive per-index checking
         boolean hasBlocks = blocks.global().isEmpty() == false || blocks.indices().isEmpty() == false;
-        // Get a distinct set of index abstraction names present from the resolved expressions to help with the reverse resolution from
-        // concrete index to the expression that produced it.
-        Set<String> indicesAndAliasesResources = indicesAndAliases.stream().map(ResolvedExpression::resource).collect(Collectors.toSet());
         for (String index : indices) {
             if (hasBlocks) {
                 blocks.indexBlockedRaiseException(ClusterBlockLevel.READ, index);
@@ -232,8 +227,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             String[] finalIndices = Strings.EMPTY_ARRAY;
             if (aliases == null
                 || aliases.length == 0
-                || indicesAndAliasesResources.contains(index)
-                || hasDataStreamRef(clusterState, indicesAndAliasesResources, index)) {
+                || indicesAndAliases.contains(index)
+                || hasDataStreamRef(clusterState, indicesAndAliases, index)) {
                 finalIndices = new String[] { index };
             }
             if (aliases != null) {
@@ -252,11 +247,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         return indicesAndAliases.contains(ret.getParentDataStream().getName());
     }
 
-    Map<String, AliasFilter> buildIndexAliasFilters(
-        ClusterState clusterState,
-        Set<ResolvedExpression> indicesAndAliases,
-        Index[] concreteIndices
-    ) {
+    Map<String, AliasFilter> buildIndexAliasFilters(ClusterState clusterState, Set<String> indicesAndAliases, Index[] concreteIndices) {
         final Map<String, AliasFilter> aliasFilterMap = new HashMap<>();
         for (Index index : concreteIndices) {
             clusterState.blocks().indexBlockedRaiseException(ClusterBlockLevel.READ, index.getName());
@@ -1246,10 +1237,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         } else {
             final Index[] indices = resolvedIndices.getConcreteLocalIndices();
             concreteLocalIndices = Arrays.stream(indices).map(Index::getName).toArray(String[]::new);
-            final Set<ResolvedExpression> indicesAndAliases = indexNameExpressionResolver.resolveExpressions(
-                clusterState,
-                searchRequest.indices()
-            );
+            final Set<String> indicesAndAliases = indexNameExpressionResolver.resolveExpressions(clusterState, searchRequest.indices());
             aliasFilter = buildIndexAliasFilters(clusterState, indicesAndAliases, indices);
             aliasFilter.putAll(remoteAliasMap);
             localShardIterators = getLocalShardsIterator(
@@ -1259,6 +1247,29 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 indicesAndAliases,
                 concreteLocalIndices
             );
+
+            // localShardIterators is empty since there are no matching indices. In such cases,
+            // we update the local cluster's status from RUNNING to SUCCESSFUL right away. Before
+            // we attempt to do that, we must ensure that the local cluster was specified in the user's
+            // search request. This is done by trying to fetch the local cluster via getCluster() and
+            // checking for a non-null return value. If the local cluster was never specified, its status
+            // update can be skipped.
+            if (localShardIterators.isEmpty()
+                && clusters != SearchResponse.Clusters.EMPTY
+                && clusters.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY) != null) {
+                clusters.swapCluster(
+                    RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
+                    (alias, v) -> new SearchResponse.Cluster.Builder(v).setStatus(SearchResponse.Cluster.Status.SUCCESSFUL)
+                        .setTotalShards(0)
+                        .setSuccessfulShards(0)
+                        .setSkippedShards(0)
+                        .setFailedShards(0)
+                        .setFailures(Collections.emptyList())
+                        .setTook(TimeValue.timeValueMillis(0))
+                        .setTimedOut(false)
+                        .build()
+                );
+            }
         }
         final GroupShardsIterator<SearchShardIterator> shardIterators = mergeShardsIterators(localShardIterators, remoteShardIterators);
 
@@ -1822,7 +1833,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         ClusterState clusterState,
         SearchRequest searchRequest,
         String clusterAlias,
-        Set<ResolvedExpression> indicesAndAliases,
+        Set<String> indicesAndAliases,
         String[] concreteIndices
     ) {
         var routingMap = indexNameExpressionResolver.resolveSearchRouting(clusterState, searchRequest.routing(), searchRequest.indices());

@@ -25,7 +25,7 @@ import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.kql.parser.KqlParserExecutionContext.isDateField;
 import static org.elasticsearch.xpack.kql.parser.KqlParserExecutionContext.isKeywordField;
 import static org.elasticsearch.xpack.kql.parser.KqlParserExecutionContext.isRuntimeField;
-import static org.elasticsearch.xpack.kql.parser.ParserUtils.escapeQueryString;
+import static org.elasticsearch.xpack.kql.parser.ParserUtils.escapeLuceneQueryString;
 import static org.elasticsearch.xpack.kql.parser.ParserUtils.hasWildcard;
 
 class KqlAstBuilder extends KqlBaseBaseVisitor<QueryBuilder> {
@@ -139,7 +139,7 @@ class KqlAstBuilder extends KqlBaseBaseVisitor<QueryBuilder> {
 
         if (hasWildcard(ctx.fieldQueryValue())) {
             // TODO: set default fields.
-            return QueryBuilders.queryStringQuery(escapeQueryString(queryText, true));
+            return QueryBuilders.queryStringQuery(escapeLuceneQueryString(queryText, true));
         }
 
         boolean isPhraseMatch = ctx.fieldQueryValue().QUOTED_STRING() != null;
@@ -164,7 +164,7 @@ class KqlAstBuilder extends KqlBaseBaseVisitor<QueryBuilder> {
                 fieldQuery = QueryBuilders.wildcardQuery(fieldName, queryText)
                     .caseInsensitive(kqlParserExecutionContext.isCaseSensitive() == false);
             } else if (hasWildcard) {
-                fieldQuery = QueryBuilders.queryStringQuery(escapeQueryString(queryText, true)).field(fieldName);
+                fieldQuery = QueryBuilders.queryStringQuery(escapeLuceneQueryString(queryText, true)).field(fieldName);
             } else if (isDateField(mappedFieldType)) {
                 // TODO: add timezone
                 fieldQuery = QueryBuilders.rangeQuery(fieldName).gte(queryText).lte(queryText);

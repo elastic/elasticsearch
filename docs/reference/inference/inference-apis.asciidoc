@@ -57,6 +57,7 @@ If there is no {infer} activity that uses the endpoint, the number of allocation
 
 {infer-cap} endpoints have a limit on the amount of text they can process at once, determined by the model's input capacity.
 Chunking is the process of splitting the input text into pieces that remain within these limits.
+It occurs when ingesting documents into <<semantic-text,`semantic_text` fields>>.
 Chunking also helps produce sections that are digestible for humans.
 Returning a long document in search results is less useful than providing the most relevant chunk of text.
 
@@ -76,14 +77,15 @@ For written languages that do use whitespace such as Chinese or Japanese diction
 Two strategies are available for chunking: `sentence` and `word`.
 
 The `sentence` strategy splits the input text at sentence boundaries.
-Each chunk contains one or more complete sentences -  except if a single sentence is longer than the value of `max_chunk_size` -, ensuring that the integrity of sentence-level context is preserved.
+Each chunk contains one or more complete sentences ensuring that the integrity of sentence-level context is preserved, except when a sentence causes a chunk to exceed a word count of `max_chunk_size`, in which case it will be split across chunks.
+The `sentence_overlap` option defines the number of sentences from the previous chunk to include in the current chunk which is either `0` or `1`.
 
 The `word` strategy splits the input text on individual words up to the `max_chunk_size` limit.
-The overlap option is the number of words from the previous chunk to include in the current chunk.
+The `overlap` option is the number of words from the previous chunk to include in the current chunk.
 
 The default chunking strategy is `sentence`.
 
-NOTE: The default chunking strategy for {infer} endpoint created before 8.16 is `word`.
+NOTE: The default chunking strategy for {infer} endpoints created before 8.16 is `word`.
 
 
 [discrete]

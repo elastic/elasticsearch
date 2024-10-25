@@ -1,7 +1,7 @@
 [[reference-architecture-components]]
-== Reference Architecture Components
+== Architecture components
 
-This page provides an overview of the main node types in Elasticsearch as they relate to the reference architectures. Each node type serves a specific function within the Elasticsearch cluster, contributing to its overall performance and reliability. Understanding these node types is crucial for designing, managing, and optimizing your Elasticsearch deployment.
+This page provides an overview of the main components of the reference architectures. Each component serves a specific function within the Elasticsearch cluster, contributing to its overall performance and reliability. Understanding these node types is crucial for designing, managing, and optimizing your Elasticsearch deployment.
 
 [discrete]
 [[component-types]]
@@ -16,14 +16,14 @@ This page provides an overview of the main node types in Elasticsearch as they r
 | Responsible for cluster-wide settings and state, including index metadata and node information. Ensures cluster health by managing node joining and leaving.
 
 | Data Node
-| image:images/hot.png[Image showing a master node]
-image:images/frozen.png[Image showing a master node]
+| image:images/hot.png[Image showing a hot data node]
+image:images/frozen.png[Image showing a frozen node]
 | Stores data and performs CRUD, search, and aggregations. High I/O, CPU, and memory requirements.
 | Machine Learning Node
-| image:images/machine-learning.png[Image showing a master node]
+| image:images/machine-learning.png[Image showing a machine learning node]
 | Executes machine learning jobs, including anomaly detection, data frame analysis, and inference.
 | Kibana
-| image:images/kibana.png[Image showing a master node]
+| image:images/kibana.png[Image showing a kibana node]
 | Provides the front-end interface for visualizing data stored in Elasticsearch. Essential for creating dashboards and managing visualizations.
 
 | Snapshot Storage

@@ -45,7 +45,7 @@ public class TsdbIndexingRollingUpgradeIT extends AbstractRollingUpgradeTestCase
             createTemplate(dataStreamName, "2", TEMPLATE);
 
             Instant startTime = Instant.now().minusSeconds(60 * 60);
-            bulkIndex(dataStreamName, 4096, startTime);
+            bulkIndex(dataStreamName, 4, 1024, startTime);
 
             String firstBackingIndex = getWriteBackingIndex(client(), dataStreamName, 0);
             var settings = (Map<?, ?>) getIndexSettingsWithDefaults(firstBackingIndex).get(firstBackingIndex);
@@ -57,7 +57,7 @@ public class TsdbIndexingRollingUpgradeIT extends AbstractRollingUpgradeTestCase
             query(dataStreamName);
         } else if (isMixedCluster()) {
             Instant startTime = Instant.now().minusSeconds(60 * 30);
-            bulkIndex(dataStreamName, 4096, startTime);
+            bulkIndex(dataStreamName, 4, 1024, startTime);
 
             ensureGreen(dataStreamName);
             search(dataStreamName);
@@ -65,7 +65,7 @@ public class TsdbIndexingRollingUpgradeIT extends AbstractRollingUpgradeTestCase
         } else if (isUpgradedCluster()) {
             ensureGreen(dataStreamName);
             Instant startTime = Instant.now();
-            bulkIndex(dataStreamName, 4096, startTime);
+            bulkIndex(dataStreamName, 4, 1024, startTime);
             search(dataStreamName);
             query(dataStreamName);
 
@@ -79,36 +79,38 @@ public class TsdbIndexingRollingUpgradeIT extends AbstractRollingUpgradeTestCase
         }
     }
 
-    static void bulkIndex(String dataStreamName, int numDocs, Instant startTime) throws Exception {
-        var bulkRequest = new Request("POST", "/" + dataStreamName + "/_bulk");
-        StringBuilder requestBody = new StringBuilder();
-        for (int i = 0; i < numDocs; i++) {
-            String podName = "pod" + i % 5; // Not realistic, but makes asserting search / query response easier.
-            String podUid = randomUUID();
-            String podIp = NetworkAddress.format(randomIp(true));
-            long podTx = randomLong();
-            long podRx = randomLong();
+    static void bulkIndex(String dataStreamName, int numRequest, int numDocs, Instant startTime) throws Exception {
+        for (int i = 0; i < numRequest; i++) {
+            var bulkRequest = new Request("POST", "/" + dataStreamName + "/_bulk");
+            StringBuilder requestBody = new StringBuilder();
+            for (int j = 0; j < numDocs; j++) {
+                String podName = "pod" + j % 5; // Not realistic, but makes asserting search / query response easier.
+                String podUid = randomUUID();
+                String podIp = NetworkAddress.format(randomIp(true));
+                long podTx = randomLong();
+                long podRx = randomLong();
 
-            requestBody.append("{\"create\": {}}");
-            requestBody.append('\n');
-            requestBody.append(
-                BULK_ITEM_TEMPLATE.replace("$now", formatInstant(startTime))
-                    .replace("$name", podName)
-                    .replace("$uid", podUid)
-                    .replace("$ip", podIp)
-                    .replace("$tx", Long.toString(podTx))
-                    .replace("$rx", Long.toString(podRx))
-            );
-            requestBody.append('\n');
+                requestBody.append("{\"create\": {}}");
+                requestBody.append('\n');
+                requestBody.append(
+                        BULK_ITEM_TEMPLATE.replace("$now", formatInstant(startTime))
+                                .replace("$name", podName)
+                                .replace("$uid", podUid)
+                                .replace("$ip", podIp)
+                                .replace("$tx", Long.toString(podTx))
+                                .replace("$rx", Long.toString(podRx))
+                );
+                requestBody.append('\n');
 
-            startTime = startTime.plusMillis(1);
+                startTime = startTime.plusMillis(1);
+            }
+            bulkRequest.setJsonEntity(requestBody.toString());
+            bulkRequest.addParameter("refresh", "true");
+            var response = client().performRequest(bulkRequest);
+            assertOK(response);
+            var responseBody = entityAsMap(response);
+            assertThat("errors in response:\n " + responseBody, responseBody.get("errors"), equalTo(false));
         }
-        bulkRequest.setJsonEntity(requestBody.toString());
-        bulkRequest.addParameter("refresh", "true");
-        var response = client().performRequest(bulkRequest);
-        assertOK(response);
-        var responseBody = entityAsMap(response);
-        assertThat("errors in response:\n " + responseBody, responseBody.get("errors"), equalTo(false));
     }
 
     void search(String dataStreamName) throws Exception {

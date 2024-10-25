@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.remotecluster;
 
+import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
@@ -494,6 +495,10 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
         assertThat(flatList, containsInAnyOrder("engineering"));
     }
 
+    /**
+     * Note: invalid_remote is "invalid" because it has a bogus API key, but the cluster does actually exist
+     */
+    @SuppressWarnings("unchecked")
     public void testCrossClusterQueryAgainstInvalidRemote() throws Exception {
         configureRemoteCluster();
         populateData();
@@ -515,22 +520,49 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
         );
 
         // invalid remote with local index should return local results
-        var q = "FROM invalid_remote:employees,employees |  SORT emp_id DESC | LIMIT 10";
-        Response response = performRequestWithRemoteSearchUser(esqlRequest(q));
-        assertLocalOnlyResults(response);
+        {
+            var q = "FROM invalid_remote:employees,employees | SORT emp_id DESC | LIMIT 10";
+            Response response = performRequestWithRemoteSearchUser(esqlRequest(q));
+            assertLocalOnlyResults(response);
+        }
 
-        // only calling an invalid remote should error
-        ResponseException error = expectThrows(ResponseException.class, () -> {
-            var q2 = "FROM invalid_remote:employees |  SORT emp_id DESC | LIMIT 10";
-            performRequestWithRemoteSearchUser(esqlRequest(q2));
-        });
+        {
+            var q = "FROM invalid_remote:employees | SORT emp_id DESC | LIMIT 10";
+            // errors from invalid remote should be ignored if the cluster is marked with skip_unavailable=true
+            if (skipUnavailable) {
+                // expected response:
+                // {"took":1,"columns":[],"values":[],"_clusters":{"total":1,"successful":0,"running":0,"skipped":1,"partial":0,
+                // "failed":0,"details":{"invalid_remote":{"status":"skipped","indices":"employees","took":1,"_shards":
+                // {"total":0,"successful":0,"skipped":0,"failed":0},"failures":[{"shard":-1,"index":null,"reason":
+                // {"type":"remote_transport_exception",
+                // "reason":"[connect_transport_exception - unable to connect to remote cluster]"}}]}}}}
+                Response response = performRequestWithRemoteSearchUser(esqlRequest(q));
+                assertOK(response);
+                Map<String, Object> responseAsMap = entityAsMap(response);
+                List<?> columns = (List<?>) responseAsMap.get("columns");
+                List<?> values = (List<?>) responseAsMap.get("values");
+                assertThat(columns.size(), equalTo(0));
+                assertThat(values.size(), equalTo(0));
+                Map<String, ?> clusters = (Map<String, ?>) responseAsMap.get("_clusters");
+                Map<String, ?> details = (Map<String, ?>) clusters.get("details");
+                Map<String, ?> invalidRemoteEntry = (Map<String, ?>) details.get("invalid_remote");
+                assertThat(invalidRemoteEntry.get("status").toString(), equalTo("skipped"));
+                List<?> failures = (List<?>) invalidRemoteEntry.get("failures");
+                assertThat(failures.size(), equalTo(1));
+                Map<String, ?> failuresMap = (Map<String, ?>) failures.get(0);
+                Map<String, ?> reason = (Map<String, ?>) failuresMap.get("reason");
+                assertThat(reason.get("type").toString(), equalTo("remote_transport_exception"));
+                assertThat(reason.get("reason").toString(), containsString("unable to connect to remote cluster"));
 
-        if (skipUnavailable == false) {
-            assertThat(error.getResponse().getStatusLine().getStatusCode(), equalTo(401));
-            assertThat(error.getMessage(), containsString("unable to find apikey"));
-        } else {
-            assertThat(error.getResponse().getStatusLine().getStatusCode(), equalTo(500));
-            assertThat(error.getMessage(), containsString("Unable to connect to [invalid_remote]"));
+            } else {
+                // errors from invalid remote should thrown an exception if the cluster is marked with skip_unavailable=false
+                ResponseException error = expectThrows(ResponseException.class, () -> {
+                    final Response response1 = performRequestWithRemoteSearchUser(esqlRequest(q));
+                    System.err.println(">>> >>> response: " + EntityUtils.toString(response1.getEntity()));
+                });
+                assertThat(error.getResponse().getStatusLine().getStatusCode(), equalTo(401));
+                assertThat(error.getMessage(), containsString("unable to find apikey"));
+            }
         }
     }
 
@@ -932,6 +964,7 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
         XContentBuilder body = JsonXContent.contentBuilder();
         body.startObject();
         body.field("query", command);
+        body.field("include_ccs_metadata", true);
         if (Build.current().isSnapshot() && randomBoolean()) {
             Settings.Builder settings = Settings.builder();
             if (randomBoolean()) {

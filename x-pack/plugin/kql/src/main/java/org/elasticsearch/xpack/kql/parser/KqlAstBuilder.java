@@ -65,7 +65,7 @@ class KqlAstBuilder extends KqlBaseBaseVisitor<QueryBuilder> {
             }
         }
 
-        return rewriteConjonctionQuery(builder);
+        return rewriteConjunctionQuery(builder);
     }
 
     public QueryBuilder visitOrBooleanQuery(KqlBaseParser.BooleanQueryContext ctx) {
@@ -207,7 +207,7 @@ class KqlAstBuilder extends KqlBaseBaseVisitor<QueryBuilder> {
         return boolQueryBuilder.should().size() == 1 ? boolQueryBuilder.should().getFirst() : boolQueryBuilder;
     }
 
-    private QueryBuilder rewriteConjonctionQuery(BoolQueryBuilder boolQueryBuilder) {
+    private QueryBuilder rewriteConjunctionQuery(BoolQueryBuilder boolQueryBuilder) {
         assert boolQueryBuilder.should().isEmpty() && boolQueryBuilder.filter().isEmpty() && boolQueryBuilder.mustNot().isEmpty();
 
         if (boolQueryBuilder.must().isEmpty()) {

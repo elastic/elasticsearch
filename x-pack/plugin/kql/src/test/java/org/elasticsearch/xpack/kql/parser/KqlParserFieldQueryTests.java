@@ -80,7 +80,6 @@ public class KqlParserFieldQueryTests extends AbstractKqlParserTestCase {
         assertTermQueryBuilder(parseKqlQuery(kqlFieldQuery(KEYWORD_FIELD_NAME, "OR")), KEYWORD_FIELD_NAME, "OR");
         assertTermQueryBuilder(parseKqlQuery(kqlFieldQuery(KEYWORD_FIELD_NAME, "NOT")), KEYWORD_FIELD_NAME, "NOT");
 
-
         // Check we can use quoted field name as well
         assertThat(
             parseKqlQuery(kqlFieldQuery(KEYWORD_FIELD_NAME, "foo")),
@@ -148,13 +147,119 @@ public class KqlParserFieldQueryTests extends AbstractKqlParserTestCase {
             assertMatchQueryBuilder(parseKqlQuery(kqlFieldQuery(fieldName, "OR")), fieldName, "OR");
             assertMatchQueryBuilder(parseKqlQuery(kqlFieldQuery(fieldName, "NOT")), fieldName, "NOT");
 
-
             // Check we can use quoted field name as well
             assertThat(
                 parseKqlQuery(kqlFieldQuery(fieldName, "foo")),
                 equalTo(parseKqlQuery(kqlFieldQuery(quoteString(fieldName), "foo")))
             );
         }
+    }
+
+    public void testParseQuotedStringKeywordFieldQuery() {
+        // Single word
+        assertTermQueryBuilder(parseKqlQuery(kqlFieldQuery(KEYWORD_FIELD_NAME, quoteString("foo"))), KEYWORD_FIELD_NAME, "foo");
+
+        // Multiple words
+        assertTermQueryBuilder(parseKqlQuery(kqlFieldQuery(KEYWORD_FIELD_NAME, quoteString("foo bar"))), KEYWORD_FIELD_NAME, "foo bar");
+
+        // Containing unescaped KQL reserved keyword
+        assertTermQueryBuilder(
+            parseKqlQuery(kqlFieldQuery(KEYWORD_FIELD_NAME, quoteString("not foo and bar or baz"))),
+            KEYWORD_FIELD_NAME,
+            "not foo and bar or baz"
+        );
+
+        // Containing unescaped KQL reserved characters
+        assertTermQueryBuilder(
+            parseKqlQuery(kqlFieldQuery(KEYWORD_FIELD_NAME, quoteString("foo*: {(<bar>})"))),
+            KEYWORD_FIELD_NAME,
+            "foo*: {(<bar>})"
+        );
+    }
+
+    public void testParseQuotedStringMatchFieldsQuery() {
+        for (String fieldName : List.of(TEXT_FIELD_NAME, INT_FIELD_NAME, DOUBLE_FIELD_NAME)) {
+
+            // Single word
+            assertMatchPhraseBuilder(parseKqlQuery(kqlFieldQuery(fieldName, quoteString("foo"))), fieldName, "foo");
+
+            // Multiple words
+            assertMatchPhraseBuilder(parseKqlQuery(kqlFieldQuery(fieldName, quoteString("foo bar"))), fieldName, "foo bar");
+
+            // Containing unescaped KQL reserved keyword
+            assertMatchPhraseBuilder(
+                parseKqlQuery(kqlFieldQuery(fieldName, quoteString("not foo and bar or baz"))),
+                fieldName,
+                "not foo and bar or baz"
+            );
+
+            // Containing unescaped KQL reserved characters
+            assertMatchPhraseBuilder(parseKqlQuery(kqlFieldQuery(fieldName, quoteString("foo*: {(<bar>})"))), fieldName, "foo*: {(<bar>})");
+        }
+    }
+
+    public void testParseWildcardMatchFieldQuery() {
+        for (String fieldName : List.of(TEXT_FIELD_NAME, INT_FIELD_NAME, DOUBLE_FIELD_NAME)) {
+            // Single word
+            assertQueryStringBuilder(parseKqlQuery(kqlFieldQuery(fieldName, "foo*")), fieldName, "foo*");
+            assertQueryStringBuilder(parseKqlQuery(kqlFieldQuery(fieldName, "*foo")), fieldName, "*foo");
+            assertQueryStringBuilder(parseKqlQuery(kqlFieldQuery(fieldName, "fo*o")), fieldName, "fo*o");
+
+            // Multiple words
+            assertQueryStringBuilder(parseKqlQuery(kqlFieldQuery(fieldName, "fo* bar")), fieldName, "fo* bar");
+            assertQueryStringBuilder(parseKqlQuery(kqlFieldQuery(fieldName, "foo * bar")), fieldName, "foo * bar");
+            assertQueryStringBuilder(parseKqlQuery(kqlFieldQuery(fieldName, "* foo bar")), fieldName, "* foo bar");
+            assertQueryStringBuilder(parseKqlQuery(kqlFieldQuery(fieldName, "foo bar *")), fieldName, "foo bar *");
+
+            // Check Lucene query string special chars are escaped
+            assertQueryStringBuilder(parseKqlQuery(kqlFieldQuery(fieldName, "foo*[bar]")), fieldName, "foo*\\[bar\\]");
+            assertQueryStringBuilder(parseKqlQuery(kqlFieldQuery(fieldName, "+foo* -bar")), fieldName, "\\+foo* \\-bar");
+
+            // Trailing operators AND, NOT, OR are terms of the match query
+            assertQueryStringBuilder(parseKqlQuery(kqlFieldQuery(fieldName, "foo* AND")), fieldName, "foo* AND");
+            assertQueryStringBuilder(parseKqlQuery(kqlFieldQuery(fieldName, "foo* OR")), fieldName, "foo* OR");
+            assertQueryStringBuilder(parseKqlQuery(kqlFieldQuery(fieldName, "foo* NOT")), fieldName, "foo* NOT");
+
+            // Leading operators AND, NOT, OR are terms of the match query
+            assertQueryStringBuilder(parseKqlQuery(kqlFieldQuery(fieldName, "AND foo*")), fieldName, "AND foo*");
+            assertQueryStringBuilder(parseKqlQuery(kqlFieldQuery(fieldName, "OR foo*")), fieldName, "OR foo*");
+        }
+    }
+
+    public void testParseWildcardKeywordFieldQuery() {
+        // Single word
+        assertWildcardQueryBuilder(parseKqlQuery(kqlFieldQuery(KEYWORD_FIELD_NAME, "fo*")), KEYWORD_FIELD_NAME, "fo*");
+
+        // Multiple words
+        assertWildcardQueryBuilder(parseKqlQuery(kqlFieldQuery(KEYWORD_FIELD_NAME, "fo* bar")), KEYWORD_FIELD_NAME, "fo* bar");
+
+        // Escaped keywords
+        assertWildcardQueryBuilder(parseKqlQuery(kqlFieldQuery(KEYWORD_FIELD_NAME, "fo* \\and bar")), KEYWORD_FIELD_NAME, "fo* and bar");
+        assertWildcardQueryBuilder(parseKqlQuery(kqlFieldQuery(KEYWORD_FIELD_NAME, "fo* \\or bar")), KEYWORD_FIELD_NAME, "fo* or bar");
+        assertWildcardQueryBuilder(parseKqlQuery(kqlFieldQuery(KEYWORD_FIELD_NAME, "\\not fo* bar")), KEYWORD_FIELD_NAME, "not fo* bar");
+
+        // Escaped characters
+        assertWildcardQueryBuilder(parseKqlQuery(kqlFieldQuery(KEYWORD_FIELD_NAME, "fo* \\* bar")), KEYWORD_FIELD_NAME, "fo* * bar");
+        assertWildcardQueryBuilder(parseKqlQuery(kqlFieldQuery(KEYWORD_FIELD_NAME, "fo*\\(bar\\)")), KEYWORD_FIELD_NAME, "fo*(bar)");
+        assertWildcardQueryBuilder(parseKqlQuery(kqlFieldQuery(KEYWORD_FIELD_NAME, "fo*\\{bar\\}")), KEYWORD_FIELD_NAME, "fo*{bar}");
+        assertWildcardQueryBuilder(parseKqlQuery(kqlFieldQuery(KEYWORD_FIELD_NAME, "fo*\\:bar")), KEYWORD_FIELD_NAME, "fo*:bar");
+        assertWildcardQueryBuilder(parseKqlQuery(kqlFieldQuery(KEYWORD_FIELD_NAME, "fo*\\<bar")), KEYWORD_FIELD_NAME, "fo*<bar");
+        assertWildcardQueryBuilder(parseKqlQuery(kqlFieldQuery(KEYWORD_FIELD_NAME, "fo*\\>bar")), KEYWORD_FIELD_NAME, "fo*>bar");
+        assertWildcardQueryBuilder(parseKqlQuery(kqlFieldQuery(KEYWORD_FIELD_NAME, "fo* \\\\ bar")), KEYWORD_FIELD_NAME, "fo* \\ bar");
+        assertWildcardQueryBuilder(parseKqlQuery(kqlFieldQuery(KEYWORD_FIELD_NAME, "fo*\\\"bar\\\"")), KEYWORD_FIELD_NAME, "fo*\"bar\"");
+
+        // Wrapping terms into parentheses
+        assertWildcardQueryBuilder(parseKqlQuery(kqlFieldQuery(KEYWORD_FIELD_NAME, "(fo* baz)")), KEYWORD_FIELD_NAME, "fo* baz");
+
+        // Trailing operators (AND, NOT, OR) are terms of the match query
+        assertWildcardQueryBuilder(parseKqlQuery(kqlFieldQuery(KEYWORD_FIELD_NAME, "fo* AND")), KEYWORD_FIELD_NAME, "fo* AND");
+        assertWildcardQueryBuilder(parseKqlQuery(kqlFieldQuery(KEYWORD_FIELD_NAME, "fo* OR")), KEYWORD_FIELD_NAME, "fo* OR");
+        assertWildcardQueryBuilder(parseKqlQuery(kqlFieldQuery(KEYWORD_FIELD_NAME, "fo* NOT")), KEYWORD_FIELD_NAME, "fo* NOT");
+
+        // Leading operators (AND, OR) are terms of the match query
+        assertWildcardQueryBuilder(parseKqlQuery(kqlFieldQuery(KEYWORD_FIELD_NAME, "AND fo*")), KEYWORD_FIELD_NAME, "AND fo*");
+        assertWildcardQueryBuilder(parseKqlQuery(kqlFieldQuery(KEYWORD_FIELD_NAME, "OR fo*")), KEYWORD_FIELD_NAME, "OR fo*");
+        assertWildcardQueryBuilder(parseKqlQuery(kqlFieldQuery(KEYWORD_FIELD_NAME, "NOT fo*")), KEYWORD_FIELD_NAME, "NOT fo*");
     }
 
     private static String kqlFieldQuery(String field, Object value) {

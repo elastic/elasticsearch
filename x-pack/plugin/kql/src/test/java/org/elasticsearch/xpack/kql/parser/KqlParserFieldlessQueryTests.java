@@ -62,7 +62,7 @@ public class KqlParserFieldlessQueryTests extends AbstractKqlParserTestCase {
         assertQueryStringBuilder(parseKqlQuery("* foo bar"), "* foo bar");
         assertQueryStringBuilder(parseKqlQuery("foo bar *"), "foo bar *");
 
-        // Check query string special chars are escaped
+        // Check Lucene query string special chars are escaped
         assertQueryStringBuilder(parseKqlQuery("foo*[bar]"), "foo*\\[bar\\]");
         assertQueryStringBuilder(parseKqlQuery("+foo* -bar"), "\\+foo* \\-bar");
 

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.kql.parser;
 
 import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.index.query.MatchPhraseQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -16,6 +17,7 @@ import org.elasticsearch.index.query.QueryStringQueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
+import org.elasticsearch.index.query.WildcardQueryBuilder;
 import org.elasticsearch.test.AbstractBuilderTestCase;
 
 import java.io.BufferedReader;
@@ -35,6 +37,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.anEmptyMap;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 
 public abstract class AbstractKqlParserTestCase extends AbstractBuilderTestCase {
@@ -109,9 +112,16 @@ public abstract class AbstractKqlParserTestCase extends AbstractBuilderTestCase 
         assertThat(multiMatchQuery.value(), equalTo(expectedValue));
     }
 
+    protected static void assertQueryStringBuilder(QueryBuilder query, String expectedFieldName, String expectedValue) {
+        QueryStringQueryBuilder queryStringQuery = asInstanceOf(QueryStringQueryBuilder.class, query);
+        assertThat(queryStringQuery.queryString(), equalTo(expectedValue));
+        assertThat(queryStringQuery.fields().keySet(), contains(expectedFieldName));
+    }
+
     protected static void assertQueryStringBuilder(QueryBuilder query, String expectedValue) {
         QueryStringQueryBuilder queryStringQuery = asInstanceOf(QueryStringQueryBuilder.class, query);
         assertThat(queryStringQuery.queryString(), equalTo(expectedValue));
+        assertThat(queryStringQuery.fields(), anEmptyMap());
     }
 
     protected static void assertTermQueryBuilder(QueryBuilder queryBuilder, String expectedFieldName, String expectedValue) {
@@ -122,6 +132,18 @@ public abstract class AbstractKqlParserTestCase extends AbstractBuilderTestCase 
 
     protected static void assertMatchQueryBuilder(QueryBuilder queryBuilder, String expectedFieldName, String expectedValue) {
         MatchQueryBuilder matchQuery = asInstanceOf(MatchQueryBuilder.class, queryBuilder);
+        assertThat(matchQuery.fieldName(), equalTo(expectedFieldName));
+        assertThat(matchQuery.value(), equalTo(expectedValue));
+    }
+
+    protected static void assertMatchPhraseBuilder(QueryBuilder queryBuilder, String expectedFieldName, String expectedValue) {
+        MatchPhraseQueryBuilder matchQuery = asInstanceOf(MatchPhraseQueryBuilder.class, queryBuilder);
+        assertThat(matchQuery.fieldName(), equalTo(expectedFieldName));
+        assertThat(matchQuery.value(), equalTo(expectedValue));
+    }
+
+    protected static void assertWildcardQueryBuilder(QueryBuilder queryBuilder, String expectedFieldName, String expectedValue) {
+        WildcardQueryBuilder matchQuery = asInstanceOf(WildcardQueryBuilder.class, queryBuilder);
         assertThat(matchQuery.fieldName(), equalTo(expectedFieldName));
         assertThat(matchQuery.value(), equalTo(expectedValue));
     }

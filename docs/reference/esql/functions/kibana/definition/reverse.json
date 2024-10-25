@@ -27,7 +27,7 @@
         }
       ],
       "variadic" : false,
-      "returnType" : "text"
+      "returnType" : "keyword"
     }
   ],
   "examples" : [

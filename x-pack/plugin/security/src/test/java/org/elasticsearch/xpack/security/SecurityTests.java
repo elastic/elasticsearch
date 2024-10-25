@@ -209,7 +209,10 @@ public class SecurityTests extends ESTestCase {
         settings = Security.additionalSettings(settings, true);
         Set<Setting<?>> allowedSettings = new HashSet<>(Security.getSettings(null));
         allowedSettings.addAll(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        ClusterSettings clusterSettings = new ClusterSettings(settings, allowedSettings);
+        ClusterSettings clusterSettings = new ClusterSettings(
+            settings,
+            allowedSettings.stream().filter(Setting::hasNodeScope).collect(Collectors.toSet())
+        );
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         when(threadPool.relativeTimeInMillis()).thenReturn(1L);
         threadContext = new ThreadContext(Settings.EMPTY);

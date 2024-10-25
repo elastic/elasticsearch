@@ -209,9 +209,7 @@ public class SyncPluginsAction {
         List<PluginDescriptor> existingPlugins
     ) {
         final Map<String, String> cachedPluginIdToLocation = new HashMap<>();
-        cachedPluginsConfig.ifPresent(
-            config -> config.getPlugins().forEach(p -> cachedPluginIdToLocation.put(p.getId(), p.getLocation()))
-        );
+        cachedPluginsConfig.ifPresent(config -> config.getPlugins().forEach(p -> cachedPluginIdToLocation.put(p.getId(), p.getLocation())));
 
         return pluginsToMaybeUpgrade.stream().filter(eachPlugin -> {
             final String eachPluginId = eachPlugin.getId();

@@ -19,7 +19,7 @@ keyword | keyword | keyword
 keyword | | keyword
 long | long | long
 long | | long
-text | text | text
-text | | text
+text | text | keyword
+text | | keyword
 version | version | version
 |===

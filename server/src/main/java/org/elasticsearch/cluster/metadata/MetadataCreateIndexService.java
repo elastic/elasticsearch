@@ -308,7 +308,12 @@ public class MetadataCreateIndexService {
         final CreateIndexClusterStateUpdateRequest request,
         final ActionListener<AcknowledgedResponse> listener
     ) {
-        normalizeRequestSetting(request);
+        try {
+            normalizeRequestSetting(request);
+        } catch (Exception e) {
+            listener.onFailure(e);
+            return;
+        }
 
         var delegate = new AllocationActionListener<>(listener, threadPool.getThreadContext());
         submitUnbatchedTask(
@@ -1598,6 +1603,15 @@ public class MetadataCreateIndexService {
             // this method applies all necessary checks ie. if the target shards are less than the source shards
             // of if the source shards are divisible by the number of target shards
             IndexMetadata.getRoutingFactor(sourceMetadata.getNumberOfShards(), INDEX_NUMBER_OF_SHARDS_SETTING.get(targetIndexSettings));
+        }
+        if (targetIndexSettings.hasValue(IndexSettings.MODE.getKey())) {
+            IndexMode oldMode = Objects.requireNonNullElse(sourceMetadata.getIndexMode(), IndexMode.STANDARD);
+            IndexMode newMode = IndexSettings.MODE.get(targetIndexSettings);
+            if (newMode != oldMode) {
+                throw new IllegalArgumentException(
+                    "can't change index.mode of index [" + sourceIndex + "] from [" + oldMode + "] to [" + newMode + "]"
+                );
+            }
         }
         return sourceMetadata;
     }

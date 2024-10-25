@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
+import org.elasticsearch.common.logging.HeaderWarning;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerRules;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -16,6 +18,8 @@ import org.elasticsearch.xpack.esql.plan.logical.Stats;
 
 import java.util.ArrayList;
 import java.util.List;
+
+import static org.elasticsearch.common.logging.HeaderWarning.addWarning;
 
 /**
  * Removes {@link Stats} overrides in grouping, aggregates and across them inside.
@@ -58,13 +62,24 @@ public final class RemoveStatsOverride extends AnalyzerRules.AnalyzerRule<Logica
 
     private static <T extends Expression> List<T> removeDuplicateNames(List<T> list) {
         var newList = new ArrayList<>(list);
-        var nameSet = Sets.newHashSetWithExpectedSize(list.size());
+        var expressionsByName = Maps.<String, T>newMapWithExpectedSize(list.size());
 
         // remove duplicates
         for (int i = list.size() - 1; i >= 0; i--) {
             var element = list.get(i);
             var name = Expressions.name(element);
-            if (nameSet.add(name) == false) {
+            var previousExpression = expressionsByName.putIfAbsent(name, element);
+            if (previousExpression != null) {
+                var source = element.source().source();
+                var previousSource = previousExpression.source().source();
+                addWarning(
+                    "Line {}:{}: Field '{}' shadowed by field at line {}:{}",
+                    source.getLineNumber(),
+                    source.getColumnNumber(),
+                    name,
+                    previousSource.getLineNumber(),
+                    previousSource.getColumnNumber()
+                );
                 newList.remove(i);
             }
         }

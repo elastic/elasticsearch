@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.upgrades;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
@@ -15,6 +17,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Booleans;
+import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.test.SecuritySettingsSourceField;
 import org.junit.Before;
@@ -24,10 +27,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
-
-import static org.elasticsearch.xpack.core.security.action.UpdateIndexMigrationVersionAction.MIGRATION_VERSION_CUSTOM_DATA_KEY;
-import static org.elasticsearch.xpack.core.security.action.UpdateIndexMigrationVersionAction.MIGRATION_VERSION_CUSTOM_KEY;
-import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7;
 
 public abstract class AbstractUpgradeTestCase extends ESRestTestCase {
 
@@ -156,23 +155,22 @@ public abstract class AbstractUpgradeTestCase extends ESRestTestCase {
         });
     }
 
-    @SuppressWarnings("unchecked")
+    private static final Logger log = LogManager.getLogger(AbstractUpgradeTestCase.class);
+
     protected static void waitForSecurityMigrationCompletion(RestClient adminClient, int version) throws Exception {
-        final Request request = new Request("GET", "_cluster/state/metadata/" + INTERNAL_SECURITY_MAIN_INDEX_7);
+        final Request request = new Request("GET", "_cluster/state/metadata/.security-7");
         assertBusy(() -> {
-            Response response = adminClient.performRequest(request);
-            assertOK(response);
-            Map<String, Object> responseMap = responseAsMap(response);
-            Map<String, Object> indicesMetadataMap = (Map<String, Object>) ((Map<String, Object>) responseMap.get("metadata")).get(
-                "indices"
+            Map<String, Object> indices = new XContentTestUtils.JsonMapView(entityAsMap(adminClient.performRequest(request))).get(
+                "metadata.indices"
             );
-            assertNotNull(indicesMetadataMap);
-            Map<String, Object> securityIndexMetadata = (Map<String, Object>) indicesMetadataMap.get(INTERNAL_SECURITY_MAIN_INDEX_7);
-            assertNotNull(securityIndexMetadata);
-            Map<String, Object> migrationVersionCustom = ((Map<String, Object>) securityIndexMetadata.get(MIGRATION_VERSION_CUSTOM_KEY));
-            assertNotNull(migrationVersionCustom);
-            assertTrue(Integer.parseInt(migrationVersionCustom.get(MIGRATION_VERSION_CUSTOM_DATA_KEY).toString()) >= version);
+            assertNotNull(indices);
+            // JsonMapView doesn't support . prefixed indices (splits on .)
+            @SuppressWarnings("unchecked")
+            String responseVersion = new XContentTestUtils.JsonMapView((Map<String, Object>) indices.get(".security-7")).get(
+                "migration_version.version"
+            );
+            assertNotNull(responseVersion);
+            assertTrue(Integer.parseInt(responseVersion) >= version);
         });
     }
-
 }

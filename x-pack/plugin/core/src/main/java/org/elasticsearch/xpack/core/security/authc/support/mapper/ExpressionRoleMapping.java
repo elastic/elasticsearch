@@ -233,6 +233,13 @@ public class ExpressionRoleMapping implements ToXContentObject, Writeable {
         return enabled;
     }
 
+    /**
+     * Whether this mapping is an operator defined/read only role mapping
+     */
+    public boolean isReadOnly() {
+        return metadata.get(ExpressionRoleMapping.READ_ONLY_ROLE_MAPPING_METADATA_FLAG) instanceof Boolean readOnly ? readOnly : false;
+    }
+
     @Override
     public String toString() {
         return getClass().getSimpleName() + "<" + name + " ; " + roles + "/" + roleTemplates + " = " + Strings.toString(expression) + ">";

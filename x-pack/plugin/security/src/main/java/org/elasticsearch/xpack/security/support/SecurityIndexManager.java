@@ -297,7 +297,8 @@ public class SecurityIndexManager implements ClusterStateListener {
         boolean hasFileSettingsMetadata = fileSettingsMetadata != null;
         // If there is no fileSettingsMetadata, there should be no reserved state (this is to catch bugs related to
         // name changes to FILE_SETTINGS_METADATA_NAMESPACE)
-        assert hasFileSettingsMetadata || clusterState.metadata().reservedStateMetadata().isEmpty();
+        assert hasFileSettingsMetadata || clusterState.metadata().reservedStateMetadata().isEmpty()
+            : "ReservedStateMetadata contains unknown namespace";
 
         // If no file based role mappings available -> migration not needed
         if (hasFileSettingsMetadata == false || fileSettingsMetadata.keys(ReservedRoleMappingAction.NAME).isEmpty()) {

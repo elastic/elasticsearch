@@ -491,6 +491,11 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var alias = as(aggregates.get(0), Alias.class);
         var max = as(alias.child(), Max.class);
         assertThat(Expressions.name(max.arguments().get(0)), equalTo("emp_no"));
+        assertWarnings(
+            "No limit defined, adding default limit of [1000]",
+            "Line 2:28: Field 'x' shadowed by field at line 2:45",
+            "Line 2:9: Field 'x' shadowed by field at line 2:45"
+        );
     }
 
     // expected stats b by b (grouping overrides the rest of the aggs)
@@ -513,6 +518,11 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var aggregates = agg.aggregates();
         assertThat(aggregates, hasSize(1));
         assertThat(Expressions.names(aggregates), contains("b"));
+        assertWarnings(
+            "No limit defined, adding default limit of [1000]",
+            "Line 2:28: Field 'b' shadowed by field at line 2:47",
+            "Line 2:9: Field 'b' shadowed by field at line 2:47"
+        );
     }
 
     /**

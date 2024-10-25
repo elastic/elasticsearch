@@ -524,7 +524,7 @@ public class VerifierTests extends ESTestCase {
     public void testGroupingAliasDuplicate() throws Exception {
         assertEquals(
             "1:22: column [languages] cannot be used as an aggregate "
-                + "once declared in the STATS BY grouping key [l = languages % 3, l = languages, l = languages % 2]",
+                + "once declared in the STATS BY grouping key [l = languages % 3]",
             error("from test| stats l = languages + 3 by l = languages % 3, l = languages, l = languages % 2 | keep l")
         );
 

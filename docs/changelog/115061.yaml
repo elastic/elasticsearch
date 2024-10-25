@@ -1,0 +1,5 @@
+pr: 115061
+summary: "[ES|QL] Simplify syntax of named parameter for identifier and pattern"
+area: ES|QL
+type: bug
+issues: []

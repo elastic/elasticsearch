@@ -309,14 +309,14 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
         {
             final Map<String, Object> processorConfig = (Map<String, Object>) processor.get(GEOIP_TYPE);
             if (processorConfig != null) {
-                return downloadDatabaseOnPipelineCreation(GEOIP_TYPE, processorConfig, null) == downloadDatabaseOnPipelineCreation;
+                return downloadDatabaseOnPipelineCreation(processorConfig) == downloadDatabaseOnPipelineCreation;
             }
         }
 
         {
             final Map<String, Object> processorConfig = (Map<String, Object>) processor.get(IP_LOCATION_TYPE);
             if (processorConfig != null) {
-                return downloadDatabaseOnPipelineCreation(IP_LOCATION_TYPE, processorConfig, null) == downloadDatabaseOnPipelineCreation;
+                return downloadDatabaseOnPipelineCreation(processorConfig) == downloadDatabaseOnPipelineCreation;
             }
         }
 

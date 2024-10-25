@@ -16,7 +16,6 @@ import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureTransportAction;
@@ -25,22 +24,7 @@ import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureTransportAction;
 import org.elasticsearch.xpack.core.votingonly.VotingOnlyNodeFeatureSetUsage;
 
-public class VotingOnlyNodeFeatureSet implements XPackFeatureSet {
-
-    @Override
-    public String name() {
-        return XPackField.VOTING_ONLY;
-    }
-
-    @Override
-    public boolean available() {
-        return true;
-    }
-
-    @Override
-    public boolean enabled() {
-        return true;
-    }
+public class VotingOnlyNodeFeatureSet {
 
     public static class UsageTransportAction extends XPackUsageFeatureTransportAction {
 

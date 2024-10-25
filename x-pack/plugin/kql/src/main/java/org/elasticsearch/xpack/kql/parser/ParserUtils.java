@@ -36,7 +36,7 @@ public final class ParserUtils {
      * Performs type-safe parsing using the provided visitor.
      *
      * @param visitor The visitor to use to do the parsing
-     * @param ctx The parser tree to visit
+     * @param ctx The parser tree context to visit
      * @param type The expected return type class
      * @return The parsed result, casted to the expected type
      */

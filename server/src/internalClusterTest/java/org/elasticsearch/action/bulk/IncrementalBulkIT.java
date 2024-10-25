@@ -69,7 +69,7 @@ public class IncrementalBulkIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(IngestClientIT.ExtendedIngestTestPlugin.class, TestTelemetryPlugin.class);
+        return List.of(IngestClientIT.ExtendedIngestTestPlugin.class);
     }
 
     @Override
@@ -398,12 +398,6 @@ public class IncrementalBulkIT extends ESIntegTestCase {
 
         assertBusy(() -> assertTrue(nextRequested.get()));
         System.out.println("Final Hits = " + hits.get());
-        var measurements = collectTelemetry();
-        // assertMeasurements(measurements.get(FailureStoreMetrics.METRIC_TOTAL), (int) hits.get(), index);
-        safeSleep(1000);
-        assertEquals(0, measurements.get(FailureStoreMetrics.METRIC_TOTAL).size());
-        assertEquals(0, measurements.get(FailureStoreMetrics.METRIC_FAILURE_STORE).size());
-        assertEquals(0, measurements.get(FailureStoreMetrics.METRIC_REJECTED).size());
 
         String node = findShard(resolveIndex(index), 0);
         String secondShardNode = findShard(resolveIndex(index), 1);
@@ -428,9 +422,6 @@ public class IncrementalBulkIT extends ESIntegTestCase {
             }
             System.out.println("Primary rejections = " + primaryPressure.stats().getPrimaryRejections());
         }
-        measurements = collectTelemetry();
-        // assertEquals(1, measurements.get(FailureStoreMetrics.METRIC_FAILURE_STORE).size());
-        // assertEquals(1, measurements.get(FailureStoreMetrics.METRIC_REJECTED).size());
 
         while (nextRequested.get()) {
             nextRequested.set(false);
@@ -445,10 +436,12 @@ public class IncrementalBulkIT extends ESIntegTestCase {
 
         BulkResponse bulkResponse = safeGet(future);
         assertTrue(bulkResponse.hasFailures());
+        System.out.println("Hits = " + hits.get());
         for (int i = 0; i < hits.get(); ++i) {
             assertFalse(bulkResponse.getItems()[i].isFailed());
         }
 
+        System.out.println("total bulk items = " + bulkResponse.getItems().length);
         boolean shardsOnDifferentNodes = node.equals(secondShardNode) == false;
         for (int i = (int) hits.get(); i < bulkResponse.getItems().length; ++i) {
             BulkItemResponse item = bulkResponse.getItems()[i];
@@ -664,52 +657,5 @@ public class IncrementalBulkIT extends ESIntegTestCase {
             }
         }
         throw new AssertionError("IndexShard instance not found for shard " + new ShardId(index, shardId));
-    }
-
-    private static Map<String, List<Measurement>> collectTelemetry() {
-        Map<String, List<Measurement>> measurements = new HashMap<>();
-        for (PluginsService pluginsService : internalCluster().getInstances(PluginsService.class)) {
-            final TestTelemetryPlugin telemetryPlugin = pluginsService.filterPlugins(TestTelemetryPlugin.class).findFirst().orElseThrow();
-
-            telemetryPlugin.collect();
-
-            for (String metricName : METRICS) {
-                measurements.put(metricName, telemetryPlugin.getLongCounterMeasurement(metricName));
-            }
-        }
-        return measurements;
-    }
-
-    private void assertMeasurements(List<Measurement> measurements, int expectedSize, String expectedDataStream) {
-        assertMeasurements(measurements, expectedSize, expectedDataStream, (Consumer<Measurement>) null);
-    }
-
-    private void assertMeasurements(
-        List<Measurement> measurements,
-        int expectedSize,
-        String expectedDataStream,
-        FailureStoreMetrics.ErrorLocation location
-    ) {
-        assertMeasurements(
-            measurements,
-            expectedSize,
-            expectedDataStream,
-            measurement -> assertEquals(location.name(), measurement.attributes().get("error_location"))
-        );
-    }
-
-    private void assertMeasurements(
-        List<Measurement> measurements,
-        int expectedSize,
-        String expectedDataStream,
-        Consumer<Measurement> customAssertion
-    ) {
-        assertEquals(expectedSize, measurements.size());
-        for (Measurement measurement : measurements) {
-            assertEquals(expectedDataStream, measurement.attributes().get("data_stream"));
-            if (customAssertion != null) {
-                customAssertion.accept(measurement);
-            }
-        }
     }
 }

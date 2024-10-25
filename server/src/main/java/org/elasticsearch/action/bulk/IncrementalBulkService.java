@@ -133,12 +133,15 @@ public class IncrementalBulkService {
             assert closed == false;
             assert bulkInProgress == false;
             if (bulkActionLevelFailure != null) {
+                System.out.println("Here1");
                 shortCircuitDueToTopLevelFailure(items, releasable);
                 nextItems.run();
             } else {
+                System.out.println("Here2");
                 assert bulkRequest != null;
                 if (internalAddItems(items, releasable)) {
                     if (shouldBackOff()) {
+                        System.out.println("Here5");
                         final boolean isFirstRequest = incrementalRequestSubmitted == false;
                         incrementalRequestSubmitted = true;
                         try (var ignored = threadContext.restoreExistingContext(requestContext)) {
@@ -167,15 +170,18 @@ public class IncrementalBulkService {
                             }));
                         }
                     } else {
+                        System.out.println("Here3");
                         nextItems.run();
                     }
                 } else {
+                    System.out.println("Here4");
                     nextItems.run();
                 }
             }
         }
 
         private boolean shouldBackOff() {
+            System.out.println("shouldBackOff check currentBulkSize = " + currentBulkSize);
             return indexingPressure.shouldSplitBulk(currentBulkSize);
         }
 

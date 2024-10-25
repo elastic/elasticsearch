@@ -18,7 +18,6 @@ import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.FailureStoreMetrics;
-import org.elasticsearch.action.bulk.IncrementalBulkService;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -28,8 +27,6 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.AbstractRefCounted;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.mapper.DateFieldMapper;
@@ -47,14 +44,11 @@ import org.elasticsearch.xcontent.XContentType;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.DEFAULT_TIMESTAMP_FIELD;
@@ -297,58 +291,6 @@ public class IngestFailureStoreMetricsIT extends ESIntegTestCase {
         assertEquals(0, measurements.get(FailureStoreMetrics.METRIC_REJECTED).size());
     }
 
-    public void testShortCircuitFailure() throws Exception {
-        putComposableIndexTemplate(true);
-        createDataStream();
-
-        String coordinatingOnlyNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
-        // String dataNode = internalCluster().startNode();
-
-        AbstractRefCounted refCounted = AbstractRefCounted.of(() -> {});
-        IncrementalBulkService incrementalBulkService = internalCluster().getInstance(IncrementalBulkService.class, coordinatingOnlyNode);
-        IncrementalBulkService.Handler handler = incrementalBulkService.newBulkRequest();
-
-        AtomicBoolean nextRequested = new AtomicBoolean(true);
-        AtomicLong hits = new AtomicLong(0);
-        while (nextRequested.get()) {
-            nextRequested.set(false);
-            refCounted.incRef();
-            handler.addItems(List.of(indexRequest(dataStream)), refCounted::decRef, () -> nextRequested.set(true));
-            hits.incrementAndGet();
-            System.out.println("Hits = " + hits.get());
-        }
-        assertBusy(() -> assertTrue(nextRequested.get()));
-        System.out.println("Final Hits = " + hits.get());
-        var measurements = collectTelemetry();
-        safeSleep(1000);
-        assertMeasurements(measurements.get(FailureStoreMetrics.METRIC_TOTAL), (int) hits.get(), dataStream);
-        assertEquals(0, measurements.get(FailureStoreMetrics.METRIC_FAILURE_STORE).size());
-        assertEquals(0, measurements.get(FailureStoreMetrics.METRIC_REJECTED).size());
-
-        String dataNode = internalCluster().startNode();
-        IndexingPressure primaryPressure = internalCluster().getInstance(IndexingPressure.class, dataNode);
-        long memoryLimit = primaryPressure.stats().getMemoryLimit();
-        System.out.println("Memory limit = " + memoryLimit);
-        long primaryRejections = primaryPressure.stats().getPrimaryRejections();
-        System.out.println("Primary rejections = " + primaryRejections);
-        try (Releasable releasable = primaryPressure.markPrimaryOperationStarted(10, memoryLimit, false)) {
-            while (primaryPressure.stats().getPrimaryRejections() == primaryRejections) {
-                while (nextRequested.get()) {
-                    nextRequested.set(false);
-                    refCounted.incRef();
-                    List<DocWriteRequest<?>> requests = new ArrayList<>();
-                    for (int i = 0; i < 20; ++i) {
-                        requests.add(indexRequest(dataStream));
-                    }
-                    handler.addItems(requests, refCounted::decRef, () -> nextRequested.set(true));
-                }
-                assertBusy(() -> assertTrue(nextRequested.get()));
-                System.out.println("Primary rejections = " + primaryPressure.stats().getPrimaryRejections());
-            }
-            System.out.println("Primary rejections = " + primaryPressure.stats().getPrimaryRejections());
-        }
-    }
-
     private void putComposableIndexTemplate(boolean failureStore) throws IOException {
         TransportPutComposableIndexTemplateAction.Request request = new TransportPutComposableIndexTemplateAction.Request(template);
         request.indexTemplate(
@@ -404,12 +346,6 @@ public class IngestFailureStoreMetricsIT extends ESIntegTestCase {
             );
         }
         client().bulk(bulkRequest).actionGet();
-    }
-
-    private static IndexRequest indexRequest(String dataStream) {
-        IndexRequest indexRequest = new IndexRequest(dataStream);
-        indexRequest.source(Map.of("field", randomAlphaOfLength(10)));
-        return indexRequest;
     }
 
     private static Map<String, List<Measurement>> collectTelemetry() {

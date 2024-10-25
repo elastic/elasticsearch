@@ -199,7 +199,11 @@ GET /cooking_blog/_search
   }
 }
 ----
-// TEST[continued]
+// TESTRESPONSE[s/"total": 5/"total": $body._shards.total/]
+// TESTRESPONSE[s/"successful": 5/"successful": $body._shards.successful/]
+// TESTRESPONSE[s/"value": 1/"value": $body.hits.total.value/]
+// TESTRESPONSE[s/"max_score": 0.39556286/"max_score": $body.hits.max_score/]
+// TESTRESPONSE[s/"_score": 0.39556286/"_score": $body.hits.hits.0._score/]
 <1> The `hits` object contains the total number of matching documents and their relation to the total. Refer to <<track-total-hits,Track total hits>> for more details about the `hits` object.
 <2> `max_score` is the highest relevance score among all matching documents. In this example, we only have one matching document.
 <3> `_score` is the relevance score for a specific document, indicating how well it matches the query. Higher scores indicate better matches. In this example the `max_score` is the same as the `_score`, as there is only one matching document.

@@ -23,8 +23,11 @@ import co.elastic.elasticsearch.stateless.cache.reader.CacheBlobReaderService;
 import co.elastic.elasticsearch.stateless.cache.reader.MutableObjectStoreUploadTracker;
 import co.elastic.elasticsearch.stateless.cache.reader.ObjectStoreCacheBlobReader;
 import co.elastic.elasticsearch.stateless.commits.BlobFile;
+import co.elastic.elasticsearch.stateless.commits.BlobFileRangesTestUtils;
 import co.elastic.elasticsearch.stateless.commits.BlobLocation;
 import co.elastic.elasticsearch.stateless.commits.InternalFilesReplicatedRanges;
+import co.elastic.elasticsearch.stateless.commits.InternalFilesReplicatedRanges.InternalFileReplicatedRange;
+import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.commits.VirtualBatchedCompoundCommit;
 import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
@@ -49,7 +52,10 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
@@ -60,6 +66,9 @@ import org.mockito.Mockito;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
@@ -67,6 +76,8 @@ import java.util.function.LongConsumer;
 import java.util.function.LongFunction;
 
 import static co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService.Type.INDEXING;
+import static co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService.Type.SEARCH;
+import static co.elastic.elasticsearch.stateless.commits.InternalFilesReplicatedRanges.REPLICATED_CONTENT_MAX_SINGLE_FILE_SIZE;
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -306,7 +317,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             // re-populate cache and fill holes
             PlainActionFuture<Void> refillCacheCompletionListener = new PlainActionFuture<>();
             fakeNode.warmingService.warmCacheRecovery(
-                INDEXING,
+                SEARCH,
                 indexShard,
                 frozenBcc.lastCompoundCommit(),
                 fakeNode.searchDirectory,
@@ -319,6 +330,93 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             // check that position and length were set only once
             assertThat(actualRangeInputStreamPosition.get(), equalTo(0L));
             assertThat(actualRangeInputStreamLength.get(), equalTo(fakeNode.sharedCacheService.getRegionSize()));
+        }
+    }
+
+    public void testOnlyTheFirstRegionIsLoadedWhenReplicatedContentIsPresent() throws IOException {
+        var primaryTerm = 1;
+        var cacheSize = ByteSizeValue.ofMb(10L);
+        var regionSize = ByteSizeValue.ofBytes((long) randomIntBetween(1, 3) * 2 * SharedBytes.PAGE_SIZE);
+        try (
+            var node = new FakeStatelessNode(
+                TestEnvironment::newEnvironment,
+                settings -> new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings)),
+                xContentRegistry(),
+                primaryTerm
+            ) {
+                @Override
+                protected Settings nodeSettings() {
+                    return Settings.builder()
+                        .put(super.nodeSettings())
+                        .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
+                        .putList(Environment.PATH_DATA_SETTING.getKey(), createTempDir().toAbsolutePath().toString())
+                        .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), cacheSize)
+                        .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), regionSize)
+                        .put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), regionSize)
+                        .put(SharedBlobCacheWarmingService.PREWARMING_RANGE_MINIMIZATION_STEP.getKey(), regionSize)
+                        .put(StatelessCommitService.STATELESS_COMMIT_USE_INTERNAL_FILES_REPLICATED_CONTENT.getKey(), true)
+                        .build();
+                }
+            }
+        ) {
+            final var primaryTermAndGeneration = new PrimaryTermAndGeneration(randomNonNegativeLong(), randomLongBetween(3, 42));
+            final var blobFile = new BlobFile(
+                StatelessCompoundCommit.blobNameFromGeneration(primaryTermAndGeneration.generation()),
+                primaryTermAndGeneration
+            );
+
+            long fileOffset = 0;
+            List<InternalFileReplicatedRange> replicatedRanges = new ArrayList<>();
+            Map<String, BlobLocation> commitFiles = new HashMap<>();
+
+            long files = Math.min(
+                randomIntBetween(1, 10),
+                Math.floorDiv(regionSize.getBytes(), REPLICATED_CONTENT_MAX_SINGLE_FILE_SIZE) // ensures all ranges fit in the first region
+            );
+            for (int i = 0; i < files; i++) {
+                var file = "_" + i + ".cfs";
+                var size = randomIntBetween(256, 10240);
+                if (size < REPLICATED_CONTENT_MAX_SINGLE_FILE_SIZE) {
+                    replicatedRanges.add(new InternalFileReplicatedRange(fileOffset, (short) size));
+                } else {
+                    replicatedRanges.add(new InternalFileReplicatedRange(fileOffset, (short) 1024));
+                    replicatedRanges.add(new InternalFileReplicatedRange(fileOffset + size - 16, (short) 16));
+                }
+                commitFiles.put(file, new BlobLocation(blobFile, fileOffset, size));
+                fileOffset += size;
+            }
+            InternalFilesReplicatedRanges ranges = InternalFilesReplicatedRanges.from(replicatedRanges);
+            commitFiles = Maps.transformValues(
+                commitFiles,
+                location -> new BlobLocation(location.blobFile(), ranges.dataSizeInBytes() + location.offset(), location.fileLength())
+            );
+
+            final var commit = new StatelessCompoundCommit(
+                node.shardId,
+                primaryTermAndGeneration,
+                1L,
+                node.node.getEphemeralId(),
+                commitFiles,
+                0,
+                commitFiles.keySet(),
+                0L,
+                ranges
+            );
+
+            var blobFileRanges = BlobFileRangesTestUtils.computeBlobFileRanges(true, commit, 0, commit.internalFiles());
+            node.indexingDirectory.getBlobStoreCacheDirectory().updateMetadata(blobFileRanges, randomNonNegativeLong());
+
+            final PlainActionFuture<Void> future = new PlainActionFuture<>();
+            node.warmingService.warmCacheRecovery(
+                INDEXING,
+                mockIndexShard(node),
+                commit,
+                node.indexingDirectory.getBlobStoreCacheDirectory(),
+                future
+            );
+            safeGet(future);
+
+            assertThat(node.sharedCacheService.getStats().writeCount(), equalTo(0L));
         }
     }
 
@@ -415,7 +513,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             // Warm the cache and verify the range is fetched with minimization as expected
             final PlainActionFuture<Void> future = new PlainActionFuture<>();
             node.warmingService.warmCacheRecovery(
-                randomFrom(Type.values()),
+                SEARCH, // needs to be search so that region 0 is not skipped by index warming with replicated content
                 indexShard,
                 commit,
                 node.indexingDirectory.getBlobStoreCacheDirectory(),

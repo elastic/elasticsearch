@@ -23,7 +23,7 @@ image:images/frozen.png[Image showing a master node]
 | image:images/machine-learning.png[Image showing a master node]
 | Executes machine learning jobs, including anomaly detection, data frame analysis, and inference.
 | Kibana
-| image:images/Kibana.png[Image showing a master node]
+| image:images/kibana.png[Image showing a master node]
 | Provides the front-end interface for visualizing data stored in Elasticsearch. Essential for creating dashboards and managing visualizations.
 
 | Snapshot Storage

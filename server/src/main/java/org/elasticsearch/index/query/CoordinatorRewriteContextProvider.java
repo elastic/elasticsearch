@@ -52,6 +52,12 @@ public class CoordinatorRewriteContextProvider {
             return null;
         }
         DateFieldRangeInfo dateFieldRangeInfo = mappingSupplier.apply(index);
+        // we've now added a coordinator rewrite based on the _tier field so the requirement
+        // for the timestamps fields to be present is artificial (we could do a coordinator
+        // rewrite only based on the _tier field) and we might decide to remove this artificial
+        // limitation to enable coordinator rewrites based on _tier for hot and warm indices
+        // (currently the _tier coordinator rewrite is only available for mounted and partially mounted
+        // indices)
         if (dateFieldRangeInfo == null) {
             return null;
         }
@@ -74,7 +80,8 @@ public class CoordinatorRewriteContextProvider {
             parserConfig,
             client,
             nowInMillis,
-            new DateFieldRangeInfo(timestampFieldType, timestampRange, dateFieldRangeInfo.eventIngestedFieldType(), eventIngestedRange)
+            new DateFieldRangeInfo(timestampFieldType, timestampRange, dateFieldRangeInfo.eventIngestedFieldType(), eventIngestedRange),
+            indexMetadata.getTierPreference().isEmpty() == false ? indexMetadata.getTierPreference().getFirst() : ""
         );
     }
 }

@@ -44,7 +44,7 @@ public class DuelScrollIT extends ESIntegTestCase {
             prepareSearch("index").setSearchType(context.searchType).addSort(context.sort).setSize(context.numDocs),
             control -> {
                 SearchHits sh = control.getHits();
-                assertThat(sh.getTotalHits().value, equalTo((long) context.numDocs));
+                assertThat(sh.getTotalHits().value(), equalTo((long) context.numDocs));
                 assertThat(sh.getHits().length, equalTo(context.numDocs));
 
                 SearchResponse searchScrollResponse = prepareSearch("index").setSearchType(context.searchType)
@@ -55,7 +55,7 @@ public class DuelScrollIT extends ESIntegTestCase {
                 try {
 
                     assertNoFailures(searchScrollResponse);
-                    assertThat(searchScrollResponse.getHits().getTotalHits().value, equalTo((long) context.numDocs));
+                    assertThat(searchScrollResponse.getHits().getTotalHits().value(), equalTo((long) context.numDocs));
                     assertThat(searchScrollResponse.getHits().getHits().length, equalTo(context.scrollRequestSize));
 
                     int counter = 0;
@@ -69,7 +69,7 @@ public class DuelScrollIT extends ESIntegTestCase {
                         searchScrollResponse.decRef();
                         searchScrollResponse = client().prepareSearchScroll(scrollId).setScroll(TimeValue.timeValueMinutes(10)).get();
                         assertNoFailures(searchScrollResponse);
-                        assertThat(searchScrollResponse.getHits().getTotalHits().value, equalTo((long) context.numDocs));
+                        assertThat(searchScrollResponse.getHits().getTotalHits().value(), equalTo((long) context.numDocs));
                         if (searchScrollResponse.getHits().getHits().length == 0) {
                             break;
                         }
@@ -241,7 +241,7 @@ public class DuelScrollIT extends ESIntegTestCase {
                 try {
                     while (true) {
                         assertNoFailures(scroll);
-                        assertEquals(control.getHits().getTotalHits().value, scroll.getHits().getTotalHits().value);
+                        assertEquals(control.getHits().getTotalHits().value(), scroll.getHits().getTotalHits().value());
                         assertEquals(control.getHits().getMaxScore(), scroll.getHits().getMaxScore(), 0.01f);
                         if (scroll.getHits().getHits().length == 0) {
                             break;
@@ -255,7 +255,7 @@ public class DuelScrollIT extends ESIntegTestCase {
                         scroll.decRef();
                         scroll = client().prepareSearchScroll(scroll.getScrollId()).setScroll(TimeValue.timeValueMinutes(10)).get();
                     }
-                    assertEquals(control.getHits().getTotalHits().value, scrollDocs);
+                    assertEquals(control.getHits().getTotalHits().value(), scrollDocs);
                 } catch (AssertionError e) {
                     logger.info("Control:\n{}", control);
                     logger.info("Scroll size={}, from={}:\n{}", size, scrollDocs, scroll);

@@ -13,12 +13,12 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -61,24 +61,11 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
             // a type is not included, add a dummy _doc type
             Map<String, Object> mappings = parser.map();
             if (MapperService.isMappingSourceTyped(MapperService.SINGLE_MAPPING_NAME, mappings)) {
-                throw new IllegalArgumentException(
-                    "The mapping definition cannot be nested under a type "
-                        + "["
-                        + MapperService.SINGLE_MAPPING_NAME
-                        + "] unless include_type_name is set to true."
-                );
-            }
-            request.createIndexRequest.mapping(mappings);
-        }, CreateIndexRequest.MAPPINGS.forRestApiVersion(RestApiVersion.equalTo(RestApiVersion.V_7)), ObjectParser.ValueType.OBJECT);
-        PARSER.declareField((parser, request, context) -> {
-            // a type is not included, add a dummy _doc type
-            Map<String, Object> mappings = parser.map();
-            if (MapperService.isMappingSourceTyped(MapperService.SINGLE_MAPPING_NAME, mappings)) {
 
                 throw new IllegalArgumentException("The mapping definition cannot be nested under a type");
             }
             request.createIndexRequest.mapping(mappings);
-        }, CreateIndexRequest.MAPPINGS.forRestApiVersion(RestApiVersion.onOrAfter(RestApiVersion.V_8)), ObjectParser.ValueType.OBJECT);
+        }, CreateIndexRequest.MAPPINGS, ObjectParser.ValueType.OBJECT);
 
         PARSER.declareField(
             (parser, request, context) -> request.createIndexRequest.aliases(parser.map()),
@@ -138,8 +125,8 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
             );
         }
 
-        var selectors = indicesOptions.selectorOptions().defaultSelectors();
-        if (selectors.size() > 1) {
+        var selector = indicesOptions.selectorOptions().defaultSelector();
+        if (selector == IndexComponentSelector.ALL_APPLICABLE) {
             validationException = addValidationError(
                 "rollover cannot be applied to both regular and failure indices at the same time",
                 validationException

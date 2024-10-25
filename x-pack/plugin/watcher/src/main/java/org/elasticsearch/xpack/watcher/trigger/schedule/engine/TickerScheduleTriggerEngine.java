@@ -17,6 +17,8 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.watcher.support.WatcherDateTimeUtils;
 import org.elasticsearch.xpack.core.watcher.trigger.TriggerEvent;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
+import org.elasticsearch.xpack.core.watcher.watch.WatchStatus;
+import org.elasticsearch.xpack.watcher.trigger.schedule.IntervalSchedule;
 import org.elasticsearch.xpack.watcher.trigger.schedule.Schedule;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleRegistry;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTrigger;
@@ -32,6 +34,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -67,7 +70,11 @@ public class TickerScheduleTriggerEngine extends ScheduleTriggerEngine {
         Map<String, ActiveSchedule> startingSchedules = Maps.newMapWithExpectedSize(jobs.size());
         for (Watch job : jobs) {
             if (job.trigger() instanceof ScheduleTrigger trigger) {
-                startingSchedules.put(job.id(), new ActiveSchedule(job.id(), trigger.getSchedule(), startTime));
+                if (trigger.getSchedule() instanceof IntervalSchedule) {
+                    startingSchedules.put(job.id(), new ActiveSchedule(job.id(), trigger.getSchedule(), calculateLastStartTime(job)));
+                } else {
+                    startingSchedules.put(job.id(), new ActiveSchedule(job.id(), trigger.getSchedule(), startTime));
+                }
             }
         }
         // why are we calling putAll() here instead of assigning a brand
@@ -108,8 +115,37 @@ public class TickerScheduleTriggerEngine extends ScheduleTriggerEngine {
         // watcher indexing listener
         // this also means that updating an existing watch would not retrigger the schedule time, if it remains the same schedule
         if (currentSchedule == null || currentSchedule.schedule.equals(trigger.getSchedule()) == false) {
-            schedules.put(watch.id(), new ActiveSchedule(watch.id(), trigger.getSchedule(), clock.millis()));
+            if (trigger.getSchedule() instanceof IntervalSchedule) {
+                schedules.put(watch.id(), new ActiveSchedule(watch.id(), trigger.getSchedule(), calculateLastStartTime(watch)));
+            } else {
+                schedules.put(watch.id(), new ActiveSchedule(watch.id(), trigger.getSchedule(), clock.millis()));
+            }
+
         }
+    }
+
+    /**
+     * Attempts to calculate the epoch millis of the last time the watch was checked, If the watch has never been checked, the timestamp of
+     * the last state change is used. If the watch has never been checked and has never been in an active state, the current time is used.
+     * @param job the watch to calculate the last start time for
+     * @return the epoch millis of the last time the watch was checked or now
+     */
+    private long calculateLastStartTime(Watch job) {
+        var lastChecked = Optional.ofNullable(job)
+            .map(Watch::status)
+            .map(WatchStatus::lastChecked)
+            .map(ZonedDateTime::toInstant)
+            .map(Instant::toEpochMilli);
+
+        return lastChecked.orElseGet(
+            () -> Optional.ofNullable(job)
+                .map(Watch::status)
+                .map(WatchStatus::state)
+                .map(WatchStatus.State::getTimestamp)
+                .map(ZonedDateTime::toInstant)
+                .map(Instant::toEpochMilli)
+                .orElse(clock.millis())
+        );
     }
 
     @Override

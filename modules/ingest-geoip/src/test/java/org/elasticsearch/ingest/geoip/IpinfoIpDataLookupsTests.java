@@ -548,7 +548,7 @@ public class IpinfoIpDataLookupsTests extends ESTestCase {
                 }
             }
             for (String key : actual.keySet()) {
-                if (keyMappings.values().contains(key) == false && knownAdditionalKeys.contains(key) == false) {
+                if (keyMappings.containsValue(key) == false && knownAdditionalKeys.contains(key) == false) {
                     fail(Strings.format("Unexpected key [%s] in results", key));
                 }
             }

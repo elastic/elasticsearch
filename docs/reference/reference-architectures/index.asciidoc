@@ -17,7 +17,7 @@ These reference architectures are recommendations and should be adapted to fit y
 
 | <<multi-region-two-datacenter-architecture>>
 
-image:reference-architectures/images/multi-region-two-datacenter.png[Image showing a multi-region two datacenter architecture]
+image:images/multi-region-two-datacenter.png[Image showing a multi-region two datacenter architecture]
 
 a| 
 You want to:
@@ -27,7 +27,7 @@ You want to:
 
 | <<elastic-cloud-architecture>>
 
-image:reference-architectures/images/elastic-cloud-architecture.png[Image showing a Elastic Cloud Hot-Frozen Architecture]
+image:images/elastic-cloud-architecture.png[Image showing a Elastic Cloud Hot-Frozen Architecture]
 
 a| 
 You want to:
@@ -37,7 +37,7 @@ You want to:
 
 | <<self-managed-single-datacenter>>
 
-image:reference-architectures/images/single-datacenter.png[Image showing a single datacenter architecture]
+image:images/single-datacenter.png[Image showing a single datacenter architecture]
 
 a| 
 You want to:
@@ -47,7 +47,7 @@ You want to:
 
 | <<three-availability-zones>>
 
-image:reference-architectures/images/three-availability-zone.png[Image showing a three Availability zone architecture]
+image:images/three-availability-zone.png[Image showing a three Availability zone architecture]
 
 a| 
 You want to:
@@ -63,12 +63,6 @@ You want to:
 
 Additionally, we have architectures specifically tailored to the ingestion portion of your architecture and these can be found at, https://www.elastic.co/guide/en/ingest/current/use-case-arch.html[Ingest Architectures]
 
-include::reference-architectures/components.asciidoc[]
+include::components.asciidoc[]
 
-include::reference-architectures/multi-region-two-datacenter-architecture.asciidoc[]
-
-include::reference-architectures/elastic-cloud-architecture.asciidoc[]
-
-include::reference-architectures/self-managed-single-datacenter.asciidoc[]
-
-include::reference-architectures/three-availability-zones.asciidoc[]
+include::high-availability.asciidoc[]

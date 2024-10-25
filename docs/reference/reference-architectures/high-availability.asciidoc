@@ -1,0 +1,16 @@
+[[high-availability]]
+== High availability
+
+
+<<multi-region-two-datacenter-architecture>>
+<<elastic-cloud-architecture>>
+<<self-managed-single-datacenter>>
+<<three-availability-zones>>
+
+include::multi-region-two-datacenter-architecture.asciidoc[]
+
+include::elastic-cloud-architecture.asciidoc[]
+
+include::self-managed-single-datacenter.asciidoc[]
+
+include::three-availability-zones.asciidoc[]

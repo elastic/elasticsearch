@@ -78,7 +78,7 @@ include::snapshot-restore/index.asciidoc[]
 
 // reference
 
-include::reference-architectures.asciidoc[]
+include::reference-architectures/index.asciidoc[]
 
 include::rest-api/index.asciidoc[]
 

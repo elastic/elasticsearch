@@ -438,7 +438,8 @@ public abstract class LuceneOperator extends SourceOperator {
             final var query = queryFunction.apply(ctx);
             final var searcher = ctx.searcher();
             try {
-                return searcher.createWeight(searcher.rewrite(new ConstantScoreQuery(query)), scoreMode, 1);
+                Query actualQuery = scoreMode.needsScores() ? query : new ConstantScoreQuery(query);
+                return searcher.createWeight(searcher.rewrite(actualQuery), scoreMode, 1);
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }

@@ -13,18 +13,15 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSelector;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
-import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
-import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.AnyOperatorTestCase;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
@@ -33,7 +30,6 @@ import org.elasticsearch.compute.operator.TestResultPageSinkOperator;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
-import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortAndFormats;
@@ -51,7 +47,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.matchesRegex;
 
-public class LuceneTopNSourceOperatorTests extends AnyOperatorTestCase {
+public class ScoringLuceneTopNSourceOperatorTests extends LuceneTopNSourceOperatorTests {
     private static final MappedFieldType S_FIELD = new NumberFieldMapper.NumberFieldType("s", NumberFieldMapper.NumberType.LONG);
     private Directory directory = newDirectory();
     private IndexReader reader;
@@ -62,11 +58,11 @@ public class LuceneTopNSourceOperatorTests extends AnyOperatorTestCase {
     }
 
     @Override
-    protected LuceneTopNSourceOperator.Factory simple() {
+    protected ScoringLuceneTopNSourceOperator.Factory simple() {
         return simple(DataPartitioning.SHARD, 10_000, 100);
     }
 
-    private LuceneTopNSourceOperator.Factory simple(DataPartitioning dataPartitioning, int size, int limit) {
+    private ScoringLuceneTopNSourceOperator.Factory simple(DataPartitioning dataPartitioning, int size, int limit) {
         int commitEvery = Math.max(1, size / 10);
         try (
             RandomIndexWriter writer = new RandomIndexWriter(
@@ -99,72 +95,32 @@ public class LuceneTopNSourceOperatorTests extends AnyOperatorTestCase {
         int taskConcurrency = 0;
         int maxPageSize = between(10, Math.max(10, size));
         List<SortBuilder<?>> sorts = List.of(new FieldSortBuilder("s"));
-        return new LuceneTopNSourceOperator.Factory(
+        return new ScoringLuceneTopNSourceOperator.Factory(
             List.of(ctx),
             queryFunction,
             dataPartitioning,
             taskConcurrency,
             maxPageSize,
             limit,
-            sorts,
-            ScoreMode.TOP_DOCS
+            sorts
         );
     }
 
     @Override
     protected Matcher<String> expectedToStringOfSimple() {
-        return matchesRegex("LuceneTopNSourceOperator\\[maxPageSize = \\d+, limit = 100, sorts = \\[\\{.+}]]");
+        return matchesRegex("ScoringLuceneTopNSourceOperator\\[maxPageSize = \\d+, limit = 100, sorts = \\[\\{.+}]]");
     }
 
     @Override
     protected Matcher<String> expectedDescriptionOfSimple() {
         return matchesRegex(
-            "LuceneTopNSourceOperator\\[dataPartitioning = (DOC|SHARD|SEGMENT), maxPageSize = \\d+, limit = 100, sorts = \\[\\{.+}]]"
+            "ScoringLuceneTopNSourceOperator\\[dataPartitioning = (DOC|SHARD|SEGMENT), maxPageSize = \\d+, limit = 100, sorts = \\[\\{.+}]]"
         );
     }
 
-    // TODO tests for the other data partitioning configurations
-
-    public void testShardDataPartitioning() {
-        testShardDataPartitioning(driverContext());
-    }
-
-    public void testShardDataPartitioningWithCranky() {
-        try {
-            testShardDataPartitioning(crankyDriverContext());
-            logger.info("cranky didn't break");
-        } catch (CircuitBreakingException e) {
-            logger.info("broken", e);
-            assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
-        }
-    }
-
-    void testShardDataPartitioning(DriverContext context) {
-        int size = between(1_000, 20_000);
-        int limit = between(10, size);
-        testSimple(context, size, limit);
-    }
-
-    public void testEmpty() {
-        testEmpty(driverContext());
-    }
-
-    public void testEmptyWithCranky() {
-        try {
-            testEmpty(crankyDriverContext());
-            logger.info("cranky didn't break");
-        } catch (CircuitBreakingException e) {
-            logger.info("broken", e);
-            assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
-        }
-    }
-
-    void testEmpty(DriverContext context) {
-        testSimple(context, 0, between(10, 10_000));
-    }
-
+    @Override
     protected void testSimple(DriverContext ctx, int size, int limit) {
-        LuceneTopNSourceOperator.Factory factory = simple(DataPartitioning.SHARD, size, limit);
+        ScoringLuceneTopNSourceOperator.Factory factory = simple(DataPartitioning.SHARD, size, limit);
         Operator.OperatorFactory readS = ValuesSourceReaderOperatorTests.factory(reader, S_FIELD, ElementType.LONG);
 
         List<Page> results = new ArrayList<>();
@@ -174,18 +130,20 @@ public class LuceneTopNSourceOperatorTests extends AnyOperatorTestCase {
         OperatorTestCase.assertDriverContext(ctx);
 
         long expectedS = 0;
+        int maxPageSize = factory.maxPageSize();
         for (Page page : results) {
-            if (limit - expectedS < factory.maxPageSize()) {
+            if (limit - expectedS < maxPageSize) {
                 assertThat(page.getPositionCount(), equalTo((int) (limit - expectedS)));
             } else {
-                assertThat(page.getPositionCount(), equalTo(factory.maxPageSize()));
+                assertThat(page.getPositionCount(), equalTo(maxPageSize));
             }
-            LongBlock sBlock = page.getBlock(1);
+            DoubleBlock sBlock = page.getBlock(1);
             for (int p = 0; p < page.getPositionCount(); p++) {
-                assertThat(sBlock.getLong(sBlock.getFirstValueIndex(p)), equalTo(expectedS++));
+                assertThat(sBlock.getDouble(sBlock.getFirstValueIndex(p)), equalTo(1.0d));
+                expectedS++;
             }
         }
-        int pages = (int) Math.ceil((float) Math.min(size, limit) / factory.maxPageSize());
+        int pages = (int) Math.ceil((float) Math.min(size, limit) / maxPageSize);
         assertThat(results, hasSize(pages));
     }
 }

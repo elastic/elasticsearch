@@ -436,7 +436,12 @@ public class EsqlCapabilities {
         /**
          * Support simplified syntax for named parameters for field and function names.
          */
-        NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES_SIMPLIFIED_SYNTAX(Build.current().isSnapshot());
+        NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES_SIMPLIFIED_SYNTAX(Build.current().isSnapshot()),
+
+        /**
+         * Support the "METADATA _score" directive to enable _score column.
+         */
+        METADATA_SCORE(true);
 
         private final boolean enabled;
 

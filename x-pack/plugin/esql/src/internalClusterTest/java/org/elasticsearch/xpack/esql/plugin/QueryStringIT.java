@@ -14,6 +14,7 @@ import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
 import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.junit.Before;
 
@@ -146,5 +147,58 @@ public class QueryStringIT extends AbstractEsqlIntegTestCase {
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
         ensureYellow(indexName);
+    }
+
+    public void testWhereQstrWithScoring() {
+        assumeTrue("'METADATA _score' is disabled", EsqlCapabilities.Cap.METADATA_SCORE.isEnabled());
+        var query = """
+            FROM test
+            METADATA _score
+            | WHERE qstr("content: fox")
+            | KEEP id, _score
+            | SORT id ASC
+            """;
+
+        try (var resp = run(query)) {
+            assertThat(resp.columns().stream().map(ColumnInfoImpl::name).toList(), equalTo(List.of("id", "_score")));
+            assertThat(
+                resp.columns().stream().map(ColumnInfoImpl::type).map(DataType::toString).toList(),
+                equalTo(List.of("INTEGER", "DOUBLE"))
+            );
+            // values
+            List<List<Object>> values = getValuesList(resp);
+            assertMap(
+                values,
+                matchesList().item(List.of(2, 0.3028995096683502))
+                    .item(List.of(3, 0.3028995096683502))
+                    .item(List.of(4, 0.2547692656517029))
+                    .item(List.of(5, 0.28161853551864624))
+            );
+        }
+    }
+
+    public void testWhereQstrWithNonPushableAndScoring() {
+        assumeTrue("'METADATA _score' is disabled", EsqlCapabilities.Cap.METADATA_SCORE.isEnabled());
+        var query = """
+            FROM test
+            METADATA _score
+            | WHERE qstr("content: fox")
+              AND abs(id) > 0
+            | EVAL c_score = ceil(_score)
+            | KEEP id, c_score
+            | SORT id DESC
+            | LIMIT 2
+            """;
+
+        try (var resp = run(query)) {
+            assertThat(resp.columns().stream().map(ColumnInfoImpl::name).toList(), equalTo(List.of("id", "c_score")));
+            assertThat(
+                resp.columns().stream().map(ColumnInfoImpl::type).map(DataType::toString).toList(),
+                equalTo(List.of("INTEGER", "DOUBLE"))
+            );
+            // values
+            List<List<Object>> values = getValuesList(resp);
+            assertMap(values, matchesList().item(List.of(5, 1.0)).item(List.of(4, 1.0)));
+        }
     }
 }

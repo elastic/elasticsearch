@@ -282,6 +282,9 @@ tests:
 - class: org.elasticsearch.oldrepos.OldRepositoryAccessIT
   method: testOldRepoAccess
   issue: https://github.com/elastic/elasticsearch/issues/115631
+- class: org.elasticsearch.xpack.esql.analysis.AnalyzerTests
+  method: testMvAppendValidation
+  issue: https://github.com/elastic/elasticsearch/issues/115636
 
 # Examples:
 #

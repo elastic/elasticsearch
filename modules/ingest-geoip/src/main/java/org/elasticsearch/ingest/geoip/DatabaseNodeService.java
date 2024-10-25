@@ -105,11 +105,6 @@ public final class DatabaseNodeService implements IpDatabaseProvider {
     private IngestService ingestService;
 
     private final ConcurrentMap<String, DatabaseReaderLazyLoader> databases = new ConcurrentHashMap<>();
-    /*
-     * This is meant to be used by tests to disable the checkDatabases() method. That method can run at unexpected times, and removes
-     * any databases it considers stale (which might break tests).
-     */
-    boolean doNotCheckDatabases = false;
 
     DatabaseNodeService(
         Environment environment,
@@ -263,9 +258,6 @@ public final class DatabaseNodeService implements IpDatabaseProvider {
     }
 
     void checkDatabases(ClusterState state) {
-        if (doNotCheckDatabases) {
-            return;
-        }
         if (state.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
             return;
         }

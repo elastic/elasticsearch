@@ -58,7 +58,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.OperationPurpose;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.RatioValue;
@@ -168,26 +167,9 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
         }
     }
 
-    /**
-     * This plugin is required to manually enable STATELESS_COMMIT_USE_INTERNAL_FILES_REPLICATED_CONTENT
-     * before it is released to main
-     */
-    public static class ExposeReplicatedContentSettingPlugin extends Plugin {
-        @Override
-        public List<Setting<?>> getSettings() {
-            return List.of(StatelessCommitService.STATELESS_COMMIT_USE_INTERNAL_FILES_REPLICATED_CONTENT);
-        }
-    }
-
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(
-            SystemIndexTestPlugin.class,
-            BlobCachePlugin.class,
-            Stateless.class,
-            MockTransportService.TestPlugin.class,
-            ExposeReplicatedContentSettingPlugin.class
-        );
+        return List.of(SystemIndexTestPlugin.class, BlobCachePlugin.class, Stateless.class, MockTransportService.TestPlugin.class);
     }
 
     public static class NoopSharedBlobCacheWarmingService extends SharedBlobCacheWarmingService {

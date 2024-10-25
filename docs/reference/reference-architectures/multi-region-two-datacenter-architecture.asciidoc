@@ -11,8 +11,6 @@ This architecture is intended for organizations that need to:
 
 * Monitor the performance and health of their applications in real-time
 * Provide insights and alerts to ensure optimal performance and quick issue resolution for applications
-* Generative ai? OTEL collector? Highlight the stuff that sells…
-
 
 [discrete]
 [[multi-region-architecture]]
@@ -35,21 +33,9 @@ The following list are important conderations for this architecture:
 TIP: For consistent index level settings is it easiest to use index lifecycle management with index templates, please see the section below for more detail.
 
 *** **Shard allocation awareness:** To prevent both a primary and a replica from being copied to the same zone, or in this case the same pod, you can use https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-cluster.html#shard-allocation-awareness[shard allocation awareness] and define a simple attribute in the elaticsearch.yaml file on a per-node basis to make Elasticsearch aware of the physical topology and route shards appropriately. In deployment models with multiple availability zones, AZ's would be used in place of pod location.
-* ILM: Updates
-** Index templates
-*** No updates
-* SLM
-* Index management if updates are required
-** Alias, curator?
-* Hot warm cold frozen
-** Hot: Primary and replica
-** Warm: Primary replica
-** Cold: Primary, replica in snapshot repo
-** Frozen: Cached from Object Store 
-* Snapshots
-** TBD
-* Disadvantages of this architecture.
-** No region resilience
+
+*** **Disadvantages of this architecture**
+**** No region resilience
 
 [discrete]
 [[multi-region-resources]]

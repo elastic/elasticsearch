@@ -1800,3 +1800,59 @@ warning:Line 1:29: java.lang.IllegalArgumentException: single-value function enc
 x:keyword
 null
 ;
+
+
+likeEscapingSingleQuotes
+// tag::likeEscapingSingleQuotes[]
+ROW message = "foo * bar"
+| WHERE message LIKE "foo \\* bar"
+// end::likeEscapingSingleQuotes[]
+;
+
+// tag::likeEscapingSingleQuotes-result[]
+message:keyword
+foo * bar
+// end::likeEscapingSingleQuotes-result[]
+;
+
+
+likeEscapingTripleQuotes
+// tag::likeEscapingTripleQuotes[]
+ROW message = "foo * bar"
+| WHERE message LIKE """foo \* bar"""
+// end::likeEscapingTripleQuotes[]
+;
+
+// tag::likeEscapingTripleQuotes-result[]
+message:keyword
+foo * bar
+// end::likeEscapingTripleQuotes-result[]
+;
+
+
+rlikeEscapingSingleQuotes
+// tag::rlikeEscapingSingleQuotes[]
+ROW message = "foo ( bar"
+| WHERE message RLIKE "foo \\( bar"
+// end::rlikeEscapingSingleQuotes[]
+;
+
+// tag::rlikeEscapingSingleQuotes-result[]
+message:keyword
+foo ( bar
+// end::rlikeEscapingSingleQuotes-result[]
+;
+
+
+rlikeEscapingTripleQuotes
+// tag::rlikeEscapingTripleQuotes[]
+ROW message = "foo ( bar"
+| WHERE message RLIKE """foo \( bar"""
+// end::rlikeEscapingTripleQuotes[]
+;
+
+// tag::rlikeEscapingTripleQuotes-result[]
+message:keyword
+foo ( bar
+// end::rlikeEscapingTripleQuotes-result[]
+;

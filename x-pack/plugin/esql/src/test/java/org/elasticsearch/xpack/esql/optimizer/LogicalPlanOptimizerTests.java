@@ -555,6 +555,105 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(Expressions.names(agg.aggregates()), contains("sum(salary)", "sum(salary) WheRe last_name ==   \"Doe\""));
     }
 
+    public void testExtractStatsCommonFilter() {
+        String query = """
+            from test
+            | stats min(salary) where emp_no > 1,
+                    max(salary) where emp_no > 1
+            """;
+        String by = randomBoolean() ? "" : "by " + randomFrom("last_name", "salary", "emp_no");
+        var plan = plan(query + by);
+
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        assertThat(agg.aggregates().size(), is(2 + (by.isEmpty() ? 0 : 1)));
+
+        var alias = as(agg.aggregates().get(0), Alias.class);
+        var aggFunc = as(alias.child(), AggregateFunction.class);
+        assertThat(aggFunc.filter(), is(Literal.TRUE));
+
+        alias = as(agg.aggregates().get(1), Alias.class);
+        aggFunc = as(alias.child(), AggregateFunction.class);
+        assertThat(aggFunc.filter(), is(Literal.TRUE));
+
+        var filter = as(agg.child(), Filter.class);
+        assertThat(Expressions.name(filter.condition()), is("emp_no > 1"));
+
+        var source = as(filter.child(), EsRelation.class);
+    }
+
+    public void testExtractStatsCommonFilterNotSame() {
+        String query = """
+            from test
+            | stats min(salary) where emp_no > 1,
+                    max(salary) where emp_no > 2
+            """;
+        String by = randomBoolean() ? "" : "by " + randomFrom("last_name", "salary", "emp_no");
+        var plan = plan(query + by);
+
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        assertThat(agg.aggregates().size(), is(2 + (by.isEmpty() ? 0 : 1)));
+
+        var alias = as(agg.aggregates().get(0), Alias.class);
+        var aggFunc = as(alias.child(), AggregateFunction.class);
+        assertThat(aggFunc.filter(), instanceOf(BinaryComparison.class));
+
+        alias = as(agg.aggregates().get(1), Alias.class);
+        aggFunc = as(alias.child(), AggregateFunction.class);
+        assertThat(aggFunc.filter(), instanceOf(BinaryComparison.class));
+
+        var source = as(agg.child(), EsRelation.class);
+    }
+
+    public void testExtractStatsCommonFilterAsymetrical() {
+        var plan = plan("""
+            from test
+            | stats min(salary),
+                    max(salary) where emp_no > 2
+            """);
+
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        assertThat(agg.aggregates().size(), is(2));
+
+        var alias = as(agg.aggregates().get(0), Alias.class);
+        var aggFunc = as(alias.child(), AggregateFunction.class);
+        assertThat(aggFunc.filter(), is(Literal.TRUE));
+
+        alias = as(agg.aggregates().get(1), Alias.class);
+        aggFunc = as(alias.child(), AggregateFunction.class);
+        assertThat(aggFunc.filter(), instanceOf(BinaryComparison.class));
+
+        var source = as(agg.child(), EsRelation.class);
+    }
+
+    public void testExtractStatsCommonFilterCombine() {
+        var plan = plan("""
+            from test
+            | where emp_no > 3
+            | stats min(salary) where emp_no > 2,
+                    max(salary) where emp_no > 2
+            """);
+
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        assertThat(agg.aggregates().size(), is(2));
+
+        var alias = as(agg.aggregates().get(0), Alias.class);
+        var aggFunc = as(alias.child(), AggregateFunction.class);
+        assertThat(aggFunc.filter(), is(Literal.TRUE));
+
+        alias = as(agg.aggregates().get(1), Alias.class);
+        aggFunc = as(alias.child(), AggregateFunction.class);
+        assertThat(aggFunc.filter(), is(Literal.TRUE));
+
+        var filter = as(agg.child(), Filter.class);
+        assertThat(Expressions.name(filter.condition()), is("emp_no > 3"));
+
+        var source = as(filter.child(), EsRelation.class);
+    }
+
     public void testQlComparisonOptimizationsApply() {
         var plan = plan("""
             from test

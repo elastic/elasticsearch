@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.CombineProjections;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ConstantFolding;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ConvertStringToByteRef;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.DuplicateLimitAfterMvExpand;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.ExtractStatsCommonFilter;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.FoldNull;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.LiteralsOnTheRight;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PartiallyFoldCase;
@@ -123,8 +124,9 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             "Substitutions",
             Limiter.ONCE,
             new ReplaceLookupWithJoin(),
-            // translate filtered expressions into aggregate with filters - can't use surrogate expressions because it was
-            // retrofitted for constant folding - this needs to be fixed
+            // Translate filtered expressions into aggregate with filters - can't use surrogate expressions because it was
+            // retrofitted for constant folding - this needs to be fixed.
+            // Needs to occur before ReplaceStatsAggExpressionWithEval, which will update the functions, losing the filter.
             new SubstituteFilteredExpression(),
             new RemoveStatsOverride(),
             // first extract nested expressions inside aggs
@@ -168,7 +170,9 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new BooleanFunctionEqualsElimination(),
             new CombineBinaryComparisons(),
             new CombineDisjunctions(),
+            // TODO: bifunction can now (since we now have just one data types set) be pushed into the rule
             new SimplifyComparisonsArithmetics(DataType::areCompatible),
+            new ExtractStatsCommonFilter(),
             // prune/elimination
             new PruneFilters(),
             new PruneColumns(),

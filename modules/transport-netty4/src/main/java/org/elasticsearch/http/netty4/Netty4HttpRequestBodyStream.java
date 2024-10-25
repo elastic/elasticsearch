@@ -16,7 +16,6 @@ import io.netty.channel.ChannelFutureListener;
 import io.netty.handler.codec.http.HttpContent;
 import io.netty.handler.codec.http.LastHttpContent;
 
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.http.HttpBody;
@@ -44,13 +43,10 @@ public class Netty4HttpRequestBodyStream implements HttpBody.Stream {
     private HttpBody.ChunkHandler handler;
     private ThreadContext.StoredContext requestContext;
 
-    public Netty4HttpRequestBodyStream(Channel channel) {
-        this(channel, new ThreadContext(Settings.EMPTY));
-    }
-
     public Netty4HttpRequestBodyStream(Channel channel, ThreadContext threadContext) {
         this.channel = channel;
         this.threadContext = threadContext;
+        this.requestContext = threadContext.newStoredContext();
         Netty4Utils.addListener(channel.closeFuture(), closeListener);
         channel.config().setAutoRead(false);
     }

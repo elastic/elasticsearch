@@ -16,7 +16,7 @@ ingested in the pipeline.
 [options="header"]
 |======
 | Name                                  | Required  | Default                                    | Description
-| `model_id` .                          | yes       | -                                          | (String) The ID or alias for the trained model, or the ID of the deployment.
+| `model_id` .                          | yes       | -                                          | (String) An inference ID, a model deployment ID, a trained model ID or an alias.
 | `input_output`                        | no        | -                                          | (List) Input fields for {infer} and output (destination) fields for the {infer} results. This option is incompatible with the `target_field` and `field_map` options.
 | `target_field`                        | no        | `ml.inference.<processor_tag>`             | (String) Field added to incoming documents to contain results objects.
 | `field_map`                           | no        | If defined the model's default field map   | (Object) Maps the document field names to the known field names of the model. This mapping takes precedence over any default mappings provided in the model configuration.

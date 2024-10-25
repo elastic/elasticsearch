@@ -99,18 +99,13 @@ public final class PipelineConfiguration implements SimpleDiffable<PipelineConfi
     }
 
     public Integer getVersion() {
-        var configMap = getConfigAsMap();
-        if (configMap.containsKey("version")) {
-            Object o = configMap.get("version");
-            if (o == null) {
-                return null;
-            } else if (o instanceof Number number) {
-                return number.intValue();
-            } else {
-                throw new IllegalStateException("unexpected version type [" + o.getClass().getName() + "]");
-            }
-        } else {
+        Object o = getConfigAsMap().get("version");
+        if (o == null) {
             return null;
+        } else if (o instanceof Number number) {
+            return number.intValue();
+        } else {
+            throw new IllegalStateException("unexpected version type [" + o.getClass().getName() + "]");
         }
     }
 

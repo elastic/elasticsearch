@@ -547,3 +547,76 @@ setup:
   - match: { _source.dense_field.text: "another updated inference test" }
   - match: { _source.dense_field.inference.chunks.0.text: "another updated inference test" }
   - exists: _source.dense_field.inference.chunks.0.embeddings
+
+---
+"Calculates embeddings using the default ELSER 2 endpoint":
+  - requires:
+      cluster_features: "semantic_text.default_elser_2"
+      reason: semantic_text default ELSER 2 inference ID introduced in 8.16.0
+
+  - do:
+      indices.create:
+        index: test-elser-2-default-index
+        body:
+          mappings:
+            properties:
+              sparse_field:
+                type: semantic_text
+
+  - do:
+      index:
+        index: test-elser-2-default-index
+        id: doc_1
+        body:
+          sparse_field: "inference test"
+
+  - do:
+      get:
+        index: test-elser-2-default-index
+        id: doc_1
+
+  - match: { _source.sparse_field.text: "inference test" }
+  - exists: _source.sparse_field.inference.chunks.0.embeddings
+  - match: { _source.sparse_field.inference.chunks.0.text: "inference test" }
+
+---
+"Can be used inside an object field":
+  - requires:
+      cluster_features: "semantic_text.in_object_field_fix"
+      reason: object field fix added in 8.16.0 & 8.15.4
+
+  - do:
+      indices.create:
+        index: test-in-object-index
+        body:
+          mappings:
+            properties:
+              level_1:
+                properties:
+                  sparse_field:
+                    type: semantic_text
+                    inference_id: sparse-inference-id
+                  dense_field:
+                    type: semantic_text
+                    inference_id: dense-inference-id
+
+  - do:
+      index:
+        index: test-in-object-index
+        id: doc_1
+        body:
+          level_1:
+            sparse_field: "inference test"
+            dense_field: "another inference test"
+
+  - do:
+      get:
+        index: test-in-object-index
+        id: doc_1
+
+  - match: { _source.level_1.sparse_field.text: "inference test" }
+  - exists: _source.level_1.sparse_field.inference.chunks.0.embeddings
+  - match: { _source.level_1.sparse_field.inference.chunks.0.text: "inference test" }
+  - match: { _source.level_1.dense_field.text: "another inference test" }
+  - exists: _source.level_1.dense_field.inference.chunks.0.embeddings
+  - match: { _source.level_1.dense_field.inference.chunks.0.text: "another inference test" }

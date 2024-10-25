@@ -7,12 +7,23 @@
 
 package org.elasticsearch.xpack.inference.external.request.amazonbedrock.completion;
 
-import com.amazonaws.services.bedrockruntime.model.ConverseRequest;
+import org.elasticsearch.core.Nullable;
 
-public interface AmazonBedrockConverseRequestEntity {
-    ConverseRequest addMessages(ConverseRequest request);
+import java.util.List;
 
-    ConverseRequest addInferenceConfig(ConverseRequest request);
-
-    ConverseRequest addAdditionalModelFields(ConverseRequest request);
+public record AmazonBedrockConverseRequestEntity(
+    List<String> messages,
+    @Nullable Double temperature,
+    @Nullable Double topP,
+    @Nullable Integer maxTokenCount,
+    @Nullable List<String> additionalModelFields
+) {
+    public AmazonBedrockConverseRequestEntity(
+        List<String> messages,
+        @Nullable Double temperature,
+        @Nullable Double topP,
+        @Nullable Integer maxTokenCount
+    ) {
+        this(messages, temperature, topP, maxTokenCount, null);
+    }
 }

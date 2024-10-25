@@ -16,7 +16,6 @@ import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
@@ -26,10 +25,8 @@ import org.elasticsearch.index.mapper.VersionFieldMapper;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.RandomObjects;
 import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -111,56 +108,6 @@ public class GetResultTests extends ESTestCase {
             String output = Strings.toString(getResult);
             assertEquals("""
                 {"_index":"index","_id":"id","found":false}""", output);
-        }
-    }
-
-    public void testToCompatibleXContent() throws IOException {
-        {
-            GetResult getResult = new GetResult(
-                "index",
-                "id",
-                0,
-                1,
-                1,
-                true,
-                new BytesArray("""
-                    { "field1" : "value1", "field2":"value2"}"""),
-                singletonMap("field1", new DocumentField("field1", singletonList("value1"))),
-                singletonMap("field1", new DocumentField("metafield", singletonList("metavalue")))
-            );
-
-            try (XContentBuilder builder = XContentBuilder.builder(JsonXContent.jsonXContent, RestApiVersion.V_7)) {
-                getResult.toXContent(builder, ToXContent.EMPTY_PARAMS);
-                String output = Strings.toString(builder);
-                assertEquals(XContentHelper.stripWhitespace("""
-                    {
-                      "_index": "index",
-                      "_type": "_doc",
-                      "_id": "id",
-                      "_version": 1,
-                      "_seq_no": 0,
-                      "_primary_term": 1,
-                      "metafield": "metavalue",
-                      "found": true,
-                      "_source": {
-                        "field1": "value1",
-                        "field2": "value2"
-                      },
-                      "fields": {
-                        "field1": [ "value1" ]
-                      }
-                    }"""), XContentHelper.stripWhitespace(output));
-            }
-        }
-        {
-            GetResult getResult = new GetResult("index", "id", UNASSIGNED_SEQ_NO, 0, 1, false, null, null, null);
-
-            try (XContentBuilder builder = XContentBuilder.builder(JsonXContent.jsonXContent, RestApiVersion.V_7)) {
-                getResult.toXContent(builder, ToXContent.EMPTY_PARAMS);
-                String output = Strings.toString(builder);
-                assertEquals("""
-                    {"_index":"index","_type":"_doc","_id":"id","found":false}""", output);
-            }
         }
     }
 

@@ -247,7 +247,7 @@ public class ShapeQueryOverShapeTests extends ShapeQueryTestCase {
         assertResponse(
             client().prepareSearch(INDEX).setQuery(new ShapeQueryBuilder("alias", queryGeometry).relation(ShapeRelation.INTERSECTS)),
             response -> {
-                assertTrue(response.getHits().getTotalHits().value > 0);
+                assertTrue(response.getHits().getTotalHits().value() > 0);
             }
         );
     }

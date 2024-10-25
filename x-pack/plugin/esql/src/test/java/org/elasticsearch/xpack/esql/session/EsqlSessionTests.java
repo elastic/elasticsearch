@@ -21,6 +21,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class EsqlSessionTests extends ESTestCase {
 
@@ -30,7 +31,7 @@ public class EsqlSessionTests extends ESTestCase {
             final String localClusterAlias = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
             final String remote1Alias = "remote1";
             final String remote2Alias = "remote2";
-            EsqlExecutionInfo executionInfo = new EsqlExecutionInfo();
+            EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(true);
             executionInfo.swapCluster(localClusterAlias, (k, v) -> new EsqlExecutionInfo.Cluster(localClusterAlias, "logs*", false));
             executionInfo.swapCluster(remote1Alias, (k, v) -> new EsqlExecutionInfo.Cluster(remote1Alias, "*", true));
             executionInfo.swapCluster(remote2Alias, (k, v) -> new EsqlExecutionInfo.Cluster(remote2Alias, "mylogs1,mylogs2,logs*", true));
@@ -59,7 +60,7 @@ public class EsqlSessionTests extends ESTestCase {
             final String localClusterAlias = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
             final String remote1Alias = "remote1";
             final String remote2Alias = "remote2";
-            EsqlExecutionInfo executionInfo = new EsqlExecutionInfo();
+            EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(true);
             executionInfo.swapCluster(localClusterAlias, (k, v) -> new EsqlExecutionInfo.Cluster(localClusterAlias, "logs*", false));
             executionInfo.swapCluster(remote1Alias, (k, v) -> new EsqlExecutionInfo.Cluster(remote1Alias, "*", true));
             executionInfo.swapCluster(remote2Alias, (k, v) -> new EsqlExecutionInfo.Cluster(remote2Alias, "mylogs1,mylogs2,logs*", false));
@@ -87,7 +88,7 @@ public class EsqlSessionTests extends ESTestCase {
             final String localClusterAlias = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
             final String remote1Alias = "remote1";
             final String remote2Alias = "remote2";
-            EsqlExecutionInfo executionInfo = new EsqlExecutionInfo();
+            EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(true);
             executionInfo.swapCluster(localClusterAlias, (k, v) -> new EsqlExecutionInfo.Cluster(localClusterAlias, "logs*", false));
             executionInfo.swapCluster(remote1Alias, (k, v) -> new EsqlExecutionInfo.Cluster(remote1Alias, "*", true));
             executionInfo.swapCluster(remote2Alias, (k, v) -> new EsqlExecutionInfo.Cluster(remote2Alias, "mylogs1,mylogs2,logs*", false));
@@ -117,7 +118,7 @@ public class EsqlSessionTests extends ESTestCase {
             final String localClusterAlias = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
             final String remote1Alias = "remote1";
             final String remote2Alias = "remote2";
-            EsqlExecutionInfo executionInfo = new EsqlExecutionInfo();
+            EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(true);
             executionInfo.swapCluster(localClusterAlias, (k, v) -> new EsqlExecutionInfo.Cluster(localClusterAlias, "logs*", false));
             executionInfo.swapCluster(remote1Alias, (k, v) -> new EsqlExecutionInfo.Cluster(remote1Alias, "*", true));
             executionInfo.swapCluster(remote2Alias, (k, v) -> new EsqlExecutionInfo.Cluster(remote2Alias, "mylogs1,mylogs2,logs*", false));
@@ -160,7 +161,7 @@ public class EsqlSessionTests extends ESTestCase {
             final String localClusterAlias = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
             final String remote1Alias = "remote1";
             final String remote2Alias = "remote2";
-            EsqlExecutionInfo executionInfo = new EsqlExecutionInfo();
+            EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(true);
             executionInfo.swapCluster(localClusterAlias, (k, v) -> new EsqlExecutionInfo.Cluster(localClusterAlias, "logs*", false));
             executionInfo.swapCluster(remote1Alias, (k, v) -> new EsqlExecutionInfo.Cluster(remote1Alias, "*", true));
             executionInfo.swapCluster(remote2Alias, (k, v) -> new EsqlExecutionInfo.Cluster(remote2Alias, "mylogs1,mylogs2,logs*", false));
@@ -206,7 +207,7 @@ public class EsqlSessionTests extends ESTestCase {
             final String localClusterAlias = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
             final String remote1Alias = "remote1";
             final String remote2Alias = "remote2";
-            EsqlExecutionInfo executionInfo = new EsqlExecutionInfo();
+            EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(true);
             executionInfo.swapCluster(localClusterAlias, (k, v) -> new EsqlExecutionInfo.Cluster(localClusterAlias, "logs*", false));
             executionInfo.swapCluster(remote1Alias, (k, v) -> new EsqlExecutionInfo.Cluster(remote1Alias, "*", true));
             executionInfo.swapCluster(remote2Alias, (k, v) -> new EsqlExecutionInfo.Cluster(remote2Alias, "mylogs1,mylogs2,logs*", false));
@@ -216,6 +217,7 @@ public class EsqlSessionTests extends ESTestCase {
                 randomMapping(),
                 Map.of("logs-a", IndexMode.STANDARD)
             );
+            // mark remote1 as unavailable
             IndexResolution indexResolution = IndexResolution.valid(esIndex, Set.of(remote1Alias));
 
             EsqlSession.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, indexResolution);
@@ -226,12 +228,10 @@ public class EsqlSessionTests extends ESTestCase {
 
             EsqlExecutionInfo.Cluster remote1Cluster = executionInfo.getCluster(remote1Alias);
             assertThat(remote1Cluster.getIndexExpression(), equalTo("*"));
-            assertThat(remote1Cluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SKIPPED));
-            assertThat(remote1Cluster.getTook().millis(), equalTo(0L));
-            assertThat(remote1Cluster.getTotalShards(), equalTo(0));
-            assertThat(remote1Cluster.getSuccessfulShards(), equalTo(0));
-            assertThat(remote1Cluster.getSkippedShards(), equalTo(0));
-            assertThat(remote1Cluster.getFailedShards(), equalTo(0));
+            // remote1 is left as RUNNING, since another method (updateExecutionInfoWithUnavailableClusters) not under test changes status
+            assertThat(remote1Cluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.RUNNING));
+            assertNull(remote1Cluster.getTook());
+            assertNull(remote1Cluster.getTotalShards());
 
             EsqlExecutionInfo.Cluster remote2Cluster = executionInfo.getCluster(remote2Alias);
             assertThat(remote2Cluster.getIndexExpression(), equalTo("mylogs1,mylogs2,logs*"));
@@ -242,6 +242,50 @@ public class EsqlSessionTests extends ESTestCase {
             assertThat(remote2Cluster.getSkippedShards(), equalTo(0));
             assertThat(remote2Cluster.getFailedShards(), equalTo(0));
         }
+    }
+
+    public void testUpdateExecutionInfoAtEndOfPlanning() {
+        String localClusterAlias = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
+        String remote1Alias = "remote1";
+        String remote2Alias = "remote2";
+        EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(true);
+        executionInfo.swapCluster(localClusterAlias, (k, v) -> new EsqlExecutionInfo.Cluster(localClusterAlias, "logs*", false));
+        executionInfo.swapCluster(
+            remote1Alias,
+            (k, v) -> new EsqlExecutionInfo.Cluster(remote1Alias, "*", true, EsqlExecutionInfo.Cluster.Status.SKIPPED)
+        );
+        executionInfo.swapCluster(remote2Alias, (k, v) -> new EsqlExecutionInfo.Cluster(remote2Alias, "mylogs1,mylogs2,logs*", false));
+
+        assertNull(executionInfo.planningTookTime());
+        assertNull(executionInfo.overallTook());
+        try {
+            Thread.sleep(1);
+        } catch (InterruptedException e) {}
+
+        EsqlSession.updateExecutionInfoAtEndOfPlanning(executionInfo);
+
+        assertThat(executionInfo.planningTookTime().millis(), greaterThanOrEqualTo(0L));
+        assertNull(executionInfo.overallTook());
+
+        // only remote1 should be altered, since it is the only one marked as SKIPPED when passed into updateExecutionInfoAtEndOfPlanning
+        EsqlExecutionInfo.Cluster localCluster = executionInfo.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+        assertThat(localCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.RUNNING));
+        assertNull(localCluster.getTotalShards());
+        assertNull(localCluster.getTook());
+
+        EsqlExecutionInfo.Cluster remote1Cluster = executionInfo.getCluster(remote1Alias);
+        assertThat(remote1Cluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SKIPPED));
+        assertThat(remote1Cluster.getTotalShards(), equalTo(0));
+        assertThat(remote1Cluster.getSuccessfulShards(), equalTo(0));
+        assertThat(remote1Cluster.getSkippedShards(), equalTo(0));
+        assertThat(remote1Cluster.getFailedShards(), equalTo(0));
+        assertThat(remote1Cluster.getTook().millis(), greaterThanOrEqualTo(0L));
+        assertThat(remote1Cluster.getTook().millis(), equalTo(executionInfo.planningTookTime().millis()));
+
+        EsqlExecutionInfo.Cluster remote2Cluster = executionInfo.getCluster(remote2Alias);
+        assertThat(remote2Cluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.RUNNING));
+        assertNull(remote2Cluster.getTotalShards());
+        assertNull(remote2Cluster.getTook());
     }
 
     private void assertClusterStatusAndHasNullCounts(EsqlExecutionInfo.Cluster cluster, EsqlExecutionInfo.Cluster.Status status) {

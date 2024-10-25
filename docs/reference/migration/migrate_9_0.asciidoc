@@ -39,6 +39,75 @@ default. This prevents shard initialization errors on invalid synonyms.
 ====
 
 [discrete]
+[[breaking_90_mapping_changes]]
+==== Mapping changes
+
+[[jdk_locale_database_change]]
+.JDK locale database change
+[%collapsible]
+====
+*Details* +
+{es} 8.16 changes the version of the JDK that is included from version 22 to version 23. This changes the locale database that is used by Elasticsearch from the COMPAT database to the CLDR database. This change can cause significant differences to the textual date formats accepted by Elasticsearch, and to calculated week-dates.
+
+If you run {es} 8.16 on JDK version 22 or below, it will use the COMPAT locale database to match the behavior of 8.15. However, starting with {es} 9.0, {es} will use the CLDR database regardless of JDK version it is run on.
+
+*Impact* +
+This affects you if you use custom date formats using textual or week-date field specifiers. If you use date fields or calculated week-dates that change between the COMPAT and CLDR databases, then this change will cause Elasticsearch to reject previously valid date fields as invalid data. You might need to modify your ingest or output integration code to account for the differences between these two JDK versions.
+
+Starting in version 8.15.2, Elasticsearch will log deprecation warnings if you are using date format specifiers that might change on upgrading to JDK 23. These warnings are visible in Kibana.
+
+For detailed guidance, refer to <<custom-date-format-locales,Differences in locale information between JDK versions>> and the https://ela.st/jdk-23-locales[Elastic blog].
+====
+
+[discrete]
+[[breaking_90_analysis_changes]]
+==== Analysis changes
+
+[[snowball_stemmers_have_been_upgraded]]
+.Snowball stemmers have been upgraded
+[%collapsible]
+====
+*Details* +
+Lucene 10 ships with an upgrade of its Snowball stemmers.  For details see https://github.com/apache/lucene/issues/13209. Users using Snowball stemmers that are experiencing changes in search behaviour on  existing data are advised to reindex.
+
+*Impact* +
+The upgrade should generally provide improved stemming results. Small changes in token analysis can lead to mismatches with previously index data, so existing indices using Snowball stemmers as part of their analysis chain should be reindexed.
+====
+
+[[german2_snowball_stemmer_an_alias_for_german_stemmer]]
+.The "german2" snowball stemmer is now an alias for the "german" stemmer
+[%collapsible]
+====
+*Details* +
+Lucene 10 has merged the improved "german2" snowball language stemmer with the "german" stemmer. For Elasticsearch, "german2" is now a deprecated alias for "german". This may results in slightly different tokens being generated for terms with umlaut substitution (like "ue" for "ü" etc...)
+
+*Impact* +
+Replace usages of "german2" with "german" in analysis configuration. Old indices that use the "german" stemmer should be reindexed if possible.
+====
+
+[[persian_analyzer_has_stemmer_by_default]]
+.The 'persian' analyzer has stemmer by default
+[%collapsible]
+====
+*Details* +
+Lucene 10 has added a final stemming step to its PersianAnalyzer that Elasticsearch exposes as 'persian' analyzer. Existing indices will keep the old non-stemming behaviour while new indices will see the updated behaviour with added stemming. Users that wish to maintain the non-stemming behaviour need to define their own analyzer as outlined in https://www.elastic.co/guide/en/elasticsearch/reference/8.15/analysis-lang-analyzer.html#persian-analyzer. Users that wish to use the new stemming behaviour for existing indices will have to reindex their data.
+
+*Impact* +
+Indexing with the 'persian' analyzer will produce slightly different tokens. Users should check if this impacts their search results. If they wish to maintain the legacy non-stemming behaviour they can define their own analyzer equivalent as explained in https://www.elastic.co/guide/en/elasticsearch/reference/8.15/analysis-lang-analyzer.html#persian-analyzer.
+====
+
+[[korean_dictionary_for_nori_has_been_updated]]
+.The Korean dictionary for Nori has been updated
+[%collapsible]
+====
+*Details* +
+Lucene 10 ships with an updated Korean dictionary (mecab-ko-dic-2.1.1).  For details see https://github.com/apache/lucene/issues/11452. Users experiencing changes in search behaviour on existing data are advised to reindex.
+
+*Impact* +
+The change is small and should generally provide better analysis results. Existing indices for full-text use cases should be reindexed though.
+====
+
+[discrete]
 [[breaking_90_cluster_and_node_setting_changes]]
 ==== Cluster and node setting changes
 
@@ -54,8 +123,73 @@ Remove any value for `discovery.type` from your `elasticsearch.yml` configuratio
 ====
 
 [discrete]
+[[breaking_90_es_ql_changes]]
+==== ES|QL changes
+
+[[esql_entirely_remove_meta_functions]]
+.ESQL: Entirely remove META FUNCTIONS
+[%collapsible]
+====
+*Details* +
+Removes an undocumented syntax from ESQL: META FUNCTION. This was never
+reliable or really useful. Consult the documentation instead.
+
+*Impact* +
+Removes an undocumented syntax from ESQL: META FUNCTION
+====
+
+[discrete]
 [[breaking_90_rest_api_changes]]
 ==== REST API changes
+
+[[remove_cluster_state_from_cluster_reroute_response]]
+.Remove cluster state from `/_cluster/reroute` response
+[%collapsible]
+====
+*Details* +
+The `POST /_cluster/reroute` API no longer returns the cluster state in its response. The `?metric` query parameter to this API now has no effect and its use will be forbidden in a future version.
+
+*Impact* +
+Cease usage of the `?metric` query parameter when calling the `POST /_cluster/reroute` API.
+====
+
+[[remove_deprecated_local_attribute_from_alias_apis]]
+.Remove deprecated local attribute from alias APIs
+[%collapsible]
+====
+*Details* +
+The following APIs no longer accept the `?local` query parameter: `GET /_alias`, `GET /_aliases`, `GET /_alias/{name}`, `HEAD /_alias/{name}`, `GET /{index}/_alias`, `HEAD /{index}/_alias`, `GET /{index}/_alias/{name}`, `HEAD /{index}/_alias/{name}`, `GET /_cat/aliases`, and `GET /_cat/aliases/{alias}`. This parameter has been deprecated and ignored since version 8.12.
+
+*Impact* +
+Cease usage of the `?local` query parameter when calling the listed APIs.
+====
+
+[[reworking_rrf_retriever_to_be_evaluated_during_rewrite_phase]]
+.Reworking RRF retriever to be evaluated during rewrite phase
+[%collapsible]
+====
+*Details* +
+In this release (8.16), we have introduced major changes to the retrievers framework 
+and how they can be evaluated, focusing mainly on compound retrievers 
+like `rrf` and `text_similarity_reranker`, which allowed us to support full 
+composability (i.e. any retriever can be nested under any compound retriever), 
+as well as supporting additional search features like collapsing, explaining, 
+aggregations, and highlighting.
+
+To ensure consistency, and given that this rework is not available until 8.16, 
+`rrf` and `text_similarity_reranker`  retriever queries would now  
+throw an exception in a mixed cluster scenario, where there are nodes 
+both in current or later (i.e. >= 8.16) and previous ( <= 8.15) versions.
+
+As part of the rework, we have also removed the `_rank` property from 
+the responses of an `rrf` retriever.
+
+*Impact* +
+- Users will not be able to use the `rrf` and `text_similarity_reranker` retrievers in a mixed cluster scenario
+with previous releases (i.e. prior to 8.16), and the request will throw an `IllegalArgumentException`.
+- `_rank` has now been removed from the output of the `rrf` retrievers so trying to directly parse the field
+will throw an exception
+====
 
 [[update_data_stream_lifecycle_telemetry_to_track_global_retention]]
 .Update data stream lifecycle telemetry to track global retention
@@ -143,6 +277,17 @@ Requests performing an action that would create an index beginning with a dot (i
 [discrete]
 [[deprecations_90_rest_api]]
 ==== REST API deprecations
+
+[[adding_deprecation_warnings_for_rrf_using_rank_sub_searches]]
+.Adding deprecation warnings for rrf using rank and `sub_searches`
+[%collapsible]
+====
+*Details* +
+Search API parameter `sub_searches` will no longer be a supported and will be removed in future releases. Similarly, `rrf` can only be used through the specified `retriever` and no longer though the `rank` parameter
+
+*Impact* +
+Requests specifying rrf through `rank` and/or `sub_searches` elements will be disallowed in a future version. Users should instead utilize the new `retriever` parameter.
+====
 
 [[deprecate_legacy_params_from_range_query]]
 .Deprecate legacy params from range query

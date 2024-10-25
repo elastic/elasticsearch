@@ -16,12 +16,15 @@ import org.elasticsearch.inference.TaskType;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.equalToIgnoringCase;
 import static org.hamcrest.Matchers.hasSize;
@@ -29,7 +32,7 @@ import static org.hamcrest.Matchers.hasSize;
 public class InferenceCrudIT extends InferenceBaseRestTest {
 
     @SuppressWarnings("unchecked")
-    public void testGet() throws IOException {
+    public void testCRUD() throws IOException {
         for (int i = 0; i < 5; i++) {
             putModel("se_model_" + i, mockSparseServiceModelConfig(), TaskType.SPARSE_EMBEDDING);
         }
@@ -38,7 +41,7 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
         }
 
         var getAllModels = getAllModels();
-        int numModels = DefaultElserFeatureFlag.isEnabled() ? 10 : 9;
+        int numModels = DefaultElserFeatureFlag.isEnabled() ? 11 : 9;
         assertThat(getAllModels, hasSize(numModels));
 
         var getSparseModels = getModels("_all", TaskType.SPARSE_EMBEDDING);
@@ -49,15 +52,34 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
         }
 
         var getDenseModels = getModels("_all", TaskType.TEXT_EMBEDDING);
-        assertThat(getDenseModels, hasSize(4));
+        int numDenseModels = DefaultElserFeatureFlag.isEnabled() ? 5 : 4;
+        assertThat(getDenseModels, hasSize(numDenseModels));
         for (var denseModel : getDenseModels) {
             assertEquals("text_embedding", denseModel.get("task_type"));
         }
-
-        var singleModel = getModels("se_model_1", TaskType.SPARSE_EMBEDDING);
-        assertThat(singleModel, hasSize(1));
-        assertEquals("se_model_1", singleModel.get(0).get("inference_id"));
-
+        String oldApiKey;
+        {
+            var singleModel = getModels("se_model_1", TaskType.SPARSE_EMBEDDING);
+            assertThat(singleModel, hasSize(1));
+            assertEquals("se_model_1", singleModel.get(0).get("inference_id"));
+            oldApiKey = (String) singleModel.get(0).get("api_key");
+        }
+        var newApiKey = randomAlphaOfLength(10);
+        int temperature = randomIntBetween(1, 10);
+        Map<String, Object> updatedEndpoint = updateEndpoint(
+            "se_model_1",
+            updateConfig(TaskType.SPARSE_EMBEDDING, newApiKey, temperature),
+            TaskType.SPARSE_EMBEDDING
+        );
+        Map<String, Objects> updatedTaskSettings = (Map<String, Objects>) updatedEndpoint.get("task_settings");
+        assertEquals(temperature, updatedTaskSettings.get("temperature"));
+        {
+            var singleModel = getModels("se_model_1", TaskType.SPARSE_EMBEDDING);
+            assertThat(singleModel, hasSize(1));
+            assertEquals("se_model_1", singleModel.get(0).get("inference_id"));
+            assertNotEquals(oldApiKey, newApiKey);
+            assertEquals(updatedEndpoint, singleModel.get(0));
+        }
         for (int i = 0; i < 5; i++) {
             deleteModel("se_model_" + i, TaskType.SPARSE_EMBEDDING);
         }
@@ -285,8 +307,7 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
         assertEquals(modelId, singleModel.get("inference_id"));
         assertEquals(TaskType.COMPLETION.toString(), singleModel.get("task_type"));
 
-        var input = IntStream.range(1, randomInt(10)).mapToObj(i -> randomAlphaOfLength(10)).toList();
-
+        var input = IntStream.range(1, 2 + randomInt(8)).mapToObj(i -> randomAlphaOfLength(10)).toList();
         try {
             var events = streamInferOnMockService(modelId, TaskType.COMPLETION, input);
 
@@ -304,5 +325,10 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
         } finally {
             deleteModel(modelId);
         }
+    }
+
+    public void testGetZeroModels() throws IOException {
+        var models = getModels("_all", TaskType.RERANK);
+        assertThat(models, empty());
     }
 }

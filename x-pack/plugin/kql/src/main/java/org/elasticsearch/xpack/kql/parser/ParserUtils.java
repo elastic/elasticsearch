@@ -17,8 +17,6 @@ import org.apache.lucene.queryparser.classic.QueryParser;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 /**
  * Utility class for parsing and processing KQL expressions.
@@ -102,7 +100,19 @@ public final class ParserUtils {
      */
     public static String escapeLuceneQueryString(String queryText, boolean preserveWildcards) {
         if (preserveWildcards) {
-            return Stream.of(queryText.split("[*]]")).map(QueryParser::escape).collect(Collectors.joining("*"));
+            StringBuilder escapedQuery = new StringBuilder(queryText.length());
+            StringBuilder subpart = new StringBuilder(queryText.length());
+            for (int i = 0; i < queryText.length(); i++) {
+                char currentChar = queryText.charAt(i);
+                if (currentChar == '*') {
+                    escapedQuery.append(QueryParser.escape(subpart.toString())).append(currentChar);
+                    subpart = new StringBuilder(queryText.length() - i);
+                } else {
+                    subpart.append(currentChar);
+                }
+            }
+
+            return escapedQuery.append(QueryParser.escape(subpart.toString())).toString();
         }
 
         return QueryParser.escape(queryText);

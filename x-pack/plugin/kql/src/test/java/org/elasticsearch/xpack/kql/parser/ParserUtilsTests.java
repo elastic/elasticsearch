@@ -165,14 +165,14 @@ public class ParserUtilsTests extends ESTestCase {
             // Invalid unicode digit (G)
             ParserRuleContext ctx = parserRuleContext(literalNode("\\u0G41"));
             KqlParsingException e = assertThrows(KqlParsingException.class, () -> extractText(ctx));
-            assertThat(e.getMessage(), equalTo("line 0:4: Invalid unicode character code [0G41]"));
+            assertThat(e.getMessage(), equalTo("line 0:3: Invalid unicode character code [0G41]"));
         }
 
         {
             // U+D800—U+DFFF can only be used as surrogate pairs and are not valid character codes.
             ParserRuleContext ctx = parserRuleContext(literalNode("\\uD900"));
             KqlParsingException e = assertThrows(KqlParsingException.class, () -> extractText(ctx));
-            assertThat(e.getMessage(), equalTo("line 0:4: Invalid unicode character code, [D900] is a surrogate code"));
+            assertThat(e.getMessage(), equalTo("line 0:3: Invalid unicode character code, [D900] is a surrogate code"));
         }
     }
 
@@ -194,30 +194,32 @@ public class ParserUtilsTests extends ESTestCase {
 
     public void testEscapeLuceneQueryString() {
         // Quotes
-        assertThat(escapeLuceneQueryString("\"The Pink Panther\"", true), equalTo("\\\"The Pink Panther\\\""));
+        assertThat(escapeLuceneQueryString("\"The Pink Panther\"", randomBoolean()), equalTo("\\\"The Pink Panther\\\""));
 
         // Escape chars
-        assertThat(escapeLuceneQueryString("The Pink \\ Panther", true), equalTo("The Pink \\\\ Panther"));
+        assertThat(escapeLuceneQueryString("The Pink \\ Panther", randomBoolean()), equalTo("The Pink \\\\ Panther"));
 
         // Field operations
-        assertThat(escapeLuceneQueryString("title:Do it right", true), equalTo("title\\:Do it right"));
-        assertThat(escapeLuceneQueryString("title:(pink panther)", true), equalTo("title\\:\\(pink panther\\)"));
-        assertThat(escapeLuceneQueryString("title:-pink", true), equalTo("title\\:\\-pink"));
-        assertThat(escapeLuceneQueryString("title:+pink", true), equalTo("title\\:\\+pink"));
-        assertThat(escapeLuceneQueryString("title:pink~", true), equalTo("title\\:pink\\~"));
-        assertThat(escapeLuceneQueryString("title:pink~3.5", true), equalTo("title\\:pink\\~3.5"));
-        assertThat(escapeLuceneQueryString("title:pink panther^4", true), equalTo("title\\:pink panther\\^4"));
-        assertThat(escapeLuceneQueryString("rating:[0 TO 5]", true), equalTo("rating\\:\\[0 TO 5\\]"));
-        assertThat(escapeLuceneQueryString("rating:{0 TO 5}", true), equalTo("rating\\:\\{0 TO 5\\}"));
+        assertThat(escapeLuceneQueryString("title:Do it right", randomBoolean()), equalTo("title\\:Do it right"));
+        assertThat(escapeLuceneQueryString("title:(pink panther)", randomBoolean()), equalTo("title\\:\\(pink panther\\)"));
+        assertThat(escapeLuceneQueryString("title:-pink", randomBoolean()), equalTo("title\\:\\-pink"));
+        assertThat(escapeLuceneQueryString("title:+pink", randomBoolean()), equalTo("title\\:\\+pink"));
+        assertThat(escapeLuceneQueryString("title:pink~", randomBoolean()), equalTo("title\\:pink\\~"));
+        assertThat(escapeLuceneQueryString("title:pink~3.5", randomBoolean()), equalTo("title\\:pink\\~3.5"));
+        assertThat(escapeLuceneQueryString("title:pink panther^4", randomBoolean()), equalTo("title\\:pink panther\\^4"));
+        assertThat(escapeLuceneQueryString("rating:[0 TO 5]", randomBoolean()), equalTo("rating\\:\\[0 TO 5\\]"));
+        assertThat(escapeLuceneQueryString("rating:{0 TO 5}", randomBoolean()), equalTo("rating\\:\\{0 TO 5\\}"));
 
         // Boolean operators
-        assertThat(escapeLuceneQueryString("foo || bar", true), equalTo("foo \\|\\| bar"));
-        assertThat(escapeLuceneQueryString("foo && bar", true), equalTo("foo \\&\\& bar"));
-        assertThat(escapeLuceneQueryString("!foo", true), equalTo("\\!foo"));
+        assertThat(escapeLuceneQueryString("foo || bar", randomBoolean()), equalTo("foo \\|\\| bar"));
+        assertThat(escapeLuceneQueryString("foo && bar", randomBoolean()), equalTo("foo \\&\\& bar"));
+        assertThat(escapeLuceneQueryString("!foo", randomBoolean()), equalTo("\\!foo"));
 
         // Wildcards:
-        assertThat(escapeLuceneQueryString("te?t", true), equalTo("te\\?t"));
+        assertThat(escapeLuceneQueryString("te?t", randomBoolean()), equalTo("te\\?t"));
         assertThat(escapeLuceneQueryString("foo*", true), equalTo("foo*"));
+        assertThat(escapeLuceneQueryString("*foo", true), equalTo("*foo"));
+        assertThat(escapeLuceneQueryString("foo * bar", true), equalTo("foo * bar"));
         assertThat(escapeLuceneQueryString("foo*", false), equalTo("foo\\*"));
     }
 

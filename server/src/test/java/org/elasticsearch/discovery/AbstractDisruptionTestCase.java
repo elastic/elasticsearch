@@ -220,7 +220,7 @@ public abstract class AbstractDisruptionTestCase extends ESIntegTestCase {
         return partition;
     }
 
-    TwoPartitions isolateNode(String isolatedNode) {
+    protected static TwoPartitions isolateNode(String isolatedNode) {
         Set<String> side1 = new HashSet<>();
         Set<String> side2 = new HashSet<>(Arrays.asList(internalCluster().getNodeNames()));
         side1.add(isolatedNode);

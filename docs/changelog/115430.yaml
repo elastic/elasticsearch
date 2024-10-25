@@ -1,0 +1,5 @@
+pr: 115430
+summary: Prevent NPE if model assignment is removed while waiting to start
+area: Machine Learning
+type: bug
+issues: []

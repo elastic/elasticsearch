@@ -9,7 +9,6 @@
 
 package org.elasticsearch.reservedstate.service;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
@@ -26,6 +25,7 @@ import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.env.BuildVersion;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.reservedstate.action.ReservedClusterSettingsAction;
 import org.elasticsearch.tasks.TaskManager;
@@ -54,6 +54,7 @@ import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -148,9 +149,9 @@ public class FileSettingsServiceTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testInitialFileError() throws Exception {
         doAnswer((Answer<Void>) invocation -> {
-            ((Consumer<Exception>) invocation.getArgument(2)).accept(new IllegalStateException("Some exception"));
+            ((Consumer<Exception>) invocation.getArgument(3)).accept(new IllegalStateException("Some exception"));
             return null;
-        }).when(controller).process(any(), any(XContentParser.class), any());
+        }).when(controller).process(any(), any(XContentParser.class), eq(randomFrom(ReservedStateVersionCheck.values())), any());
 
         AtomicBoolean settingsChanged = new AtomicBoolean(false);
         CountDownLatch latch = new CountDownLatch(1);
@@ -163,7 +164,7 @@ public class FileSettingsServiceTests extends ESTestCase {
             } finally {
                 latch.countDown();
             }
-        }).when(fileSettingsService).processFileChanges();
+        }).when(fileSettingsService).processFileOnServiceStart();
 
         Files.createDirectories(fileSettingsService.watchedFileDir());
         // contents of the JSON don't matter, we just need a file to exist
@@ -175,7 +176,8 @@ public class FileSettingsServiceTests extends ESTestCase {
         // wait until the watcher thread has started, and it has discovered the file
         assertTrue(latch.await(20, TimeUnit.SECONDS));
 
-        verify(fileSettingsService, times(1)).processFileChanges();
+        verify(fileSettingsService, times(1)).processFileOnServiceStart();
+        verify(controller, times(1)).process(any(), any(XContentParser.class), eq(ReservedStateVersionCheck.HIGHER_OR_SAME_VERSION), any());
         // assert we never notified any listeners of successful application of file based settings
         assertFalse(settingsChanged.get());
     }
@@ -184,9 +186,9 @@ public class FileSettingsServiceTests extends ESTestCase {
     public void testInitialFileWorks() throws Exception {
         // Let's check that if we didn't throw an error that everything works
         doAnswer((Answer<Void>) invocation -> {
-            ((Consumer<Exception>) invocation.getArgument(2)).accept(null);
+            ((Consumer<Exception>) invocation.getArgument(3)).accept(null);
             return null;
-        }).when(controller).process(any(), any(XContentParser.class), any());
+        }).when(controller).process(any(), any(XContentParser.class), any(), any());
 
         CountDownLatch latch = new CountDownLatch(1);
 
@@ -196,13 +198,67 @@ public class FileSettingsServiceTests extends ESTestCase {
         // contents of the JSON don't matter, we just need a file to exist
         writeTestFile(fileSettingsService.watchedFile(), "{}");
 
+        doAnswer((Answer<?>) invocation -> {
+            try {
+                return invocation.callRealMethod();
+            } finally {
+                latch.countDown();
+            }
+        }).when(fileSettingsService).processFileOnServiceStart();
+
         fileSettingsService.start();
         fileSettingsService.clusterChanged(new ClusterChangedEvent("test", clusterService.state(), ClusterState.EMPTY_STATE));
 
         // wait for listener to be called
         assertTrue(latch.await(20, TimeUnit.SECONDS));
 
+        verify(fileSettingsService, times(1)).processFileOnServiceStart();
+        verify(controller, times(1)).process(any(), any(XContentParser.class), eq(ReservedStateVersionCheck.HIGHER_OR_SAME_VERSION), any());
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testProcessFileChanges() throws Exception {
+        doAnswer((Answer<Void>) invocation -> {
+            ((Consumer<Exception>) invocation.getArgument(3)).accept(null);
+            return null;
+        }).when(controller).process(any(), any(XContentParser.class), any(), any());
+
+        // we get three events: initial clusterChanged event, first write, second write
+        CountDownLatch latch = new CountDownLatch(3);
+
+        fileSettingsService.addFileChangedListener(latch::countDown);
+
+        Files.createDirectories(fileSettingsService.watchedFileDir());
+        // contents of the JSON don't matter, we just need a file to exist
+        writeTestFile(fileSettingsService.watchedFile(), "{}");
+
+        doAnswer((Answer<?>) invocation -> {
+            try {
+                return invocation.callRealMethod();
+            } finally {
+                latch.countDown();
+            }
+        }).when(fileSettingsService).processFileOnServiceStart();
+        doAnswer((Answer<?>) invocation -> {
+            try {
+                return invocation.callRealMethod();
+            } finally {
+                latch.countDown();
+            }
+        }).when(fileSettingsService).processFileChanges();
+
+        fileSettingsService.start();
+        fileSettingsService.clusterChanged(new ClusterChangedEvent("test", clusterService.state(), ClusterState.EMPTY_STATE));
+        // second file change; contents still don't matter
+        overwriteTestFile(fileSettingsService.watchedFile(), "{}");
+
+        // wait for listener to be called (once for initial processing, once for subsequent update)
+        assertTrue(latch.await(20, TimeUnit.SECONDS));
+
+        verify(fileSettingsService, times(1)).processFileOnServiceStart();
+        verify(controller, times(1)).process(any(), any(XContentParser.class), eq(ReservedStateVersionCheck.HIGHER_OR_SAME_VERSION), any());
         verify(fileSettingsService, times(1)).processFileChanges();
+        verify(controller, times(1)).process(any(), any(XContentParser.class), eq(ReservedStateVersionCheck.HIGHER_VERSION_ONLY), any());
     }
 
     @SuppressWarnings("unchecked")
@@ -221,7 +277,7 @@ public class FileSettingsServiceTests extends ESTestCase {
                     throw new RuntimeException(e);
                 }
             }).start();
-            return new ReservedStateChunk(Map.of(), new ReservedStateVersion(1L, Version.CURRENT));
+            return new ReservedStateChunk(Map.of(), new ReservedStateVersion(1L, BuildVersion.current()));
         }).when(controller).parse(any(String.class), any());
 
         doAnswer((Answer<Void>) invocation -> {
@@ -299,6 +355,12 @@ public class FileSettingsServiceTests extends ESTestCase {
     private void writeTestFile(Path path, String contents) throws IOException {
         Path tempFilePath = createTempFile();
         Files.writeString(tempFilePath, contents);
-        Files.move(tempFilePath, path, StandardCopyOption.ATOMIC_MOVE);
+        Files.move(tempFilePath, path, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+    }
+
+    private void overwriteTestFile(Path path, String contents) throws IOException {
+        Path tempFilePath = createTempFile();
+        Files.writeString(tempFilePath, contents);
+        Files.move(tempFilePath, path, StandardCopyOption.REPLACE_EXISTING);
     }
 }

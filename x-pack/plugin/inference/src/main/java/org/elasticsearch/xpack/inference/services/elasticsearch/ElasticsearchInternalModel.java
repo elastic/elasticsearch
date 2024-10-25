@@ -21,7 +21,7 @@ import static org.elasticsearch.xpack.core.ml.inference.assignment.AllocationSta
 
 public abstract class ElasticsearchInternalModel extends Model {
 
-    protected final ElasticsearchInternalServiceSettings internalServiceSettings;
+    protected ElasticsearchInternalServiceSettings internalServiceSettings;
 
     public ElasticsearchInternalModel(
         String inferenceEntityId,
@@ -82,13 +82,25 @@ public abstract class ElasticsearchInternalModel extends Model {
         ActionListener<Boolean> listener
     );
 
+    public boolean usesExistingDeployment() {
+        return internalServiceSettings.getDeploymentId() != null;
+    }
+
     @Override
     public ElasticsearchInternalServiceSettings getServiceSettings() {
         return (ElasticsearchInternalServiceSettings) super.getServiceSettings();
     }
 
+    public void updateNumAllocations(Integer numAllocations) {
+        this.internalServiceSettings.setNumAllocations(numAllocations);
+    }
+
     @Override
     public String toString() {
         return Strings.toString(this.getConfigurations());
+    }
+
+    public String mlNodeDeploymentId() {
+        return internalServiceSettings.getDeploymentId() == null ? getInferenceEntityId() : internalServiceSettings.getDeploymentId();
     }
 }

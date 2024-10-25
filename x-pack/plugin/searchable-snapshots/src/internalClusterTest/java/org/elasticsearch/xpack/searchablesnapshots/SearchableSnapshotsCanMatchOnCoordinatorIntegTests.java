@@ -20,14 +20,18 @@ import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.RangeQueryBuilder;
+import org.elasticsearch.index.query.TermQueryBuilder;
+import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.indices.DateFieldRangeInfo;
 import org.elasticsearch.indices.IndicesService;
@@ -36,6 +40,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.NodeRoles;
 import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -51,6 +56,7 @@ import java.util.Locale;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING;
+import static org.elasticsearch.cluster.node.DiscoveryNode.getRolesFromSettings;
 import static org.elasticsearch.index.IndexSettings.INDEX_SOFT_DELETES_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
@@ -76,14 +82,24 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         final Settings initialSettings = super.nodeSettings(nodeOrdinal, otherSettings);
-        if (DiscoveryNode.canContainData(otherSettings)) {
+
+        if (DiscoveryNode.canContainData(otherSettings)
+            && getRolesFromSettings(otherSettings).stream()
+                .anyMatch(
+                    nr -> nr.roleName().equals(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE.roleName())
+                        || nr.roleName().equals(DiscoveryNodeRole.DATA_ROLE.roleName())
+                )) {
             return Settings.builder()
                 .put(initialSettings)
                 // Have a shared cache of reasonable size available on each node because tests randomize over frozen and cold allocation
                 .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofMb(randomLongBetween(1, 10)))
                 .build();
         } else {
-            return initialSettings;
+            return Settings.builder()
+                .put(initialSettings)
+                // Have a shared cache of reasonable size available on each node because tests randomize over frozen and cold allocation
+                .putNull(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey())
+                .build();
         }
     }
 
@@ -305,7 +321,7 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
                 assertThat(newSearchResponse.getSuccessfulShards(), equalTo(totalShards));
                 assertThat(newSearchResponse.getFailedShards(), equalTo(0));
                 assertThat(newSearchResponse.getTotalShards(), equalTo(totalShards));
-                assertThat(newSearchResponse.getHits().getTotalHits().value, equalTo((long) numDocsWithinRange));
+                assertThat(newSearchResponse.getHits().getTotalHits().value(), equalTo((long) numDocsWithinRange));
             });
 
             // test with SearchShardsAPI
@@ -655,7 +671,7 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
                 assertThat(searchResponse.getFailedShards(), equalTo(indexOutsideSearchRangeShardCount));
                 assertThat(searchResponse.getSkippedShards(), equalTo(searchableSnapshotShardCount));
                 assertThat(searchResponse.getTotalShards(), equalTo(totalShards));
-                assertThat(searchResponse.getHits().getTotalHits().value, equalTo(0L));
+                assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(0L));
             });
         }
 
@@ -736,7 +752,7 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
                 // a shard that's available in order to construct the search response
                 assertThat(newSearchResponse.getSkippedShards(), equalTo(totalShards - 1));
                 assertThat(newSearchResponse.getTotalShards(), equalTo(totalShards));
-                assertThat(newSearchResponse.getHits().getTotalHits().value, equalTo(0L));
+                assertThat(newSearchResponse.getHits().getTotalHits().value(), equalTo(0L));
             });
         });
 
@@ -850,7 +866,7 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
             SearchResponse response = client().search(request).actionGet();
             logger.info(
                 "[TEST DEBUG INFO] Search hits: {} Successful shards: {}, failed shards: {}, skipped shards: {}, total shards: {}",
-                response.getHits().getTotalHits().value,
+                response.getHits().getTotalHits().value(),
                 response.getSuccessfulShards(),
                 response.getFailedShards(),
                 response.getSkippedShards(),
@@ -952,6 +968,129 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
                 assertThat(skipped.size(), equalTo(0));
                 assertThat(notSkipped.size(), equalTo(indexWithinSearchRangeShardCount));
             }
+        }
+    }
+
+    public void testCanMatchSkipsPartiallyMountedIndicesWhenFrozenNodesUnavailable() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
+        final String dataNodeHoldingRegularIndex = internalCluster().startNode(
+            NodeRoles.onlyRole(DiscoveryNodeRole.DATA_CONTENT_NODE_ROLE)
+        );
+        final String dataNodeHoldingSearchableSnapshot = internalCluster().startNode(
+            NodeRoles.onlyRole(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE)
+        );
+
+        final String indexToMountInFrozen = "frozen-" + randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        final int shardCount = randomIntBetween(2, 3);
+        createIndexWithTimestampAndEventIngested(indexToMountInFrozen, shardCount, Settings.EMPTY);
+        final int numDocsFrozenIndex = between(350, 1000);
+        indexRandomDocs(indexToMountInFrozen, numDocsFrozenIndex);
+
+        final String regularIndex = "regular-" + randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndexWithTimestampAndEventIngested(
+            regularIndex,
+            shardCount,
+            Settings.builder()
+                .put(INDEX_ROUTING_REQUIRE_GROUP_SETTING.getConcreteSettingForNamespace("_name").getKey(), dataNodeHoldingRegularIndex)
+                .build()
+        );
+        int numDocsRegularIndex = between(100, 1000);
+        indexDocumentsWithTimestampAndEventIngestedDates(regularIndex, numDocsRegularIndex, TIMESTAMP_TEMPLATE_WITHIN_RANGE);
+
+        final String repositoryName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createRepository(repositoryName, "mock");
+
+        final SnapshotId snapshotId = createSnapshot(repositoryName, "snapshot-1", List.of(indexToMountInFrozen)).snapshotId();
+        assertAcked(indicesAdmin().prepareDelete(indexToMountInFrozen));
+
+        final String partiallyMountedIndex = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+
+        final MountSearchableSnapshotRequest mountRequest = new MountSearchableSnapshotRequest(
+            TEST_REQUEST_TIMEOUT,
+            partiallyMountedIndex,
+            repositoryName,
+            snapshotId.getName(),
+            indexToMountInFrozen,
+            Settings.EMPTY,
+            Strings.EMPTY_ARRAY,
+            false,
+            MountSearchableSnapshotRequest.Storage.SHARED_CACHE
+        );
+        client().execute(MountSearchableSnapshotAction.INSTANCE, mountRequest).actionGet();
+
+        ensureGreen(regularIndex, partiallyMountedIndex);
+
+        // Stop the node holding the searchable snapshots, and since we defined
+        // the index allocation criteria to require the searchable snapshot
+        // index to be allocated in that node, the shards should remain unassigned
+        internalCluster().stopNode(dataNodeHoldingSearchableSnapshot);
+        final IndexMetadata partiallyMountedIndexMetadata = getIndexMetadata(partiallyMountedIndex);
+        waitUntilAllShardsAreUnassigned(partiallyMountedIndexMetadata.getIndex());
+
+        {
+            // term query
+            TermQueryBuilder termQueryBuilder = QueryBuilders.termQuery("_tier", "data_content");
+            List<String> indicesToSearch = List.of(regularIndex, partiallyMountedIndex);
+            SearchRequest request = new SearchRequest().indices(indicesToSearch.toArray(new String[0]))
+                .source(new SearchSourceBuilder().query(termQueryBuilder));
+
+            assertResponse(client().search(request), searchResponse -> {
+                // as we excluded the frozen tier we shouldn't get any failures
+                assertThat(searchResponse.getFailedShards(), equalTo(0));
+                // we should be receiving all the hits from the index that's in the data_content tier
+                assertNotNull(searchResponse.getHits().getTotalHits());
+                assertThat(searchResponse.getHits().getTotalHits().value(), equalTo((long) numDocsRegularIndex));
+            });
+        }
+
+        {
+            // termS query
+            TermsQueryBuilder termsQueryBuilder = QueryBuilders.termsQuery("_tier", "data_hot", "data_content");
+            List<String> indicesToSearch = List.of(regularIndex, partiallyMountedIndex);
+            SearchRequest request = new SearchRequest().indices(indicesToSearch.toArray(new String[0]))
+                .source(new SearchSourceBuilder().query(termsQueryBuilder));
+
+            assertResponse(client().search(request), searchResponse -> {
+                // as we excluded the frozen tier we shouldn't get any failures
+                assertThat(searchResponse.getFailedShards(), equalTo(0));
+                // we should be receiving all the hits from the index that's in the data_content tier
+                assertNotNull(searchResponse.getHits().getTotalHits());
+                assertThat(searchResponse.getHits().getTotalHits().value(), equalTo((long) numDocsRegularIndex));
+            });
+        }
+
+        {
+            // bool term query
+            BoolQueryBuilder boolQueryBuilder = QueryBuilders.boolQuery().mustNot(QueryBuilders.termQuery("_tier", "data_frozen"));
+            List<String> indicesToSearch = List.of(regularIndex, partiallyMountedIndex);
+            SearchRequest request = new SearchRequest().indices(indicesToSearch.toArray(new String[0]))
+                .source(new SearchSourceBuilder().query(boolQueryBuilder));
+
+            assertResponse(client().search(request), searchResponse -> {
+                // as we excluded the frozen tier we shouldn't get any failures
+                assertThat(searchResponse.getFailedShards(), equalTo(0));
+                // we should be receiving all the hits from the index that's in the data_content tier
+                assertNotNull(searchResponse.getHits().getTotalHits());
+                assertThat(searchResponse.getHits().getTotalHits().value(), equalTo((long) numDocsRegularIndex));
+            });
+        }
+
+        {
+            // bool prefix, wildcard
+            BoolQueryBuilder boolQueryBuilder = QueryBuilders.boolQuery()
+                .mustNot(randomFrom(QueryBuilders.wildcardQuery("_tier", "dat*ozen"), QueryBuilders.prefixQuery("_tier", "data_fro")));
+            List<String> indicesToSearch = List.of(regularIndex, partiallyMountedIndex);
+            SearchRequest request = new SearchRequest().indices(indicesToSearch.toArray(new String[0]))
+                .source(new SearchSourceBuilder().query(boolQueryBuilder));
+
+            assertResponse(client().search(request), searchResponse -> {
+                // as we excluded the frozen tier we shouldn't get any failures
+                assertThat(searchResponse.getFailedShards(), equalTo(0));
+                // we should be receiving all the hits from the index that's in the data_content tier
+                assertNotNull(searchResponse.getHits().getTotalHits());
+                assertThat(searchResponse.getHits().getTotalHits().value(), equalTo((long) numDocsRegularIndex));
+            });
         }
     }
 

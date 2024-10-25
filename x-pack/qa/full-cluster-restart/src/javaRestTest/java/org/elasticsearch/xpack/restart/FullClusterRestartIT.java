@@ -435,6 +435,7 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
 
             final Request bulkRequest = new Request("POST", "/_bulk");
             bulkRequest.setJsonEntity(bulk.toString());
+            bulkRequest.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(fieldNamesFieldOk()));
             client().performRequest(bulkRequest);
 
             // create the rollup job

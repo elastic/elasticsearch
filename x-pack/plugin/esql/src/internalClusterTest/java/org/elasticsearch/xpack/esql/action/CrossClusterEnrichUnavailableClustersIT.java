@@ -59,6 +59,10 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
+/**
+ * This IT test is the dual of CrossClustersEnrichIT, which tests "happy path"
+ * and this one tests unavailable cluster scenarios using (most of) the same tests.
+ */
 public class CrossClusterEnrichUnavailableClustersIT extends AbstractMultiClustersTestCase {
 
     public static String REMOTE_CLUSTER_1 = "c1";
@@ -159,9 +163,8 @@ public class CrossClusterEnrichUnavailableClustersIT extends AbstractMultiCluste
 
     @Before
     public void setupEventsIndices() {
-        record Event(long timestamp, String user, String host) {
+        record Event(long timestamp, String user, String host) {}
 
-        }
         List<Event> e0 = List.of(
             new Event(1, "matthew", "192.168.1.3"),
             new Event(2, "simon", "192.168.1.5"),
@@ -204,44 +207,12 @@ public class CrossClusterEnrichUnavailableClustersIT extends AbstractMultiCluste
         }
     }
 
-    // @After
-    // public void wipeEnrichPolicies() {
-    // for (String cluster : allClusters()) {
-    // cluster(cluster).wipe(Set.of());
-    // for (String policy : List.of("hosts", "vendors")) {
-    // client(cluster).execute(
-    // DeleteEnrichPolicyAction.INSTANCE,
-    // new DeleteEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, policy)
-    // );
-    // }
-    // }
-    // }
-
     static String enrichHosts(Enrich.Mode mode) {
         return EsqlTestUtils.randomEnrichCommand("hosts", mode, hostPolicy.getMatchField(), hostPolicy.getEnrichFields());
     }
 
     static String enrichVendors(Enrich.Mode mode) {
         return EsqlTestUtils.randomEnrichCommand("vendors", mode, vendorPolicy.getMatchField(), vendorPolicy.getEnrichFields());
-    }
-
-    private void setSkipUnavailable(String clusterAlias, boolean skip) {
-        client(LOCAL_CLUSTER).admin()
-            .cluster()
-            .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
-            .setPersistentSettings(Settings.builder().put("cluster.remote." + clusterAlias + ".skip_unavailable", skip).build())
-            .get();
-    }
-
-    private void clearSkipUnavailable() {
-        Settings.Builder settingsBuilder = Settings.builder()
-            .putNull("cluster.remote." + REMOTE_CLUSTER_1 + ".skip_unavailable")
-            .putNull("cluster.remote." + REMOTE_CLUSTER_2 + ".skip_unavailable");
-        client(LOCAL_CLUSTER).admin()
-            .cluster()
-            .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
-            .setPersistentSettings(settingsBuilder.build())
-            .get();
     }
 
     public void testEnrichWithHostsPolicyAndDisconnectedRemotesWithSkipUnavailableTrue() throws IOException {
@@ -252,7 +223,7 @@ public class CrossClusterEnrichUnavailableClustersIT extends AbstractMultiCluste
             // close remote-cluster-1 so that it is unavailable
             cluster(REMOTE_CLUSTER_1).close();
 
-            Tuple<Boolean, Boolean> includeCCSMetadata = randomIncludeCCSMetadata();
+            Tuple<Boolean, Boolean> includeCCSMetadata = CrossClustersEnrichIT.randomIncludeCCSMetadata();
             Boolean requestIncludeMeta = includeCCSMetadata.v1();
             boolean responseExpectMeta = includeCCSMetadata.v2();
 
@@ -327,7 +298,7 @@ public class CrossClusterEnrichUnavailableClustersIT extends AbstractMultiCluste
             // close remote-cluster-1 so that it is unavailable
             cluster(REMOTE_CLUSTER_1).close();
 
-            Tuple<Boolean, Boolean> includeCCSMetadata = randomIncludeCCSMetadata();
+            Tuple<Boolean, Boolean> includeCCSMetadata = CrossClustersEnrichIT.randomIncludeCCSMetadata();
             Boolean requestIncludeMeta = includeCCSMetadata.v1();
             boolean responseExpectMeta = includeCCSMetadata.v2();
 
@@ -372,110 +343,8 @@ public class CrossClusterEnrichUnavailableClustersIT extends AbstractMultiCluste
         }
     }
 
-    public void testEnrichHostsAggThenEnrichVendorCoordinatorWithUnavailableRemotes() throws IOException {
-        Tuple<Boolean, Boolean> includeCCSMetadata = randomIncludeCCSMetadata();
-        Boolean requestIncludeMeta = includeCCSMetadata.v1();
-        boolean responseExpectMeta = includeCCSMetadata.v2();
-
-        boolean skipUnavailableRemote1 = randomBoolean();
-        setSkipUnavailable(REMOTE_CLUSTER_1, skipUnavailableRemote1);
-        setSkipUnavailable(REMOTE_CLUSTER_2, true);
-
-        try {
-            // close remote-cluster-2 so that it is unavailable
-            cluster(REMOTE_CLUSTER_2).close();
-
-            for (var hostMode : Enrich.Mode.values()) {
-                // note: this is a local + remote test, unlike most other tests in this class
-                String query = String.format(Locale.ROOT, """
-                    FROM *:events,events
-                    | eval ip= TO_STR(host)
-                    | %s
-                    | stats c = COUNT(*) by os
-                    | %s
-                    | stats c = SUM(c) by vendor
-                    | sort vendor
-                    """, enrichHosts(hostMode), enrichVendors(Enrich.Mode.COORDINATOR));
-                try (EsqlQueryResponse resp = runQuery(query, requestIncludeMeta)) {
-                    assertThat(getValuesList(resp).size(), greaterThanOrEqualTo(1));
-                    EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
-                    assertThat(executionInfo.includeCCSMetadata(), equalTo(responseExpectMeta));
-                    assertThat(
-                        executionInfo.clusterAliases(),
-                        equalTo(Set.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, REMOTE_CLUSTER_1, REMOTE_CLUSTER_2))
-                    );
-                    assertCCSExecutionInfoDetails(executionInfo);
-
-                    EsqlExecutionInfo.Cluster cluster1 = executionInfo.getCluster(REMOTE_CLUSTER_1);
-                    assertThat(cluster1.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
-                    assertThat(cluster1.getTotalShards(), greaterThanOrEqualTo(0));
-                    assertThat(cluster1.getSuccessfulShards(), equalTo(cluster1.getSuccessfulShards()));
-                    assertThat(cluster1.getSkippedShards(), equalTo(0));
-                    assertThat(cluster1.getFailedShards(), equalTo(0));
-                    assertThat(cluster1.getTook().millis(), greaterThanOrEqualTo(0L));
-
-                    EsqlExecutionInfo.Cluster cluster2 = executionInfo.getCluster(REMOTE_CLUSTER_2);
-                    assertThat(cluster2.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SKIPPED));
-                    assertThat(cluster2.getTotalShards(), equalTo(0));
-                    assertThat(cluster2.getSuccessfulShards(), equalTo(0));
-                    assertThat(cluster2.getSkippedShards(), equalTo(0));
-                    assertThat(cluster2.getFailedShards(), equalTo(0));
-                }
-            }
-
-            // close remote-cluster-1 so that it is also unavailable
-            cluster(REMOTE_CLUSTER_1).close();
-
-            for (var hostMode : Enrich.Mode.values()) {
-                // note: this is a local + remote test, unlike most other tests in this class
-                String query = String.format(Locale.ROOT, """
-                    FROM *:events,events
-                    | eval ip= TO_STR(host)
-                    | %s
-                    | stats c = COUNT(*) by os
-                    | %s
-                    | stats c = SUM(c) by vendor
-                    | sort vendor
-                    """, enrichHosts(hostMode), enrichVendors(Enrich.Mode.COORDINATOR));
-
-                if (skipUnavailableRemote1 == false) {
-                    Exception exception = expectThrows(Exception.class, () -> runQuery(query, requestIncludeMeta));
-                    assertTrue(ExceptionsHelper.isRemoteUnavailableException(exception));
-                } else {
-                    try (EsqlQueryResponse resp = runQuery(query, requestIncludeMeta)) {
-                        assertThat(getValuesList(resp).size(), greaterThan(0));
-                        EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
-                        assertThat(executionInfo.includeCCSMetadata(), equalTo(responseExpectMeta));
-                        assertThat(
-                            executionInfo.clusterAliases(),
-                            equalTo(Set.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, REMOTE_CLUSTER_1, REMOTE_CLUSTER_2))
-                        );
-                        assertCCSExecutionInfoDetails(executionInfo);
-
-                        EsqlExecutionInfo.Cluster cluster1 = executionInfo.getCluster(REMOTE_CLUSTER_1);
-                        assertThat(cluster1.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SKIPPED));
-                        assertThat(cluster1.getTotalShards(), equalTo(0));
-                        assertThat(cluster1.getSuccessfulShards(), equalTo(0));
-                        assertThat(cluster1.getSkippedShards(), equalTo(0));
-                        assertThat(cluster1.getFailedShards(), equalTo(0));
-
-                        EsqlExecutionInfo.Cluster cluster2 = executionInfo.getCluster(REMOTE_CLUSTER_2);
-                        assertThat(cluster2.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SKIPPED));
-                        assertThat(cluster2.getTotalShards(), equalTo(0));
-                        assertThat(cluster2.getSuccessfulShards(), equalTo(0));
-                        assertThat(cluster2.getSkippedShards(), equalTo(0));
-                        assertThat(cluster2.getFailedShards(), equalTo(0));
-                    }
-                }
-            }
-
-        } finally {
-            clearSkipUnavailable();
-        }
-    }
-
     public void testEnrichTwiceThenAggsWithUnavailableRemotes() throws IOException {
-        Tuple<Boolean, Boolean> includeCCSMetadata = randomIncludeCCSMetadata();
+        Tuple<Boolean, Boolean> includeCCSMetadata = CrossClustersEnrichIT.randomIncludeCCSMetadata();
         Boolean requestIncludeMeta = includeCCSMetadata.v1();
         boolean responseExpectMeta = includeCCSMetadata.v2();
 
@@ -544,7 +413,6 @@ public class CrossClusterEnrichUnavailableClustersIT extends AbstractMultiCluste
                 } else {
                     try (EsqlQueryResponse resp = runQuery(query, requestIncludeMeta)) {
                         assertThat(getValuesList(resp).size(), greaterThanOrEqualTo(1));
-                        System.err.println(getValuesList(resp));
                         EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
                         assertThat(executionInfo.includeCCSMetadata(), equalTo(responseExpectMeta));
                         assertThat(executionInfo.clusterAliases(), equalTo(Set.of("", REMOTE_CLUSTER_1, REMOTE_CLUSTER_2)));
@@ -579,9 +447,8 @@ public class CrossClusterEnrichUnavailableClustersIT extends AbstractMultiCluste
         }
     }
 
-    // MP TODO: add testEnrichCoordinatorThenAnyWithSingleUnavailableRemoteAndNotLocal
     public void testEnrichCoordinatorThenAnyWithSingleUnavailableRemoteAndLocal() throws IOException {
-        Tuple<Boolean, Boolean> includeCCSMetadata = randomIncludeCCSMetadata();
+        Tuple<Boolean, Boolean> includeCCSMetadata = CrossClustersEnrichIT.randomIncludeCCSMetadata();
         Boolean requestIncludeMeta = includeCCSMetadata.v1();
         boolean responseExpectMeta = includeCCSMetadata.v2();
 
@@ -634,7 +501,7 @@ public class CrossClusterEnrichUnavailableClustersIT extends AbstractMultiCluste
     }
 
     public void testEnrichCoordinatorThenAnyWithSingleUnavailableRemoteAndNotLocal() throws IOException {
-        Tuple<Boolean, Boolean> includeCCSMetadata = randomIncludeCCSMetadata();
+        Tuple<Boolean, Boolean> includeCCSMetadata = CrossClustersEnrichIT.randomIncludeCCSMetadata();
         Boolean requestIncludeMeta = includeCCSMetadata.v1();
         boolean responseExpectMeta = includeCCSMetadata.v2();
 
@@ -677,7 +544,7 @@ public class CrossClusterEnrichUnavailableClustersIT extends AbstractMultiCluste
     }
 
     public void testEnrichRemoteWithVendor() throws IOException {
-        Tuple<Boolean, Boolean> includeCCSMetadata = randomIncludeCCSMetadata();
+        Tuple<Boolean, Boolean> includeCCSMetadata = CrossClustersEnrichIT.randomIncludeCCSMetadata();
         Boolean requestIncludeMeta = includeCCSMetadata.v1();
         boolean responseExpectMeta = includeCCSMetadata.v2();
 
@@ -812,13 +679,23 @@ public class CrossClusterEnrichUnavailableClustersIT extends AbstractMultiCluste
         }
     }
 
-    public static Tuple<Boolean, Boolean> randomIncludeCCSMetadata() {
-        return switch (randomIntBetween(1, 3)) {
-            case 1 -> new Tuple<>(Boolean.TRUE, Boolean.TRUE);
-            case 2 -> new Tuple<>(Boolean.FALSE, Boolean.FALSE);
-            case 3 -> new Tuple<>(null, Boolean.FALSE);
-            default -> throw new AssertionError("should not get here");
-        };
+    private void setSkipUnavailable(String clusterAlias, boolean skip) {
+        client(LOCAL_CLUSTER).admin()
+            .cluster()
+            .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+            .setPersistentSettings(Settings.builder().put("cluster.remote." + clusterAlias + ".skip_unavailable", skip).build())
+            .get();
+    }
+
+    private void clearSkipUnavailable() {
+        Settings.Builder settingsBuilder = Settings.builder()
+            .putNull("cluster.remote." + REMOTE_CLUSTER_1 + ".skip_unavailable")
+            .putNull("cluster.remote." + REMOTE_CLUSTER_2 + ".skip_unavailable");
+        client(LOCAL_CLUSTER).admin()
+            .cluster()
+            .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+            .setPersistentSettings(settingsBuilder.build())
+            .get();
     }
 
     public static class LocalStateEnrich extends LocalStateCompositeXPackPlugin {

@@ -52,17 +52,17 @@ interface KqlBaseVisitor<T> extends ParseTreeVisitor<T> {
      */
     T visitSimpleQuery(KqlBaseParser.SimpleQueryContext ctx);
     /**
-     * Visit a parse tree produced by {@link KqlBaseParser#expression}.
-     * @param ctx the parse tree
-     * @return the visitor result
-     */
-    T visitExpression(KqlBaseParser.ExpressionContext ctx);
-    /**
      * Visit a parse tree produced by {@link KqlBaseParser#nestedQuery}.
      * @param ctx the parse tree
      * @return the visitor result
      */
     T visitNestedQuery(KqlBaseParser.NestedQueryContext ctx);
+    /**
+     * Visit a parse tree produced by {@link KqlBaseParser#matchAllQuery}.
+     * @param ctx the parse tree
+     * @return the visitor result
+     */
+    T visitMatchAllQuery(KqlBaseParser.MatchAllQueryContext ctx);
     /**
      * Visit a parse tree produced by {@link KqlBaseParser#parenthesizedQuery}.
      * @param ctx the parse tree
@@ -70,23 +70,11 @@ interface KqlBaseVisitor<T> extends ParseTreeVisitor<T> {
      */
     T visitParenthesizedQuery(KqlBaseParser.ParenthesizedQueryContext ctx);
     /**
-     * Visit a parse tree produced by {@link KqlBaseParser#fieldRangeQuery}.
+     * Visit a parse tree produced by {@link KqlBaseParser#rangeQuery}.
      * @param ctx the parse tree
      * @return the visitor result
      */
-    T visitFieldRangeQuery(KqlBaseParser.FieldRangeQueryContext ctx);
-    /**
-     * Visit a parse tree produced by {@link KqlBaseParser#fieldTermQuery}.
-     * @param ctx the parse tree
-     * @return the visitor result
-     */
-    T visitFieldTermQuery(KqlBaseParser.FieldTermQueryContext ctx);
-    /**
-     * Visit a parse tree produced by {@link KqlBaseParser#fieldName}.
-     * @param ctx the parse tree
-     * @return the visitor result
-     */
-    T visitFieldName(KqlBaseParser.FieldNameContext ctx);
+    T visitRangeQuery(KqlBaseParser.RangeQueryContext ctx);
     /**
      * Visit a parse tree produced by {@link KqlBaseParser#rangeQueryValue}.
      * @param ctx the parse tree
@@ -94,33 +82,33 @@ interface KqlBaseVisitor<T> extends ParseTreeVisitor<T> {
      */
     T visitRangeQueryValue(KqlBaseParser.RangeQueryValueContext ctx);
     /**
-     * Visit a parse tree produced by {@link KqlBaseParser#termQueryValue}.
+     * Visit a parse tree produced by {@link KqlBaseParser#existsQuery}.
      * @param ctx the parse tree
      * @return the visitor result
      */
-    T visitTermQueryValue(KqlBaseParser.TermQueryValueContext ctx);
+    T visitExistsQuery(KqlBaseParser.ExistsQueryContext ctx);
     /**
-     * Visit a parse tree produced by {@link KqlBaseParser#groupingTermExpression}.
+     * Visit a parse tree produced by {@link KqlBaseParser#fieldQuery}.
      * @param ctx the parse tree
      * @return the visitor result
      */
-    T visitGroupingTermExpression(KqlBaseParser.GroupingTermExpressionContext ctx);
+    T visitFieldQuery(KqlBaseParser.FieldQueryContext ctx);
     /**
-     * Visit a parse tree produced by {@link KqlBaseParser#unquotedLiteralExpression}.
+     * Visit a parse tree produced by {@link KqlBaseParser#fieldLessQuery}.
      * @param ctx the parse tree
      * @return the visitor result
      */
-    T visitUnquotedLiteralExpression(KqlBaseParser.UnquotedLiteralExpressionContext ctx);
+    T visitFieldLessQuery(KqlBaseParser.FieldLessQueryContext ctx);
     /**
-     * Visit a parse tree produced by {@link KqlBaseParser#quotedStringExpression}.
+     * Visit a parse tree produced by {@link KqlBaseParser#fieldQueryValue}.
      * @param ctx the parse tree
      * @return the visitor result
      */
-    T visitQuotedStringExpression(KqlBaseParser.QuotedStringExpressionContext ctx);
+    T visitFieldQueryValue(KqlBaseParser.FieldQueryValueContext ctx);
     /**
-     * Visit a parse tree produced by {@link KqlBaseParser#wildcardExpression}.
+     * Visit a parse tree produced by {@link KqlBaseParser#fieldName}.
      * @param ctx the parse tree
      * @return the visitor result
      */
-    T visitWildcardExpression(KqlBaseParser.WildcardExpressionContext ctx);
+    T visitFieldName(KqlBaseParser.FieldNameContext ctx);
 }

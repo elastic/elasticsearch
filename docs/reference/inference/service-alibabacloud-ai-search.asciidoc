@@ -34,6 +34,26 @@ Available task types:
 [[infer-service-alibabacloud-ai-search-api-request-body]]
 ==== {api-request-body-title}
 
+`chunking_settings`::
+(Optional, object)
+include::inference-shared.asciidoc[tag=chunking-settings]
+
+`max_chunking_size`:::
+(Optional, integer)
+include::inference-shared.asciidoc[tag=chunking-settings-max-chunking-size]
+
+`overlap`:::
+(Optional, integer)
+include::inference-shared.asciidoc[tag=chunking-settings-overlap]
+
+`sentence_overlap`:::
+(Optional, integer)
+include::inference-shared.asciidoc[tag=chunking-settings-sentence-overlap]
+
+`strategy`:::
+(Optional, string)
+include::inference-shared.asciidoc[tag=chunking-settings-strategy]
+
 `service`::
 (Required, string) The type of service supported for the specified task type.
 In this case,
@@ -107,7 +127,6 @@ To modify this, set the `requests_per_minute` setting of this object in your ser
 --
 include::inference-shared.asciidoc[tag=request-per-minute-example]
 --
-
 
 `task_settings`::
 (Optional, object)

@@ -37,7 +37,7 @@ public class Reverse extends UnaryScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Reverse", Reverse::new);
 
     @FunctionInfo(
-        returnType = { "keyword", "text" },
+        returnType = { "keyword" },
         description = "Returns a new string representing the input string in reverse order.",
         examples = {
             @Example(file = "string", tag = "reverse"),

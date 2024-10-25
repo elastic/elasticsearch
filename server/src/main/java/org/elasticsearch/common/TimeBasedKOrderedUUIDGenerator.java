@@ -54,10 +54,11 @@ public class TimeBasedKOrderedUUIDGenerator extends TimeBasedUUIDGenerator {
 
         // From hereinafter everything is almost like random and does not compress well
         // due to unlikely prefix-sharing
-        uuidBytes[10] = (byte) (timestamp >>> 8);
-        uuidBytes[11] = (byte) (sequenceId >>> 8);
-        uuidBytes[12] = (byte) timestamp;
-        uuidBytes[13] = (byte) sequenceId;
+        uuidBytes[10] = (byte) (sequenceId >>> 16);
+        uuidBytes[11] = (byte) (timestamp >>> 8);
+        uuidBytes[12] = (byte) (sequenceId >>> 8);
+        uuidBytes[13] = (byte) timestamp;
+        uuidBytes[14] = (byte) sequenceId;
 
         return BASE_64_ENCODER.encodeToString(uuidBytes);
     }

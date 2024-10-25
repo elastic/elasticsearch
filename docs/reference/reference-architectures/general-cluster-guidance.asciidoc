@@ -1,0 +1,174 @@
+[[reference-architecture-components]]
+== General cluster guidance
+
+This page provides prescriptive guidance on key concepts to take into account when building out an Elastic Architecture. This includes components, sharding strategy, hardware recommendations, and index lifecycle.
+
+[discrete]
+[[component-types]]
+=== Component types
+
+Each component serves a specific function within the Elasticsearch cluster, contributing to its overall performance and reliability. Understanding these node types is crucial for designing, managing, and optimizing your Elasticsearch deployment.
+
+[cols="1,1,3,2", options="header"]
+|===
+| Component | Icon | Description | Hardware Recommendations
+
+| Master Node
+| image:images/master.png[Image showing a master node]
+| Responsible for cluster-wide settings and state, including index metadata and node information. Ensures cluster health by managing node joining and leaving.
+|Storage is not a key factor for master nodes, however CPU and memory are important considerations. Each of our recommended instance types for master nodes have a vCPU:RAM ratio of at least 0.500.
+| Data Node - Hot
+| image:images/hot.png[Image showing a hot data node]
+| Stores data and performs CRUD, search, and aggregations. High I/O, CPU, and memory requirements. 
+|Since the hot tier is responsible for ingest, search and force-merge (when creating the searchable snapshots to roll data over to the frozen tier), cpu-optimized nodes with solid state drives are strongly recommended. Hot nodes should have a disk:memory ratio no higher than 45:1 and the vCPU:RAM ratio should be a minimum of 0.500.
+| Data Node - Warm
+| Need Warm Image
+| Stores data and performs CRUD, search, and aggregations. High I/O, CPU, and memory requirements.
+|
+| Data Node - Cold
+| Need Cold Image
+| Stores data and performs CRUD, search, and aggregations. High I/O, CPU, and memory requirements.
+|
+| Data Node - Frozen
+| image:images/frozen.png[Image showing a hot data node]
+| Stores data and performs CRUD, search, and aggregations. High I/O, CPU, and memory requirements.
+|The frozen tier uses a local cache to hold data from the Snapshot Store in the cloud providers' object store.   For the best query performance in the frozen tier, frozen nodes should use solid state drives with a disk:memory ratio of at least 75:1 and a vCPU:RAM ratio of at least 0.133.
+| Machine Learning Node
+| image:images/machine-learning.png[Image showing a machine learning node]
+| Executes machine learning jobs, including anomaly detection, data frame analysis, and inference.
+|Storage is not a key factor for ML nodes, however CPU and memory are important considerations. Each of our recommended instance types for machine learning have a vCPU:RAM ratio of at least 0.250.
+| Kibana
+| image:images/kibana.png[Image showing a kibana node]
+| Provides the front-end interface for visualizing data stored in Elasticsearch. Essential for creating dashboards and managing visualizations.
+|Storage is not a key factor for kibana nodes, however CPU and memory are important considerations. Each of our recommended instance types for kibana nodes have a vCPU:RAM ratio of at least 0.500.
+| Snapshot Storage
+| image:images/snapshot.png[Image showing snapshot storage]
+| Serves as the repository for storing snapshots of Elasticsearch indices. Critical for backup and disaster recovery.
+|
+|===
+
+[discrete]
+[[cloud-hot-frozen-example-configuration]]
+==== Example configuration
+
+Based on these hardware recommendations, here is a sample configuration for an ingest rate of 1TB/day with an ILM policy of 1 day in the hot tier and 89 days in the frozen tier for a total of 90 days of searchable data.   Note that the differences in the Hot and Frozen node RAM are due to slight differences in the underlying cloud provider instance types.
+
+[discrete]
+[[aws-configuration]]
+===== AWS Configuration
+* Hot tier: 120G RAM (1 60G RAM node x 2 availability zones)
+* Frozen tier: 120G RAM (1 60G RAM node x 2 availability zones)
+* Machine learning: 128G RAM (1 64G node x 2 availability zones)
+* Master nodes: 24G RAM (8G node x 3 availability zones)
+* Kibana: 16G RAM (16G node x 1 availability zone)
+
+[discrete]
+[[azure-configuration]]
+===== Azure Configuration
+* Hot tier: 120G RAM (1 60G RAM node x 2 availability zones)
+* Frozen tier: 120G RAM (1 60G RAM node x 2 availability zones)
+* Machine learning: 128G RAM (1 64G node x 2 availability zones)
+* Master nodes: 24G RAM (8G node x 3 availability zones)
+* Kibana: 16G RAM (16G node x 1 availability zone)
+
+
+[discrete]
+[[gcp-configuration]]
+===== GCP Configuration
+
+* Hot tier: 128G RAM (1 64G RAM node x 2 availability zones)
+* Frozen tier: 128G RAM (1 64G RAM node x 2 availability zones)
+* Machine learning: 128G RAM (1 64G node x 2 availability zones)
+* Master nodes: 24G RAM (8G node x 3 availability zones)
+* Kibana: 16G RAM (16G node x 1 availability zone)
+
+[discrete]
+[[component-other-guidance]]
+==== Other guidance
+For production we recommend a minimum of 2 availability zones and 3 availability zones for mission critical applications. See https://www.elastic.co/guide/en/cloud/current/ec-planning.html[Plan for Production] for more details. 
+
+TIP: Even if the cluster is deployed across only two AZ, a third master node is still required for quorum voting and will be created automatically in the third AZ.    
+
+The number of data nodes shown for each tier (hot and frozen) is illustrative and would be scaled up depending on ingest volume and retention period (see the example below).   Hot nodes contain both primary and replica shards.  By default, primary and replica shards are always guaranteed to be in different availability zones.   Frozen nodes rely on a large high-speed cache and retrieve data from the Snapshot Store as needed.
+
+Machine learning nodes are optional but highly recommended for large scale time series use cases since the amount of data quickly becomes too difficult to analyze without applying techniques such as machine learning based anomaly detection.
+
+The following section discusses the recommended Elastic Cloud instance types and underlying hardware type for each cloud provider for the hot-frozen deployment illustrated in the diagram above.
+
+The following table shows our specific recommendations for nodes in this architecture.
+
+[cols="10, 30, 30, 30"]
+|===
+| *Type* | *AWS Instance/Type* | *Azure Instance/Type* | *GCP Instance/Type*
+|image:images/hot.png["An Elastic Cloud Architecture"] | aws.es.datahot.c6gd
+c6gd |azure.es.datahot.fsv2
+f32sv2|gcp.es.datahot.n2.68x32x45
+
+N2
+|image:images/frozen.png["An Elastic Cloud Architecture"] 
+| aws.es.datafrozen.i3en
+
+i3en
+ |
+azure.es.datafrozen.edsv4
+
+e8dsv4
+|
+gcp.es.datafrozen.n2.68x10x95
+
+N2
+|image:images/machine-learning.png["An Elastic Cloud Architecture"] 
+| aws.es.ml.m6gd
+
+m6gd
+|
+azure.es.ml.fsv2
+
+f32sv2
+|
+gcp.es.ml.n2.68x32x45
+
+N2
+|image:images/master.png["An Elastic Cloud Architecture"] 
+| aws.es.master.c6gd
+
+c6gd
+|
+azure.es.master.fsv2
+
+f32sv2
+|
+gcp.es.master.n2.68x32x45
+
+N2
+|image:images/kibana.png["An Elastic Cloud Architecture"] 
+| aws.kibana.c6gd
+
+c6gd
+|
+azure.kibana.fsv2
+
+f32sv2
+|
+gcp.kibana.n2.68x32x45
+
+N2|
+|===
+
+For more details on these instance types, see our documentation on Elastic Cloud hardware for https://www.elastic.co/guide/en/cloud/current/ec-default-aws-configurations.html[AWS], https://www.elastic.co/guide/en/cloud/current/ec-default-azure-configurations.html[Azure] and https://www.elastic.co/guide/en/cloud/current/ec-default-gcp-configurations.html[GCP].
+
+=== Shard Management
+
+The most important foundational step to maintaining performance as you scale is proper shard sizing, location, count, and shard distribution. For a complete understanding of what shards are and how they should be used please review https://www.elastic.co/guide/en/elasticsearch/reference/current/size-your-shards.html[Size your shards].
+
+* *Sizing:* Maintain shard sizes within https://www.elastic.co/guide/en/elasticsearch/reference/current/size-your-shards.html#shard-size-recommendation[recommended ranges] and aim for an optimal number of shards.
+* *Distribution:* In a distributed system, any distributed process is only as fast as the slowest node. As a result, it is optimal to maintain indexes with a primary shard count that is a multiple of the node count in a given tier. This creates even distribution of processing and prevents hotspots.
+** Shard distribution should be enforced using the https://www.elastic.co/guide/en/elasticsearch/reference/current/size-your-shards.html#avoid-node-hotspots[‘total shards per node’] index level setting. 
+* **Shard allocation awareness:** To prevent both a primary and a replica from being copied to the same zone, or in this case the same pod, you can use https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-cluster.html#shard-allocation-awareness[shard allocation awareness] and define a simple attribute in the elaticsearch.yaml file on a per-node basis to make Elasticsearch aware of the physical topology and route shards appropriately. In deployment models with multiple availability zones, AZ's would be used in place of pod location.
+
+=== Index lifecyle
+Use index lifecycle management with index templates for consistent index level settings, please see, https://www.elastic.co/guide/en/elasticsearch/reference/current/set-up-lifecycle-policy.html[Configure a lifecycle policy] for more detail.
+
+* *Hot:* Use this tier for ingestion and the fastest reads on the most current data. This architecture assumes no updates to the data once written.
+* **Warm / Cold** - This tier is not considered for this pattern.
+* **Frozen:** Data is persisted in a repository; however, it is accessed from the node's cache. It may not be as fast as the Hot tier; however, it can still be fast depending on the caching strategy. Frozen does not mean slow - it means immutable and saved in durable storage.

@@ -10,7 +10,7 @@ This article outlines a scalable and highly available architecture for Elasticse
 This architecture is intended for organizations that need to: 
 
 * Be resilient to hardware failures
-* Ensure availability during operational maintenance of any given (zone i.e. POD in the diagram)
+* Ensure availability during operational maintenance of any given availability zone 
 * Maintain a single copy of the data during maintenance
 * Leverage a Frozen Data tier as part of the Information Lifecycle
 * Leverage a Snapshot Repository for additional recovery options 
@@ -28,10 +28,6 @@ image::images/three-availability-zone.png["A three-availability-zones time-serie
 
 The following list are important conderations for this architecture:
 
-* **Shard Management:** The most important foundational step to maintaining performance as you scale is proper shard sizing, location, count, and shard distribution. For a complete understanding of what shards are and how they should be used please review https://www.elastic.co/guide/en/elasticsearch/reference/current/size-your-shards.html[Size your shards].
-** *Sizing:* Maintain shard sizes within https://www.elastic.co/guide/en/elasticsearch/reference/current/size-your-shards.html#shard-size-recommendation[recommended ranges] and aim for an optimal number of shards.
-** *Distribution:* In a distributed system, any distributed process is only as fast as the slowest node. As a result, it is optimal to maintain indexes with a primary shard count that is a multiple of the node count in a given tier. This creates even distribution of processing and prevents hotspots.
-**** Shard distribution should be enforced using the https://www.elastic.co/guide/en/elasticsearch/reference/current/size-your-shards.html#avoid-node-hotspots[‘total shards per node’] index level setting.
 * Maintenance will be done only on one POD at a time.
 * A yellow cluster state is acceptable during maintenance.  (This will be due to replica shards being unassigned.)
 * Sample Initial Settings / Configuration:
@@ -40,10 +36,6 @@ The following list are important conderations for this architecture:
 ** Machine Learning Nodes - Optional (1 per POD-1, 2, 3 )
 ** Index - total_shards_per_node = 1 (assuming there will be always more nodes than shards needed).  This will prevent hot-spotting.  This should; however,  be relaxed to total_shards_per_node = 2 if the number of nodes and required number of shards are equal or close to equal due to the shard allocation processes being opportunistic. (i.e. if overly aggressive, shards could be placed in a way to create a situation where a shard could not be allocated - and create a yellow cluster state)
 ** Set up a repository for the frozen tier.
-* **Index lifecyle:** Use index lifecycle management with index templates for consistent index level settings, please see, https://www.elastic.co/guide/en/elasticsearch/reference/current/set-up-lifecycle-policy.html[Configure a lifecycle policy] for more detail.
-** *Hot:* Use this tier for ingestion and the fastest reads on the most current data. This architecture assumes no updates to the data once written.
-** **Warm / Cold** - This tier is not considered for this pattern.
-** **Frozen:** Data is persisted in a repository; however, it is accessed from the node's cache. It may not be as fast as the Hot tier; however, it can still be fast depending on the caching strategy. Frozen does not mean slow - it means immutable and saved in durable storage.
 
 * https://www.elastic.co/guide/en/elasticsearch/reference/8.16/snapshots-take-snapshot.html#automate-snapshots-slm[SLM (Snapshot Lifecycle Management): Considerations]
 * **Limitations of this architecture**

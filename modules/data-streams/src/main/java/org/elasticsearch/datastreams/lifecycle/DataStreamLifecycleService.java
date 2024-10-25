@@ -950,7 +950,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                 UpdateSettingsRequest updateMergePolicySettingsRequest = new UpdateSettingsRequest();
                 updateMergePolicySettingsRequest.indicesOptions(
                     IndicesOptions.builder(updateMergePolicySettingsRequest.indicesOptions())
-                        .selectorOptions(IndicesOptions.SelectorOptions.DATA_AND_FAILURE)
+                        .selectorOptions(IndicesOptions.SelectorOptions.ALL_APPLICABLE)
                         .build()
                 );
                 updateMergePolicySettingsRequest.indices(indexName);
@@ -1412,9 +1412,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         RolloverRequest rolloverRequest = new RolloverRequest(dataStream, null).masterNodeTimeout(TimeValue.MAX_VALUE);
         if (rolloverFailureStore) {
             rolloverRequest.setIndicesOptions(
-                IndicesOptions.builder(rolloverRequest.indicesOptions())
-                    .selectorOptions(IndicesOptions.SelectorOptions.ONLY_FAILURES)
-                    .build()
+                IndicesOptions.builder(rolloverRequest.indicesOptions()).selectorOptions(IndicesOptions.SelectorOptions.FAILURES).build()
             );
         }
         rolloverRequest.setConditions(rolloverConfiguration.resolveRolloverConditions(dataRetention));

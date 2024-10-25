@@ -25,7 +25,6 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.jdk.JarHell;
 import org.elasticsearch.plugins.PluginDescriptor;
 import org.elasticsearch.secure_sm.SecureSM;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.PrivilegedOperations;
 import org.elasticsearch.test.mockito.SecureMockMaker;
 import org.junit.Assert;
@@ -361,8 +360,10 @@ public class BootstrapForTesting {
     public static Closeable disableTestSecurityManager() {
         final var sm = System.getSecurityManager();
         if (sm == null) {
-            throw new SecurityException("SecurityManager already disabled. This is indicative of a test bug. " +
-                "Please ensure callers to this method close the returned Closeable.");
+            throw new SecurityException(
+                "SecurityManager already disabled. This is indicative of a test bug. "
+                    + "Please ensure callers to this method close the returned Closeable."
+            );
         }
         AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
             Security.setSecurityManager(null);

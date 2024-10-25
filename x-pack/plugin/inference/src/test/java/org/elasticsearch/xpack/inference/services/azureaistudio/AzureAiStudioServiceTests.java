@@ -1384,6 +1384,13 @@ public class AzureAiStudioServiceTests extends ESTestCase {
             .hasErrorContaining("You didn't provide an API key...");
     }
 
+    public void testSupportsStreaming() throws IOException {
+        try (var service = new AzureAiStudioService(mock(), createWithEmptySettings(mock()))) {
+            assertTrue(service.canStream(TaskType.COMPLETION));
+            assertTrue(service.canStream(TaskType.ANY));
+        }
+    }
+
     // ----------------------------------------------------------------
 
     private AzureAiStudioService createService() {

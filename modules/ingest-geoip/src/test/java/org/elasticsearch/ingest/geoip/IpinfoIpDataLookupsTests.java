@@ -527,7 +527,6 @@ public class IpinfoIpDataLookupsTests extends ESTestCase {
         Set<String> knownAdditionalKeys,
         Set<String> knownMissingKeys
     ) throws IOException {
-        copyDatabase("ipinfo/" + databaseName, tmpDir.resolve(databaseName));
         Path databasePath = tmpDir.resolve(databaseName);
         try (Reader reader = new Reader(pathToFile(databasePath))) {
             @SuppressWarnings("unchecked")

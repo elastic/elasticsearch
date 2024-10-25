@@ -46,7 +46,7 @@ public class DatabaseNodeServiceIT extends AbstractGeoIpIT {
     public void testNonGzippedDatabase() throws Exception {
         String databaseType = "GeoLite2-Country";
         String databaseFileName = databaseType + ".mmdb";
-        // making the dabase name unique so we know we're not using another one:
+        // making the database name unique so we know we're not using another one:
         String databaseName = randomAlphaOfLength(20) + "-" + databaseFileName;
         byte[] mmdbBytes = getBytesForFile(databaseFileName);
         final DatabaseNodeService databaseNodeService = internalCluster().getInstance(DatabaseNodeService.class);
@@ -69,7 +69,7 @@ public class DatabaseNodeServiceIT extends AbstractGeoIpIT {
     public void testGzippedDatabase() throws Exception {
         String databaseType = "GeoLite2-Country";
         String databaseFileName = databaseType + ".mmdb";
-        // making the dabase name unique so we know we're not using another one:
+        // making the database name unique so we know we're not using another one:
         String databaseName = randomAlphaOfLength(20) + "-" + databaseFileName;
         byte[] mmdbBytes = getBytesForFile(databaseFileName);
         byte[] gzipBytes = gzipFileBytes(databaseName, mmdbBytes);

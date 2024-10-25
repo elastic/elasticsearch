@@ -276,6 +276,9 @@ tests:
 - class: org.elasticsearch.xpack.search.CrossClusterAsyncSearchIT
   method: testCCSClusterDetailsWhereAllShardsSkippedInCanMatch
   issue: https://github.com/elastic/elasticsearch/issues/115652
+- class: org.elasticsearch.index.get.GetResultTests
+  method: testToAndFromXContent
+  issue: https://github.com/elastic/elasticsearch/issues/115688
 
 # Examples:
 #

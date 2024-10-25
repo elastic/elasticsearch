@@ -95,6 +95,7 @@ data: {
     "delta":"Elastic"
   }]
 }
+
 event: message
 data: {
   "completion":[{
@@ -105,6 +106,7 @@ data: {
     }
   ]
 }
+
 event: message
 data: {
   "completion":[{
@@ -114,6 +116,7 @@ data: {
     "delta":" company"
   }]
 }
+
 (...)
 ------------------------------------------------------------
 // NOTCONSOLE

@@ -172,7 +172,7 @@ public class SSLDriverTests extends ESTestCase {
             serverProtocols = new String[] { "TLSv1.2" };
             clientProtocols = new String[] { "TLSv1.1" };
             expectedMessageMatcher = anyOf(
-                is("The client supported protocol versions [TLSv1.1] are not accepted by server preferences " + "[TLS12]"),
+                is("The client supported protocol versions [TLSv1.1] are not accepted by server preferences " + "[TLS1.2]"),
                 is("org.bouncycastle.tls.TlsFatalAlert: protocol_version(70)"),
                 is("Client requested protocol TLSv1.1 " + "not enabled or not supported")
             );
@@ -185,7 +185,7 @@ public class SSLDriverTests extends ESTestCase {
             serverProtocols = new String[] { "TLSv1.2" };
             clientProtocols = new String[] { "TLSv1.1" };
             expectedMessageMatcher = anyOf(
-                is("The client supported protocol versions [TLSv1.1] are not accepted by server preferences [TLS12]"),
+                is("The client supported protocol versions [TLSv1.1] are not accepted by server preferences [TLS1.2]"),
                 is("Client requested protocol TLSv1.1 not enabled or not supported"),
                 is("No appropriate protocol (protocol is disabled or cipher suites are inappropriate)")
             );

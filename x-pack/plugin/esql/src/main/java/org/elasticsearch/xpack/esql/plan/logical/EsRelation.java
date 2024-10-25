@@ -112,7 +112,12 @@ public class EsRelation extends LeafPlan {
             EsField t = entry.getValue();
 
             if (t != null) {
-                FieldAttribute f = new FieldAttribute(source, parent, parent != null ? parent.name() + "." + name : name, t);
+                FieldAttribute f = new FieldAttribute(
+                    source,
+                    parent != null ? parent.name() : null,
+                    parent != null ? parent.name() + "." + name : name,
+                    t
+                );
                 list.add(f);
                 // object or nested
                 if (t.getProperties().isEmpty() == false) {

@@ -144,7 +144,7 @@ public class ParserUtilsTests extends ESTestCase {
         assertTrue(hasWildcard(parserRuleContext(randomTextNodeListWithNode(wildcardNode()))));
 
         // All children are literals
-        assertFalse(hasWildcard(parserRuleContext(randomList(1, randomInt(100), ParserUtilsTests::randomLiteralNode))));
+        assertFalse(hasWildcard(parserRuleContext(randomList(1, randomIntBetween(1, 100), ParserUtilsTests::randomLiteralNode))));
 
         // Quoted string
         assertFalse(hasWildcard(parserRuleContext(randomQuotedStringNode())));

@@ -538,7 +538,11 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
         final GlobalRoutingTable newRoutingTable = oldRoutingTable.rebuild(newRoutingNodes);
 
         ClusterState clusterState = ClusterState.builder(new ClusterName("test-cluster")).routingTable(newRoutingTable).build();
-        ClusterStateHealth clusterStateHealth = new ClusterStateHealth(clusterState);
+        ClusterStateHealth clusterStateHealth = new ClusterStateHealth(
+            clusterState,
+            clusterState.metadata().getProject().getConcreteAllIndices(),
+            clusterState.metadata().getProject().id()
+        );
         assertThat(clusterStateHealth.getStatus().ordinal(), lessThanOrEqualTo(expectedStatus.ordinal()));
     }
 

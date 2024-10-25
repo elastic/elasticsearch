@@ -80,7 +80,11 @@ public class ClusterHealthAllocationTests extends ESAllocationTestCase {
     }
 
     private ClusterHealthStatus getClusterHealthStatus(ClusterState clusterState) {
-        return new ClusterStateHealth(clusterState).getStatus();
+        return new ClusterStateHealth(
+            clusterState,
+            clusterState.metadata().getProject().getConcreteAllIndices(),
+            clusterState.metadata().getProject().id()
+        ).getStatus();
     }
 
 }

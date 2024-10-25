@@ -139,7 +139,11 @@ public class RestIndicesActionTests extends ESTestCase {
         final List<List<Table.Cell>> rows = table.getRows();
         assertThat(rows.size(), equalTo(clusterState.metadata().getProject().indices().size()));
 
-        final var clusterStateHealth = new ClusterStateHealth(clusterState);
+        final var clusterStateHealth = new ClusterStateHealth(
+            clusterState,
+            clusterState.metadata().getProject().getConcreteAllIndices(),
+            clusterState.metadata().getProject().id()
+        );
 
         for (final List<Table.Cell> row : rows) {
             final String indexName = (String) row.get(2).value;

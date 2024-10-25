@@ -1,0 +1,5 @@
+pr: 114742
+summary: Adding support for additional mapping to simulate ingest API
+area: Ingest Node
+type: enhancement
+issues: []

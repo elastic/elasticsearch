@@ -17,7 +17,6 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.coordination.CoordinationMetadata;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
@@ -27,14 +26,9 @@ import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.core.IOUtils;
-import org.elasticsearch.env.BuildVersion;
 import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.env.NodeMetadata;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.indices.IndexClosedException;
@@ -46,13 +40,8 @@ import org.elasticsearch.test.InternalTestCluster.RestartCallback;
 import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
-import java.nio.file.Path;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Function;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -60,7 +49,6 @@ import static org.elasticsearch.test.NodeRoles.nonDataNode;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.notNullValue;
@@ -545,52 +533,4 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         assertHitCount(prepareSearch().setQuery(matchAllQuery()), 1L);
     }
 
-    public void testHalfDeletedIndexImport() throws Exception {
-        // It's possible for a 6.x node to add a tombstone for an index but not actually delete the index metadata from disk since that
-        // deletion is slightly deferred and may race against the node being shut down; if you upgrade to 7.x when in this state then the
-        // node won't start.
-
-        final String nodeName = internalCluster().startNode();
-        createIndex("test", 1, 0);
-        ensureGreen("test");
-
-        final Metadata metadata = internalCluster().getInstance(ClusterService.class).state().metadata();
-        final Path[] paths = internalCluster().getInstance(NodeEnvironment.class).nodeDataPaths();
-        final String nodeId = clusterAdmin().prepareNodesInfo(nodeName).clear().get().getNodes().get(0).getNode().getId();
-
-        writeBrokenMeta(nodeEnvironment -> {
-            for (final Path path : paths) {
-                IOUtils.rm(path.resolve(PersistedClusterStateService.METADATA_DIRECTORY_NAME));
-            }
-            MetaStateWriterUtils.writeGlobalState(
-                nodeEnvironment,
-                "test",
-                Metadata.builder(metadata)
-                    // we remove the manifest file, resetting the term and making this look like an upgrade from 6.x, so must also reset the
-                    // term in the coordination metadata
-                    .coordinationMetadata(CoordinationMetadata.builder(metadata.coordinationMetadata()).term(0L).build())
-                    // add a tombstone but do not delete the index metadata from disk
-                    .putCustom(IndexGraveyard.TYPE, IndexGraveyard.builder().addTombstone(metadata.index("test").getIndex()).build())
-                    .build()
-            );
-            NodeMetadata.FORMAT.writeAndCleanup(new NodeMetadata(nodeId, BuildVersion.current(), metadata.oldestIndexVersion()), paths);
-        });
-
-        ensureGreen();
-
-        assertBusy(() -> assertThat(internalCluster().getInstance(NodeEnvironment.class).availableIndexFolders(), empty()));
-    }
-
-    private void writeBrokenMeta(CheckedConsumer<NodeEnvironment, IOException> writer) throws Exception {
-        Map<String, NodeEnvironment> nodeEnvironments = Stream.of(internalCluster().getNodeNames())
-            .collect(Collectors.toMap(Function.identity(), nodeName -> internalCluster().getInstance(NodeEnvironment.class, nodeName)));
-        internalCluster().fullRestart(new RestartCallback() {
-            @Override
-            public Settings onNodeStopped(String nodeName) throws Exception {
-                final NodeEnvironment nodeEnvironment = nodeEnvironments.get(nodeName);
-                writer.accept(nodeEnvironment);
-                return super.onNodeStopped(nodeName);
-            }
-        });
-    }
 }

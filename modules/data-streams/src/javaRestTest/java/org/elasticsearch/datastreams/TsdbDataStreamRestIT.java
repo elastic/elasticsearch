@@ -14,6 +14,7 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.rest.ApiNotAvailableException;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.junit.Before;
 
@@ -212,10 +213,15 @@ public class TsdbDataStreamRestIT extends DisabledSecurityDataStreamTestCase {
     @Before
     public void setup() throws IOException {
         if (trialStarted == false) {
-            // Start trial to support synthetic source.
-            Request startTrial = new Request("POST", "/_license/start_trial");
-            startTrial.addParameter("acknowledge", "true");
-            assertOK(client().performRequest(startTrial));
+            try {
+                // Start trial to support synthetic source.
+                Request startTrial = new Request("POST", "/_license/start_trial");
+                startTrial.addParameter("acknowledge", "true");
+                assertOK(client().performRequest(startTrial));
+            }
+            catch (ApiNotAvailableException e) {
+                // This API is not available in Serverless, ignore.
+            }
             trialStarted = true;
         }
 

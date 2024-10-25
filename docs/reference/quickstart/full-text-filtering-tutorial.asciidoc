@@ -168,41 +168,41 @@ At search time, {es} defaults to the analyzer defined in the field mapping. In t
 [source,console-result]
 ----
 {
-  "took": 2,
-  "timed_out": false,
-  "_shards": {
-    "total": 5,
-    "successful": 5,
-    "skipped": 0,
-    "failed": 0
-  },
-  "hits": { <1>
-    "total": {
-      "value": 1,
-      "relation": "eq"
-    },
-    "max_score": 0.39556286, <2>
-    "hits": [
-      {
-        "_index": "cooking_blog",
-        "_id": "1",
-        "_score": 0.39556286, <3>
-        "_source": {
-          "title": "Perfect Pancakes: A Fluffy Breakfast Delight", <4>
-          "description": "Learn the secrets to making the fluffiest pancakes you've ever tasted. This recipe uses buttermilk and a special folding technique to create light, airy pancakes that are perfect for lazy Sunday mornings.", <5>
-          "author": "Maria Rodriguez",
-          "date": "2023-05-01",
-          "category": "Breakfast",
-          "tags": [
-            "pancakes",
-            "breakfast",
-            "easy recipes"
-          ],
-          "rating": 4.8
-        }
-      }
-    ]
-  }
+ "took": 2,
+ "timed_out": false,
+ "_shards": {
+   "total": 5,
+   "successful": 5,
+   "skipped": 0,
+   "failed": 0
+ },
+ "hits": { <1>
+   "total": {
+     "value": 1, 
+     "relation": "eq"
+   },
+   "max_score": 0.39556286, <2>
+   "hits": [
+     {
+       "_index": "cooking_blog",
+       "_id": "1",
+       "_score": 0.39556286, <3>
+       "_source": {
+         "title": "Perfect Pancakes: A Fluffy Breakfast Delight", <4>
+         "description": "Learn the secrets to making the fluffiest pancakes, so amazing you won't believe your tastebuds. This recipe uses buttermilk and a special folding technique to create light, airy pancakes that are perfect for lazy Sunday mornings.", <5>
+         "author": "Maria Rodriguez",
+         "date": "2023-05-01", 
+         "category": "Breakfast",
+         "tags": [
+           "pancakes",
+           "breakfast",
+           "easy recipes"
+         ],
+         "rating": 4.8
+       }
+     }
+   ]
+ }
 }
 ----
 // TESTRESPONSE[s/"total": 5/"total": $body._shards.total/]

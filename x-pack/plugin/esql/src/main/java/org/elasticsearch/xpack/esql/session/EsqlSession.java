@@ -345,18 +345,19 @@ public class EsqlSession {
                 .collect(Collectors.toSet());
             Map<String, Exception> unavailableClusters = enrichResolution.getUnavailableClusters();
             preAnalyzeIndices(parsed, executionInfo, unavailableClusters, l.delegateFailureAndWrap((ll, indexResolution) -> {
-                // MP TODO: add some tests for invalid index resolution to updateExecutionInfo from those
-                if (indexResolution.isValid()) {
-                    updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, indexResolution);
-                    updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.getUnavailableClusters());
-                    if (executionInfo.isCrossClusterSearch()
-                        && executionInfo.getClusterStateCount(EsqlExecutionInfo.Cluster.Status.RUNNING) == 0) {
-                        // for a CCS, if all clusters have been marked as SKIPPED, nothing to search so send a sentinel
-                        // Exception to let the LogicalPlanActionListener decide how to proceed
-                        ll.onFailure(new IllegalStateException("No clusters to search"));
-                        return;
-                    }
+                // TODO in follow-PR (for skip_unavailble handling of missing concrete indexes) add some tests for invalid index
+                // resolution to updateExecutionInfo
+                updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, indexResolution);
+                updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.getUnavailableClusters());
+                if (executionInfo.isCrossClusterSearch()
+                    && executionInfo.getClusterStateCount(EsqlExecutionInfo.Cluster.Status.RUNNING) == 0) {
+                    // for a CCS, if all clusters have been marked as SKIPPED, nothing to search so send a sentinel
+                    // Exception to let the LogicalPlanActionListener decide how to proceed
+                    ll.onFailure(new IllegalStateException("No clusters to search"));
+                    return;
+                }
 
+                if (indexResolution.isValid()) {
                     Set<String> newClusters = enrichPolicyResolver.groupIndicesPerCluster(
                         indexResolution.get().concreteIndices().toArray(String[]::new)
                     ).keySet();
@@ -420,14 +421,14 @@ public class EsqlSession {
                     }
                 });
             }
-            // if the preceding call to enrich policy API found unavailable clusters, recreate the index expression to search
+            // if the preceding call to the enrich policy API found unavailable clusters, recreate the index expression to search
             // based only on available clusters (which could now be an empty list)
             String indexExpressionToResolve = createIndexExpressionFromAvailableClusters(executionInfo);
             if (indexExpressionToResolve.equals("")) {
                 // if this was a pure remote CCS request (no local indices) and all remotes are offline, return an empty IndexResolution
                 listener.onResponse(IndexResolution.valid(new EsIndex(table.index(), Map.of(), Map.of())));
             } else {
-                // call the EsqlResolveFieldsAction (field-caps under the hood) to resolve indices and get field types
+                // call the EsqlResolveFieldsAction (field-caps) to resolve indices and get field types
                 indexResolver.resolveAsMergedMapping(indexExpressionToResolve, fieldNames, listener);
             }
         } else {
@@ -608,17 +609,6 @@ public class EsqlSession {
         return plan;
     }
 
-    // visible for testing
-    // static void updateExecutionInfoWithUnavailableClusters(EsqlExecutionInfo executionInfo, Set<String> unavailableClusters) {
-    // for (String clusterAlias : unavailableClusters) {
-    // executionInfo.swapCluster(
-    // clusterAlias,
-    // (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setStatus(EsqlExecutionInfo.Cluster.Status.SKIPPED).build()
-    // );
-    // // TODO: follow-on PR will set SKIPPED status when skip_unavailable=true and throw an exception when skip_un=false
-    // }
-    // }
-
     static void updateExecutionInfoWithUnavailableClusters(EsqlExecutionInfo execInfo, Map<String, FieldCapabilitiesFailure> unavailable) {
         for (Map.Entry<String, FieldCapabilitiesFailure> entry : unavailable.entrySet()) {
             String clusterAlias = entry.getKey();
@@ -631,6 +621,10 @@ public class EsqlSession {
                 execInfo.swapCluster(
                     clusterAlias,
                     (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setStatus(EsqlExecutionInfo.Cluster.Status.SKIPPED)
+                        .setTotalShards(0)
+                        .setSuccessfulShards(0)
+                        .setSkippedShards(0)
+                        .setFailedShards(0)
                         .setFailures(List.of(new ShardSearchFailure(e)))
                         .build()
                 );

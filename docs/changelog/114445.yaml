@@ -1,6 +1,6 @@
 pr: 114445
 summary: Wrap jackson exception on malformed json string
-area: Core/Infra
+area: Infra/Core
 type: bug
 issues:
  - 114142

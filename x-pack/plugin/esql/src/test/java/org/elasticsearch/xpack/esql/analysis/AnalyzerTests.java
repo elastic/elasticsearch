@@ -63,6 +63,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -1886,6 +1887,11 @@ public class AnalyzerTests extends ESTestCase {
         Supplier<Integer> supplier = () -> randomInt(fields.length - 1);
         int first = supplier.get();
         int second = randomValueOtherThan(first, supplier);
+        Function<String, String> noText = (type) -> type.equals("text") ? "keyword" : type;
+        assumeTrue(
+            "Ignore tests with TEXT and KEYWORD combinations because they are now valid",
+            noText.apply(fields[first][0]).equals(noText.apply(fields[second][0])) == false
+        );
 
         String signature = "mv_append(" + fields[first][0] + ", " + fields[second][0] + ")";
         verifyUnsupported(
@@ -1893,7 +1899,7 @@ public class AnalyzerTests extends ESTestCase {
             "second argument of ["
                 + signature
                 + "] must be ["
-                + fields[first][1]
+                + noText.apply(fields[first][1])
                 + "], found value ["
                 + fields[second][0]
                 + "] type ["

@@ -122,6 +122,7 @@ public class EnrichPolicyResolver {
                 String clusterAlias = entry.getKey();
                 if (entry.getValue().connectionError != null) {
                     enrichResolution.addUnavailableCluster(clusterAlias, entry.getValue().connectionError);
+                    // remove unavailable cluster from the list of clusters which is used below to create the ResolvedEnrichPolicy
                     remoteClusters.remove(clusterAlias);
                 } else {
                     lookupResponsesToProcess.put(clusterAlias, entry.getValue());
@@ -280,7 +281,7 @@ public class EnrichPolicyResolver {
             if (remotePolicies.isEmpty() == false) {
                 for (String cluster : remoteClusters) {
                     ActionListener<LookupResponse> lookupListener = refs.acquire(resp -> lookupResponses.put(cluster, resp));
-                    getRemoteConnection(cluster, new ActionListener<>() {
+                    getRemoteConnection(cluster, new ActionListener<Transport.Connection>() {
                         @Override
                         public void onResponse(Transport.Connection connection) {
                             transportService.sendRequest(
@@ -354,19 +355,23 @@ public class EnrichPolicyResolver {
     private static class LookupResponse extends TransportResponse {
         final Map<String, ResolvedEnrichPolicy> policies;
         final Map<String, String> failures;
-        // does not need to be Writable since this indicates a failure to contact a remote cluster
+        // does not need to be Writable since this indicates a failure to contact a remote cluster, so only set on querying cluster
         final transient Exception connectionError;
-
-        LookupResponse(Exception connectionError) {
-            this.policies = Collections.emptyMap();
-            this.failures = Collections.emptyMap();
-            this.connectionError = connectionError;
-        }
 
         LookupResponse(Map<String, ResolvedEnrichPolicy> policies, Map<String, String> failures) {
             this.policies = policies;
             this.failures = failures;
             this.connectionError = null;
+        }
+
+        /**
+         * Use this constructor when the remote cluster is unavailable to indicate inability to do the enrich policy lookup
+         * @param connectionError
+         */
+        LookupResponse(Exception connectionError) {
+            this.policies = Collections.emptyMap();
+            this.failures = Collections.emptyMap();
+            this.connectionError = connectionError;
         }
 
         LookupResponse(StreamInput in) throws IOException {

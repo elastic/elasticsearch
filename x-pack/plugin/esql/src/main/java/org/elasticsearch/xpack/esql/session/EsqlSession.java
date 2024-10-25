@@ -155,7 +155,7 @@ public class EsqlSession {
     }
 
     /**
-     * ActionListener that receives LogicalPlan or error during exception.
+     * ActionListener that receives LogicalPlan or error from logical planning.
      * Any Exception sent to onFailure stops processing, but not all are fatal (return a 4xx or 5xx), so
      * the onFailure handler determines whether to return an empty successful result or a 4xx/5xx error.
      */
@@ -185,10 +185,10 @@ public class EsqlSession {
         /**
          * Whether to return an empty result (HTTP status 200) for a CCS rather than a top level 4xx/5xx error.
          *
-         * For cases where field-caps had no indexes to search and the remotes were unavailable, we
-         * return an empty result (200) if all remotes are marked with skip_unavailable=true.
+         * For cases where field-caps had no indices to search and the remotes were unavailable, we
+         * return an empty successful response (200) if all remotes are marked with skip_unavailable=true.
          *
-         * A follow-on PR will expand this logic to handle cases where no indices could be found to match
+         * Note: a follow-on PR will expand this logic to handle cases where no indices could be found to match
          * on any of the requested clusters.
          */
         private boolean returnSuccessWithEmptyResult(Exception e) {
@@ -235,6 +235,7 @@ public class EsqlSession {
                             builder.setStatus(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL);
                         } else {
                             builder.setStatus(EsqlExecutionInfo.Cluster.Status.SKIPPED);
+                            // add this exception to the failures list only if there is no failure already recorded there
                             if (v.getFailures() == null || v.getFailures().size() == 0) {
                                 builder.setFailures(List.of(new ShardSearchFailure(exceptionForResponse)));
                             }

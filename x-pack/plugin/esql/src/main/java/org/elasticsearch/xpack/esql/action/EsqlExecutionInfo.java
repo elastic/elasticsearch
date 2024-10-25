@@ -353,7 +353,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
             this.skippedShards = skippedShards;
             this.failedShards = failedShards;
             if (failures == null) {
-                this.failures = Collections.emptyList();
+                this.failures = List.of();
             } else {
                 this.failures = failures;
             }
@@ -373,7 +373,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
             if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_CCS_EXEC_INFO_WITH_FAILURES)) {
                 this.failures = Collections.unmodifiableList(in.readCollectionAsList(ShardSearchFailure::readShardSearchFailure));
             } else {
-                this.failures = Collections.emptyList();  // MP TODO: should this be emptyList or null?
+                this.failures = List.of();
             }
         }
 

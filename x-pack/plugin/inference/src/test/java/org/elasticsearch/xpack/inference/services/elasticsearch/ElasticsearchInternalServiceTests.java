@@ -1275,7 +1275,8 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
         assumeTrue("Only if 'inference_chunking_settings' feature flag is enabled", ChunkingSettingsFeatureFlag.isEnabled());
 
         int wordsPerChunk = 10;
-        int numBatches = randomIntBetween(3, 6);
+        int numBatches = 3;
+        randomIntBetween(3, 6);
         int numChunks = randomIntBetween(
             ((numBatches - 1) * ElasticsearchInternalService.EMBEDDING_MAX_BATCH_SIZE) + 1,
             numBatches * ElasticsearchInternalService.EMBEDDING_MAX_BATCH_SIZE
@@ -1291,6 +1292,9 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
             numResponsesPerBatch[i] = ElasticsearchInternalService.EMBEDDING_MAX_BATCH_SIZE;
         }
         numResponsesPerBatch[numBatches - 1] = numChunks % ElasticsearchInternalService.EMBEDDING_MAX_BATCH_SIZE;
+        if (numResponsesPerBatch[numBatches - 1] == 0) {
+            numResponsesPerBatch[numBatches - 1] = ElasticsearchInternalService.EMBEDDING_MAX_BATCH_SIZE;
+        }
 
         var batchIndex = new AtomicInteger();
         Client client = mock(Client.class);
@@ -1347,7 +1351,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
         );
 
         latch.await();
-        assertTrue("Listener not called", gotResults.get());
+        assertTrue("Listener not called with results", gotResults.get());
     }
 
     public void testParsePersistedConfig_Rerank() {

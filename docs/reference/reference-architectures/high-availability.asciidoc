@@ -1,11 +1,11 @@
-[[high-availability]]
+[[reference-architecture-high-availability]]
 == High availability
 
 
-<<multi-region-two-datacenter-architecture>>
-<<elastic-cloud-architecture>>
-<<self-managed-single-datacenter>>
-<<three-availability-zones>>
+* <<multi-region-two-datacenter-architecture>>
+* <<elastic-cloud-architecture>>
+* <<self-managed-single-datacenter>>
+* <<three-availability-zones>>
 
 include::multi-region-two-datacenter-architecture.asciidoc[]
 

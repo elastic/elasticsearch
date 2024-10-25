@@ -1,5 +1,5 @@
 [[self-managed-single-datacenter]]
-== Elastic Highly Available Architecture: Self Managed -  Single Datacenter
+=== Elastic Highly Available Architecture: Self Managed -  Single Datacenter
 
 This architecture ensures high availability during normal operations and node maintenance. It includes all necessary Elastic Stack components but is not intended for workload sizing. Use this pattern as a foundation and extend it to meet your specific needs. While it represents data flow for context, implementations may vary. Key design elements include the number and location of master nodes, data nodes, zone awareness, and shard allocation strategy. For more details, see https://www.elastic.co/guide/en/elasticsearch/reference/current/high-availability-cluster-design-large-clusters.html#high-availability-cluster-design-two-zones[Resilience in larger clusters - Two-zone clusters]. This design does not cover cross-region (geographically diverse) disaster recovery.
 
@@ -9,7 +9,7 @@ This design does not address cross region (i.e. geographically diverse) disaster
 
 [discrete]
 [[single-datacenter-use-case]]
-=== Use Case
+==== Use Case
 
 This architecture is intended for organizations that need to:
 
@@ -22,13 +22,13 @@ This architecture is intended for organizations that need to:
 
 [discrete]
 [[single-datacenter-architecture]]
-=== Architecture
+==== Architecture
 
 image::images/single-datacenter.png["A self hosted single datacenter deployment"]
 
 [discrete]
 [[single-datacenter-considerations]]
-=== Important Considerations
+==== Important Considerations
 
 The following list are important conderations for this architecture:
 
@@ -91,7 +91,7 @@ TIP: For consistent index level settings is it easiest to use index lifecycle ma
 
 [discrete]
 [[single-datacenter-resources]]
-=== Resources and references
+==== Resources and references
 
 * <<shard-size-best-practices,Size your shards>>
 * https://www.elastic.co/guide/en/elasticsearch/reference/current/index.html[Elasticsearch Documentation]

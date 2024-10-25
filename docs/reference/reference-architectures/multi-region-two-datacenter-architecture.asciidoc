@@ -1,11 +1,11 @@
 [[multi-region-two-datacenter-architecture]]
-== Time Series HA Architecture: Multi-Region With Two Datacenters
+=== Time Series HA Architecture: Multi-Region With Two Datacenters
 
 This article defines a scalable and highly available architecture for Elasticsearch using two datacenters in separate geographical regions. The architecture includes all the necessary components of the Elastic Stack and is not intended for sizing workloads, but rather as a basis to ensure the architecture you deploy is foundationally ready to handle any desired workload with resiliency. This architecture does include very high level representations of data flow, but the implementation of which will be included in subsequent documentation.
 
 [discrete]
 [[multi-region-use-case]]
-=== Use Case
+==== Use Case
 
 This architecture is intended for organizations that need to: 
 
@@ -14,13 +14,13 @@ This architecture is intended for organizations that need to:
 
 [discrete]
 [[multi-region-architecture]]
-=== Architecture
+==== Architecture
 
 image::images/multi-region-two-datacenter.png["A multi-region time-series architecture across two datacenters"]
 
 [discrete]
 [[multi-region-considerations]]
-=== Important Considerations
+==== Important Considerations
 
 The following list are important conderations for this architecture:
 
@@ -39,7 +39,7 @@ TIP: For consistent index level settings is it easiest to use index lifecycle ma
 
 [discrete]
 [[multi-region-resources]]
-=== Resources and references
+==== Resources and references
 
 * <<shard-size-best-practices,Size your shards>>
 * https://www.elastic.co/guide/en/elasticsearch/reference/current/index.html[Elasticsearch Documentation]

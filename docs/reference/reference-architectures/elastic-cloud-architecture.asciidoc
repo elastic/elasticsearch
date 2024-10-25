@@ -1,5 +1,5 @@
 [[elastic-cloud-architecture]]
-== Time Series HA Architecture: Elastic Cloud - Hot-Frozen, Multi-Availability Zone Architecture
+=== Time Series HA Architecture: Elastic Cloud - Hot-Frozen, Multi-Availability Zone Architecture
 
 The Hot-Frozen Elasticsearch cluster architecture is cost optimized for large time-series datasets while keeping all of the data **fully searchable**. There is no need to "re-hydrate" archived data. In this architecture, the hot tier is primarily used for indexing and immediate searching (1-3 days) with a majority of the search being handled by the frozen tier. Since the data is moved to searchable snapshots in an object store, the cost of keeping all of the data searchable is dramatically reduced.
 
@@ -7,7 +7,7 @@ This architecture is ideal for observability use cases. The architecture include
 
 [discrete]
 [[cloud-hot-use-case]]
-=== Use Case
+==== Use Case
 
 This architecture is intended for organizations that need to:
 
@@ -19,7 +19,7 @@ This architecture is intended for organizations that need to:
 
 [discrete]
 [[cloud-hot-frozen-architecture]]
-=== Architecture
+==== Architecture
 
 image::images/elastic-cloud-architecture.png["An Elastic Cloud Architecture"]
 
@@ -35,7 +35,7 @@ The following section discusses the recommended Elastic Cloud instance types and
 
 [discrete]
 [[recommended-hardware]]
-=== Recommended Hardware Specifications
+==== Recommended Hardware Specifications
 Elastic Cloud allows you to deploy clusters in AWS, Azure and Google Cloud.   Available hardware types and configurations vary across all three cloud providers but each provides instance types that meet our recommendations for the node types used in this architecture:
 
 * **Data - Hot:** since the hot tier is responsible for ingest, search and force-merge (when creating the searchable snapshots to roll data over to the frozen tier), cpu-optimized nodes with solid state drives are strongly recommended. Hot nodes should have a disk:memory ratio no higher than 45:1 and the vCPU:RAM ratio should be a minimum of 0.500.
@@ -108,13 +108,13 @@ For more details on these instance types, see our documentation on Elastic Cloud
 
 [discrete]
 [[cloud-hot-frozen-example-configuration]]
-=== Example configuration
+==== Example configuration
 
 Based on these hardware recommendations, here is a sample configuration for an ingest rate of 1TB/day with an ILM policy of 1 day in the hot tier and 89 days in the frozen tier for a total of 90 days of searchable data.   Note that the differences in the Hot and Frozen node RAM are due to slight differences in the underlying cloud provider instance types.
 
 [discrete]
 [[aws-configuration]]
-==== AWS Configuration
+===== AWS Configuration
 * Hot tier: 120G RAM (1 60G RAM node x 2 availability zones)
 * Frozen tier: 120G RAM (1 60G RAM node x 2 availability zones)
 * Machine learning: 128G RAM (1 64G node x 2 availability zones)
@@ -123,7 +123,7 @@ Based on these hardware recommendations, here is a sample configuration for an i
 
 [discrete]
 [[azure-configuration]]
-==== Azure Configuration
+===== Azure Configuration
 * Hot tier: 120G RAM (1 60G RAM node x 2 availability zones)
 * Frozen tier: 120G RAM (1 60G RAM node x 2 availability zones)
 * Machine learning: 128G RAM (1 64G node x 2 availability zones)
@@ -133,7 +133,7 @@ Based on these hardware recommendations, here is a sample configuration for an i
 
 [discrete]
 [[gcp-configuration]]
-==== GCP Configuration
+===== GCP Configuration
 
 * Hot tier: 128G RAM (1 64G RAM node x 2 availability zones)
 * Frozen tier: 128G RAM (1 64G RAM node x 2 availability zones)
@@ -144,7 +144,7 @@ Based on these hardware recommendations, here is a sample configuration for an i
 
 [discrete]
 [[cloud-hot-frozen-considerations]]
-=== Important Considerations
+==== Important Considerations
 
 The following list are important conderations for this architecture:
 
@@ -167,7 +167,7 @@ TIP: For consistent index level settings is it easiest to use index lifecycle ma
 
 [discrete]
 [[cloud-hot-frozen-resources]]
-=== Resources and references
+==== Resources and references
 
 * <<shard-size-best-practices,Size your shards>>
 * https://www.elastic.co/guide/en/cloud/current/ec-getting-started.html[Elastic Cloud (Elasticsearch Service)]

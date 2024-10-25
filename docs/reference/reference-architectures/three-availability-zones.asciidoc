@@ -1,11 +1,11 @@
 [[three-availability-zones]]
-== Time Series HA Architecture: Three availability zones
+=== Time Series HA Architecture: Three availability zones
 
 This article outlines a scalable and highly available architecture for Elasticsearch using three availability zones. The architecture encompasses all essential components of the Elastic Stack and serves as a foundational blueprint to ensure your deployment is resilient and ready to handle any desired workload. While this overview includes high-level representations of data flow, detailed implementation will be covered in subsequent documentation.
 
 [discrete]
 [[three-availability-zones-use-case]]
-=== Use Case
+==== Use Case
 
 This architecture is intended for organizations that need to: 
 
@@ -18,13 +18,13 @@ This architecture is intended for organizations that need to:
 
 [discrete]
 [[three-availability-zones-architecture]]
-=== Architecture
+==== Architecture
 
 image::images/three-availability-zone.png["A three-availability-zones time-series architecture"]
 
 [discrete]
 [[three-availability-zones-considerations]]
-=== Important Considerations
+==== Important Considerations
 
 The following list are important conderations for this architecture:
 
@@ -65,7 +65,7 @@ TIP: For consistent index level settings is it easiest to use index lifecycle ma
 
 [discrete]
 [[three-availability-zones-resources]]
-=== Resources and references
+==== Resources and references
 
 * <<shard-size-best-practices,Size your shards>>
 * https://www.elastic.co/guide/en/elasticsearch/reference/current/index.html[Elasticsearch Documentation]

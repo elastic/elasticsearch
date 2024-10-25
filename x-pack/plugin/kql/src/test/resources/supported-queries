@@ -67,6 +67,8 @@ foo_field:foo OR foo_field:foo bar AND foo bar
 foo_field:foo AND (foo_field:foo bar OR foo bar)
 foo_field:foo AND (foo_field:foo bar OR foo bar)
 foo_field:foo OR (foo_field:foo bar OR foo bar)
+foo AND
+foo OR
 
 // Nested queries
 nested_field: { NOT foo }

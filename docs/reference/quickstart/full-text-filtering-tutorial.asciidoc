@@ -110,7 +110,7 @@ Note that `text` fields are analyzed and multi-fields are generated at index tim
 ----
 POST /cooking_blog/_bulk
 {"index":{"_id":"1"}}
-{"title":"Perfect Pancakes: A Fluffy Breakfast Delight","description":"Learn the secrets to making the fluffiest pancakes you've ever tasted. This recipe uses buttermilk and a special folding technique to create light, airy pancakes that are perfect for lazy Sunday mornings.","author":"Maria Rodriguez","date":"2023-05-01","category":"Breakfast","tags":["pancakes","breakfast","easy recipes"],"rating":4.8}
+{"title":"Perfect Pancakes: A Fluffy Breakfast Delight","description":"Learn the secrets to making pancakes so fluffy you won't believe your tastebuds. This recipe uses buttermilk and a special folding technique to create light, airy pancakes that are perfect for lazy Sunday mornings.","author":"Maria Rodriguez","date":"2023-05-01","category":"Breakfast","tags":["pancakes","breakfast","easy recipes"],"rating":4.8}
 {"index":{"_id":"2"}}
 {"title":"Spicy Thai Green Curry: A Vegetarian Adventure","description":"Dive into the flavors of Thailand with this vibrant green curry. Packed with vegetables and aromatic herbs, this dish is both healthy and satisfying. Don't worry about the heat - you can easily adjust the spice level to your liking.","author":"Liam Chen","date":"2023-05-05","category":"Main Course","tags":["thai","vegetarian","curry","spicy"],"rating":4.6}
 {"index":{"_id":"3"}}
@@ -151,6 +151,7 @@ GET /cooking_blog/_search
   }
 }
 ----
+// TEST[continued]
 <1> By default, the `match` query uses `OR` logic between the resulting tokens. This means it will match documents that contain either "fluffy" or "pancakes", or both, in the description field.
 
 At search time, {es} defaults to the analyzer defined in the field mapping. In this example, we're using the `standard` analyzer. Using a different analyzer at search time is an <<different-analyzers,advanced use case>>.

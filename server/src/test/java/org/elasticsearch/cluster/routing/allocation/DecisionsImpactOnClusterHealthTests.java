@@ -131,7 +131,11 @@ public class DecisionsImpactOnClusterHealthTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         logger.info("--> assert cluster health");
-        ClusterStateHealth health = new ClusterStateHealth(clusterState);
+        ClusterStateHealth health = new ClusterStateHealth(
+            clusterState,
+            clusterState.metadata().getProject().getConcreteAllIndices(),
+            clusterState.metadata().getProject().id()
+        );
         assertThat(health.getStatus(), equalTo(expectedStatus));
 
         return clusterState;

@@ -287,7 +287,11 @@ public class TransportClusterStatsAction extends TransportNodesAction<
 
         final ClusterState clusterState = clusterService.state();
         final ClusterHealthStatus clusterStatus = clusterState.nodes().isLocalNodeElectedMaster()
-            ? new ClusterStateHealth(clusterState).getStatus()
+            ? new ClusterStateHealth(
+                clusterState,
+                clusterState.metadata().getProject().getConcreteAllIndices(),
+                clusterState.metadata().getProject().id()
+            ).getStatus()
             : null;
 
         final SearchUsageStats searchUsageStats = searchUsageHolder.getSearchUsageStats();

@@ -128,7 +128,11 @@ public class PrimaryTermsTests extends ESAllocationTestCase {
             builder.metadata(Metadata.builder(newClusterState.metadata()).version(newClusterState.metadata().version() + 1));
         }
         this.clusterState = builder.build();
-        final ClusterStateHealth clusterHealth = new ClusterStateHealth(clusterState);
+        final ClusterStateHealth clusterHealth = new ClusterStateHealth(
+            clusterState,
+            clusterState.metadata().getProject().getConcreteAllIndices(),
+            clusterState.metadata().getProject().id()
+        );
         logger.info(
             "applied reroute. active shards: p [{}], t [{}], init shards: [{}], relocating: [{}]",
             clusterHealth.getActivePrimaryShards(),

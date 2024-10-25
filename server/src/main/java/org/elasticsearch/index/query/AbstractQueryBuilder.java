@@ -218,7 +218,9 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
      */
     static Object maybeConvertToBytesRef(Object obj) {
         if (obj instanceof String v) {
-            return BytesRefs.checkIndexableLength(new BytesRef(new byte[UnicodeUtil.calcUTF16toUTF8Length(v, 0, v.length())]));
+            byte[] b = new byte[UnicodeUtil.calcUTF16toUTF8Length(v, 0, v.length())];
+            UnicodeUtil.UTF16toUTF8(v, 0, v.length(), b);
+            return BytesRefs.checkIndexableLength(new BytesRef(b, 0, b.length));
         } else if (obj instanceof CharBuffer v) {
             return BytesRefs.checkIndexableLength(new BytesRef(v));
         } else if (obj instanceof BigInteger v) {

@@ -282,6 +282,9 @@ tests:
 - class: org.elasticsearch.action.update.UpdateResponseTests
   method: testToAndFromXContent
   issue: https://github.com/elastic/elasticsearch/issues/115689
+- class: org.elasticsearch.xpack.shutdown.NodeShutdownIT
+  method: testStalledShardMigrationProperlyDetected
+  issue: https://github.com/elastic/elasticsearch/issues/115697
 
 # Examples:
 #

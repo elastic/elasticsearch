@@ -347,17 +347,17 @@ public class EsqlSession {
             preAnalyzeIndices(parsed, executionInfo, unavailableClusters, l.delegateFailureAndWrap((ll, indexResolution) -> {
                 // TODO in follow-PR (for skip_unavailble handling of missing concrete indexes) add some tests for invalid index
                 // resolution to updateExecutionInfo
-                updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, indexResolution);
-                updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.getUnavailableClusters());
-                if (executionInfo.isCrossClusterSearch()
-                    && executionInfo.getClusterStateCount(EsqlExecutionInfo.Cluster.Status.RUNNING) == 0) {
-                    // for a CCS, if all clusters have been marked as SKIPPED, nothing to search so send a sentinel
-                    // Exception to let the LogicalPlanActionListener decide how to proceed
-                    ll.onFailure(new IllegalStateException("No clusters to search"));
-                    return;
-                }
-
                 if (indexResolution.isValid()) {
+                    updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, indexResolution);
+                    updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.getUnavailableClusters());
+                    if (executionInfo.isCrossClusterSearch()
+                        && executionInfo.getClusterStateCount(EsqlExecutionInfo.Cluster.Status.RUNNING) == 0) {
+                        // for a CCS, if all clusters have been marked as SKIPPED, nothing to search so send a sentinel
+                        // Exception to let the LogicalPlanActionListener decide how to proceed
+                        ll.onFailure(new IllegalStateException("No clusters to search"));
+                        return;
+                    }
+
                     Set<String> newClusters = enrichPolicyResolver.groupIndicesPerCluster(
                         indexResolution.get().concreteIndices().toArray(String[]::new)
                     ).keySet();

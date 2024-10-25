@@ -205,6 +205,7 @@ At search time, {es} defaults to the analyzer defined in the field mapping. In t
  }
 }
 ----
+// TESTRESPONSE[s/"took": 2/"took": $body.took/]
 // TESTRESPONSE[s/"total": 5/"total": $body._shards.total/]
 // TESTRESPONSE[s/"successful": 5/"successful": $body._shards.successful/]
 // TESTRESPONSE[s/"value": 1/"value": $body.hits.total.value/]

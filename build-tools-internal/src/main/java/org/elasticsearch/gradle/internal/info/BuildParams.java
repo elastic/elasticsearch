@@ -8,41 +8,13 @@
  */
 package org.elasticsearch.gradle.internal.info;
 
-import org.elasticsearch.gradle.internal.BwcVersions;
-import org.gradle.api.Action;
-import org.gradle.api.JavaVersion;
-import org.gradle.api.provider.Provider;
-import org.gradle.jvm.toolchain.JavaToolchainSpec;
-
-import java.io.File;
-import java.io.IOException;
 import java.lang.reflect.Modifier;
-import java.time.ZonedDateTime;
 import java.util.Arrays;
-import java.util.List;
 import java.util.function.Consumer;
-
-import static java.util.Objects.requireNonNull;
 
 @Deprecated
 public class BuildParams {
-    private static Provider<File> runtimeJavaHome;
-    private static Boolean isRuntimeJavaHomeSet;
-    private static List<JavaHome> javaVersions;
-    private static JavaVersion minimumCompilerVersion;
-    private static JavaVersion minimumRuntimeVersion;
-    private static JavaVersion gradleJavaVersion;
-    private static Provider<JavaVersion> runtimeJavaVersion;
-    private static Provider<? extends Action<JavaToolchainSpec>> javaToolChainSpec;
-    private static Provider<String> runtimeJavaDetails;
-    private static String gitRevision;
-    private static String gitOrigin;
-    private static ZonedDateTime buildDate;
-    private static String testSeed;
     private static Boolean isCi;
-    private static Integer defaultParallel;
-    private static Boolean isSnapshotBuild;
-    private static Provider<BwcVersions> bwcVersions;
 
     /**
      * Initialize global build parameters. This method accepts and a initialization function which in turn accepts a
@@ -54,18 +26,6 @@ public class BuildParams {
      */
     public static void init(Consumer<MutableBuildParams> initializer) {
         initializer.accept(MutableBuildParams.INSTANCE);
-    }
-
-    public static Boolean getIsRuntimeJavaHomeSet() {
-        return value(isRuntimeJavaHomeSet);
-    }
-
-    public static JavaVersion getRuntimeJavaVersion() {
-        return value(runtimeJavaVersion.get());
-    }
-
-    public static BwcVersions getBwcVersions() {
-        return value(bwcVersions).get();
     }
 
     public static Boolean isCi() {
@@ -113,78 +73,8 @@ public class BuildParams {
             });
         }
 
-        public void setRuntimeJavaHome(Provider<File> runtimeJavaHome) {
-            BuildParams.runtimeJavaHome = runtimeJavaHome.map(javaHome -> {
-                try {
-                    return javaHome.getCanonicalFile();
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
-                }
-            });
-        }
-
-        public void setIsRuntimeJavaHomeSet(boolean isRuntimeJavaHomeSet) {
-            BuildParams.isRuntimeJavaHomeSet = isRuntimeJavaHomeSet;
-        }
-
-        public void setJavaVersions(List<JavaHome> javaVersions) {
-            BuildParams.javaVersions = requireNonNull(javaVersions);
-        }
-
-        public void setMinimumCompilerVersion(JavaVersion minimumCompilerVersion) {
-            BuildParams.minimumCompilerVersion = requireNonNull(minimumCompilerVersion);
-        }
-
-        public void setMinimumRuntimeVersion(JavaVersion minimumRuntimeVersion) {
-            BuildParams.minimumRuntimeVersion = requireNonNull(minimumRuntimeVersion);
-        }
-
-        public void setGradleJavaVersion(JavaVersion gradleJavaVersion) {
-            BuildParams.gradleJavaVersion = requireNonNull(gradleJavaVersion);
-        }
-
-        public void setRuntimeJavaVersion(Provider<JavaVersion> runtimeJavaVersion) {
-            BuildParams.runtimeJavaVersion = requireNonNull(runtimeJavaVersion);
-        }
-
-        public void setRuntimeJavaDetails(Provider<String> runtimeJavaDetails) {
-            BuildParams.runtimeJavaDetails = runtimeJavaDetails;
-        }
-
-        public void setGitRevision(String gitRevision) {
-            BuildParams.gitRevision = requireNonNull(gitRevision);
-        }
-
-        public void setGitOrigin(String gitOrigin) {
-            BuildParams.gitOrigin = requireNonNull(gitOrigin);
-        }
-
-        public void setBuildDate(ZonedDateTime buildDate) {
-            BuildParams.buildDate = requireNonNull(buildDate);
-        }
-
-        public void setTestSeed(String testSeed) {
-            BuildParams.testSeed = requireNonNull(testSeed);
-        }
-
         public void setIsCi(boolean isCi) {
             BuildParams.isCi = isCi;
-        }
-
-        public void setDefaultParallel(int defaultParallel) {
-            BuildParams.defaultParallel = defaultParallel;
-        }
-
-        public void setIsSnapshotBuild(final boolean isSnapshotBuild) {
-            BuildParams.isSnapshotBuild = isSnapshotBuild;
-        }
-
-        public void setBwcVersions(Provider<BwcVersions> bwcVersions) {
-            BuildParams.bwcVersions = requireNonNull(bwcVersions);
-        }
-
-        public void setJavaToolChainSpec(Provider<? extends Action<JavaToolchainSpec>> javaToolChain) {
-            BuildParams.javaToolChainSpec = javaToolChain;
         }
     }
 }

@@ -29,7 +29,7 @@ public final class ParserUtils {
     private static final char QUOTE_CHAR = '"';
 
     private ParserUtils() {
-
+     throw new UnsupportedOperationException("No need to instantiate this class");
     }
 
     /**

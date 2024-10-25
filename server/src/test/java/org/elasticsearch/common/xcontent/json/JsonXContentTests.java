@@ -32,7 +32,7 @@ public class JsonXContentTests extends BaseXContentTestCase {
         doTestBigInteger(generator, os);
     }
 
-    public void testMalformedJsonFieldThrowsXContentException() throws Exception{
+    public void testMalformedJsonFieldThrowsXContentException() throws Exception {
         String json = "{\"test\":\"/*/}";
         try (XContentParser parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, json)) {
             parser.nextToken();

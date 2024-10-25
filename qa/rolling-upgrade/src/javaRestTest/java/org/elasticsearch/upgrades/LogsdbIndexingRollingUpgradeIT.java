@@ -12,37 +12,68 @@ package org.elasticsearch.upgrades;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.common.network.NetworkAddress;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.rest.ObjectPath;
+import org.elasticsearch.xcontent.XContentType;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.time.Instant;
 import java.util.Map;
 
+import static org.elasticsearch.upgrades.LogsIndexModeRollingUpgradeIT.enableLogsdbByDefault;
 import static org.elasticsearch.upgrades.LogsIndexModeRollingUpgradeIT.getWriteBackingIndex;
-import static org.elasticsearch.upgrades.LogsdbIndexingIT.getIndexSettingsWithDefaults;
-import static org.elasticsearch.upgrades.LogsdbIndexingIT.startTrial;
-import static org.elasticsearch.upgrades.TsdbIT.TEMPLATE;
 import static org.elasticsearch.upgrades.TsdbIT.formatInstant;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class TsdbIndexingIT extends AbstractRollingUpgradeTestCase {
+public class LogsdbIndexingRollingUpgradeIT extends AbstractRollingUpgradeTestCase {
 
     static String BULK_ITEM_TEMPLATE =
         """
-            {"@timestamp": "$now", "metricset": "pod", "k8s": {"pod": {"name": "$name", "uid":"$uid", "ip": "$ip", "network": {"tx": $tx, "rx": $rx}}}}
+            {"@timestamp": "$now", "host.name": "$host", "method": "$method", "ip": "$ip", "message": "$message", "length": $length, "factor": $factor}
             """;
 
-    public TsdbIndexingIT(@Name("upgradedNodes") int upgradedNodes) {
+    private static final String TEMPLATE = """
+        {
+            "mappings": {
+              "properties": {
+                "@timestamp" : {
+                  "type": "date"
+                },
+                "method": {
+                  "type": "keyword"
+                },
+                "message": {
+                  "type": "text"
+                },
+                "ip": {
+                  "type": "ip"
+                },
+                "length": {
+                  "type": "long"
+                },
+                "factor": {
+                  "type": "double"
+                }
+              }
+            }
+        }""";
+
+    public LogsdbIndexingRollingUpgradeIT(@Name("upgradedNodes") int upgradedNodes) {
         super(upgradedNodes);
     }
 
     public void testIndexing() throws Exception {
-        String dataStreamName = "k9s";
+        String dataStreamName = "logs-bwc-test";
         if (isOldCluster()) {
             startTrial();
+            enableLogsdbByDefault();
+
             final String INDEX_TEMPLATE = """
                 {
                     "index_patterns": ["$PATTERN"],
@@ -50,7 +81,7 @@ public class TsdbIndexingIT extends AbstractRollingUpgradeTestCase {
                     "data_stream": {
                     }
                 }""";
-            String templateName = "2";
+            String templateName = "3";
             var putIndexTemplateRequest = new Request("POST", "/_index_template/" + templateName);
             putIndexTemplateRequest.setJsonEntity(INDEX_TEMPLATE.replace("$TEMPLATE", TEMPLATE).replace("$PATTERN", dataStreamName));
             assertOK(client().performRequest(putIndexTemplateRequest));
@@ -60,7 +91,7 @@ public class TsdbIndexingIT extends AbstractRollingUpgradeTestCase {
 
             String firstBackingIndex = getWriteBackingIndex(client(), dataStreamName, 0);
             var settings = (Map<?, ?>) getIndexSettingsWithDefaults(firstBackingIndex).get(firstBackingIndex);
-            assertThat(((Map<?, ?>) settings.get("settings")).get("index.mode"), equalTo("time_series"));
+            assertThat(((Map<?, ?>) settings.get("settings")).get("index.mode"), equalTo("logsdb"));
             assertThat(((Map<?, ?>) settings.get("defaults")).get("index.mapping.source.mode"), equalTo("SYNTHETIC"));
 
             ensureGreen(dataStreamName);
@@ -94,21 +125,23 @@ public class TsdbIndexingIT extends AbstractRollingUpgradeTestCase {
         var bulkRequest = new Request("POST", "/" + dataStreamName + "/_bulk");
         StringBuilder requestBody = new StringBuilder();
         for (int i = 0; i < numDocs; i++) {
-            String podName = "pod" + i % 5; // Not realistic, but makes asserting search / query response easier.
-            String podUid = randomUUID();
-            String podIp = NetworkAddress.format(randomIp(true));
-            long podTx = randomLong();
-            long podRx = randomLong();
+            String hostName = "host" + i % 50; // Not realistic, but makes asserting search / query response easier.
+            String methodName = "method" + i % 5;
+            String ip = NetworkAddress.format(randomIp(true));
+            String message = randomAlphaOfLength(128);
+            long length = randomLong();
+            double factor = randomDouble();
 
             requestBody.append("{\"create\": {}}");
             requestBody.append('\n');
             requestBody.append(
                 BULK_ITEM_TEMPLATE.replace("$now", formatInstant(startTime))
-                    .replace("$name", podName)
-                    .replace("$uid", podUid)
-                    .replace("$ip", podIp)
-                    .replace("$tx", Long.toString(podTx))
-                    .replace("$rx", Long.toString(podRx))
+                    .replace("$host", hostName)
+                    .replace("$method", methodName)
+                    .replace("$ip", ip)
+                    .replace("$message", message)
+                    .replace("$length", Long.toString(length))
+                    .replace("$factor", Double.toString(factor))
             );
             requestBody.append('\n');
 
@@ -129,20 +162,20 @@ public class TsdbIndexingIT extends AbstractRollingUpgradeTestCase {
             {
                 "size": 0,
                 "aggs": {
-                    "pod_name": {
+                    "host_name": {
                         "terms": {
-                            "field": "k8s.pod.name",
+                            "field": "host.name",
                             "order": { "_key": "asc" }
                         },
                         "aggs": {
-                            "max_tx": {
+                            "max_length": {
                                 "max": {
-                                    "field": "k8s.pod.network.tx"
+                                    "field": "length"
                                 }
                             },
-                            "max_rx": {
+                            "max_factor": {
                                 "max": {
-                                    "field": "k8s.pod.network.rx"
+                                    "field": "factor"
                                 }
                             }
                         }
@@ -156,13 +189,13 @@ public class TsdbIndexingIT extends AbstractRollingUpgradeTestCase {
 
         Integer totalCount = ObjectPath.evaluate(responseBody, "hits.total.value");
         assertThat(totalCount, greaterThanOrEqualTo(4096));
-        String key = ObjectPath.evaluate(responseBody, "aggregations.pod_name.buckets.0.key");
-        assertThat(key, equalTo("pod0"));
-        Integer docCount = ObjectPath.evaluate(responseBody, "aggregations.pod_name.buckets.0.doc_count");
+        String key = ObjectPath.evaluate(responseBody, "aggregations.host_name.buckets.0.key");
+        assertThat(key, equalTo("host0"));
+        Integer docCount = ObjectPath.evaluate(responseBody, "aggregations.host_name.buckets.0.doc_count");
         assertThat(docCount, greaterThan(0));
-        Double maxTx = ObjectPath.evaluate(responseBody, "aggregations.pod_name.buckets.0.max_tx.value");
+        Double maxTx = ObjectPath.evaluate(responseBody, "aggregations.host_name.buckets.0.max_length.value");
         assertThat(maxTx, notNullValue());
-        Double maxRx = ObjectPath.evaluate(responseBody, "aggregations.pod_name.buckets.0.max_rx.value");
+        Double maxRx = ObjectPath.evaluate(responseBody, "aggregations.host_name.buckets.0.max_factor.value");
         assertThat(maxRx, notNullValue());
     }
 
@@ -171,7 +204,7 @@ public class TsdbIndexingIT extends AbstractRollingUpgradeTestCase {
         queryRequest.addParameter("pretty", "true");
         queryRequest.setJsonEntity("""
             {
-                "query": "FROM $ds | STATS max(k8s.pod.network.rx), max(k8s.pod.network.tx) BY k8s.pod.name | SORT k8s.pod.name | LIMIT 5"
+                "query": "FROM $ds | STATS max(length), max(factor) BY host.name | SORT host.name | LIMIT 5"
             }
             """.replace("$ds", dataStreamName));
         var response = client().performRequest(queryRequest);
@@ -181,16 +214,36 @@ public class TsdbIndexingIT extends AbstractRollingUpgradeTestCase {
         String column1 = ObjectPath.evaluate(responseBody, "columns.0.name");
         String column2 = ObjectPath.evaluate(responseBody, "columns.1.name");
         String column3 = ObjectPath.evaluate(responseBody, "columns.2.name");
-        assertThat(column1, equalTo("max(k8s.pod.network.rx)"));
-        assertThat(column2, equalTo("max(k8s.pod.network.tx)"));
-        assertThat(column3, equalTo("k8s.pod.name"));
+        assertThat(column1, equalTo("max(length)"));
+        assertThat(column2, equalTo("max(factor)"));
+        assertThat(column3, equalTo("host.name"));
 
         String key = ObjectPath.evaluate(responseBody, "values.0.2");
-        assertThat(key, equalTo("pod0"));
+        assertThat(key, equalTo("host0"));
         Long maxRx = ObjectPath.evaluate(responseBody, "values.0.0");
         assertThat(maxRx, notNullValue());
-        Long maxTx = ObjectPath.evaluate(responseBody, "values.0.1");
+        Double maxTx = ObjectPath.evaluate(responseBody, "values.0.1");
         assertThat(maxTx, notNullValue());
+    }
+
+    protected static void startTrial() throws IOException {
+        Request startTrial = new Request("POST", "/_license/start_trial");
+        startTrial.addParameter("acknowledge", "true");
+        assertOK(client().performRequest(startTrial));
+    }
+
+    static Map<String, Object> getIndexSettingsWithDefaults(String index) throws IOException {
+        Request request = new Request("GET", "/" + index + "/_settings");
+        request.addParameter("flat_settings", "true");
+        request.addParameter("include_defaults", "true");
+        Response response = client().performRequest(request);
+        try (InputStream is = response.getEntity().getContent()) {
+            return XContentHelper.convertToMap(
+                XContentType.fromMediaType(response.getEntity().getContentType().getValue()).xContent(),
+                is,
+                true
+            );
+        }
     }
 
 }

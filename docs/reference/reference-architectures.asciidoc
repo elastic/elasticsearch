@@ -45,7 +45,7 @@ You want to:
 
 | <<three-availability-zones>>
 
-image:reference-architectures/images/three-availability-zone.png[Image showing a Three Availability zone architecture]
+image:reference-architectures/images/three-availability-zone.png[Image showing a three Availability zone architecture]
 
 a| 
 You want to:
@@ -62,6 +62,9 @@ You want to:
 Additionally, we have architectures specifically tailored to the ingestion portion of your architecture and these can be found at, https://www.elastic.co/guide/en/ingest/current/use-case-arch.html[Ingest Architectures]
 
 include::reference-architectures/multi-region-two-datacenter-architecture.asciidoc[]
+
 include::reference-architectures/elastic-cloud-architecture.asciidoc[]
+
 include::reference-architectures/self-managed-single-datacenter.asciidoc[]
+
 include::reference-architectures/three-availability-zones.asciidoc[]

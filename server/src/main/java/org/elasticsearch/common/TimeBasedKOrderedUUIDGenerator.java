@@ -23,7 +23,7 @@ import java.util.Base64;
  * <br>
  * <b>Sequence ID:</b> Differentiates UUIDs generated within the same millisecond, ensuring uniqueness even at high throughput.
  * <p>
- * The result is a compact base64-encoded string, optimized for efficient sorting and compression in distributed systems.
+ * The result is a compact base64-encoded string, optimized for efficient compression of the _id field in an inverted index.
  */
 public class TimeBasedKOrderedUUIDGenerator extends TimeBasedUUIDGenerator {
     private static final Base64.Encoder BASE_64_NO_PADDING = Base64.getEncoder().withoutPadding();

@@ -38,7 +38,7 @@ public interface NativeAccess {
     ProcessLimits getProcessLimits();
 
     /**
-     * Attempt to lock this process's virtual memory address space into physical RAM.
+     * Attempt to lock this process's virtualj memory address space into physical RAM.
      */
     void tryLockMemory();
 

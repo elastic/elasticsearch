@@ -45,7 +45,7 @@ public class EnrichCoordinatorStatsAction extends ActionType<EnrichCoordinatorSt
     }
 
     // This always executes on all ingest nodes, hence no node ids need to be provided.
-    public static class Request extends BaseNodesRequest<Request> {
+    public static class Request extends BaseNodesRequest {
         public Request() {
             super(new String[0]);
         }
@@ -111,7 +111,7 @@ public class EnrichCoordinatorStatsAction extends ActionType<EnrichCoordinatorSt
         }
     }
 
-    public static class TransportAction extends TransportNodesAction<Request, Response, NodeRequest, NodeResponse> {
+    public static class TransportAction extends TransportNodesAction<Request, Response, NodeRequest, NodeResponse, Void> {
 
         private final EnrichCache enrichCache;
         private final EnrichCoordinatorProxyAction.Coordinator coordinator;

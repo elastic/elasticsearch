@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.file;
@@ -75,6 +76,15 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
     protected abstract void processFileChanges() throws InterruptedException, ExecutionException, IOException;
 
     protected abstract void processInitialFileMissing() throws InterruptedException, ExecutionException, IOException;
+
+    /**
+     * Defaults to generic {@link #processFileChanges()} behavior.
+     * An implementation can override this to define different file handling when the file is processed during
+     * initial service start.
+     */
+    protected void processFileOnServiceStart() throws IOException, ExecutionException, InterruptedException {
+        processFileChanges();
+    }
 
     public final void addFileChangedListener(FileChangedListener listener) {
         eventListeners.add(listener);
@@ -173,7 +183,7 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
 
             if (Files.exists(path)) {
                 logger.debug("found initial operator settings file [{}], applying...", path);
-                processSettingsAndNotifyListeners();
+                processSettingsOnServiceStartAndNotifyListeners();
             } else {
                 processInitialFileMissing();
                 // Notify everyone we don't have any initial file settings
@@ -289,15 +299,34 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
         } while (true);
     }
 
-    void processSettingsAndNotifyListeners() throws InterruptedException {
+    void processSettingsOnServiceStartAndNotifyListeners() throws InterruptedException {
         try {
-            processFileChanges();
+            processFileOnServiceStart();
             for (var listener : eventListeners) {
                 listener.watchedFileChanged();
             }
         } catch (IOException | ExecutionException e) {
             logger.error(() -> "Error processing watched file: " + watchedFile(), e);
         }
+    }
+
+    void processSettingsAndNotifyListeners() throws InterruptedException {
+        try {
+            processFileChanges();
+        } catch (IOException | ExecutionException e) {
+            onProcessFileChangesException(e);
+            return;
+        }
+        for (var listener : eventListeners) {
+            listener.watchedFileChanged();
+        }
+    }
+
+    /**
+     * Called for checked exceptions only.
+     */
+    protected void onProcessFileChangesException(Exception e) {
+        logger.error(() -> "Error processing watched file: " + watchedFile(), e);
     }
 
     // package private for testing

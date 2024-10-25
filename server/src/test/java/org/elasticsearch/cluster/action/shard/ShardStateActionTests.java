@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.action.shard;
@@ -598,7 +599,7 @@ public class ShardStateActionTests extends ESTestCase {
             assertThat(deserialized.primaryTerm, equalTo(primaryTerm));
             assertThat(deserialized.message, equalTo(message));
             assertThat(deserialized.timestampRange, equalTo(timestampRange));
-            if (version.before(TransportVersions.EVENT_INGESTED_RANGE_IN_CLUSTER_STATE)) {
+            if (version.before(TransportVersions.V_8_15_0)) {
                 assertThat(deserialized.eventIngestedRange, equalTo(ShardLongFieldRange.UNKNOWN));
             } else {
                 assertThat(deserialized.eventIngestedRange, equalTo(eventIngestedRange));
@@ -614,7 +615,7 @@ public class ShardStateActionTests extends ESTestCase {
         final TransportVersion version = randomFrom(
             getFirstVersion(),
             getPreviousVersion(TransportVersions.MINIMUM_COMPATIBLE),
-            getPreviousVersion(TransportVersions.EVENT_INGESTED_RANGE_IN_CLUSTER_STATE)
+            getPreviousVersion(TransportVersions.V_8_15_0)
         );
         final ShardLongFieldRange timestampRange = ShardLongFieldRangeWireTests.randomRange();
         final ShardLongFieldRange eventIngestedRange = ShardLongFieldRangeWireTests.randomRange();

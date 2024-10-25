@@ -2,4 +2,4 @@
 
 *Description*
 
-Returns ths {wikipedia}/Sine_and_cosine[Sine] trigonometric function of an angle.
+Returns the {wikipedia}/Sine_and_cosine[sine] of an angle.

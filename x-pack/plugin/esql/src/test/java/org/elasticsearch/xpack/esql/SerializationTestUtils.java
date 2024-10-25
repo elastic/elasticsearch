@@ -29,8 +29,8 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
-import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -44,9 +44,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class SerializationTestUtils {
-
-    private static final PlanNameRegistry planNameRegistry = new PlanNameRegistry();
-
     public static void assertSerialization(PhysicalPlan plan) {
         assertSerialization(plan, EsqlTestUtils.TEST_CFG);
     }
@@ -54,8 +51,8 @@ public class SerializationTestUtils {
     public static void assertSerialization(PhysicalPlan plan, Configuration configuration) {
         var deserPlan = serializeDeserialize(
             plan,
-            PlanStreamOutput::writePhysicalPlanNode,
-            PlanStreamInput::readPhysicalPlanNode,
+            PlanStreamOutput::writeNamedWriteable,
+            in -> in.readNamedWriteable(PhysicalPlan.class),
             configuration
         );
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(plan, unused -> deserPlan);
@@ -86,13 +83,13 @@ public class SerializationTestUtils {
 
     public static <T> T serializeDeserialize(T orig, Serializer<T> serializer, Deserializer<T> deserializer, Configuration config) {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
-            PlanStreamOutput planStreamOutput = new PlanStreamOutput(out, planNameRegistry, config);
+            PlanStreamOutput planStreamOutput = new PlanStreamOutput(out, config);
             serializer.write(planStreamOutput, orig);
             StreamInput in = new NamedWriteableAwareStreamInput(
                 ByteBufferStreamInput.wrap(BytesReference.toBytes(out.bytes())),
                 writableRegistry()
             );
-            PlanStreamInput planStreamInput = new PlanStreamInput(in, planNameRegistry, in.namedWriteableRegistry(), config);
+            PlanStreamInput planStreamInput = new PlanStreamInput(in, in.namedWriteableRegistry(), config);
             return deserializer.read(planStreamInput);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
@@ -127,6 +124,8 @@ public class SerializationTestUtils {
         entries.addAll(AggregateFunction.getNamedWriteables());
         entries.addAll(Block.getNamedWriteables());
         entries.addAll(LogicalPlan.getNamedWriteables());
+        entries.addAll(PhysicalPlan.getNamedWriteables());
+        entries.addAll(FullTextFunction.getNamedWriteables());
         return new NamedWriteableRegistry(entries);
     }
 }

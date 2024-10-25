@@ -29,7 +29,6 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.function.Function;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.common.unit.ByteSizeUnit.MB;
@@ -106,8 +105,8 @@ public class Concat extends EsqlScalarFunction {
     }
 
     @Override
-    public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
-        var values = children().stream().map(toEvaluator).toArray(ExpressionEvaluator.Factory[]::new);
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+        var values = children().stream().map(toEvaluator::apply).toArray(ExpressionEvaluator.Factory[]::new);
         return new ConcatEvaluator.Factory(source(), context -> new BreakingBytesRefBuilder(context.breaker(), "concat"), values);
     }
 

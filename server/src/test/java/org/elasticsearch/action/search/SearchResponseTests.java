@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.search;
@@ -620,8 +621,8 @@ public class SearchResponseTests extends ESTestCase {
                 if (searchResponse.getHits().getTotalHits() == null) {
                     assertNull(deserialized.getHits().getTotalHits());
                 } else {
-                    assertEquals(searchResponse.getHits().getTotalHits().value, deserialized.getHits().getTotalHits().value);
-                    assertEquals(searchResponse.getHits().getTotalHits().relation, deserialized.getHits().getTotalHits().relation);
+                    assertEquals(searchResponse.getHits().getTotalHits().value(), deserialized.getHits().getTotalHits().value());
+                    assertEquals(searchResponse.getHits().getTotalHits().relation(), deserialized.getHits().getTotalHits().relation());
                 }
                 assertEquals(searchResponse.getHits().getHits().length, deserialized.getHits().getHits().length);
                 assertEquals(searchResponse.getNumReducePhases(), deserialized.getNumReducePhases());

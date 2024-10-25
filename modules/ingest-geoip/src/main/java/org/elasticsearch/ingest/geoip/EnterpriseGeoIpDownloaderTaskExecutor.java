@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest.geoip;
@@ -53,10 +54,14 @@ public class EnterpriseGeoIpDownloaderTaskExecutor extends PersistentTasksExecut
 
     static final String MAXMIND_SETTINGS_PREFIX = "ingest.geoip.downloader.maxmind.";
 
+    static final String IPINFO_SETTINGS_PREFIX = "ingest.ip_location.downloader.ipinfo.";
+
     public static final Setting<SecureString> MAXMIND_LICENSE_KEY_SETTING = SecureSetting.secureString(
         MAXMIND_SETTINGS_PREFIX + "license_key",
         null
     );
+
+    public static final Setting<SecureString> IPINFO_TOKEN_SETTING = SecureSetting.secureString(IPINFO_SETTINGS_PREFIX + "token", null);
 
     private final Client client;
     private final HttpClient httpClient;
@@ -99,25 +104,18 @@ public class EnterpriseGeoIpDownloaderTaskExecutor extends PersistentTasksExecut
         }
     }
 
-    private HttpClient.PasswordAuthenticationHolder buildCredentials(final String username) {
-        final char[] passwordChars;
-        if (cachedSecureSettings.getSettingNames().contains(MAXMIND_LICENSE_KEY_SETTING.getKey())) {
-            passwordChars = cachedSecureSettings.getString(MAXMIND_LICENSE_KEY_SETTING.getKey()).getChars();
-        } else {
-            passwordChars = null;
+    private char[] getSecureToken(final String type) {
+        char[] token = null;
+        if (type.equals("maxmind")) {
+            if (cachedSecureSettings.getSettingNames().contains(MAXMIND_LICENSE_KEY_SETTING.getKey())) {
+                token = cachedSecureSettings.getString(MAXMIND_LICENSE_KEY_SETTING.getKey()).getChars();
+            }
+        } else if (type.equals("ipinfo")) {
+            if (cachedSecureSettings.getSettingNames().contains(IPINFO_TOKEN_SETTING.getKey())) {
+                token = cachedSecureSettings.getString(IPINFO_TOKEN_SETTING.getKey()).getChars();
+            }
         }
-
-        // if the username is missing, empty, or blank, return null as 'no auth'
-        if (username == null || username.isEmpty() || username.isBlank()) {
-            return null;
-        }
-
-        // likewise if the password chars array is missing or empty, return null as 'no auth'
-        if (passwordChars == null || passwordChars.length == 0) {
-            return null;
-        }
-
-        return new HttpClient.PasswordAuthenticationHolder(username, passwordChars);
+        return token;
     }
 
     @Override
@@ -141,7 +139,7 @@ public class EnterpriseGeoIpDownloaderTaskExecutor extends PersistentTasksExecut
             parentTaskId,
             headers,
             () -> pollInterval,
-            this::buildCredentials
+            this::getSecureToken
         );
     }
 
@@ -176,7 +174,7 @@ public class EnterpriseGeoIpDownloaderTaskExecutor extends PersistentTasksExecut
         // `SecureSettings` are available here! cache them as they will be needed
         // whenever dynamic cluster settings change and we have to rebuild the accounts
         try {
-            this.cachedSecureSettings = extractSecureSettings(settings, List.of(MAXMIND_LICENSE_KEY_SETTING));
+            this.cachedSecureSettings = extractSecureSettings(settings, List.of(MAXMIND_LICENSE_KEY_SETTING, IPINFO_TOKEN_SETTING));
         } catch (GeneralSecurityException e) {
             // rethrow as a runtime exception, there's logging higher up the call chain around ReloadablePlugin
             throw new ElasticsearchException("Exception while reloading enterprise geoip download task executor", e);

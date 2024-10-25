@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.query;
 
@@ -237,7 +238,7 @@ public class TermsSetQueryBuilderTests extends AbstractQueryTestCase<TermsSetQue
                     10,
                     new Sort(SortField.FIELD_DOC)
                 );
-                assertThat(topDocsWithMinimumShouldMatchField.totalHits.value, equalTo(3L));
+                assertThat(topDocsWithMinimumShouldMatchField.totalHits.value(), equalTo(3L));
                 assertThat(topDocsWithMinimumShouldMatchField.scoreDocs[0].doc, equalTo(1));
                 assertThat(topDocsWithMinimumShouldMatchField.scoreDocs[1].doc, equalTo(3));
                 assertThat(topDocsWithMinimumShouldMatchField.scoreDocs[2].doc, equalTo(4));
@@ -248,7 +249,7 @@ public class TermsSetQueryBuilderTests extends AbstractQueryTestCase<TermsSetQue
                 ).doToQuery(context);
                 searcher = newSearcher(ir);
                 TopDocs topDocsWithMinimumShouldMatch = searcher.search(queryWithMinimumShouldMatch, 10, new Sort(SortField.FIELD_DOC));
-                assertThat(topDocsWithMinimumShouldMatch.totalHits.value, equalTo(5L));
+                assertThat(topDocsWithMinimumShouldMatch.totalHits.value(), equalTo(5L));
                 assertThat(topDocsWithMinimumShouldMatch.scoreDocs[0].doc, equalTo(1));
                 assertThat(topDocsWithMinimumShouldMatch.scoreDocs[1].doc, equalTo(2));
                 assertThat(topDocsWithMinimumShouldMatch.scoreDocs[2].doc, equalTo(3));
@@ -265,7 +266,7 @@ public class TermsSetQueryBuilderTests extends AbstractQueryTestCase<TermsSetQue
                     10,
                     new Sort(SortField.FIELD_DOC)
                 );
-                assertThat(topDocsWithMinimumShouldMatchNegative.totalHits.value, equalTo(1L));
+                assertThat(topDocsWithMinimumShouldMatchNegative.totalHits.value(), equalTo(1L));
                 assertThat(topDocsWithMinimumShouldMatchNegative.scoreDocs[0].doc, equalTo(5));
             }
         }
@@ -309,7 +310,7 @@ public class TermsSetQueryBuilderTests extends AbstractQueryTestCase<TermsSetQue
                     .doToQuery(context);
                 IndexSearcher searcher = newSearcher(ir);
                 TopDocs topDocs = searcher.search(query, 10, new Sort(SortField.FIELD_DOC));
-                assertThat(topDocs.totalHits.value, equalTo(3L));
+                assertThat(topDocs.totalHits.value(), equalTo(3L));
                 assertThat(topDocs.scoreDocs[0].doc, equalTo(0));
                 assertThat(topDocs.scoreDocs[1].doc, equalTo(2));
                 assertThat(topDocs.scoreDocs[2].doc, equalTo(4));

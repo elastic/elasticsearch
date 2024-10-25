@@ -267,7 +267,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
             return;
         }
         try {
-            MetadataCreateIndexService.validateIndexName(downsampleIndexName, state);
+            MetadataCreateIndexService.validateIndexName(downsampleIndexName, state.metadata(), state.routingTable());
         } catch (ResourceAlreadyExistsException e) {
             // ignore index already exists
         }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.get;
@@ -19,11 +20,9 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
-import org.elasticsearch.rest.action.document.RestMultiGetAction;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -275,9 +274,6 @@ public class GetResult implements Writeable, Iterable<DocumentField>, ToXContent
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(_INDEX, index);
-        if (builder.getRestApiVersion() == RestApiVersion.V_7) {
-            builder.field(MapperService.TYPE_FIELD_NAME, MapperService.SINGLE_MAPPING_NAME);
-        }
         builder.field(_ID, id);
         if (isExists()) {
             if (version != -1) {
@@ -315,8 +311,6 @@ public class GetResult implements Writeable, Iterable<DocumentField>, ToXContent
             } else if (token.isValue()) {
                 if (_INDEX.equals(currentFieldName)) {
                     index = parser.text();
-                } else if (parser.getRestApiVersion() == RestApiVersion.V_7 && MapperService.TYPE_FIELD_NAME.equals(currentFieldName)) {
-                    deprecationLogger.compatibleCritical("mget_with_types", RestMultiGetAction.TYPES_DEPRECATION_MESSAGE);
                 } else if (_ID.equals(currentFieldName)) {
                     id = parser.text();
                 } else if (_VERSION.equals(currentFieldName)) {

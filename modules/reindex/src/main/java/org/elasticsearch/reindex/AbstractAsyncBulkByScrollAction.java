@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.reindex;
@@ -13,7 +14,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
-import org.elasticsearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -25,6 +25,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
+import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -63,7 +64,7 @@ import static java.lang.Math.max;
 import static java.lang.Math.min;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.unmodifiableList;
-import static org.elasticsearch.action.bulk.BackoffPolicy.exponentialBackoff;
+import static org.elasticsearch.common.BackoffPolicy.exponentialBackoff;
 import static org.elasticsearch.core.TimeValue.timeValueNanos;
 import static org.elasticsearch.index.reindex.AbstractBulkByScrollRequest.MAX_DOCS_ALL_MATCHES;
 import static org.elasticsearch.rest.RestStatus.CONFLICT;

@@ -14,7 +14,6 @@ import org.elasticsearch.action.admin.cluster.stats.CCSTelemetrySnapshot;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
@@ -34,7 +33,6 @@ import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchAction;
 import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchRequest;
 import org.hamcrest.Matchers;
 import org.junit.Before;
-import org.junit.BeforeClass;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -55,12 +53,6 @@ import static org.hamcrest.Matchers.greaterThan;
 public class CCSUsageTelemetryAsyncSearchIT extends AbstractMultiClustersTestCase {
     private static final String REMOTE1 = "cluster-a";
     private static final String REMOTE2 = "cluster-b";
-    private static final FeatureFlag CCS_TELEMETRY_FEATURE_FLAG = new FeatureFlag("ccs_telemetry");
-
-    @BeforeClass
-    protected static void skipIfTelemetryDisabled() {
-        assumeTrue("Skipping test as CCS_TELEMETRY_FEATURE_FLAG is disabled", CCS_TELEMETRY_FEATURE_FLAG.isEnabled());
-    }
 
     @Override
     protected boolean reuseClusters() {
@@ -349,7 +341,7 @@ public class CCSUsageTelemetryAsyncSearchIT extends AbstractMultiClustersTestCas
             assertFalse(
                 client(clusterAlias).admin()
                     .cluster()
-                    .prepareHealth(remoteIndex)
+                    .prepareHealth(TEST_REQUEST_TIMEOUT, remoteIndex)
                     .setWaitForYellowStatus()
                     .setTimeout(TimeValue.timeValueSeconds(10))
                     .get()

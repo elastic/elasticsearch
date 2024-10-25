@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -117,7 +118,6 @@ public interface SourceLoader {
                 .storedFieldLoaders()
                 .map(Map.Entry::getKey)
                 .collect(Collectors.toSet());
-            this.requiredStoredFields.add(IgnoredSourceFieldMapper.NAME);
             this.metrics = metrics;
         }
 
@@ -185,10 +185,6 @@ public interface SourceLoader {
 
             @Override
             public void write(LeafStoredFieldLoader storedFieldLoader, int docId, XContentBuilder b) throws IOException {
-                for (var fieldLevelStoredFieldLoader : storedFieldLoaders.values()) {
-                    fieldLevelStoredFieldLoader.advanceToDoc(docId);
-                }
-
                 // Maps the names of existing objects to lists of ignored fields they contain.
                 Map<String, List<IgnoredSourceFieldMapper.NameValue>> objectsWithIgnoredFields = null;
 
@@ -213,6 +209,9 @@ public interface SourceLoader {
                 if (docValuesLoader != null) {
                     docValuesLoader.advanceToDoc(docId);
                 }
+
+                loader.prepare();
+
                 // TODO accept a requested xcontent type
                 if (loader.hasValue()) {
                     loader.write(b);
@@ -278,6 +277,11 @@ public interface SourceLoader {
             public void write(XContentBuilder b) {}
 
             @Override
+            public void reset() {
+
+            }
+
+            @Override
             public String fieldName() {
                 return "";
             }
@@ -297,6 +301,16 @@ public interface SourceLoader {
          * @param docIdsInLeaf can be null.
          */
         DocValuesLoader docValuesLoader(LeafReader leafReader, int[] docIdsInLeaf) throws IOException;
+
+        /**
+         Perform any preprocessing needed before producing synthetic source
+         and deduce whether this mapper (and its children, if any) have values to write.
+         The expectation is for this method to be called before {@link SyntheticFieldLoader#hasValue()}
+         and {@link SyntheticFieldLoader#write(XContentBuilder)} are used.
+         */
+        default void prepare() {
+            // Noop
+        }
 
         /**
          * Has this field loaded any values for this document?
@@ -323,15 +337,17 @@ public interface SourceLoader {
         String fieldName();
 
         /**
+         * Resets the loader to remove any stored data and prepare it for processing new document.
+         * This is an alternative code path to {@link  SyntheticFieldLoader#write} that is executed
+         * when values are loaded but not written.
+         * Loaders are expected to also reset their state after writing currently present data.
+         */
+        void reset();
+
+        /**
          * Sync for stored field values.
          */
         interface StoredFieldLoader {
-            /**
-             * Signals the loader that values for this document will be loaded next.
-             * Allows loader to discard cached data for previous document.
-             */
-            void advanceToDoc(int docId);
-
             /**
              * Loads values read from a corresponding stored field into this loader.
              */
@@ -351,4 +367,19 @@ public interface SourceLoader {
         }
     }
 
+    /**
+     * Synthetic field loader that uses only doc values to load synthetic source values.
+     */
+    abstract class DocValuesBasedSyntheticFieldLoader implements SyntheticFieldLoader {
+        @Override
+        public Stream<Map.Entry<String, StoredFieldLoader>> storedFieldLoaders() {
+            return Stream.empty();
+        }
+
+        @Override
+        public void reset() {
+            // Not applicable to loaders using only doc values
+            // since DocValuesLoader#advanceToDoc will reset the state anyway.
+        }
+    }
 }

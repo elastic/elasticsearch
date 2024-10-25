@@ -28,7 +28,6 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
-import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
@@ -46,11 +45,10 @@ public class Locate extends EsqlScalarFunction implements OptionalArgument {
     private final Expression substr;
     private final Expression start;
 
-    @FunctionInfo(
-        returnType = "integer",
-        description = "Returns an integer that indicates the position of a keyword substring within another string.",
-        examples = @Example(file = "string", tag = "locate")
-    )
+    @FunctionInfo(returnType = "integer", description = """
+        Returns an integer that indicates the position of a keyword substring within another string.
+        Returns `0` if the substring cannot be found.
+        Note that string positions start from `1`.""", examples = @Example(file = "string", tag = "locate"))
     public Locate(
         Source source,
         @Param(name = "string", type = { "keyword", "text" }, description = "An input string") Expression str,
@@ -162,7 +160,7 @@ public class Locate extends EsqlScalarFunction implements OptionalArgument {
     }
 
     @Override
-    public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         ExpressionEvaluator.Factory strExpr = toEvaluator.apply(str);
         ExpressionEvaluator.Factory substrExpr = toEvaluator.apply(substr);
         if (start == null) {

@@ -143,7 +143,7 @@ broader positional queries e.g. finding mentions of a `Guitarist` near to `strat
 
 WARNING: Any use of `=` signs in annotation values eg `[Prince](person=Prince)` will
 cause the document to be rejected with a parse failure. In future we hope to have a use for
-the equals signs so wil actively reject documents that contain this today.
+the equals signs so will actively reject documents that contain this today.
 
 [[annotated-text-synthetic-source]]
 ===== Synthetic `_source`
@@ -155,11 +155,6 @@ be changed or removed in a future release. Elastic will work to fix
 any issues, but features in technical preview are not subject to the support SLA
 of official GA features.
 
-`annotated_text` fields support {ref}/mapping-source-field.html#synthetic-source[synthetic `_source`] if they have
-a {ref}/keyword.html#keyword-synthetic-source[`keyword`] sub-field that supports synthetic
-`_source` or if the `annotated_text` field sets `store` to `true`. Either way, it may
-not have {ref}/copy-to.html[`copy_to`].
-
 If using a sub-`keyword` field then the values are sorted in the same way as
 a `keyword` field's values are sorted. By default, that means sorted with
 duplicates removed. So:
@@ -167,8 +162,16 @@ duplicates removed. So:
 ----
 PUT idx
 {
+  "settings": {
+    "index": {
+      "mapping": {
+        "source": {
+          "mode": "synthetic"
+        }
+      }
+    }
+  },
   "mappings": {
-    "_source": { "mode": "synthetic" },
     "properties": {
       "text": {
         "type": "annotated_text",
@@ -215,8 +218,16 @@ are preserved.
 ----
 PUT idx
 {
+  "settings": {
+    "index": {
+      "mapping": {
+        "source": {
+          "mode": "synthetic"
+        }
+      }
+    }
+  },
   "mappings": {
-    "_source": { "mode": "synthetic" },
     "properties": {
       "text": { "type": "annotated_text", "store": true }
     }

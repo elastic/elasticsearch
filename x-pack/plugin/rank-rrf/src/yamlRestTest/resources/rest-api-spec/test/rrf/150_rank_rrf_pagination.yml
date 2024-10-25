@@ -63,7 +63,15 @@ setup:
 ---
 "Standard pagination within rank_window_size":
   # this test retrieves the same results from two queries, and applies a simple pagination skipping the first result
+  - requires:
+      cluster_features: [ "gte_v8.16.0" ]
+      reason: "deprecation added in 8.16"
+      test_runner_features: warnings
+
   - do:
+      warnings:
+        - "Deprecated field [rank] used, replaced by [retriever]"
+        - Deprecated field [sub_searches] used, replaced by [retriever]
       search:
         index: test
         body:
@@ -164,16 +172,21 @@ setup:
   - match: { hits.total.value : 4 }
   - length: { hits.hits : 3 }
   - match: { hits.hits.0._id: "2" }
-  - match: { hits.hits.0._rank: 2 }
   - match: { hits.hits.1._id: "3" }
-  - match: { hits.hits.1._rank: 3 }
   - match: { hits.hits.2._id: "4" }
-  - match: { hits.hits.2._rank: 4 }
 
 ---
 "Standard pagination outside rank_window_size":
   # in this example, from starts *after* rank_window_size so, we expect 0 results to be returned
+  - requires:
+      cluster_features: [ "gte_v8.16.0" ]
+      reason: "deprecation added in 8.16"
+      test_runner_features: warnings
+
   - do:
+      warnings:
+        - "Deprecated field [rank] used, replaced by [retriever]"
+        - Deprecated field [sub_searches] used, replaced by [retriever]
       search:
         index: test
         body:
@@ -277,7 +290,15 @@ setup:
 ---
 "Standard pagination partially outside rank_window_size":
   # in this example we have that from starts *within* rank_window_size, but "from + size" goes over
+  - requires:
+      cluster_features: [ "gte_v8.16.0" ]
+      reason: "deprecation added in 8.16"
+      test_runner_features: warnings
+
   - do:
+      warnings:
+        - "Deprecated field [rank] used, replaced by [retriever]"
+        - Deprecated field [sub_searches] used, replaced by [retriever]
       search:
         index: test
         body:
@@ -378,7 +399,6 @@ setup:
   - match: { hits.total.value : 4 }
   - length: { hits.hits : 1 }
   - match: { hits.hits.0._id: "3" }
-  - match: { hits.hits.0._rank: 3 }
 
 
 ---
@@ -388,7 +408,15 @@ setup:
   # queryA has a result set of [1, 2, 3, 4] and
   # queryB has a result set of [4, 3, 1, 2]
   # so for rank_constant=10, the expected order is [1, 4, 3, 2]
+  - requires:
+      cluster_features: ["gte_v8.16.0"]
+      reason: "deprecation added in 8.16"
+      test_runner_features: warnings
+
   - do:
+      warnings:
+        - "Deprecated field [rank] used, replaced by [retriever]"
+        - Deprecated field [sub_searches] used, replaced by [retriever]
       search:
         index: test
         body:
@@ -489,11 +517,12 @@ setup:
   - match: { hits.total.value : 4 }
   - length: { hits.hits : 2 }
   - match: { hits.hits.0._id: "1" }
-  - match: { hits.hits.0._rank: 1 }
   - match: { hits.hits.1._id: "4" }
-  - match: { hits.hits.1._rank: 2 }
 
   - do:
+      warnings:
+        - "Deprecated field [rank] used, replaced by [retriever]"
+        - Deprecated field [sub_searches] used, replaced by [retriever]
       search:
         index: test
         body:
@@ -594,9 +623,7 @@ setup:
   - match: { hits.total.value : 4 }
   - length: { hits.hits : 2 }
   - match: { hits.hits.0._id: "3" }
-  - match: { hits.hits.0._rank: 3 }
   - match: { hits.hits.1._id: "2" }
-  - match: { hits.hits.1._rank: 4 }
 
 ---
 "Pagination within interleaved results, different result set sizes, rank_window_size covering all results":
@@ -605,7 +632,15 @@ setup:
   # queryA has a result set of [5, 1] and
   # queryB has a result set of [4, 3, 1, 2]
   # so for rank_constant=10, the expected order is [1, 5, 4, 3, 2]
+  - requires:
+      cluster_features: ["gte_v8.16.0"]
+      reason: "deprecation added in 8.16"
+      test_runner_features: warnings
+
   - do:
+      warnings:
+        - "Deprecated field [rank] used, replaced by [retriever]"
+        - Deprecated field [sub_searches] used, replaced by [retriever]
       search:
         index: test
         body:
@@ -690,11 +725,12 @@ setup:
   - match: { hits.total.value : 5 }
   - length: { hits.hits : 2 }
   - match: { hits.hits.0._id: "1" }
-  - match: { hits.hits.0._rank: 1 }
   - match: { hits.hits.1._id: "5" }
-  - match: { hits.hits.1._rank: 2 }
 
   - do:
+      warnings:
+        - "Deprecated field [rank] used, replaced by [retriever]"
+        - Deprecated field [sub_searches] used, replaced by [retriever]
       search:
         index: test
         body:
@@ -779,11 +815,12 @@ setup:
   - match: { hits.total.value : 5 }
   - length: { hits.hits : 2 }
   - match: { hits.hits.0._id: "4" }
-  - match: { hits.hits.0._rank: 3 }
   - match: { hits.hits.1._id: "3" }
-  - match: { hits.hits.1._rank: 4 }
 
   - do:
+      warnings:
+        - "Deprecated field [rank] used, replaced by [retriever]"
+        - Deprecated field [sub_searches] used, replaced by [retriever]
       search:
         index: test
         body:
@@ -868,7 +905,6 @@ setup:
   - match: { hits.total.value: 5 }
   - length: { hits.hits: 1 }
   - match: { hits.hits.0._id: "2" }
-  - match: { hits.hits.0._rank: 5 }
 
 
 ---
@@ -880,7 +916,15 @@ setup:
   # queryB has a result set of [4, 3]
   # so for rank_constant=10, the expected order is [5, 4, 1, 3],
   # and the rank_window_size-sized result set that we'd paginate over is [5, 4]
+  - requires:
+      cluster_features: ["gte_v8.16.0"]
+      reason: "deprecation added in 8.16"
+      test_runner_features: warnings
+
   - do:
+      warnings:
+        - "Deprecated field [rank] used, replaced by [retriever]"
+        - Deprecated field [sub_searches] used, replaced by [retriever]
       search:
         index: test
         body:
@@ -965,11 +1009,13 @@ setup:
   - match: { hits.total.value : 5 }
   - length: { hits.hits : 2 }
   - match: { hits.hits.0._id: "5" }
-  - match: { hits.hits.0._rank: 1 }
   - match: { hits.hits.1._id: "4" }
-  - match: { hits.hits.1._rank: 2 }
 
   - do:
+      warnings:
+        - "Deprecated field [rank] used, replaced by [retriever]"
+        - Deprecated field [sub_searches] used, replaced by [retriever]
+
       search:
         index: test
         body:

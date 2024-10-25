@@ -13,7 +13,7 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import java.util.Map;
 
 public class EsFieldTests extends AbstractEsFieldTypeTests<EsField> {
-    static EsField randomEsField(int maxPropertiesDepth) {
+    public static EsField randomEsField(int maxPropertiesDepth) {
         String name = randomAlphaOfLength(4);
         DataType esDataType = randomFrom(DataType.types());
         Map<String, EsField> properties = randomProperties(maxPropertiesDepth);

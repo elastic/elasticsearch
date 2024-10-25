@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster;
@@ -14,7 +15,6 @@ import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -35,9 +35,6 @@ import java.util.Set;
 
 import static org.elasticsearch.cluster.routing.ShardRouting.newUnassigned;
 import static org.elasticsearch.cluster.routing.UnassignedInfo.Reason.REINITIALIZED;
-import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.endArray;
-import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.singleChunk;
-import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.startObject;
 
 /**
  * ClusterInfo is an object representing a map of nodes to {@link DiskUsage}
@@ -141,7 +138,7 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-        return Iterators.concat(startObject("nodes"), Iterators.map(leastAvailableSpaceUsage.entrySet().iterator(), c -> (builder, p) -> {
+        return ChunkedToXContent.builder(params).object("nodes", leastAvailableSpaceUsage.entrySet().iterator(), c -> (builder, p) -> {
             builder.startObject(c.getKey());
             { // node
                 builder.field("node_name", c.getValue().nodeName());
@@ -159,52 +156,32 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
                 }
                 builder.endObject(); // end "most_available"
             }
-            builder.endObject(); // end $nodename
-            return builder;
-        }),
-            singleChunk(
-                (builder, p) -> builder.endObject() // end "nodes"
-                    .startObject("shard_sizes")
-            ),
-
-            Iterators.map(
+            return builder.endObject(); // end $nodename
+        })
+            .object(
+                "shard_sizes",
                 shardSizes.entrySet().iterator(),
                 c -> (builder, p) -> builder.humanReadableField(c.getKey() + "_bytes", c.getKey(), ByteSizeValue.ofBytes(c.getValue()))
-            ),
-            singleChunk(
-                (builder, p) -> builder.endObject() // end "shard_sizes"
-                    .startObject("shard_data_set_sizes")
-            ),
-            Iterators.map(
+            )
+            .object(
+                "shard_data_set_sizes",
                 shardDataSetSizes.entrySet().iterator(),
                 c -> (builder, p) -> builder.humanReadableField(
                     c.getKey() + "_bytes",
                     c.getKey().toString(),
                     ByteSizeValue.ofBytes(c.getValue())
                 )
-            ),
-            singleChunk(
-                (builder, p) -> builder.endObject() // end "shard_data_set_sizes"
-                    .startObject("shard_paths")
-            ),
-            Iterators.map(dataPath.entrySet().iterator(), c -> (builder, p) -> builder.field(c.getKey().toString(), c.getValue())),
-            singleChunk(
-                (builder, p) -> builder.endObject() // end "shard_paths"
-                    .startArray("reserved_sizes")
-            ),
-            Iterators.map(reservedSpace.entrySet().iterator(), c -> (builder, p) -> {
+            )
+            .object("shard_paths", dataPath.entrySet().iterator(), (xb, c) -> xb.field(c.getKey().toString(), c.getValue()))
+            .array("reserved_sizes", reservedSpace.entrySet().iterator(), c -> (builder, p) -> {
                 builder.startObject();
                 {
                     builder.field("node_id", c.getKey().nodeId);
                     builder.field("path", c.getKey().path);
-                    c.getValue().toXContent(builder, params);
+                    c.getValue().toXContent(builder, p);
                 }
                 return builder.endObject(); // NodeAndPath
-            }),
-
-            endArray() // end "reserved_sizes"
-
-        );
+            });
     }
 
     /**
@@ -313,7 +290,7 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
 
     // exposed for tests, computed here rather than exposing all the collections separately
     int getChunkCount() {
-        return leastAvailableSpaceUsage.size() + shardSizes.size() + shardDataSetSizes.size() + dataPath.size() + reservedSpace.size() + 6;
+        return leastAvailableSpaceUsage.size() + shardSizes.size() + shardDataSetSizes.size() + dataPath.size() + reservedSpace.size() + 10;
     }
 
     public record NodeAndShard(String nodeId, ShardId shardId) implements Writeable {

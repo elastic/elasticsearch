@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.persistent;
 
@@ -20,7 +21,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -34,26 +34,16 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  *  This action can be used to add the record for the persistent action to the cluster state.
  */
-public class StartPersistentTaskAction extends ActionType<PersistentTaskResponse> {
+public class StartPersistentTaskAction {
 
-    public static final StartPersistentTaskAction INSTANCE = new StartPersistentTaskAction();
-    public static final String NAME = "cluster:admin/persistent/start";
+    public static final ActionType<PersistentTaskResponse> INSTANCE = new ActionType<>("cluster:admin/persistent/start");
 
-    private StartPersistentTaskAction() {
-        super(NAME);
-    }
+    private StartPersistentTaskAction() {/* no instances */}
 
     public static class Request extends MasterNodeRequest<Request> {
-
-        private String taskId;
-
-        private String taskName;
-
-        private PersistentTaskParams params;
-
-        public Request() {
-            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
-        }
+        private final String taskId;
+        private final String taskName;
+        private final PersistentTaskParams params;
 
         public Request(StreamInput in) throws IOException {
             super(in);
@@ -116,27 +106,13 @@ public class StartPersistentTaskAction extends ActionType<PersistentTaskResponse
             return taskName;
         }
 
-        public void setTaskName(String taskName) {
-            this.taskName = taskName;
-        }
-
         public String getTaskId() {
             return taskId;
-        }
-
-        public void setTaskId(String taskId) {
-            this.taskId = taskId;
         }
 
         public PersistentTaskParams getParams() {
             return params;
         }
-
-        @Nullable
-        public void setParams(PersistentTaskParams params) {
-            this.params = params;
-        }
-
     }
 
     public static class TransportAction extends TransportMasterNodeAction<Request, PersistentTaskResponse> {
@@ -155,7 +131,7 @@ public class StartPersistentTaskAction extends ActionType<PersistentTaskResponse
             IndexNameExpressionResolver indexNameExpressionResolver
         ) {
             super(
-                StartPersistentTaskAction.NAME,
+                INSTANCE.name(),
                 transportService,
                 clusterService,
                 threadPool,

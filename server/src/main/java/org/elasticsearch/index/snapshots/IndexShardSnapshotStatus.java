@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.snapshots;
@@ -181,6 +182,10 @@ public class IndexShardSnapshotStatus {
                 "Unable to move the shard snapshot status to [DONE]: " + "expecting [FINALIZE] but got [" + stage.get() + "]"
             );
         }
+    }
+
+    public Stage getStage() {
+        return stage.get();
     }
 
     public void addAbortListener(ActionListener<AbortStatus> listener) {
@@ -427,5 +432,32 @@ public class IndexShardSnapshotStatus {
                 + '\''
                 + ')';
         }
+    }
+
+    @Override
+    public String toString() {
+        return "index shard snapshot status ("
+            + "stage="
+            + stage
+            + ", startTime="
+            + startTime
+            + ", totalTime="
+            + totalTime
+            + ", incrementalFileCount="
+            + incrementalFileCount
+            + ", totalFileCount="
+            + totalFileCount
+            + ", processedFileCount="
+            + processedFileCount
+            + ", incrementalSize="
+            + incrementalSize
+            + ", totalSize="
+            + totalSize
+            + ", processedSize="
+            + processedSize
+            + ", failure='"
+            + failure
+            + '\''
+            + ')';
     }
 }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.test.rest.yaml.section;
@@ -86,7 +87,7 @@ public class DoSection implements ExecutableSection {
         return parse(parser, false);
     }
 
-    @UpdateForV9
+    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA)
     @Deprecated
     public static DoSection parseWithLegacyNodeSelectorSupport(XContentParser parser) throws IOException {
         return parse(parser, true);
@@ -370,14 +371,10 @@ public class DoSection implements ExecutableSection {
                 ? executionContext.getClientYamlTestCandidate().getTestPath()
                 : null;
 
-            // #84038 and #84089 mean that this assertion fails when running against < 7.17.2 and 8.0.0 released versions
-            // This is really difficult to express just with features, so I will break it down into 2 parts: version check for v7,
-            // and feature check for v8. This way the version check can be removed once we move to v9
-            @UpdateForV9
-            var fixedInV7 = executionContext.clusterHasFeature("gte_v7.17.2", false)
-                && executionContext.clusterHasFeature("gte_v8.0.0", false) == false;
-            var fixedProductionHeader = fixedInV7
-                || executionContext.clusterHasFeature(RestTestLegacyFeatures.REST_ELASTIC_PRODUCT_HEADER_PRESENT.id(), false);
+            var fixedProductionHeader = executionContext.clusterHasFeature(
+                RestTestLegacyFeatures.REST_ELASTIC_PRODUCT_HEADER_PRESENT.id(),
+                false
+            );
             if (fixedProductionHeader) {
                 checkElasticProductHeader(response.getHeaders("X-elastic-product"));
             }

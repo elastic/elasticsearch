@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.planner;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.Describable;
+import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
@@ -168,7 +169,7 @@ public class LocalExecutionPlanner {
         // workaround for https://github.com/elastic/elasticsearch/issues/99782
         localPhysicalPlan = localPhysicalPlan.transformUp(
             AggregateExec.class,
-            a -> a.getMode() == AggregateExec.Mode.FINAL ? new ProjectExec(a.source(), a, Expressions.asAttributes(a.aggregates())) : a
+            a -> a.getMode() == AggregatorMode.FINAL ? new ProjectExec(a.source(), a, Expressions.asAttributes(a.aggregates())) : a
         );
         PhysicalOperation physicalOperation = plan(localPhysicalPlan, context);
 
@@ -348,7 +349,7 @@ public class LocalExecutionPlanner {
             elementTypes[channel] = PlannerUtils.toElementType(inverse.get(channel).type());
             encoders[channel] = switch (inverse.get(channel).type()) {
                 case IP -> TopNEncoder.IP;
-                case TEXT, KEYWORD -> TopNEncoder.UTF8;
+                case TEXT, KEYWORD, SEMANTIC_TEXT -> TopNEncoder.UTF8;
                 case VERSION -> TopNEncoder.VERSION;
                 case BOOLEAN, NULL, BYTE, SHORT, INTEGER, LONG, DOUBLE, FLOAT, HALF_FLOAT, DATETIME, DATE_NANOS, DATE_PERIOD, TIME_DURATION,
                     OBJECT, SCALED_FLOAT, UNSIGNED_LONG, DOC_DATA_TYPE, TSID_DATA_TYPE -> TopNEncoder.DEFAULT_SORTABLE;

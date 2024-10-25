@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.rest;
@@ -35,6 +36,7 @@ import org.elasticsearch.core.Streams;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.http.HttpHeadersValidationException;
 import org.elasticsearch.http.HttpRouteStats;
+import org.elasticsearch.http.HttpRouteStatsTracker;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.rest.RestHandler.Route;
@@ -151,25 +153,6 @@ public class RestController implements HttpServerTransport.Dispatcher {
      * @param version API version to handle (e.g. RestApiVersion.V_8)
      * @param handler The handler to actually execute
      * @param deprecationMessage The message to log and send as a header in the response
-     */
-    protected void registerAsDeprecatedHandler(
-        RestRequest.Method method,
-        String path,
-        RestApiVersion version,
-        RestHandler handler,
-        String deprecationMessage
-    ) {
-        registerAsDeprecatedHandler(method, path, version, handler, deprecationMessage, null);
-    }
-
-    /**
-     * Registers a REST handler to be executed when the provided {@code method} and {@code path} match the request.
-     *
-     * @param method GET, POST, etc.
-     * @param path Path to handle (e.g. "/{index}/{type}/_bulk")
-     * @param version API version to handle (e.g. RestApiVersion.V_8)
-     * @param handler The handler to actually execute
-     * @param deprecationMessage The message to log and send as a header in the response
      * @param deprecationLevel The deprecation log level to use for the deprecation warning, either WARN or CRITICAL
      */
     protected void registerAsDeprecatedHandler(
@@ -178,40 +161,23 @@ public class RestController implements HttpServerTransport.Dispatcher {
         RestApiVersion version,
         RestHandler handler,
         String deprecationMessage,
-        @Nullable Level deprecationLevel
+        Level deprecationLevel
     ) {
         assert (handler instanceof DeprecationRestHandler) == false;
-        if (version == RestApiVersion.current()) {
-            // e.g. it was marked as deprecated in 8.x, and we're currently running 8.x
+        if (RestApiVersion.onOrAfter(RestApiVersion.minimumSupported()).test(version)) {
             registerHandler(
                 method,
                 path,
                 version,
-                new DeprecationRestHandler(handler, method, path, deprecationLevel, deprecationMessage, deprecationLogger, false)
-            );
-        } else if (version == RestApiVersion.minimumSupported()) {
-            // e.g. it was marked as deprecated in 7.x, and we're currently running 8.x
-            registerHandler(
-                method,
-                path,
-                version,
-                new DeprecationRestHandler(handler, method, path, deprecationLevel, deprecationMessage, deprecationLogger, true)
-            );
-        } else {
-            // e.g. it was marked as deprecated in 7.x, and we're currently running *9.x*
-            logger.debug(
-                "Deprecated route ["
-                    + method
-                    + " "
-                    + path
-                    + "] for handler ["
-                    + handler.getClass()
-                    + "] "
-                    + "with version ["
-                    + version
-                    + "], which is less than the minimum supported version ["
-                    + RestApiVersion.minimumSupported()
-                    + "]"
+                new DeprecationRestHandler(
+                    handler,
+                    method,
+                    path,
+                    deprecationLevel,
+                    deprecationMessage,
+                    deprecationLogger,
+                    version != RestApiVersion.current()
+                )
             );
         }
     }
@@ -249,21 +215,12 @@ public class RestController implements HttpServerTransport.Dispatcher {
         RestHandler handler,
         RestRequest.Method replacedMethod,
         String replacedPath,
-        RestApiVersion replacedVersion
+        RestApiVersion replacedVersion,
+        String replacedMessage,
+        Level deprecationLevel
     ) {
-        // e.g. [POST /_optimize] is deprecated! Use [POST /_forcemerge] instead.
-        final String replacedMessage = "["
-            + replacedMethod.name()
-            + " "
-            + replacedPath
-            + "] is deprecated! Use ["
-            + method.name()
-            + " "
-            + path
-            + "] instead.";
-
         registerHandler(method, path, version, handler);
-        registerAsDeprecatedHandler(replacedMethod, replacedPath, replacedVersion, handler, replacedMessage);
+        registerAsDeprecatedHandler(replacedMethod, replacedPath, replacedVersion, handler, replacedMessage, deprecationLevel);
     }
 
     /**
@@ -283,7 +240,15 @@ public class RestController implements HttpServerTransport.Dispatcher {
 
     private void registerHandlerNoWrap(RestRequest.Method method, String path, RestApiVersion version, RestHandler handler) {
         assert RestApiVersion.minimumSupported() == version || RestApiVersion.current() == version
-            : "REST API compatibility is only supported for version " + RestApiVersion.minimumSupported().major;
+            : "REST API compatibility is only supported for version "
+                + RestApiVersion.minimumSupported().major
+                + " [method="
+                + method
+                + ", path="
+                + path
+                + ", handler="
+                + handler.getClass().getCanonicalName()
+                + "]";
 
         if (RESERVED_PATHS.contains(path)) {
             throw new IllegalArgumentException("path [" + path + "] is a reserved path and may not be registered");
@@ -298,7 +263,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
     }
 
     public void registerHandler(final Route route, final RestHandler handler) {
-        if (route.isReplacement()) {
+        if (route.hasReplacement()) {
             Route replaced = route.getReplacedRoute();
             registerAsReplacedHandler(
                 route.getMethod(),
@@ -307,7 +272,9 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 handler,
                 replaced.getMethod(),
                 replaced.getPath(),
-                replaced.getRestApiVersion()
+                replaced.getRestApiVersion(),
+                replaced.getDeprecationMessage(),
+                replaced.getDeprecationLevel()
             );
         } else if (route.isDeprecated()) {
             registerAsDeprecatedHandler(
@@ -396,6 +363,8 @@ public class RestController implements HttpServerTransport.Dispatcher {
 
             if (handler != null) {
                 var supportedParams = handler.supportedQueryParameters();
+                assert supportedParams == handler.supportedQueryParameters()
+                    : handler.getName() + ": did not return same instance from supportedQueryParameters()";
                 return (supportedParams == null || supportedParams.containsAll(parameters))
                     && handler.supportedCapabilities().containsAll(capabilities);
             }
@@ -424,8 +393,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
         MethodHandlers methodHandlers,
         ThreadContext threadContext
     ) throws Exception {
-        final int contentLength = request.contentLength();
-        if (contentLength > 0) {
+        if (request.hasContent()) {
             if (isContentTypeDisallowed(request) || handler.mediaTypesValid(request) == false) {
                 sendContentTypeErrorMessage(request.getAllHeaderValues("Content-Type"), channel);
                 return;
@@ -453,6 +421,9 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 return;
             }
         }
+        // TODO: estimate streamed content size for circuit breaker,
+        // something like http_max_chunk_size * avg_compression_ratio(for compressed content)
+        final int contentLength = request.isFullContent() ? request.contentLength() : 0;
         try {
             if (handler.canTripCircuitBreaker()) {
                 inFlightRequestsBreaker(circuitBreakerService).addEstimateBytesAndMaybeBreak(contentLength, "<http_request>");
@@ -480,6 +451,14 @@ public class RestController implements HttpServerTransport.Dispatcher {
             } else {
                 threadContext.putHeader(SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY, Boolean.TRUE.toString());
             }
+
+            if (apiProtections.isEnabled()) {
+                // API protections are only enabled in serverless; therefore we can use this as an indicator to mark the
+                // request as a serverless mode request here, so downstream handlers can use the marker
+                request.markAsServerlessRequest();
+                logger.trace("Marked request for uri [{}] as serverless request", request.uri());
+            }
+
             final var finalChannel = responseChannel;
             this.interceptor.intercept(request, responseChannel, handler.getConcreteRestHandler(), new ActionListener<>() {
                 @Override
@@ -901,7 +880,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
     private static final class ResourceHandlingHttpChannel extends DelegatingRestChannel {
         private final CircuitBreakerService circuitBreakerService;
         private final int contentLength;
-        private final MethodHandlers methodHandlers;
+        private final HttpRouteStatsTracker statsTracker;
         private final long startTime;
         private final AtomicBoolean closed = new AtomicBoolean();
 
@@ -914,7 +893,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
             super(delegate);
             this.circuitBreakerService = circuitBreakerService;
             this.contentLength = contentLength;
-            this.methodHandlers = methodHandlers;
+            this.statsTracker = methodHandlers.statsTracker();
             this.startTime = rawRelativeTimeInMillis();
         }
 
@@ -923,12 +902,12 @@ public class RestController implements HttpServerTransport.Dispatcher {
             boolean success = false;
             try {
                 close();
-                methodHandlers.addRequestStats(contentLength);
-                methodHandlers.addResponseTime(rawRelativeTimeInMillis() - startTime);
+                statsTracker.addRequestStats(contentLength);
+                statsTracker.addResponseTime(rawRelativeTimeInMillis() - startTime);
                 if (response.isChunked() == false) {
-                    methodHandlers.addResponseStats(response.content().length());
+                    statsTracker.addResponseStats(response.content().length());
                 } else {
-                    final var responseLengthRecorder = new ResponseLengthRecorder(methodHandlers);
+                    final var responseLengthRecorder = new ResponseLengthRecorder(statsTracker);
                     final var headers = response.getHeaders();
                     response = RestResponse.chunked(
                         response.status(),
@@ -963,11 +942,11 @@ public class RestController implements HttpServerTransport.Dispatcher {
         }
     }
 
-    private static class ResponseLengthRecorder extends AtomicReference<MethodHandlers> implements Releasable {
+    private static class ResponseLengthRecorder extends AtomicReference<HttpRouteStatsTracker> implements Releasable {
         private long responseLength;
 
-        private ResponseLengthRecorder(MethodHandlers methodHandlers) {
-            super(methodHandlers);
+        private ResponseLengthRecorder(HttpRouteStatsTracker routeStatsTracker) {
+            super(routeStatsTracker);
         }
 
         @Override
@@ -975,11 +954,11 @@ public class RestController implements HttpServerTransport.Dispatcher {
             // closed just before sending the last chunk, and also when the whole RestResponse is closed since the client might abort the
             // connection before we send the last chunk, in which case we won't have recorded the response in the
             // stats yet; thus we need run-once semantics here:
-            final var methodHandlers = getAndSet(null);
-            if (methodHandlers != null) {
+            final var routeStatsTracker = getAndSet(null);
+            if (routeStatsTracker != null) {
                 // if we started sending chunks then we're closed on the transport worker, no need for sync
                 assert responseLength == 0L || Transports.assertTransportThread();
-                methodHandlers.addResponseStats(responseLength);
+                routeStatsTracker.addResponseStats(responseLength);
             }
         }
 

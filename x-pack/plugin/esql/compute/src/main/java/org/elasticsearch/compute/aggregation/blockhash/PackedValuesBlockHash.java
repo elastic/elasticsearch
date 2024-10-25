@@ -117,7 +117,7 @@ final class PackedValuesBlockHash extends BlockHash {
         }
     }
 
-    class AddWork extends AddBlock {
+    class AddWork extends AddPage {
         final Group[] groups;
         final int positionCount;
         int position;
@@ -142,7 +142,7 @@ final class PackedValuesBlockHash extends BlockHash {
                     addMultipleEntries();
                 }
             }
-            emitOrds();
+            flushRemaining();
         }
 
         private void addSingleEntry() {

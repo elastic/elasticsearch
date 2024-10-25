@@ -433,7 +433,8 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
             MappingStats.of(metadata, () -> {}),
             AnalysisStats.of(metadata, () -> {}),
             VersionStats.of(metadata, singletonList(mockNodeResponse)),
-            ClusterSnapshotStats.EMPTY
+            ClusterSnapshotStats.EMPTY,
+            null
         );
 
         final MonitoringDoc.Node node = new MonitoringDoc.Node("_uuid", "_host", "_addr", "_ip", "_name", 1504169190855L);
@@ -463,7 +464,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
             IndexVersions.MINIMUM_COMPATIBLE,
             IndexVersion.current(),
             apmIndicesExist };
-        final String expectedJson = Strings.format("""
+        final String expectedJson = """
             {
               "cluster_uuid": "_cluster",
               "timestamp": "2017-08-07T12:03:22.133Z",
@@ -589,7 +590,8 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                     "total": 0,
                     "queries": {},
                     "rescorers": {},
-                    "sections": {}
+                    "sections": {},
+                    "retrievers": {}
                   },
                   "dense_vector": {
                     "value_count": 0
@@ -754,7 +756,44 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                   },
                   "repositories": {}
                 },
-                "repositories": {}
+                "repositories": {}""";
+
+        final String ccsOutput = """
+                ,
+                "ccs": {
+                    "_search": {
+                        "total": 0,
+                        "success": 0,
+                        "skipped": 0,
+                        "took": {
+                            "max": 0,
+                            "avg": 0,
+                            "p90": 0
+                        },
+                        "took_mrt_true": {
+                            "max": 0,
+                            "avg": 0,
+                            "p90": 0
+                        },
+                        "took_mrt_false": {
+                            "max": 0,
+                            "avg": 0,
+                            "p90": 0
+                        },
+                        "remotes_per_search_max": 0,
+                        "remotes_per_search_avg": 0.0,
+                        "failure_reasons": {
+                        },
+                        "features": {
+                        },
+                        "clients": {
+                        },
+                        "clusters": {}
+                    }
+                  }
+            """;
+
+        final String suffixJson = """
               },
               "cluster_state": {
                 "nodes_hash": 1314980060,
@@ -807,8 +846,8 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                   }
                 }
               }
-            }""", args);
-        assertEquals(stripWhitespace(expectedJson), xContent.utf8ToString());
+            }""";
+        assertEquals(stripWhitespace(Strings.format(expectedJson + ccsOutput + suffixJson, args)), xContent.utf8ToString());
     }
 
     private DiscoveryNode masterNode() {

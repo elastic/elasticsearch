@@ -193,7 +193,12 @@ tasks.named("forbiddenPatterns").configure {
 }
 
 tasks.named('forbiddenApisMain').configure {
-  signaturesFiles += files('forbidden/ldap-signatures.txt', 'forbidden/xml-signatures.txt', 'forbidden/oidc-signatures.txt')
+  signaturesFiles += files(
+    'forbidden/ldap-signatures.txt',
+    'forbidden/xml-signatures.txt',
+    'forbidden/oidc-signatures.txt',
+    project(':modules:transport-netty4').file('forbidden/netty-signatures.txt')
+  )
 }
 
 tasks.named('forbiddenApisTest').configure {

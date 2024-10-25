@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.threadpool;
@@ -50,7 +51,28 @@ public final class FixedExecutorBuilder extends ExecutorBuilder<FixedExecutorBui
         final int queueSize,
         final TaskTrackingConfig taskTrackingConfig
     ) {
-        this(settings, name, size, queueSize, "thread_pool." + name, taskTrackingConfig);
+        this(settings, name, size, queueSize, "thread_pool." + name, taskTrackingConfig, false);
+    }
+
+    /**
+     * Construct a fixed executor builder; the settings will have the key prefix "thread_pool." followed by the executor name.
+     *
+     * @param settings  the node-level settings
+     * @param name      the name of the executor
+     * @param size      the fixed number of threads
+     * @param queueSize the size of the backing queue, -1 for unbounded
+     * @param taskTrackingConfig whether to track statics about task execution time
+     * @param isSystemThread whether the threads are system threads
+     */
+    FixedExecutorBuilder(
+        final Settings settings,
+        final String name,
+        final int size,
+        final int queueSize,
+        final TaskTrackingConfig taskTrackingConfig,
+        boolean isSystemThread
+    ) {
+        this(settings, name, size, queueSize, "thread_pool." + name, taskTrackingConfig, isSystemThread);
     }
 
     /**
@@ -71,7 +93,29 @@ public final class FixedExecutorBuilder extends ExecutorBuilder<FixedExecutorBui
         final String prefix,
         final TaskTrackingConfig taskTrackingConfig
     ) {
-        super(name);
+        this(settings, name, size, queueSize, prefix, taskTrackingConfig, false);
+    }
+
+    /**
+     * Construct a fixed executor builder.
+     *
+     * @param settings  the node-level settings
+     * @param name      the name of the executor
+     * @param size      the fixed number of threads
+     * @param queueSize the size of the backing queue, -1 for unbounded
+     * @param prefix    the prefix for the settings keys
+     * @param taskTrackingConfig whether to track statics about task execution time
+     */
+    public FixedExecutorBuilder(
+        final Settings settings,
+        final String name,
+        final int size,
+        final int queueSize,
+        final String prefix,
+        final TaskTrackingConfig taskTrackingConfig,
+        final boolean isSystemThread
+    ) {
+        super(name, isSystemThread);
         final String sizeKey = settingsKey(prefix, "size");
         this.sizeSetting = new Setting<>(
             sizeKey,
@@ -101,7 +145,7 @@ public final class FixedExecutorBuilder extends ExecutorBuilder<FixedExecutorBui
     ThreadPool.ExecutorHolder build(final FixedExecutorSettings settings, final ThreadContext threadContext) {
         int size = settings.size;
         int queueSize = settings.queueSize;
-        final ThreadFactory threadFactory = EsExecutors.daemonThreadFactory(EsExecutors.threadName(settings.nodeName, name()));
+        final ThreadFactory threadFactory = EsExecutors.daemonThreadFactory(settings.nodeName, name(), isSystemThread());
         final ExecutorService executor = EsExecutors.newFixed(
             settings.nodeName + "/" + name(),
             size,

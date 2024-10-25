@@ -175,7 +175,8 @@ an `OutOfMemory` exception which would bring down the node.
 To prevent this from happening, a special <<circuit-breaker, circuit breaker>> is used,
 which limits the memory allocation during the execution of a <<eql-sequences, sequence>>
 query. When the breaker is triggered, an `org.elasticsearch.common.breaker.CircuitBreakingException`
-is thrown and a descriptive error message is returned to the user.
+is thrown and a descriptive error message including `circuit_breaking_exception`
+is returned to the user.
 
 This <<circuit-breaker, circuit breaker>> can be configured using the following settings:
 

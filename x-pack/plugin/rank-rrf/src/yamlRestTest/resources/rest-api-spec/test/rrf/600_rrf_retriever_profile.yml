@@ -1,7 +1,7 @@
 setup:
   - requires:
-      cluster_features: "gte_v8.15.0"
-      reason: 'profile for rrf was enabled in 8.15'
+      cluster_features: 'rrf_retriever_composition_supported'
+      reason: 'test requires rrf retriever composition support'
       test_runner_features: close_to
 
   - do:
@@ -114,12 +114,13 @@ setup:
   - match: { hits.hits.2._id: "4" }
 
   - not_exists: profile.shards.0.dfs
-  - match: { profile.shards.0.searches.0.query.0.type: ConstantScoreQuery }
-  - length: { profile.shards.0.searches.0.query.0.children: 1 }
-  - match: { profile.shards.0.searches.0.query.0.children.0.type: BooleanQuery }
-  - length: { profile.shards.0.searches.0.query.0.children.0.children: 2 }
-  - match: { profile.shards.0.searches.0.query.0.children.0.children.0.type: TermQuery }
-  - match: { profile.shards.0.searches.0.query.0.children.0.children.1.type: DocAndScoreQuery }
+  - match: { profile.shards.0.searches.0.query.0.type: RankDocsQuery }
+  - length: { profile.shards.0.searches.0.query.0.children: 2 }
+  - match: { profile.shards.0.searches.0.query.0.children.0.type: TopQuery }
+  - match: { profile.shards.0.searches.0.query.0.children.1.type: BooleanQuery }
+  - length: { profile.shards.0.searches.0.query.0.children.1.children: 2 }
+  - match: { profile.shards.0.searches.0.query.0.children.1.children.0.type: TermQuery }
+  - match: { profile.shards.0.searches.0.query.0.children.1.children.1.type: DocAndScoreQuery }
 
 ---
 "profile standard and knn dfs retrievers":
@@ -159,22 +160,26 @@ setup:
   - match: { hits.hits.1._id: "2" }
   - match: { hits.hits.2._id: "4" }
 
-  - exists: profile.shards.0.dfs
-  - length: { profile.shards.0.dfs.knn: 1 }
-  - length: { profile.shards.0.dfs.knn.0.query: 1 }
-  - match: { profile.shards.0.dfs.knn.0.query.0.type: DocAndScoreQuery }
-
-  - match: { profile.shards.0.searches.0.query.0.type: ConstantScoreQuery }
-  - length: { profile.shards.0.searches.0.query.0.children: 1 }
-  - match: { profile.shards.0.searches.0.query.0.children.0.type: BooleanQuery }
-  - length: { profile.shards.0.searches.0.query.0.children.0.children: 2 }
-  - match: { profile.shards.0.searches.0.query.0.children.0.children.0.type: TermQuery }
-  - match: { profile.shards.0.searches.0.query.0.children.0.children.1.type: KnnScoreDocQuery }
+  - not_exists: profile.shards.0.dfs
+  - match: { profile.shards.0.searches.0.query.0.type: RankDocsQuery }
+  - length: { profile.shards.0.searches.0.query.0.children: 2 }
+  - match: { profile.shards.0.searches.0.query.0.children.0.type: TopQuery }
+  - match: { profile.shards.0.searches.0.query.0.children.1.type: BooleanQuery }
+  - length: { profile.shards.0.searches.0.query.0.children.1.children: 2 }
+  - match: { profile.shards.0.searches.0.query.0.children.1.children.0.type: TermQuery }
+  - match: { profile.shards.0.searches.0.query.0.children.1.children.1.type: TopQuery }
 
 ---
 "using query and dfs knn search":
 
+  - requires:
+      cluster_features: ["gte_v8.16.0"]
+      reason: "deprecation added in 8.16"
+      test_runner_features: warnings
+
   - do:
+      warnings:
+        - "Deprecated field [rank] used, replaced by [retriever]"
       search:
         index: test
         body:

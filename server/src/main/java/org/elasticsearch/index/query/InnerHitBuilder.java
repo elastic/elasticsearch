@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.query;
 
@@ -49,9 +50,9 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
     public static final ParseField COLLAPSE_FIELD = new ParseField("collapse");
     public static final ParseField FIELD_FIELD = new ParseField("field");
 
+    public static final int DEFAULT_FROM = 0;
+    public static final int DEFAULT_SIZE = 3;
     private static final boolean DEFAULT_IGNORE_UNAMPPED = false;
-    private static final int DEFAULT_FROM = 0;
-    private static final int DEFAULT_SIZE = 3;
     private static final boolean DEFAULT_VERSION = false;
     private static final boolean DEFAULT_SEQ_NO_AND_PRIMARY_TERM = false;
     private static final boolean DEFAULT_EXPLAIN = false;

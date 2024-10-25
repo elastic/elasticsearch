@@ -1351,3 +1351,54 @@ FROM sample_data, sample_data_ts_long
            null | 172.21.0.5   |             1232382 | Disconnected    | Disconnected
            null | 172.21.0.5   |             1232382 | Disconnected    | Disconnected
 ;
+
+shortIntegerWidening
+required_capability: union_types
+required_capability: metadata_fields
+required_capability: casting_operator
+required_capability: union_types_numeric_widening
+
+FROM apps, apps_short METADATA _index
+| EVAL id = id::integer
+| KEEP _index, id, version, name
+| WHERE name == "aaaaa" OR name == "hhhhh"
+| SORT _index ASC, id ASC
+;
+
+_index:keyword | id:integer  | version:version  | name:keyword
+apps           | 1           | 1                | aaaaa
+apps           | 8           | 1.2.3.4          | hhhhh
+apps           | 12          | 1.2.3.4          | aaaaa
+apps_short     | 1           | 1                | aaaaa
+apps_short     | 8           | 1.2.3.4          | hhhhh
+apps_short     | 12          | 1.2.3.4          | aaaaa
+;
+
+shortIntegerWideningStats
+required_capability: union_types
+required_capability: casting_operator
+required_capability: union_types_numeric_widening
+
+FROM apps, apps_short
+| EVAL id = id::integer
+| STATS count=count() BY name, id
+| KEEP id, name, count
+| SORT id ASC, name ASC
+;
+
+id:integer | name:keyword | count:long
+1          | aaaaa        | 2
+2          | bbbbb        | 2
+3          | ccccc        | 2
+4          | ddddd        | 2
+5          | eeeee        | 2
+6          | fffff        | 2
+7          | ggggg        | 2
+8          | hhhhh        | 2
+9          | iiiii        | 2
+10         | jjjjj        | 2
+11         | kkkkk        | 2
+12         | aaaaa        | 2
+13         | lllll        | 2
+14         | mmmmm        | 2
+;

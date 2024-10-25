@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.inference.external.request.azureopenai.AzureOpenA
 import org.elasticsearch.xpack.inference.external.response.azureopenai.AzureOpenAiCompletionResponseEntity;
 import org.elasticsearch.xpack.inference.services.azureopenai.completion.AzureOpenAiCompletionModel;
 
-import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
 
@@ -32,7 +31,7 @@ public class AzureOpenAiCompletionRequestManager extends AzureOpenAiRequestManag
     private final AzureOpenAiCompletionModel model;
 
     private static ResponseHandler createCompletionHandler() {
-        return new AzureOpenAiResponseHandler("azure openai completion", AzureOpenAiCompletionResponseEntity::fromResponse);
+        return new AzureOpenAiResponseHandler("azure openai completion", AzureOpenAiCompletionResponseEntity::fromResponse, true);
     }
 
     public AzureOpenAiCompletionRequestManager(AzureOpenAiCompletionModel model, ThreadPool threadPool) {
@@ -47,8 +46,10 @@ public class AzureOpenAiCompletionRequestManager extends AzureOpenAiRequestManag
         Supplier<Boolean> hasRequestCompletedFunction,
         ActionListener<InferenceServiceResults> listener
     ) {
-        List<String> docsInput = DocumentsOnlyInput.of(inferenceInputs).getInputs();
-        AzureOpenAiCompletionRequest request = new AzureOpenAiCompletionRequest(docsInput, model);
+        var docsOnly = DocumentsOnlyInput.of(inferenceInputs);
+        var docsInput = docsOnly.getInputs();
+        var stream = docsOnly.stream();
+        AzureOpenAiCompletionRequest request = new AzureOpenAiCompletionRequest(docsInput, model, stream);
         execute(new ExecutableInferenceRequest(requestSender, logger, request, HANDLER, hasRequestCompletedFunction, listener));
     }
 

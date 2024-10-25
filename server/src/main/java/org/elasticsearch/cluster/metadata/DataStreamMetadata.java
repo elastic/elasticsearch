@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.metadata;
@@ -16,10 +17,9 @@ import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -231,13 +231,10 @@ public class DataStreamMetadata implements Metadata.Custom {
     }
 
     @Override
-    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
-        return Iterators.concat(
-            ChunkedToXContentHelper.xContentValuesMap(DATA_STREAM.getPreferredName(), dataStreams),
-            ChunkedToXContentHelper.startObject(DATA_STREAM_ALIASES.getPreferredName()),
-            dataStreamAliases.values().iterator(),
-            ChunkedToXContentHelper.endObject()
-        );
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
+        return ChunkedToXContent.builder(params)
+            .xContentObjectFields(DATA_STREAM.getPreferredName(), dataStreams)
+            .xContentObject(DATA_STREAM_ALIASES.getPreferredName(), dataStreamAliases.values().iterator());
     }
 
     @Override

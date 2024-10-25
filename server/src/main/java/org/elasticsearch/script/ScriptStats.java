@@ -1,21 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.script;
 
 import org.elasticsearch.TransportVersions;
-import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
-import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
@@ -26,7 +25,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.common.collect.Iterators.single;
 import static org.elasticsearch.script.ScriptContextStats.Fields.COMPILATIONS_HISTORY;
 import static org.elasticsearch.script.ScriptStats.Fields.CACHE_EVICTIONS;
 import static org.elasticsearch.script.ScriptStats.Fields.COMPILATIONS;
@@ -192,28 +190,19 @@ public record ScriptStats(
     }
 
     @Override
-    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params outerParams) {
-        return Iterators.concat(
-            ChunkedToXContentHelper.startObject(SCRIPT_STATS),
-            ChunkedToXContentHelper.field(COMPILATIONS, compilations),
-            ChunkedToXContentHelper.field(CACHE_EVICTIONS, cacheEvictions),
-            ChunkedToXContentHelper.field(COMPILATION_LIMIT_TRIGGERED, compilationLimitTriggered),
-            single((builder, params) -> {
-                if (compilationsHistory != null && compilationsHistory.areTimingsEmpty() == false) {
-                    builder.startObject(COMPILATIONS_HISTORY);
-                    compilationsHistory.toXContent(builder, params);
-                    builder.endObject();
-                }
-                if (cacheEvictionsHistory != null && cacheEvictionsHistory.areTimingsEmpty() == false) {
-                    builder.startObject(COMPILATIONS_HISTORY);
-                    cacheEvictionsHistory.toXContent(builder, params);
-                    builder.endObject();
-                }
-                return builder;
-            }),
-            ChunkedToXContentHelper.array(CONTEXTS, contextStats.iterator()),
-            ChunkedToXContentHelper.endObject()
-        );
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
+        return ChunkedToXContent.builder(params).object(SCRIPT_STATS, ob -> {
+            ob.field(COMPILATIONS, compilations);
+            ob.field(CACHE_EVICTIONS, cacheEvictions);
+            ob.field(COMPILATION_LIMIT_TRIGGERED, compilationLimitTriggered);
+            if (compilationsHistory != null && compilationsHistory.areTimingsEmpty() == false) {
+                ob.xContentObject(COMPILATIONS_HISTORY, compilationsHistory);
+            }
+            if (cacheEvictionsHistory != null && cacheEvictionsHistory.areTimingsEmpty() == false) {
+                ob.xContentObject(COMPILATIONS_HISTORY, cacheEvictionsHistory);
+            }
+            ob.array(CONTEXTS, contextStats.iterator());
+        });
     }
 
     static final class Fields {

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search;
@@ -22,13 +23,11 @@ import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.builder.SubSearchSourceBuilder;
 import org.elasticsearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.rank.RankBuilder;
 import org.elasticsearch.search.rescore.RescorerBuilder;
 import org.elasticsearch.search.searchafter.SearchAfterBuilder;
 import org.elasticsearch.search.slice.SliceBuilder;
@@ -121,7 +120,6 @@ public class RandomSearchRequestGenerator {
     public static SearchSourceBuilder randomSearchSourceBuilder(
         Supplier<HighlightBuilder> randomHighlightBuilder,
         Supplier<SuggestBuilder> randomSuggestBuilder,
-        Supplier<RankBuilder> rankContextBuilderSupplier,
         Supplier<RescorerBuilder<?>> randomRescoreBuilder,
         Supplier<List<SearchExtBuilder>> randomExtBuilders,
         Supplier<CollapseBuilder> randomCollapseBuilder,
@@ -249,17 +247,6 @@ public class RandomSearchRequestGenerator {
         }
         if (randomBoolean()) {
             builder.query(QueryBuilders.termQuery(randomAlphaOfLengthBetween(5, 20), randomAlphaOfLengthBetween(5, 20)));
-        } else if (randomBoolean()) {
-            builder.subSearches(
-                List.of(
-                    new SubSearchSourceBuilder(
-                        QueryBuilders.termQuery(randomAlphaOfLengthBetween(5, 20), randomAlphaOfLengthBetween(5, 20))
-                    ),
-                    new SubSearchSourceBuilder(
-                        QueryBuilders.termQuery(randomAlphaOfLengthBetween(5, 20), randomAlphaOfLengthBetween(5, 20))
-                    )
-                )
-            );
         }
         if (randomBoolean()) {
             builder.postFilter(QueryBuilders.termQuery(randomAlphaOfLengthBetween(5, 20), randomAlphaOfLengthBetween(5, 20)));
@@ -352,9 +339,6 @@ public class RandomSearchRequestGenerator {
         }
         if (randomBoolean()) {
             builder.suggest(randomSuggestBuilder.get());
-        }
-        if (randomBoolean()) {
-            builder.rankBuilder(rankContextBuilderSupplier.get());
         }
         if (randomBoolean()) {
             int numRescores = randomIntBetween(1, 5);

@@ -223,6 +223,17 @@ public final class TestUtils {
         }
 
         @Override
+        public void writeBlobAtomic(
+            OperationPurpose purpose,
+            String blobName,
+            InputStream inputStream,
+            long blobSize,
+            boolean failIfAlreadyExists
+        ) throws IOException {
+            throw unsupportedException();
+        }
+
+        @Override
         public void writeBlobAtomic(OperationPurpose purpose, String blobName, BytesReference bytes, boolean failIfAlreadyExists) {
             throw unsupportedException();
         }

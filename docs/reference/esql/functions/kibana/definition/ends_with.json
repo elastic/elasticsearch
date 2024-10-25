@@ -79,5 +79,7 @@
   ],
   "examples" : [
     "FROM employees\n| KEEP last_name\n| EVAL ln_E = ENDS_WITH(last_name, \"d\")"
-  ]
+  ],
+  "preview" : false,
+  "snapshot_only" : false
 }

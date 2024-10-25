@@ -29,13 +29,14 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.template.ResourceUtils.loadResource;
 import static org.elasticsearch.xpack.core.template.ResourceUtils.loadVersionedResourceUTF8;
 
 /**
- * Creates index templates and ingest pipelines based on YAML files from resources.
+ * Creates index templates and ingest pipelines based on YAML files defined in resources.yaml.
  */
 public abstract class YamlTemplateRegistry extends IndexTemplateRegistry {
     private static final Logger logger = LogManager.getLogger(YamlTemplateRegistry.class);
@@ -50,7 +51,6 @@ public abstract class YamlTemplateRegistry extends IndexTemplateRegistry {
     private final FeatureService featureService;
     private volatile boolean enabled;
 
-    @SuppressWarnings({ "unchecked", "this-escape" })
     public YamlTemplateRegistry(
         Settings nodeSettings,
         ClusterService clusterService,
@@ -59,8 +59,20 @@ public abstract class YamlTemplateRegistry extends IndexTemplateRegistry {
         NamedXContentRegistry xContentRegistry,
         FeatureService featureService
     ) {
-        super(nodeSettings, clusterService, threadPool, client, xContentRegistry);
+        this(nodeSettings, clusterService, threadPool, client, xContentRegistry, featureService, ignored -> true);
+    }
 
+    @SuppressWarnings({ "unchecked", "this-escape" })
+    public YamlTemplateRegistry(
+        Settings nodeSettings,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        Client client,
+        NamedXContentRegistry xContentRegistry,
+        FeatureService featureService,
+        Predicate<String> templateFilter
+    ) {
+        super(nodeSettings, clusterService, threadPool, client, xContentRegistry);
         try {
             final Map<String, Object> resources = XContentHelper.convertToMap(
                 YamlXContent.yamlXContent,
@@ -77,11 +89,13 @@ public abstract class YamlTemplateRegistry extends IndexTemplateRegistry {
                 .orElse(Collections.emptyList())
                 .stream()
                 .map(o -> (String) o)
+                .filter(templateFilter)
                 .collect(Collectors.toMap(name -> name, name -> loadComponentTemplate(name, version)));
             composableIndexTemplates = Optional.ofNullable(indexTemplateNames)
                 .orElse(Collections.emptyList())
                 .stream()
                 .map(o -> (String) o)
+                .filter(templateFilter)
                 .collect(Collectors.toMap(name -> name, name -> loadIndexTemplate(name, version)));
             ingestPipelines = Optional.ofNullable(ingestPipelineConfigs)
                 .orElse(Collections.emptyList())
@@ -108,7 +122,7 @@ public abstract class YamlTemplateRegistry extends IndexTemplateRegistry {
 
     /***
      *
-     * @return A friendly, human readable name of the index template regisry
+     * @return A friendly, human-readable name of the index template registry
      */
     public abstract String getName();
 

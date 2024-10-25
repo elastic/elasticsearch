@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal;
@@ -21,7 +22,9 @@ import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.api.tasks.compile.CompileOptions;
 import org.gradle.api.tasks.compile.JavaCompile;
+import org.gradle.api.tasks.javadoc.Javadoc;
 import org.gradle.api.tasks.testing.Test;
+import org.gradle.external.javadoc.CoreJavadocOptions;
 import org.gradle.jvm.tasks.Jar;
 import org.gradle.jvm.toolchain.JavaLanguageVersion;
 import org.gradle.jvm.toolchain.JavaToolchainService;
@@ -72,8 +75,10 @@ public class MrjarPlugin implements Plugin<Project> {
             List<Integer> mainVersions = findSourceVersions(project);
             List<String> mainSourceSets = new ArrayList<>();
             mainSourceSets.add(SourceSet.MAIN_SOURCE_SET_NAME);
+            configurePreviewFeatures(project, javaExtension.getSourceSets().getByName(SourceSet.MAIN_SOURCE_SET_NAME), 21);
             List<String> testSourceSets = new ArrayList<>(mainSourceSets);
             testSourceSets.add(SourceSet.TEST_SOURCE_SET_NAME);
+            configurePreviewFeatures(project, javaExtension.getSourceSets().getByName(SourceSet.TEST_SOURCE_SET_NAME), 21);
             for (int javaVersion : mainVersions) {
                 String mainSourceSetName = SourceSet.MAIN_SOURCE_SET_NAME + javaVersion;
                 SourceSet mainSourceSet = addSourceSet(project, javaExtension, mainSourceSetName, mainSourceSets, javaVersion);
@@ -123,11 +128,8 @@ public class MrjarPlugin implements Plugin<Project> {
             compileTask.setSourceCompatibility(Integer.toString(javaVersion));
             CompileOptions compileOptions = compileTask.getOptions();
             compileOptions.getRelease().set(javaVersion);
-            compileOptions.getCompilerArgs().add("--enable-preview");
-            compileOptions.getCompilerArgs().add("-Xlint:-preview");
-
-            compileTask.doLast(t -> { stripPreviewFromFiles(compileTask.getDestinationDirectory().getAsFile().get().toPath()); });
         });
+        configurePreviewFeatures(project, sourceSet, javaVersion);
 
         // Since we configure MRJAR sourcesets to allow preview apis, class signatures for those
         // apis are not known by forbidden apis, so we must ignore all missing classes. We could, in theory,
@@ -139,6 +141,21 @@ public class MrjarPlugin implements Plugin<Project> {
         });
 
         return sourceSet;
+    }
+
+    private void configurePreviewFeatures(Project project, SourceSet sourceSet, int javaVersion) {
+        project.getTasks().withType(JavaCompile.class).named(sourceSet.getCompileJavaTaskName()).configure(compileTask -> {
+            CompileOptions compileOptions = compileTask.getOptions();
+            compileOptions.getCompilerArgs().add("--enable-preview");
+            compileOptions.getCompilerArgs().add("-Xlint:-preview");
+
+            compileTask.doLast(t -> { stripPreviewFromFiles(compileTask.getDestinationDirectory().getAsFile().get().toPath()); });
+        });
+        project.getTasks().withType(Javadoc.class).named(name -> name.equals(sourceSet.getJavadocTaskName())).configureEach(javadocTask -> {
+            CoreJavadocOptions options = (CoreJavadocOptions) javadocTask.getOptions();
+            options.addBooleanOption("-enable-preview", true);
+            options.addStringOption("-release", String.valueOf(javaVersion));
+        });
     }
 
     private void configureSourceSetInJar(Project project, SourceSet sourceSet, int javaVersion) {

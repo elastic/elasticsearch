@@ -214,10 +214,8 @@ public final class RemoteClusterLicenseChecker {
             threadContext.newRestorableContext(false),
             listener
         );
-        try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+        try (var ignore = threadContext.newEmptySystemContext()) {
             // we stash any context here since this is an internal execution and should not leak any existing context information
-            threadContext.markAsSystemContext();
-
             final XPackInfoRequest request = new XPackInfoRequest();
             request.setCategories(EnumSet.of(XPackInfoRequest.Category.LICENSE));
             try {
@@ -239,7 +237,7 @@ public final class RemoteClusterLicenseChecker {
      * @return true if the collection of indices contains a remote index, otherwise false
      */
     public static boolean isRemoteIndex(final String index) {
-        return index.indexOf(RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR) != -1;
+        return RemoteClusterAware.isRemoteIndexName(index);
     }
 
     /**
@@ -275,7 +273,7 @@ public final class RemoteClusterLicenseChecker {
     public static List<String> remoteClusterAliases(final Set<String> remoteClusters, final List<String> indices) {
         return indices.stream()
             .filter(RemoteClusterLicenseChecker::isRemoteIndex)
-            .map(index -> index.substring(0, index.indexOf(RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR)))
+            .map(index -> RemoteClusterAware.splitIndexName(index)[0])
             .distinct()
             .flatMap(clusterExpression -> ClusterNameExpressionResolver.resolveClusterNames(remoteClusters, clusterExpression).stream())
             .distinct()

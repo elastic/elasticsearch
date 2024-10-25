@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.transport;
@@ -88,7 +89,7 @@ public class RemoteClusterAwareClientTests extends ESTestCase {
         ) {
             remoteTransport.getTaskManager().setTaskCancellationService(new TaskCancellationService(remoteTransport));
             Settings.Builder builder = Settings.builder();
-            builder.putList("cluster.remote.cluster1.seeds", remoteTransport.getLocalDiscoNode().getAddress().toString());
+            builder.putList("cluster.remote.cluster1.seeds", remoteTransport.getLocalNode().getAddress().toString());
             try (
                 MockTransportService localService = MockTransportService.createNewService(
                     builder.build(),
@@ -162,11 +163,11 @@ public class RemoteClusterAwareClientTests extends ESTestCase {
             MockTransportService seedTransport = startTransport("seed_node", knownNodes);
             MockTransportService discoverableTransport = startTransport("discoverable_node", knownNodes)
         ) {
-            knownNodes.add(seedTransport.getLocalDiscoNode());
-            knownNodes.add(discoverableTransport.getLocalDiscoNode());
+            knownNodes.add(seedTransport.getLocalNode());
+            knownNodes.add(discoverableTransport.getLocalNode());
             Collections.shuffle(knownNodes, random());
             Settings.Builder builder = Settings.builder();
-            builder.putList("cluster.remote.cluster1.seeds", seedTransport.getLocalDiscoNode().getAddress().toString());
+            builder.putList("cluster.remote.cluster1.seeds", seedTransport.getLocalNode().getAddress().toString());
             try (
                 MockTransportService service = MockTransportService.createNewService(
                     builder.build(),
@@ -215,11 +216,11 @@ public class RemoteClusterAwareClientTests extends ESTestCase {
             MockTransportService seedTransport = startTransport("seed_node", knownNodes);
             MockTransportService discoverableTransport = startTransport("discoverable_node", knownNodes)
         ) {
-            knownNodes.add(seedTransport.getLocalDiscoNode());
-            knownNodes.add(discoverableTransport.getLocalDiscoNode());
+            knownNodes.add(seedTransport.getLocalNode());
+            knownNodes.add(discoverableTransport.getLocalNode());
             Collections.shuffle(knownNodes, random());
             Settings.Builder builder = Settings.builder();
-            builder.putList("cluster.remote.cluster1.seeds", seedTransport.getLocalDiscoNode().getAddress().toString());
+            builder.putList("cluster.remote.cluster1.seeds", seedTransport.getLocalNode().getAddress().toString());
             try (
                 MockTransportService service = MockTransportService.createNewService(
                     builder.build(),

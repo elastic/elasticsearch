@@ -47,7 +47,7 @@ public class ToUpperTests extends AbstractConfigurationFunctionTestCase {
         suppliers.add(supplier("text unicode", DataType.TEXT, () -> randomUnicodeOfLengthBetween(1, 10)));
 
         // add null as parameter
-        return parameterSuppliersFromTypedDataWithDefaultChecks(false, suppliers, (v, p) -> "string");
+        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers, (v, p) -> "string");
     }
 
     public void testRandomLocale() {
@@ -68,7 +68,8 @@ public class ToUpperTests extends AbstractConfigurationFunctionTestCase {
             EsqlPlugin.QUERY_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(Settings.EMPTY),
             "",
             false,
-            Map.of()
+            Map.of(),
+            System.nanoTime()
         );
     }
 

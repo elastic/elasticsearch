@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.esql.core.expression;
 
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 import java.util.ArrayList;
@@ -32,11 +33,11 @@ public abstract class NamedExpression extends Expression implements NamedWriteab
     private final NameId id;
     private final boolean synthetic;
 
-    public NamedExpression(Source source, String name, List<Expression> children, NameId id) {
+    public NamedExpression(Source source, String name, List<Expression> children, @Nullable NameId id) {
         this(source, name, children, id, false);
     }
 
-    public NamedExpression(Source source, String name, List<Expression> children, NameId id, boolean synthetic) {
+    public NamedExpression(Source source, String name, List<Expression> children, @Nullable NameId id, boolean synthetic) {
         super(source, children);
         this.name = name;
         this.id = id == null ? new NameId() : id;
@@ -51,6 +52,10 @@ public abstract class NamedExpression extends Expression implements NamedWriteab
         return id;
     }
 
+    /**
+     * Synthetic named expressions are not user defined and usually created during optimizations and substitutions, e.g. when turning
+     * {@code ... | STATS x = avg(2*field)} into {@code ... | EVAL $$synth$attribute = 2*field | STATS x = avg($$synth$attribute)}.
+     */
     public boolean synthetic() {
         return synthetic;
     }

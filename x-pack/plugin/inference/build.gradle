@@ -28,7 +28,7 @@ base {
 }
 
 versions << [
-  'awsbedrockruntime': '1.12.740'
+  'aws2': '2.28.13'
 ]
 
 dependencies {
@@ -57,19 +57,58 @@ dependencies {
   implementation 'com.google.http-client:google-http-client-appengine:1.42.3'
   implementation 'com.google.http-client:google-http-client-jackson2:1.42.3'
   implementation "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
-  implementation "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
-  implementation "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
-  implementation "com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:${versions.jackson}"
-  implementation "com.fasterxml.jackson:jackson-bom:${versions.jackson}"
   implementation 'com.google.api:gax-httpjson:0.105.1'
   implementation 'io.grpc:grpc-context:1.49.2'
   implementation 'io.opencensus:opencensus-api:0.31.1'
   implementation 'io.opencensus:opencensus-contrib-http-util:0.31.1'
-  implementation "com.amazonaws:aws-java-sdk-bedrockruntime:${versions.awsbedrockruntime}"
-  implementation "com.amazonaws:aws-java-sdk-core:${versions.aws}"
-  implementation "com.amazonaws:jmespath-java:${versions.aws}"
-  implementation "joda-time:joda-time:2.10.10"
-  implementation 'javax.xml.bind:jaxb-api:2.2.2'
+
+  /* AWS SDK v2 */
+  implementation ("software.amazon.awssdk:bedrockruntime:${versions.aws2}")
+  api "software.amazon.awssdk:protocol-core:${versions.aws2}"
+  api "software.amazon.awssdk:aws-json-protocol:${versions.aws2}"
+  api "software.amazon.awssdk:third-party-jackson-core:${versions.aws2}"
+  api "software.amazon.awssdk:http-auth-aws:${versions.aws2}"
+  api "software.amazon.awssdk:checksums-spi:${versions.aws2}"
+  api "software.amazon.awssdk:checksums:${versions.aws2}"
+  api "software.amazon.awssdk:sdk-core:${versions.aws2}"
+  api "org.reactivestreams:reactive-streams:1.0.4"
+  api "org.reactivestreams:reactive-streams-tck:1.0.4"
+  api "software.amazon.awssdk:profiles:${versions.aws2}"
+  api "software.amazon.awssdk:retries:${versions.aws2}"
+  api "software.amazon.awssdk:auth:${versions.aws2}"
+  api "software.amazon.awssdk:http-auth-aws-eventstream:${versions.aws2}"
+  api "software.amazon.eventstream:eventstream:1.0.1"
+  api "software.amazon.awssdk:http-auth-spi:${versions.aws2}"
+  api "software.amazon.awssdk:http-auth:${versions.aws2}"
+  api "software.amazon.awssdk:identity-spi:${versions.aws2}"
+  api "software.amazon.awssdk:http-client-spi:${versions.aws2}"
+  api "software.amazon.awssdk:regions:${versions.aws2}"
+  api "software.amazon.awssdk:annotations:${versions.aws2}"
+  api "software.amazon.awssdk:utils:${versions.aws2}"
+  api "software.amazon.awssdk:aws-core:${versions.aws2}"
+  api "software.amazon.awssdk:metrics-spi:${versions.aws2}"
+  api "software.amazon.awssdk:json-utils:${versions.aws2}"
+  api "software.amazon.awssdk:endpoints-spi:${versions.aws2}"
+  api "software.amazon.awssdk:retries-spi:${versions.aws2}"
+
+  /* Netty (via AWS SDKv2) */
+  implementation "software.amazon.awssdk:netty-nio-client:${versions.aws2}"
+  runtimeOnly "io.netty:netty-buffer:${versions.netty}"
+  runtimeOnly "io.netty:netty-codec-dns:${versions.netty}"
+  runtimeOnly "io.netty:netty-codec-http2:${versions.netty}"
+  runtimeOnly "io.netty:netty-codec-http:${versions.netty}"
+  runtimeOnly "io.netty:netty-codec:${versions.netty}"
+  runtimeOnly "io.netty:netty-common:${versions.netty}"
+  runtimeOnly "io.netty:netty-handler:${versions.netty}"
+  runtimeOnly "io.netty:netty-resolver-dns:${versions.netty}"
+  runtimeOnly "io.netty:netty-resolver:${versions.netty}"
+  runtimeOnly "io.netty:netty-transport-classes-epoll:${versions.netty}"
+  runtimeOnly "io.netty:netty-transport-native-unix-common:${versions.netty}"
+  runtimeOnly "io.netty:netty-transport:${versions.netty}"
+
+  /* SLF4J (via AWS SDKv2) */
+  api "org.slf4j:slf4j-api:${versions.slf4j}"
+  runtimeOnly "org.slf4j:slf4j-nop:${versions.slf4j}"
 }
 
 tasks.named("dependencyLicenses").configure {
@@ -79,9 +118,46 @@ tasks.named("dependencyLicenses").configure {
   mapping from: /protobuf.*/, to: 'protobuf'
   mapping from: /proto-google.*/, to: 'proto-google'
   mapping from: /jackson.*/, to: 'jackson'
-  mapping from: /aws-java-sdk-.*/, to: 'aws-java-sdk'
-  mapping from: /jmespath-java.*/, to: 'aws-java-sdk'
-  mapping from: /jaxb-.*/, to: 'jaxb'
+  mapping from: /reactive-streams.*/, to: 'reactive-streams'
+  mapping from: /eventstream.*/, to: 'eventstream'
+  mapping from: /slf4j.*/, to: 'slf4j'
+  mapping from: /protocol-core.*/, to: 'aws-sdk-2'
+  mapping from: /aws-json-protocol.*/, to: 'aws-sdk-2'
+  mapping from: /third-party-jackson-core.*/, to: 'aws-sdk-2'
+  mapping from: /checksums-spi.*/, to: 'aws-sdk-2'
+  mapping from: /checksums.*/, to: 'aws-sdk-2'
+  mapping from: /sdk-core.*/, to: 'aws-sdk-2'
+  mapping from: /profiles.*/, to: 'aws-sdk-2'
+  mapping from: /retries.*/, to: 'aws-sdk-2'
+  mapping from: /auth.*/, to: 'aws-sdk-2'
+  mapping from: /http-auth-aws-eventstream.*/, to: 'aws-sdk-2'
+  mapping from: /http-auth-spi.*/, to: 'aws-sdk-2'
+  mapping from: /http-auth.*/, to: 'aws-sdk-2'
+  mapping from: /http-auth-aws.*/, to: 'aws-sdk-2'
+  mapping from: /identity-spi.*/, to: 'aws-sdk-2'
+  mapping from: /http-client-spi.*/, to: 'aws-sdk-2'
+  mapping from: /regions.*/, to: 'aws-sdk-2'
+  mapping from: /annotations.*/, to: 'aws-sdk-2'
+  mapping from: /utils.*/, to: 'aws-sdk-2'
+  mapping from: /aws-core.*/, to: 'aws-sdk-2'
+  mapping from: /metrics-spi.*/, to: 'aws-sdk-2'
+  mapping from: /json-utils.*/, to: 'aws-sdk-2'
+  mapping from: /endpoints-spi.*/, to: 'aws-sdk-2'
+  mapping from: /bedrockruntime.*/, to: 'aws-sdk-2'
+  mapping from: /netty-nio-client/, to: 'aws-sdk-2'
+  /* Cannot use REGEX to match netty-* because netty-nio-client is an AWS package */
+  mapping from: /netty-buffer/, to: 'netty'
+  mapping from: /netty-codec-dns/, to: 'netty'
+  mapping from: /netty-codec-http2/, to: 'netty'
+  mapping from: /netty-codec-http/, to: 'netty'
+  mapping from: /netty-codec/, to: 'netty'
+  mapping from: /netty-common/, to: 'netty'
+  mapping from: /netty-handler/, to: 'netty'
+  mapping from: /netty-resolver-dns/, to: 'netty'
+  mapping from: /netty-resolver/, to: 'netty'
+  mapping from: /netty-transport-classes-epoll/, to: 'netty'
+  mapping from: /netty-transport-native-unix-common/, to: 'netty'
+  mapping from: /netty-transport/, to: 'netty'
 }
 
 tasks.named("thirdPartyAudit").configure {
@@ -108,6 +184,29 @@ tasks.named("thirdPartyAudit").configure {
     'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray',
     'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator',
     'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1',
+    'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator',
+    'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator$1',
+    'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator$2',
+    'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator$3',
+    'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator$4',
+    'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator$5',
+    'io.netty.util.internal.PlatformDependent0',
+    'io.netty.util.internal.PlatformDependent0$1',
+    'io.netty.util.internal.PlatformDependent0$2',
+    'io.netty.util.internal.PlatformDependent0$3',
+    'io.netty.util.internal.PlatformDependent0$4',
+    'io.netty.util.internal.PlatformDependent0$6',
+    'io.netty.util.internal.shaded.org.jctools.queues.BaseLinkedQueueConsumerNodeRef',
+    'io.netty.util.internal.shaded.org.jctools.queues.BaseLinkedQueueProducerNodeRef',
+    'io.netty.util.internal.shaded.org.jctools.queues.BaseMpscLinkedArrayQueueColdProducerFields',
+    'io.netty.util.internal.shaded.org.jctools.queues.BaseMpscLinkedArrayQueueConsumerFields',
+    'io.netty.util.internal.shaded.org.jctools.queues.BaseMpscLinkedArrayQueueProducerFields',
+    'io.netty.util.internal.shaded.org.jctools.queues.LinkedQueueNode',
+    'io.netty.util.internal.shaded.org.jctools.queues.MpscArrayQueueConsumerIndexField',
+    'io.netty.util.internal.shaded.org.jctools.queues.MpscArrayQueueProducerIndexField',
+    'io.netty.util.internal.shaded.org.jctools.queues.MpscArrayQueueProducerLimitField',
+    'io.netty.util.internal.shaded.org.jctools.util.UnsafeAccess',
+    'io.netty.util.internal.shaded.org.jctools.util.UnsafeRefArrayAccess',
   )
 
   ignoreMissingClasses(
@@ -215,17 +314,87 @@ tasks.named("thirdPartyAudit").configure {
     'com.google.appengine.api.urlfetch.HTTPRequest',
     'com.google.appengine.api.urlfetch.HTTPResponse',
     'com.google.appengine.api.urlfetch.URLFetchService',
+    'com.aayushatharva.brotli4j.Brotli4jLoader',
+    'com.aayushatharva.brotli4j.decoder.DecoderJNI$Status',
+    'com.aayushatharva.brotli4j.decoder.DecoderJNI$Wrapper',
+    'com.aayushatharva.brotli4j.encoder.BrotliEncoderChannel',
+    'com.aayushatharva.brotli4j.encoder.Encoder$Mode',
+    'com.aayushatharva.brotli4j.encoder.Encoder$Parameters',
+    'com.github.luben.zstd.BaseZstdBufferDecompressingStreamNoFinalizer',
+    'com.github.luben.zstd.Zstd',
+    'com.github.luben.zstd.ZstdBufferDecompressingStreamNoFinalizer',
+    'com.github.luben.zstd.ZstdDirectBufferDecompressingStreamNoFinalizer',
     'com.google.appengine.api.urlfetch.URLFetchServiceFactory',
-    'software.amazon.ion.IonReader',
-    'software.amazon.ion.IonSystem',
-    'software.amazon.ion.IonType',
-    'software.amazon.ion.IonWriter',
-    'software.amazon.ion.Timestamp',
-    'software.amazon.ion.system.IonBinaryWriterBuilder',
-    'software.amazon.ion.system.IonSystemBuilder',
-    'software.amazon.ion.system.IonTextWriterBuilder',
-    'software.amazon.ion.system.IonWriterBuilder',
-    'javax.activation.DataHandler'
+    'com.google.protobuf.nano.CodedOutputByteBufferNano',
+    'com.google.protobuf.nano.MessageNano',
+    'com.jcraft.jzlib.Deflater',
+    'com.jcraft.jzlib.Inflater',
+    'com.jcraft.jzlib.JZlib',
+    'com.jcraft.jzlib.JZlib$WrapperType',
+    'com.ning.compress.BufferRecycler',
+    'com.ning.compress.lzf.ChunkDecoder',
+    'com.ning.compress.lzf.ChunkEncoder',
+    'com.ning.compress.lzf.LZFChunk',
+    'com.ning.compress.lzf.LZFEncoder',
+    'com.ning.compress.lzf.util.ChunkDecoderFactory',
+    'com.ning.compress.lzf.util.ChunkEncoderFactory',
+    'io.netty.internal.tcnative.AsyncSSLPrivateKeyMethod',
+    'io.netty.internal.tcnative.AsyncTask',
+    'io.netty.internal.tcnative.Buffer',
+    'io.netty.internal.tcnative.CertificateCallback',
+    'io.netty.internal.tcnative.CertificateCompressionAlgo',
+    'io.netty.internal.tcnative.CertificateVerifier',
+    'io.netty.internal.tcnative.Library',
+    'io.netty.internal.tcnative.ResultCallback',
+    'io.netty.internal.tcnative.SSL',
+    'io.netty.internal.tcnative.SSLContext',
+    'io.netty.internal.tcnative.SSLPrivateKeyMethod',
+    'io.netty.internal.tcnative.SSLSession',
+    'io.netty.internal.tcnative.SSLSessionCache',
+    'io.netty.internal.tcnative.SessionTicketKey',
+    'io.netty.internal.tcnative.SniHostNameMatcher',
+    'lzma.sdk.lzma.Encoder',
+    'org.bouncycastle.cert.X509v3CertificateBuilder',
+    'org.bouncycastle.cert.jcajce.JcaX509CertificateConverter',
+    'org.bouncycastle.openssl.PEMEncryptedKeyPair',
+    'org.bouncycastle.openssl.PEMParser',
+    'org.bouncycastle.openssl.jcajce.JcaPEMKeyConverter',
+    'org.bouncycastle.openssl.jcajce.JceOpenSSLPKCS8DecryptorProviderBuilder',
+    'org.bouncycastle.openssl.jcajce.JcePEMDecryptorProviderBuilder',
+    'org.bouncycastle.operator.jcajce.JcaContentSignerBuilder',
+    'org.bouncycastle.pkcs.PKCS8EncryptedPrivateKeyInfo',
+    'org.conscrypt.AllocatedBuffer',
+    'org.conscrypt.BufferAllocator',
+    'org.conscrypt.Conscrypt',
+    'org.conscrypt.HandshakeListener',
+    'org.eclipse.jetty.alpn.ALPN',
+    'org.eclipse.jetty.alpn.ALPN$ClientProvider',
+    'org.eclipse.jetty.alpn.ALPN$ServerProvider',
+    'org.eclipse.jetty.npn.NextProtoNego',
+    'org.eclipse.jetty.npn.NextProtoNego$ClientProvider',
+    'org.eclipse.jetty.npn.NextProtoNego$ServerProvider',
+    'org.jboss.marshalling.ByteInput',
+    'org.jboss.marshalling.ByteOutput',
+    'org.jboss.marshalling.Marshaller',
+    'org.jboss.marshalling.MarshallerFactory',
+    'org.jboss.marshalling.MarshallingConfiguration',
+    'org.jboss.marshalling.Unmarshaller',
+    'org.reactivestreams.example.unicast.AsyncIterablePublisher',
+    'org.testng.Assert',
+    'reactor.blockhound.BlockHound$Builder',
+    'reactor.blockhound.integration.BlockHoundIntegration',
+    'software.amazon.awssdk.crt.auth.credentials.Credentials',
+    'software.amazon.awssdk.crt.auth.signing.AwsSigner',
+    'software.amazon.awssdk.crt.auth.signing.AwsSigningConfig',
+    'software.amazon.awssdk.crt.auth.signing.AwsSigningConfig$AwsSignatureType',
+    'software.amazon.awssdk.crt.auth.signing.AwsSigningConfig$AwsSignedBodyHeaderType',
+    'software.amazon.awssdk.crt.auth.signing.AwsSigningConfig$AwsSigningAlgorithm',
+    'software.amazon.awssdk.crt.auth.signing.AwsSigningResult',
+    'software.amazon.awssdk.crt.checksums.CRC32',
+    'software.amazon.awssdk.crt.checksums.CRC32C',
+    'software.amazon.awssdk.crt.http.HttpHeader',
+    'software.amazon.awssdk.crt.http.HttpRequest',
+    'software.amazon.awssdk.crt.http.HttpRequestBodyStream',
   )
 }
 

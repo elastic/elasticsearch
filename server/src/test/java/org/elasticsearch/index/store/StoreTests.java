@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.store;
 
@@ -273,7 +274,7 @@ public class StoreTests extends ESTestCase {
         metadata = store.getMetadata(randomBoolean() ? indexCommit : null);
         assertThat(metadata.fileMetadataMap().isEmpty(), is(false));
         for (StoreFileMetadata meta : metadata) {
-            try (IndexInput input = store.directory().openInput(meta.name(), IOContext.DEFAULT)) {
+            try (IndexInput input = store.directory().openInput(meta.name(), IOContext.READONCE)) {
                 String checksum = Store.digestToString(CodecUtil.retrieveChecksum(input));
                 assertThat("File: " + meta.name() + " has a different checksum", meta.checksum(), equalTo(checksum));
                 assertThat(meta.writtenBy(), equalTo(Version.LATEST.toString()));

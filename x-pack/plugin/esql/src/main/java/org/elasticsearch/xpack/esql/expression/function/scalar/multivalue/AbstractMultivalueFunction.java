@@ -43,6 +43,7 @@ public abstract class AbstractMultivalueFunction extends UnaryScalarFunction {
             MvLast.ENTRY,
             MvMax.ENTRY,
             MvMedian.ENTRY,
+            MvMedianAbsoluteDeviation.ENTRY,
             MvMin.ENTRY,
             MvPercentile.ENTRY,
             MvPSeriesWeightedSum.ENTRY,
@@ -83,7 +84,7 @@ public abstract class AbstractMultivalueFunction extends UnaryScalarFunction {
     protected abstract TypeResolution resolveFieldType();
 
     @Override
-    public final ExpressionEvaluator.Factory toEvaluator(java.util.function.Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
+    public final ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         return evaluator(toEvaluator.apply(field()));
     }
 

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.rest.action.search;
@@ -18,7 +19,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -64,9 +64,7 @@ public class RestMultiSearchAction extends BaseRestHandler {
             new Route(GET, "/_msearch"),
             new Route(POST, "/_msearch"),
             new Route(GET, "/{index}/_msearch"),
-            new Route(POST, "/{index}/_msearch"),
-            Route.builder(GET, "/{index}/{type}/_msearch").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build(),
-            Route.builder(POST, "/{index}/{type}/_msearch").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build()
+            new Route(POST, "/{index}/_msearch")
         );
     }
 
@@ -111,10 +109,6 @@ public class RestMultiSearchAction extends BaseRestHandler {
         Predicate<NodeFeature> clusterSupportsFeature,
         TriFunction<String, Object, SearchRequest, Boolean> extraParamParser
     ) throws IOException {
-        if (restRequest.getRestApiVersion() == RestApiVersion.V_7 && restRequest.hasParam("type")) {
-            restRequest.param("type");
-        }
-
         MultiSearchRequest multiRequest = new MultiSearchRequest();
         IndicesOptions indicesOptions = IndicesOptions.fromRequest(restRequest, multiRequest.indicesOptions());
         multiRequest.indicesOptions(indicesOptions);

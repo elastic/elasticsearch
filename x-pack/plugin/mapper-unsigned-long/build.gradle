@@ -37,15 +37,6 @@ restResources {
     }
 }
 
-tasks.named("yamlRestTestV7CompatTest").configure {
-    systemProperty 'tests.rest.blacklist', [
-        '50_script_values/Scripted fields values return Long',
-        '50_script_values/Scripted sort values',
-        '50_script_values/Script query',
-        '50_script_values/script_score query'
-    ].join(',')
-}
-
 if (BuildParams.isSnapshotBuild() == false) {
   tasks.named("test").configure {
     systemProperty 'es.index_mode_feature_flag_registered', 'true'

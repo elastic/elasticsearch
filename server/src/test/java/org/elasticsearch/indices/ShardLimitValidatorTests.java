@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices;
@@ -41,7 +42,13 @@ public class ShardLimitValidatorTests extends ESTestCase {
 
     @FunctionalInterface
     interface CheckShardLimitMethod {
-        ShardLimitValidator.Result call(int maxConfiguredShardsPerNode, int numberOfNewShards, int replicas, ClusterState state);
+        ShardLimitValidator.Result call(
+            int maxConfiguredShardsPerNode,
+            int numberOfNewShards,
+            int replicas,
+            DiscoveryNodes discoveryNodes,
+            Metadata metadata
+        );
     }
 
     public void testOverShardLimit() {
@@ -63,7 +70,8 @@ public class ShardLimitValidatorTests extends ESTestCase {
             counts.getShardsPerNode(),
             counts.getFailingIndexShards(),
             counts.getFailingIndexReplicas(),
-            state
+            state.nodes(),
+            state.metadata()
         );
 
         int totalShards = counts.getFailingIndexShards() * (1 + counts.getFailingIndexReplicas());
@@ -113,7 +121,13 @@ public class ShardLimitValidatorTests extends ESTestCase {
         int existingShards = counts.getFirstIndexShards() * (1 + counts.getFirstIndexReplicas());
         int availableRoom = maxShardsInCluster - existingShards;
         int shardsToAdd = randomIntBetween(1, Math.max(availableRoom / (replicas + 1), 1));
-        ShardLimitValidator.Result shardLimitsResult = targetMethod.call(counts.getShardsPerNode(), shardsToAdd, replicas, state);
+        ShardLimitValidator.Result shardLimitsResult = targetMethod.call(
+            counts.getShardsPerNode(),
+            shardsToAdd,
+            replicas,
+            state.nodes(),
+            state.metadata()
+        );
         assertTrue(shardLimitsResult.canAddShards());
         assertEquals(shardLimitsResult.maxShardsInCluster(), counts.getShardsPerNode() * nodesInCluster);
         assertEquals(shardLimitsResult.totalShardsToAdd(), shardsToAdd * (replicas + 1));
@@ -142,7 +156,7 @@ public class ShardLimitValidatorTests extends ESTestCase {
         ShardLimitValidator shardLimitValidator = createTestShardLimitService(counts.getShardsPerNode(), group);
         ValidationException exception = expectThrows(
             ValidationException.class,
-            () -> shardLimitValidator.validateShardLimit(state, indices)
+            () -> shardLimitValidator.validateShardLimit(state.nodes(), state.metadata(), indices)
         );
         assertEquals(
             "Validation Failed: 1: this action would add ["
@@ -168,11 +182,11 @@ public class ShardLimitValidatorTests extends ESTestCase {
 
         final Index[] indices = getIndices(state);
         final ShardLimitValidator shardLimitValidator = createTestShardLimitService(shardsPerNode, group);
-        shardLimitValidator.validateShardLimitOnReplicaUpdate(state, indices, nodesInCluster - 1);
+        shardLimitValidator.validateShardLimitOnReplicaUpdate(state.nodes(), state.metadata(), indices, nodesInCluster - 1);
 
         ValidationException exception = expectThrows(
             ValidationException.class,
-            () -> shardLimitValidator.validateShardLimitOnReplicaUpdate(state, indices, nodesInCluster)
+            () -> shardLimitValidator.validateShardLimitOnReplicaUpdate(state.nodes(), state.metadata(), indices, nodesInCluster)
         );
         assertEquals(
             "Validation Failed: 1: this action would add ["

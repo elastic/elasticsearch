@@ -14,6 +14,8 @@ import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.xpack.ml.aggs.categorization.TokenListCategory.TokenAndWeight;
@@ -39,6 +41,25 @@ import static org.apache.lucene.util.RamUsageEstimator.sizeOfCollection;
  * <code>CTokenListDataCategorizerBase</code></a> and parts of its base class and derived class.
  */
 public class TokenListCategorizer implements Accountable {
+
+    /**
+     * TokenListCategorizer that takes ownership of the CategorizationBytesRefHash and releases it when closed.
+     */
+    public static class CloseableTokenListCategorizer extends TokenListCategorizer implements Releasable {
+
+        public CloseableTokenListCategorizer(
+            CategorizationBytesRefHash bytesRefHash,
+            CategorizationPartOfSpeechDictionary partOfSpeechDictionary,
+            float threshold
+        ) {
+            super(bytesRefHash, partOfSpeechDictionary, threshold);
+        }
+
+        @Override
+        public void close() {
+            Releasables.close(super.bytesRefHash);
+        }
+    }
 
     public static final int MAX_TOKENS = 100;
     private static final long SHALLOW_SIZE = shallowSizeOfInstance(TokenListCategorizer.class);

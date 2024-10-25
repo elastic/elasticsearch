@@ -1,4 +1,0 @@
-pr: 112135 
-summary: Fix the bug where the run() function of ExecutableInferenceRequest throws an exception when get inferenceEntityId.
-area: Inference 
-type: bug

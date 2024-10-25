@@ -62,7 +62,7 @@ public abstract class KerberosTestCase extends ESTestCase {
      *
      * Note: several unsupported locales were added in CLDR. #109670 included these below.
      */
-    private static Set<String> UNSUPPORTED_LOCALE_LANGUAGES = Set.of(
+    private static final Set<String> UNSUPPORTED_LOCALE_LANGUAGES = Set.of(
         "ar",
         "ja",
         "th",
@@ -86,7 +86,11 @@ public abstract class KerberosTestCase extends ESTestCase {
         "sd",
         "mni",
         "sat",
-        "sa"
+        "sa",
+        "bgc",
+        "raj",
+        "nqo",
+        "bho"
     );
 
     @BeforeClass

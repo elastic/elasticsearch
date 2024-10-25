@@ -337,6 +337,18 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
+  @Override public void enterFunctionName(EsqlBaseParser.FunctionNameContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitFunctionName(EsqlBaseParser.FunctionNameContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
   @Override public void enterToDataType(EsqlBaseParser.ToDataTypeContext ctx) { }
   /**
    * {@inheritDoc}
@@ -505,6 +517,30 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
+  @Override public void enterAggFields(EsqlBaseParser.AggFieldsContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitAggFields(EsqlBaseParser.AggFieldsContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterAggField(EsqlBaseParser.AggFieldContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitAggField(EsqlBaseParser.AggFieldContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
   @Override public void enterQualifiedName(EsqlBaseParser.QualifiedNameContext ctx) { }
   /**
    * {@inheritDoc}
@@ -625,13 +661,13 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void enterInputParams(EsqlBaseParser.InputParamsContext ctx) { }
+  @Override public void enterInputParameter(EsqlBaseParser.InputParameterContext ctx) { }
   /**
    * {@inheritDoc}
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void exitInputParams(EsqlBaseParser.InputParamsContext ctx) { }
+  @Override public void exitInputParameter(EsqlBaseParser.InputParameterContext ctx) { }
   /**
    * {@inheritDoc}
    *
@@ -704,6 +740,18 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    * <p>The default implementation does nothing.</p>
    */
   @Override public void exitInputNamedOrPositionalParam(EsqlBaseParser.InputNamedOrPositionalParamContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterIdentifierOrParameter(EsqlBaseParser.IdentifierOrParameterContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitIdentifierOrParameter(EsqlBaseParser.IdentifierOrParameterContext ctx) { }
   /**
    * {@inheritDoc}
    *
@@ -961,18 +1009,6 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void enterMetaFunctions(EsqlBaseParser.MetaFunctionsContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void exitMetaFunctions(EsqlBaseParser.MetaFunctionsContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
   @Override public void enterEnrichCommand(EsqlBaseParser.EnrichCommandContext ctx) { }
   /**
    * {@inheritDoc}
@@ -1016,30 +1052,6 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    * <p>The default implementation does nothing.</p>
    */
   @Override public void exitInlinestatsCommand(EsqlBaseParser.InlinestatsCommandContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void enterMatchCommand(EsqlBaseParser.MatchCommandContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void exitMatchCommand(EsqlBaseParser.MatchCommandContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void enterMatchQuery(EsqlBaseParser.MatchQueryContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void exitMatchQuery(EsqlBaseParser.MatchQueryContext ctx) { }
 
   /**
    * {@inheritDoc}

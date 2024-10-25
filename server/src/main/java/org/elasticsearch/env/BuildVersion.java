@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.env;
@@ -57,14 +58,6 @@ public abstract class BuildVersion {
      */
     public abstract boolean isFutureVersion();
 
-    // temporary
-    // TODO[wrb]: remove from PersistedClusterStateService
-    // TODO[wrb]: remove from security bootstrap checks
-    @Deprecated
-    public Version toVersion() {
-        return null;
-    }
-
     /**
      * Create a {@link BuildVersion} from a version ID number.
      *
@@ -77,6 +70,16 @@ public abstract class BuildVersion {
      */
     public static BuildVersion fromVersionId(int versionId) {
         return CurrentExtensionHolder.BUILD_EXTENSION.fromVersionId(versionId);
+    }
+
+    /**
+     * Create a {@link BuildVersion} from a version string.
+     *
+     * @param version A string representation of a version
+     * @return a version representing a build or release of Elasticsearch
+     */
+    public static BuildVersion fromString(String version) {
+        return CurrentExtensionHolder.BUILD_EXTENSION.fromString(version);
     }
 
     /**
@@ -116,6 +119,11 @@ public abstract class BuildVersion {
         @Override
         public BuildVersion fromVersionId(int versionId) {
             return new DefaultBuildVersion(versionId);
+        }
+
+        @Override
+        public BuildVersion fromString(String version) {
+            return new DefaultBuildVersion(version);
         }
     }
 

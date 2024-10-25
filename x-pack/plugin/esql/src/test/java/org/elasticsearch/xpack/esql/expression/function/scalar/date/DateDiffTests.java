@@ -113,6 +113,34 @@ public class DateDiffTests extends AbstractScalarFunctionTestCase {
                 )
             )
         );
+        suppliers.add(new TestCaseSupplier("Date Diff In Year - 1", List.of(DataType.KEYWORD, DataType.DATETIME, DataType.DATETIME), () -> {
+            ZonedDateTime zdtStart2 = ZonedDateTime.parse("2023-12-12T00:01:01Z");
+            ZonedDateTime zdtEnd2 = ZonedDateTime.parse("2024-12-12T00:01:01Z");
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(new BytesRef("year"), DataType.KEYWORD, "unit"),
+                    new TestCaseSupplier.TypedData(zdtStart2.toInstant().toEpochMilli(), DataType.DATETIME, "startTimestamp"),
+                    new TestCaseSupplier.TypedData(zdtEnd2.toInstant().toEpochMilli(), DataType.DATETIME, "endTimestamp")
+                ),
+                "DateDiffEvaluator[unit=Attribute[channel=0], startTimestamp=Attribute[channel=1], " + "endTimestamp=Attribute[channel=2]]",
+                DataType.INTEGER,
+                equalTo(1)
+            );
+        }));
+        suppliers.add(new TestCaseSupplier("Date Diff In Year - 0", List.of(DataType.KEYWORD, DataType.DATETIME, DataType.DATETIME), () -> {
+            ZonedDateTime zdtStart2 = ZonedDateTime.parse("2023-12-12T00:01:01.001Z");
+            ZonedDateTime zdtEnd2 = ZonedDateTime.parse("2024-12-12T00:01:01Z");
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(new BytesRef("year"), DataType.KEYWORD, "unit"),
+                    new TestCaseSupplier.TypedData(zdtStart2.toInstant().toEpochMilli(), DataType.DATETIME, "startTimestamp"),
+                    new TestCaseSupplier.TypedData(zdtEnd2.toInstant().toEpochMilli(), DataType.DATETIME, "endTimestamp")
+                ),
+                "DateDiffEvaluator[unit=Attribute[channel=0], startTimestamp=Attribute[channel=1], " + "endTimestamp=Attribute[channel=2]]",
+                DataType.INTEGER,
+                equalTo(0)
+            );
+        }));
         return parameterSuppliersFromTypedData(anyNullIsNull(false, suppliers));
     }
 

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.shard;
 
@@ -51,7 +52,7 @@ public class IndexReaderWrapperTests extends ESTestCase {
         writer.addDocument(doc);
         DirectoryReader open = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(writer), new ShardId("foo", "_na_", 1));
         IndexSearcher searcher = newSearcher(open);
-        assertEquals(1, searcher.search(new TermQuery(new Term("field", "doc")), 1).totalHits.value);
+        assertEquals(1, searcher.search(new TermQuery(new Term("field", "doc")), 1).totalHits.value());
         final AtomicInteger closeCalls = new AtomicInteger(0);
         CheckedFunction<DirectoryReader, DirectoryReader, IOException> wrapper = reader -> new FieldMaskingReader(
             "field",
@@ -81,7 +82,7 @@ public class IndexReaderWrapperTests extends ESTestCase {
             }
             outerCount.incrementAndGet();
         });
-        assertEquals(0, wrap.search(new TermQuery(new Term("field", "doc")), 1).totalHits.value);
+        assertEquals(0, wrap.search(new TermQuery(new Term("field", "doc")), 1).totalHits.value());
         wrap.close();
         assertFalse("wrapped reader is closed", wrap.getIndexReader().tryIncRef());
         assertEquals(sourceRefCount, open.getRefCount());
@@ -105,7 +106,7 @@ public class IndexReaderWrapperTests extends ESTestCase {
         writer.addDocument(doc);
         DirectoryReader open = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(writer), new ShardId("foo", "_na_", 1));
         IndexSearcher searcher = newSearcher(open);
-        assertEquals(1, searcher.search(new TermQuery(new Term("field", "doc")), 1).totalHits.value);
+        assertEquals(1, searcher.search(new TermQuery(new Term("field", "doc")), 1).totalHits.value());
         searcher.setSimilarity(iwc.getSimilarity());
         final AtomicInteger closeCalls = new AtomicInteger(0);
         CheckedFunction<DirectoryReader, DirectoryReader, IOException> wrapper = reader -> new FieldMaskingReader(
@@ -152,7 +153,7 @@ public class IndexReaderWrapperTests extends ESTestCase {
         writer.addDocument(doc);
         DirectoryReader open = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(writer), new ShardId("foo", "_na_", 1));
         IndexSearcher searcher = newSearcher(open);
-        assertEquals(1, searcher.search(new TermQuery(new Term("field", "doc")), 1).totalHits.value);
+        assertEquals(1, searcher.search(new TermQuery(new Term("field", "doc")), 1).totalHits.value());
         searcher.setSimilarity(iwc.getSimilarity());
         CheckedFunction<DirectoryReader, DirectoryReader, IOException> wrapper = directoryReader -> directoryReader;
         try (

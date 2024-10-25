@@ -146,7 +146,8 @@ public class AzureAiStudioEmbeddingsServiceSettings extends AzureAiStudioService
         return similarity;
     }
 
-    public boolean dimensionsSetByUser() {
+    @Override
+    public Boolean dimensionsSetByUser() {
         return this.dimensionsSetByUser;
     }
 
@@ -165,7 +166,7 @@ public class AzureAiStudioEmbeddingsServiceSettings extends AzureAiStudioService
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ML_INFERENCE_AZURE_AI_STUDIO;
+        return TransportVersions.V_8_15_0;
     }
 
     @Override

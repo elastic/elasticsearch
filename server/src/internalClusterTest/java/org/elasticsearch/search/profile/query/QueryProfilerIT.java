@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.profile.query;
@@ -67,7 +68,11 @@ public class QueryProfilerIT extends ESIntegTestCase {
                 prepareSearch().setQuery(q).setTrackTotalHits(true).setProfile(true).setSearchType(SearchType.QUERY_THEN_FETCH),
                 response -> {
                     assertNotNull("Profile response element should not be null", response.getProfileResults());
-                    assertThat("Profile response should not be an empty array", response.getProfileResults().size(), not(0));
+                    if (response.getSkippedShards() == response.getSuccessfulShards()) {
+                        assertEquals(0, response.getProfileResults().size());
+                    } else {
+                        assertThat("Profile response should not be an empty array", response.getProfileResults().size(), not(0));
+                    }
                     for (Map.Entry<String, SearchProfileShardResult> shard : response.getProfileResults().entrySet()) {
                         for (QueryProfileShardResult searchProfiles : shard.getValue().getQueryProfileResults()) {
                             for (ProfileResult result : searchProfiles.getQueryResults()) {
@@ -146,10 +151,10 @@ public class QueryProfilerIT extends ESIntegTestCase {
                 );
             }
 
-            if (vanillaResponse.getHits().getTotalHits().value != profileResponse.getHits().getTotalHits().value) {
+            if (vanillaResponse.getHits().getTotalHits().value() != profileResponse.getHits().getTotalHits().value()) {
                 Set<SearchHit> vanillaSet = new HashSet<>(Arrays.asList(vanillaResponse.getHits().getHits()));
                 Set<SearchHit> profileSet = new HashSet<>(Arrays.asList(profileResponse.getHits().getHits()));
-                if (vanillaResponse.getHits().getTotalHits().value > profileResponse.getHits().getTotalHits().value) {
+                if (vanillaResponse.getHits().getTotalHits().value() > profileResponse.getHits().getTotalHits().value()) {
                     vanillaSet.removeAll(profileSet);
                     fail("Vanilla hits were larger than profile hits.  Non-overlapping elements were: " + vanillaSet.toString());
                 } else {

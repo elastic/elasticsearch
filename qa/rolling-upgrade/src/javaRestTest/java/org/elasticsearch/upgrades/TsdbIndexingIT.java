@@ -60,7 +60,7 @@ public class TsdbIndexingIT extends AbstractRollingUpgradeTestCase {
 
             String firstBackingIndex = getWriteBackingIndex(client(), dataStreamName, 0);
             var settings = (Map<?, ?>) getIndexSettingsWithDefaults(firstBackingIndex).get(firstBackingIndex);
-            assertThat(((Map<?, ?>) settings.get("settings")).get("index.mode"), equalTo("logsdb"));
+            assertThat(((Map<?, ?>) settings.get("settings")).get("index.mode"), equalTo("time_series"));
             assertThat(((Map<?, ?>) settings.get("defaults")).get("index.mapping.source.mode"), equalTo("SYNTHETIC"));
 
             ensureGreen(dataStreamName);

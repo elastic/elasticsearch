@@ -1,12 +1,9 @@
 [[infer-service-elasticsearch]]
 === Elasticsearch {infer} service
 
-Creates an {infer} endpoint to perform an {infer} task with the `elasticsearch`
-service.
+Creates an {infer} endpoint to perform an {infer} task with the `elasticsearch` service.
 
-NOTE: If you use the E5 model through the `elasticsearch` service, the API
-request will automatically download and deploy the model if it isn't downloaded
-yet.
+NOTE: If you use the ELSER or the E5 model through the `elasticsearch` service, the API request will automatically download and deploy the model if it isn't downloaded yet.
 
 
 [discrete]
@@ -56,6 +53,11 @@ These settings are specific to the `elasticsearch` service.
 (Optional, object)
 include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=adaptive-allocation]
 
+`deployment_id`:::
+(Optional, string)
+The `deployment_id` of an existing trained model deployment.
+When `deployment_id` is used the `model_id` is optional.
+
 `enabled`::::
 (Optional, Boolean)
 include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=adaptive-allocation-enabled]
@@ -71,7 +73,7 @@ include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=adaptive-allocation-min-number]
 `model_id`:::
 (Required, string)
 The name of the model to use for the {infer} task.
-It can be the ID of either a built-in model (for example, `.multilingual-e5-small` for E5) or a text embedding model already
+It can be the ID of either a built-in model (for example, `.multilingual-e5-small` for E5), a text embedding model already
 {ml-docs}/ml-nlp-import-model.html#ml-nlp-import-script[uploaded through Eland].
 
 `num_allocations`:::
@@ -99,14 +101,43 @@ Returns the document instead of only the index. Defaults to `true`.
 
 
 [discrete]
+[[inference-example-elasticsearch-elser]]
+==== ELSER via the `elasticsearch` service
+
+The following example shows how to create an {infer} endpoint called `my-elser-model` to perform a `sparse_embedding` task type.
+
+The API request below will automatically download the ELSER model if it isn't already downloaded and then deploy the model.
+
+[source,console]
+------------------------------------------------------------
+PUT _inference/sparse_embedding/my-elser-model
+{
+  "service": "elasticsearch",
+  "service_settings": {
+    "adaptive_allocations": { <1>
+      "enabled": true,
+      "min_number_of_allocations": 1,
+      "max_number_of_allocations": 10
+    },
+    "num_threads": 1,
+    "model_id": ".elser_model_2" <2>
+  }
+}
+------------------------------------------------------------
+// TEST[skip:TBD]
+<1> Adaptive allocations will be enabled with the minimum of 1 and the maximum of 10 allocations.
+<2> The `model_id` must be the ID of one of the built-in ELSER models.
+Valid values are `.elser_model_2` and `.elser_model_2_linux-x86_64`.
+For further details, refer to the {ml-docs}/ml-nlp-elser.html[ELSER model documentation].
+
+
+[discrete]
 [[inference-example-elasticsearch]]
 ==== E5 via the `elasticsearch` service
 
-The following example shows how to create an {infer} endpoint called
-`my-e5-model` to perform a `text_embedding` task type.
+The following example shows how to create an {infer} endpoint called `my-e5-model` to perform a `text_embedding` task type.
 
-The API request below will automatically download the E5 model if it isn't
-already downloaded and then deploy the model.
+The API request below will automatically download the E5 model if it isn't already downloaded and then deploy the model.
 
 [source,console]
 ------------------------------------------------------------
@@ -185,3 +216,46 @@ PUT _inference/text_embedding/my-e5-model
 }
 ------------------------------------------------------------
 // TEST[skip:TBD]
+
+
+[discrete]
+[[inference-example-existing-deployment]]
+==== Using an existing model deployment with the `elasticsearch` service
+
+The following example shows how to use an already existing model deployment when creating an {infer} endpoint.
+
+[source,console]
+------------------------------------------------------------
+PUT _inference/sparse_embedding/use_existing_deployment
+{
+  "service": "elasticsearch",
+  "service_settings": {
+    "deployment_id": ".elser_model_2" <1>
+  }
+}
+------------------------------------------------------------
+// TEST[skip:TBD]
+<1> The `deployment_id` of the already existing model deployment.
+
+The API response contains the `model_id`, and the threads and allocations settings from the model deployment:
+
+[source,console-result]
+------------------------------------------------------------
+{
+  "inference_id": "use_existing_deployment",
+  "task_type": "sparse_embedding",
+  "service": "elasticsearch",
+  "service_settings": {
+    "num_allocations": 2,
+    "num_threads": 1,
+    "model_id": ".elser_model_2",
+    "deployment_id": ".elser_model_2"
+  },
+  "chunking_settings": {
+    "strategy": "sentence",
+    "max_chunk_size": 250,
+    "sentence_overlap": 1
+  }
+}
+------------------------------------------------------------
+// NOTCONSOLE

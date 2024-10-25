@@ -19,6 +19,7 @@ import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Locale;
@@ -35,6 +36,37 @@ public class CohereEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
         var truncation = randomBoolean() ? randomFrom(CohereTruncation.values()) : null;
 
         return new CohereEmbeddingsTaskSettings(inputType, truncation);
+    }
+
+    public void testIsEmpty() {
+        var randomSettings = createRandom();
+        var stringRep = Strings.toString(randomSettings);
+        assertEquals(stringRep, randomSettings.isEmpty(), stringRep.equals("{}"));
+    }
+
+    public void testUpdatedTaskSettings() {
+        var initialSettings = createRandom();
+        var newSettings = createRandom();
+        Map<String, Object> newSettingsMap = new HashMap<>();
+        if (newSettings.getInputType() != null) {
+            newSettingsMap.put(CohereEmbeddingsTaskSettings.INPUT_TYPE, newSettings.getInputType().toString());
+        }
+        if (newSettings.getTruncation() != null) {
+            newSettingsMap.put(CohereServiceFields.TRUNCATE, newSettings.getTruncation().toString());
+        }
+        CohereEmbeddingsTaskSettings updatedSettings = (CohereEmbeddingsTaskSettings) initialSettings.updatedTaskSettings(
+            Collections.unmodifiableMap(newSettingsMap)
+        );
+        if (newSettings.getInputType() == null) {
+            assertEquals(initialSettings.getInputType(), updatedSettings.getInputType());
+        } else {
+            assertEquals(newSettings.getInputType(), updatedSettings.getInputType());
+        }
+        if (newSettings.getTruncation() == null) {
+            assertEquals(initialSettings.getTruncation(), updatedSettings.getTruncation());
+        } else {
+            assertEquals(newSettings.getTruncation(), updatedSettings.getTruncation());
+        }
     }
 
     public void testFromMap_CreatesEmptySettings_WhenAllFieldsAreNull() {

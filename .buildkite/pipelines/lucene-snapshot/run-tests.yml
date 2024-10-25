@@ -7,7 +7,6 @@ steps:
       image: family/elasticsearch-ubuntu-2004
       machineType: custom-32-98304
       buildDirectory: /dev/shm/bk
-      diskSizeGb: 250
   - wait: null
   - label: part1
     command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed -Dscan.capture-task-input-files checkPart1
@@ -17,7 +16,6 @@ steps:
       image: family/elasticsearch-ubuntu-2004
       machineType: custom-32-98304
       buildDirectory: /dev/shm/bk
-      diskSizeGb: 250
   - label: part2
     command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed -Dscan.capture-task-input-files checkPart2
     timeout_in_minutes: 300
@@ -26,7 +24,6 @@ steps:
       image: family/elasticsearch-ubuntu-2004
       machineType: custom-32-98304
       buildDirectory: /dev/shm/bk
-      diskSizeGb: 250
   - label: part3
     command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed -Dscan.capture-task-input-files checkPart3
     timeout_in_minutes: 300
@@ -35,7 +32,6 @@ steps:
       image: family/elasticsearch-ubuntu-2004
       machineType: custom-32-98304
       buildDirectory: /dev/shm/bk
-      diskSizeGb: 250
   - label: part4
     command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed -Dscan.capture-task-input-files checkPart4
     timeout_in_minutes: 300
@@ -44,7 +40,6 @@ steps:
       image: family/elasticsearch-ubuntu-2004
       machineType: custom-32-98304
       buildDirectory: /dev/shm/bk
-      diskSizeGb: 250
   - label: part5
     command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed -Dscan.capture-task-input-files checkPart5
     timeout_in_minutes: 300
@@ -53,7 +48,6 @@ steps:
       image: family/elasticsearch-ubuntu-2004
       machineType: custom-32-98304
       buildDirectory: /dev/shm/bk
-      diskSizeGb: 250
   - group: bwc-snapshots
     steps:
       - label: "{{matrix.BWC_VERSION}} / bwc-snapshots"
@@ -62,7 +56,6 @@ steps:
         matrix:
           setup:
             BWC_VERSION:
-              - 7.17.13
               - 8.9.1
               - 8.10.0
         agents:
@@ -70,7 +63,6 @@ steps:
           image: family/elasticsearch-ubuntu-2004
           machineType: custom-32-98304
           buildDirectory: /dev/shm/bk
-          diskSizeGb: 250
         env:
           BWC_VERSION: "{{matrix.BWC_VERSION}}"
   - label: rest-compat
@@ -81,4 +73,3 @@ steps:
       image: family/elasticsearch-ubuntu-2004
       machineType: custom-32-98304
       buildDirectory: /dev/shm/bk
-      diskSizeGb: 250

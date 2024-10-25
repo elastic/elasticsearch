@@ -76,7 +76,7 @@ public class InternalStats extends InternalNumericMetricsAggregation.MultiValue 
     }
 
     private void verifyFormattingStats() {
-        if (format != DocValueFormat.RAW) {
+        if (format != DocValueFormat.RAW && count != 0) {
             verifyFormattingStat(Fields.MIN, format, min);
             verifyFormattingStat(Fields.MAX, format, max);
             verifyFormattingStat(Fields.AVG, format, getAvg());

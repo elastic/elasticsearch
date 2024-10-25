@@ -20,8 +20,12 @@ public final class SearchCapabilities {
 
     /** Support regex and range match rules in interval queries. */
     private static final String RANGE_REGEX_INTERVAL_QUERY_CAPABILITY = "range_regexp_interval_queries";
-
+    /** Support synthetic source with `bit` type in `dense_vector` field when `index` is set to `false`. */
+    private static final String BIT_DENSE_VECTOR_SYNTHETIC_SOURCE_CAPABILITY = "bit_dense_vector_synthetic_source";
     private static final String KNN_FILTER_ON_NESTED_FIELDS_CAPABILITY = "knn_filter_on_nested_fields";
-
-    public static final Set<String> CAPABILITIES = Set.of(RANGE_REGEX_INTERVAL_QUERY_CAPABILITY, KNN_FILTER_ON_NESTED_FIELDS_CAPABILITY);
+    public static final Set<String> CAPABILITIES = Set.of(
+        RANGE_REGEX_INTERVAL_QUERY_CAPABILITY,
+        BIT_DENSE_VECTOR_SYNTHETIC_SOURCE_CAPABILITY,
+        KNN_FILTER_ON_NESTED_FIELDS_CAPABILITY
+    );
 }

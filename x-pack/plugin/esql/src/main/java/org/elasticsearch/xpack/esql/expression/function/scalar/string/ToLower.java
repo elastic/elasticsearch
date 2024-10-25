@@ -29,7 +29,6 @@ import org.elasticsearch.xpack.esql.session.Configuration;
 import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
-import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
@@ -40,7 +39,7 @@ public class ToLower extends EsqlConfigurationFunction {
     private final Expression field;
 
     @FunctionInfo(
-        returnType = { "keyword", "text" },
+        returnType = { "keyword" },
         description = "Returns a new string representing the input string converted to lower case.",
         examples = @Example(file = "string", tag = "to_lower")
     )
@@ -73,7 +72,7 @@ public class ToLower extends EsqlConfigurationFunction {
 
     @Override
     public DataType dataType() {
-        return field.dataType();
+        return DataType.KEYWORD;
     }
 
     @Override
@@ -96,7 +95,7 @@ public class ToLower extends EsqlConfigurationFunction {
     }
 
     @Override
-    public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         var fieldEvaluator = toEvaluator.apply(field);
         return new ToLowerEvaluator.Factory(source(), fieldEvaluator, configuration().locale());
     }

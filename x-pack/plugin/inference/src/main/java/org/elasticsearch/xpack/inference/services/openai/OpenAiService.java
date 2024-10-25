@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.inference.services.validation.ModelValidatorBuild
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
@@ -167,7 +168,7 @@ public class OpenAiService extends SenderService {
         Map<String, Object> secrets
     ) {
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
-        Map<String, Object> taskSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.TASK_SETTINGS);
+        Map<String, Object> taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
         Map<String, Object> secretSettingsMap = removeFromMapOrDefaultEmpty(secrets, ModelSecrets.SECRET_SETTINGS);
 
         ChunkingSettings chunkingSettings = null;
@@ -311,7 +312,12 @@ public class OpenAiService extends SenderService {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ML_INFERENCE_RATE_LIMIT_SETTINGS_ADDED;
+        return TransportVersions.V_8_15_0;
+    }
+
+    @Override
+    public Set<TaskType> supportedStreamingTasks() {
+        return COMPLETION_ONLY;
     }
 
     /**

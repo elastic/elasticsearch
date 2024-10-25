@@ -17,7 +17,7 @@ pluginManagement {
 }
 
 plugins {
-  id "com.gradle.develocity" version "3.17.4"
+  id "com.gradle.develocity" version "3.18.1"
   id 'elasticsearch.java-toolchain'
 }
 
@@ -63,8 +63,6 @@ List projects = [
   'distribution:archives:linux-aarch64-tar',
   'distribution:archives:linux-tar',
   'distribution:docker',
-  'distribution:docker:cloud-docker-export',
-  'distribution:docker:cloud-docker-aarch64-export',
   'distribution:docker:cloud-ess-docker-export',
   'distribution:docker:cloud-ess-docker-aarch64-export',
   'distribution:docker:docker-aarch64-export',
@@ -92,6 +90,9 @@ List projects = [
   'distribution:tools:geoip-cli',
   'distribution:tools:ansi-console',
   'distribution:tools:entitlement-agent',
+  'distribution:tools:entitlement-agent:impl',
+  'distribution:tools:entitlement-bridge',
+  'distribution:tools:entitlement-runtime',
   'server',
   'test:framework',
   'test:fixtures:azure-fixture',

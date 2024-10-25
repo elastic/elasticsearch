@@ -15,7 +15,7 @@ import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.core.TimeValue;
 
 public abstract class NodesOperationRequestBuilder<
-    Request extends BaseNodesRequest<Request>,
+    Request extends BaseNodesRequest,
     Response extends BaseNodesResponse<?>,
     RequestBuilder extends NodesOperationRequestBuilder<Request, Response, RequestBuilder>> extends ActionRequestBuilder<
         Request,
@@ -27,7 +27,7 @@ public abstract class NodesOperationRequestBuilder<
 
     @SuppressWarnings("unchecked")
     public RequestBuilder setTimeout(TimeValue timeout) {
-        request.timeout(timeout);
+        request.setTimeout(timeout);
         return (RequestBuilder) this;
     }
 

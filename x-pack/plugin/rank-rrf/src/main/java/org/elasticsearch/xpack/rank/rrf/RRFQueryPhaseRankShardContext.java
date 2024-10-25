@@ -48,7 +48,7 @@ public class RRFQueryPhaseRankShardContext extends QueryPhaseRankShardContext {
                 final int frank = rank;
                 docsToRankResults.compute(scoreDoc.doc, (key, value) -> {
                     if (value == null) {
-                        value = new RRFRankDoc(scoreDoc.doc, scoreDoc.shardIndex, queries);
+                        value = new RRFRankDoc(scoreDoc.doc, scoreDoc.shardIndex, queries, rankConstant);
                     }
 
                     // calculate the current rrf score for this document
@@ -99,5 +99,9 @@ public class RRFQueryPhaseRankShardContext extends QueryPhaseRankShardContext {
             topResults[rank].score = Float.NaN;
         }
         return new RRFRankShardResult(rankResults.size(), topResults);
+    }
+
+    public int rankConstant() {
+        return rankConstant;
     }
 }

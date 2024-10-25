@@ -1,7 +1,71 @@
 ---
+object param - store complex object:
+  - requires:
+      cluster_features: ["mapper.synthetic_source_keep", "mapper.bwc_workaround_9_0"]
+      reason: requires tracking ignored source
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              id:
+                type: integer
+              stored:
+                synthetic_source_keep: all
+                properties:
+                  object_array:
+                    properties:
+                      trace:
+                        type: keyword
+                  nested:
+                    type: nested
+                  kw:
+                    type: keyword
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "create": { } }'
+          - '{ "id": 1, "stored": { "object_array": [ {"trace": "B"}, {"trace": "A"} ], "nested": [ {"foo": 20}, {"foo": 10} ], "kw": 100 } }'
+          - '{ "create": { } }'
+          - '{ "id": 2, "stored": { "object_array": { "trace": ["D", "C"] }, "nested": { "bar": [ 40, 30] }, "kw": 200, "baz": "2000" } }'
+          - '{ "create": { } }'
+          - '{ "id": 3, "stored": [ { "object_array": { "trace": "E" } }, { "nested": { "bar": [ 60, 50] } }, { "kw": 300 } ] }'
+
+  - do:
+      search:
+        index: test
+        sort: id
+
+  - match: { hits.hits.0._source.id: 1 }
+  - match: { hits.hits.0._source.stored.object_array.0.trace: B }
+  - match: { hits.hits.0._source.stored.object_array.1.trace: A }
+  - match: { hits.hits.0._source.stored.nested.0.foo: 20 }
+  - match: { hits.hits.0._source.stored.nested.1.foo: 10 }
+  - match: { hits.hits.0._source.stored.kw: 100 }
+
+  - match: { hits.hits.1._source.id: 2 }
+  - match: { hits.hits.1._source.stored.object_array.trace: [D, C] }
+  - match: { hits.hits.1._source.stored.nested.bar: [40, 30] }
+  - match: { hits.hits.1._source.stored.kw: 200 }
+  - match: { hits.hits.1._source.stored.baz: "2000" }
+
+  - match: { hits.hits.2._source.id: 3 }
+  - match: { hits.hits.2._source.stored.0.object_array.trace: E }
+  - match: { hits.hits.2._source.stored.1.nested.bar: [ 60, 50 ] }
+  - match: { hits.hits.2._source.stored.2.kw: 300 }
+
+
+---
 object param - object array:
   - requires:
-      cluster_features: ["mapper.track_ignored_source"]
+      cluster_features: ["mapper.synthetic_source_keep", "mapper.bwc_workaround_9_0"]
       reason: requires tracking ignored source
 
   - do:
@@ -25,7 +89,7 @@ object param - object array:
                       id:
                         type: keyword
               stored:
-                store_array_source: true
+                synthetic_source_keep: arrays
                 properties:
                   span:
                     properties:
@@ -65,7 +129,7 @@ object param - object array:
 ---
 object param - object array within array:
   - requires:
-      cluster_features: ["mapper.track_ignored_source"]
+      cluster_features: ["mapper.synthetic_source_keep", "mapper.bwc_workaround_9_0"]
       reason: requires tracking ignored source
 
   - do:
@@ -77,10 +141,10 @@ object param - object array within array:
               mode: synthetic
             properties:
               stored:
-                store_array_source: true
+                synthetic_source_keep: arrays
                 properties:
                   path:
-                    store_array_source: true
+                    synthetic_source_keep: arrays
                     properties:
                       to:
                         properties:
@@ -108,7 +172,7 @@ object param - object array within array:
 ---
 object param - no object array:
   - requires:
-      cluster_features: ["mapper.track_ignored_source"]
+      cluster_features: ["mapper.synthetic_source_keep", "mapper.bwc_workaround_9_0"]
       reason: requires tracking ignored source
 
   - do:
@@ -120,7 +184,7 @@ object param - no object array:
               mode: synthetic
             properties:
               stored:
-                store_array_source: true
+                synthetic_source_keep: arrays
                 properties:
                   span:
                     properties:
@@ -150,7 +214,7 @@ object param - no object array:
 ---
 object param - field ordering in object array:
   - requires:
-      cluster_features: ["mapper.track_ignored_source"]
+      cluster_features: ["mapper.synthetic_source_keep", "mapper.bwc_workaround_9_0"]
       reason: requires tracking ignored source
 
   - do:
@@ -164,7 +228,7 @@ object param - field ordering in object array:
               a:
                 type: keyword
               b:
-                store_array_source: true
+                synthetic_source_keep: arrays
                 properties:
                   aa:
                     type: keyword
@@ -173,7 +237,7 @@ object param - field ordering in object array:
               c:
                 type: keyword
               d:
-                store_array_source: true
+                synthetic_source_keep: arrays
                 properties:
                   aa:
                     type: keyword
@@ -199,7 +263,7 @@ object param - field ordering in object array:
 ---
 object param - nested object array next to other fields:
   - requires:
-      cluster_features: ["mapper.track_ignored_source"]
+      cluster_features: ["mapper.synthetic_source_keep", "mapper.bwc_workaround_9_0"]
       reason: requires tracking ignored source
 
   - do:
@@ -215,7 +279,7 @@ object param - nested object array next to other fields:
               b:
                 properties:
                   c:
-                    store_array_source: true
+                    synthetic_source_keep: arrays
                     properties:
                       aa:
                         type: keyword
@@ -255,8 +319,8 @@ object param - nested object array next to other fields:
 ---
 object param - nested object with stored array:
   - requires:
-      cluster_features: ["mapper.track_ignored_source"]
-      reason: requires tracking ignored source
+      cluster_features: ["mapper.ignored_source.always_store_object_arrays_in_nested", "mapper.bwc_workaround_9_0"]
+      reason: requires fix to object array handling
 
   - do:
       indices.create:
@@ -272,7 +336,7 @@ object param - nested object with stored array:
                 type: nested
               nested_array_stored:
                 type: nested
-                store_array_source: true
+                synthetic_source_keep: all
 
   - do:
       bulk:
@@ -292,8 +356,11 @@ object param - nested object with stored array:
         sort: name
   - match:  { hits.total.value: 2 }
   - match:  { hits.hits.0._source.name: A }
-  - match: { hits.hits.0._source.nested_array_regular.0.b.c: [ 10, 100] }
-  - match: { hits.hits.0._source.nested_array_regular.1.b.c: [ 20, 200] }
+    # due to a workaround for #115261
+  - match: { hits.hits.0._source.nested_array_regular.0.b.0.c: 10 }
+  - match: { hits.hits.0._source.nested_array_regular.0.b.1.c: 100 }
+  - match: { hits.hits.0._source.nested_array_regular.1.b.0.c: 20 }
+  - match: { hits.hits.0._source.nested_array_regular.1.b.1.c: 200 }
   - match: { hits.hits.1._source.name: B }
   - match: { hits.hits.1._source.nested_array_stored.0.b.0.c: 10 }
   - match: { hits.hits.1._source.nested_array_stored.0.b.1.c: 100 }
@@ -304,7 +371,7 @@ object param - nested object with stored array:
 ---
 index param - nested array within array:
   - requires:
-      cluster_features: ["mapper.synthetic_source_keep"]
+      cluster_features: ["mapper.synthetic_source_keep", "mapper.bwc_workaround_9_0"]
       reason: requires tracking ignored source
 
   - do:
@@ -322,7 +389,7 @@ index param - nested array within array:
                   to:
                     properties:
                       some:
-                        store_array_source: true
+                        synthetic_source_keep: arrays
                         properties:
                           id:
                             type: integer
@@ -348,10 +415,59 @@ index param - nested array within array:
 
 
 ---
+index param - nested array within array - disabled second pass:
+  - requires:
+      cluster_features: ["mapper.synthetic_source_keep", "mapper.bwc_workaround_9_0"]
+      reason: requires tracking ignored source
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              synthetic_source:
+                enable_second_doc_parsing_pass: false
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              name:
+                type: keyword
+              path:
+                properties:
+                  to:
+                    properties:
+                      some:
+                        synthetic_source_keep: arrays
+                        properties:
+                          id:
+                            type: integer
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "create": { } }'
+          - '{ "name": "A", "path": [ { "to": [ { "some" : [ { "id": 10 }, { "id": [1, 3, 2] } ] }, { "some": { "id": 100 } } ] }, { "to": { "some": { "id": [1000, 2000] } } } ] }'
+  - match: { errors: false }
+
+  - do:
+      search:
+        index: test
+        sort: name
+  - match:  { hits.hits.0._source.name: A }
+  - length: { hits.hits.0._source.path.to.some: 2}
+  - match: { hits.hits.0._source.path.to.some.0.id: 10 }
+  - match: { hits.hits.0._source.path.to.some.1.id: [ 1, 3, 2] }
+
+
+---
 # 112156
 stored field under object with store_array_source:
   - requires:
-      cluster_features: ["mapper.source.synthetic_source_stored_fields_advance_fix"]
+      cluster_features: ["mapper.source.synthetic_source_stored_fields_advance_fix", "mapper.bwc_workaround_9_0"]
       reason: requires bug fix to be implemented
 
   - do:
@@ -369,7 +485,7 @@ stored field under object with store_array_source:
               name:
                 type: keyword
               obj:
-                store_array_source: true
+                synthetic_source_keep: arrays
                 properties:
                   foo:
                     type: keyword
@@ -740,7 +856,7 @@ field param - nested array within array:
 ---
 index param - root arrays:
   - requires:
-      cluster_features: ["mapper.synthetic_source_keep"]
+      cluster_features: ["mapper.synthetic_source_keep", "mapper.bwc_workaround_9_0"]
       reason: requires keeping array source
 
   - do:
@@ -772,6 +888,9 @@ index param - root arrays:
                     properties:
                       id:
                         type: keyword
+              obj_default:
+                type: object
+                synthetic_source_keep: none
 
   - do:
       bulk:
@@ -782,6 +901,8 @@ index param - root arrays:
           - '{  "id": 1, "leaf": [30, 20, 10], "leaf_default": [30, 20, 10], "obj": [ { "trace": { "id": "a" }, "span": { "id": "1" } }, { "trace": { "id": "b" }, "span": { "id": "1" } } ] }'
           - '{ "create": { } }'
           - '{  "id": 2, "leaf": [130, 120, 110], "leaf_default": [130, 120, 110], "obj": [ { "trace": { "id": "aa" }, "span": { "id": "2" } }, { "trace": { "id": "bb" }, "span": { "id": "2" } } ] }'
+          - '{ "create": { } }'
+          - '{  "id": 3, "obj_default": [ { "trace": { "id": "bb" }, "span": { "id": "2" } }, { "trace": { "id": "aa" }, "span": { "id": "2" } } ] }'
 
   - do:
       search:
@@ -799,12 +920,16 @@ index param - root arrays:
 
   - match: { hits.hits.1._source.id: 2 }
   - match: { hits.hits.1._source.leaf: [ 130, 120, 110 ] }
-  - match: { hits.hits.0._source.leaf_default: [10, 20, 30]  }
+  - match: { hits.hits.1._source.leaf_default: [110, 120, 130]  }
   - length: { hits.hits.1._source.obj: 2 }
   - match: { hits.hits.1._source.obj.0.trace.id: aa }
   - match: { hits.hits.1._source.obj.0.span.id: "2" }
   - match: { hits.hits.1._source.obj.1.trace.id: bb }
   - match: { hits.hits.1._source.obj.1.span.id: "2" }
+
+  - match: { hits.hits.2._source.id: 3 }
+  - match: { hits.hits.2._source.obj_default.trace.id: [aa, bb] }
+  - match: { hits.hits.2._source.obj_default.span.id: "2" }
 
 
 ---

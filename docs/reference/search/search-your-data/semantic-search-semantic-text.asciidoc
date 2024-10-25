@@ -21,45 +21,11 @@ This tutorial uses the <<inference-example-elser,`elser` service>> for demonstra
 [[semantic-text-requirements]]
 ==== Requirements
 
-To use the `semantic_text` field type, you must have an {infer} endpoint deployed in
-your cluster using the <<put-inference-api>>.
+This tutorial uses the <<infer-service-elser,ELSER service>> for demonstration, which is created automatically as needed. 
+To use the `semantic_text` field type with an {infer} service other than ELSER, you must create an inference endpoint using the <<put-inference-api>>.
 
-[discrete]
-[[semantic-text-infer-endpoint]]
-==== Create the {infer} endpoint
+NOTE: In Serverless, you must create an {infer} endpoint using the <<put-inference-api>> and reference it when setting up `semantic_text` even if you use the ELSER service. 
 
-Create an inference endpoint by using the <<put-inference-api>>:
-
-[source,console]
-------------------------------------------------------------
-PUT _inference/sparse_embedding/my-elser-endpoint <1>
-{
-  "service": "elser", <2>
-  "service_settings": {
-    "adaptive_allocations": { <3>
-      "enabled": true,
-      "min_number_of_allocations": 3,
-      "max_number_of_allocations": 10
-    },
-    "num_threads": 1
-  }
-}
-------------------------------------------------------------
-// TEST[skip:TBD]
-<1> The task type is `sparse_embedding` in the path as the `elser` service will
-be used and ELSER creates sparse vectors. The `inference_id` is
-`my-elser-endpoint`.
-<2> The `elser` service is used in this example.
-<3> This setting enables and configures {ml-docs}/ml-nlp-elser.html#elser-adaptive-allocations[adaptive allocations].
-Adaptive allocations make it possible for ELSER to automatically scale up or down resources based on the current load on the process.
-
-[NOTE]
-====
-You might see a 502 bad gateway error in the response when using the {kib} Console.
-This error usually just reflects a timeout, while the model downloads in the background.
-You can check the download progress in the {ml-app} UI.
-If using the Python client, you can set the `timeout` parameter to a higher value.
-====
 
 [discrete]
 [[semantic-text-index-mapping]]
@@ -75,8 +41,7 @@ PUT semantic-embeddings
   "mappings": {
     "properties": {
       "content": { <1>
-        "type": "semantic_text", <2>
-        "inference_id": "my-elser-endpoint" <3>
+        "type": "semantic_text" <2>
       }
     }
   }
@@ -85,9 +50,15 @@ PUT semantic-embeddings
 // TEST[skip:TBD]
 <1> The name of the field to contain the generated embeddings.
 <2> The field to contain the embeddings is a `semantic_text` field.
-<3> The `inference_id` is the inference endpoint you created in the previous step.
-It will be used to generate the embeddings based on the input text.
-Every time you ingest data into the related `semantic_text` field, this endpoint will be used for creating the vector representation of the text.
+Since no `inference_id` is provided, the <<infer-service-elser,ELSER service>> is used by default.
+To use a different {infer} service, you must create an {infer} endpoint first using the <<put-inference-api>> and then specify it in the `semantic_text` field mapping using the `inference_id` parameter.
+
+[NOTE]
+====
+If you're using web crawlers or connectors to generate indices, you have to <<indices-put-mapping,update the index mappings>> for these indices to include the `semantic_text` field.
+Once the mapping is updated, you'll need to run a full web crawl or a full connector sync.
+This ensures that all existing documents are reprocessed and updated with the new semantic embeddings, enabling semantic search on the updated data.
+====
 
 
 [discrete]
@@ -117,6 +88,13 @@ After the upload is complete, you will see an index named `test-data` with 182,4
 Create the embeddings from the text by reindexing the data from the `test-data` index to the `semantic-embeddings` index.
 The data in the `content` field will be reindexed into the `content` semantic text field of the destination index.
 The reindexed data will be processed by the {infer} endpoint associated with the `content` semantic text field.
+
+[NOTE]
+====
+This step uses the reindex API to simulate data ingestion. If you are working with data that has already been indexed,
+rather than using the test-data set, reindexing is required to ensure that the data is processed by the {infer} endpoint
+and the necessary embeddings are generated.
+====
 
 [source,console]
 ------------------------------------------------------------
@@ -267,6 +245,8 @@ query from the `semantic-embedding` index:
 
 [discrete]
 [[semantic-text-further-examples]]
-==== Further examples
+==== Further examples and reading
 
-If you want to use `semantic_text` in hybrid search, refer to https://colab.research.google.com/github/elastic/elasticsearch-labs/blob/main/notebooks/search/09-semantic-text.ipynb[this notebook] for a step-by-step guide.
+* If you want to use `semantic_text` in hybrid search, refer to https://colab.research.google.com/github/elastic/elasticsearch-labs/blob/main/notebooks/search/09-semantic-text.ipynb[this notebook] for a step-by-step guide.
+* For more information on how to optimize your ELSER endpoints, refer to {ml-docs}/ml-nlp-elser.html#elser-recommendations[the ELSER recommendations] section in the model documentation.
+* To learn more about model autoscaling, refer to the {ml-docs}/ml-nlp-auto-scale.html[trained model autoscaling] page.

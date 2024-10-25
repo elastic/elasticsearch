@@ -1,0 +1,5 @@
+pr: 113910
+summary: Do not expand dots when storing objects in ignored source
+area: Logs
+type: bug
+issues: []

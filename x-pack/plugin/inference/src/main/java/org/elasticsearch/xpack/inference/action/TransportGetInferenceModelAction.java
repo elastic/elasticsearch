@@ -9,14 +9,15 @@ package org.elasticsearch.xpack.inference.action;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.inference.InferenceServiceRegistry;
-import org.elasticsearch.inference.ModelConfigurations;
+import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
@@ -28,8 +29,11 @@ import org.elasticsearch.xpack.inference.common.InferenceExceptions;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.concurrent.Executor;
+import java.util.stream.Collectors;
 
 public class TransportGetInferenceModelAction extends HandledTransportAction<
     GetInferenceModelAction.Request,
@@ -68,7 +72,7 @@ public class TransportGetInferenceModelAction extends HandledTransportAction<
         boolean inferenceEntityIdIsWildCard = Strings.isAllOrWildcard(request.getInferenceEntityId());
 
         if (request.getTaskType() == TaskType.ANY && inferenceEntityIdIsWildCard) {
-            getAllModels(listener);
+            getAllModels(request.isPersistDefaultConfig(), listener);
         } else if (inferenceEntityIdIsWildCard) {
             getModelsByTaskType(request.getTaskType(), listener);
         } else {
@@ -95,38 +99,77 @@ public class TransportGetInferenceModelAction extends HandledTransportAction<
 
             var model = service.get()
                 .parsePersistedConfig(unparsedModel.inferenceEntityId(), unparsedModel.taskType(), unparsedModel.settings());
-            delegate.onResponse(new GetInferenceModelAction.Response(List.of(model.getConfigurations())));
+
+            service.get()
+                .updateModelsWithDynamicFields(
+                    List.of(model),
+                    delegate.delegateFailureAndWrap(
+                        (l2, updatedModels) -> l2.onResponse(
+                            new GetInferenceModelAction.Response(
+                                updatedModels.stream().map(Model::getConfigurations).collect(Collectors.toList())
+                            )
+                        )
+                    )
+                );
         }));
     }
 
-    private void getAllModels(ActionListener<GetInferenceModelAction.Response> listener) {
+    private void getAllModels(boolean persistDefaultEndpoints, ActionListener<GetInferenceModelAction.Response> listener) {
         modelRegistry.getAllModels(
-            listener.delegateFailureAndWrap((l, models) -> executor.execute(ActionRunnable.supply(l, () -> parseModels(models))))
+            persistDefaultEndpoints,
+            listener.delegateFailureAndWrap((l, models) -> executor.execute(() -> parseModels(models, listener)))
         );
     }
 
     private void getModelsByTaskType(TaskType taskType, ActionListener<GetInferenceModelAction.Response> listener) {
         modelRegistry.getModelsByTaskType(
             taskType,
-            listener.delegateFailureAndWrap((l, models) -> executor.execute(ActionRunnable.supply(l, () -> parseModels(models))))
+            listener.delegateFailureAndWrap((l, models) -> executor.execute(() -> parseModels(models, listener)))
         );
     }
 
-    private GetInferenceModelAction.Response parseModels(List<ModelRegistry.UnparsedModel> unparsedModels) {
-        var parsedModels = new ArrayList<ModelConfigurations>();
-
-        for (var unparsedModel : unparsedModels) {
-            var service = serviceRegistry.getService(unparsedModel.service());
-            if (service.isEmpty()) {
-                throw serviceNotFoundException(unparsedModel.service(), unparsedModel.inferenceEntityId());
-            }
-            parsedModels.add(
-                service.get()
-                    .parsePersistedConfig(unparsedModel.inferenceEntityId(), unparsedModel.taskType(), unparsedModel.settings())
-                    .getConfigurations()
-            );
+    private void parseModels(List<UnparsedModel> unparsedModels, ActionListener<GetInferenceModelAction.Response> listener) {
+        if (unparsedModels.isEmpty()) {
+            listener.onResponse(new GetInferenceModelAction.Response(List.of()));
+            return;
         }
-        return new GetInferenceModelAction.Response(parsedModels);
+
+        var parsedModelsByService = new HashMap<String, List<Model>>();
+        try {
+            for (var unparsedModel : unparsedModels) {
+                var service = serviceRegistry.getService(unparsedModel.service());
+                if (service.isEmpty()) {
+                    throw serviceNotFoundException(unparsedModel.service(), unparsedModel.inferenceEntityId());
+                }
+                var list = parsedModelsByService.computeIfAbsent(service.get().name(), s -> new ArrayList<>());
+                list.add(
+                    service.get()
+                        .parsePersistedConfig(unparsedModel.inferenceEntityId(), unparsedModel.taskType(), unparsedModel.settings())
+                );
+            }
+
+            var groupedListener = new GroupedActionListener<List<Model>>(
+                parsedModelsByService.entrySet().size(),
+                listener.delegateFailureAndWrap((delegate, listOfListOfModels) -> {
+                    var modifiable = new ArrayList<Model>();
+                    for (var l : listOfListOfModels) {
+                        modifiable.addAll(l);
+                    }
+                    modifiable.sort(Comparator.comparing(Model::getInferenceEntityId));
+                    delegate.onResponse(
+                        new GetInferenceModelAction.Response(modifiable.stream().map(Model::getConfigurations).collect(Collectors.toList()))
+                    );
+                })
+            );
+
+            for (var entry : parsedModelsByService.entrySet()) {
+                serviceRegistry.getService(entry.getKey())
+                    .get()  // must be non-null to get this far
+                    .updateModelsWithDynamicFields(entry.getValue(), groupedListener);
+            }
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
     }
 
     private ElasticsearchStatusException serviceNotFoundException(String service, String inferenceId) {

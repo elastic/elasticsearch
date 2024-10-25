@@ -86,8 +86,11 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
 
     private final AtomicInteger recoveryMonitorBlocks = new AtomicInteger();
 
-    @Nullable // if we're not downloading files from snapshots in this recovery or we're retrying
+    @Nullable // if we're not downloading files from snapshots in this recovery
     private volatile Releasable snapshotFileDownloadsPermit;
+
+    // placeholder for snapshotFileDownloadsPermit for use when this RecoveryTarget has been replaced by a new one due to a retry
+    private static final Releasable SNAPSHOT_FILE_DOWNLOADS_PERMIT_PLACEHOLDER_FOR_RETRY = Releasables.wrap();
 
     // latch that can be used to blockingly wait for RecoveryTarget to be closed
     private final CountDownLatch closedLatch = new CountDownLatch(1);
@@ -153,7 +156,9 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
         // If we're retrying we should remove the reference from this instance as the underlying resources
         // get released after the retry copy is created
         Releasable snapshotFileDownloadsPermitCopy = snapshotFileDownloadsPermit;
-        snapshotFileDownloadsPermit = null;
+        if (snapshotFileDownloadsPermitCopy != null) {
+            snapshotFileDownloadsPermit = SNAPSHOT_FILE_DOWNLOADS_PERMIT_PLACEHOLDER_FOR_RETRY;
+        }
         return new RecoveryTarget(
             indexShard,
             sourceNode,
@@ -585,6 +590,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
         BlobStoreIndexShardSnapshot.FileInfo fileInfo,
         ActionListener<Void> listener
     ) {
+        assert hasReferences();
         assert hasPermitToDownloadSnapshotFiles();
 
         try (

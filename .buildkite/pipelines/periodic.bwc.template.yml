@@ -7,7 +7,6 @@
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
           preemptible: true
-          diskSizeGb: 250
         env:
           BWC_VERSION: $BWC_VERSION
         retry:

@@ -44,7 +44,6 @@ import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.coordination.MasterHistoryService;
 import org.elasticsearch.cluster.coordination.StableMasterHealthIndicatorService;
 import org.elasticsearch.cluster.features.NodeFeaturesFixupListener;
-import org.elasticsearch.cluster.metadata.DataStreamFactoryRetention;
 import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionSettings;
 import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -81,6 +80,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
@@ -109,6 +109,7 @@ import org.elasticsearch.health.node.tracker.HealthTracker;
 import org.elasticsearch.health.node.tracker.RepositoriesHealthTracker;
 import org.elasticsearch.health.stats.HealthApiStats;
 import org.elasticsearch.http.HttpServerTransport;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.index.IndexingPressure;
@@ -269,7 +270,14 @@ class NodeConstruction {
             constructor.loadLoggingDataProviders();
             TelemetryProvider telemetryProvider = constructor.createTelemetryProvider(settings);
             ThreadPool threadPool = constructor.createThreadPool(settings, telemetryProvider.getMeterRegistry());
-            SettingsModule settingsModule = constructor.validateSettings(initialEnvironment.settings(), settings, threadPool);
+
+            final SettingsModule settingsModule;
+            try (var ignored = threadPool.getThreadContext().newStoredContext()) {
+                // If any deprecated settings are in use then we add warnings to the thread context response headers, but we're not
+                // computing a response here so these headers aren't relevant and eventually just get dropped after possibly leaking into
+                // places they shouldn't. Best to explicitly drop them now to protect against such leakage.
+                settingsModule = constructor.validateSettings(initialEnvironment.settings(), settings, threadPool);
+            }
 
             SearchModule searchModule = constructor.createSearchModule(settingsModule.getSettings(), threadPool, telemetryProvider);
             constructor.createClientAndRegistries(settingsModule.getSettings(), threadPool, searchModule);
@@ -409,8 +417,8 @@ class NodeConstruction {
             Constants.OS_ARCH,
             Constants.JVM_VENDOR,
             Constants.JVM_NAME,
-            Constants.JAVA_VERSION,
-            Constants.JVM_VERSION
+            System.getProperty("java.version"),
+            Runtime.version().toString()
         );
         logger.info("JVM home [{}], using bundled JDK [{}]", System.getProperty("java.home"), jvmInfo.getUsingBundledJdk());
         logger.info("JVM arguments {}", Arrays.toString(jvmInfo.getInputArguments()));
@@ -621,8 +629,7 @@ class NodeConstruction {
         MetadataCreateIndexService metadataCreateIndexService
     ) {
         DataStreamGlobalRetentionSettings dataStreamGlobalRetentionSettings = DataStreamGlobalRetentionSettings.create(
-            clusterService.getClusterSettings(),
-            DataStreamFactoryRetention.load(pluginsService, clusterService.getClusterSettings())
+            clusterService.getClusterSettings()
         );
         modules.bindToInstance(DataStreamGlobalRetentionSettings.class, dataStreamGlobalRetentionSettings);
         modules.bindToInstance(
@@ -815,7 +822,10 @@ class NodeConstruction {
 
         final var parameters = new IndexSettingProvider.Parameters(indicesService::createIndexMapperServiceForValidation);
         IndexSettingProviders indexSettingProviders = new IndexSettingProviders(
-            pluginsService.flatMap(p -> p.getAdditionalIndexSettingProviders(parameters)).collect(Collectors.toSet())
+            Sets.union(
+                builtinIndexSettingProviders(),
+                pluginsService.flatMap(p -> p.getAdditionalIndexSettingProviders(parameters)).collect(Collectors.toSet())
+            )
         );
 
         final ShardLimitValidator shardLimitValidator = new ShardLimitValidator(settings, clusterService);
@@ -1094,6 +1104,8 @@ class NodeConstruction {
             telemetryProvider.getTracer()
         );
 
+        final ShutdownPrepareService shutdownPrepareService = new ShutdownPrepareService(settings, httpServerTransport, terminationHandler);
+
         modules.add(
             loadPersistentTasksService(
                 settingsModule,
@@ -1195,6 +1207,7 @@ class NodeConstruction {
             b.bind(CompatibilityVersions.class).toInstance(compatibilityVersions);
             b.bind(DataStreamAutoShardingService.class).toInstance(dataStreamAutoShardingService);
             b.bind(FailureStoreMetrics.class).toInstance(failureStoreMetrics);
+            b.bind(ShutdownPrepareService.class).toInstance(shutdownPrepareService);
         });
 
         if (ReadinessService.enabled(environment)) {
@@ -1648,4 +1661,7 @@ class NodeConstruction {
         };
     }
 
+    private Set<IndexSettingProvider> builtinIndexSettingProviders() {
+        return Set.of(new IndexMode.IndexModeSettingsProvider());
+    }
 }

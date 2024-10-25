@@ -25,7 +25,6 @@ import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -34,7 +33,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
-import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -234,11 +232,7 @@ public class ServerSentEventsRestActionListenerTests extends ESIntegTestCase {
         @Override
         public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
             var randomString = randomUnicodeOfLengthBetween(2, 20);
-            return Iterators.concat(
-                ChunkedToXContentHelper.startObject(),
-                ChunkedToXContentHelper.field("delta", randomString),
-                ChunkedToXContentHelper.endObject()
-            );
+            return ChunkedToXContent.builder(params).object(b -> b.field("delta", randomString));
         }
     }
 
@@ -271,7 +265,7 @@ public class ServerSentEventsRestActionListenerTests extends ESIntegTestCase {
 
         @Override
         public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-            return ChunkedToXContentHelper.field("result", randomUnicodeOfLengthBetween(2, 20));
+            return ChunkedToXContent.builder(params).field("result", randomUnicodeOfLengthBetween(2, 20));
         }
     }
 

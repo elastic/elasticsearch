@@ -120,7 +120,7 @@ public final class LuceneSliceQueue {
     }
 
     static List<List<PartialLeafReaderContext>> segmentSlices(List<LeafReaderContext> leafContexts) {
-        IndexSearcher.LeafSlice[] gs = IndexSearcher.slices(leafContexts, MAX_DOCS_PER_SLICE, MAX_SEGMENTS_PER_SLICE);
-        return Arrays.stream(gs).map(g -> Arrays.stream(g.leaves).map(PartialLeafReaderContext::new).toList()).toList();
+        IndexSearcher.LeafSlice[] gs = IndexSearcher.slices(leafContexts, MAX_DOCS_PER_SLICE, MAX_SEGMENTS_PER_SLICE, false);
+        return Arrays.stream(gs).map(g -> Arrays.stream(g.partitions).map(PartialLeafReaderContext::new).toList()).toList();
     }
 }

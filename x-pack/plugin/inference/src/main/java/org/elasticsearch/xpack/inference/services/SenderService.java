@@ -17,6 +17,7 @@ import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
@@ -27,8 +28,10 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 public abstract class SenderService implements InferenceService {
+    protected static final Set<TaskType> COMPLETION_ONLY = Set.of(TaskType.COMPLETION);
     private final Sender sender;
     private final ServiceComponents serviceComponents;
 

@@ -16,7 +16,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TopDocs;
-import org.apache.lucene.search.TopFieldCollector;
+import org.apache.lucene.search.TopDocsCollector;
 import org.apache.lucene.search.TopFieldCollectorManager;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -176,7 +176,7 @@ public class LuceneTopNSourceOperator extends LuceneOperator {
             assert isEmitting() == false : "offset=" + offset + " score_docs=" + Arrays.toString(scoreDocs);
             offset = 0;
             if (perShardCollector != null) {
-                scoreDocs = perShardCollector.getTopDocs().scoreDocs;
+                scoreDocs = perShardCollector.collector.topDocs().scoreDocs;
             } else {
                 scoreDocs = new ScoreDoc[0];
             }
@@ -248,7 +248,7 @@ public class LuceneTopNSourceOperator extends LuceneOperator {
 
     static class PerShardCollector {
         protected ShardContext shardContext;
-        protected TopFieldCollector collector;
+        protected TopDocsCollector<?> collector;
         private int leafIndex;
         private LeafCollector leafCollector;
         private Thread currentThread;
@@ -268,19 +268,12 @@ public class LuceneTopNSourceOperator extends LuceneOperator {
 
         LeafCollector getLeafCollector(LeafReaderContext leafReaderContext) throws IOException {
             if (currentThread != Thread.currentThread() || leafIndex != leafReaderContext.ord) {
-                leafCollector = getCollector().getLeafCollector(leafReaderContext);
+                leafCollector = collector.getLeafCollector(leafReaderContext);
                 leafIndex = leafReaderContext.ord;
                 currentThread = Thread.currentThread();
             }
             return leafCollector;
         }
 
-        Collector getCollector() {
-            return collector;
-        }
-
-        TopDocs getTopDocs() {
-            return collector.topDocs();
-        }
     }
 }

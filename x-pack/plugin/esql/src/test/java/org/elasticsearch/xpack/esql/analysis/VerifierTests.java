@@ -1617,7 +1617,8 @@ public class VerifierTests extends ESTestCase {
         assertEquals(
             "1:105: `_score` manipulation between fulltext expressions",
             error(
-                "from foo metadata _score | where first_name match \"a\" | eval fs = _score | where first_name match \"b\" | keep fs, _score"
+                "from foo metadata _score | where first_name match \"a\" "
+                    + "| eval fs = _score | where first_name match \"b\" | keep fs, _score"
             )
         );
     }

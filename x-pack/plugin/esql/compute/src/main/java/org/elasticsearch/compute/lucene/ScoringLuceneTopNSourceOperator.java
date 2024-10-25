@@ -7,16 +7,19 @@
 
 package org.elasticsearch.compute.lucene;
 
-import org.apache.lucene.search.Collector;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.FieldDoc;
+import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
-import org.apache.lucene.search.TopDocs;
-import org.apache.lucene.search.TopFieldCollector;
+import org.apache.lucene.search.TopDocsCollector;
 import org.apache.lucene.search.TopFieldCollectorManager;
+import org.apache.lucene.search.TopScoreDocCollectorManager;
+import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -103,15 +106,18 @@ public final class ScoringLuceneTopNSourceOperator extends LuceneTopNSourceOpera
     }
 
     float getScore(ScoreDoc scoreDoc) {
-        FieldDoc fieldDoc = (FieldDoc) scoreDoc;
-        if (Float.isNaN(fieldDoc.score)) {
-            if (sorts != null) {
-                return (Float) fieldDoc.fields[sorts.size()];
+        if (scoreDoc instanceof FieldDoc fieldDoc) {
+            if (Float.isNaN(fieldDoc.score)) {
+                if (sorts != null) {
+                    return (Float) fieldDoc.fields[sorts.size()];
+                } else {
+                    return (Float) fieldDoc.fields[0];
+                }
             } else {
-                return (Float) fieldDoc.fields[0];
+                return fieldDoc.score;
             }
         } else {
-            return fieldDoc.score;
+            return scoreDoc.score;
         }
     }
 
@@ -124,7 +130,7 @@ public final class ScoringLuceneTopNSourceOperator extends LuceneTopNSourceOpera
             l.add(SortField.FIELD_SCORE);
             sort = new Sort(l.toArray(SortField[]::new));
         } else {
-            sort = new Sort();
+            sort = null;
         }
         return new ScoringPerShardCollector(shardContext, sort, limit);
     }
@@ -132,24 +138,54 @@ public final class ScoringLuceneTopNSourceOperator extends LuceneTopNSourceOpera
     static class ScoringPerShardCollector extends PerShardCollector {
 
         // TODO : make this configurable / inferrable?
-        private final TopFieldCollector collector;
         private static final int MAX_HITS = 100_000;
         private static final int TOTAL_HITS_THRESHOLD = 100;
 
         ScoringPerShardCollector(ShardContext shardContext, Sort sort, int limit) {
             this.shardContext = shardContext;
-            this.collector = new TopFieldCollectorManager(sort, Math.min(limit, MAX_HITS), TOTAL_HITS_THRESHOLD).newCollector();
-            // TODO : use TopScoreDocCollectorManager when SORT _score DESC
+            if (sort == null) {
+                this.collector = new UnsortedScoreCollector(new PriorityQueue<>(Math.min(limit, MAX_HITS)) {
+                    @Override
+                    protected boolean lessThan(ScoreDoc a, ScoreDoc b) {
+                        return a.doc > b.doc;
+                    }
+                });
+            } else if (sort.needsScores()) {
+                this.collector = new TopScoreDocCollectorManager(Math.min(limit, MAX_HITS), TOTAL_HITS_THRESHOLD).newCollector();
+            } else {
+                this.collector = new TopFieldCollectorManager(sort, Math.min(limit, MAX_HITS), TOTAL_HITS_THRESHOLD).newCollector();
+            }
+        }
+    }
+
+    private static class UnsortedScoreCollector extends TopDocsCollector<ScoreDoc> {
+
+        protected UnsortedScoreCollector(PriorityQueue<ScoreDoc> pq) {
+            super(pq);
         }
 
         @Override
-        Collector getCollector() {
-            return collector;
+        public LeafCollector getLeafCollector(LeafReaderContext context) throws IOException {
+            return new LeafCollector() {
+                private Scorable scorable;
+
+                @Override
+                public void setScorer(Scorable scorable) {
+                    this.scorable = scorable;
+                }
+
+                @Override
+                public void collect(int docID) throws IOException {
+                    float score = scorable.score();
+                    pq.add(new ScoreDoc(docID, score));
+                    totalHits++;
+                }
+            };
         }
 
         @Override
-        TopDocs getTopDocs() {
-            return collector.topDocs();
+        public ScoreMode scoreMode() {
+            return ScoreMode.COMPLETE;
         }
     }
 }

@@ -29,6 +29,7 @@ import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
+import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
@@ -83,7 +84,7 @@ public enum SearchResponseUtils {
             SearchHit.METADATA_FIELDS,
             v -> new HashMap<String, DocumentField>()
         );
-        if (fieldName.equals(IgnoredFieldMapper.NAME)) {
+        if (IgnoredFieldMapper.NAME.equals(fieldName) || IgnoredSourceFieldMapper.NAME.equals(fieldName)) {
             fieldMap.put(fieldName, new DocumentField(fieldName, (List<Object>) fieldValue));
         } else {
             fieldMap.put(fieldName, new DocumentField(fieldName, Collections.singletonList(fieldValue)));

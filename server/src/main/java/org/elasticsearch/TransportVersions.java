@@ -246,6 +246,7 @@ public class TransportVersions {
     public static final TransportVersion ESQL_PER_AGGREGATE_FILTER = def(8_770_00_0);
     public static final TransportVersion ML_INFERENCE_ATTACH_TO_EXISTSING_DEPLOYMENT = def(8_771_00_0);
     public static final TransportVersion CONVERT_FAILURE_STORE_OPTIONS_TO_SELECTOR_OPTIONS_INTERNALLY = def(8_772_00_0);
+    public static final TransportVersion INFERENCE_DONT_PERSIST_ON_READ_BACKPORT_8_16 = def(8_772_00_1);
 
     /*
      * STOP! READ THIS FIRST! No, really,

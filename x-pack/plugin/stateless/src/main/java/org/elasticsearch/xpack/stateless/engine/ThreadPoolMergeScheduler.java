@@ -41,6 +41,8 @@ import java.util.concurrent.Executor;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
+import static org.elasticsearch.common.Strings.format;
+
 /**
  * A merge scheduler which uses a provided thread pool to execute merges. The Lucene
  * {@link org.apache.lucene.index.ConcurrentMergeScheduler} creates a new thread for every merge. This allows numerous merges to execute
@@ -116,11 +118,25 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
 
             @Override
             public void onAfter() {
-                MergePolicy.OneMerge nextMerge = mergeSource.getNextMerge();
+                MergePolicy.OneMerge nextMerge;
+                try {
+                    nextMerge = mergeSource.getNextMerge();
+                } catch (IllegalStateException e) {
+                    logger.debug("merge poll failed, likely that index writer is failed", e);
+                    return; // ignore exception, we expect the IW failure to be logged elsewhere
+                }
                 if (nextMerge != null) {
                     AbstractRunnable command = mergeRunnable(mergeSource, nextMerge);
                     threadPool.executor(Stateless.MERGE_THREAD_POOL).execute(command);
                 }
+            }
+
+            @Override
+            public void onRejection(Exception e) {
+                // This would interrupt an IndexWriter if it were actually performing the merge. We just set this here because it seems
+                // appropriate as we are not going to move forward with the merge.
+                currentMerge.setAborted();
+                logger.debug(() -> format("merge [%s] rejected by thread pool", onGoingMerge.getId()), e);
             }
 
             @Override

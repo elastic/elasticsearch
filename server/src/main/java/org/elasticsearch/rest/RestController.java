@@ -880,7 +880,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
     private static final class ResourceHandlingHttpChannel extends DelegatingRestChannel {
         private final CircuitBreakerService circuitBreakerService;
         private final int contentLength;
-        private final HttpRouteStatsTracker stats;
+        private final HttpRouteStatsTracker statsTracker;
         private final long startTime;
         private final AtomicBoolean closed = new AtomicBoolean();
 
@@ -893,7 +893,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
             super(delegate);
             this.circuitBreakerService = circuitBreakerService;
             this.contentLength = contentLength;
-            this.stats = methodHandlers.statsTracker();
+            this.statsTracker = methodHandlers.statsTracker();
             this.startTime = rawRelativeTimeInMillis();
         }
 
@@ -902,12 +902,12 @@ public class RestController implements HttpServerTransport.Dispatcher {
             boolean success = false;
             try {
                 close();
-                stats.addRequestStats(contentLength);
-                stats.addResponseTime(rawRelativeTimeInMillis() - startTime);
+                statsTracker.addRequestStats(contentLength);
+                statsTracker.addResponseTime(rawRelativeTimeInMillis() - startTime);
                 if (response.isChunked() == false) {
-                    stats.addResponseStats(response.content().length());
+                    statsTracker.addResponseStats(response.content().length());
                 } else {
-                    final var responseLengthRecorder = new ResponseLengthRecorder(stats);
+                    final var responseLengthRecorder = new ResponseLengthRecorder(statsTracker);
                     final var headers = response.getHeaders();
                     response = RestResponse.chunked(
                         response.status(),

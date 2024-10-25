@@ -201,7 +201,7 @@ public class StatelessIndexCommitListenerIT extends AbstractStatelessIntegTestCa
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(BlobCachePlugin.class, TestStateless.class, ExposeReplicatedContentSettingPlugin.class);
+        return List.of(BlobCachePlugin.class, TestStateless.class);
     }
 
     @Override

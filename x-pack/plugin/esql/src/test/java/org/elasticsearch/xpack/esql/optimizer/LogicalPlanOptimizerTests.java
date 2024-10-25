@@ -18,6 +18,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.TestBlockFactory;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils;
@@ -38,7 +39,6 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.core.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
-import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
@@ -5609,6 +5609,30 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         );
     }
 
+    public void testMatchOperatorExpressionParameters() {
+        assumeTrue("skipping because MATCH operator is not enabled", EsqlCapabilities.Cap.MATCH_OPERATOR_COLON.isEnabled());
+
+        final String header = "Found 1 problem\nline ";
+        VerificationException e = expectThrows(VerificationException.class, () -> plan("""
+            from test | eval fuzzy = 1 + salary | where first_name:"Anna"~fuzzy"""));
+        assertTrue(e.getMessage().startsWith("Found "));
+        assertEquals(
+            "1:45: [:] operator fuzziness must be evaluated to a constant. Value [fuzzy] can't be resolved to a constant",
+            e.getMessage().substring(header.length())
+        );
+
+        e = expectThrows(VerificationException.class, () -> plan("from test | eval boost = 1 + salary | where first_name^boost:\"Anna\""));
+        assertTrue(e.getMessage().startsWith("Found "));
+        assertEquals(
+            "1:45: [:] operator boost must be evaluated to a constant. Value [boost] can't be resolved to a constant",
+            e.getMessage().substring(header.length())
+        );
+
+        // These should work
+        plan("from test | eval fuzzy = 1 + 1 | where first_name:\"Anna\"~fuzzy");
+        plan("from test | eval boost = 1.0 + 0.3 | where first_name^boost:\"Anna\"");
+    }
+
     public void testMatchFunctionIsNotNullable() {
         String queryText = """
             row n = null | eval text = n + 5 | where match(text::keyword, "Anna")
@@ -5619,9 +5643,5 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             ve.getMessage(),
             containsString("[MATCH] function cannot operate on [text::keyword], which is not a field from an index mapping")
         );
-    }
-
-    private Literal nullOf(DataType dataType) {
-        return new Literal(Source.EMPTY, null, dataType);
     }
 }

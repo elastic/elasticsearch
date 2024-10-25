@@ -40,7 +40,6 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FOURTH;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.THIRD;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isFoldable;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNull;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNumeric;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
@@ -145,16 +144,12 @@ public class Match extends FullTextFunction implements Validatable, TwoOptionalA
         TypeResolution typeResolution = isNotNull(field, sourceText(), FIRST).and(isString(field, sourceText(), FIRST))
             .and(super.resolveNonQueryParamTypes());
         if (boost != null) {
-            typeResolution = typeResolution.and(
-                isNotNull(boost, sourceText(), THIRD).and(isNumeric(boost, sourceText(), THIRD).and(isFoldable(boost, sourceText(), THIRD)))
-            );
+            typeResolution = typeResolution.and(isNotNull(boost, sourceText(), THIRD).and(isNumeric(boost, sourceText(), THIRD)));
         }
         if (fuzziness != null) {
             typeResolution = typeResolution.and(
                 isNotNull(fuzziness, sourceText(), FOURTH).and(
-                    isType(fuzziness, dt -> dt == DataType.INTEGER || dt == DataType.KEYWORD, sourceText(), FOURTH, "integer,keyword").and(
-                        isFoldable(fuzziness, sourceText(), FOURTH)
-                    )
+                    isType(fuzziness, dt -> dt == DataType.INTEGER || dt == DataType.KEYWORD, sourceText(), FOURTH, "integer,keyword")
                 )
             );
         }
@@ -174,13 +169,44 @@ public class Match extends FullTextFunction implements Validatable, TwoOptionalA
                 )
             );
         }
+
+        if (boost != null && boost.foldable() == false) {
+            failures.add(
+                Failure.fail(
+                    field,
+                    "[{}] {} boost must be evaluated to a constant. Value [{}] can't be resolved to a constant",
+                    functionName(),
+                    functionType(),
+                    boost.sourceText()
+                )
+            );
+        }
+
         if (fuzziness != null) {
-            try {
-                fuzziness();
-            } catch (IllegalArgumentException | ElasticsearchParseException e) {
+            if (fuzziness.foldable() == false) {
                 failures.add(
-                    Failure.fail(field, "Invalid fuzziness value [{}] for [{}] {}", fuzziness.sourceText(), functionName(), functionType())
+                    Failure.fail(
+                        field,
+                        "[{}] {} fuzziness must be evaluated to a constant. Value [{}] can't be resolved to a constant",
+                        functionName(),
+                        functionType(),
+                        fuzziness.sourceText()
+                    )
                 );
+            } else {
+                try {
+                    fuzziness();
+                } catch (IllegalArgumentException | ElasticsearchParseException e) {
+                    failures.add(
+                        Failure.fail(
+                            field,
+                            "Invalid fuzziness value [{}] for [{}] {}",
+                            fuzziness.sourceText(),
+                            functionName(),
+                            functionType()
+                        )
+                    );
+                }
             }
         }
     }

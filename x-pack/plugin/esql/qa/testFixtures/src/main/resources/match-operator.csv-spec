@@ -230,6 +230,19 @@ book_no:keyword | title:text
 2936            | Fellowship of the Ring 2ND Edition
 ;
 
+fuzzinessMatchUsingExpression
+required_capability: match_operator_colon
+
+from books
+| eval fuzzy = 1 + 1
+| where title : "Felowhip"~fuzzy 
+| keep book_no, title; 
+ignoreOrder:true
+
+book_no:keyword | title:text
+2936            | Fellowship of the Ring 2ND Edition
+;
+
 fuzzinessMatchAuto
 required_capability: match_operator_colon
 

@@ -93,12 +93,12 @@ public class TsdbIndexingRollingUpgradeIT extends AbstractRollingUpgradeTestCase
                 requestBody.append("{\"create\": {}}");
                 requestBody.append('\n');
                 requestBody.append(
-                        BULK_ITEM_TEMPLATE.replace("$now", formatInstant(startTime))
-                                .replace("$name", podName)
-                                .replace("$uid", podUid)
-                                .replace("$ip", podIp)
-                                .replace("$tx", Long.toString(podTx))
-                                .replace("$rx", Long.toString(podRx))
+                    BULK_ITEM_TEMPLATE.replace("$now", formatInstant(startTime))
+                        .replace("$name", podName)
+                        .replace("$uid", podUid)
+                        .replace("$ip", podIp)
+                        .replace("$tx", Long.toString(podTx))
+                        .replace("$rx", Long.toString(podRx))
                 );
                 requestBody.append('\n');
 

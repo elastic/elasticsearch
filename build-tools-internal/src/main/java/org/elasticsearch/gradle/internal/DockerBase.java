@@ -21,9 +21,6 @@ public enum DockerBase {
     // The Iron Bank base image is UBI (albeit hardened), but we are required to parameterize the Docker build
     IRON_BANK("${BASE_REGISTRY}/${BASE_IMAGE}:${BASE_TAG}", "-ironbank", "yum"),
 
-    // Base image with extras for Cloud
-    CLOUD("ubuntu:20.04", "-cloud", "apt-get"),
-
     // Chainguard based wolfi image with latest jdk
     // This is usually updated via renovatebot
     // spotless:off

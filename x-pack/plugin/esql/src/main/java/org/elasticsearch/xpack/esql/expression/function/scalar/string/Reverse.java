@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -46,7 +45,11 @@ public class Reverse extends UnaryScalarFunction {
                 file = "string",
                 tag = "reverseEmoji",
                 description = "`REVERSE` works with unicode, too! It keeps unicode grapheme clusters together during reversal."
-            ) }
+            ) },
+        note = """
+            If Elasticsearch is running with a JDK version less than 20 then this will not properly reverse Grapheme Clusters.
+            Elastic Cloud and the JDK bundled with Elasticsearch all use newer JDKs. But if you've explicitly shifted to an older jdk
+            then you'll see things like "👍🏽😊" be reversed to  "🏽👍😊" instead of the correct "😊👍🏽"."""
     )
     public Reverse(
         Source source,
@@ -79,8 +82,6 @@ public class Reverse extends UnaryScalarFunction {
 
     /**
      * Reverses a unicode string, keeping grapheme clusters together
-     * @param str
-     * @return
      */
     public static String reverseStringWithUnicodeCharacters(String str) {
         BreakIterator boundary = BreakIterator.getCharacterInstance(Locale.ROOT);
@@ -100,10 +101,12 @@ public class Reverse extends UnaryScalarFunction {
         return reversed.toString();
     }
 
-    private static boolean isOneByteUTF8(BytesRef ref) {
+    private static boolean reverseBytesIsReverseUnicode(BytesRef ref) {
         int end = ref.offset + ref.length;
         for (int i = ref.offset; i < end; i++) {
-            if (ref.bytes[i] < 0) {
+            if (ref.bytes[i] < 0 // Anything encoded in multibyte utf-8
+                || ref.bytes[i] == 0x28 // Backspace
+            ) {
                 return false;
             }
         }
@@ -112,13 +115,13 @@ public class Reverse extends UnaryScalarFunction {
 
     @Evaluator
     static BytesRef process(BytesRef val) {
-        if (isOneByteUTF8(val)) {
+        if (reverseBytesIsReverseUnicode(val)) {
             // this is the fast path. we know we can just reverse the bytes.
             BytesRef reversed = BytesRef.deepCopyOf(val);
             reverseArray(reversed.bytes, reversed.offset, reversed.length);
             return reversed;
         }
-        return BytesRefs.toBytesRef(reverseStringWithUnicodeCharacters(val.utf8ToString()));
+        return new BytesRef(reverseStringWithUnicodeCharacters(val.utf8ToString()));
     }
 
     @Override

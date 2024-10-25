@@ -11,7 +11,6 @@ package org.elasticsearch.action.admin.indices.rollover;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
-import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -37,9 +36,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.EnumSet;
 import java.util.Map;
-import java.util.Set;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -181,14 +178,7 @@ public class RolloverRequestTests extends ESTestCase {
         );
         originalRequest.lazy(randomBoolean());
         originalRequest.setIndicesOptions(
-            IndicesOptions.builder(originalRequest.indicesOptions())
-                .selectorOptions(
-                    IndicesOptions.SelectorOptions.builder()
-                        .setDefaultSelectors(
-                            EnumSet.copyOf(randomNonEmptySubsetOf(Set.of(IndexComponentSelector.DATA, IndexComponentSelector.FAILURES)))
-                        )
-                )
-                .build()
+            IndicesOptions.builder(originalRequest.indicesOptions()).selectorOptions(IndicesOptions.SelectorOptions.ALL_APPLICABLE).build()
         );
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
@@ -269,7 +259,7 @@ public class RolloverRequestTests extends ESTestCase {
             RolloverRequest rolloverRequest = new RolloverRequest("alias-index", "new-index-name");
             rolloverRequest.setIndicesOptions(
                 IndicesOptions.builder(rolloverRequest.indicesOptions())
-                    .selectorOptions(IndicesOptions.SelectorOptions.DATA_AND_FAILURE)
+                    .selectorOptions(IndicesOptions.SelectorOptions.ALL_APPLICABLE)
                     .build()
             );
             ActionRequestValidationException validationException = rolloverRequest.validate();

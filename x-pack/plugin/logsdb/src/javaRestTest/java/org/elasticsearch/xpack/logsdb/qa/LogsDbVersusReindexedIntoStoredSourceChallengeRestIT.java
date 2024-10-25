@@ -13,7 +13,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 
 /**
- * This test compares behavior of a standard mdoe data stream and a logsdb data stream using stored source.
+ * This test compares behavior of a standard mode data stream and a logsdb data stream using stored source.
  * There should be no differences between such two data streams.
  */
 public class LogsDbVersusReindexedIntoStoredSourceChallengeRestIT extends ReindexChallengeRestIT {

@@ -12,6 +12,11 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
+/**
+ * This test compares behavior of a logsdb data stream using stored source and a logsdb data stream
+ * containing data reindexed from initial data stream.
+ * There should be no differences between such two data streams.
+ */
 public class StoredSourceLogsDbVersusReindexedLogsDbChallengeRestIT extends ReindexChallengeRestIT {
     public String getBaselineDataStreamName() {
         return "logs-apache-baseline";

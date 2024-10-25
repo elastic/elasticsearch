@@ -10,8 +10,7 @@ package org.elasticsearch.xpack.logsdb.qa;
 import org.elasticsearch.common.settings.Settings;
 
 /**
- * This test compares behavior of a logsdb data stream and a logsdb data stream using stored source
- * containing data reindexed from initial data stream.
+ * This test compares behavior of a logsdb data stream and a logsdb data stream using stored source.
  * There should be no differences between such two data streams.
  */
 public class StandardVersusLogsStoredSourceChallengeRestIT extends StandardVersusLogsIndexModeRandomDataChallengeRestIT {

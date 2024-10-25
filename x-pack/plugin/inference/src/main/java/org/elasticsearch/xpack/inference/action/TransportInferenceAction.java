@@ -13,6 +13,8 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.inference.ChunkedInferenceServiceResults;
+import org.elasticsearch.inference.ChunkingOptions;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -24,10 +26,12 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.core.inference.results.BatchedChunkedInferenceServiceResults;
 import org.elasticsearch.xpack.inference.action.task.StreamingTaskManager;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.telemetry.InferenceStats;
 
+import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -83,10 +87,38 @@ public class TransportInferenceAction extends HandledTransportAction<InferenceAc
                     unparsedModel.settings(),
                     unparsedModel.secrets()
                 );
-            inferOnService(model, request, service.get(), delegate);
+            if (request.isChunkingEnabled()) {
+                chunkedInferOnService(model, request, service.get(), delegate);
+            } else {
+                inferOnService(model, request, service.get(), delegate);
+            }
         });
 
         modelRegistry.getModelWithSecrets(request.getInferenceEntityId(), getModelListener);
+    }
+
+    private void chunkedInferOnService(
+        Model model,
+        InferenceAction.Request request,
+        InferenceService service,
+        ActionListener<InferenceAction.Response> listener
+    ) {
+        // TODO: Check if the if statement is necessary
+        if (request.isStreaming() == false || service.canStream(request.getTaskType())) {
+            inferenceStats.incrementRequestCount(model);
+            service.chunkedInfer(
+                model,
+                request.getQuery(),
+                request.getInput(),
+                request.getTaskSettings(),
+                request.getInputType(),
+                new ChunkingOptions(null, null),
+                request.getInferenceTimeout(),
+                createChunkedListener(listener, request.getTaskType())
+            );
+        } else {
+            listener.onFailure(unsupportedStreamingTaskException(request, service));
+        }
     }
 
     private void inferOnService(
@@ -131,6 +163,15 @@ public class TransportInferenceAction extends HandledTransportAction<InferenceAc
                 RestStatus.METHOD_NOT_ALLOWED
             );
         }
+    }
+
+    private ActionListener<List<ChunkedInferenceServiceResults>> createChunkedListener(
+        ActionListener<InferenceAction.Response> listener,
+        TaskType taskType
+    ) {
+        return listener.delegateFailureAndWrap((l, chunkedResults) -> {
+            l.onResponse(new InferenceAction.Response(new BatchedChunkedInferenceServiceResults(taskType, chunkedResults)));
+        });
     }
 
     private ActionListener<InferenceServiceResults> createListener(

@@ -20,6 +20,6 @@ dependencies {
 
 
 tasks.named('forbiddenApisMain').configure {
-  // :libs:elasticsearch-logging does not depend on server
+  // :libs:logging does not depend on server
   replaceSignatureFiles 'jdk-signatures'
 }

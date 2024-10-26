@@ -7,7 +7,33 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-configure(childProjects.values() - project('elasticsearch-log4j')) {
+configure(childProjects.values()) {
+
+  apply plugin: 'base'
+
+  def baseProject = project
+  def baseName = "elasticsearch-${it.name}"
+  base {
+    archivesName = baseName
+  }
+  subprojects {
+    plugins.withType(JavaPlugin).whenPluginAdded {
+      def name = baseName
+      def currentProject = project
+      while (currentProject != baseProject) {
+        name += "-${currentProject.name}"
+        currentProject = currentProject.parent
+      }
+      base {
+        archivesName = name
+      }
+    }
+  }
+
+  if (project.name == 'log4j') {
+    return
+  }
+
   /*
    * All subprojects are java projects using Elasticsearch's standard build
    * tools.

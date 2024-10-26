@@ -275,7 +275,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
     }
     all {
       resolutionStrategy.dependencySubstitution {
-        substitute module("org.apache.logging.log4j:log4j-core") using project(":libs:elasticsearch-log4j") because "patched to remove JndiLookup clas"}
+        substitute module("org.apache.logging.log4j:log4j-core") using project(":libs:log4j") because "patched to remove JndiLookup clas"}
     }
   }
 
@@ -291,7 +291,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
     libsKeystoreCli project(path: ':distribution:tools:keystore-cli')
     libsSecurityCli project(':x-pack:plugin:security:cli')
     libsGeoIpCli project(':distribution:tools:geoip-cli')
-    libsNative project(':libs:elasticsearch-native:elasticsearch-native-libraries')
+    libsNative project(':libs:native:libraries')
   }
 
   project.ext {

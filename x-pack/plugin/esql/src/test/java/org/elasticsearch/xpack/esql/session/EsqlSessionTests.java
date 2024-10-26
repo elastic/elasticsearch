@@ -137,15 +137,15 @@ public class EsqlSessionTests extends ESTestCase {
 
             EsqlExecutionInfo.Cluster localCluster = executionInfo.getCluster(localClusterAlias);
             assertThat(localCluster.getIndexExpression(), equalTo("logs*"));
-            assertClusterStatusAndHasNullCounts(localCluster, EsqlExecutionInfo.Cluster.Status.RUNNING);
+            assertClusterStatusAndShardCounts(localCluster, EsqlExecutionInfo.Cluster.Status.RUNNING);
 
             EsqlExecutionInfo.Cluster remote1Cluster = executionInfo.getCluster(remote1Alias);
             assertThat(remote1Cluster.getIndexExpression(), equalTo("*"));
-            assertClusterStatusAndHasNullCounts(remote1Cluster, EsqlExecutionInfo.Cluster.Status.SKIPPED);
+            assertClusterStatusAndShardCounts(remote1Cluster, EsqlExecutionInfo.Cluster.Status.SKIPPED);
 
             EsqlExecutionInfo.Cluster remote2Cluster = executionInfo.getCluster(remote2Alias);
             assertThat(remote2Cluster.getIndexExpression(), equalTo("mylogs1,mylogs2,logs*"));
-            assertClusterStatusAndHasNullCounts(remote2Cluster, EsqlExecutionInfo.Cluster.Status.SKIPPED);
+            assertClusterStatusAndShardCounts(remote2Cluster, EsqlExecutionInfo.Cluster.Status.SKIPPED);
         }
 
         // skip_unavailable=false cluster is unavailable, throws Exception
@@ -188,15 +188,15 @@ public class EsqlSessionTests extends ESTestCase {
 
             EsqlExecutionInfo.Cluster localCluster = executionInfo.getCluster(localClusterAlias);
             assertThat(localCluster.getIndexExpression(), equalTo("logs*"));
-            assertClusterStatusAndHasNullCounts(localCluster, EsqlExecutionInfo.Cluster.Status.RUNNING);
+            assertClusterStatusAndShardCounts(localCluster, EsqlExecutionInfo.Cluster.Status.RUNNING);
 
             EsqlExecutionInfo.Cluster remote1Cluster = executionInfo.getCluster(remote1Alias);
             assertThat(remote1Cluster.getIndexExpression(), equalTo("*"));
-            assertClusterStatusAndHasNullCounts(remote1Cluster, EsqlExecutionInfo.Cluster.Status.RUNNING);
+            assertClusterStatusAndShardCounts(remote1Cluster, EsqlExecutionInfo.Cluster.Status.RUNNING);
 
             EsqlExecutionInfo.Cluster remote2Cluster = executionInfo.getCluster(remote2Alias);
             assertThat(remote2Cluster.getIndexExpression(), equalTo("mylogs1,mylogs2,logs*"));
-            assertClusterStatusAndHasNullCounts(remote2Cluster, EsqlExecutionInfo.Cluster.Status.RUNNING);
+            assertClusterStatusAndShardCounts(remote2Cluster, EsqlExecutionInfo.Cluster.Status.RUNNING);
         }
     }
 
@@ -233,15 +233,15 @@ public class EsqlSessionTests extends ESTestCase {
 
             EsqlExecutionInfo.Cluster localCluster = executionInfo.getCluster(localClusterAlias);
             assertThat(localCluster.getIndexExpression(), equalTo("logs*"));
-            assertClusterStatusAndHasNullCounts(localCluster, EsqlExecutionInfo.Cluster.Status.RUNNING);
+            assertClusterStatusAndShardCounts(localCluster, EsqlExecutionInfo.Cluster.Status.RUNNING);
 
             EsqlExecutionInfo.Cluster remote1Cluster = executionInfo.getCluster(remote1Alias);
             assertThat(remote1Cluster.getIndexExpression(), equalTo("*"));
-            assertClusterStatusAndHasNullCounts(remote1Cluster, EsqlExecutionInfo.Cluster.Status.RUNNING);
+            assertClusterStatusAndShardCounts(remote1Cluster, EsqlExecutionInfo.Cluster.Status.RUNNING);
 
             EsqlExecutionInfo.Cluster remote2Cluster = executionInfo.getCluster(remote2Alias);
             assertThat(remote2Cluster.getIndexExpression(), equalTo("mylogs1,mylogs2,logs*"));
-            assertClusterStatusAndHasNullCounts(remote2Cluster, EsqlExecutionInfo.Cluster.Status.RUNNING);
+            assertClusterStatusAndShardCounts(remote2Cluster, EsqlExecutionInfo.Cluster.Status.RUNNING);
         }
 
         // remote1 is missing from EsIndex info, so it should be updated and marked as SKIPPED with 0 total shards, 0 took time, etc.
@@ -271,7 +271,7 @@ public class EsqlSessionTests extends ESTestCase {
 
             EsqlExecutionInfo.Cluster localCluster = executionInfo.getCluster(localClusterAlias);
             assertThat(localCluster.getIndexExpression(), equalTo("logs*"));
-            assertClusterStatusAndHasNullCounts(localCluster, EsqlExecutionInfo.Cluster.Status.RUNNING);
+            assertClusterStatusAndShardCounts(localCluster, EsqlExecutionInfo.Cluster.Status.RUNNING);
 
             EsqlExecutionInfo.Cluster remote1Cluster = executionInfo.getCluster(remote1Alias);
             assertThat(remote1Cluster.getIndexExpression(), equalTo("*"));
@@ -284,7 +284,7 @@ public class EsqlSessionTests extends ESTestCase {
 
             EsqlExecutionInfo.Cluster remote2Cluster = executionInfo.getCluster(remote2Alias);
             assertThat(remote2Cluster.getIndexExpression(), equalTo("mylogs1,mylogs2,logs*"));
-            assertClusterStatusAndHasNullCounts(remote2Cluster, EsqlExecutionInfo.Cluster.Status.RUNNING);
+            assertClusterStatusAndShardCounts(remote2Cluster, EsqlExecutionInfo.Cluster.Status.RUNNING);
         }
 
         // all remotes are missing from EsIndex info, so they should be updated and marked as SKIPPED with 0 total shards, 0 took time, etc.
@@ -307,7 +307,7 @@ public class EsqlSessionTests extends ESTestCase {
 
             EsqlExecutionInfo.Cluster localCluster = executionInfo.getCluster(localClusterAlias);
             assertThat(localCluster.getIndexExpression(), equalTo("logs*"));
-            assertClusterStatusAndHasNullCounts(localCluster, EsqlExecutionInfo.Cluster.Status.RUNNING);
+            assertClusterStatusAndShardCounts(localCluster, EsqlExecutionInfo.Cluster.Status.RUNNING);
 
             EsqlExecutionInfo.Cluster remote1Cluster = executionInfo.getCluster(remote1Alias);
             assertThat(remote1Cluster.getIndexExpression(), equalTo("*"));
@@ -399,13 +399,22 @@ public class EsqlSessionTests extends ESTestCase {
         assertNull(remote2Cluster.getTook());
     }
 
-    private void assertClusterStatusAndHasNullCounts(EsqlExecutionInfo.Cluster cluster, EsqlExecutionInfo.Cluster.Status status) {
+    private void assertClusterStatusAndShardCounts(EsqlExecutionInfo.Cluster cluster, EsqlExecutionInfo.Cluster.Status status) {
         assertThat(cluster.getStatus(), equalTo(status));
         assertNull(cluster.getTook());
-        assertNull(cluster.getTotalShards());
-        assertNull(cluster.getSuccessfulShards());
-        assertNull(cluster.getSkippedShards());
-        assertNull(cluster.getFailedShards());
+        if (status == EsqlExecutionInfo.Cluster.Status.RUNNING) {
+            assertNull(cluster.getTotalShards());
+            assertNull(cluster.getSuccessfulShards());
+            assertNull(cluster.getSkippedShards());
+            assertNull(cluster.getFailedShards());
+        } else if (status == EsqlExecutionInfo.Cluster.Status.SKIPPED) {
+            assertThat(cluster.getTotalShards(), equalTo(0));
+            assertThat(cluster.getSuccessfulShards(), equalTo(0));
+            assertThat(cluster.getSkippedShards(), equalTo(0));
+            assertThat(cluster.getFailedShards(), equalTo(0));
+        } else {
+            fail("Unexpected status: " + status);
+        }
     }
 
     private static Map<String, EsField> randomMapping() {

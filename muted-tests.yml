@@ -285,6 +285,9 @@ tests:
 - class: org.elasticsearch.xpack.spatial.search.GeoGridAggAndQueryConsistencyIT
   method: testGeoShapeGeoHash
   issue: https://github.com/elastic/elasticsearch/issues/115664
+- class: org.elasticsearch.xpack.inference.InferenceCrudIT
+  method: testSupportedStream
+  issue: https://github.com/elastic/elasticsearch/issues/113430
 
 # Examples:
 #

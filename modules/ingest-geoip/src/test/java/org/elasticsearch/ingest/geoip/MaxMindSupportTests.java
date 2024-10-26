@@ -24,6 +24,7 @@ import com.maxmind.geoip2.model.IspResponse;
 import com.maxmind.geoip2.record.MaxMind;
 
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
 
 import java.lang.reflect.Method;

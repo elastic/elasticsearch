@@ -12,7 +12,7 @@ dependencies {
 
   testImplementation project(":libs:x-content")
   testImplementation(project(":test:framework")) {
-    exclude group: 'org.elasticsearch', module: 'elasticsearch-x-content'
+    exclude group: 'org.elasticsearch', module: 'x-content'
   }
 }
 

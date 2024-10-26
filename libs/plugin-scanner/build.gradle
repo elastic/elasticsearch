@@ -25,7 +25,7 @@ dependencies {
 
   testImplementation "junit:junit:${versions.junit}"
   testImplementation(project(":test:framework")) {
-    exclude group: 'org.elasticsearch', module: 'elasticsearch-plugin-scanner'
+    exclude group: 'org.elasticsearch', module: 'plugin-scanner'
   }
 }
 tasks.named('forbiddenApisMain').configure {

@@ -26,7 +26,7 @@ dependencies {
   api "org.apache.lucene:lucene-core:${versions.lucene}"
 
   testImplementation(project(":test:framework")) {
-    exclude group: 'org.elasticsearch', module: 'elasticsearch-tdigest'
+    exclude group: 'org.elasticsearch', module: 'tdigest'
   }
   testImplementation 'org.junit.jupiter:junit-jupiter:5.8.1'
 }

@@ -14,7 +14,7 @@ tasks.named("loggerUsageCheck").configure {enabled = false }
 
 dependencies {
   testImplementation(project(":test:framework")) {
-    exclude group: 'org.elasticsearch', module: 'elasticsearch-logging'
+    exclude group: 'org.elasticsearch', module: 'logging'
   }
 }
 

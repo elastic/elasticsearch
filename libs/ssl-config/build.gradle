@@ -12,7 +12,7 @@ dependencies {
   api project(':libs:core')
 
   testImplementation(project(":test:framework")) {
-    exclude group: 'org.elasticsearch', module: 'elasticsearch-ssl-config'
+    exclude group: 'org.elasticsearch', module: 'ssl-config'
   }
 
   testImplementation "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"

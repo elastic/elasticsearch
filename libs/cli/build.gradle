@@ -14,7 +14,7 @@ dependencies {
   api project(':libs:core')
 
   testImplementation(project(":test:framework")) {
-    exclude group: 'org.elasticsearch', module: 'elasticsearch-cli'
+    exclude group: 'org.elasticsearch', module: 'cli'
   }
 }
 

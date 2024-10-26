@@ -20,7 +20,7 @@ dependencies {
   testImplementation "org.hamcrest:hamcrest:${versions.hamcrest}"
 
   testImplementation(project(":test:framework")) {
-    exclude group: 'org.elasticsearch', module: 'elasticsearch-core'
+    exclude group: 'org.elasticsearch', module: 'core'
   }
 }
 

@@ -20,7 +20,7 @@ dependencies {
   implementation "org.apache.lucene:lucene-core:${versions.lucene}"
 
   testImplementation(project(":test:framework")) {
-    exclude group: 'org.elasticsearch', module: 'elasticsearch-native'
+    exclude group: 'org.elasticsearch', module: 'native'
   }
 }
 

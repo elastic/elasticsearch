@@ -17,7 +17,7 @@ dependencies {
   api project(':libs:core')
   api project(':libs:logging')
   testImplementation(project(":test:framework")) {
-    exclude group: 'org.elasticsearch', module: 'elasticsearch-native'
+    exclude group: 'org.elasticsearch', module: 'native'
   }
 }
 

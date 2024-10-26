@@ -150,7 +150,7 @@ public abstract class IndexRouting {
     private abstract static class IdAndRoutingOnly extends IndexRouting {
         private final boolean routingRequired;
         private final IndexVersion creationVersion;
-        private final String dataStreamName;
+        private final boolean isDataStreamBackingIdex;
         private final IndexMode indexMode;
 
         IdAndRoutingOnly(IndexMetadata metadata) {
@@ -158,7 +158,7 @@ public abstract class IndexRouting {
             this.creationVersion = metadata.getCreationVersion();
             MappingMetadata mapping = metadata.mapping();
             this.routingRequired = mapping == null ? false : mapping.routingRequired();
-            this.dataStreamName = metadata.getDataStreamName();
+            this.isDataStreamBackingIdex = metadata.isDataStreamBackingIndex();
             this.indexMode = metadata.getIndexMode();
         }
 
@@ -171,7 +171,7 @@ public abstract class IndexRouting {
             if (id == null) {
                 if (creationVersion.onOrAfter(IndexVersions.TIME_BASED_K_ORDERED_DOC_ID)
                     && indexMode == IndexMode.LOGSDB
-                    && dataStreamName != null) {
+                    && isDataStreamBackingIdex) {
                     indexRequest.autoGenerateTimeBasedId();
                 } else {
                     indexRequest.autoGenerateId();

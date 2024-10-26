@@ -648,9 +648,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     private final Double writeLoadForecast;
     @Nullable
     private final Long shardSizeInBytesForecast;
-
-    @Nullable
-    private final String dataStreamName;
+    private final boolean isDataStreamBackingIndex;
 
     private IndexMetadata(
         final Index index,
@@ -700,7 +698,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         @Nullable final IndexMetadataStats stats,
         @Nullable final Double writeLoadForecast,
         @Nullable Long shardSizeInBytesForecast,
-        @Nullable String dataStreamName
+        final boolean isDataStreamBackingIndex
     ) {
         this.index = index;
         this.version = version;
@@ -759,7 +757,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         this.writeLoadForecast = writeLoadForecast;
         this.shardSizeInBytesForecast = shardSizeInBytesForecast;
         assert numberOfShards * routingFactor == routingNumShards : routingNumShards + " must be a multiple of " + numberOfShards;
-        this.dataStreamName = dataStreamName;
+        this.isDataStreamBackingIndex = isDataStreamBackingIndex;
     }
 
     IndexMetadata withMappingMetadata(MappingMetadata mapping) {
@@ -814,7 +812,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.stats,
             this.writeLoadForecast,
             this.shardSizeInBytesForecast,
-            this.dataStreamName
+            this.isDataStreamBackingIndex
         );
     }
 
@@ -876,7 +874,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.stats,
             this.writeLoadForecast,
             this.shardSizeInBytesForecast,
-            this.dataStreamName
+            this.isDataStreamBackingIndex
         );
     }
 
@@ -936,7 +934,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.stats,
             this.writeLoadForecast,
             this.shardSizeInBytesForecast,
-            this.dataStreamName
+            this.isDataStreamBackingIndex
         );
     }
 
@@ -1007,7 +1005,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.stats,
             this.writeLoadForecast,
             this.shardSizeInBytesForecast,
-            this.dataStreamName
+            this.isDataStreamBackingIndex
         );
     }
 
@@ -1063,7 +1061,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.stats,
             this.writeLoadForecast,
             this.shardSizeInBytesForecast,
-            this.dataStreamName
+            this.isDataStreamBackingIndex
         );
     }
 
@@ -1275,8 +1273,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         return shardSizeInBytesForecast == null ? OptionalLong.empty() : OptionalLong.of(shardSizeInBytesForecast);
     }
 
-    public String getDataStreamName() {
-        return dataStreamName;
+    public boolean isDataStreamBackingIndex() {
+        return isDataStreamBackingIndex;
     }
 
     public static final String INDEX_RESIZE_SOURCE_UUID_KEY = "index.resize.source.uuid";
@@ -1952,7 +1950,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         private IndexMetadataStats stats = null;
         private Double indexWriteLoadForecast = null;
         private Long shardSizeInBytesForecast = null;
-        private String dataStreamName = null;
+        private boolean isDataStreamBackingIndex;
 
         public Builder(String index) {
             this.index = index;
@@ -1988,7 +1986,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.stats = indexMetadata.stats;
             this.indexWriteLoadForecast = indexMetadata.writeLoadForecast;
             this.shardSizeInBytesForecast = indexMetadata.shardSizeInBytesForecast;
-            this.dataStreamName = indexMetadata.dataStreamName;
+            this.isDataStreamBackingIndex = indexMetadata.isDataStreamBackingIndex;
         }
 
         public Builder index(String index) {
@@ -2455,7 +2453,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 stats,
                 indexWriteLoadForecast,
                 shardSizeInBytesForecast,
-                dataStreamName
+                isDataStreamBackingIndex
             );
         }
 
@@ -2879,8 +2877,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             }
         }
 
-        public void dataStreamName(final String dataStreamName) {
-            this.dataStreamName = dataStreamName;
+        public void isDataStreamBackingIndex(final boolean isDataStreamBackingIndex) {
+            this.isDataStreamBackingIndex = isDataStreamBackingIndex;
         }
     }
 

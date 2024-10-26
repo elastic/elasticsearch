@@ -516,7 +516,7 @@ public class MetadataCreateIndexService {
                     sourceMetadata,
                     temporaryIndexMeta.isSystem(),
                     currentState.getMinTransportVersion(),
-                    request.dataStreamName()
+                    request.dataStreamName() != null
                 );
             } catch (Exception e) {
                 logger.info("failed to build index metadata [{}]", request.index());
@@ -1322,11 +1322,11 @@ public class MetadataCreateIndexService {
         @Nullable IndexMetadata sourceMetadata,
         boolean isSystem,
         TransportVersion minClusterTransportVersion,
-        String dataStreamName
+        boolean isDataStreamBackingIndex
     ) {
         IndexMetadata.Builder indexMetadataBuilder = createIndexMetadataBuilder(indexName, sourceMetadata, indexSettings, routingNumShards);
         indexMetadataBuilder.system(isSystem);
-        indexMetadataBuilder.dataStreamName(dataStreamName);
+        indexMetadataBuilder.isDataStreamBackingIndex(isDataStreamBackingIndex);
         if (minClusterTransportVersion.before(TransportVersions.V_8_15_0)) {
             // promote to UNKNOWN for older versions since they don't know how to handle event.ingested in cluster state
             indexMetadataBuilder.eventIngestedRange(IndexLongFieldRange.UNKNOWN, minClusterTransportVersion);

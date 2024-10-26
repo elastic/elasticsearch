@@ -1265,7 +1265,8 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             4,
             sourceIndexMetadata,
             false,
-            TransportVersion.current()
+            TransportVersion.current(),
+            null
         );
 
         assertThat(indexMetadata.getAliases().size(), is(1));
@@ -1293,7 +1294,8 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             4,
             sourceIndexMetadata,
             false,
-            randomFrom(TransportVersions.V_7_0_0, TransportVersions.V_8_0_0)
+            randomFrom(TransportVersions.V_7_0_0, TransportVersions.V_8_0_0),
+            null
         );
 
         assertThat(indexMetadata.getAliases().size(), is(1));

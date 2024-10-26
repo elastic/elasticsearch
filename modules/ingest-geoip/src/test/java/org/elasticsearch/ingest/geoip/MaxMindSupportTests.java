@@ -633,6 +633,7 @@ public class MaxMindSupportTests extends ESTestCase {
      * This returns all AbstractResponse classes that are declared in transform methods in classes defined in MaxmindIpDataLookups.
      */
     @SuppressWarnings("unchecked")
+    @SuppressForbidden(reason = "Need declared classes and methods")
     private static Set<Class<? extends AbstractResponse>> getUsedMaxMindResponseClasses() {
         Set<Class<? extends AbstractResponse>> result = new HashSet<>();
         Class<?>[] declaredClasses = MaxmindIpDataLookups.class.getDeclaredClasses();

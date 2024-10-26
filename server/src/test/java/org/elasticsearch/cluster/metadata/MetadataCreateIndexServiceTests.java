@@ -1257,6 +1257,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
 
         Settings indexSettings = indexSettings(IndexVersion.current(), 1, 0).build();
         List<AliasMetadata> aliases = List.of(AliasMetadata.builder("alias1").build());
+        boolean isDataStreamBackingIndex = randomBoolean();
         IndexMetadata indexMetadata = buildIndexMetadata(
             "test",
             aliases,
@@ -1266,7 +1267,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             sourceIndexMetadata,
             false,
             TransportVersion.current(),
-            false
+            isDataStreamBackingIndex
         );
 
         assertThat(indexMetadata.getAliases().size(), is(1));
@@ -1274,6 +1275,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         assertThat("The source index primary term must be used", indexMetadata.primaryTerm(0), is(3L));
         assertThat(indexMetadata.getTimestampRange(), equalTo(IndexLongFieldRange.NO_SHARDS));
         assertThat(indexMetadata.getEventIngestedRange(), equalTo(IndexLongFieldRange.NO_SHARDS));
+        assertThat(isDataStreamBackingIndex, Matchers.equalTo(indexMetadata.isDataStreamBackingIndex()));
     }
 
     public void testBuildIndexMetadataWithTransportVersionBeforeEventIngestedRangeAdded() {
@@ -1286,6 +1288,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
 
         Settings indexSettings = indexSettings(IndexVersion.current(), 1, 0).build();
         List<AliasMetadata> aliases = List.of(AliasMetadata.builder("alias1").build());
+        boolean isDataStreamBackingIndex = randomBoolean();
         IndexMetadata indexMetadata = buildIndexMetadata(
             "test",
             aliases,
@@ -1295,7 +1298,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             sourceIndexMetadata,
             false,
             randomFrom(TransportVersions.V_7_0_0, TransportVersions.V_8_0_0),
-            false
+            isDataStreamBackingIndex
         );
 
         assertThat(indexMetadata.getAliases().size(), is(1));
@@ -1304,6 +1307,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         assertThat(indexMetadata.getTimestampRange(), equalTo(IndexLongFieldRange.NO_SHARDS));
         // on versions before event.ingested was added to cluster state, it should default to UNKNOWN, not NO_SHARDS
         assertThat(indexMetadata.getEventIngestedRange(), equalTo(IndexLongFieldRange.UNKNOWN));
+        assertThat(isDataStreamBackingIndex, Matchers.equalTo(indexMetadata.isDataStreamBackingIndex()));
     }
 
     public void testGetIndexNumberOfRoutingShardsWithNullSourceIndex() {

@@ -154,8 +154,13 @@ public abstract class TransportNodesAction<
             @Override
             protected void onItemFailure(DiscoveryNode discoveryNode, Exception e) {
                 logger.debug(() -> format("failed to execute [%s] on node [%s]", actionName, discoveryNode), e);
+                final FailedNodeException ex = new FailedNodeException(
+                    discoveryNode.getId(),
+                    "Failed node [" + discoveryNode.getId() + "]",
+                    e
+                );
                 synchronized (exceptions) {
-                    exceptions.add(new FailedNodeException(discoveryNode.getId(), "Failed node [" + discoveryNode.getId() + "]", e));
+                    exceptions.add(ex);
                 }
             }
 

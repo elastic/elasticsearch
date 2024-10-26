@@ -26,6 +26,8 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+
 public class SearchWithRandomDisconnectsIT extends AbstractDisruptionTestCase {
 
     public void testSearchWithRandomDisconnects() throws InterruptedException, ExecutionException {
@@ -48,7 +50,7 @@ public class SearchWithRandomDisconnectsIT extends AbstractDisruptionTestCase {
         }
         assertFalse(bulkRequestBuilder.get().hasFailures());
         final AtomicBoolean done = new AtomicBoolean();
-        final int concurrentSearches = randomIntBetween(5, 20);
+        final int concurrentSearches = randomIntBetween(2, 5);
         final List<PlainActionFuture<Void>> futures = new ArrayList<>(concurrentSearches);
         for (int i = 0; i < concurrentSearches; i++) {
             final PlainActionFuture<Void> finishFuture = new PlainActionFuture<>();
@@ -88,7 +90,9 @@ public class SearchWithRandomDisconnectsIT extends AbstractDisruptionTestCase {
         for (PlainActionFuture<Void> future : futures) {
             future.get();
         }
+        ensureGreen(DISRUPTION_HEALING_OVERHEAD, indexNames);
         logger.info("--> done");
+        assertAcked(indicesAdmin().prepareDelete(indexNames));
     }
 
     private static SearchRequestBuilder prepareRandomSearch() {

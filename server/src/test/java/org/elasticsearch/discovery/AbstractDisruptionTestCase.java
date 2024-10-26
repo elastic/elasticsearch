@@ -48,7 +48,7 @@ import static org.hamcrest.Matchers.not;
 
 public abstract class AbstractDisruptionTestCase extends ESIntegTestCase {
 
-    static final TimeValue DISRUPTION_HEALING_OVERHEAD = TimeValue.timeValueSeconds(40); // we use 30s as timeout in many places.
+    public static final TimeValue DISRUPTION_HEALING_OVERHEAD = TimeValue.timeValueSeconds(40); // we use 30s as timeout in many places.
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {

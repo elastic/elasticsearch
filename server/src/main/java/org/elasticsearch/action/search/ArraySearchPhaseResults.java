@@ -10,7 +10,8 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.common.util.concurrent.AtomicArray;
-import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.transport.LeakTracker;
 
@@ -22,14 +23,14 @@ import java.util.stream.Stream;
  */
 class ArraySearchPhaseResults<Result extends SearchPhaseResult> extends SearchPhaseResults<Result> {
     final AtomicArray<Result> results;
-
     private final AtomicBoolean closed = new AtomicBoolean(false);
 
-    private final Releasable releasable = LeakTracker.wrap(() -> {
+    private final RefCounted refCounted = LeakTracker.wrap(AbstractRefCounted.of(() -> {
         for (Result result : getAtomicArray().asList()) {
             result.decRef();
         }
-    });
+        doClose();
+    }));
 
     ArraySearchPhaseResults(int size) {
         super(size);
@@ -42,17 +43,24 @@ class ArraySearchPhaseResults<Result extends SearchPhaseResult> extends SearchPh
 
     @Override
     void consumeResult(Result result, Runnable next) {
-        assert results.get(result.getShardIndex()) == null : "shardIndex: " + result.getShardIndex() + " is already set";
-        results.set(result.getShardIndex(), result);
-        result.incRef();
-        next.run();
+        if (refCounted.tryIncRef()) {
+            assert results.get(result.getShardIndex()) == null : "shardIndex: " + result.getShardIndex() + " is already set";
+            try {
+                results.set(result.getShardIndex(), result);
+                result.incRef();
+                next.run();
+            } finally {
+                refCounted.decRef();
+            }
+        } else {
+            assert closed.get();
+        }
     }
 
     @Override
     public final void close() {
         if (closed.compareAndSet(false, true)) {
-            releasable.close();
-            doClose();
+            refCounted.decRef();
         }
     }
 

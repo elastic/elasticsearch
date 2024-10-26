@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.DoubleField;
 import org.apache.lucene.document.DoublePoint;
+import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FloatField;
 import org.apache.lucene.document.FloatPoint;
 import org.apache.lucene.document.IntField;
@@ -461,12 +462,8 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            BlockLoader blockLoaderFromSource(
-                SourceValueFetcher sourceValueFetcher,
-                BlockSourceReader.LeafIteratorLookup lookup,
-                SourceFieldMapper.Mode sourceMode
-            ) {
-                return new BlockSourceReader.DoublesBlockLoader(sourceValueFetcher, lookup, sourceMode);
+            BlockLoader blockLoaderFromSource(SourceValueFetcher sourceValueFetcher, BlockSourceReader.LeafIteratorLookup lookup) {
+                return new BlockSourceReader.DoublesBlockLoader(sourceValueFetcher, lookup);
             }
         },
         FLOAT("float", NumericType.FLOAT) {
@@ -589,7 +586,7 @@ public class NumberFieldMapper extends FieldMapper {
             public void addFields(LuceneDocument document, String name, Number value, boolean indexed, boolean docValued, boolean stored) {
                 final float f = value.floatValue();
                 if (indexed && docValued) {
-                    document.add(new FloatField(name, f));
+                    document.add(new FloatField(name, f, Field.Store.NO));
                 } else if (docValued) {
                     document.add(new SortedNumericDocValuesField(name, NumericUtils.floatToSortableInt(f)));
                 } else if (indexed) {
@@ -649,12 +646,8 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            BlockLoader blockLoaderFromSource(
-                SourceValueFetcher sourceValueFetcher,
-                BlockSourceReader.LeafIteratorLookup lookup,
-                SourceFieldMapper.Mode sourceMode
-            ) {
-                return new BlockSourceReader.DoublesBlockLoader(sourceValueFetcher, lookup, sourceMode);
+            BlockLoader blockLoaderFromSource(SourceValueFetcher sourceValueFetcher, BlockSourceReader.LeafIteratorLookup lookup) {
+                return new BlockSourceReader.DoublesBlockLoader(sourceValueFetcher, lookup);
             }
         },
         DOUBLE("double", NumericType.DOUBLE) {
@@ -743,7 +736,7 @@ public class NumberFieldMapper extends FieldMapper {
             public void addFields(LuceneDocument document, String name, Number value, boolean indexed, boolean docValued, boolean stored) {
                 final double d = value.doubleValue();
                 if (indexed && docValued) {
-                    document.add(new DoubleField(name, d));
+                    document.add(new DoubleField(name, d, Field.Store.NO));
                 } else if (docValued) {
                     document.add(new SortedNumericDocValuesField(name, NumericUtils.doubleToSortableLong(d)));
                 } else if (indexed) {
@@ -803,12 +796,8 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            BlockLoader blockLoaderFromSource(
-                SourceValueFetcher sourceValueFetcher,
-                BlockSourceReader.LeafIteratorLookup lookup,
-                SourceFieldMapper.Mode sourceMode
-            ) {
-                return new BlockSourceReader.DoublesBlockLoader(sourceValueFetcher, lookup, sourceMode);
+            BlockLoader blockLoaderFromSource(SourceValueFetcher sourceValueFetcher, BlockSourceReader.LeafIteratorLookup lookup) {
+                return new BlockSourceReader.DoublesBlockLoader(sourceValueFetcher, lookup);
             }
         },
         BYTE("byte", NumericType.BYTE) {
@@ -920,12 +909,8 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            BlockLoader blockLoaderFromSource(
-                SourceValueFetcher sourceValueFetcher,
-                BlockSourceReader.LeafIteratorLookup lookup,
-                SourceFieldMapper.Mode sourceMode
-            ) {
-                return new BlockSourceReader.IntsBlockLoader(sourceValueFetcher, lookup, sourceMode);
+            BlockLoader blockLoaderFromSource(SourceValueFetcher sourceValueFetcher, BlockSourceReader.LeafIteratorLookup lookup) {
+                return new BlockSourceReader.IntsBlockLoader(sourceValueFetcher, lookup);
             }
 
             private boolean isOutOfRange(Object value) {
@@ -1037,12 +1022,8 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            BlockLoader blockLoaderFromSource(
-                SourceValueFetcher sourceValueFetcher,
-                BlockSourceReader.LeafIteratorLookup lookup,
-                SourceFieldMapper.Mode sourceMode
-            ) {
-                return new BlockSourceReader.IntsBlockLoader(sourceValueFetcher, lookup, sourceMode);
+            BlockLoader blockLoaderFromSource(SourceValueFetcher sourceValueFetcher, BlockSourceReader.LeafIteratorLookup lookup) {
+                return new BlockSourceReader.IntsBlockLoader(sourceValueFetcher, lookup);
             }
 
             private boolean isOutOfRange(Object value) {
@@ -1179,7 +1160,7 @@ public class NumberFieldMapper extends FieldMapper {
             public void addFields(LuceneDocument document, String name, Number value, boolean indexed, boolean docValued, boolean stored) {
                 final int i = value.intValue();
                 if (indexed && docValued) {
-                    document.add(new IntField(name, i));
+                    document.add(new IntField(name, i, Field.Store.NO));
                 } else if (docValued) {
                     document.add(new SortedNumericDocValuesField(name, i));
                 } else if (indexed) {
@@ -1228,12 +1209,8 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            BlockLoader blockLoaderFromSource(
-                SourceValueFetcher sourceValueFetcher,
-                BlockSourceReader.LeafIteratorLookup lookup,
-                SourceFieldMapper.Mode sourceMode
-            ) {
-                return new BlockSourceReader.IntsBlockLoader(sourceValueFetcher, lookup, sourceMode);
+            BlockLoader blockLoaderFromSource(SourceValueFetcher sourceValueFetcher, BlockSourceReader.LeafIteratorLookup lookup) {
+                return new BlockSourceReader.IntsBlockLoader(sourceValueFetcher, lookup);
             }
         },
         LONG("long", NumericType.LONG) {
@@ -1330,7 +1307,7 @@ public class NumberFieldMapper extends FieldMapper {
             public void addFields(LuceneDocument document, String name, Number value, boolean indexed, boolean docValued, boolean stored) {
                 final long l = value.longValue();
                 if (indexed && docValued) {
-                    document.add(new LongField(name, l));
+                    document.add(new LongField(name, l, Field.Store.NO));
                 } else if (docValued) {
                     document.add(new SortedNumericDocValuesField(name, l));
                 } else if (indexed) {
@@ -1379,12 +1356,8 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            BlockLoader blockLoaderFromSource(
-                SourceValueFetcher sourceValueFetcher,
-                BlockSourceReader.LeafIteratorLookup lookup,
-                SourceFieldMapper.Mode sourceMode
-            ) {
-                return new BlockSourceReader.LongsBlockLoader(sourceValueFetcher, lookup, sourceMode);
+            BlockLoader blockLoaderFromSource(SourceValueFetcher sourceValueFetcher, BlockSourceReader.LeafIteratorLookup lookup) {
+                return new BlockSourceReader.LongsBlockLoader(sourceValueFetcher, lookup);
             }
 
             private boolean isOutOfRange(Object value) {
@@ -1662,11 +1635,7 @@ public class NumberFieldMapper extends FieldMapper {
 
         abstract BlockLoader blockLoaderFromDocValues(String fieldName);
 
-        abstract BlockLoader blockLoaderFromSource(
-            SourceValueFetcher sourceValueFetcher,
-            BlockSourceReader.LeafIteratorLookup lookup,
-            SourceFieldMapper.Mode sourceMode
-        );
+        abstract BlockLoader blockLoaderFromSource(SourceValueFetcher sourceValueFetcher, BlockSourceReader.LeafIteratorLookup lookup);
     }
 
     public static class NumberFieldType extends SimpleMappedFieldType {
@@ -1805,8 +1774,7 @@ public class NumberFieldMapper extends FieldMapper {
             BlockSourceReader.LeafIteratorLookup lookup = isStored() || isIndexed()
                 ? BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), name())
                 : BlockSourceReader.lookupMatchingAll();
-            var sourceMode = blContext.indexSettings().getIndexMappingSourceMode();
-            return type.blockLoaderFromSource(sourceValueFetcher(blContext.sourcePaths(name())), lookup, sourceMode);
+            return type.blockLoaderFromSource(sourceValueFetcher(blContext.sourcePaths(name())), lookup);
         }
 
         @Override

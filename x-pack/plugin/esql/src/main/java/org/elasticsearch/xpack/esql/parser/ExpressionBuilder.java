@@ -441,7 +441,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
             // use the fast run variant
             result = new UnresolvedNamePattern(
                 src,
-                new CharacterRunAutomaton(Operations.concatenate(list)),
+                new CharacterRunAutomaton(Operations.determinize(Operations.concatenate(list), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT)),
                 patternString.toString(),
                 nameString.toString()
             );

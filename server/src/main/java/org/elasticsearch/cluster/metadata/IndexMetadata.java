@@ -1563,6 +1563,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         private final IndexMetadataStats stats;
         private final Double indexWriteLoadForecast;
         private final Long shardSizeInBytesForecast;
+        private final boolean isDataStreamBackingIndex;
 
         IndexMetadataDiff(IndexMetadata before, IndexMetadata after) {
             index = after.index.getName();
@@ -1602,6 +1603,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             stats = after.stats;
             indexWriteLoadForecast = after.writeLoadForecast;
             shardSizeInBytesForecast = after.shardSizeInBytesForecast;
+            isDataStreamBackingIndex = after.isDataStreamBackingIndex;
         }
 
         private static final DiffableUtils.DiffableValueReader<String, AliasMetadata> ALIAS_METADATA_DIFF_VALUE_READER =
@@ -1682,6 +1684,11 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             } else {
                 eventIngestedRange = IndexLongFieldRange.UNKNOWN;
             }
+            if (in.getTransportVersion().onOrAfter(TransportVersions.INCLUDE_IS_DATA_STREAM_BACKING_INDEX_METADATA)) {
+                isDataStreamBackingIndex = in.readBoolean();
+            } else {
+                isDataStreamBackingIndex = false;
+            }
         }
 
         @Override
@@ -1729,6 +1736,11 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 assert eventIngestedRange == IndexLongFieldRange.UNKNOWN
                     : "eventIngestedRange should be UNKNOWN until all nodes are on the new version but is " + eventIngestedRange;
             }
+            if (out.getTransportVersion().onOrAfter(TransportVersions.INCLUDE_IS_DATA_STREAM_BACKING_INDEX_METADATA)) {
+                out.writeBoolean(isDataStreamBackingIndex);
+            } else {
+                out.writeBoolean(false);
+            }
         }
 
         @Override
@@ -1761,6 +1773,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             builder.stats(stats);
             builder.indexWriteLoadForecast(indexWriteLoadForecast);
             builder.shardSizeInBytesForecast(shardSizeInBytesForecast);
+            builder.isDataStreamBackingIndex(isDataStreamBackingIndex);
             return builder.build(true);
         }
     }

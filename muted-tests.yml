@@ -348,6 +348,9 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/115361
 - class: org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT
   issue: https://github.com/elastic/elasticsearch/issues/115170
+- class: org.elasticsearch.xpack.security.FileSettingsRoleMappingsRestartIT
+  method: testFileSettingsReprocessedOnRestartWithoutVersionChange
+  issue: https://github.com/elastic/elasticsearch/issues/115450
 
 # Examples:
 #

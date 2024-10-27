@@ -29,6 +29,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.lucene.grouping.TopFieldGroups;
 import org.elasticsearch.search.DocValueFormat;
@@ -190,7 +191,7 @@ public final class SearchPhaseController {
      */
     static SortedTopDocs sortDocs(
         boolean ignoreFrom,
-        final Collection<TopDocs> topDocs,
+        final List<TopDocs> topDocs,
         int from,
         int size,
         List<CompletionSuggestion> reducedCompletionSuggestions
@@ -233,22 +234,22 @@ public final class SearchPhaseController {
         return new SortedTopDocs(scoreDocs, isSortedByField, sortFields, groupField, groupValues, numSuggestDocs);
     }
 
-    static TopDocs mergeTopDocs(Collection<TopDocs> results, int topN, int from) {
+    static TopDocs mergeTopDocs(List<TopDocs> results, int topN, int from) {
         if (results.isEmpty()) {
             return null;
         }
-        final TopDocs topDocs = results.stream().findFirst().get();
+        final TopDocs topDocs = results.getFirst();
         final TopDocs mergedTopDocs;
         final int numShards = results.size();
         if (numShards == 1 && from == 0) { // only one shard and no pagination we can just return the topDocs as we got them.
             return topDocs;
         } else if (topDocs instanceof TopFieldGroups firstTopDocs) {
             final Sort sort = new Sort(firstTopDocs.fields);
-            final TopFieldGroups[] shardTopDocs = results.toArray(new TopFieldGroups[numShards]);
+            final TopFieldGroups[] shardTopDocs = results.toArray(new TopFieldGroups[0]);
             mergedTopDocs = TopFieldGroups.merge(sort, from, topN, shardTopDocs, false);
         } else if (topDocs instanceof TopFieldDocs firstTopDocs) {
             final Sort sort = checkSameSortTypes(results, firstTopDocs.fields);
-            final TopFieldDocs[] shardTopDocs = results.toArray(new TopFieldDocs[numShards]);
+            final TopFieldDocs[] shardTopDocs = results.toArray(new TopFieldDocs[0]);
             mergedTopDocs = TopDocs.merge(sort, from, topN, shardTopDocs);
         } else {
             final TopDocs[] shardTopDocs = results.toArray(new TopDocs[numShards]);
@@ -524,17 +525,7 @@ public final class SearchPhaseController {
                 topDocs.add(td.topDocs);
             }
         }
-        return reducedQueryPhase(
-            queryResults,
-            Collections.emptyList(),
-            topDocs,
-            topDocsStats,
-            0,
-            true,
-            aggReduceContextBuilder,
-            null,
-            true
-        );
+        return reducedQueryPhase(queryResults, null, topDocs, topDocsStats, 0, true, aggReduceContextBuilder, null, true);
     }
 
     /**
@@ -548,7 +539,7 @@ public final class SearchPhaseController {
      */
     static ReducedQueryPhase reducedQueryPhase(
         Collection<? extends SearchPhaseResult> queryResults,
-        List<DelayableWriteable<InternalAggregations>> bufferedAggs,
+        @Nullable List<DelayableWriteable<InternalAggregations>> bufferedAggs,
         List<TopDocs> bufferedTopDocs,
         TopDocsStats topDocsStats,
         int numReducePhases,
@@ -642,7 +633,12 @@ public final class SearchPhaseController {
             reducedSuggest = new Suggest(Suggest.reduce(groupedSuggestions));
             reducedCompletionSuggestions = reducedSuggest.filter(CompletionSuggestion.class);
         }
-        final InternalAggregations aggregations = reduceAggs(aggReduceContextBuilder, performFinalReduce, bufferedAggs);
+        final InternalAggregations aggregations = bufferedAggs == null
+            ? null
+            : InternalAggregations.topLevelReduceDelayable(
+                bufferedAggs,
+                performFinalReduce ? aggReduceContextBuilder.forFinalReduction() : aggReduceContextBuilder.forPartialReduction()
+            );
         final SearchProfileResultsBuilder profileBuilder = profileShardResults.isEmpty()
             ? null
             : new SearchProfileResultsBuilder(profileShardResults);
@@ -679,19 +675,6 @@ public final class SearchPhaseController {
             from,
             false
         );
-    }
-
-    private static InternalAggregations reduceAggs(
-        AggregationReduceContext.Builder aggReduceContextBuilder,
-        boolean performFinalReduce,
-        List<DelayableWriteable<InternalAggregations>> toReduce
-    ) {
-        return toReduce.isEmpty()
-            ? null
-            : InternalAggregations.topLevelReduceDelayable(
-                toReduce,
-                performFinalReduce ? aggReduceContextBuilder.forFinalReduction() : aggReduceContextBuilder.forPartialReduction()
-            );
     }
 
     /**

@@ -351,6 +351,9 @@ tests:
 - class: org.elasticsearch.xpack.security.FileSettingsRoleMappingsRestartIT
   method: testFileSettingsReprocessedOnRestartWithoutVersionChange
   issue: https://github.com/elastic/elasticsearch/issues/115450
+- class: org.elasticsearch.xpack.inference.rest.ServerSentEventsRestActionListenerTests
+  method: testNoStream
+  issue: https://github.com/elastic/elasticsearch/issues/114788
 
 # Examples:
 #

@@ -35,6 +35,7 @@ import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
@@ -53,6 +54,7 @@ import org.elasticsearch.transport.TransportResponse;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -69,6 +71,7 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.anEmptyMap;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -516,6 +519,53 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
             assertHitCount(prepareSearch(indexName), numDocs);
         } finally {
             // Stop the node otherwise the test can fail because node tries to publish cluster state to a closed HTTP handler
+            internalCluster().stopNode(searchNode);
+            internalCluster().stopNode(masterAndIndexNode);
+        }
+    }
+
+    public void testRetryOn403ForPutAndPost() throws IOException {
+        final Set<String> requestsErroredFor403 = ConcurrentCollections.newConcurrentSet();
+        s3HttpHandler.setInterceptor(new Interceptor() {
+            @SuppressForbidden(reason = "this test uses a HttpServer to emulate an S3 endpoint")
+            @Override
+            public boolean intercept(HttpExchange exchange) throws IOException {
+                final String request = exchange.getRequestMethod() + " " + exchange.getRequestURI().toString();
+                if ((request.startsWith("PUT /") || request.startsWith("POST /")) && requestsErroredFor403.add(request)) {
+                    try (exchange) {
+                        final byte[] response = Strings.format("""
+                            <?xml version="1.0" encoding="UTF-8"?>
+                            <Error>
+                              <Code>InvalidAccessKeyId</Code>
+                              <Message>The AWS Access Key Id you provided does not exist in our records.</Message>
+                              <RequestId>%s</RequestId>
+                            </Error>""", randomUUID()).getBytes(StandardCharsets.UTF_8);
+                        exchange.getResponseHeaders().add("Content-Type", "application/xml");
+                        exchange.sendResponseHeaders(403, response.length);
+                        exchange.getResponseBody().write(response);
+                    }
+                    return true;
+                }
+                return false;
+            }
+        });
+
+        final String masterAndIndexNode = startMasterAndIndexNode();
+        final String searchNode = startSearchNode();
+        ensureStableCluster(2);
+        try {
+            final String indexName = randomIdentifier();
+            createIndex(indexName, indexSettings(1, 1).build());
+            ensureGreen(indexName);
+            final int batches = between(5, 20);
+            for (int i = 0; i < batches; i++) {
+                indexDocs(indexName, between(1, 10));
+                refresh(indexName);
+            }
+            ensureGreen(indexName);
+            // The test passes as long as the cluster forms successfully and completes some normal activities
+            assertThat(requestsErroredFor403, not(empty()));
+        } finally {
             internalCluster().stopNode(searchNode);
             internalCluster().stopNode(masterAndIndexNode);
         }

@@ -13,22 +13,23 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 
 /**
- * This test compares behavior of a logsdb data stream and a data stream containing
- * data reindexed from initial data stream.
+ * This test compares behavior of a logsdb data stream using stored source and a logsdb data stream
+ * containing data reindexed from initial data stream.
  * There should be no differences between such two data streams.
  */
-public class LogsDbVersusReindexedLogsDbChallengeRestIT extends ReindexChallengeRestIT {
+public class StoredSourceLogsDbVersusReindexedLogsDbChallengeRestIT extends ReindexChallengeRestIT {
     public String getBaselineDataStreamName() {
         return "logs-apache-baseline";
     }
 
     public String getContenderDataStreamName() {
-        return "logs-apache-reindexed-contender";
+        return "logs-apache-reindexed";
     }
 
     @Override
     public void baselineSettings(Settings.Builder builder) {
         dataGenerationHelper.logsDbSettings(builder);
+        builder.put("index.mapping.source.mode", "stored");
     }
 
     @Override

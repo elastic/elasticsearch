@@ -27,7 +27,6 @@ import co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService;
 import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 import co.elastic.elasticsearch.stateless.engine.RefreshThrottler;
-import co.elastic.elasticsearch.stateless.engine.translog.TranslogRecoveryMetrics;
 import co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicator;
 import co.elastic.elasticsearch.stateless.lucene.BlobStoreCacheDirectory;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
@@ -150,7 +149,7 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
             SharedBlobCacheWarmingService sharedBlobCacheWarmingService,
             RefreshThrottler.Factory refreshThrottlerFactory,
             DocumentParsingProvider documentParsingProvider,
-            TranslogRecoveryMetrics translogRecoveryMetrics
+            IndexEngine.EngineMetrics engineMetrics
         ) {
             return new IndexEngine(
                 engineConfig,
@@ -162,7 +161,7 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
                 statelessCommitService.getIndexEngineLocalReaderListenerForShard(engineConfig.getShardId()),
                 statelessCommitService.getCommitBCCResolverForShard(engineConfig.getShardId()),
                 documentParsingProvider,
-                translogRecoveryMetrics
+                engineMetrics
             ) {
                 @Override
                 public void readVirtualBatchedCompoundCommitChunk(

@@ -97,6 +97,7 @@ public class IndexEngine extends InternalEngine {
     private final DocumentSizeAccumulator documentSizeAccumulator;
     private final DocumentSizeReporter documentParsingReporter;
     private final TranslogRecoveryMetrics translogRecoveryMetrics;
+    private final MergeMetrics mergeMetrics;
     private final SharedBlobCacheWarmingService cacheWarmingService;
     // This is written and then accessed on the same thread under the flush lock. So not need for volatile
     private long translogStartFileForNextCommit = 0;
@@ -117,7 +118,7 @@ public class IndexEngine extends InternalEngine {
         IndexEngineLocalReaderListener localReaderListener,
         CommitBCCResolver commitBCCResolver,
         DocumentParsingProvider documentParsingProvider,
-        TranslogRecoveryMetrics translogRecoveryMetrics
+        EngineMetrics metrics
     ) {
         super(engineConfig);
         assert engineConfig.isPromotableToPrimary();
@@ -149,7 +150,8 @@ public class IndexEngine extends InternalEngine {
         } catch (IOException e) {
             throw new EngineCreationFailureException(engineConfig.getShardId(), "Failed to create an index engine", e);
         }
-        this.translogRecoveryMetrics = translogRecoveryMetrics;
+        this.translogRecoveryMetrics = metrics.translogRecoveryMetrics();
+        this.mergeMetrics = metrics.mergeMetrics();
     }
 
     @Override
@@ -596,6 +598,7 @@ public class IndexEngine extends InternalEngine {
                 shardId,
                 ThreadPoolMergeScheduler.MERGE_PREWARM.get(indexSettings.getSettings()),
                 engineConfig.getThreadPool(),
+                () -> mergeMetrics, // Have to use supplier as this method is called from super ctor
                 (mergeId, merge) -> cacheWarmingService.warmCacheForMerge(
                     mergeId,
                     shardId,
@@ -609,4 +612,6 @@ public class IndexEngine extends InternalEngine {
             return super.createMergeScheduler(shardId, indexSettings);
         }
     }
+
+    public record EngineMetrics(TranslogRecoveryMetrics translogRecoveryMetrics, MergeMetrics mergeMetrics) {}
 }

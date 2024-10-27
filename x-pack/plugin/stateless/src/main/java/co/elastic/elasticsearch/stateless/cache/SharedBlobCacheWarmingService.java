@@ -25,6 +25,7 @@ import co.elastic.elasticsearch.stateless.commits.BlobLocation;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.commits.VirtualBatchedCompoundCommit;
+import co.elastic.elasticsearch.stateless.engine.MergeMetrics;
 import co.elastic.elasticsearch.stateless.lucene.BlobStoreCacheDirectory;
 import co.elastic.elasticsearch.stateless.lucene.FileCacheKey;
 import co.elastic.elasticsearch.stateless.lucene.IndexBlobStoreCacheDirectory;
@@ -331,18 +332,7 @@ public class SharedBlobCacheWarmingService {
                     type,
                     shardId,
                     "merge=" + mergeId,
-                    Map.of(
-                        "index_name",
-                        shardId.getIndex().getName(),
-                        "index_uuid",
-                        shardId.getIndex().getUUID(),
-                        "shard_id",
-                        shardId.id(),
-                        "prewarming_type",
-                        type.name(),
-                        "merge_id",
-                        mergeId
-                    )
+                    Maps.copyMapWithAddedEntry(MergeMetrics.mergeIdentifiers(shardId, mergeId), "prewarming_type", type.name())
                 );
                 Set<String> filesToWarm = new HashSet<>();
                 final Map<String, BlobLocation> fileLocations = new HashMap<>();

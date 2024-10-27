@@ -40,6 +40,7 @@ import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.common.Strings.format;
 
@@ -65,8 +66,10 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
     public static final Setting<Boolean> MERGE_PREWARM = Setting.boolSetting("stateless.merge.prewarm", true, Setting.Property.NodeScope);
 
     private final Logger logger;
+    private final ShardId shardId;
     private final boolean prewarm;
     private final ThreadPool threadPool;
+    private final Supplier<MergeMetrics> mergeMetrics;
     private final BiConsumer<String, MergePolicy.OneMerge> warmer;
     private final Consumer<Exception> exceptionHandler;
     private final MergeTracking mergeTracking;
@@ -78,12 +81,15 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
         ShardId shardId,
         boolean prewarm,
         ThreadPool threadPool,
+        Supplier<MergeMetrics> mergeMetrics,
         BiConsumer<String, MergePolicy.OneMerge> warmer,
         Consumer<Exception> exceptionHandler
     ) {
         this.logger = Loggers.getLogger(getClass(), shardId);
+        this.shardId = shardId;
         this.prewarm = prewarm;
         this.threadPool = threadPool;
+        this.mergeMetrics = mergeMetrics;
         this.warmer = warmer;
         this.exceptionHandler = exceptionHandler;
         this.mergeTracking = new MergeTracking(logger, () -> Double.POSITIVE_INFINITY);
@@ -154,13 +160,20 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
             protected void doRun() throws Exception {
                 long timeNS = System.nanoTime();
                 mergeTracking.mergeStarted(onGoingMerge);
+                boolean success = false;
                 try {
                     if (prewarm) {
                         warmer.accept(onGoingMerge.getId(), currentMerge);
                     }
                     mergeSource.merge(currentMerge);
+                    success = true;
                 } finally {
                     long tookMS = TimeValue.nsecToMSec(System.nanoTime() - timeNS);
+                    if (success) {
+                        mergeMetrics.get()
+                            .markMergeMetrics(currentMerge, tookMS, MergeMetrics.mergeIdentifiers(shardId, onGoingMerge.getId()));
+                    }
+                    // TODO: Consider if we should adjust these metrics when a failure happens
                     mergeTracking.mergeFinished(currentMerge, onGoingMerge, tookMS);
                 }
             }

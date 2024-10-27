@@ -14,8 +14,10 @@ import com.maxmind.db.Networks;
 import com.maxmind.db.Reader;
 
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
@@ -113,7 +115,10 @@ public class IpinfoIpDataLookupsTests extends ESTestCase {
                 entry("asn", 16625L),
                 entry("network", "23.32.184.0/21"),
                 entry("domain", "akamai.com")
-            )
+            ),
+            Map.ofEntries(entry("name", "organization_name"), entry("asn", "asn"), entry("network", "network"), entry("domain", "domain")),
+            Set.of("ip"),
+            Set.of()
         );
     }
 
@@ -133,7 +138,17 @@ public class IpinfoIpDataLookupsTests extends ESTestCase {
                 entry("domain", "tpx.com"),
                 entry("type", "hosting"),
                 entry("country_iso_code", "US")
-            )
+            ),
+            Map.ofEntries(
+                entry("name", "organization_name"),
+                entry("asn", "asn"),
+                entry("network", "network"),
+                entry("domain", "domain"),
+                entry("country", "country_iso_code"),
+                entry("type", "type")
+            ),
+            Set.of("ip"),
+            Set.of()
         );
     }
 
@@ -188,7 +203,16 @@ public class IpinfoIpDataLookupsTests extends ESTestCase {
                 entry("country_iso_code", "IE"),
                 entry("continent_name", "Europe"),
                 entry("continent_code", "EU")
-            )
+            ),
+            Map.ofEntries(
+                entry("continent_name", "continent_name"),
+                entry("continent", "continent_code"),
+                entry("country", "country_iso_code"),
+                entry("country_name", "country_name"),
+                entry("type", "type")
+            ),
+            Set.of("ip"),
+            Set.of("network")
         );
     }
 
@@ -208,7 +232,18 @@ public class IpinfoIpDataLookupsTests extends ESTestCase {
                 entry("timezone", "Europe/London"),
                 entry("postal_code", "E1W"),
                 entry("location", Map.of("lat", 51.50853, "lon", -0.12574))
-            )
+            ),
+            Map.ofEntries(
+                entry("country", "country_iso_code"),
+                entry("region", "region_name"),
+                entry("city", "city_name"),
+                entry("timezone", "timezone"),
+                entry("postal_code", "postal_code"),
+                entry("lat", "location"),
+                entry("lng", "location")
+            ),
+            Set.of("ip", "location"),
+            Set.of("geoname_id", "region_code")
         );
     }
 
@@ -266,7 +301,16 @@ public class IpinfoIpDataLookupsTests extends ESTestCase {
                 entry("relay", false),
                 entry("tor", false),
                 entry("vpn", true)
-            )
+            ),
+            Map.ofEntries(
+                entry("hosting", "hosting"),
+                entry("proxy", "proxy"),
+                entry("relay", "relay"),
+                entry("tor", "tor"),
+                entry("vpn", "vpn")
+            ),
+            Set.of("ip"),
+            Set.of("network", "service")
         );
     }
 
@@ -286,7 +330,17 @@ public class IpinfoIpDataLookupsTests extends ESTestCase {
                 entry("relay", false),
                 entry("tor", false),
                 entry("vpn", true)
-            )
+            ),
+            Map.ofEntries(
+                entry("hosting", "hosting"),
+                entry("proxy", "proxy"),
+                entry("service", "service"),
+                entry("relay", "relay"),
+                entry("tor", "tor"),
+                entry("vpn", "vpn")
+            ),
+            Set.of("ip"),
+            Set.of("network")
         );
     }
 
@@ -438,7 +492,15 @@ public class IpinfoIpDataLookupsTests extends ESTestCase {
         return databasePath.toFile();
     }
 
-    private void assertExpectedLookupResults(String databaseName, String ip, IpDataLookup lookup, Map<String, Object> expected) {
+    private void assertExpectedLookupResults(
+        String databaseName,
+        String ip,
+        IpDataLookup lookup,
+        Map<String, Object> expected,
+        Map<String, String> keyMappings,
+        Set<String> knownAdditionalKeys,
+        Set<String> knownMissingKeys
+    ) {
         try (DatabaseReaderLazyLoader loader = loader(databaseName)) {
             Map<String, Object> actual = lookup.getData(loader, ip);
             assertThat(
@@ -449,10 +511,47 @@ public class IpinfoIpDataLookupsTests extends ESTestCase {
             for (Map.Entry<String, Object> entry : expected.entrySet()) {
                 assertThat("Unexpected value for key [" + entry.getKey() + "]", actual.get(entry.getKey()), equalTo(entry.getValue()));
             }
+            assertActualResultsMatchReader(actual, databaseName, ip, keyMappings, knownAdditionalKeys, knownMissingKeys);
         } catch (AssertionError e) {
             fail(e, "Assert failed for database [%s] with address [%s]", databaseName, ip);
         } catch (Exception e) {
             fail(e, "Exception for database [%s] with address [%s]", databaseName, ip);
+        }
+    }
+
+    private void assertActualResultsMatchReader(
+        Map<String, Object> actual,
+        String databaseName,
+        String ip,
+        Map<String, String> keyMappings,
+        Set<String> knownAdditionalKeys,
+        Set<String> knownMissingKeys
+    ) throws IOException {
+        Path databasePath = tmpDir.resolve(databaseName);
+        try (Reader reader = new Reader(pathToFile(databasePath))) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> data = reader.get(InetAddresses.forString(ip), Map.class);
+            for (String key : data.keySet()) {
+                if (keyMappings.containsKey(key)) {
+                    assertTrue(
+                        Strings.format(
+                            "The reader returned key [%s] that is expected to map to key [%s], but [%s] did not appear in the "
+                                + "actual data",
+                            key,
+                            keyMappings.get(key),
+                            keyMappings.get(key)
+                        ),
+                        actual.containsKey(keyMappings.get(key))
+                    );
+                } else if (knownMissingKeys.contains(key) == false) {
+                    fail(null, "The reader returned unexpected key [%s]", key);
+                }
+            }
+            for (String key : actual.keySet()) {
+                if (keyMappings.containsValue(key) == false && knownAdditionalKeys.contains(key) == false) {
+                    fail(null, "Unexpected key [%s] in results", key);
+                }
+            }
         }
     }
 

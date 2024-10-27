@@ -71,6 +71,7 @@ import co.elastic.elasticsearch.stateless.commits.GetVirtualBatchedCompoundCommi
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitCleaner;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
+import co.elastic.elasticsearch.stateless.engine.MergeMetrics;
 import co.elastic.elasticsearch.stateless.engine.RefreshThrottler;
 import co.elastic.elasticsearch.stateless.engine.RefreshThrottlingService;
 import co.elastic.elasticsearch.stateless.engine.SearchEngine;
@@ -292,6 +293,7 @@ public class Stateless extends Plugin
     private final SetOnce<BlobStoreHealthIndicator> blobStoreHealthIndicator = new SetOnce<>();
     private final SetOnce<TranslogReplicator> translogReplicator = new SetOnce<>();
     private final SetOnce<TranslogRecoveryMetrics> translogReplicatorMetrics = new SetOnce<>();
+    private final SetOnce<MergeMetrics> mergeMetrics = new SetOnce<>();
     private final SetOnce<StatelessElectionStrategy> electionStrategy = new SetOnce<>();
     private final SetOnce<StoreHeartbeatService> storeHeartbeatService = new SetOnce<>();
     private final SetOnce<RefreshThrottlingService> refreshThrottlingService = new SetOnce<>();
@@ -495,6 +497,7 @@ public class Stateless extends Plugin
             new TranslogReplicator(threadPool, settings, objectStoreService, consistencyService)
         );
         setAndGet(this.translogReplicatorMetrics, new TranslogRecoveryMetrics(services.telemetryProvider().getMeterRegistry()));
+        setAndGet(this.mergeMetrics, new MergeMetrics(services.telemetryProvider().getMeterRegistry()));
         components.add(new StatelessComponents(translogReplicator, objectStoreService));
 
         var indexShardCacheWarmer = new IndexShardCacheWarmer(
@@ -1058,7 +1061,7 @@ public class Stateless extends Plugin
         SharedBlobCacheWarmingService sharedBlobCacheWarmingService,
         RefreshThrottler.Factory refreshThrottlerFactory,
         DocumentParsingProvider documentParsingProvider,
-        TranslogRecoveryMetrics translogRecoveryMetrics
+        IndexEngine.EngineMetrics engineMetrics
     ) {
         return new IndexEngine(
             engineConfig,
@@ -1070,7 +1073,7 @@ public class Stateless extends Plugin
             statelessCommitService.getIndexEngineLocalReaderListenerForShard(engineConfig.getShardId()),
             statelessCommitService.getCommitBCCResolverForShard(engineConfig.getShardId()),
             documentParsingProvider,
-            translogRecoveryMetrics
+            engineMetrics
         );
     }
 
@@ -1135,7 +1138,7 @@ public class Stateless extends Plugin
                     sharedBlobCacheWarmingService.get(),
                     refreshThrottlingService.get().createRefreshThrottlerFactory(indexSettings),
                     documentParsingProvider.get(),
-                    translogReplicatorMetrics.get()
+                    new IndexEngine.EngineMetrics(translogReplicatorMetrics.get(), mergeMetrics.get())
                 );
             } else {
                 return new SearchEngine(config, getClosedShardService());

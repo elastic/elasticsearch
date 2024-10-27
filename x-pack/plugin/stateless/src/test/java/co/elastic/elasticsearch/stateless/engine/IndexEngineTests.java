@@ -422,7 +422,7 @@ public class IndexEngineTests extends AbstractEngineTestCase {
                 mockCommitService,
                 mock(SharedBlobCacheWarmingService.class),
                 documentParsingProvider,
-                TranslogRecoveryMetrics.NOOP
+                new IndexEngine.EngineMetrics(TranslogRecoveryMetrics.NOOP, MergeMetrics.NOOP)
             )
         ) {
             Engine.Index index = randomDoc("id");
@@ -471,7 +471,7 @@ public class IndexEngineTests extends AbstractEngineTestCase {
                 mockCommitService,
                 mock(SharedBlobCacheWarmingService.class),
                 documentParsingProvider,
-                TranslogRecoveryMetrics.NOOP
+                new IndexEngine.EngineMetrics(TranslogRecoveryMetrics.NOOP, MergeMetrics.NOOP)
             )
         ) {
             engine.index(randomDoc(String.valueOf(0)));

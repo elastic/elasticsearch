@@ -633,6 +633,9 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
         public void handleChunk(RestChannel channel, ReleasableBytesReference chunk, boolean isLast) {
             Transports.assertTransportThread();
             if (shouldThrowInsideHandleChunk) {
+                if (randomBoolean()) {
+                    chunk.close();
+                }
                 throw new RuntimeException("simulated exception inside handleChunk");
             }
             recvChunks.add(new Chunk(chunk, isLast));

@@ -155,7 +155,7 @@ public class ES817TSDBDocValuesProducer extends DocValuesProducer {
         if (entry.indexedDISIOffset == -2) {
             return DocValues.emptyBinary();
         }
-        final var compressingReader = new ES817TSDBCompressingBinaryDocValues.Reader(entry, data, merging);
+        final var compressingReader = new ES817TSDBCompressingBinaryDocValues.Reader(entry, data);
         if (entry.indexedDISIOffset == -1) {
             return new DenseBinaryDocValues(maxDoc) {
                 @Override

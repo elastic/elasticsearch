@@ -37,7 +37,9 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiConsumer;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
@@ -147,6 +149,31 @@ public class SecurityIndexManagerIntegTests extends SecurityIntegTestCase {
             securityIndexManager.getStateChangeListeners(),
             not(hasItem(instanceOf(SecurityIndexManager.StateConsumerWithCancellable.class)))
         );
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testIndexMarkedInitializingDuringCreation() {
+        final SecurityIndexManager securityIndexManager = internalCluster().getInstances(NativePrivilegeStore.class)
+            .iterator()
+            .next()
+            .getSecurityIndexManager();
+
+        final AtomicBoolean indexInitializingEncountered = new AtomicBoolean(false);
+        final BiConsumer<SecurityIndexManager.State, SecurityIndexManager.State> initializationListener = (prev, next) -> {
+            if (next.indexInitializing) {
+                indexInitializingEncountered.set(true);
+            }
+        };
+        securityIndexManager.addStateListener(initializationListener);
+
+        // index not created yet; should not be marked initializing
+        assertThat(securityIndexManager.indexInitializing(), is(false));
+
+        createSecurityIndexWithWaitForActiveShards();
+
+        assertThat(indexInitializingEncountered.get(), is(true));
+        // index should no longer be initializing
+        assertThat(securityIndexManager.indexInitializing(), is(false));
     }
 
     @SuppressWarnings("unchecked")

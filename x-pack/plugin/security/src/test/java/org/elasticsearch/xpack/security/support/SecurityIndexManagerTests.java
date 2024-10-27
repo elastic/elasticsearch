@@ -136,6 +136,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
         manager.clusterChanged(event(markShardsAvailable(clusterStateBuilder)));
 
         assertThat(manager.indexExists(), Matchers.equalTo(true));
+        assertThat(manager.indexInitializing(), Matchers.equalTo(false));
         assertThat(manager.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS), Matchers.equalTo(true));
         assertThat(manager.isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS), Matchers.equalTo(true));
         assertThat(manager.isMappingUpToDate(), Matchers.equalTo(true));
@@ -663,6 +664,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
         );
         manager.clusterChanged(event(markShardsAvailable(indexAvailable)));
         assertThat(manager.indexExists(), is(true));
+        assertThat(manager.indexInitializing(), is(false));
         assertThat(manager.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS), is(true));
         assertThat(manager.isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS), is(true));
 
@@ -681,6 +683,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
 
         manager.clusterChanged(event(indexClosed.build()));
         assertThat(manager.indexExists(), is(true));
+        assertThat(manager.indexInitializing(), is(false));
         assertThat(manager.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS), is(false));
         assertThat(manager.isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS), is(false));
     }
@@ -699,6 +702,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
         assertThat(manager.isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS), Matchers.equalTo(false));
         assertThat(manager.isMappingUpToDate(), Matchers.equalTo(true));
         assertThat(manager.isStateRecovered(), Matchers.equalTo(true));
+        assertThat(manager.indexInitializing(), Matchers.equalTo(false));
     }
 
     public static ClusterState.Builder createClusterState(String indexName, String aliasName) {

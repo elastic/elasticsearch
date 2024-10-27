@@ -206,7 +206,7 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
             commitService,
             mock(SharedBlobCacheWarmingService.class),
             DocumentParsingProvider.EMPTY_INSTANCE,
-            TranslogRecoveryMetrics.NOOP
+            new IndexEngine.EngineMetrics(TranslogRecoveryMetrics.NOOP, MergeMetrics.NOOP)
         );
     }
 
@@ -217,7 +217,7 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
         StatelessCommitService commitService,
         SharedBlobCacheWarmingService sharedBlobCacheWarmingService,
         DocumentParsingProvider documentParsingProvider,
-        TranslogRecoveryMetrics translogRecoveryMetrics
+        IndexEngine.EngineMetrics engineMetrics
     ) {
         var indexEngine = new IndexEngine(
             indexConfig,
@@ -229,7 +229,7 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
             commitService.getIndexEngineLocalReaderListenerForShard(indexConfig.getShardId()),
             commitService.getCommitBCCResolverForShard(indexConfig.getShardId()),
             documentParsingProvider,
-            translogRecoveryMetrics
+            engineMetrics
         ) {
 
             @Override

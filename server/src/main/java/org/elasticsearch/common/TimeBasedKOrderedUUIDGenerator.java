@@ -32,7 +32,7 @@ public class TimeBasedKOrderedUUIDGenerator extends TimeBasedUUIDGenerator {
 
     @Override
     public String getBase64UUID() {
-        final int sequenceId = sequenceNumber.incrementAndGet() & 0x00FF_FFFF;
+        final int sequenceId = this.sequenceNumber.incrementAndGet() & 0x00FF_FFFF;
 
         long timestamp = this.lastTimestamp.accumulateAndGet(
             currentTimeMillis(),

@@ -34,6 +34,10 @@ public class TimeBasedKOrderedUUIDGenerator extends TimeBasedUUIDGenerator {
     public String getBase64UUID() {
         final int sequenceId = this.sequenceNumber.incrementAndGet() & 0x00FF_FFFF;
 
+        // Calculate timestamp to ensure ordering and avoid backward movement in case of time shifts.
+        // Uses AtomicLong to guarantee that timestamp increases even if the system clock moves backward.
+        // If the sequenceId overflows (reaches 0 within the same millisecond), the timestamp is incremented
+        // to ensure strict ordering.
         long timestamp = this.lastTimestamp.accumulateAndGet(
             currentTimeMillis(),
             sequenceId == 0 ? (lastTimestamp, currentTimeMillis) -> Math.max(lastTimestamp, currentTimeMillis) + 1 : Math::max

@@ -45,4 +45,28 @@ public class ByteBufferStreamInputTests extends AbstractStreamTests {
         read = getStreamInput(out.bytes()).readVLong();
         assertEquals(write, read);
     }
+
+    public void testReadVIntNegative() throws IOException {
+        for (int i = 0; i < 1024; i++) {
+            int write = randomNegativeInt();
+            BytesStreamOutput out = new BytesStreamOutput();
+            out.writeVInt(write);
+            int read = getStreamInput(out.bytes()).readVInt();
+            assertEquals(write, read);
+        }
+    }
+
+    public void testReadVIntBounds() throws IOException {
+        int write = Integer.MAX_VALUE;
+        BytesStreamOutput out = new BytesStreamOutput();
+        out.writeVInt(write);
+        long read = getStreamInput(out.bytes()).readVInt();
+        assertEquals(write, read);
+
+        write = Integer.MIN_VALUE;
+        out = new BytesStreamOutput();
+        out.writeVInt(write);
+        read = getStreamInput(out.bytes()).readVInt();
+        assertEquals(write, read);
+    }
 }

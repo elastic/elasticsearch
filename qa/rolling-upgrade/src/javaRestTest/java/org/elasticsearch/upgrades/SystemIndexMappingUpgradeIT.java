@@ -35,8 +35,8 @@ import static org.elasticsearch.test.LambdaMatchers.transformedMatch;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.anyOf;
-import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.not;
 
 public class SystemIndexMappingUpgradeIT extends ESRestTestCase {
@@ -79,12 +79,12 @@ public class SystemIndexMappingUpgradeIT extends ESRestTestCase {
     @Override
     protected final Settings restClientSettings() {
         return Settings.builder()
-                .put(super.restClientSettings())
-                // increase the timeout here to 90 seconds to handle long waits for a green
-                // cluster health. the waits for green need to be longer than a minute to
-                // account for delayed shards
-                .put(ESRestTestCase.CLIENT_SOCKET_TIMEOUT, "90s")
-                .build();
+            .put(super.restClientSettings())
+            // increase the timeout here to 90 seconds to handle long waits for a green
+            // cluster health. the waits for green need to be longer than a minute to
+            // account for delayed shards
+            .put(ESRestTestCase.CLIENT_SOCKET_TIMEOUT, "90s")
+            .build();
     }
 
     private static String getNodesAttribute(ObjectPath objectPath, String nodeId, String attribute) {
@@ -99,20 +99,21 @@ public class SystemIndexMappingUpgradeIT extends ESRestTestCase {
         Response response = client().performRequest(new Request("GET", "_nodes"));
         ObjectPath objectPath = ObjectPath.createFromResponse(response);
         Map<String, Object> nodesAsMap = objectPath.evaluate("nodes");
-        return nodesAsMap.keySet().stream()
-            .filter(id -> getNodesAttribute(objectPath, id, "version").equals(Build.current().version())) //nodes on current version
+        return nodesAsMap.keySet()
+            .stream()
+            .filter(id -> getNodesAttribute(objectPath, id, "version").equals(Build.current().version())) // nodes on current version
             .map(id -> getNodesAttribute(objectPath, id, "http.publish_address"))
             .toList();
     }
 
     @SuppressWarnings("unchecked")
     private List<Map<String, Object>> fieldAsObjectList(Map<? extends String, ?> objectMap, String field) {
-        return (List<Map<String, Object>>)(objectMap.get(field));
+        return (List<Map<String, Object>>) (objectMap.get(field));
     }
 
     @SuppressWarnings("unchecked")
     private Map<String, Object> fieldAsObject(Map<? extends String, ?> objectMap, String field) {
-        return (Map<String, Object>)(objectMap.get(field));
+        return (Map<String, Object>) (objectMap.get(field));
     }
 
     public void testGrowShrinkUpgradeUpdatesSystemIndexMapping() throws IOException {
@@ -132,7 +133,8 @@ public class SystemIndexMappingUpgradeIT extends ESRestTestCase {
                 not(hasKey("nodes_versions")),
                 transformedMatch(
                     x -> fieldAsObjectList(x, "nodes_versions"),
-                    everyItem(transformedMatch(item -> fieldAsObject(item,"mappings_versions"), anEmptyMap())))
+                    everyItem(transformedMatch(item -> fieldAsObject(item, "mappings_versions"), anEmptyMap()))
+                )
             )
         );
 
@@ -153,7 +155,8 @@ public class SystemIndexMappingUpgradeIT extends ESRestTestCase {
                 hasKey("nodes_versions"),
                 transformedMatch(
                     x -> fieldAsObjectList(x, "nodes_versions"),
-                    everyItem(transformedMatch(item -> fieldAsObject(item,"mappings_versions"), not(anEmptyMap()))))
+                    everyItem(transformedMatch(item -> fieldAsObject(item, "mappings_versions"), not(anEmptyMap())))
+                )
             )
         );
     }

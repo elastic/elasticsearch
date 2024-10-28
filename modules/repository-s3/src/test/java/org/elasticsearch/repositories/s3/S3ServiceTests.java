@@ -8,23 +8,23 @@
  */
 package org.elasticsearch.repositories.s3;
 
+import com.amazonaws.AmazonWebServiceRequest;
+import com.amazonaws.services.s3.model.AmazonS3Exception;
+
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.ResourceWatcherService;
-import org.mockito.Mockito;
 
 import java.io.IOException;
+
+import static org.mockito.Mockito.mock;
 
 public class S3ServiceTests extends ESTestCase {
 
     public void testCachedClientsAreReleased() throws IOException {
-        final S3Service s3Service = new S3Service(
-            Mockito.mock(Environment.class),
-            Settings.EMPTY,
-            Mockito.mock(ResourceWatcherService.class)
-        );
+        final S3Service s3Service = new S3Service(mock(Environment.class), Settings.EMPTY, mock(ResourceWatcherService.class));
         final Settings settings = Settings.builder().put("endpoint", "http://first").build();
         final RepositoryMetadata metadata1 = new RepositoryMetadata("first", "s3", settings);
         final RepositoryMetadata metadata2 = new RepositoryMetadata("second", "s3", settings);
@@ -40,5 +40,26 @@ public class S3ServiceTests extends ESTestCase {
         s3Service.close();
         final S3ClientSettings clientSettingsReloaded = s3Service.settings(metadata1);
         assertNotSame(clientSettings, clientSettingsReloaded);
+    }
+
+    public void testRetryOn403RetryPolicy() {
+        final AmazonS3Exception e = new AmazonS3Exception("error");
+        e.setStatusCode(403);
+        e.setErrorCode("InvalidAccessKeyId");
+
+        // Retry on 403 invalid access key id
+        assertTrue(
+            S3Service.RETRYABLE_403_RETRY_POLICY.getRetryCondition().shouldRetry(mock(AmazonWebServiceRequest.class), e, between(0, 9))
+        );
+
+        // Not retry if not 403 or not invalid access key id
+        if (randomBoolean()) {
+            e.setStatusCode(randomValueOtherThan(403, () -> between(0, 600)));
+        } else {
+            e.setErrorCode(randomAlphaOfLength(10));
+        }
+        assertFalse(
+            S3Service.RETRYABLE_403_RETRY_POLICY.getRetryCondition().shouldRetry(mock(AmazonWebServiceRequest.class), e, between(0, 9))
+        );
     }
 }

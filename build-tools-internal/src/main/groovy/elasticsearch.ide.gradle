@@ -122,6 +122,36 @@ if (providers.systemProperty('idea.active').getOrNull() == 'true') {
       .findAll { it != null }
   }
 
+  // force IntelliJ to generate *.iml files for each imported module
+  tasks.register("enableExternalConfiguration") {
+    group = 'ide'
+    description = 'Enable per-module *.iml files'
+
+    doLast {
+      modifyXml('.idea/misc.xml') {xml ->
+        def externalStorageConfig = xml.component.find { it.'@name' == 'ExternalStorageConfigurationManager' }
+        if (externalStorageConfig) {
+          xml.remove(externalStorageConfig)
+        }
+      }
+    }
+  }
+
+  // modifies the idea module config to enable preview features on 'elasticsearch-native' module
+  tasks.register("enablePreviewFeatures") {
+    group = 'ide'
+    description = 'Enables preview features on native library module'
+    dependsOn tasks.named("enableExternalConfiguration")
+
+    doLast {
+      ['main', 'test'].each { sourceSet ->
+        modifyXml(".idea/modules/libs/native/elasticsearch.libs.elasticsearch-native.${sourceSet}.iml") { xml ->
+          xml.component.find { it.'@name' == 'NewModuleRootManager' }?.'@LANGUAGE_LEVEL' = 'JDK_21_PREVIEW'
+        }
+      }
+    }
+  }
+
   tasks.register('buildDependencyArtifacts') {
     group = 'ide'
     description = 'Builds artifacts needed as dependency for IDE modules'
@@ -149,7 +179,10 @@ if (providers.systemProperty('idea.active').getOrNull() == 'true') {
           testRunner = 'choose_per_test'
         }
         taskTriggers {
-          afterSync tasks.named('configureIdeCheckstyle'), tasks.named('configureIdeaGradleJvm'), tasks.named('buildDependencyArtifacts')
+          afterSync tasks.named('configureIdeCheckstyle'),
+            tasks.named('configureIdeaGradleJvm'),
+            tasks.named('buildDependencyArtifacts'),
+            tasks.named('enablePreviewFeatures')
         }
         encodings {
           encoding = 'UTF-8'

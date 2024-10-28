@@ -216,6 +216,7 @@ public class TsdbDataStreamRestIT extends DisabledSecurityDataStreamTestCase {
             Request startTrial = new Request("POST", "/_license/start_trial");
             startTrial.addParameter("acknowledge", "true");
             client().performRequest(startTrial);  // Ignore failures, the API is not present in Serverless.
+            trialStarted = true;
         }
 
         // Add component template:

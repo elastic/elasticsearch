@@ -92,7 +92,7 @@ PUT /cooking_blog/_mapping
 ----
 // TEST
 <1> The `standard` analyzer is used by default for `text` fields if an `analyzer` isn't specified. It's included here for demonstration purposes.
-<2> <<multi-fields,Multi-fields>> are used to index `text` fields as both `text` and `keyword` <<mapping-types,data types>>. This enables both full-text search and exact matching/filtering on the same field.
+<2> <<multi-fields,Multi-fields>> are used here to index `text` fields as both `text` and `keyword` <<mapping-types,data types>>. This enables both full-text search and exact matching/filtering on the same field.
 Note that if you used <<dynamic-field-mapping,dynamic mapping>>, these multi-fields would be created automatically.
 <3> The <<ignore-above,`ignore_above` parameter>> prevents indexing values longer than 256 characters in the `keyword` field. Again this is the default value, but it's included here for for demonstration purposes.
 It helps to save disk space and avoid potential issues with Lucene's term byte-length limit.
@@ -398,7 +398,7 @@ Even though the exact phrase "vegetarian curry" doesn't appear in any single fie
 
 [TIP]
 ====
-The `multi_match` query is often recommended over a single `match` query for most text search use cases, as it provides more flexibility and better matches user expectations. It won't work if the multi-field mapping isn't enabled.
+The `multi_match` query is often recommended over a single `match` query for most text search use cases, as it provides more flexibility and better matches user expectations.
 ====
 
 [discrete]
@@ -603,8 +603,8 @@ GET /cooking_blog/_search
 }
 ----
 // TESTRESPONSE[s/"took": 1/"took": "$body.took"/]
-<1> The title contains "Spicy", matching one of our `should` conditions and contributing to a higher relevance score.
-<2> The description includes "curry", further increasing the document's relevance.
+<1> The title contains "Spicy" and "Curry", matching our should condition. With the default <<type-best-fields,best_fields>> behavior, this field contributes most to the relevance score.
+<2> While the description also contains matching terms, only the best matching field's score is used by default.
 <3> The recipe was published within the last month, satisfying our recency preference.
 <4> The "Main Course" category matches our `must` condition.
 <5> The "vegetarian" tag satisfies another `must` condition, while "curry" and "spicy" tags align with our `should` preferences.

@@ -339,8 +339,7 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
                 if (prior.primaryIndex.equals(primaryIndex) == false) {
                     throw new IllegalArgumentException("primary index must be the same");
                 }
-                if ((prior.aliasName == null && aliasName != null)
-                    || (prior.aliasName != null && prior.aliasName.equals(aliasName) == false)) {
+                if (Objects.equals(prior.aliasName, aliasName) == false) {
                     throw new IllegalArgumentException("alias name must be the same");
                 }
             }
@@ -566,13 +565,15 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
             ? getMappingsVersion()
             : priorSystemIndexDescriptors.get(priorSystemIndexDescriptors.size() - 1).mappingsVersion;
         return Strings.format(
-            "[%s] failed - requested creation of system index [%s] with version [%s], which is greater than the cluster minimum index "
-                + "mapping version. Ensure that the system index descriptor for [%s] includes a prior definition for version [%s]",
+            "[%s] failed - requested creation of system index [%s] with version [%s], while this cluster minimum supported version is " +
+                "[%s]. For the cluster to support version [%s], ensure that the system index descriptor for [%s] includes a prior " +
+                "definition for that version.",
             cause,
             this.getPrimaryIndex(),
+            requiredMinimumMappingVersion,
             actualMinimumMappingsVersion,
-            this.getPrimaryIndex(),
-            requiredMinimumMappingVersion
+            requiredMinimumMappingVersion,
+            this.getPrimaryIndex()
         );
     }
 

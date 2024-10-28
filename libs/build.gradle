@@ -23,6 +23,8 @@ configure(childProjects.values()) {
     archivesName = baseArtifactId
   }
   subprojects {
+    apply plugin: 'base'
+    
     def subArtifactId = baseArtifactId
     def currentProject = project
     while (currentProject != baseProject) {

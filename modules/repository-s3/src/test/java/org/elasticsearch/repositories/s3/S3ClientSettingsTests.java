@@ -194,9 +194,9 @@ public class S3ClientSettingsTests extends ESTestCase {
         );
         assertThat(settings.get("default").region, is(""));
         assertThat(settings.get("other").signerOverride, is(signerOverride));
-        ClientConfiguration defaultConfiguration = S3Service.buildConfiguration(settings.get("default"));
+        ClientConfiguration defaultConfiguration = S3Service.buildConfiguration(settings.get("default"), false);
         assertThat(defaultConfiguration.getSignerOverride(), nullValue());
-        ClientConfiguration configuration = S3Service.buildConfiguration(settings.get("other"));
+        ClientConfiguration configuration = S3Service.buildConfiguration(settings.get("other"), false);
         assertThat(configuration.getSignerOverride(), is(signerOverride));
     }
 
@@ -207,12 +207,18 @@ public class S3ClientSettingsTests extends ESTestCase {
         );
         assertThat(settings.get("default").maxConnections, is(ClientConfiguration.DEFAULT_MAX_CONNECTIONS));
         assertThat(settings.get("other").maxConnections, is(maxConnections));
-        ClientConfiguration defaultConfiguration = S3Service.buildConfiguration(settings.get("default"));
+        ClientConfiguration defaultConfiguration = S3Service.buildConfiguration(settings.get("default"), false);
         assertThat(defaultConfiguration.getMaxConnections(), is(ClientConfiguration.DEFAULT_MAX_CONNECTIONS));
-        ClientConfiguration configuration = S3Service.buildConfiguration(settings.get("other"));
+        ClientConfiguration configuration = S3Service.buildConfiguration(settings.get("other"), false);
         assertThat(configuration.getMaxConnections(), is(maxConnections));
 
         // the default appears in the docs so let's make sure it doesn't change:
         assertEquals(50, ClientConfiguration.DEFAULT_MAX_CONNECTIONS);
+    }
+
+    public void testStatelessDefaultRetryPolicy() {
+        final var s3ClientSettings = S3ClientSettings.load(Settings.EMPTY).get("default");
+        final var clientConfiguration = S3Service.buildConfiguration(s3ClientSettings, true);
+        assertThat(clientConfiguration.getRetryPolicy(), is(S3Service.RETRYABLE_403_RETRY_POLICY));
     }
 }

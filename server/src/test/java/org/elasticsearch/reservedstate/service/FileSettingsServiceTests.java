@@ -227,10 +227,6 @@ public class FileSettingsServiceTests extends ESTestCase {
             return null;
         }).when(controller).process(any(), any(XContentParser.class), any(), any());
 
-        Files.createDirectories(fileSettingsService.watchedFileDir());
-        // contents of the JSON don't matter, we just need a file to exist
-        writeTestFile(fileSettingsService.watchedFile(), "{}");
-
         CountDownLatch changesOnStartLatch = new CountDownLatch(1);
         doAnswer((Answer<?>) invocation -> {
             try {
@@ -248,6 +244,10 @@ public class FileSettingsServiceTests extends ESTestCase {
                 changesLatch.countDown();
             }
         }).when(fileSettingsService).processFileChanges();
+
+        Files.createDirectories(fileSettingsService.watchedFileDir());
+        // contents of the JSON don't matter, we just need a file to exist
+        writeTestFile(fileSettingsService.watchedFile(), "{}");
 
         fileSettingsService.start();
         fileSettingsService.clusterChanged(new ClusterChangedEvent("test", clusterService.state(), ClusterState.EMPTY_STATE));

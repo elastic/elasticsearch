@@ -6,4 +6,4 @@ _meta:
 template:
   settings:
     codec: best_compression
-    mode: standard
+    index.mode: standard

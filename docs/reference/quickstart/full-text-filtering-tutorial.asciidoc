@@ -168,49 +168,49 @@ At search time, {es} defaults to the analyzer defined in the field mapping. In t
 [source,console-result]
 ----
 {
- "took": 2,
- "timed_out": false,
- "_shards": {
-   "total": 5,
-   "successful": 5,
-   "skipped": 0,
-   "failed": 0
- },
- "hits": { <1>
-   "total": {
-     "value": 1, 
-     "relation": "eq"
-   },
-   "max_score": 0.39556286, <2>
-   "hits": [
-     {
-       "_index": "cooking_blog",
-       "_id": "1",
-       "_score": 0.39556286, <3>
-       "_source": {
-         "title": "Perfect Pancakes: A Fluffy Breakfast Delight", <4>
-         "description": "Learn the secrets to making the fluffiest pancakes, so amazing you won't believe your tastebuds. This recipe uses buttermilk and a special folding technique to create light, airy pancakes that are perfect for lazy Sunday mornings.", <5>
-         "author": "Maria Rodriguez",
-         "date": "2023-05-01", 
-         "category": "Breakfast",
-         "tags": [
-           "pancakes",
-           "breakfast",
-           "easy recipes"
-         ],
-         "rating": 4.8
-       }
-     }
-   ]
- }
+  "took": 0,
+  "timed_out": false,
+  "_shards": {
+    "total": 1,
+    "successful": 1,
+    "skipped": 0,
+    "failed": 0
+  },
+  "hits": { <1>
+    "total": {
+      "value": 1,
+      "relation": "eq"
+    },
+    "max_score": 1.8378843, <2>
+    "hits": [
+      {
+        "_index": "cooking_blog",
+        "_id": "1",
+        "_score": 1.8378843, <3>
+        "_source": {
+          "title": "Perfect Pancakes: A Fluffy Breakfast Delight", <4>
+          "description": "Learn the secrets to making the fluffiest pancakes, so amazing you won't believe your tastebuds. This recipe uses buttermilk and a special folding technique to create light, airy pancakes that are perfect for lazy Sunday mornings.", <5>
+          "author": "Maria Rodriguez",
+          "date": "2023-05-01",
+          "category": "Breakfast",
+          "tags": [
+            "pancakes",
+            "breakfast",
+            "easy recipes"
+          ],
+          "rating": 4.8
+        }
+      }
+    ]
+  }
 }
 ----
-// TESTRESPONSE[s/"took": 2/"took": $body.took/]
-// TESTRESPONSE[s/"total": 5/"total": $body._shards.total/]
-// TESTRESPONSE[s/"successful": 5/"successful": $body._shards.successful/]
+// TESTRESPONSE[s/"took": 0/"took": "$body.took"/]
+// TESTRESPONSE[s/"total": 1/"total": $body._shards.total/]
+// TESTRESPONSE[s/"successful": 1/"successful": $body._shards.successful/]
 // TESTRESPONSE[s/"value": 1/"value": $body.hits.total.value/]
-// TESTRESPONSE[s/"max_score": 0.39556286/"max_score": $body.hits.max_score/]
-// TESTRESPONSE[s/"_score": 0.39556286/"_score": $body.hits.hits.0._score/]
+// TESTRESPONSE[s/"max_score": 1.8378843/"max_score": $body.hits.max_score/]
+// TESTRESPONSE[s/"_score": 1.8378843/"_score": $body.hits.hits.0._score/]
 <1> The `hits` object contains the total number of matching documents and their relation to the total. Refer to <<track-total-hits,Track total hits>> for more details about the `hits` object.
 <2> `max_score` is the highest relevance score among all matching documents. In this example, we only have one matching document.
 <3> `_score` is the relevance score for a specific document, indicating how well it matches the query. Higher scores indicate better matches. In this example the `max_score` is the same as the `_score`, as there is only one matching document.
@@ -222,7 +222,7 @@ At search time, {es} defaults to the analyzer defined in the field mapping. In t
 ==== Require all terms in a match query
 
 Specify the `and` operator to require both terms in the `description` field.
-This stricter search returns zero hits on our sample data, as no document contains both "fluffy" and "pancakes" in the description.
+This stricter search returns _zero hits_ on our sample data, as no document contains both "fluffy" and "pancakes" in the description.
 
 [source,console]
 ----
@@ -246,7 +246,7 @@ GET /cooking_blog/_search
 [source,console-result]
 ----
 {
-  "took": 1,
+  "took": 0,
   "timed_out": false,
   "_shards": {
     "total": 1,
@@ -264,7 +264,7 @@ GET /cooking_blog/_search
   }
 }
 ----
-// TEST[continued]
+// TESTRESPONSE[s/"took": 0/"took": "$body.took"/]
 ==============
 
 [discrete]
@@ -347,45 +347,47 @@ Learn more about fields and per-field boosting in the <<query-dsl-multi-match-qu
 [source,console-result]
 ----
 {
-  "took" : 5,
-  "timed_out" : false,
-  "_shards" : {
-    "total" : 1,
-    "successful" : 1,
-    "skipped" : 0,
-    "failed" : 0
+  "took": 0,
+  "timed_out": false,
+  "_shards": {
+    "total": 1,
+    "successful": 1,
+    "skipped": 0,
+    "failed": 0
   },
-  "hits" : {
-    "total" : {
-      "value" : 1,
-      "relation" : "eq"
+  "hits": {
+    "total": {
+      "value": 1,
+      "relation": "eq"
     },
-    "max_score" : 1.8234354,
-    "hits" : [
+    "max_score": 7.546015,
+    "hits": [
       {
-        "_index" : "cooking_blog",
-        "_id" : "2",
-        "_score" : 1.8234354,
-        "_source" : {
-          "title" : "Spicy Thai Green Curry: A Vegetarian Adventure", <1>
-          "description" : "Dive into the flavors of Thailand with this vibrant green curry. Packed with vegetables and aromatic herbs, this dish is both healthy and satisfying. Don't worry about the heat - you can easily adjust the spice level to your liking.", <2>
-          "author" : "Liam Chen",
-          "date" : "2023-05-05",
-          "category" : "Main Course",
-          "tags" : [
+        "_index": "cooking_blog",
+        "_id": "2",
+        "_score": 7.546015,
+        "_source": {
+          "title": "Spicy Thai Green Curry: A Vegetarian Adventure", <1>
+          "description": "Dive into the flavors of Thailand with this vibrant green curry. Packed with vegetables and aromatic herbs, this dish is both healthy and satisfying. Don't worry about the heat - you can easily adjust the spice level to your liking.", <2>
+          "author": "Liam Chen",
+          "date": "2023-05-05",
+          "category": "Main Course",
+          "tags": [ 
             "thai",
             "vegetarian",
             "curry",
             "spicy"
           ], <3>
-          "rating" : 4.6
+          "rating": 4.6
         }
       }
     ]
   }
 }
 ----
-// TEST[continued]
+// TESTRESPONSE[s/"took": 0/"took": "$body.took"/]
+// TESTRESPONSE[s/"_score": 7.546015/"_score": $body.hits.hits.0._score/]
+// TESTRESPONSE[s/"max_score": 7.546015/"max_score": $body.hits.max_score/]
 <1> The title contains "Vegetarian" and "Curry", which matches our search terms. The title field has the highest boost (^3), contributing significantly to this document's relevance score.
 <2> The description contains "curry" and related terms like "vegetables", further increasing the document's relevance.
 <3> The tags include both "vegetarian" and "curry", providing an exact match for our search terms, albeit with no boost.
@@ -600,7 +602,7 @@ GET /cooking_blog/_search
   }
 }
 ----
-// TEST[continued]
+// TESTRESPONSE[s/"took": 1/"took": "$body.took"/]
 <1> The title contains "Spicy", matching one of our `should` conditions and contributing to a higher relevance score.
 <2> The description includes "curry", further increasing the document's relevance.
 <3> The recipe was published within the last month, satisfying our recency preference.

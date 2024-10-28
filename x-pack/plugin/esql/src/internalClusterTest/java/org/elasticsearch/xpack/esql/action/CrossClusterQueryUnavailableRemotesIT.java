@@ -17,6 +17,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.AbstractMultiClustersTestCase;
 import org.elasticsearch.test.XContentTestUtils;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 
 import java.io.IOException;
@@ -189,7 +190,7 @@ public class CrossClusterQueryUnavailableRemotesIT extends AbstractMultiClusters
                 assertClusterMetadataInResponse(resp, responseExpectMeta);
             }
 
-            // close remote-cluster-12that it is also unavailable
+            // close remote-cluster-2 so that it is also unavailable
             cluster(REMOTE_CLUSTER_2).close();
 
             try (EsqlQueryResponse resp = runQuery("FROM logs-*,*:logs-* | STATS sum (v)", requestIncludeMeta)) {
@@ -260,6 +261,12 @@ public class CrossClusterQueryUnavailableRemotesIT extends AbstractMultiClusters
 
             // query only the REMOTE_CLUSTER_1
             try (EsqlQueryResponse resp = runQuery("FROM " + REMOTE_CLUSTER_1 + ":logs-* | STATS sum (v)", requestIncludeMeta)) {
+                List<ColumnInfoImpl> columns = resp.columns();
+                assertThat(columns.size(), equalTo(1));
+                // column from an empty result should be {"name":"<no-fields>","type":"null"}
+                assertThat(columns.get(0).name(), equalTo("<no-fields>"));
+                assertThat(columns.get(0).type(), equalTo(DataType.NULL));
+
                 List<List<Object>> values = getValuesList(resp);
                 assertThat(values, hasSize(0));
 
@@ -289,13 +296,19 @@ public class CrossClusterQueryUnavailableRemotesIT extends AbstractMultiClusters
             // close remote cluster 2 so that it is also unavailable
             cluster(REMOTE_CLUSTER_2).close();
 
-            // query only the REMOTE_CLUSTER_1
+            // query only the both remote clusters
             try (
                 EsqlQueryResponse resp = runQuery(
                     "FROM " + REMOTE_CLUSTER_1 + ":logs-*," + REMOTE_CLUSTER_2 + ":logs-* | STATS sum (v)",
                     requestIncludeMeta
                 )
             ) {
+                List<ColumnInfoImpl> columns = resp.columns();
+                assertThat(columns.size(), equalTo(1));
+                // column from an empty result should be {"name":"<no-fields>","type":"null"}
+                assertThat(columns.get(0).name(), equalTo("<no-fields>"));
+                assertThat(columns.get(0).type(), equalTo(DataType.NULL));
+
                 List<List<Object>> values = getValuesList(resp);
                 assertThat(values, hasSize(0));
 
@@ -472,10 +485,9 @@ public class CrossClusterQueryUnavailableRemotesIT extends AbstractMultiClusters
         clusterInfo.put("remote.index", remoteIndex);
 
         if (numClusters == 3) {
-            String remoteIndex2 = "logs-2";
             int numShardsRemote2 = randomIntBetween(1, 5);
-            populateRemoteIndices(REMOTE_CLUSTER_2, remoteIndex2, numShardsRemote2);
-            clusterInfo.put("remote2.index", remoteIndex2);
+            populateRemoteIndices(REMOTE_CLUSTER_2, remoteIndex, numShardsRemote2);
+            clusterInfo.put("remote2.index", remoteIndex);
             clusterInfo.put("remote2.num_shards", numShardsRemote2);
         }
 

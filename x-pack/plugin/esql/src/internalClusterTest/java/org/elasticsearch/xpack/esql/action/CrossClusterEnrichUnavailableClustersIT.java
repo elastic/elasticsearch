@@ -538,7 +538,7 @@ public class CrossClusterEnrichUnavailableClustersIT extends AbstractMultiCluste
         Boolean requestIncludeMeta = includeCCSMetadata.v1();
         boolean responseExpectMeta = includeCCSMetadata.v2();
 
-        boolean skipUnavailableRemote2 = true;// randomBoolean();
+        boolean skipUnavailableRemote2 = randomBoolean();
         setSkipUnavailable(REMOTE_CLUSTER_1, true);
         setSkipUnavailable(REMOTE_CLUSTER_2, skipUnavailableRemote2);
 

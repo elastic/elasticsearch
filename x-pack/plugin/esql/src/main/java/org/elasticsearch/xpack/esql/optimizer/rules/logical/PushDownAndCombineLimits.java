@@ -44,7 +44,7 @@ public final class PushDownAndCombineLimits extends OptimizerRules.OptimizerRule
                 var limitSource = limit.limit();
                 var limitVal = (int) limitSource.fold();
                 Integer mvxLimit = mvx.limit();
-                if (mvxLimit == null || mvxLimit < 0 || mvxLimit > limitVal) {
+                if (mvxLimit == null || mvxLimit > limitVal) {
                     mvx = new MvExpand(mvx.source(), mvx.child(), mvx.target(), mvx.expanded(), limitVal);
                 }
                 return mvx.replaceChild(limit.replaceChild(mvx.child()));

@@ -1232,8 +1232,14 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
                 {
                        "provider": "googleaistudio",
                        "task_types": [
-                           "text_embedding",
-                           "completion"
+                            {
+                                "task_type": "text_embedding",
+                                "configuration": {}
+                            },
+                            {
+                                "task_type": "completion",
+                                "configuration": {}
+                            }
                        ],
                        "configuration": {
                            "api_key": {

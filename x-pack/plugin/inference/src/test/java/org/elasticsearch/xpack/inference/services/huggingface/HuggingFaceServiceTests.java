@@ -951,8 +951,14 @@ public class HuggingFaceServiceTests extends ESTestCase {
                 {
                        "provider": "hugging_face",
                        "task_types": [
-                           "text_embedding",
-                           "sparse_embedding"
+                            {
+                                "task_type": "text_embedding",
+                                "configuration": {}
+                            },
+                            {
+                                "task_type": "sparse_embedding",
+                                "configuration": {}
+                            }
                        ],
                        "configuration": {
                            "api_key": {

@@ -17,17 +17,19 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
 import org.elasticsearch.inference.ChunkingOptions;
 import org.elasticsearch.inference.ChunkingSettings;
+import org.elasticsearch.inference.EmptySettingsConfiguration;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
-import org.elasticsearch.inference.ServiceConfiguration;
+import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.SimilarityMeasure;
+import org.elasticsearch.inference.TaskSettingsConfiguration;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.inference.configuration.ServiceConfigurationDisplayType;
-import org.elasticsearch.inference.configuration.ServiceConfigurationFieldType;
+import org.elasticsearch.inference.configuration.SettingsConfigurationDisplayType;
+import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.inference.ChunkingSettingsFeatureFlag;
 import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsBuilder;
@@ -46,7 +48,6 @@ import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.elasticsearch.xpack.inference.services.validation.ModelValidatorBuilder;
 
-import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
@@ -62,6 +63,8 @@ import static org.elasticsearch.xpack.inference.services.mistral.MistralConstant
 
 public class MistralService extends SenderService {
     public static final String NAME = "mistral";
+
+    private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(TaskType.TEXT_EMBEDDING);
 
     public MistralService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents) {
         super(factory, serviceComponents);
@@ -125,16 +128,13 @@ public class MistralService extends SenderService {
     }
 
     @Override
-    public InferenceServiceConfiguration getConfiguration() throws Exception {
-        return new InferenceServiceConfiguration.Builder().setProvider(NAME)
-            .setTaskTypes(supportedTaskTypes())
-            .setConfiguration(MistralService.Configuration.get())
-            .build();
+    public InferenceServiceConfiguration getConfiguration() {
+        return Configuration.get();
     }
 
     @Override
     public EnumSet<TaskType> supportedTaskTypes() {
-        return EnumSet.of(TaskType.TEXT_EMBEDDING);
+        return supportedTaskTypes;
     }
 
     @Override
@@ -308,42 +308,51 @@ public class MistralService extends SenderService {
         }
     }
 
-    private static class Configuration {
-        public static Map<String, ServiceConfiguration> get() throws Exception {
+    public static class Configuration {
+        public static InferenceServiceConfiguration get() {
             return configuration.getOrCompute();
         }
 
-        private static final LazyInitializable<Map<String, ServiceConfiguration>, ?> configuration = new LazyInitializable<>(() -> {
-            var configurationMap = new HashMap<String, ServiceConfiguration>();
+        private static final LazyInitializable<InferenceServiceConfiguration, RuntimeException> configuration = new LazyInitializable<>(
+            () -> {
+                var configurationMap = new HashMap<String, SettingsConfiguration>();
 
-            configurationMap.put(
-                MODEL_FIELD,
-                new ServiceConfiguration.Builder().setDisplay(ServiceConfigurationDisplayType.TEXTBOX)
-                    .setLabel("Model")
-                    .setOrder(2)
-                    .setRequired(true)
-                    .setSensitive(false)
-                    .setTooltip("Refer to the Mistral models documentation for the list of available text embedding models.")
-                    .setType(ServiceConfigurationFieldType.STRING)
-                    .build()
-            );
+                configurationMap.put(
+                    MODEL_FIELD,
+                    new SettingsConfiguration.Builder().setDisplay(SettingsConfigurationDisplayType.TEXTBOX)
+                        .setLabel("Model")
+                        .setOrder(2)
+                        .setRequired(true)
+                        .setSensitive(false)
+                        .setTooltip("Refer to the Mistral models documentation for the list of available text embedding models.")
+                        .setType(SettingsConfigurationFieldType.STRING)
+                        .build()
+                );
 
-            configurationMap.put(
-                MAX_INPUT_TOKENS,
-                new ServiceConfiguration.Builder().setDisplay(ServiceConfigurationDisplayType.NUMERIC)
-                    .setLabel("Maximum Input Tokens")
-                    .setOrder(3)
-                    .setRequired(false)
-                    .setSensitive(false)
-                    .setTooltip("Allows you to specify the maximum number of tokens per input.")
-                    .setType(ServiceConfigurationFieldType.INTEGER)
-                    .build()
-            );
+                configurationMap.put(
+                    MAX_INPUT_TOKENS,
+                    new SettingsConfiguration.Builder().setDisplay(SettingsConfigurationDisplayType.NUMERIC)
+                        .setLabel("Maximum Input Tokens")
+                        .setOrder(3)
+                        .setRequired(false)
+                        .setSensitive(false)
+                        .setTooltip("Allows you to specify the maximum number of tokens per input.")
+                        .setType(SettingsConfigurationFieldType.INTEGER)
+                        .build()
+                );
 
-            configurationMap.putAll(DefaultSecretSettings.toServiceConfiguration());
-            configurationMap.putAll(RateLimitSettings.toServiceConfiguration());
+                configurationMap.putAll(DefaultSecretSettings.toSettingsConfiguration());
+                configurationMap.putAll(RateLimitSettings.toSettingsConfiguration());
 
-            return Collections.unmodifiableMap(configurationMap);
-        });
+                return new InferenceServiceConfiguration.Builder().setProvider(NAME).setTaskTypes(supportedTaskTypes.stream().map(t -> {
+                    Map<String, SettingsConfiguration> taskSettingsConfig;
+                    switch (t) {
+                        // TEXT_EMBEDDING task type has no task settings
+                        default -> taskSettingsConfig = EmptySettingsConfiguration.get();
+                    }
+                    return new TaskSettingsConfiguration.Builder().setTaskType(t).setConfiguration(taskSettingsConfig).build();
+                }).toList()).setConfiguration(configurationMap).build();
+            }
+        );
     }
 }

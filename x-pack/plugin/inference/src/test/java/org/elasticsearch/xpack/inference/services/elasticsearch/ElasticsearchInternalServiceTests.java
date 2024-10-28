@@ -1580,9 +1580,33 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
                 {
                        "provider": "elasticsearch",
                        "task_types": [
-                           "text_embedding",
-                           "sparse_embedding",
-                           "rerank"
+                            {
+                                "task_type": "text_embedding",
+                                "configuration": {}
+                            },
+                            {
+                                "task_type": "sparse_embedding",
+                                "configuration": {}
+                            },
+                            {
+                                "task_type": "rerank",
+                                "configuration": {
+                                    "return_documents": {
+                                        "default_value": null,
+                                        "depends_on": [],
+                                        "display": "toggle",
+                                        "label": "Return Documents",
+                                        "order": 1,
+                                        "required": false,
+                                        "sensitive": false,
+                                        "tooltip": "Returns the document instead of only the index.",
+                                        "type": "bool",
+                                        "ui_restrictions": [],
+                                        "validations": [],
+                                        "value": true
+                                    }
+                                }
+                            }
                        ],
                        "configuration": {
                            "num_allocations": {

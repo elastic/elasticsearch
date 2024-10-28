@@ -11,9 +11,9 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.inference.ServiceConfiguration;
-import org.elasticsearch.inference.configuration.ServiceConfigurationDisplayType;
-import org.elasticsearch.inference.configuration.ServiceConfigurationFieldType;
+import org.elasticsearch.inference.SettingsConfiguration;
+import org.elasticsearch.inference.configuration.SettingsConfigurationDisplayType;
+import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
@@ -52,24 +52,24 @@ public class RateLimitSettings implements Writeable, ToXContentFragment {
         return requestsPerMinute == null ? defaultValue : new RateLimitSettings(requestsPerMinute);
     }
 
-    public static Map<String, ServiceConfiguration> toServiceConfigurationWithTooltip(String tooltip) {
-        var configurationMap = new HashMap<String, ServiceConfiguration>();
+    public static Map<String, SettingsConfiguration> toSettingsConfigurationWithTooltip(String tooltip) {
+        var configurationMap = new HashMap<String, SettingsConfiguration>();
         configurationMap.put(
             FIELD_NAME + "." + REQUESTS_PER_MINUTE_FIELD,
-            new ServiceConfiguration.Builder().setDisplay(ServiceConfigurationDisplayType.NUMERIC)
+            new SettingsConfiguration.Builder().setDisplay(SettingsConfigurationDisplayType.NUMERIC)
                 .setLabel("Rate Limit")
                 .setOrder(6)
                 .setRequired(false)
                 .setSensitive(false)
                 .setTooltip(tooltip)
-                .setType(ServiceConfigurationFieldType.INTEGER)
+                .setType(SettingsConfigurationFieldType.INTEGER)
                 .build()
         );
         return configurationMap;
     }
 
-    public static Map<String, ServiceConfiguration> toServiceConfiguration() {
-        return RateLimitSettings.toServiceConfigurationWithTooltip("Minimize the number of rate limit errors.");
+    public static Map<String, SettingsConfiguration> toSettingsConfiguration() {
+        return RateLimitSettings.toSettingsConfigurationWithTooltip("Minimize the number of rate limit errors.");
     }
 
     /**

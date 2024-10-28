@@ -1690,48 +1690,150 @@ public class CohereServiceTests extends ESTestCase {
             .hasErrorContaining("how dare you");
     }
 
+    @SuppressWarnings("checkstyle:LineLength")
     public void testGetConfiguration() throws Exception {
         try (var service = createCohereService()) {
-            String content = XContentHelper.stripWhitespace("""
-                {
-                        "provider": "cohere",
-                        "task_types": [
-                            "text_embedding",
-                            "rerank",
-                            "completion"
-                        ],
-                        "configuration": {
-                            "api_key": {
-                                "default_value": null,
-                                "depends_on": [],
-                                "display": "textbox",
-                                "label": "API Key",
-                                "order": 1,
-                                "required": true,
-                                "sensitive": true,
-                                "tooltip": "API Key for the provider you're connecting to.",
-                                "type": "str",
-                                "ui_restrictions": [],
-                                "validations": [],
-                                "value": null
-                            },
-                            "rate_limit.requests_per_minute": {
-                                "default_value": null,
-                                "depends_on": [],
-                                "display": "numeric",
-                                "label": "Rate Limit",
-                                "order": 6,
-                                "required": false,
-                                "sensitive": false,
-                                "tooltip": "Minimize the number of rate limit errors.",
-                                "type": "int",
-                                "ui_restrictions": [],
-                                "validations": [],
-                                "value": null
+            String content = XContentHelper.stripWhitespace(
+                """
+                    {
+                            "provider": "cohere",
+                            "task_types": [
+                                 {
+                                     "task_type": "text_embedding",
+                                     "configuration": {
+                                         "truncate": {
+                                             "default_value": null,
+                                             "depends_on": [],
+                                             "display": "dropdown",
+                                             "label": "Truncate",
+                                             "options": [
+                                                 {
+                                                     "label": "NONE",
+                                                     "value": "NONE"
+                                                 },
+                                                 {
+                                                     "label": "START",
+                                                     "value": "START"
+                                                 },
+                                                 {
+                                                     "label": "END",
+                                                     "value": "END"
+                                                 }
+                                             ],
+                                             "order": 2,
+                                             "required": false,
+                                             "sensitive": false,
+                                             "tooltip": "Specifies how the API handles inputs longer than the maximum token length.",
+                                             "type": "str",
+                                             "ui_restrictions": [],
+                                             "validations": [],
+                                             "value": ""
+                                         },
+                                         "input_type": {
+                                             "default_value": null,
+                                             "depends_on": [],
+                                             "display": "dropdown",
+                                             "label": "Input Type",
+                                             "options": [
+                                                 {
+                                                     "label": "classification",
+                                                     "value": "classification"
+                                                 },
+                                                 {
+                                                     "label": "clusterning",
+                                                     "value": "clusterning"
+                                                 },
+                                                 {
+                                                     "label": "ingest",
+                                                     "value": "ingest"
+                                                 },
+                                                 {
+                                                     "label": "search",
+                                                     "value": "search"
+                                                 }
+                                             ],
+                                             "order": 1,
+                                             "required": false,
+                                             "sensitive": false,
+                                             "tooltip": "Specifies the type of input passed to the model.",
+                                             "type": "str",
+                                             "ui_restrictions": [],
+                                             "validations": [],
+                                             "value": ""
+                                         }
+                                     }
+                                 },
+                                 {
+                                     "task_type": "rerank",
+                                     "configuration": {
+                                         "top_n": {
+                                             "default_value": null,
+                                             "depends_on": [],
+                                             "display": "numeric",
+                                             "label": "Top N",
+                                             "order": 2,
+                                             "required": false,
+                                             "sensitive": false,
+                                             "tooltip": "The number of most relevant documents to return, defaults to the number of the documents.",
+                                             "type": "int",
+                                             "ui_restrictions": [],
+                                             "validations": [],
+                                             "value": null
+                                         },
+                                         "return_documents": {
+                                             "default_value": null,
+                                             "depends_on": [],
+                                             "display": "toggle",
+                                             "label": "Return Documents",
+                                             "order": 1,
+                                             "required": false,
+                                             "sensitive": false,
+                                             "tooltip": "Specify whether to return doc text within the results.",
+                                             "type": "bool",
+                                             "ui_restrictions": [],
+                                             "validations": [],
+                                             "value": false
+                                         }
+                                     }
+                                 },
+                                 {
+                                     "task_type": "completion",
+                                     "configuration": {}
+                                 }
+                            ],
+                            "configuration": {
+                                "api_key": {
+                                    "default_value": null,
+                                    "depends_on": [],
+                                    "display": "textbox",
+                                    "label": "API Key",
+                                    "order": 1,
+                                    "required": true,
+                                    "sensitive": true,
+                                    "tooltip": "API Key for the provider you're connecting to.",
+                                    "type": "str",
+                                    "ui_restrictions": [],
+                                    "validations": [],
+                                    "value": null
+                                },
+                                "rate_limit.requests_per_minute": {
+                                    "default_value": null,
+                                    "depends_on": [],
+                                    "display": "numeric",
+                                    "label": "Rate Limit",
+                                    "order": 6,
+                                    "required": false,
+                                    "sensitive": false,
+                                    "tooltip": "Minimize the number of rate limit errors.",
+                                    "type": "int",
+                                    "ui_restrictions": [],
+                                    "validations": [],
+                                    "value": null
+                                }
                             }
                         }
-                    }
-                """);
+                    """
+            );
             InferenceServiceConfiguration configuration = InferenceServiceConfiguration.fromXContentBytes(
                 new BytesArray(content),
                 XContentType.JSON

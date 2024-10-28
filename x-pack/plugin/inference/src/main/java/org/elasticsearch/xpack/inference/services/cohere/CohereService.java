@@ -17,14 +17,16 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
 import org.elasticsearch.inference.ChunkingOptions;
 import org.elasticsearch.inference.ChunkingSettings;
+import org.elasticsearch.inference.EmptySettingsConfiguration;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
-import org.elasticsearch.inference.ServiceConfiguration;
+import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.SimilarityMeasure;
+import org.elasticsearch.inference.TaskSettingsConfiguration;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.inference.ChunkingSettingsFeatureFlag;
@@ -45,7 +47,6 @@ import org.elasticsearch.xpack.inference.services.cohere.rerank.CohereRerankMode
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
-import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
@@ -61,6 +62,8 @@ import static org.elasticsearch.xpack.inference.services.cohere.CohereServiceFie
 
 public class CohereService extends SenderService {
     public static final String NAME = "cohere";
+
+    private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.COMPLETION, TaskType.RERANK);
 
     // TODO Batching - We'll instantiate a batching class within the services that want to support it and pass it through to
     // the Cohere*RequestManager via the CohereActionCreator class
@@ -220,16 +223,13 @@ public class CohereService extends SenderService {
     }
 
     @Override
-    public InferenceServiceConfiguration getConfiguration() throws Exception {
-        return new InferenceServiceConfiguration.Builder().setProvider(NAME)
-            .setTaskTypes(supportedTaskTypes())
-            .setConfiguration(CohereService.Configuration.get())
-            .build();
+    public InferenceServiceConfiguration getConfiguration() {
+        return Configuration.get();
     }
 
     @Override
     public EnumSet<TaskType> supportedTaskTypes() {
-        return EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.COMPLETION, TaskType.RERANK);
+        return supportedTaskTypes;
     }
 
     @Override
@@ -354,18 +354,29 @@ public class CohereService extends SenderService {
         return COMPLETION_ONLY;
     }
 
-    private static class Configuration {
-        public static Map<String, ServiceConfiguration> get() throws Exception {
+    public static class Configuration {
+        public static InferenceServiceConfiguration get() {
             return configuration.getOrCompute();
         }
 
-        private static final LazyInitializable<Map<String, ServiceConfiguration>, ?> configuration = new LazyInitializable<>(() -> {
-            var configurationMap = new HashMap<String, ServiceConfiguration>();
+        private static final LazyInitializable<InferenceServiceConfiguration, RuntimeException> configuration = new LazyInitializable<>(
+            () -> {
+                var configurationMap = new HashMap<String, SettingsConfiguration>();
 
-            configurationMap.putAll(DefaultSecretSettings.toServiceConfiguration());
-            configurationMap.putAll(RateLimitSettings.toServiceConfiguration());
+                configurationMap.putAll(DefaultSecretSettings.toSettingsConfiguration());
+                configurationMap.putAll(RateLimitSettings.toSettingsConfiguration());
 
-            return Collections.unmodifiableMap(configurationMap);
-        });
+                return new InferenceServiceConfiguration.Builder().setProvider(NAME).setTaskTypes(supportedTaskTypes.stream().map(t -> {
+                    Map<String, SettingsConfiguration> taskSettingsConfig;
+                    switch (t) {
+                        case TEXT_EMBEDDING -> taskSettingsConfig = CohereEmbeddingsModel.Configuration.get();
+                        case RERANK -> taskSettingsConfig = CohereRerankModel.Configuration.get();
+                        // COMPLETION task type has no task settings
+                        default -> taskSettingsConfig = EmptySettingsConfiguration.get();
+                    }
+                    return new TaskSettingsConfiguration.Builder().setTaskType(t).setConfiguration(taskSettingsConfig).build();
+                }).toList()).setConfiguration(configurationMap).build();
+            }
+        );
     }
 }

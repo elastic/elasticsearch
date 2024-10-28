@@ -170,7 +170,7 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
     @SuppressWarnings("unchecked")
     public void testGetServicesWithTextEmbeddingTaskType() throws IOException {
         List<Object> services = getServices(TaskType.TEXT_EMBEDDING);
-        assertThat(services.size(), equalTo(14));
+        assertThat(services.size(), equalTo(13));
 
         String[] providers = new String[services.size()];
         for (int i = 0; i < services.size(); i++) {
@@ -193,7 +193,6 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
                 "hugging_face",
                 "mistral",
                 "openai",
-                "test_reranking_service",
                 "text_embedding_test_service",
                 "watsonxai"
             ).toArray()
@@ -203,7 +202,7 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
     @SuppressWarnings("unchecked")
     public void testGetServicesWithRerankTaskType() throws IOException {
         List<Object> services = getServices(TaskType.RERANK);
-        assertThat(services.size(), equalTo(4));
+        assertThat(services.size(), equalTo(5));
 
         String[] providers = new String[services.size()];
         for (int i = 0; i < services.size(); i++) {
@@ -212,7 +211,10 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
         }
 
         Arrays.sort(providers);
-        assertArrayEquals(providers, List.of("alibabacloud-ai-search", "cohere", "elasticsearch", "googlevertexai").toArray());
+        assertArrayEquals(
+            providers,
+            List.of("alibabacloud-ai-search", "cohere", "elasticsearch", "googlevertexai", "test_reranking_service").toArray()
+        );
     }
 
     @SuppressWarnings("unchecked")

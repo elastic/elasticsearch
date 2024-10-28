@@ -13,10 +13,12 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
 import org.elasticsearch.inference.ChunkingOptions;
+import org.elasticsearch.inference.EmptySettingsConfiguration;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -24,11 +26,12 @@ import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
-import org.elasticsearch.inference.ServiceConfiguration;
 import org.elasticsearch.inference.ServiceSettings;
+import org.elasticsearch.inference.SettingsConfiguration;
+import org.elasticsearch.inference.TaskSettingsConfiguration;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.inference.configuration.ServiceConfigurationDisplayType;
-import org.elasticsearch.inference.configuration.ServiceConfigurationFieldType;
+import org.elasticsearch.inference.configuration.SettingsConfigurationDisplayType;
+import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -62,6 +65,8 @@ public class TestSparseInferenceServiceExtension implements InferenceServiceExte
     public static class TestInferenceService extends AbstractTestInferenceService {
         public static final String NAME = "test_service";
 
+        private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(TaskType.SPARSE_EMBEDDING);
+
         public TestInferenceService(InferenceServiceExtension.InferenceServiceFactoryContext context) {}
 
         @Override
@@ -89,15 +94,12 @@ public class TestSparseInferenceServiceExtension implements InferenceServiceExte
 
         @Override
         public InferenceServiceConfiguration getConfiguration() {
-            return new InferenceServiceConfiguration.Builder().setProvider(NAME)
-                .setTaskTypes(supportedTaskTypes())
-                .setConfiguration(TestSparseInferenceServiceExtension.Configuration.get())
-                .build();
+            return Configuration.get();
         }
 
         @Override
         public EnumSet<TaskType> supportedTaskTypes() {
-            return EnumSet.of(TaskType.SPARSE_EMBEDDING);
+            return supportedTaskTypes;
         }
 
         @Override
@@ -180,6 +182,50 @@ public class TestSparseInferenceServiceExtension implements InferenceServiceExte
             // Ensure non-negative and non-zero values for features
             return Math.abs(input.hashCode()) + 1 + position;
         }
+
+        public static class Configuration {
+            public static InferenceServiceConfiguration get() {
+                return configuration.getOrCompute();
+            }
+
+            private static final LazyInitializable<InferenceServiceConfiguration, RuntimeException> configuration = new LazyInitializable<>(
+                () -> {
+                    var configurationMap = new HashMap<String, SettingsConfiguration>();
+
+                    configurationMap.put(
+                        "model",
+                        new SettingsConfiguration.Builder().setDisplay(SettingsConfigurationDisplayType.TEXTBOX)
+                            .setLabel("Model")
+                            .setOrder(1)
+                            .setRequired(true)
+                            .setSensitive(false)
+                            .setTooltip("")
+                            .setType(SettingsConfigurationFieldType.STRING)
+                            .build()
+                    );
+
+                    configurationMap.put(
+                        "hidden_field",
+                        new SettingsConfiguration.Builder().setDisplay(SettingsConfigurationDisplayType.TEXTBOX)
+                            .setLabel("Hidden Field")
+                            .setOrder(2)
+                            .setRequired(true)
+                            .setSensitive(false)
+                            .setTooltip("")
+                            .setType(SettingsConfigurationFieldType.STRING)
+                            .build()
+                    );
+
+                    return new InferenceServiceConfiguration.Builder().setProvider(NAME).setTaskTypes(supportedTaskTypes.stream().map(t -> {
+                        Map<String, SettingsConfiguration> taskSettingsConfig;
+                        switch (t) {
+                            default -> taskSettingsConfig = EmptySettingsConfiguration.get();
+                        }
+                        return new TaskSettingsConfiguration.Builder().setTaskType(t).setConfiguration(taskSettingsConfig).build();
+                    }).toList()).setConfiguration(configurationMap).build();
+                }
+            );
+        }
     }
 
     public record TestServiceSettings(String model, String hiddenField, boolean shouldReturnHiddenField) implements ServiceSettings {
@@ -258,38 +304,6 @@ public class TestSparseInferenceServiceExtension implements InferenceServiceExte
                 builder.endObject();
                 return builder;
             };
-        }
-    }
-
-    private static class Configuration {
-        public static Map<String, ServiceConfiguration> get() {
-            var configurationMap = new HashMap<String, ServiceConfiguration>();
-
-            configurationMap.put(
-                "model",
-                new ServiceConfiguration.Builder().setDisplay(ServiceConfigurationDisplayType.TEXTBOX)
-                    .setLabel("Model")
-                    .setOrder(1)
-                    .setRequired(true)
-                    .setSensitive(false)
-                    .setTooltip("")
-                    .setType(ServiceConfigurationFieldType.STRING)
-                    .build()
-            );
-
-            configurationMap.put(
-                "hidden_field",
-                new ServiceConfiguration.Builder().setDisplay(ServiceConfigurationDisplayType.TEXTBOX)
-                    .setLabel("Hidden Field")
-                    .setOrder(2)
-                    .setRequired(true)
-                    .setSensitive(false)
-                    .setTooltip("")
-                    .setType(ServiceConfigurationFieldType.STRING)
-                    .build()
-            );
-
-            return configurationMap;
         }
     }
 }

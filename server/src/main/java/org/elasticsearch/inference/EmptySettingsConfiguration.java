@@ -14,10 +14,12 @@ import org.elasticsearch.common.util.LazyInitializable;
 import java.util.HashMap;
 import java.util.Map;
 
-public class DefaultSettingsConfiguration {
-    public static Map<String, SettingsConfiguration> get() throws Exception {
+public class EmptySettingsConfiguration {
+    public static Map<String, SettingsConfiguration> get() {
         return configuration.getOrCompute();
     }
 
-    private static final LazyInitializable<Map<String, SettingsConfiguration>, ?> configuration = new LazyInitializable<>(HashMap::new);
+    private static final LazyInitializable<Map<String, SettingsConfiguration>, RuntimeException> configuration = new LazyInitializable<>(
+        HashMap::new
+    );
 }

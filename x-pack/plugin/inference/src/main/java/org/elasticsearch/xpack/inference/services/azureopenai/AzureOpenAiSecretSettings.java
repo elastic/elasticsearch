@@ -17,9 +17,9 @@ import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.SecretSettings;
-import org.elasticsearch.inference.ServiceConfiguration;
-import org.elasticsearch.inference.configuration.ServiceConfigurationDisplayType;
-import org.elasticsearch.inference.configuration.ServiceConfigurationFieldType;
+import org.elasticsearch.inference.SettingsConfiguration;
+import org.elasticsearch.inference.configuration.SettingsConfigurationDisplayType;
+import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -67,10 +67,6 @@ public class AzureOpenAiSecretSettings implements SecretSettings {
         }
 
         return new AzureOpenAiSecretSettings(secureApiToken, secureEntraId);
-    }
-
-    public static Map<String, ServiceConfiguration> toServiceConfiguration() throws Exception {
-        return AzureOpenAiSecretSettings.Configuration.get();
     }
 
     public AzureOpenAiSecretSettings(@Nullable SecureString apiKey, @Nullable SecureString entraId) {
@@ -141,36 +137,37 @@ public class AzureOpenAiSecretSettings implements SecretSettings {
         return AzureOpenAiSecretSettings.fromMap(new HashMap<>(newSecrets));
     }
 
-    private static class Configuration {
-        public static Map<String, ServiceConfiguration> get() throws Exception {
+    public static class Configuration {
+        public static Map<String, SettingsConfiguration> get() {
             return configuration.getOrCompute();
         }
 
-        private static final LazyInitializable<Map<String, ServiceConfiguration>, ?> configuration = new LazyInitializable<>(() -> {
-            var configurationMap = new HashMap<String, ServiceConfiguration>();
-            configurationMap.put(
-                API_KEY,
-                new ServiceConfiguration.Builder().setDisplay(ServiceConfigurationDisplayType.TEXTBOX)
-                    .setLabel("API Key")
-                    .setOrder(1)
-                    .setRequired(false)
-                    .setSensitive(true)
-                    .setTooltip("You must provide either an API key or an Entra ID.")
-                    .setType(ServiceConfigurationFieldType.STRING)
-                    .build()
-            );
-            configurationMap.put(
-                ENTRA_ID,
-                new ServiceConfiguration.Builder().setDisplay(ServiceConfigurationDisplayType.TEXTBOX)
-                    .setLabel("Entra ID")
-                    .setOrder(2)
-                    .setRequired(false)
-                    .setSensitive(true)
-                    .setTooltip("You must provide either an API key or an Entra ID.")
-                    .setType(ServiceConfigurationFieldType.STRING)
-                    .build()
-            );
-            return Collections.unmodifiableMap(configurationMap);
-        });
+        private static final LazyInitializable<Map<String, SettingsConfiguration>, RuntimeException> configuration =
+            new LazyInitializable<>(() -> {
+                var configurationMap = new HashMap<String, SettingsConfiguration>();
+                configurationMap.put(
+                    API_KEY,
+                    new SettingsConfiguration.Builder().setDisplay(SettingsConfigurationDisplayType.TEXTBOX)
+                        .setLabel("API Key")
+                        .setOrder(1)
+                        .setRequired(false)
+                        .setSensitive(true)
+                        .setTooltip("You must provide either an API key or an Entra ID.")
+                        .setType(SettingsConfigurationFieldType.STRING)
+                        .build()
+                );
+                configurationMap.put(
+                    ENTRA_ID,
+                    new SettingsConfiguration.Builder().setDisplay(SettingsConfigurationDisplayType.TEXTBOX)
+                        .setLabel("Entra ID")
+                        .setOrder(2)
+                        .setRequired(false)
+                        .setSensitive(true)
+                        .setTooltip("You must provide either an API key or an Entra ID.")
+                        .setType(SettingsConfigurationFieldType.STRING)
+                        .build()
+                );
+                return Collections.unmodifiableMap(configurationMap);
+            });
     }
 }

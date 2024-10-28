@@ -21,6 +21,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
 import org.elasticsearch.inference.ChunkingOptions;
 import org.elasticsearch.inference.ChunkingSettings;
+import org.elasticsearch.inference.EmptySettingsConfiguration;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceExtension;
@@ -28,11 +29,12 @@ import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
-import org.elasticsearch.inference.ServiceConfiguration;
+import org.elasticsearch.inference.SettingsConfiguration;
+import org.elasticsearch.inference.TaskSettingsConfiguration;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.inference.configuration.ServiceConfigurationDisplayType;
-import org.elasticsearch.inference.configuration.ServiceConfigurationFieldType;
-import org.elasticsearch.inference.configuration.ServiceConfigurationSelectOption;
+import org.elasticsearch.inference.configuration.SettingsConfigurationDisplayType;
+import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
+import org.elasticsearch.inference.configuration.SettingsConfigurationSelectOption;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.inference.ChunkingSettingsFeatureFlag;
 import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingFloatResults;
@@ -99,6 +101,12 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
     public static final String DEFAULT_ELSER_ID = ".elser-2-elasticsearch";
     public static final String DEFAULT_E5_ID = ".multilingual-e5-small-elasticsearch";
 
+    private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(
+        TaskType.RERANK,
+        TaskType.TEXT_EMBEDDING,
+        TaskType.SPARSE_EMBEDDING
+    );
+
     private static final Logger logger = LogManager.getLogger(ElasticsearchInternalService.class);
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(ElasticsearchInternalService.class);
 
@@ -116,7 +124,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
 
     @Override
     public EnumSet<TaskType> supportedTaskTypes() {
-        return EnumSet.of(TaskType.RERANK, TaskType.TEXT_EMBEDDING, TaskType.SPARSE_EMBEDDING);
+        return supportedTaskTypes;
     }
 
     @Override
@@ -225,11 +233,8 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
     }
 
     @Override
-    public InferenceServiceConfiguration getConfiguration() throws Exception {
-        return new InferenceServiceConfiguration.Builder().setProvider(NAME)
-            .setTaskTypes(supportedTaskTypes())
-            .setConfiguration(ElasticsearchInternalService.Configuration.get())
-            .build();
+    public InferenceServiceConfiguration getConfiguration() {
+        return Configuration.get();
     }
 
     private void customElandCase(
@@ -1024,63 +1029,73 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         }
     }
 
-    private static class Configuration {
-        public static Map<String, ServiceConfiguration> get() throws Exception {
+    public static class Configuration {
+        public static InferenceServiceConfiguration get() {
             return configuration.getOrCompute();
         }
 
-        private static final LazyInitializable<Map<String, ServiceConfiguration>, ?> configuration = new LazyInitializable<>(() -> {
-            var configurationMap = new HashMap<String, ServiceConfiguration>();
+        private static final LazyInitializable<InferenceServiceConfiguration, RuntimeException> configuration = new LazyInitializable<>(
+            () -> {
+                var configurationMap = new HashMap<String, SettingsConfiguration>();
 
-            configurationMap.put(
-                MODEL_ID,
-                new ServiceConfiguration.Builder().setDisplay(ServiceConfigurationDisplayType.DROPDOWN)
-                    .setLabel("Model ID")
-                    .setOrder(1)
-                    .setRequired(true)
-                    .setSensitive(false)
-                    .setTooltip("The name of the model to use for the inference task.")
-                    .setType(ServiceConfigurationFieldType.STRING)
-                    .setOptions(
-                        Stream.of(
-                            ELSER_V1_MODEL,
-                            ELSER_V2_MODEL,
-                            ELSER_V2_MODEL_LINUX_X86,
-                            MULTILINGUAL_E5_SMALL_MODEL_ID,
-                            MULTILINGUAL_E5_SMALL_MODEL_ID_LINUX_X86
-                        ).map(v -> new ServiceConfigurationSelectOption.Builder().setLabelAndValue(v).build()).toList()
-                    )
-                    .setDefaultValue(MULTILINGUAL_E5_SMALL_MODEL_ID)
-                    .build()
-            );
+                configurationMap.put(
+                    MODEL_ID,
+                    new SettingsConfiguration.Builder().setDisplay(SettingsConfigurationDisplayType.DROPDOWN)
+                        .setLabel("Model ID")
+                        .setOrder(1)
+                        .setRequired(true)
+                        .setSensitive(false)
+                        .setTooltip("The name of the model to use for the inference task.")
+                        .setType(SettingsConfigurationFieldType.STRING)
+                        .setOptions(
+                            Stream.of(
+                                ELSER_V1_MODEL,
+                                ELSER_V2_MODEL,
+                                ELSER_V2_MODEL_LINUX_X86,
+                                MULTILINGUAL_E5_SMALL_MODEL_ID,
+                                MULTILINGUAL_E5_SMALL_MODEL_ID_LINUX_X86
+                            ).map(v -> new SettingsConfigurationSelectOption.Builder().setLabelAndValue(v).build()).toList()
+                        )
+                        .setDefaultValue(MULTILINGUAL_E5_SMALL_MODEL_ID)
+                        .build()
+                );
 
-            configurationMap.put(
-                NUM_ALLOCATIONS,
-                new ServiceConfiguration.Builder().setDisplay(ServiceConfigurationDisplayType.NUMERIC)
-                    .setLabel("Number Allocations")
-                    .setOrder(2)
-                    .setRequired(true)
-                    .setSensitive(false)
-                    .setTooltip("The total number of allocations this model is assigned across machine learning nodes.")
-                    .setType(ServiceConfigurationFieldType.INTEGER)
-                    .setDefaultValue(1)
-                    .build()
-            );
+                configurationMap.put(
+                    NUM_ALLOCATIONS,
+                    new SettingsConfiguration.Builder().setDisplay(SettingsConfigurationDisplayType.NUMERIC)
+                        .setLabel("Number Allocations")
+                        .setOrder(2)
+                        .setRequired(true)
+                        .setSensitive(false)
+                        .setTooltip("The total number of allocations this model is assigned across machine learning nodes.")
+                        .setType(SettingsConfigurationFieldType.INTEGER)
+                        .setDefaultValue(1)
+                        .build()
+                );
 
-            configurationMap.put(
-                NUM_THREADS,
-                new ServiceConfiguration.Builder().setDisplay(ServiceConfigurationDisplayType.NUMERIC)
-                    .setLabel("Number Threads")
-                    .setOrder(3)
-                    .setRequired(true)
-                    .setSensitive(false)
-                    .setTooltip("Sets the number of threads used by each model allocation during inference.")
-                    .setType(ServiceConfigurationFieldType.INTEGER)
-                    .setDefaultValue(2)
-                    .build()
-            );
+                configurationMap.put(
+                    NUM_THREADS,
+                    new SettingsConfiguration.Builder().setDisplay(SettingsConfigurationDisplayType.NUMERIC)
+                        .setLabel("Number Threads")
+                        .setOrder(3)
+                        .setRequired(true)
+                        .setSensitive(false)
+                        .setTooltip("Sets the number of threads used by each model allocation during inference.")
+                        .setType(SettingsConfigurationFieldType.INTEGER)
+                        .setDefaultValue(2)
+                        .build()
+                );
 
-            return Collections.unmodifiableMap(configurationMap);
-        });
+                return new InferenceServiceConfiguration.Builder().setProvider(NAME).setTaskTypes(supportedTaskTypes.stream().map(t -> {
+                    Map<String, SettingsConfiguration> taskSettingsConfig;
+                    switch (t) {
+                        case RERANK -> taskSettingsConfig = CustomElandRerankModel.Configuration.get();
+                        // SPARSE_EMBEDDING, TEXT_EMBEDDING task types have no task settings
+                        default -> taskSettingsConfig = EmptySettingsConfiguration.get();
+                    }
+                    return new TaskSettingsConfiguration.Builder().setTaskType(t).setConfiguration(taskSettingsConfig).build();
+                }).toList()).setConfiguration(configurationMap).build();
+            }
+        );
     }
 }

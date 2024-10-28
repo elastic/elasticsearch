@@ -72,7 +72,7 @@ public interface InferenceService extends Closeable {
      */
     Model parsePersistedConfig(String modelId, TaskType taskType, Map<String, Object> config);
 
-    InferenceServiceConfiguration getConfiguration() throws Exception;
+    InferenceServiceConfiguration getConfiguration();
 
     /**
      * The task types supported by the service

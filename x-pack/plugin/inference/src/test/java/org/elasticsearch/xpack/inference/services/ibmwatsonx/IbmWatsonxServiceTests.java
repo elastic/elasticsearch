@@ -777,7 +777,10 @@ public class IbmWatsonxServiceTests extends ESTestCase {
                 {
                        "provider": "watsonxai",
                        "task_types": [
-                           "text_embedding"
+                            {
+                                "task_type": "text_embedding",
+                                "configuration": {}
+                            }
                        ],
                        "configuration": {
                            "project_id": {

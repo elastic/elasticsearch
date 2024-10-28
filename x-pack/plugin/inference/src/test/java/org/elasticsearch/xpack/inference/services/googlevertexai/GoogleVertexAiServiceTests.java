@@ -969,8 +969,44 @@ public class GoogleVertexAiServiceTests extends ESTestCase {
                     {
                            "provider": "googlevertexai",
                            "task_types": [
-                               "text_embedding",
-                               "rerank"
+                                {
+                                    "task_type": "text_embedding",
+                                    "configuration": {
+                                        "auto_truncate": {
+                                            "default_value": null,
+                                            "depends_on": [],
+                                            "display": "toggle",
+                                            "label": "Auto Truncate",
+                                            "order": 1,
+                                            "required": false,
+                                            "sensitive": false,
+                                            "tooltip": "Specifies if the API truncates inputs longer than the maximum token length automatically.",
+                                            "type": "bool",
+                                            "ui_restrictions": [],
+                                            "validations": [],
+                                            "value": false
+                                        }
+                                    }
+                                },
+                                {
+                                    "task_type": "rerank",
+                                    "configuration": {
+                                        "top_n": {
+                                            "default_value": null,
+                                            "depends_on": [],
+                                            "display": "toggle",
+                                            "label": "Top N",
+                                            "order": 1,
+                                            "required": false,
+                                            "sensitive": false,
+                                            "tooltip": "Specifies the number of the top n documents, which should be returned.",
+                                            "type": "bool",
+                                            "ui_restrictions": [],
+                                            "validations": [],
+                                            "value": false
+                                        }
+                                    }
+                                }
                            ],
                            "configuration": {
                                "service_account_json": {

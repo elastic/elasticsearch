@@ -501,7 +501,10 @@ public class ElasticInferenceServiceTests extends ESTestCase {
                 {
                        "provider": "elastic",
                        "task_types": [
-                           "sparse_embedding"
+                            {
+                                "task_type": "sparse_embedding",
+                                "configuration": {}
+                            }
                        ],
                        "configuration": {
                            "rate_limit.requests_per_minute": {

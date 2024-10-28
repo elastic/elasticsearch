@@ -606,7 +606,67 @@ public class AnthropicServiceTests extends ESTestCase {
                 {
                       "provider": "anthropic",
                       "task_types": [
-                          "completion"
+                           {
+                               "task_type": "completion",
+                               "configuration": {
+                                   "top_p": {
+                                       "default_value": null,
+                                       "depends_on": [],
+                                       "display": "numeric",
+                                       "label": "Top P",
+                                       "order": 4,
+                                       "required": false,
+                                       "sensitive": false,
+                                       "tooltip": "Specifies to use Anthropic’s nucleus sampling.",
+                                       "type": "int",
+                                       "ui_restrictions": [],
+                                       "validations": [],
+                                       "value": null
+                                   },
+                                   "max_tokens": {
+                                       "default_value": null,
+                                       "depends_on": [],
+                                       "display": "numeric",
+                                       "label": "Max Tokens",
+                                       "order": 1,
+                                       "required": true,
+                                       "sensitive": false,
+                                       "tooltip": "The maximum number of tokens to generate before stopping.",
+                                       "type": "int",
+                                       "ui_restrictions": [],
+                                       "validations": [],
+                                       "value": null
+                                   },
+                                   "top_k": {
+                                       "default_value": null,
+                                       "depends_on": [],
+                                       "display": "numeric",
+                                       "label": "Top K",
+                                       "order": 3,
+                                       "required": false,
+                                       "sensitive": false,
+                                       "tooltip": "Specifies to only sample from the top K options for each subsequent token.",
+                                       "type": "int",
+                                       "ui_restrictions": [],
+                                       "validations": [],
+                                       "value": null
+                                   },
+                                   "temperature": {
+                                       "default_value": null,
+                                       "depends_on": [],
+                                       "display": "textbox",
+                                       "label": "Temperature",
+                                       "order": 2,
+                                       "required": false,
+                                       "sensitive": false,
+                                       "tooltip": "The amount of randomness injected into the response.",
+                                       "type": "str",
+                                       "ui_restrictions": [],
+                                       "validations": [],
+                                       "value": null
+                                   }
+                               }
+                           }
                       ],
                       "configuration": {
                           "api_key": {

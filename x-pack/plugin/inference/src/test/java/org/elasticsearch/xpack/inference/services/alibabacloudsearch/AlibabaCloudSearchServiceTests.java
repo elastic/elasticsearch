@@ -509,10 +509,86 @@ public class AlibabaCloudSearchServiceTests extends ESTestCase {
                     {
                        "provider": "alibabacloud-ai-search",
                        "task_types": [
-                         "text_embedding",
-                         "sparse_embedding",
-                         "rerank",
-                         "completion"
+                             {
+                                 "task_type": "text_embedding",
+                                 "configuration": {
+                                     "input_type": {
+                                         "default_value": null,
+                                         "depends_on": [],
+                                         "display": "dropdown",
+                                         "label": "Input Type",
+                                         "options": [
+                                             {
+                                                 "label": "ingest",
+                                                 "value": "ingest"
+                                             },
+                                             {
+                                                 "label": "search",
+                                                 "value": "search"
+                                             }
+                                         ],
+                                         "order": 1,
+                                         "required": false,
+                                         "sensitive": false,
+                                         "tooltip": "Specifies the type of input passed to the model.",
+                                         "type": "str",
+                                         "ui_restrictions": [],
+                                         "validations": [],
+                                         "value": ""
+                                     }
+                                 }
+                             },
+                             {
+                                 "task_type": "sparse_embedding",
+                                 "configuration": {
+                                     "return_token": {
+                                         "default_value": null,
+                                         "depends_on": [],
+                                         "display": "toggle",
+                                         "label": "Return Token",
+                                         "order": 2,
+                                         "required": false,
+                                         "sensitive": false,
+                                         "tooltip": "If `true`, the token name will be returned in the response. Defaults to `false` which means only the token ID will be returned in the response.",
+                                         "type": "bool",
+                                         "ui_restrictions": [],
+                                         "validations": [],
+                                         "value": true
+                                     },
+                                     "input_type": {
+                                         "default_value": null,
+                                         "depends_on": [],
+                                         "display": "dropdown",
+                                         "label": "Input Type",
+                                         "options": [
+                                             {
+                                                 "label": "ingest",
+                                                 "value": "ingest"
+                                             },
+                                             {
+                                                 "label": "search",
+                                                 "value": "search"
+                                             }
+                                         ],
+                                         "order": 1,
+                                         "required": false,
+                                         "sensitive": false,
+                                         "tooltip": "Specifies the type of input passed to the model.",
+                                         "type": "str",
+                                         "ui_restrictions": [],
+                                         "validations": [],
+                                         "value": ""
+                                     }
+                                 }
+                             },
+                             {
+                                 "task_type": "rerank",
+                                 "configuration": {}
+                             },
+                             {
+                                 "task_type": "completion",
+                                 "configuration": {}
+                             }
                        ],
                        "configuration": {
                          "workspace": {

@@ -838,7 +838,10 @@ public class MistralServiceTests extends ESTestCase {
                 {
                        "provider": "mistral",
                        "task_types": [
-                           "text_embedding"
+                            {
+                                "task_type": "text_embedding",
+                                "configuration": {}
+                            }
                        ],
                        "configuration": {
                            "api_key": {

@@ -1519,8 +1519,44 @@ public class AzureOpenAiServiceTests extends ESTestCase {
                     {
                             "provider": "azureopenai",
                             "task_types": [
-                                "text_embedding",
-                                "completion"
+                                 {
+                                     "task_type": "text_embedding",
+                                     "configuration": {
+                                         "user": {
+                                             "default_value": null,
+                                             "depends_on": [],
+                                             "display": "textbox",
+                                             "label": "User",
+                                             "order": 1,
+                                             "required": false,
+                                             "sensitive": false,
+                                             "tooltip": "Specifies the user issuing the request.",
+                                             "type": "str",
+                                             "ui_restrictions": [],
+                                             "validations": [],
+                                             "value": ""
+                                         }
+                                     }
+                                 },
+                                 {
+                                     "task_type": "completion",
+                                     "configuration": {
+                                         "user": {
+                                             "default_value": null,
+                                             "depends_on": [],
+                                             "display": "textbox",
+                                             "label": "User",
+                                             "order": 1,
+                                             "required": false,
+                                             "sensitive": false,
+                                             "tooltip": "Specifies the user issuing the request.",
+                                             "type": "str",
+                                             "ui_restrictions": [],
+                                             "validations": [],
+                                             "value": ""
+                                         }
+                                     }
+                                 }
                             ],
                             "configuration": {
                                 "api_key": {

@@ -20,6 +20,19 @@ The goal is to create search queries that enable users to:
 To achieve these goals we'll use different Elasticsearch queries to perform full-text search, apply filters, and combine multiple search criteria.
 
 [discrete]
+[[full-text-filter-tutorial-requirements]]
+=== Requirements
+
+You'll need a running {es} cluster, together with {kib} to use the Dev Tools API Console.
+Run the following command in your terminal to set up a <<run-elasticsearch-locally,single-node local cluster in Docker>>:
+
+[source,sh]
+----
+curl -fsSL https://elastic.co/start-local | sh
+----
+// NOTCONSOLE
+
+[discrete]
 [[full-text-filter-tutorial-create-index]]
 === Step 1: Create an index
 

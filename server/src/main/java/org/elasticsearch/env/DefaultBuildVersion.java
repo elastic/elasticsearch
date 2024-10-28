@@ -10,7 +10,11 @@
 package org.elasticsearch.env;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xcontent.XContentBuilder;
 
+import java.io.IOException;
 import java.util.Objects;
 
 /**
@@ -28,7 +32,7 @@ final class DefaultBuildVersion extends BuildVersion {
 
     public static BuildVersion CURRENT = new DefaultBuildVersion(Version.CURRENT.id());
 
-    private final Version version;
+    final Version version;
 
     DefaultBuildVersion(int versionId) {
         assert versionId >= 0 : "Release version IDs must be non-negative integers";
@@ -37,6 +41,10 @@ final class DefaultBuildVersion extends BuildVersion {
 
     DefaultBuildVersion(String version) {
         this.version = Version.fromString(Objects.requireNonNull(version));
+    }
+
+    DefaultBuildVersion(StreamInput in) throws IOException {
+        this(in.readVInt());
     }
 
     @Override
@@ -50,8 +58,18 @@ final class DefaultBuildVersion extends BuildVersion {
     }
 
     @Override
-    public int id() {
-        return version.id();
+    public String toNodeMetadata() {
+        return Integer.toString(version.id());
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        return builder.value(version.id());
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeVInt(version.id());
     }
 
     @Override

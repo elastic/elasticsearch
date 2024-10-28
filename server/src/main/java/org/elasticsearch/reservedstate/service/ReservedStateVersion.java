@@ -48,12 +48,12 @@ public record ReservedStateVersion(Long version, BuildVersion buildVersion) impl
     }
 
     public static ReservedStateVersion readFrom(StreamInput input) throws IOException {
-        return new ReservedStateVersion(input.readLong(), BuildVersion.fromVersionId(input.readVInt()));
+        return new ReservedStateVersion(input.readLong(), BuildVersion.fromStream(input));
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeLong(version());
-        out.writeVInt(buildVersion().id());
+        out.writeLong(version);
+        buildVersion.writeTo(out);
     }
 }

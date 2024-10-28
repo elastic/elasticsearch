@@ -11,9 +11,13 @@ package org.elasticsearch.env;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.internal.BuildExtension;
 import org.elasticsearch.plugins.ExtensionLoader;
+import org.elasticsearch.xcontent.ToXContentFragment;
 
+import java.io.IOException;
 import java.util.ServiceLoader;
 
 /**
@@ -31,7 +35,7 @@ import java.util.ServiceLoader;
  * provide versions that accommodate different release models or versioning
  * schemes.</p>
  */
-public abstract class BuildVersion {
+public abstract class BuildVersion implements ToXContentFragment, Writeable {
 
     /**
      * Check whether this version is on or after a minimum threshold.
@@ -59,6 +63,11 @@ public abstract class BuildVersion {
     public abstract boolean isFutureVersion();
 
     /**
+     * Returns this build version in a form suitable for storing in node metadata
+     */
+    public abstract String toNodeMetadata();
+
+    /**
      * Create a {@link BuildVersion} from a version ID number.
      *
      * <p>By default, this identifier should match the integer ID of a {@link Version};
@@ -73,6 +82,16 @@ public abstract class BuildVersion {
     }
 
     /**
+     * Create a {@link BuildVersion} from a version in node metadata
+     *
+     * @param version The string stored in node metadata
+     * @return a version representing a build or release of Elasticsearch
+     */
+    public static BuildVersion fromNodeMetadata(String version) {
+        return CurrentExtensionHolder.BUILD_EXTENSION.fromNodeMetadata(version);
+    }
+
+    /**
      * Create a {@link BuildVersion} from a version string.
      *
      * @param version A string representation of a version
@@ -80,6 +99,16 @@ public abstract class BuildVersion {
      */
     public static BuildVersion fromString(String version) {
         return CurrentExtensionHolder.BUILD_EXTENSION.fromString(version);
+    }
+
+    /**
+     * Read a {@link BuildVersion} from an input stream
+     *
+     * @param input The stream to read
+     * @return a version representing a build or release of Elasticsearch
+     */
+    public static BuildVersion fromStream(StreamInput input) throws IOException {
+        return CurrentExtensionHolder.BUILD_EXTENSION.fromStream(input);
     }
 
     /**
@@ -93,9 +122,6 @@ public abstract class BuildVersion {
     public static BuildVersion current() {
         return CurrentExtensionHolder.BUILD_EXTENSION.currentBuildVersion();
     }
-
-    // only exists for NodeMetadata#toXContent
-    public abstract int id();
 
     private static class CurrentExtensionHolder {
         private static final BuildExtension BUILD_EXTENSION = findExtension();
@@ -125,6 +151,10 @@ public abstract class BuildVersion {
         public BuildVersion fromString(String version) {
             return new DefaultBuildVersion(version);
         }
-    }
 
+        @Override
+        public BuildVersion fromStream(StreamInput in) throws IOException {
+            return new DefaultBuildVersion(in);
+        }
+    }
 }

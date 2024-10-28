@@ -133,6 +133,13 @@ public class RestTestLegacyFeatures implements FeatureSpecification {
     public static final NodeFeature MAPPINGS_UPGRADE_SERVICE_USES_MAPPINGS_VERSION = new NodeFeature(
         "mappings.upgrade_service_uses_mappings_version"
     );
+    /*
+     * From 8.11, CompatibilityVersions  holds a map of system index names to their mappings versions, alongside the transport version.
+     * See https://github.com/elastic/elasticsearch/pull/99307
+     */
+    public static final NodeFeature SYSTEM_INDICES_MAPPING_VERSION_IN_CLUSTER_STATE = new NodeFeature(
+        "system_indices.mapping_version_in_cluster_state"
+    );
 
     // YAML
     public static final NodeFeature REST_ELASTIC_PRODUCT_HEADER_PRESENT = new NodeFeature("action.rest.product_header_present");
@@ -184,7 +191,8 @@ public class RestTestLegacyFeatures implements FeatureSpecification {
             entry(NEW_DATA_STREAMS_INDEX_NAME_FORMAT, Version.V_7_11_0),
             entry(DISABLE_FIELD_NAMES_FIELD_REMOVED, Version.V_8_0_0),
             entry(ML_NLP_SUPPORTED, Version.V_8_0_0),
-            entry(MAPPINGS_UPGRADE_SERVICE_USES_MAPPINGS_VERSION, Version.V_8_11_0)
+            entry(MAPPINGS_UPGRADE_SERVICE_USES_MAPPINGS_VERSION, Version.V_8_11_0),
+            entry(SYSTEM_INDICES_MAPPING_VERSION_IN_CLUSTER_STATE, Version.V_8_11_0)
         );
     }
 }

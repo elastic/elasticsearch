@@ -11,7 +11,7 @@ package org.elasticsearch.action.admin.cluster.version;
 
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 
-public class SystemIndexMappingsVersionsRequest extends BaseNodesRequest {
+public class SystemIndexMappingsVersionsRequest extends BaseNodesRequest<SystemIndexMappingsVersionsRequest> {
     public SystemIndexMappingsVersionsRequest(String... nodes) {
         super(nodes);
     }

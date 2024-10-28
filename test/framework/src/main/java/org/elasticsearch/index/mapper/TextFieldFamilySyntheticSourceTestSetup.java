@@ -51,22 +51,7 @@ public final class TextFieldFamilySyntheticSourceTestSetup {
     }
 
     public static Function<Object, Object> loadBlockExpected(MapperTestCase.BlockReaderSupport blockReaderSupport, boolean columnReader) {
-        if (nullLoaderExpected(blockReaderSupport.mapper(), blockReaderSupport.loaderFieldName())) {
-            return null;
-        }
         return v -> ((BytesRef) v).utf8ToString();
-    }
-
-    private static boolean nullLoaderExpected(MapperService mapper, String fieldName) {
-        MappedFieldType type = mapper.fieldType(fieldName);
-        if (type instanceof TextFieldMapper.TextFieldType t) {
-            if (t.isSyntheticSource() == false || t.canUseSyntheticSourceDelegateForQuerying() || t.isStored()) {
-                return false;
-            }
-            String parentField = mapper.mappingLookup().parentField(fieldName);
-            return parentField == null || nullLoaderExpected(mapper, parentField);
-        }
-        return false;
     }
 
     public static void validateRoundTripReader(String syntheticSource, DirectoryReader reader, DirectoryReader roundTripReader) {
@@ -96,6 +81,11 @@ public final class TextFieldFamilySyntheticSourceTestSetup {
                 null,
                 false
             );
+        }
+
+        @Override
+        public boolean ignoreAbove() {
+            return keywordMultiFieldSyntheticSourceSupport.ignoreAbove();
         }
 
         @Override

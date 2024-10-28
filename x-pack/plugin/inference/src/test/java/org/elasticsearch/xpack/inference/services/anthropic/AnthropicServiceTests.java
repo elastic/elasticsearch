@@ -532,7 +532,6 @@ public class AnthropicServiceTests extends ESTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/114385")
     public void testInfer_StreamRequest() throws Exception {
         String responseJson = """
             data: {"type": "message_start", "message": {"model": "claude, probably"}}
@@ -578,7 +577,6 @@ public class AnthropicServiceTests extends ESTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/114385")
     public void testInfer_StreamRequest_ErrorResponse() throws Exception {
         String responseJson = """
             data: {"type": "error", "error": {"type": "request_too_large", "message": "blah"}}
@@ -593,6 +591,13 @@ public class AnthropicServiceTests extends ESTestCase {
             .hasNoEvents()
             .hasErrorWithStatusCode(RestStatus.REQUEST_ENTITY_TOO_LARGE.getStatus())
             .hasErrorContaining("blah");
+    }
+
+    public void testSupportsStreaming() throws IOException {
+        try (var service = new AnthropicService(mock(), createWithEmptySettings(mock()))) {
+            assertTrue(service.canStream(TaskType.COMPLETION));
+            assertTrue(service.canStream(TaskType.ANY));
+        }
     }
 
     private AnthropicService createServiceWithMockSender() {

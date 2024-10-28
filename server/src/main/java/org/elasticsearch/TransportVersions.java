@@ -174,11 +174,17 @@ public class TransportVersions {
     public static final TransportVersion ESQL_PER_AGGREGATE_FILTER = def(8_770_00_0);
     public static final TransportVersion ML_INFERENCE_ATTACH_TO_EXISTSING_DEPLOYMENT = def(8_771_00_0);
     public static final TransportVersion CONVERT_FAILURE_STORE_OPTIONS_TO_SELECTOR_OPTIONS_INTERNALLY = def(8_772_00_0);
+    public static final TransportVersion INFERENCE_DONT_PERSIST_ON_READ_BACKPORT_8_16 = def(8_772_00_1);
     public static final TransportVersion REMOVE_MIN_COMPATIBLE_SHARD_NODE = def(8_773_00_0);
     public static final TransportVersion REVERT_REMOVE_MIN_COMPATIBLE_SHARD_NODE = def(8_774_00_0);
     public static final TransportVersion ESQL_FIELD_ATTRIBUTE_PARENT_SIMPLIFIED = def(8_775_00_0);
     public static final TransportVersion INFERENCE_DONT_PERSIST_ON_READ = def(8_776_00_0);
-    public static final TransportVersion ROLE_MONITOR_STATS = def(8_777_00_0);
+    public static final TransportVersion SIMULATE_MAPPING_ADDITION = def(8_777_00_0);
+    public static final TransportVersion INTRODUCE_ALL_APPLICABLE_SELECTOR = def(8_778_00_0);
+    public static final TransportVersion INDEX_MODE_LOOKUP = def(8_779_00_0);
+    public static final TransportVersion INDEX_REQUEST_REMOVE_METERING = def(8_780_00_0);
+    public static final TransportVersion CPU_STAT_STRING_PARSING = def(8_781_00_0);	
+	public static final TransportVersion ROLE_MONITOR_STATS = def(8_782_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

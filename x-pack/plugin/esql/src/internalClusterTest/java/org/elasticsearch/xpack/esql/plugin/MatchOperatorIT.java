@@ -136,6 +136,7 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
             METADATA _score
             | WHERE content MATCH "fox"
             | KEEP id, _score
+            | SORT id ASC
             """;
 
         try (var resp = run(query)) {

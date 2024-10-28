@@ -11,7 +11,6 @@ package org.elasticsearch.reservedstate.service;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.ClusterState;
@@ -22,6 +21,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.env.BuildVersion;
 import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
 import org.elasticsearch.reservedstate.TransformState;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -158,7 +158,7 @@ public class ReservedClusterStateService {
     }
 
     public void initEmpty(String namespace, ActionListener<ActionResponse.Empty> listener) {
-        var missingVersion = new ReservedStateVersion(EMPTY_VERSION, Version.CURRENT);
+        var missingVersion = new ReservedStateVersion(EMPTY_VERSION, BuildVersion.current());
         var emptyState = new ReservedStateChunk(Map.of(), missingVersion);
         updateTaskQueue.submitTask(
             "empty initial cluster state [" + namespace + "]",

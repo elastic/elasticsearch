@@ -33,11 +33,7 @@ For <<data-streams,data streams>>, the API returns information about the stream'
 * If the {es} {security-features} are enabled, you must have the `monitor` or
 `manage` <<privileges-list-cluster,cluster privilege>> to use this API.
 You must also have the `monitor` or `manage` <<privileges-list-indices,index privilege>>
-for any data stream, index, or alias you retrieve.
-Additionally, to retrieve shard information of restricted indices, you must have `allow_restricted_indices` set to `true`.
-Without the necessary <<roles-indices-priv,index privileges>>,
-you may encounter security exceptions when they are explicitly included in the `<target>` list,
-or receive incomplete shard results when using wildcards or when omitting the `<target>` parameter.
+to view the full information for any data stream, index, or alias you retrieve.
 
 [[cat-shards-path-params]]
 ==== {api-path-parms-title}

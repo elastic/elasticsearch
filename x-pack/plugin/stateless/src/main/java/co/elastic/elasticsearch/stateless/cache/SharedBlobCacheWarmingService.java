@@ -767,7 +767,7 @@ public class SharedBlobCacheWarmingService {
                 // TODO: Evaluate reducing to fewer fetches in the future. For example, reading multiple fetches in a single read.
                 try (RefCountingListener ref = new RefCountingListener(ActionListener.releaseAfter(listener, releasable))) {
                     for (int i = 0; i <= endingRegion; i++) {
-                        int offset = i * cacheService.getRegionSize();
+                        long offset = (long) i * cacheService.getRegionSize();
                         cacheService.maybeFetchRegion(
                             cacheKey,
                             i,

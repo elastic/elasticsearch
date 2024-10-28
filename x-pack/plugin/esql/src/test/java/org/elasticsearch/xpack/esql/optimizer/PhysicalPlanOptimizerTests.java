@@ -172,7 +172,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
-// @TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
+// @TestLogging(value = "org.elasticsearch.xpack.esql:DEBUG", reason = "debug")
 public class PhysicalPlanOptimizerTests extends ESTestCase {
 
     private static final String PARAM_FORMATTING = "%1$s";
@@ -3211,28 +3211,28 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     /**
      * Plan:
      * <code>
-     * LimitExec[1000[INTEGER]]
-     * \_ExchangeExec[[],false]
-     *   \_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[
+     * EvalExec[[scalerank{f}#8 AS rank]]
+     * \_LimitExec[1000[INTEGER]]
+     *   \_ExchangeExec[[],false]
+     *     \_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[
      * Limit[1000[INTEGER]]
-     * \_Filter[rank{r}#4 lt 4[INTEGER]]
-     *   \_Eval[[scalerank{f}#8 AS rank]]
-     *     \_EsRelation[airports][abbrev{f}#6, city{f}#12, city_location{f}#13, count..]]]
+     * \_Filter[scalerank{f}#8 &lt; 4[INTEGER]]
+     *   \_EsRelation[airports][abbrev{f}#6, city{f}#12, city_location{f}#13, count..]]]
      * </code>
      * Optimized:
      * <code>
-     * LimitExec[1000[INTEGER]]
-     * \_ExchangeExec[[abbrev{f}#6, city{f}#12, city_location{f}#13, country{f}#11, location{f}#10, name{f}#7, scalerank{f}#8,
-     *     type{f}#9, rank{r}#4],false]
-     *   \_ProjectExec[[abbrev{f}#6, city{f}#12, city_location{f}#13, country{f}#11, location{f}#10, name{f}#7, scalerank{f}#8,
-     *       type{f}#9, rank{r}#4]]
-     *     \_FieldExtractExec[abbrev{f}#6, city{f}#12, city_location{f}#13, count..][]
-     *       \_LimitExec[1000[INTEGER]]
-     *         \_EvalExec[[scalerank{f}#8 AS rank]]
-     *           \_FieldExtractExec[scalerank{f}#8][]
-     *             \_EsQueryExec[airports], indexMode[standard], query[{"
-     *               esql_single_value":{"field":"scalerank","next":{"range":{"scalerank":{"lt":4,"boost":1.0}}},"source":"rank &lt; 4@3:9"}
-     *             }][_doc{f}#23], limit[], sort[] estimatedRowSize[304]
+     * EvalExec[[scalerank{f}#8 AS rank]]
+     * \_LimitExec[1000[INTEGER]]
+     *   \_ExchangeExec[[abbrev{f}#6, city{f}#12, city_location{f}#13, country{f}#11, location{f}#10, name{f}#7, scalerank{f}#8,
+     *       type{f}#9],false
+     *     ]
+     *     \_ProjectExec[[abbrev{f}#6, city{f}#12, city_location{f}#13, country{f}#11, location{f}#10, name{f}#7, scalerank{f}#8,
+     *         type{f}#9]
+     *       ]
+     *       \_FieldExtractExec[abbrev{f}#6, city{f}#12, city_location{f}#13, count..][]
+     *         \_EsQueryExec[airports], indexMode[standard], query[{
+     *           "esql_single_value":{"field":"scalerank","next":{"range":{"scalerank":{"lt":4,"boost":1.0}}},"source":"rank &lt; 4@3:9"}
+     *          ][_doc{f}#23], limit[1000], sort[] estimatedRowSize[304]
      * </code>
      */
     public void testPushWhereEvalToSource() {
@@ -3243,7 +3243,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             """;
 
         var plan = this.physicalPlan(query, airports);
-        var limit = as(plan, LimitExec.class);
+        var eval = as(plan, EvalExec.class);
+        var limit = as(eval.child(), LimitExec.class);
         var exchange = as(limit.child(), ExchangeExec.class);
         var fragment = as(exchange.child(), FragmentExec.class);
         var limit2 = as(fragment.fragment(), Limit.class);
@@ -3251,16 +3252,14 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat("filter contains LessThan", filter.condition(), instanceOf(LessThan.class));
 
         var optimized = optimizedPlan(plan);
-        var topLimit = as(optimized, LimitExec.class);
+        eval = as(optimized, EvalExec.class);
+        var topLimit = as(eval.child(), LimitExec.class);
         exchange = as(topLimit.child(), ExchangeExec.class);
         var project = as(exchange.child(), ProjectExec.class);
         var fieldExtract = as(project.child(), FieldExtractExec.class);
         assertThat(fieldExtract.attributesToExtract().size(), greaterThan(5));
-        limit = as(fieldExtract.child(), LimitExec.class);
-        var eval = as(limit.child(), EvalExec.class);
-        fieldExtract = as(eval.child(), FieldExtractExec.class);
-        assertThat(fieldExtract.attributesToExtract().stream().map(Attribute::name).collect(Collectors.toList()), contains("scalerank"));
         var source = source(fieldExtract.child());
+        assertThat(source.limit(), is(topLimit.limit()));
         var condition = as(source.query(), SingleValueQuery.Builder.class);
         assertThat("Expected predicate to be passed to Lucene query", condition.source().text(), equalTo("rank < 4"));
         assertThat("Expected field to be passed to Lucene query", condition.field(), equalTo("scalerank"));
@@ -3281,7 +3280,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             """ }) {
 
             var plan = this.physicalPlan(query, airports);
-            var limit = as(plan, LimitExec.class);
+            var eval = as(plan, EvalExec.class);
+            var limit = as(eval.child(), LimitExec.class);
             var exchange = as(limit.child(), ExchangeExec.class);
             var fragment = as(exchange.child(), FragmentExec.class);
             var limit2 = as(fragment.fragment(), Limit.class);
@@ -3289,16 +3289,14 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             assertThat("filter contains ST_INTERSECTS", filter.condition(), instanceOf(SpatialIntersects.class));
 
             var optimized = optimizedPlan(plan);
-            var topLimit = as(optimized, LimitExec.class);
+            eval = as(optimized, EvalExec.class);
+            var topLimit = as(eval.child(), LimitExec.class);
             exchange = as(topLimit.child(), ExchangeExec.class);
             var project = as(exchange.child(), ProjectExec.class);
             var fieldExtract = as(project.child(), FieldExtractExec.class);
             assertThat(fieldExtract.attributesToExtract().size(), greaterThan(5));
-            limit = as(fieldExtract.child(), LimitExec.class);
-            var eval = as(limit.child(), EvalExec.class);
-            fieldExtract = as(eval.child(), FieldExtractExec.class);
-            assertThat(fieldExtract.attributesToExtract().stream().map(Attribute::name).collect(Collectors.toList()), contains("location"));
             var source = source(fieldExtract.child());
+            assertThat(source.limit(), is(topLimit.limit()));
             var condition = as(source.query(), SpatialRelatesQuery.ShapeQueryBuilder.class);
             assertThat("Geometry field name", condition.fieldName(), equalTo("location"));
             assertThat("Spatial relationship", condition.relation(), equalTo(ShapeRelation.INTERSECTS));
@@ -4771,12 +4769,24 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var exchange = asRemoteExchange(topN.child());
 
         project = as(exchange.child(), ProjectExec.class);
-        assertThat(names(project.projections()), contains("abbrev", "name", "location", "country", "city", "$$order_by$0$0"));
+        // Depending on what is run before this test, the synthetic name could have variable suffixes, so we must only assert on the prefix
+        assertThat(
+            names(project.projections()),
+            contains(
+                equalTo("abbrev"),
+                equalTo("name"),
+                equalTo("location"),
+                equalTo("country"),
+                equalTo("city"),
+                startsWith("$$order_by$0$")
+            )
+        );
         var extract = as(project.child(), FieldExtractExec.class);
         assertThat(names(extract.attributesToExtract()), contains("abbrev", "name", "country", "city"));
         var evalExec = as(extract.child(), EvalExec.class);
         var alias = as(evalExec.fields().get(0), Alias.class);
-        assertThat(alias.name(), is("$$order_by$0$0"));
+        assertThat(alias.name(), startsWith("$$order_by$0$"));
+        var aliasName = alias.name();  // We need this name to know what to assert on later when comparing the Order to the Sort
         var stDistance = as(alias.child(), StDistance.class);
         assertThat(stDistance.left().toString(), startsWith("location"));
         extract = as(evalExec.child(), FieldExtractExec.class);
@@ -4786,7 +4796,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         // Assert that the TopN(distance) is pushed down as geo-sort(location)
         assertThat(source.limit(), is(topN.limit()));
         Set<String> orderSet = orderAsSet(topN.order());
-        Set<String> sortsSet = sortsAsSet(source.sorts(), Map.of("location", "$$order_by$0$0"));
+        Set<String> sortsSet = sortsAsSet(source.sorts(), Map.of("location", aliasName));
         assertThat(orderSet, is(sortsSet));
 
         // Fine-grained checks on the pushed down sort
@@ -5841,14 +5851,14 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 | EVAL employee_id = to_str(emp_no)
                 | ENRICH _remote:departments
                 | LIMIT 10""");
-            var enrich = as(plan, EnrichExec.class);
-            assertThat(enrich.mode(), equalTo(Enrich.Mode.REMOTE));
-            assertThat(enrich.concreteIndices(), equalTo(Map.of("cluster_1", ".enrich-departments-2")));
-            var eval = as(enrich.child(), EvalExec.class);
-            var finalLimit = as(eval.child(), LimitExec.class);
+            var finalLimit = as(plan, LimitExec.class);
             var exchange = as(finalLimit.child(), ExchangeExec.class);
             var fragment = as(exchange.child(), FragmentExec.class);
-            var partialLimit = as(fragment.fragment(), Limit.class);
+            var enrich = as(fragment.fragment(), Enrich.class);
+            assertThat(enrich.mode(), equalTo(Enrich.Mode.REMOTE));
+            assertThat(enrich.concreteIndices(), equalTo(Map.of("cluster_1", ".enrich-departments-2")));
+            var evalFragment = as(enrich.child(), Eval.class);
+            var partialLimit = as(evalFragment.child(), Limit.class);
             as(partialLimit.child(), EsRelation.class);
         }
     }
@@ -5891,13 +5901,21 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testLimitThenEnrichRemote() {
-        var error = expectThrows(VerificationException.class, () -> physicalPlan("""
+        var plan = physicalPlan("""
             FROM test
             | LIMIT 10
             | EVAL employee_id = to_str(emp_no)
             | ENRICH _remote:departments
-            """));
-        assertThat(error.getMessage(), containsString("line 4:3: ENRICH with remote policy can't be executed after LIMIT"));
+            """);
+        var finalLimit = as(plan, LimitExec.class);
+        var exchange = as(finalLimit.child(), ExchangeExec.class);
+        var fragment = as(exchange.child(), FragmentExec.class);
+        var enrich = as(fragment.fragment(), Enrich.class);
+        assertThat(enrich.mode(), equalTo(Enrich.Mode.REMOTE));
+        assertThat(enrich.concreteIndices(), equalTo(Map.of("cluster_1", ".enrich-departments-2")));
+        var evalFragment = as(enrich.child(), Eval.class);
+        var partialLimit = as(evalFragment.child(), Limit.class);
+        as(partialLimit.child(), EsRelation.class);
     }
 
     public void testEnrichBeforeTopN() {
@@ -5932,6 +5950,23 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             var exchange = as(enrich.child(), ExchangeExec.class);
             var fragment = as(exchange.child(), FragmentExec.class);
             var eval = as(fragment.fragment(), Eval.class);
+            as(eval.child(), EsRelation.class);
+        }
+        {
+            var plan = physicalPlan("""
+                FROM test
+                | EVAL employee_id = to_str(emp_no)
+                | ENRICH _remote:departments
+                | SORT department
+                | LIMIT 10""");
+            var topN = as(plan, TopNExec.class);
+            var exchange = as(topN.child(), ExchangeExec.class);
+            var fragment = as(exchange.child(), FragmentExec.class);
+            var partialTopN = as(fragment.fragment(), TopN.class);
+            var enrich = as(partialTopN.child(), Enrich.class);
+            assertThat(enrich.mode(), equalTo(Enrich.Mode.REMOTE));
+            assertThat(enrich.concreteIndices(), equalTo(Map.of("cluster_1", ".enrich-departments-2")));
+            var eval = as(enrich.child(), Eval.class);
             as(eval.child(), EsRelation.class);
         }
         {
@@ -5988,6 +6023,24 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             var exchange = as(topN.child(), ExchangeExec.class);
             var fragment = as(exchange.child(), FragmentExec.class);
             var partialTopN = as(fragment.fragment(), TopN.class);
+            as(partialTopN.child(), EsRelation.class);
+        }
+        {
+            var plan = physicalPlan("""
+                FROM test
+                | SORT emp_no
+                | LIMIT 10
+                | EVAL employee_id = to_str(emp_no)
+                | ENRICH _remote:departments
+                """);
+            var topN = as(plan, TopNExec.class);
+            var exchange = as(topN.child(), ExchangeExec.class);
+            var fragment = as(exchange.child(), FragmentExec.class);
+            var enrich = as(fragment.fragment(), Enrich.class);
+            assertThat(enrich.mode(), equalTo(Enrich.Mode.REMOTE));
+            assertThat(enrich.concreteIndices(), equalTo(Map.of("cluster_1", ".enrich-departments-2")));
+            var evalFragment = as(enrich.child(), Eval.class);
+            var partialTopN = as(evalFragment.child(), TopN.class);
             as(partialTopN.child(), EsRelation.class);
         }
     }

@@ -212,7 +212,7 @@ public final class LimitedRole implements Role {
     public Automaton allowedActionsMatcher(String index) {
         final Automaton allowedMatcher = baseRole.allowedActionsMatcher(index);
         final Automaton limitedByMatcher = limitedByRole.allowedActionsMatcher(index);
-        return Automatons.intersectAndMinimize(allowedMatcher, limitedByMatcher);
+        return Automatons.intersectAndDeterminize(allowedMatcher, limitedByMatcher);
     }
 
     /**

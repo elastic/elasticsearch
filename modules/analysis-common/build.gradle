@@ -33,3 +33,7 @@ dependencies {
 artifacts {
   restTests(new File(projectDir, "src/yamlRestTest/resources/rest-api-spec/test"))
 }
+
+tasks.named("yamlRestCompatTestTransform").configure { task ->
+  task.replaceValueInMatch("tokens.0.token", "absenț", "romanian")
+}

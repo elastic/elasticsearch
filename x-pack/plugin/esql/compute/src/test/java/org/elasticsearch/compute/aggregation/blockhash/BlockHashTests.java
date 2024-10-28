@@ -64,11 +64,7 @@ import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class BlockHashTests extends ESTestCase {
-
-    final CircuitBreaker breaker = new MockBigArrays.LimitedBreaker("esql-test-breaker", ByteSizeValue.ofGb(1));
-    final BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, mockBreakerService(breaker));
-    final MockBlockFactory blockFactory = new MockBlockFactory(breaker, bigArrays);
+public class BlockHashTests extends BlockHashTestCase {
 
     @ParametersFactory
     public static List<Object[]> params() {
@@ -1219,86 +1215,6 @@ public class BlockHashTests extends ESTestCase {
         }
     }
 
-    /**
-     * Replicate the existing csv test, using sample_data.csv
-     */
-    public void testCategorizeRaw() {
-        final Page page;
-        final int positions = 7;
-        try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(positions)) {
-            builder.appendBytesRef(new BytesRef("Connected to 10.1.0.1"));
-            builder.appendBytesRef(new BytesRef("Connection error"));
-            builder.appendBytesRef(new BytesRef("Connection error"));
-            builder.appendBytesRef(new BytesRef("Connection error"));
-            builder.appendBytesRef(new BytesRef("Disconnected"));
-            builder.appendBytesRef(new BytesRef("Connected to 10.1.0.2"));
-            builder.appendBytesRef(new BytesRef("Connected to 10.1.0.3"));
-            page = new Page(builder.build());
-        }
-        // final int emitBatchSize = between(positions, 10 * 1024);
-        try (
-            BlockHash hash = new CategorizeRawBlockHash(
-                blockFactory,
-                0,
-                true,
-                new CategorizationAnalyzer(
-                    // TODO: should be the same analyzer as used in Production
-                    new CustomAnalyzer(
-                        TokenizerFactory.newFactory("whitespace", WhitespaceTokenizer::new),
-                        new CharFilterFactory[0],
-                        new TokenFilterFactory[0]
-                    ),
-                    true
-                ),
-                new TokenListCategorizer.CloseableTokenListCategorizer(
-                    new CategorizationBytesRefHash(new BytesRefHash(2048, blockFactory.bigArrays())),
-                    CategorizationPartOfSpeechDictionary.getInstance(),
-                    0.70f
-                )
-            );
-        ) {
-            hash.add(page, new GroupingAggregatorFunction.AddInput() {
-                @Override
-                public void add(int positionOffset, IntBlock groupIds) {
-                    groupIds.incRef();
-                    assertEquals(groupIds.getPositionCount(), positions);
-
-                    assertEquals(0, groupIds.getInt(0));
-                    assertEquals(1, groupIds.getInt(1));
-                    assertEquals(1, groupIds.getInt(2));
-                    assertEquals(1, groupIds.getInt(3));
-                    assertEquals(2, groupIds.getInt(4));
-                    assertEquals(0, groupIds.getInt(5));
-                    assertEquals(0, groupIds.getInt(6));
-                }
-
-                @Override
-                public void add(int positionOffset, IntVector groupIds) {
-                    groupIds.incRef();
-                    assertEquals(groupIds.getPositionCount(), positions);
-
-                    assertEquals(0, groupIds.getInt(0));
-                    assertEquals(1, groupIds.getInt(1));
-                    assertEquals(1, groupIds.getInt(2));
-                    assertEquals(1, groupIds.getInt(3));
-                    assertEquals(2, groupIds.getInt(4));
-                    assertEquals(0, groupIds.getInt(5));
-                    assertEquals(0, groupIds.getInt(6));
-                }
-
-                @Override
-                public void close() {
-                    fail("hashes should not close AddInput");
-                }
-            });
-        } finally {
-            page.releaseBlocks();
-        }
-        // TODO: randomize and try multiple pages.
-        // TODO: assert the state of the BlockHash after adding pages. Including the categorizer state.
-        // TODO: also test the lookup method and other stuff.
-    }
-
     record OrdsAndKeys(String description, int positionOffset, IntBlock ords, Block[] keys, IntVector nonEmpty) {}
 
     /**
@@ -1491,13 +1407,6 @@ public class BlockHashTests extends ESTestCase {
                 }
             }
         }
-    }
-
-    // A breaker service that always returns the given breaker for getBreaker(CircuitBreaker.REQUEST)
-    static CircuitBreakerService mockBreakerService(CircuitBreaker breaker) {
-        CircuitBreakerService breakerService = mock(CircuitBreakerService.class);
-        when(breakerService.getBreaker(CircuitBreaker.REQUEST)).thenReturn(breaker);
-        return breakerService;
     }
 
     IntVector intRange(int startInclusive, int endExclusive) {

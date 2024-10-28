@@ -24,7 +24,7 @@ configure(childProjects.values()) {
   }
   subprojects {
     apply plugin: 'base'
-    
+
     def subArtifactId = baseArtifactId
     def currentProject = project
     while (currentProject != baseProject) {

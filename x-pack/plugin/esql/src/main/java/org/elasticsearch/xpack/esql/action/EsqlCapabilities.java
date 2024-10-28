@@ -286,7 +286,7 @@ public class EsqlCapabilities {
         /**
          * Support for match operator as a colon. Previous support for match operator as MATCH has been removed
          */
-        MATCH_OPERATOR_COLON(true),
+        MATCH_OPERATOR_COLON(Build.current().isSnapshot()),
 
         /**
          * Removing support for the {@code META} keyword.

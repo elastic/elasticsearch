@@ -1600,7 +1600,6 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         as(limit.child(), Row.class);
     }
 
-
     /**
      * Expected
      * TopN[[Order[first_name{r}#16,ASC,LAST]],10000[INTEGER]]

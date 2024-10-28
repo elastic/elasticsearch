@@ -183,6 +183,7 @@ public class TransportVersions {
     public static final TransportVersion INTRODUCE_ALL_APPLICABLE_SELECTOR = def(8_778_00_0);
     public static final TransportVersion INDEX_MODE_LOOKUP = def(8_779_00_0);
     public static final TransportVersion INDEX_REQUEST_REMOVE_METERING = def(8_780_00_0);
+    public static final TransportVersion CPU_STAT_STRING_PARSING = def(8_781_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

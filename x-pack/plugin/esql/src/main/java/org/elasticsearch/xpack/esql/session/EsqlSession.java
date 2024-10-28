@@ -291,7 +291,7 @@ public class EsqlSession {
             if (clusterIndices.size() == 1) {
                 OriginalIndices localCluster = clusterIndices.get(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
                 if (localCluster != null && localCluster.indices() == Strings.EMPTY_ARRAY) {
-                    throw new VerificationException("No matching clusters " + table.index());
+                    throw new VerificationException("No matching clusters [" + table.index() + "]");
                 }
             }
 

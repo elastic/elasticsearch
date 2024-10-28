@@ -734,10 +734,13 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
 
         VerificationException ex = assertThrows(
             VerificationException.class,
-            () -> runQuery("FROM xremote*:web_traffic | WHERE verb==\"GET\" | KEEP is_https, user_Agent, verb | STATS count(*)", false)
+            () -> runQuery(
+                "FROM nosuchcluster*:web_traffic | WHERE verb==\"GET\" | KEEP is_https, user_Agent, verb | STATS count(*)",
+                false
+            )
         );
 
-        assertEquals("No matching clusters xremote*:web_traffic", ex.getMessage());
+        assertEquals("No matching clusters [nosuchcluster*:web_traffic]", ex.getMessage());
     }
 
     private static void assertClusterMetadataInResponse(EsqlQueryResponse resp, boolean responseExpectMeta) {

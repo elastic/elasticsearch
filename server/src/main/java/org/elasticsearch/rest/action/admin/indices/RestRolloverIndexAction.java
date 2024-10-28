@@ -71,7 +71,7 @@ public class RestRolloverIndexAction extends BaseRestHandler {
             if (failureStore) {
                 rolloverIndexRequest.setIndicesOptions(
                     IndicesOptions.builder(rolloverIndexRequest.indicesOptions())
-                        .selectorOptions(IndicesOptions.SelectorOptions.ONLY_FAILURES)
+                        .selectorOptions(IndicesOptions.SelectorOptions.FAILURES)
                         .build()
                 );
             }

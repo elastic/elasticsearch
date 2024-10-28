@@ -24,6 +24,7 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.equalToIgnoringCase;
 import static org.hamcrest.Matchers.hasSize;
@@ -306,8 +307,7 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
         assertEquals(modelId, singleModel.get("inference_id"));
         assertEquals(TaskType.COMPLETION.toString(), singleModel.get("task_type"));
 
-        var input = IntStream.range(1, randomInt(10)).mapToObj(i -> randomAlphaOfLength(10)).toList();
-
+        var input = IntStream.range(1, 2 + randomInt(8)).mapToObj(i -> randomAlphaOfLength(10)).toList();
         try {
             var events = streamInferOnMockService(modelId, TaskType.COMPLETION, input);
 
@@ -325,5 +325,10 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
         } finally {
             deleteModel(modelId);
         }
+    }
+
+    public void testGetZeroModels() throws IOException {
+        var models = getModels("_all", TaskType.RERANK);
+        assertThat(models, empty());
     }
 }

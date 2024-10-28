@@ -54,6 +54,18 @@ import static org.elasticsearch.common.Strings.format;
  */
 public class ExpressionRoleMapping implements ToXContentObject, Writeable {
 
+    /**
+     * Reserved suffix for read-only operator-defined role mappings.
+     * This suffix is added to the name of all cluster-state role mappings returned via
+     * the {@code TransportGetRoleMappingsAction} action.
+     */
+    public static final String READ_ONLY_ROLE_MAPPING_SUFFIX = "-read-only-operator-mapping";
+    /**
+     * Reserved metadata field to mark role mappings as read-only.
+     * This field is added to the metadata of all cluster-state role mappings returned via
+     * the {@code TransportGetRoleMappingsAction} action.
+     */
+    public static final String READ_ONLY_ROLE_MAPPING_METADATA_FLAG = "_read_only";
     private static final ObjectParser<Builder, String> PARSER = new ObjectParser<>("role-mapping", Builder::new);
 
     /**
@@ -134,6 +146,28 @@ public class ExpressionRoleMapping implements ToXContentObject, Writeable {
         }
         this.expression = ExpressionParser.readExpression(in);
         this.metadata = in.readGenericMap();
+    }
+
+    public static boolean hasReadOnlySuffix(String name) {
+        return name.endsWith(READ_ONLY_ROLE_MAPPING_SUFFIX);
+    }
+
+    public static void validateNoReadOnlySuffix(String name) {
+        if (hasReadOnlySuffix(name)) {
+            throw new IllegalArgumentException(
+                "Invalid mapping name [" + name + "]. [" + READ_ONLY_ROLE_MAPPING_SUFFIX + "] is not an allowed suffix"
+            );
+        }
+    }
+
+    public static String addReadOnlySuffix(String name) {
+        return name + READ_ONLY_ROLE_MAPPING_SUFFIX;
+    }
+
+    public static String removeReadOnlySuffixIfPresent(String name) {
+        return name.endsWith(READ_ONLY_ROLE_MAPPING_SUFFIX)
+            ? name.substring(0, name.length() - READ_ONLY_ROLE_MAPPING_SUFFIX.length())
+            : name;
     }
 
     @Override

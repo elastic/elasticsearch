@@ -23,6 +23,8 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.index.mapper.BlockSourceReader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -55,6 +57,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.core.ml.inference.results.MlTextEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
+import org.elasticsearch.xpack.inference.DefaultElserFeatureFlag;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -106,12 +109,16 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             INFERENCE_ID_FIELD,
             false,
             mapper -> ((SemanticTextFieldType) mapper.fieldType()).inferenceId,
-            DEFAULT_ELSER_2_INFERENCE_ID
+            DefaultElserFeatureFlag.isEnabled() ? DEFAULT_ELSER_2_INFERENCE_ID : null
         ).addValidator(v -> {
             if (Strings.isEmpty(v)) {
-                throw new IllegalArgumentException(
-                    "[" + INFERENCE_ID_FIELD + "] on mapper [" + leafName() + "] of type [" + CONTENT_TYPE + "] must not be empty"
-                );
+                // If the default ELSER feature flag is enabled, the only way we get here is if the user explicitly sets the param to an
+                // empty value. However, if the feature flag is disabled, we can get here if the user didn't set the param.
+                // Adjust the error message appropriately.
+                String message = DefaultElserFeatureFlag.isEnabled()
+                    ? "[" + INFERENCE_ID_FIELD + "] on mapper [" + leafName() + "] of type [" + CONTENT_TYPE + "] must not be empty"
+                    : "[" + INFERENCE_ID_FIELD + "] on mapper [" + leafName() + "] of type [" + CONTENT_TYPE + "] must be specified";
+                throw new IllegalArgumentException(message);
             }
         });
 
@@ -605,6 +612,12 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             }
 
             return baseMessageBuilder.toString();
+        }
+
+        @Override
+        public BlockLoader blockLoader(MappedFieldType.BlockLoaderContext blContext) {
+            SourceValueFetcher fetcher = SourceValueFetcher.toString(blContext.sourcePaths(name().concat(".text")));
+            return new BlockSourceReader.BytesRefsBlockLoader(fetcher, BlockSourceReader.lookupMatchingAll());
         }
     }
 

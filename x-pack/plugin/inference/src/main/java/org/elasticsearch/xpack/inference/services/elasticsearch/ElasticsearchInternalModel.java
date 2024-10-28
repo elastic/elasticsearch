@@ -91,13 +91,8 @@ public abstract class ElasticsearchInternalModel extends Model {
         return (ElasticsearchInternalServiceSettings) super.getServiceSettings();
     }
 
-    public void updateNumAllocation(Integer numAllocations) {
-        this.internalServiceSettings = new ElasticsearchInternalServiceSettings(
-            numAllocations,
-            this.internalServiceSettings.getNumThreads(),
-            this.internalServiceSettings.modelId(),
-            this.internalServiceSettings.getAdaptiveAllocationsSettings()
-        );
+    public void updateNumAllocations(Integer numAllocations) {
+        this.internalServiceSettings.setNumAllocations(numAllocations);
     }
 
     @Override

@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
+import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
@@ -33,6 +34,7 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.CoordinatorRewriteContextProvider;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
@@ -474,6 +476,97 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
     // test using event.ingested
     public void testCanMatchFilteringOnCoordinatorThatCanBeSkippedUsingEventIngested() throws Exception {
         doCanMatchFilteringOnCoordinatorThatCanBeSkipped(IndexMetadata.EVENT_INGESTED_FIELD_NAME);
+    }
+
+    public void testCanMatchFilteringOnCoordinatorSkipsBasedOnTier() throws Exception {
+        // we'll test that we're executing _tier coordinator rewrite for indices (data stream backing or regular) without any @timestamp
+        // or event.ingested fields
+        // for both data stream backing and regular indices we'll have one index in hot and one in warm. the warm indices will be skipped as
+        // our queries will filter based on _tier: hot
+
+        Map<Index, Settings.Builder> indexNameToSettings = new HashMap<>();
+        ClusterState state = ClusterState.EMPTY_STATE;
+
+        String dataStreamName = randomAlphaOfLengthBetween(10, 20);
+        Index warmDataStreamIndex = new Index(DataStream.getDefaultBackingIndexName(dataStreamName, 1), UUIDs.base64UUID());
+        indexNameToSettings.put(
+            warmDataStreamIndex,
+            settings(IndexVersion.current()).put(IndexMetadata.SETTING_INDEX_UUID, warmDataStreamIndex.getUUID())
+                .put(DataTier.TIER_PREFERENCE, "data_warm,data_hot")
+        );
+        Index hotDataStreamIndex = new Index(DataStream.getDefaultBackingIndexName(dataStreamName, 2), UUIDs.base64UUID());
+        indexNameToSettings.put(
+            hotDataStreamIndex,
+            settings(IndexVersion.current()).put(IndexMetadata.SETTING_INDEX_UUID, hotDataStreamIndex.getUUID())
+                .put(DataTier.TIER_PREFERENCE, "data_hot")
+        );
+        DataStream dataStream = DataStreamTestHelper.newInstance(dataStreamName, List.of(warmDataStreamIndex, hotDataStreamIndex));
+
+        Index warmRegularIndex = new Index("warm-index", UUIDs.base64UUID());
+        indexNameToSettings.put(
+            warmRegularIndex,
+            settings(IndexVersion.current()).put(IndexMetadata.SETTING_INDEX_UUID, warmRegularIndex.getUUID())
+                .put(DataTier.TIER_PREFERENCE, "data_warm,data_hot")
+        );
+        Index hotRegularIndex = new Index("hot-index", UUIDs.base64UUID());
+        indexNameToSettings.put(
+            hotRegularIndex,
+            settings(IndexVersion.current()).put(IndexMetadata.SETTING_INDEX_UUID, hotRegularIndex.getUUID())
+                .put(DataTier.TIER_PREFERENCE, "data_hot")
+        );
+
+        List<Index> allIndices = new ArrayList<>(4);
+        allIndices.addAll(dataStream.getIndices());
+        allIndices.add(warmRegularIndex);
+        allIndices.add(hotRegularIndex);
+
+        List<Index> hotIndices = List.of(hotRegularIndex, hotDataStreamIndex);
+        List<Index> warmIndices = List.of(warmRegularIndex, warmDataStreamIndex);
+
+        for (Index index : allIndices) {
+            IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(index.getName())
+                .settings(indexNameToSettings.get(index))
+                .numberOfShards(1)
+                .numberOfReplicas(0);
+            Metadata.Builder metadataBuilder = Metadata.builder(state.metadata()).put(indexMetadataBuilder);
+            state = ClusterState.builder(state).metadata(metadataBuilder).build();
+        }
+
+        ClusterState finalState = state;
+        CoordinatorRewriteContextProvider coordinatorRewriteContextProvider = new CoordinatorRewriteContextProvider(
+            parserConfig(),
+            mock(Client.class),
+            System::currentTimeMillis,
+            () -> finalState,
+            (index) -> null
+        );
+
+        BoolQueryBuilder boolQueryBuilder = QueryBuilders.boolQuery().filter(QueryBuilders.termQuery("_tier", "data_hot"));
+
+        assignShardsAndExecuteCanMatchPhase(
+            List.of(dataStream),
+            List.of(hotRegularIndex, warmRegularIndex),
+            coordinatorRewriteContextProvider,
+            boolQueryBuilder,
+            List.of(),
+            null,
+            (updatedSearchShardIterators, requests) -> {
+                var skippedShards = updatedSearchShardIterators.stream().filter(SearchShardIterator::skip).toList();
+                var nonSkippedShards = updatedSearchShardIterators.stream()
+                    .filter(searchShardIterator -> searchShardIterator.skip() == false)
+                    .toList();
+
+                boolean allSkippedShardAreFromWarmIndices = skippedShards.stream()
+                    .allMatch(shardIterator -> warmIndices.contains(shardIterator.shardId().getIndex()));
+                assertThat(allSkippedShardAreFromWarmIndices, equalTo(true));
+                boolean allNonSkippedShardAreHotIndices = nonSkippedShards.stream()
+                    .allMatch(shardIterator -> hotIndices.contains(shardIterator.shardId().getIndex()));
+                assertThat(allNonSkippedShardAreHotIndices, equalTo(true));
+                boolean allRequestMadeToHotIndices = requests.stream()
+                    .allMatch(request -> hotIndices.contains(request.shardId().getIndex()));
+                assertThat(allRequestMadeToHotIndices, equalTo(true));
+            }
+        );
     }
 
     public void doCanMatchFilteringOnCoordinatorThatCanBeSkipped(String timestampField) throws Exception {

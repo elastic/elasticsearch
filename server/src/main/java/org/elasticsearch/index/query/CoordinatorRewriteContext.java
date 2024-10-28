@@ -39,7 +39,7 @@ public class CoordinatorRewriteContext extends QueryRewriteContext {
 
     public static final String TIER_FIELD_NAME = "_tier";
 
-    private static final ConstantFieldType TIER_FIELD_TYPE = new ConstantFieldType(TIER_FIELD_NAME, Map.of()) {
+    static final ConstantFieldType TIER_FIELD_TYPE = new ConstantFieldType(TIER_FIELD_NAME, Map.of()) {
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             throw new UnsupportedOperationException("fetching field values is not supported on the coordinator node");
@@ -69,6 +69,7 @@ public class CoordinatorRewriteContext extends QueryRewriteContext {
         }
     };
 
+    @Nullable
     private final DateFieldRangeInfo dateFieldRangeInfo;
     private final String tier;
 
@@ -85,7 +86,7 @@ public class CoordinatorRewriteContext extends QueryRewriteContext {
         XContentParserConfiguration parserConfig,
         Client client,
         LongSupplier nowInMillis,
-        DateFieldRangeInfo dateFieldRangeInfo,
+        @Nullable DateFieldRangeInfo dateFieldRangeInfo,
         String tier
     ) {
         super(
@@ -116,9 +117,9 @@ public class CoordinatorRewriteContext extends QueryRewriteContext {
      */
     @Nullable
     public MappedFieldType getFieldType(String fieldName) {
-        if (DataStream.TIMESTAMP_FIELD_NAME.equals(fieldName)) {
+        if (dateFieldRangeInfo != null && DataStream.TIMESTAMP_FIELD_NAME.equals(fieldName)) {
             return dateFieldRangeInfo.timestampFieldType();
-        } else if (IndexMetadata.EVENT_INGESTED_FIELD_NAME.equals(fieldName)) {
+        } else if (dateFieldRangeInfo != null && IndexMetadata.EVENT_INGESTED_FIELD_NAME.equals(fieldName)) {
             return dateFieldRangeInfo.eventIngestedFieldType();
         } else if (TIER_FIELD_NAME.equals(fieldName)) {
             return TIER_FIELD_TYPE;
@@ -133,9 +134,9 @@ public class CoordinatorRewriteContext extends QueryRewriteContext {
      */
     @Nullable
     public IndexLongFieldRange getFieldRange(String fieldName) {
-        if (DataStream.TIMESTAMP_FIELD_NAME.equals(fieldName)) {
+        if (dateFieldRangeInfo != null && DataStream.TIMESTAMP_FIELD_NAME.equals(fieldName)) {
             return dateFieldRangeInfo.timestampRange();
-        } else if (IndexMetadata.EVENT_INGESTED_FIELD_NAME.equals(fieldName)) {
+        } else if (dateFieldRangeInfo != null && IndexMetadata.EVENT_INGESTED_FIELD_NAME.equals(fieldName)) {
             return dateFieldRangeInfo.eventIngestedRange();
         } else {
             return null;

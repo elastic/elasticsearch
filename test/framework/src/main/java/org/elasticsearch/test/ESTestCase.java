@@ -1034,6 +1034,13 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     /**
+     * @return a <code>long</code> between <code>Long.MIN_VALUE</code> and <code>-1</code>  (inclusive) chosen uniformly at random.
+     */
+    public static long randomNegativeLong() {
+        return randomLong() | Long.MIN_VALUE;
+    }
+
+    /**
      * @return an <code>int</code> between <code>0</code> and <code>Integer.MAX_VALUE</code> (inclusive) chosen uniformly at random.
      */
     public static int randomNonNegativeInt() {

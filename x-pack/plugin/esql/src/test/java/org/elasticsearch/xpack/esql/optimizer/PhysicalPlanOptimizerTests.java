@@ -2144,7 +2144,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             | where long_noidx == 1
             """);
 
-        var optimized = optimizedPlan(plan);
+        var optimized = optimizedPlan(plan, statsWithIndexedFields());
         var limit = as(optimized, LimitExec.class);
         var exchange = asRemoteExchange(limit.child());
         var project = as(exchange.child(), ProjectExec.class);
@@ -2195,7 +2195,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             | sort long_noidx
             """);
 
-        var optimized = optimizedPlan(plan);
+        var optimized = optimizedPlan(plan, statsWithIndexedFields());
         var topN = as(optimized, TopNExec.class);
         var exchange = as(topN.child(), ExchangeExec.class);
         var project = as(exchange.child(), ProjectExec.class);
@@ -2691,7 +2691,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 agg = as(exchange.child(), AggregateExec.class);
                 // below the exchange (in data node) the aggregation is using doc-values
                 assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, withDocValues);
-                assertChildIsGeoPointExtract(withDocValues ? agg : as(agg.child(), FilterExec.class), withDocValues);
+                assertChildIsGeoPointExtract(agg, withDocValues);
             }
         }
     }

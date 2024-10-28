@@ -32,6 +32,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.function.Predicate;
 
+import static org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushDownUtils.isPushableFieldAttribute;
+
 /**
  * We handle two main scenarios here:
  * <ol>
@@ -60,7 +62,9 @@ import java.util.function.Predicate;
 public class PushTopNToSource extends PhysicalOptimizerRules.ParameterizedOptimizerRule<TopNExec, LocalPhysicalOptimizerContext> {
     @Override
     protected PhysicalPlan rule(TopNExec topNExec, LocalPhysicalOptimizerContext ctx) {
-        Pushable pushable = evaluatePushable(topNExec, x -> LucenePushDownUtils.hasIdenticalDelegate(x, ctx.searchStats()));
+        Predicate<FieldAttribute> hasIdenticalDelegate = (fa) -> LucenePushDownUtils.hasIdenticalDelegate(fa, ctx.searchStats());
+        Predicate<FieldAttribute> isIndexed = (fa) -> ctx.searchStats().isIndexed(fa.fieldName());
+        Pushable pushable = evaluatePushable(topNExec, hasIdenticalDelegate, isIndexed);
         return pushable.rewrite(topNExec);
     }
 
@@ -121,11 +125,15 @@ public class PushTopNToSource extends PhysicalOptimizerRules.ParameterizedOptimi
         }
     }
 
-    private static Pushable evaluatePushable(TopNExec topNExec, Predicate<FieldAttribute> hasIdenticalDelegate) {
+    private static Pushable evaluatePushable(
+        TopNExec topNExec,
+        Predicate<FieldAttribute> hasIdenticalDelegate,
+        Predicate<FieldAttribute> isIndexed
+    ) {
         PhysicalPlan child = topNExec.child();
         if (child instanceof EsQueryExec queryExec
             && queryExec.canPushSorts()
-            && canPushDownOrders(topNExec.order(), hasIdenticalDelegate)) {
+            && canPushDownOrders(topNExec.order(), hasIdenticalDelegate, isIndexed)) {
             // With the simplest case of `FROM index | SORT ...` we only allow pushing down if the sort is on a field
             return new PushableQueryExec(queryExec);
         }
@@ -148,7 +156,7 @@ public class PushTopNToSource extends PhysicalOptimizerRules.ParameterizedOptimi
 
             List<EsQueryExec.Sort> pushableSorts = new ArrayList<>();
             for (Order order : orders) {
-                if (LucenePushDownUtils.isPushableFieldAttribute(order.child(), hasIdenticalDelegate)) {
+                if (isPushableFieldAttribute(order.child(), hasIdenticalDelegate, isIndexed)) {
                     pushableSorts.add(
                         new EsQueryExec.FieldSort(
                             ((FieldAttribute) order.child()).exactAttribute(),
@@ -169,7 +177,7 @@ public class PushTopNToSource extends PhysicalOptimizerRules.ParameterizedOptimi
                             break;
                         }
                     } else if (aliasReplacedBy.resolve(referenceAttribute, referenceAttribute) instanceof FieldAttribute fieldAttribute
-                        && LucenePushDownUtils.isPushableFieldAttribute(fieldAttribute, hasIdenticalDelegate)) {
+                        && isPushableFieldAttribute(fieldAttribute, hasIdenticalDelegate, isIndexed)) {
                             // If the SORT refers to a reference to a pushable field, we can push it down
                             pushableSorts.add(
                                 new EsQueryExec.FieldSort(fieldAttribute.exactAttribute(), order.direction(), order.nullsPosition())
@@ -192,9 +200,13 @@ public class PushTopNToSource extends PhysicalOptimizerRules.ParameterizedOptimi
         return NO_OP;
     }
 
-    private static boolean canPushDownOrders(List<Order> orders, Predicate<FieldAttribute> hasIdenticalDelegate) {
+    private static boolean canPushDownOrders(
+        List<Order> orders,
+        Predicate<FieldAttribute> hasIdenticalDelegate,
+        Predicate<FieldAttribute> isIndexed
+    ) {
         // allow only exact FieldAttributes (no expressions) for sorting
-        return orders.stream().allMatch(o -> LucenePushDownUtils.isPushableFieldAttribute(o.child(), hasIdenticalDelegate));
+        return orders.stream().allMatch(o -> isPushableFieldAttribute(o.child(), hasIdenticalDelegate, isIndexed));
     }
 
     private static List<EsQueryExec.Sort> buildFieldSorts(List<Order> orders) {

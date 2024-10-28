@@ -240,14 +240,14 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
         Predicate<FieldAttribute> isIndexed
     ) {
         if (exp instanceof BinaryComparison bc) {
-            return isAttributePushable(bc.left(), bc, hasIdenticalDelegate) && bc.right().foldable();
+            return isAttributePushable(bc.left(), bc, hasIdenticalDelegate, isIndexed) && bc.right().foldable();
         } else if (exp instanceof InsensitiveBinaryComparison bc) {
-            return isAttributePushable(bc.left(), bc, hasIdenticalDelegate) && bc.right().foldable();
+            return isAttributePushable(bc.left(), bc, hasIdenticalDelegate, isIndexed) && bc.right().foldable();
         } else if (exp instanceof BinaryLogic bl) {
             return canPushToSource(bl.left(), hasIdenticalDelegate, isIndexed)
                 && canPushToSource(bl.right(), hasIdenticalDelegate, isIndexed);
         } else if (exp instanceof In in) {
-            return isAttributePushable(in.value(), null, hasIdenticalDelegate) && Expressions.foldable(in.list());
+            return isAttributePushable(in.value(), null, hasIdenticalDelegate, isIndexed) && Expressions.foldable(in.list());
         } else if (exp instanceof Not not) {
             return canPushToSource(not.field(), hasIdenticalDelegate, isIndexed);
         } else if (exp instanceof UnaryScalarFunction usf) {
@@ -257,10 +257,11 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
                         return true;
                     }
                 }
-                return isAttributePushable(usf.field(), usf, hasIdenticalDelegate);
+                return isAttributePushable(usf.field(), usf, hasIdenticalDelegate, isIndexed);
             }
         } else if (exp instanceof CIDRMatch cidrMatch) {
-            return isAttributePushable(cidrMatch.ipField(), cidrMatch, hasIdenticalDelegate) && Expressions.foldable(cidrMatch.matches());
+            return isAttributePushable(cidrMatch.ipField(), cidrMatch, hasIdenticalDelegate, isIndexed)
+                && Expressions.foldable(cidrMatch.matches());
         } else if (exp instanceof SpatialRelatesFunction spatial) {
             return canPushSpatialFunctionToSource(spatial, isIndexed);
         } else if (exp instanceof MatchQueryPredicate mqp) {
@@ -293,9 +294,10 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
     private static boolean isAttributePushable(
         Expression expression,
         Expression operation,
-        Predicate<FieldAttribute> hasIdenticalDelegate
+        Predicate<FieldAttribute> hasIdenticalDelegate,
+        Predicate<FieldAttribute> isIndexed
     ) {
-        if (LucenePushDownUtils.isPushableFieldAttribute(expression, hasIdenticalDelegate)) {
+        if (LucenePushDownUtils.isPushableFieldAttribute(expression, hasIdenticalDelegate, isIndexed)) {
             return true;
         }
         if (expression instanceof MetadataAttribute ma && ma.searchable()) {

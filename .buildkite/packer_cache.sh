@@ -29,6 +29,6 @@ for branch in "${branches[@]}"; do
   fi
 
   export JAVA_HOME="$HOME/.java/$ES_BUILD_JAVA"
-  "checkout/${branch}/gradlew" --project-dir "$CHECKOUT_DIR" --parallel -s resolveAllDependencies -Dorg.gradle.warning.mode=none -DisCI
+  "checkout/${branch}/gradlew" --project-dir "$CHECKOUT_DIR" --parallel -s resolveAllDependencies -Dorg.gradle.warning.mode=none -DisCI --max-workers=4
   rm -rf "checkout/${branch}"
 done

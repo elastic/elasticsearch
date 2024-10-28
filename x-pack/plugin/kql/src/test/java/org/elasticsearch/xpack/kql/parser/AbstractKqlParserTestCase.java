@@ -44,7 +44,7 @@ public abstract class AbstractKqlParserTestCase extends AbstractBuilderTestCase 
 
     protected static final String SUPPORTED_QUERY_FILE_PATH = "/supported-queries";
     protected static final String UNSUPPORTED_QUERY_FILE_PATH = "/unsupported-queries";
-    protected static final Predicate<String> BOOLEAN_QUERY_FILTER = (q) -> q.matches("(?i)[^{]*[^\\\\](AND|OR)[^}]*");
+    protected static final Predicate<String> BOOLEAN_QUERY_FILTER = (q) -> q.matches("(?i)[^{]*[^\\\\]*(NOT|AND|OR)[^}]*");
 
     protected static String wrapWithRandomWhitespaces(String input) {
         return String.join("", randomWhitespaces(), input, randomWhitespaces());

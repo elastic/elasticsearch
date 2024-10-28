@@ -24,15 +24,14 @@ import static org.hamcrest.Matchers.hasSize;
 public class KqlParserBooleanQueryTests extends AbstractKqlParserTestCase {
 
     public void testParseNotQuery() throws IOException {
-        for (String baseQuery : readQueries(SUPPORTED_QUERY_FILE_PATH)) {
-            if (baseQuery.startsWith("NOT") || BOOLEAN_QUERY_FILTER.test(baseQuery)) {
+        for (String baseQuery : readQueries(SUPPORTED_QUERY_FILE_PATH, Predicate.not(BOOLEAN_QUERY_FILTER))) {
+            if (BOOLEAN_QUERY_FILTER.test(baseQuery)) {
                 baseQuery = wrapWithRandomWhitespaces("(") + baseQuery + wrapWithRandomWhitespaces(")");
             }
 
             String notQuery = wrapWithRandomWhitespaces("NOT ") + baseQuery;
 
             BoolQueryBuilder parsedQuery = asInstanceOf(BoolQueryBuilder.class, parseKqlQuery(notQuery));
-
             assertThat(parsedQuery.filter(), empty());
             assertThat(parsedQuery.should(), empty());
             assertThat(parsedQuery.must(), empty());

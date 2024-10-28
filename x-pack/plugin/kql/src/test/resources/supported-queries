@@ -103,9 +103,9 @@ nested_field: { sub_nested_field : { foo_field:foo } AND foo_field:foo bar }
 // Queries with escape sequences
 foo_field : (foo\(bar\))
 foo_field : foo\:bar
-foo_field : (foo \and bar)
-foo_field : (foo \or bar)
-foo_field : foo \not bar
+foo_field : (foo \\and bar)
+foo_field : (foo \\or bar)
+foo_field : foo \\not bar
 foo_field : foo \{bar\}
 foo_field : foo \(bar\)
 foo_field : foo \\ bar

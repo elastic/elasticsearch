@@ -79,7 +79,6 @@ public class ReproduceInfoPrinter extends RunListener {
         String task = System.getProperty("tests.task");
         // TODO: enforce (intellij still runs the runner?) or use default "test" but that won't work for integ
         b.append("'" + task + "'");
-
         GradleMessageBuilder gradleMessageBuilder = new GradleMessageBuilder(b);
         gradleMessageBuilder.appendAllOpts(failure.getDescription());
 
@@ -159,6 +158,7 @@ public class ReproduceInfoPrinter extends RunListener {
             appendOpt("tests.distribution", System.getProperty("tests.distribution"));
             appendOpt("compiler.java", System.getProperty("compiler.java"));
             appendOpt("runtime.java", System.getProperty("runtime.java"));
+	    appendOpt("license.key", System.getProperty("licence.key"));
             appendOpt("javax.net.ssl.keyStorePassword", System.getProperty("javax.net.ssl.keyStorePassword"));
             appendOpt("javax.net.ssl.trustStorePassword", System.getProperty("javax.net.ssl.trustStorePassword"));
             return this;

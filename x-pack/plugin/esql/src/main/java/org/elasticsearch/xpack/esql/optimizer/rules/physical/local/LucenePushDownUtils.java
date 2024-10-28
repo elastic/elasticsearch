@@ -25,7 +25,7 @@ class LucenePushDownUtils {
         Predicate<FieldAttribute> isIndexed
     ) {
         if (exp instanceof FieldAttribute fa && fa.getExactInfo().hasExact() && isIndexed.test(fa)) {
-            return fa.dataType() != DataType.TEXT || hasIdenticalDelegate.test(fa);
+            return (fa.dataType() != DataType.TEXT && fa.dataType() != DataType.SEMANTIC_TEXT) || hasIdenticalDelegate.test(fa);
         }
         return false;
     }

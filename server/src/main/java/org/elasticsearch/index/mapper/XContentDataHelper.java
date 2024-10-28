@@ -203,7 +203,7 @@ public final class XContentDataHelper {
 
     private static Tuple<XContentParserConfiguration, XContentBuilder> cloneSubContextParserConfiguration(DocumentParserContext context)
         throws IOException {
-        XContentParser parser = context.parser();
+        XContentParser parser = context.unwrapParser();
         XContentBuilder builder = XContentBuilder.builder(parser.contentType().xContent());
         builder.copyCurrentStructure(parser);
 
@@ -223,8 +223,8 @@ public final class XContentDataHelper {
             BytesReference.bytes(builder),
             context.parser().contentType()
         );
-        if (context.isDotExpandingEnabled()) {
-            // if we did dot expanding originally we need to continue to do so when we replace the parser
+        if (context.isDotExpandingParser()) {
+            // if we performed dot expanding originally we need to continue to do so when we replace the parser
             newParser = DotExpandingXContentParser.expandDots(newParser, context.path());
         }
 

@@ -65,6 +65,8 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
         "mapper.ignored_source.always_store_object_arrays_in_nested"
     );
 
+    static final NodeFeature FIX_MORE_DOT_EXPANSION_CASES = new NodeFeature("mapper.ignored_source.fix_more_dot_expansion_cases");
+
     /*
         Setting to disable encoding and writing values for this field.
         This is needed to unblock index functionality in case there is a bug on this code path.

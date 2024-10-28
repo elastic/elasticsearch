@@ -34,7 +34,7 @@ import java.util.function.Supplier;
  */
 class DotExpandingXContentParser extends FilterXContentParserWrapper {
 
-    private static final class WrappingParser extends FilterXContentParser {
+    static final class WrappingParser extends FilterXContentParser {
 
         private final ContentPath contentPath;
         final Deque<XContentParser> parsers = new ArrayDeque<>();
@@ -64,6 +64,10 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
             }
             expandDots(delegate);
             return Token.FIELD_NAME;
+        }
+
+        public XContentParser getWrappedParser() {
+            return delegate();
         }
 
         private void expandDots(XContentParser delegate) throws IOException {

@@ -67,7 +67,7 @@
           "description" : "Boost value for the query."
         },
         {
-          "name" : "boost",
+          "name" : "fuzziness",
           "type" : "integer",
           "optional" : true,
           "description" : "Query fuzziness"
@@ -97,7 +97,7 @@
           "description" : "Boost value for the query."
         },
         {
-          "name" : "boost",
+          "name" : "fuzziness",
           "type" : "keyword",
           "optional" : true,
           "description" : "Query fuzziness"

@@ -4,7 +4,7 @@
 
 [%header.monospaced.styled,format=dsv,separator=|]
 |===
-field | query | boost | boost | result
+field | query | boost | fuzziness | result
 keyword | keyword | double | integer | boolean
 keyword | keyword | double | keyword | boolean
 keyword | keyword | double | | boolean

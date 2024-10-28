@@ -77,7 +77,7 @@ public class Match extends FullTextFunction implements Validatable, TwoOptionalA
             type = { "integer", "double" },
             description = "Boost value for the query."
         ) Expression boost,
-        @Param(optional = true, name = "boost", type = { "integer", "keyword" }, description = "Query fuzziness") Expression fuzziness
+        @Param(optional = true, name = "fuzziness", type = { "integer", "keyword" }, description = "Query fuzziness") Expression fuzziness
     ) {
         this(source, field, matchQuery, boost, fuzziness, false);
     }

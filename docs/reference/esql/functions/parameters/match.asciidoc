@@ -11,5 +11,5 @@ Text you wish to find in the provided field.
 `boost`::
 Boost value for the query.
 
-`boost`::
+`fuzziness`::
 Query fuzziness

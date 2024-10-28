@@ -556,17 +556,15 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testExtractStatsCommonFilter() {
-        String query = """
+        var plan = plan("""
             from test
-            | stats min(salary) where emp_no > 1,
+            | stats m = min(salary) where emp_no > 1,
                     max(salary) where emp_no > 1
-            """;
-        String by = randomBoolean() ? "" : "by " + randomFrom("last_name", "salary", "emp_no");
-        var plan = plan(query + by);
+            """);
 
         var limit = as(plan, Limit.class);
         var agg = as(limit.child(), Aggregate.class);
-        assertThat(agg.aggregates().size(), is(2 + (by.isEmpty() ? 0 : 1)));
+        assertThat(agg.aggregates().size(), is(2));
 
         var alias = as(agg.aggregates().get(0), Alias.class);
         var aggFunc = as(alias.child(), AggregateFunction.class);
@@ -583,17 +581,15 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testExtractStatsCommonFilterNotSame() {
-        String query = """
+        var plan = plan("""
             from test
             | stats min(salary) where emp_no > 1,
                     max(salary) where emp_no > 2
-            """;
-        String by = randomBoolean() ? "" : "by " + randomFrom("last_name", "salary", "emp_no");
-        var plan = plan(query + by);
+            """);
 
         var limit = as(plan, Limit.class);
         var agg = as(limit.child(), Aggregate.class);
-        assertThat(agg.aggregates().size(), is(2 + (by.isEmpty() ? 0 : 1)));
+        assertThat(agg.aggregates().size(), is(2));
 
         var alias = as(agg.aggregates().get(0), Alias.class);
         var aggFunc = as(alias.child(), AggregateFunction.class);
@@ -620,6 +616,28 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var alias = as(agg.aggregates().get(0), Alias.class);
         var aggFunc = as(alias.child(), AggregateFunction.class);
         assertThat(aggFunc.filter(), is(Literal.TRUE));
+
+        alias = as(agg.aggregates().get(1), Alias.class);
+        aggFunc = as(alias.child(), AggregateFunction.class);
+        assertThat(aggFunc.filter(), instanceOf(BinaryComparison.class));
+
+        var source = as(agg.child(), EsRelation.class);
+    }
+
+    public void testExtractStatsCommonFilterWithGroups() {
+        var plan = plan("""
+            from test
+            | stats min(salary) where emp_no > 2,
+                    max(salary) where emp_no > 2 by first_name
+            """);
+
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        assertThat(agg.aggregates().size(), is(3));
+
+        var alias = as(agg.aggregates().get(0), Alias.class);
+        var aggFunc = as(alias.child(), AggregateFunction.class);
+        assertThat(aggFunc.filter(), instanceOf(BinaryComparison.class));
 
         alias = as(agg.aggregates().get(1), Alias.class);
         aggFunc = as(alias.child(), AggregateFunction.class);

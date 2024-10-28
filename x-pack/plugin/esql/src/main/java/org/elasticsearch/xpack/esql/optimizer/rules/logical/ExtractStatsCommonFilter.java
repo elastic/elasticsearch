@@ -20,7 +20,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Extract a per-function expression filter that is applied to all the aggs as a query {@link Filter}.
+ * Extract a per-function expression filter applied to all the aggs as a query {@link Filter}, when no groups are provided.
  * <p>
  *     Example:
  *     <pre>
@@ -36,26 +36,25 @@ public final class ExtractStatsCommonFilter extends OptimizerRules.OptimizerRule
 
     @Override
     protected LogicalPlan rule(Aggregate aggregate) {
+        if (aggregate.groupings().isEmpty() == false) {
+            return aggregate; // no optimization for grouped stats
+        }
         Expression filter = null;
         List<NamedExpression> newAggs = new ArrayList<>(aggregate.aggregates().size());
         for (NamedExpression ne : aggregate.aggregates()) {
-            if (ne instanceof Alias alias) {
-                if (alias.child() instanceof AggregateFunction aggFunction && aggFunction.hasFilter()) {
-                    if (filter == null) {
-                        filter = aggFunction.filter();
-                    } else if (aggFunction.filter().semanticEquals(filter) == false) {
-                        return aggregate; // different filters -- skip optimization
-                    }
-                    // first or same filter -- remove it from the agg function
-                    newAggs.add(alias.replaceChild(aggFunction.withFilter(Literal.TRUE)));
-                } else {
-                    return aggregate; // (at least one) agg function has no filter -- skip optimization
+            if (ne instanceof Alias alias && alias.child() instanceof AggregateFunction aggFunction && aggFunction.hasFilter()) {
+                if (filter == null) {
+                    filter = aggFunction.filter();
+                } else if (aggFunction.filter().semanticEquals(filter) == false) {
+                    return aggregate; // different filters -- skip optimization
                 }
-            } else { // grouping
-                newAggs.add(ne);
+                // first or same filter -- remove it from the agg function
+                newAggs.add(alias.replaceChild(aggFunction.withFilter(Literal.TRUE)));
+            } else {
+                return aggregate; // (at least one) agg function has no filter -- skip optimization
             }
         }
-        if (filter == null) { // no agg function provided (STATS BY x)
+        if (filter == null) { // no agg has any filter
             return aggregate;
         }
         return new Aggregate(

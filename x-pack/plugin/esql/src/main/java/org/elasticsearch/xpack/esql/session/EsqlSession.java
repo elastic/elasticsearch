@@ -242,7 +242,7 @@ public class EsqlSession {
                         return builder.build();
                     });
                 }
-                listener.onResponse(new Result(Collections.emptyList(), Collections.emptyList(), Collections.emptyList(), executionInfo));
+                listener.onResponse(new Result(Analyzer.NO_FIELDS, Collections.emptyList(), Collections.emptyList(), executionInfo));
             } else {
                 listener.onFailure(e);
             }

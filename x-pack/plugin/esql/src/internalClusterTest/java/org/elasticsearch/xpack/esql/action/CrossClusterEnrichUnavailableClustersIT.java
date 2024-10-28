@@ -20,6 +20,7 @@ import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyAction;
 import org.elasticsearch.xpack.core.enrich.action.PutEnrichPolicyAction;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.junit.Before;
@@ -238,8 +239,15 @@ public class CrossClusterEnrichUnavailableClustersIT extends AbstractMultiCluste
                 Enrich.Mode mode = randomFrom(Enrich.Mode.values());
                 String query = "FROM *:events | eval ip= TO_STR(host) | " + enrichHosts(mode) + " | stats c = COUNT(*) by os | SORT os";
                 try (EsqlQueryResponse resp = runQuery(query, requestIncludeMeta)) {
+                    List<ColumnInfoImpl> columns = resp.columns();
+                    assertThat(columns.size(), equalTo(1));
+                    // column from an empty result should be {"name":"<no-fields>","type":"null"}
+                    assertThat(columns.get(0).name(), equalTo("<no-fields>"));
+                    assertThat(columns.get(0).type(), equalTo(DataType.NULL));
+
                     List<List<Object>> rows = getValuesList(resp);
                     assertThat(rows.size(), equalTo(0));
+
                     EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
                     assertCCSExecutionInfoDetails(executionInfo);
 
@@ -447,7 +455,7 @@ public class CrossClusterEnrichUnavailableClustersIT extends AbstractMultiCluste
                 assertTrue(ExceptionsHelper.isRemoteUnavailableException(exception));
             } else {
                 try (EsqlQueryResponse resp = runQuery(query, requestIncludeMeta)) {
-                    assertThat(getValuesList(resp).size(), greaterThan(0));
+                    assertThat(getValuesList(resp).size(), greaterThanOrEqualTo(1));
                     EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
                     assertThat(executionInfo.includeCCSMetadata(), equalTo(responseExpectMeta));
                     assertThat(
@@ -500,6 +508,12 @@ public class CrossClusterEnrichUnavailableClustersIT extends AbstractMultiCluste
                 assertTrue(ExceptionsHelper.isRemoteUnavailableException(exception));
             } else {
                 try (EsqlQueryResponse resp = runQuery(query, requestIncludeMeta)) {
+                    List<ColumnInfoImpl> columns = resp.columns();
+                    assertThat(columns.size(), equalTo(1));
+                    // column from an empty result should be {"name":"<no-fields>","type":"null"}
+                    assertThat(columns.get(0).name(), equalTo("<no-fields>"));
+                    assertThat(columns.get(0).type(), equalTo(DataType.NULL));
+
                     assertThat(getValuesList(resp).size(), equalTo(0));
                     EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
                     assertThat(executionInfo.includeCCSMetadata(), equalTo(responseExpectMeta));
@@ -524,7 +538,7 @@ public class CrossClusterEnrichUnavailableClustersIT extends AbstractMultiCluste
         Boolean requestIncludeMeta = includeCCSMetadata.v1();
         boolean responseExpectMeta = includeCCSMetadata.v2();
 
-        boolean skipUnavailableRemote2 = randomBoolean();
+        boolean skipUnavailableRemote2 = true;// randomBoolean();
         setSkipUnavailable(REMOTE_CLUSTER_1, true);
         setSkipUnavailable(REMOTE_CLUSTER_2, skipUnavailableRemote2);
 

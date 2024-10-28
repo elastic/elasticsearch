@@ -78,15 +78,15 @@ public class ElasticsearchEntitlementManager implements EntitlementChecks {
 
     private static boolean isTriviallyAllowed(Module requestingModule) {
         if (isActive == false) {
-            logger.trace("Entitlements are inactive");
+            logger.trace("Trivially allowed: Entitlements are inactive");
             return true;
         }
         if (requestingModule == null) {
-            logger.trace("Entire call stack is in the boot module layer");
+            logger.trace("Trivially allowed: Entire call stack is in the boot module layer");
             return true;
         }
         if (requestingModule == System.class.getModule()) {
-            logger.trace("Caller is java.base");
+            logger.trace("Trivially allowed: Caller is in {}", System.class.getModule().getName());
             return true;
         }
         logger.trace("Not trivially allowed");

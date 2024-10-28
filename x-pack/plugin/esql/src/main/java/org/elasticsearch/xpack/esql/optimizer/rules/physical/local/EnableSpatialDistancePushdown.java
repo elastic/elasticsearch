@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -34,12 +35,14 @@ import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.xpack.esql.core.expression.predicate.Predicates.splitAnd;
 import static org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushFiltersToSource.canPushSpatialFunctionToSource;
@@ -78,7 +81,7 @@ public class EnableSpatialDistancePushdown extends PhysicalOptimizerRules.Parame
         if (filterExec.child() instanceof EsQueryExec esQueryExec) {
             plan = rewrite(filterExec, esQueryExec);
         } else if (filterExec.child() instanceof EvalExec evalExec && evalExec.child() instanceof EsQueryExec esQueryExec) {
-            plan = rewriteBySplittingFilter(filterExec, evalExec, esQueryExec);
+            plan = rewriteBySplittingFilter(filterExec, evalExec, esQueryExec, ctx.searchStats());
         }
 
         return plan;
@@ -119,9 +122,9 @@ public class EnableSpatialDistancePushdown extends PhysicalOptimizerRules.Parame
      *     | WHERE other &gt; 10
      * </pre>
      */
-    private PhysicalPlan rewriteBySplittingFilter(FilterExec filterExec, EvalExec evalExec, EsQueryExec esQueryExec) {
+    private PhysicalPlan rewriteBySplittingFilter(FilterExec filterExec, EvalExec evalExec, EsQueryExec esQueryExec, SearchStats stats) {
         // Find all pushable distance functions in the EVAL
-        Map<NameId, StDistance> distances = getPushableDistances(evalExec.fields());
+        Map<NameId, StDistance> distances = getPushableDistances(evalExec.fields(), stats);
 
         // Don't do anything if there are no distances to push down
         if (distances.isEmpty()) {
@@ -163,10 +166,11 @@ public class EnableSpatialDistancePushdown extends PhysicalOptimizerRules.Parame
         }
     }
 
-    private Map<NameId, StDistance> getPushableDistances(List<Alias> aliases) {
+    private Map<NameId, StDistance> getPushableDistances(List<Alias> aliases, SearchStats stats) {
         Map<NameId, StDistance> distances = new LinkedHashMap<>();
+        Predicate<FieldAttribute> isIndexed = (fa) -> stats.isIndexed(fa.fieldName());
         aliases.forEach(alias -> {
-            if (alias.child() instanceof StDistance distance && canPushSpatialFunctionToSource(distance)) {
+            if (alias.child() instanceof StDistance distance && canPushSpatialFunctionToSource(distance, isIndexed)) {
                 distances.put(alias.id(), distance);
             } else if (alias.child() instanceof ReferenceAttribute ref && distances.containsKey(ref.id())) {
                 StDistance distance = distances.get(ref.id());

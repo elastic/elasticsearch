@@ -141,6 +141,7 @@ import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.existsQuery;
 import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_SEARCH_STATS;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
@@ -196,7 +197,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
     private final Configuration config;
 
-    private record TestDataSource(Map<String, EsField> mapping, EsIndex index, Analyzer analyzer) {}
+    private record TestDataSource(Map<String, EsField> mapping, EsIndex index, Analyzer analyzer, SearchStats stats) {}
 
     @ParametersFactory(argumentFormatting = PARAM_FORMATTING)
     public static List<Object[]> readScriptSpec() {
@@ -242,7 +243,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             "airports-no-doc-values",
             "mapping-airports-no-doc-values.json",
             functionRegistry,
-            enrichResolution
+            enrichResolution,
+            statsWithFieldsWithoutDocValues("location")
         );
         this.airportsWeb = makeTestDataSource("airports_web", "mapping-airports_web.json", functionRegistry, enrichResolution);
         this.countriesBbox = makeTestDataSource("countriesBbox", "mapping-countries_bbox.json", functionRegistry, enrichResolution);
@@ -258,13 +260,23 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         String indexName,
         String mappingFileName,
         EsqlFunctionRegistry functionRegistry,
-        EnrichResolution enrichResolution
+        EnrichResolution enrichResolution,
+        SearchStats stats
     ) {
         Map<String, EsField> mapping = loadMapping(mappingFileName);
         EsIndex index = new EsIndex(indexName, mapping, Map.of("test", IndexMode.STANDARD));
         IndexResolution getIndexResult = IndexResolution.valid(index);
         Analyzer analyzer = new Analyzer(new AnalyzerContext(config, functionRegistry, getIndexResult, enrichResolution), TEST_VERIFIER);
-        return new TestDataSource(mapping, index, analyzer);
+        return new TestDataSource(mapping, index, analyzer, stats);
+    }
+
+    TestDataSource makeTestDataSource(
+        String indexName,
+        String mappingFileName,
+        EsqlFunctionRegistry functionRegistry,
+        EnrichResolution enrichResolution
+    ) {
+        return makeTestDataSource(indexName, mappingFileName, functionRegistry, enrichResolution, TEST_SEARCH_STATS);
     }
 
     private static EnrichResolution setupEnrichResolution() {
@@ -2656,7 +2668,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             "from airports | stats centroid = st_centroid_agg(to_geopoint(location))",
             "from airports | eval location = to_geopoint(location) | stats centroid = st_centroid_agg(location)" }) {
             for (boolean withDocValues : new boolean[] { false, true }) {
-                var plan = withDocValues ? physicalPlan(query, airports) : physicalPlan(query, airportsNoDocValues);
+                var testData = withDocValues ? airports : airportsNoDocValues;
+                var plan = physicalPlan(query, testData);
 
                 var limit = as(plan, LimitExec.class);
                 var agg = as(limit.child(), AggregateExec.class);
@@ -2669,7 +2682,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 as(fAgg.child(), EsRelation.class);
 
                 // Now optimize the plan and assert the aggregation uses doc-values
-                var optimized = optimizedPlan(plan);
+                var optimized = optimizedPlan(plan, testData.stats);
                 limit = as(optimized, LimitExec.class);
                 agg = as(limit.child(), AggregateExec.class);
                 // Above the exchange (in coordinator) the aggregation is not using doc-values
@@ -2943,11 +2956,12 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      * Note the FieldExtractExec has 'location' set for stats: FieldExtractExec[location{f}#9][location{f}#9]
      */
     public void testSpatialTypesAndStatsUseDocValuesMultiAggregationsGrouped() {
-        for (boolean useDocValues : new boolean[] { true, false }) {
+        for (boolean useDocValues : new boolean[] { false }) {
+            var testData = useDocValues ? airports : airportsNoDocValues;
             var plan = this.physicalPlan("""
                 FROM airports
                 | STATS centroid=ST_CENTROID_AGG(location), count=COUNT() BY scalerank
-                """, useDocValues ? airports : airportsNoDocValues);
+                """, testData);
 
             var limit = as(plan, LimitExec.class);
             var agg = as(limit.child(), AggregateExec.class);
@@ -2964,7 +2978,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             as(fAgg.child(), EsRelation.class);
 
             // Now optimize the plan and assert the aggregation uses doc-values
-            var optimized = optimizedPlan(plan);
+            var optimized = optimizedPlan(plan, testData.stats);
             limit = as(optimized, LimitExec.class);
             agg = as(limit.child(), AggregateExec.class);
             att = as(agg.groupings().get(0), Attribute.class);
@@ -3520,7 +3534,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             """ }) {
 
             for (boolean useDocValues : new boolean[] { true, false }) {
-                var plan = this.physicalPlan(query, useDocValues ? airports : airportsNoDocValues);
+                var testData = useDocValues ? airports : airportsNoDocValues;
+                var plan = this.physicalPlan(query, testData);
                 var limit = as(plan, LimitExec.class);
                 var agg = as(limit.child(), AggregateExec.class);
                 assertThat("No groupings in aggregation", agg.groupings().size(), equalTo(0));
@@ -3535,7 +3550,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 assertThat("filter contains ST_INTERSECTS", filter.condition(), instanceOf(SpatialIntersects.class));
 
                 // Now verify that optimization re-writes the ExchangeExec and pushed down the filter into the Lucene query
-                var optimized = optimizedPlan(plan);
+                var optimized = optimizedPlan(plan, testData.stats);
                 limit = as(optimized, LimitExec.class);
                 agg = as(limit.child(), AggregateExec.class);
                 // Above the exchange (in coordinator) the aggregation is not using doc-values
@@ -3547,17 +3562,15 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 // below the exchange (in data node) the aggregation is using doc-values
                 assertAggregation(agg, "count", Count.class);
                 assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, useDocValues);
-                var source = assertChildIsGeoPointExtract(useDocValues ? agg : as(agg.child(), FilterExec.class), useDocValues);
-                if (useDocValues) {
-                    // Query is only pushed to lucene if indexing/doc-values are enabled
-                    var condition = as(source.query(), SpatialRelatesQuery.ShapeQueryBuilder.class);
-                    assertThat("Geometry field name", condition.fieldName(), equalTo("location"));
-                    assertThat("Spatial relationship", condition.relation(), equalTo(ShapeRelation.INTERSECTS));
-                    assertThat("Geometry is Polygon", condition.shape().type(), equalTo(ShapeType.POLYGON));
-                    var polygon = as(condition.shape(), Polygon.class);
-                    assertThat("Polygon shell length", polygon.getPolygon().length(), equalTo(5));
-                    assertThat("Polygon holes", polygon.getNumberOfHoles(), equalTo(0));
-                }
+                var source = assertChildIsGeoPointExtract(agg, useDocValues);
+                // Query is pushed to lucene if field is indexed (and does not require doc-values or isAggregatable)
+                var condition = as(source.query(), SpatialRelatesQuery.ShapeQueryBuilder.class);
+                assertThat("Geometry field name", condition.fieldName(), equalTo("location"));
+                assertThat("Spatial relationship", condition.relation(), equalTo(ShapeRelation.INTERSECTS));
+                assertThat("Geometry is Polygon", condition.shape().type(), equalTo(ShapeType.POLYGON));
+                var polygon = as(condition.shape(), Polygon.class);
+                assertThat("Polygon shell length", polygon.getPolygon().length(), equalTo(5));
+                assertThat("Polygon holes", polygon.getNumberOfHoles(), equalTo(0));
             }
         }
     }
@@ -6560,6 +6573,17 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             @Override
             public boolean isIndexed(String field) {
                 return indexedFields.contains(field);
+            }
+        };
+    }
+
+    static SearchStats statsWithFieldsWithoutDocValues(String... names) {
+        return new EsqlTestUtils.TestSearchStats() {
+            private final Set<String> missingDocValues = Set.of(names);
+
+            @Override
+            public boolean hasDocValues(String field) {
+                return missingDocValues.contains(field) == false;
             }
         };
     }

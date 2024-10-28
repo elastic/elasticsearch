@@ -51,6 +51,7 @@ public class SearchStats {
         private Boolean singleValue;
         private Boolean hasIdenticalDelegate;
         private Boolean indexed;
+        private Boolean hasDocValues;
         private Boolean runtime;
     }
 
@@ -116,6 +117,7 @@ public class SearchStats {
             // populate additional properties to save on the lookups
             if (stat.exists == false) {
                 stat.indexed = false;
+                stat.hasDocValues = false;
                 stat.singleValue = true;
             }
         }
@@ -250,6 +252,26 @@ public class SearchStats {
             }
         }
         return stat.indexed;
+    }
+
+    public boolean hasDocValues(String field) {
+        var stat = cache.computeIfAbsent(field, s -> new FieldStat());
+        if (stat.hasDocValues == null) {
+            stat.hasDocValues = false;
+            if (exists(field)) {
+                boolean hasDocValues = true;
+                for (SearchExecutionContext context : contexts) {
+                    if (context.isFieldMapped(field)) {
+                        if (context.getFieldType(field).hasDocValues() == false) {
+                            hasDocValues = false;
+                            break;
+                        }
+                    }
+                }
+                stat.hasDocValues = hasDocValues;
+            }
+        }
+        return stat.hasDocValues;
     }
 
     private boolean detectSingleValue(IndexReader r, MappedFieldType fieldType, String name) throws IOException {

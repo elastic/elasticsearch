@@ -80,6 +80,9 @@
           foo: bar
 
   - do:
+      indices.refresh: {}
+
+  - do:
       cluster.health:
           wait_for_status: green
 

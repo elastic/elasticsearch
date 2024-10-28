@@ -111,6 +111,17 @@ public class CleanupRoleMappingDuplicatesMigrationIT extends SecurityIntegTestCa
              }
         }""";
 
+    private static final String TEST_JSON_WITH_EMPTY_ROLE_MAPPINGS = """
+        {
+             "metadata": {
+                 "version": "%s",
+                 "compatibility": "8.4.0"
+             },
+             "state": {
+                 "role_mappings": {}
+             }
+        }""";
+
     public void testMigrationSuccessful() throws Exception {
         internalCluster().setBootstrapMasterNodeIndex(0);
         ensureGreen();
@@ -126,7 +137,7 @@ public class CleanupRoleMappingDuplicatesMigrationIT extends SecurityIntegTestCa
         awaitFileSettingsWatcher();
         // Setup listener to wait for role mapping
         var fileBasedRoleMappingsWrittenListener = setupClusterStateListener(masterNode, "everyone_kibana_alone");
-        // Write role mappings with fallback name, this should block any security migration
+        // Write role mappings
         writeJSONFile(masterNode, TEST_JSON_WITH_ROLE_MAPPINGS, logger, versionCounter);
         assertTrue(fileBasedRoleMappingsWrittenListener.v1().await(20, TimeUnit.SECONDS));
         waitForMigrationCompletion(SecurityMigrations.CLEANUP_ROLE_MAPPING_DUPLICATES_MIGRATION_VERSION);
@@ -245,6 +256,35 @@ public class CleanupRoleMappingDuplicatesMigrationIT extends SecurityIntegTestCa
     public void testSkipMigrationNoFileBasedMappings() throws Exception {
         internalCluster().setBootstrapMasterNodeIndex(0);
         ensureGreen();
+        // Create a native role mapping to create security index and trigger migration (skipped initially)
+        createNativeRoleMapping("everyone_kibana_alone");
+        createNativeRoleMapping("everyone_fleet_alone");
+        assertAllRoleMappings("everyone_kibana_alone", "everyone_fleet_alone");
+
+        waitForMigrationCompletion(SecurityMigrations.CLEANUP_ROLE_MAPPING_DUPLICATES_MIGRATION_VERSION);
+
+        // First migration is on a new index, so should skip all migrations. If we reset, it should re-trigger and run all migrations
+        resetMigration();
+
+        // Wait for the first migration to finish
+        waitForMigrationCompletion(SecurityMigrations.CLEANUP_ROLE_MAPPING_DUPLICATES_MIGRATION_VERSION);
+
+        assertAllRoleMappings("everyone_kibana_alone", "everyone_fleet_alone");
+    }
+
+    public void testSkipMigrationEmptyFileBasedMappings() throws Exception {
+        internalCluster().setBootstrapMasterNodeIndex(0);
+        ensureGreen();
+        final String masterNode = internalCluster().getMasterName();
+
+        // Wait for file watcher to start
+        awaitFileSettingsWatcher();
+        // Setup listener to wait for any role mapping
+        var fileBasedRoleMappingsWrittenListener = setupClusterStateListener(masterNode);
+        // Write role mappings
+        writeJSONFile(masterNode, TEST_JSON_WITH_EMPTY_ROLE_MAPPINGS, logger, versionCounter);
+        assertTrue(fileBasedRoleMappingsWrittenListener.v1().await(20, TimeUnit.SECONDS));
+
         // Create a native role mapping to create security index and trigger migration (skipped initially)
         createNativeRoleMapping("everyone_kibana_alone");
         createNativeRoleMapping("everyone_fleet_alone");

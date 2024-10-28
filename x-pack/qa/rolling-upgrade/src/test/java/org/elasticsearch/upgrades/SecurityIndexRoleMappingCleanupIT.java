@@ -46,13 +46,15 @@ public class SecurityIndexRoleMappingCleanupIT extends AbstractUpgradeTestCase {
         } else if (CLUSTER_TYPE == ClusterType.MIXED) {
             // Create a native role mapping that doesn't conflict with anything before the migration run
             createNativeRoleMapping("no_name_conflict", Map.of("meta", "test"));
+            createNativeRoleMapping("native_role_mapping" + ExpressionRoleMapping.READ_ONLY_ROLE_MAPPING_SUFFIX, Map.of("meta", "test"));
         } else if (CLUSTER_TYPE == ClusterType.UPGRADED) {
             waitForSecurityMigrationCompletion(adminClient(), 2);
             assertAllRoleMappings(
                 client(),
                 "operator_role_mapping_1" + ExpressionRoleMapping.READ_ONLY_ROLE_MAPPING_SUFFIX,
                 "operator_role_mapping_2" + ExpressionRoleMapping.READ_ONLY_ROLE_MAPPING_SUFFIX,
-                "no_name_conflict"
+                "no_name_conflict",
+                "native_role_mapping" + ExpressionRoleMapping.READ_ONLY_ROLE_MAPPING_SUFFIX
             );
             // In the old cluster we might have created these (depending on the node features), so make sure they were removed
             assertFalse(roleMappingExistsInSecurityIndex("operator_role_mapping_1"));

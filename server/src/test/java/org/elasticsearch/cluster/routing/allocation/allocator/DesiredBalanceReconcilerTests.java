@@ -1270,7 +1270,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
 
             totalOutgoingMoves.keySet().removeIf(nodeId -> isReconciled(allocation.routingNodes().node(nodeId), balance));
             clusterState = ClusterState.builder(clusterState)
-                .routingTable(allocation.globalRoutingTable().rebuild(allocation.routingNodes()))
+                .routingTable(allocation.globalRoutingTable().rebuild(allocation.routingNodes(), allocation.metadata()))
                 .build();
         }
     }

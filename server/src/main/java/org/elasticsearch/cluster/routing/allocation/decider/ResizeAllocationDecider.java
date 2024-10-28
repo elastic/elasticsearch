@@ -37,10 +37,10 @@ public class ResizeAllocationDecider extends AllocationDecider {
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         if (shardRouting.unassignedInfo() != null && shardRouting.recoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS) {
             // we only make decisions here if we have an unassigned info and we have to recover from another index ie. split / shrink
-            final IndexMetadata indexMetadata = allocation.getProject(shardRouting.index()).getIndexSafe(shardRouting.index());
+            final IndexMetadata indexMetadata = allocation.metadata().indexMetadata(shardRouting.index());
             final Index resizeSourceIndex = indexMetadata.getResizeSourceIndex();
             assert resizeSourceIndex != null;
-            final IndexMetadata sourceIndexMetadata = allocation.getProject(resizeSourceIndex).index(resizeSourceIndex);
+            final IndexMetadata sourceIndexMetadata = allocation.metadata().projectFor(resizeSourceIndex).index(resizeSourceIndex);
             if (sourceIndexMetadata == null) {
                 return allocation.decision(Decision.NO, NAME, "resize source index [%s] doesn't exists", resizeSourceIndex.toString());
             }
@@ -83,7 +83,8 @@ public class ResizeAllocationDecider extends AllocationDecider {
     @Override
     public Optional<Set<String>> getForcedInitialShardAllocationToNodes(ShardRouting shardRouting, RoutingAllocation allocation) {
         if (shardRouting.unassignedInfo() != null && shardRouting.recoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS) {
-            final ProjectMetadata project = allocation.getProject(shardRouting.index());
+            Index index = shardRouting.index();
+            final ProjectMetadata project = allocation.metadata().projectFor(index);
             var targetIndexMetadata = project.getIndexSafe(shardRouting.index());
             var sourceIndexMetadata = project.index(targetIndexMetadata.getResizeSourceIndex());
             if (sourceIndexMetadata == null) {

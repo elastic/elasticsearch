@@ -25,10 +25,12 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.AllocationId;
+import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingChangesObserver;
+import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -235,7 +237,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                 );
             }
         }
-        clusterState = ClusterState.builder(clusterState).routingTable(clusterState.globalRoutingTable().rebuild(routingNodes)).build();
+        clusterState = rebuildRoutingTable(clusterState, routingNodes);
 
         var ignored = randomBoolean()
             ? new ShardRouting[0]
@@ -283,7 +285,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                 break;
             }
         }
-        clusterState = ClusterState.builder(clusterState).routingTable(clusterState.globalRoutingTable().rebuild(routingNodes)).build();
+        clusterState = rebuildRoutingTable(clusterState, routingNodes);
 
         var desiredBalance = desiredBalanceComputer.compute(DesiredBalance.INITIAL, createInput(clusterState), queue(), input -> true);
 
@@ -330,7 +332,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                 break;
             }
         }
-        clusterState = ClusterState.builder(clusterState).routingTable(clusterState.globalRoutingTable().rebuild(routingNodes)).build();
+        clusterState = rebuildRoutingTable(clusterState, routingNodes);
 
         var desiredBalance = desiredBalanceComputer.compute(DesiredBalance.INITIAL, createInput(clusterState), queue(), input -> true);
 
@@ -426,9 +428,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                 0L
             );
         }
-        clusterState = ClusterState.builder(clusterState)
-            .routingTable(clusterState.globalRoutingTable().rebuild(desiredRoutingNodes))
-            .build();
+        clusterState = rebuildRoutingTable(clusterState, desiredRoutingNodes);
 
         var desiredBalance1 = desiredBalanceComputer.compute(DesiredBalance.INITIAL, createInput(clusterState), queue(), input -> true);
         assertDesiredAssignments(
@@ -495,9 +495,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                 }
             }
         }
-        clusterState = ClusterState.builder(clusterState)
-            .routingTable(clusterState.globalRoutingTable().rebuild(randomRoutingNodes))
-            .build();
+        clusterState = rebuildRoutingTable(clusterState, randomRoutingNodes);
 
         allocateCalled.set(false);
 
@@ -534,7 +532,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
             var shardRouting = iterator.next();
             routingNodes.startShard(iterator.initialize(shardRouting.primary() ? "node-0" : "node-1", null, 0L, changes), changes, 0L);
         }
-        clusterState = ClusterState.builder(clusterState).routingTable(clusterState.globalRoutingTable().rebuild(routingNodes)).build();
+        clusterState = rebuildRoutingTable(clusterState, routingNodes);
 
         var desiredBalance = desiredBalanceComputer.compute(
             DesiredBalance.INITIAL,
@@ -1129,6 +1127,12 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                 )
             )
         );
+    }
+
+    private static ClusterState rebuildRoutingTable(ClusterState clusterState, RoutingNodes routingNodes) {
+        GlobalRoutingTable routingTable = clusterState.globalRoutingTable();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable.rebuild(routingNodes, clusterState.metadata())).build();
+        return clusterState;
     }
 
     private static class ClusterInfoTestBuilder {

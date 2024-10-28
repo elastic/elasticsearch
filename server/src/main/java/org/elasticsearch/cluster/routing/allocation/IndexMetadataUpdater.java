@@ -14,7 +14,6 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
@@ -117,19 +116,12 @@ public class IndexMetadataUpdater implements RoutingChangesObserver {
             .stream()
             .collect(Collectors.groupingBy(e -> e.getKey().getIndex()));
 
-        final GlobalRoutingTable.ProjectLookup projectLookup = newRoutingTable.getProjectLookup();
-        final Map<ProjectId, List<Index>> indicesByProject = changesGroupedByIndex.keySet()
+        final Map<ProjectMetadata, List<Index>> indicesByProject = changesGroupedByIndex.keySet()
             .stream()
-            .collect(
-                Collectors.groupingBy(
-                    idx -> projectLookup.project(idx)
-                        .orElseThrow(() -> new IllegalStateException("cannot find project for index [" + idx + "]"))
-                )
-            );
+            .collect(Collectors.groupingBy(oldMetadata::projectFor));
 
         final Metadata.Builder updatedMetadata = Metadata.builder(oldMetadata);
-        indicesByProject.forEach((projectId, indices) -> {
-            final ProjectMetadata projectMetadata = oldMetadata.getProject(projectId);
+        indicesByProject.forEach((projectMetadata, indices) -> {
             final Map<String, IndexMetadata> updatedIndices = Maps.newHashMapWithExpectedSize(indices.size());
             for (Index index : indices) {
                 var indexChanges = changesGroupedByIndex.get(index);
@@ -139,7 +131,7 @@ public class IndexMetadataUpdater implements RoutingChangesObserver {
                     ShardId shardId = shardEntry.getKey();
                     Updates updates = shardEntry.getValue();
                     updatedIndexMetadata = updateInSyncAllocations(
-                        newRoutingTable.routingTable(projectId),
+                        newRoutingTable.routingTable(projectMetadata.id()),
                         oldIndexMetadata,
                         updatedIndexMetadata,
                         shardId,

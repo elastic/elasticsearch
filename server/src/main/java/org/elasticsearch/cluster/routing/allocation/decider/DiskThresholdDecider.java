@@ -15,7 +15,7 @@ import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.DiskUsage;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
@@ -140,7 +140,7 @@ public class DiskThresholdDecider extends AllocationDecider {
                 // if we don't yet know the actual path of the incoming shard then conservatively assume
                 // it's going to the path with the least free space
                 if (actualPath == null || actualPath.equals(dataPath)) {
-                    ProjectId projectId = routingTable.getProjectLookup().project(routing.index()).get();
+                    final ProjectMetadata project = metadata.projectFor(routing.index());
                     totalSize += Math.max(
                         routing.getExpectedShardSize(),
                         getExpectedShardSize(
@@ -148,8 +148,8 @@ public class DiskThresholdDecider extends AllocationDecider {
                             0L,
                             clusterInfo,
                             snapshotShardSizeInfo,
-                            metadata.getProject(projectId),
-                            routingTable.routingTable(projectId)
+                            project,
+                            routingTable.routingTable(project.id())
                         )
                     );
                 }
@@ -161,14 +161,14 @@ public class DiskThresholdDecider extends AllocationDecider {
         if (subtractShardsMovingAway) {
             for (ShardRouting routing : node.relocating()) {
                 if (dataPath.equals(clusterInfo.getDataPath(routing))) {
-                    ProjectId projectId = routingTable.getProjectLookup().project(routing.index()).get();
+                    ProjectMetadata project = metadata.projectFor(routing.index());
                     totalSize -= getExpectedShardSize(
                         routing,
                         0L,
                         clusterInfo,
                         snapshotShardSizeInfo,
-                        metadata.getProject(projectId),
-                        routingTable.routingTable(projectId)
+                        project,
+                        routingTable.routingTable(project.id())
                     );
                 }
             }
@@ -197,7 +197,7 @@ public class DiskThresholdDecider extends AllocationDecider {
             return decision;
         }
 
-        if (allocation.getProject(shardRouting.index()).index(shardRouting.index()).ignoreDiskWatermarks()) {
+        if (allocation.metadata().indexMetadata(shardRouting.index()).ignoreDiskWatermarks()) {
             return YES_DISK_WATERMARKS_IGNORED;
         }
 

@@ -174,11 +174,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             }
         }, clusterState -> {
             var index = primary.shardId().getIndex();
-            var indexMetadata = clusterState.globalRoutingTable()
-                .getProjectLookup()
-                .project(index)
-                .map(p -> clusterState.getMetadata().getProject(p).index(index))
-                .orElse(null);
+            var indexMetadata = clusterState.metadata().lookupProject(index).map(p -> p.index(index)).orElse(null);
             return indexMetadata == null || (indexMetadata.mapping() != null && indexMetadata.getMappingVersion() != initialMappingVersion);
         }), listener, executor(primary), postWriteRefresh, postWriteAction, documentParsingProvider);
     }

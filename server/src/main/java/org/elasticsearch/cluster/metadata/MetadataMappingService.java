@@ -19,7 +19,6 @@ import org.elasticsearch.cluster.ClusterStateAckListener;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.GlobalRoutingTable.ProjectLookup;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
@@ -102,15 +101,12 @@ public class MetadataMappingService {
             Map<Index, MapperService> indexMapperServices = new HashMap<>();
             try {
                 var currentState = batchExecutionContext.initialState();
-                final ProjectLookup projectLookup = currentState.globalRoutingTable().getProjectLookup();
                 for (final var taskContext : batchExecutionContext.taskContexts()) {
                     final var task = taskContext.getTask();
                     final PutMappingClusterStateUpdateRequest request = task.request;
                     try (var ignored = taskContext.captureResponseHeaders()) {
                         for (Index index : request.indices()) {
-                            final IndexMetadata indexMetadata = currentState.metadata()
-                                .getProject(projectLookup.project(index).get())
-                                .getIndexSafe(index);
+                            final IndexMetadata indexMetadata = currentState.metadata().indexMetadata(index);
                             if (indexMapperServices.containsKey(indexMetadata.getIndex()) == false) {
                                 MapperService mapperService = indicesService.createIndexMapperServiceForValidation(indexMetadata);
                                 indexMapperServices.put(index, mapperService);
@@ -138,14 +134,13 @@ public class MetadataMappingService {
 
             final CompressedXContent mappingUpdateSource = request.source();
             final Metadata metadata = currentState.metadata();
-            final ProjectLookup projectLookup = currentState.globalRoutingTable().getProjectLookup();
             final List<IndexMetadata> updateList = new ArrayList<>();
             MergeReason reason = request.autoUpdate() ? MergeReason.MAPPING_AUTO_UPDATE : MergeReason.MAPPING_UPDATE;
             for (Index index : request.indices()) {
                 MapperService mapperService = indexMapperServices.get(index);
                 // IMPORTANT: always get the metadata from the state since it get's batched
                 // and if we pull it from the indexService we might miss an update etc.
-                final IndexMetadata indexMetadata = metadata.getProject(projectLookup.project(index).get()).getIndexSafe(index);
+                final IndexMetadata indexMetadata = metadata.indexMetadata(index);
                 DocumentMapper existingMapper = mapperService.documentMapper();
                 if (existingMapper != null && existingMapper.mappingSource().equals(mappingUpdateSource)) {
                     continue;
@@ -214,7 +209,7 @@ public class MetadataMappingService {
                  * already incremented the mapping version if necessary. Therefore, the mapping version increment must remain before this
                  * statement.
                  */
-                builder.getProject(projectLookup.project(index).get()).put(indexMetadataBuilder);
+                builder.getProject(metadata.projectFor(index).id()).put(indexMetadataBuilder);
                 updated |= updatedMapping;
             }
             if (updated) {
@@ -228,16 +223,15 @@ public class MetadataMappingService {
 
     public void putMapping(final PutMappingClusterStateUpdateRequest request, final ActionListener<AcknowledgedResponse> listener) {
         final ClusterState state = clusterService.state();
-        final ProjectLookup projectLookup = state.globalRoutingTable().getProjectLookup();
         boolean noop = true;
         for (Index index : request.indices()) {
-            var projectId = projectLookup.project(index);
-            if (projectId.isEmpty()) {
+            var project = state.metadata().lookupProject(index);
+            if (project.isEmpty()) {
                 // this is a race condition where the project got deleted from under a mapping update task
                 noop = false;
                 break;
             }
-            final IndexMetadata indexMetadata = state.metadata().getProject(projectId.get()).index(index);
+            final IndexMetadata indexMetadata = project.get().index(index);
             if (indexMetadata == null) {
                 // local store recovery sends a mapping update request during application of a cluster state on the data node which we might
                 // receive here before the CS update that created the index has been applied on all nodes and thus the index isn't found in

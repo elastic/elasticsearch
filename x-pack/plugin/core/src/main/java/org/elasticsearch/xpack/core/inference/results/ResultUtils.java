@@ -14,7 +14,7 @@ public class ResultUtils {
 
     public static ElasticsearchStatusException createInvalidChunkedResultException(String expectedResultName, String receivedResultName) {
         return new ElasticsearchStatusException(
-            "Expected a chunked inference [{}] received [{}]",
+            "Received incompatible results. Check that your model_id matches the task_type of this endpoint. Expected chunked output of type [{}] but received [{}].",
             RestStatus.INTERNAL_SERVER_ERROR,
             expectedResultName,
             receivedResultName

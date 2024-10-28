@@ -397,6 +397,8 @@ public class IndexEngine extends InternalEngine {
                     };
                     dispatchRefreshRunnable(originalThread, refreshRunnable);
                 }));
+            } catch (AlreadyClosedException ace) {
+                request.listener().onFailure(ace);
             } finally {
                 IS_FLUSH_BY_REFRESH.set(false);
             }

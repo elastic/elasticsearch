@@ -38,7 +38,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
-import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -230,20 +229,13 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         }
         int offset = testCase.query.length() - query.length();
         if (offset != 0) {
-            final String pattern = "Line (\\d+):(\\d+):";
+            final String pattern = "\\b1:(\\d+)\\b";
             final Pattern regex = Pattern.compile(pattern);
-            testCase.adjustExpectedWarnings(warning -> {
-                Matcher matcher = regex.matcher(warning);
-                if (matcher.find()) {
-                    int line = Integer.parseInt(matcher.group(1));
-                    if (line == 1) {
-                        int position = Integer.parseInt(matcher.group(2));
-                        int newPosition = position + offset;
-                        return warning.replaceFirst(pattern, "Line " + line + ":" + newPosition + ":");
-                    }
-                }
-                return warning;
-            });
+            testCase.adjustExpectedWarnings(warning -> regex.matcher(warning).replaceAll(match -> {
+                int position = Integer.parseInt(match.group(1));
+                int newPosition = position + offset;
+                return "1:" + newPosition;
+            }));
         }
         return testCase;
     }

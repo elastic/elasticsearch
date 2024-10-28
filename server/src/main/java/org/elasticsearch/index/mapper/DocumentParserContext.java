@@ -147,6 +147,8 @@ public abstract class DocumentParserContext {
     // Indicates if the source for this context has been marked to be recorded. Applies to synthetic source only.
     private boolean recordedSource;
 
+    private final boolean dotExpandingEnabled;
+
     private DocumentParserContext(
         MappingLookup mappingLookup,
         MappingParserContext mappingParserContext,
@@ -168,7 +170,8 @@ public abstract class DocumentParserContext {
         Set<String> fieldsAppliedFromTemplates,
         Set<String> copyToFields,
         DynamicMapperSize dynamicMapperSize,
-        boolean recordedSource
+        boolean recordedSource,
+        boolean dotExpandingEnabled
     ) {
         this.mappingLookup = mappingLookup;
         this.mappingParserContext = mappingParserContext;
@@ -191,6 +194,7 @@ public abstract class DocumentParserContext {
         this.copyToFields = copyToFields;
         this.dynamicMappersSize = dynamicMapperSize;
         this.recordedSource = recordedSource;
+        this.dotExpandingEnabled = dotExpandingEnabled;
     }
 
     private DocumentParserContext(ObjectMapper parent, ObjectMapper.Dynamic dynamic, DocumentParserContext in) {
@@ -215,7 +219,8 @@ public abstract class DocumentParserContext {
             in.fieldsAppliedFromTemplates,
             in.copyToFields,
             in.dynamicMappersSize,
-            in.recordedSource
+            in.recordedSource,
+            in.dotExpandingEnabled
         );
     }
 
@@ -247,7 +252,8 @@ public abstract class DocumentParserContext {
             new HashSet<>(),
             new HashSet<>(mappingLookup.fieldTypesLookup().getCopyToDestinationFields()),
             new DynamicMapperSize(),
-            false
+            false,
+            mappingLookup.getMapping().getRoot().subobjects() == ObjectMapper.Subobjects.ENABLED
         );
     }
 
@@ -352,7 +358,15 @@ public abstract class DocumentParserContext {
             } else {
                 assert ignoredFieldWithNoSource != null;
                 assert ignoredFieldWithNoSource.value() == null;
+
+                // Don't expand dots when we use the parser to get part of the source
+                // since dot expanding can modify a document in a way that makes it invalid.
+                // See #encodeFlattenedToken().
+                boolean old = path().isWithinLeafObject();
+                path().setWithinLeafObject(true);
                 Tuple<DocumentParserContext, XContentBuilder> tuple = XContentDataHelper.cloneSubContext(this);
+                path().setWithinLeafObject(old);
+
                 addIgnoredField(ignoredFieldWithNoSource.cloneWithValue(XContentDataHelper.encodeXContentBuilder(tuple.v2())));
                 return tuple.v1();
             }
@@ -531,7 +545,7 @@ public abstract class DocumentParserContext {
                                 IgnoredSourceFieldMapper.NameValue.fromContext(
                                     this,
                                     mapper.fullPath(),
-                                    XContentDataHelper.encodeToken(parser())
+                                    encodeFlattenedToken()
                                 )
                             );
                         } catch (IOException e) {
@@ -685,6 +699,10 @@ public abstract class DocumentParserContext {
 
     public boolean inNestedScope() {
         return currentScope == Scope.NESTED;
+    }
+
+    public boolean isDotExpandingEnabled() {
+        return dotExpandingEnabled;
     }
 
     public final DocumentParserContext createChildContext(ObjectMapper parent) {

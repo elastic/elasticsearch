@@ -163,20 +163,6 @@ public class XContentDataHelperTests extends ESTestCase {
         assertEquals("\"" + values + "\"", encodeAndDecode(values));
     }
 
-    public void testCloneSubContextWithParser() throws IOException {
-        String data = """
-            { "key1": "value1", "key2": "value2", "path": { "to": { "key3": "value3" }} }""".replace(" ", "");
-        XContentParser xContentParser = createParser(JsonXContent.jsonXContent, data);
-        xContentParser.nextToken();
-        TestDocumentParserContext context = new TestDocumentParserContext(xContentParser);
-        assertFalse(context.getRecordedSource());
-        var tuple = XContentDataHelper.cloneSubContextWithParser(context);
-        assertEquals(data, dataInParser(tuple.v1().parser()));
-        assertEquals(data, dataInParser(tuple.v2()));
-        assertTrue(tuple.v1().getRecordedSource());
-        assertFalse(context.getRecordedSource());
-    }
-
     public void testWriteMergedWithSingleValue() throws IOException {
         testWriteMergedWithSingleValue(randomLong());
         testWriteMergedWithSingleValue(randomDouble());

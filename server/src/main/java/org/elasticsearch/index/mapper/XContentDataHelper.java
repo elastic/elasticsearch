@@ -201,23 +201,6 @@ public final class XContentDataHelper {
         return Tuple.tuple(cloneDocumentParserContext(context, tuple.v1(), tuple.v2()), tuple.v2());
     }
 
-    /**
-     * Initializes a {@link XContentParser} with the current parser structure (subtree) and returns it, along with a
-     * {@link DocumentParserContext} wrapping the subtree that can be used to reparse it.
-     * The parser of the original context is also advanced to the end of the current structure (subtree) as a side effect.
-     */
-    static Tuple<DocumentParserContext, XContentParser> cloneSubContextWithParser(DocumentParserContext context) throws IOException {
-        Tuple<XContentParserConfiguration, XContentBuilder> tuple = cloneSubContextParserConfiguration(context);
-        XContentParser parser = XContentHelper.createParserNotCompressed(
-            tuple.v1(),
-            BytesReference.bytes(tuple.v2()),
-            context.parser().contentType()
-        );
-        assert parser.currentToken() == null;
-        parser.nextToken();
-        return Tuple.tuple(cloneDocumentParserContext(context, tuple.v1(), tuple.v2()), parser);
-    }
-
     private static Tuple<XContentParserConfiguration, XContentBuilder> cloneSubContextParserConfiguration(DocumentParserContext context)
         throws IOException {
         XContentParser parser = context.parser();
@@ -235,9 +218,17 @@ public final class XContentDataHelper {
         XContentParserConfiguration configuration,
         XContentBuilder builder
     ) throws IOException {
-        DocumentParserContext subcontext = context.switchParser(
-            XContentHelper.createParserNotCompressed(configuration, BytesReference.bytes(builder), context.parser().contentType())
+        XContentParser newParser = XContentHelper.createParserNotCompressed(
+            configuration,
+            BytesReference.bytes(builder),
+            context.parser().contentType()
         );
+        if (context.isDotExpandingEnabled()) {
+            // if we did dot expanding originally we need to continue to do so when we replace the parser
+            newParser = DotExpandingXContentParser.expandDots(newParser, context.path());
+        }
+
+        DocumentParserContext subcontext = context.switchParser(newParser);
         subcontext.setRecordedSource();  // Avoids double-storing parts of the source for the same parser subtree.
         subcontext.parser().nextToken();
         return subcontext;

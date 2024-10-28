@@ -1176,7 +1176,7 @@ public final class DocumentParser {
                 mappingLookup.getMapping().getRoot(),
                 ObjectMapper.Dynamic.getRootDynamic(mappingLookup)
             );
-            if (mappingLookup.getMapping().getRoot().subobjects() == ObjectMapper.Subobjects.ENABLED) {
+            if (isDotExpandingEnabled()) {
                 this.parser = DotExpandingXContentParser.expandDots(parser, this.path);
             } else {
                 this.parser = parser;

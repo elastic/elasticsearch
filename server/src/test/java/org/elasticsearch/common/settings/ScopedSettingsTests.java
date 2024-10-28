@@ -1150,8 +1150,11 @@ public class ScopedSettingsTests extends ESTestCase {
         );
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> clusterSettings.validate(settings, false));
-        assertEquals(e.getMessage(), "Setting [something.secure] is a secure setting " +
-            "and must be stored inside the Elasticsearch keystore, but was found inside elasticsearch.yml");
+        assertEquals(
+            e.getMessage(),
+            "Setting [something.secure] is a secure setting "
+                + "and must be stored inside the Elasticsearch keystore, but was found inside elasticsearch.yml"
+        );
     }
 
     public void testValidateSecureSettingInInsecureSettings() {
@@ -1164,8 +1167,11 @@ public class ScopedSettingsTests extends ESTestCase {
         );
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> clusterSettings.validate(settings, false));
-        assertEquals(e.getMessage(), "Setting [something.secure] is a secure setting " +
-            "and must be stored inside the Elasticsearch keystore, but was found inside elasticsearch.yml");
+        assertEquals(
+            e.getMessage(),
+            "Setting [something.secure] is a secure setting "
+                + "and must be stored inside the Elasticsearch keystore, but was found inside elasticsearch.yml"
+        );
     }
 
     public static IndexMetadata newIndexMeta(String name, Settings indexSettings) {

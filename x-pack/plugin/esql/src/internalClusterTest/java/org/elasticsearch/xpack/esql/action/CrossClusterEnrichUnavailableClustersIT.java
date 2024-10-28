@@ -61,7 +61,7 @@ public class CrossClusterEnrichUnavailableClustersIT extends AbstractMultiCluste
         return false;
     }
 
-    protected Collection<String> allClusters() {
+    private Collection<String> allClusters() {
         return CollectionUtils.appendToCopy(remoteClusterAlias(), LOCAL_CLUSTER);
     }
 

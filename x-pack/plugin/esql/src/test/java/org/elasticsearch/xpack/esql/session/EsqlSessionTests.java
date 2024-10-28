@@ -118,11 +118,12 @@ public class EsqlSessionTests extends ESTestCase {
     }
 
     public void testUpdateExecutionInfoWithUnavailableClusters() {
+        final String localClusterAlias = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
+        final String remote1Alias = "remote1";
+        final String remote2Alias = "remote2";
+
         // skip_unavailable=true clusters are unavailable, both marked as SKIPPED
         {
-            final String localClusterAlias = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
-            final String remote1Alias = "remote1";
-            final String remote2Alias = "remote2";
             EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(true);
             executionInfo.swapCluster(localClusterAlias, (k, v) -> new EsqlExecutionInfo.Cluster(localClusterAlias, "logs*", false));
             executionInfo.swapCluster(remote1Alias, (k, v) -> new EsqlExecutionInfo.Cluster(remote1Alias, "*", true));
@@ -150,9 +151,6 @@ public class EsqlSessionTests extends ESTestCase {
 
         // skip_unavailable=false cluster is unavailable, throws Exception
         {
-            final String localClusterAlias = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
-            final String remote1Alias = "remote1";
-            final String remote2Alias = "remote2";
             EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(true);
             executionInfo.swapCluster(localClusterAlias, (k, v) -> new EsqlExecutionInfo.Cluster(localClusterAlias, "logs*", false));
             executionInfo.swapCluster(remote1Alias, (k, v) -> new EsqlExecutionInfo.Cluster(remote1Alias, "*", true));
@@ -173,9 +171,6 @@ public class EsqlSessionTests extends ESTestCase {
 
         // all clusters available, no Clusters in ExecutionInfo should be modified
         {
-            final String localClusterAlias = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
-            final String remote1Alias = "remote1";
-            final String remote2Alias = "remote2";
             EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(true);
             executionInfo.swapCluster(localClusterAlias, (k, v) -> new EsqlExecutionInfo.Cluster(localClusterAlias, "logs*", false));
             executionInfo.swapCluster(remote1Alias, (k, v) -> new EsqlExecutionInfo.Cluster(remote1Alias, "*", true));
@@ -314,9 +309,6 @@ public class EsqlSessionTests extends ESTestCase {
             // since remote1 is in the unavailable Map (passed to IndexResolution.valid), it's status will not be changed
             // by updateExecutionInfoWithClustersWithNoMatchingIndices (it is handled in updateExecutionInfoWithUnavailableClusters)
             assertThat(remote1Cluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.RUNNING));
-            // MP TODO: what asserts should be added here to replace the commented out ones below?
-            // assertNull(remote1Cluster.getTook());
-            // assertNull(remote1Cluster.getTotalShards());
 
             EsqlExecutionInfo.Cluster remote2Cluster = executionInfo.getCluster(remote2Alias);
             assertThat(remote2Cluster.getIndexExpression(), equalTo("mylogs1,mylogs2,logs*"));
@@ -345,13 +337,6 @@ public class EsqlSessionTests extends ESTestCase {
             var failure = new FieldCapabilitiesFailure(new String[] { "logs-a" }, new NoSeedNodeLeftException("unable to connect"));
             IndexResolution indexResolution = IndexResolution.valid(esIndex, Map.of(remote1Alias, failure));
             EsqlSession.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, indexResolution);
-
-            // IndexNotFoundException e = expectThrows(
-            // IndexNotFoundException.class,
-            // () -> EsqlSession.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, indexResolution)
-            // );
-            // assertThat(e.getDetailedMessage(), containsString("no such index"));
-            // assertThat(e.getDetailedMessage(), containsString("mylogs1,mylogs2,logs*"));
         }
     }
 

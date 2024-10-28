@@ -23,16 +23,14 @@ configure(childProjects.values()) {
     archivesName = baseArtifactId
   }
   subprojects {
-    plugins.withType(JavaPlugin).whenPluginAdded {
-      def subArtifactId = baseArtifactId
-      def currentProject = project
-      while (currentProject != baseProject) {
-        subArtifactId += "-${currentProject.name}"
-        currentProject = currentProject.parent
-      }
-      base {
-        archivesName = subArtifactId
-      }
+    def subArtifactId = baseArtifactId
+    def currentProject = project
+    while (currentProject != baseProject) {
+      subArtifactId += "-${currentProject.name}"
+      currentProject = currentProject.parent
+    }
+    base {
+      archivesName = subArtifactId
     }
   }
 

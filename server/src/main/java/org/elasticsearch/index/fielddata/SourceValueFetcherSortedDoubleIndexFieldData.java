@@ -61,7 +61,7 @@ public class SourceValueFetcherSortedDoubleIndexFieldData extends SourceValueFet
     }
 
     @Override
-    public SourceValueFetcherLeafFieldData<SortedNumericDoubleValues> loadDirect(LeafReaderContext context) throws Exception {
+    public SourceValueFetcherLeafFieldData<SortedNumericDoubleValues> loadDirect(LeafReaderContext context) {
         return new SourceValueFetcherSortedDoubleLeafFieldData(toScriptFieldFactory, context, valueFetcher, sourceProvider);
     }
 
@@ -128,7 +128,7 @@ public class SourceValueFetcherSortedDoubleIndexFieldData extends SourceValueFet
         }
 
         @Override
-        public double nextValue() throws IOException {
+        public double nextValue() {
             assert iterator.hasNext();
             return iterator.next();
         }

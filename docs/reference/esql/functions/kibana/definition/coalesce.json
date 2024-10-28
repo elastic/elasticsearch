@@ -242,7 +242,7 @@
         }
       ],
       "variadic" : true,
-      "returnType" : "text"
+      "returnType" : "keyword"
     },
     {
       "params" : [
@@ -260,7 +260,7 @@
         }
       ],
       "variadic" : true,
-      "returnType" : "text"
+      "returnType" : "keyword"
     },
     {
       "params" : [
@@ -284,5 +284,6 @@
   "examples" : [
     "ROW a=null, b=\"b\"\n| EVAL COALESCE(a, b)"
   ],
-  "preview" : false
+  "preview" : false,
+  "snapshot_only" : false
 }

@@ -94,5 +94,6 @@
     "ROW string = [\"1953-09-02T00:00:00.000Z\", \"1964-06-02T00:00:00.000Z\", \"1964-06-02 00:00:00\"]\n| EVAL datetime = TO_DATETIME(string)",
     "ROW int = [0, 1]\n| EVAL dt = TO_DATETIME(int)"
   ],
-  "preview" : false
+  "preview" : false,
+  "snapshot_only" : false
 }

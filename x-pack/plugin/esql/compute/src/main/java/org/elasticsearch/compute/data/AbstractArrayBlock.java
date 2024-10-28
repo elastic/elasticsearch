@@ -191,8 +191,7 @@ abstract class AbstractArrayBlock extends AbstractNonThreadSafeRefCounted implem
         if (nullsMask != null) {
             out.writeLongArray(nullsMask.toLongArray());
         }
-        if (out.getTransportVersion().before(TransportVersions.ESQL_MV_ORDERING_SORTED_ASCENDING)
-            && mvOrdering == MvOrdering.SORTED_ASCENDING) {
+        if (out.getTransportVersion().before(TransportVersions.V_8_15_0) && mvOrdering == MvOrdering.SORTED_ASCENDING) {
             out.writeEnum(MvOrdering.UNORDERED);
         } else {
             out.writeEnum(mvOrdering);

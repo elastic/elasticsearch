@@ -52,7 +52,7 @@ public class CodecTests extends ESTestCase {
         assumeTrue("Only when zstd_stored_fields feature flag is enabled", CodecService.ZSTD_STORED_FIELDS_FEATURE_FLAG.isEnabled());
         CodecService codecService = createCodecService();
         assertThat(codecService.codec("default"), instanceOf(PerFieldMapperCodec.class));
-        assertThat(codecService.codec("default"), instanceOf(Elasticsearch814Codec.class));
+        assertThat(codecService.codec("default"), instanceOf(Elasticsearch900Codec.class));
     }
 
     public void testDefault() throws Exception {

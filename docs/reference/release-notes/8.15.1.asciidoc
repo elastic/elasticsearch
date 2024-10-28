@@ -24,13 +24,20 @@ To work around this issue, you have a number of options:
 <<esql-kibana-enable,disable ES|QL queries in {kib}>>
 ** Change the default data view in Discover to a smaller set of indices and/or one with fewer mapping conflicts.
 
-* Index Stats, Node Stats and Cluster Stats API can return a null pointer exception if an index contains a `dense_vector` field 
+* Index Stats, Node Stats and Cluster Stats API can return a null pointer exception if an index contains a `dense_vector` field
 but there is an index segment that does not contain any documents with a dense vector field ({es-pull}112720[#112720]). Workarounds:
 ** If the affected index already contains documents with a dense vector field, force merge the index to a single segment.
 ** If the affected index does not already contain documents with a dense vector field, index a document with a dense vector field
 and then force merge to a single segment.
 ** If the affected index's `dense_vector` fields are unused, reindex without the `dense_vector` fields.
 
+* Synthetic source bug. Synthetic source may fail generating the _source at runtime, causing failures in get APIs or
+partial failures in the search APIs. The result is that for the affected documents the _source can't be retrieved.
+There is no workaround and the only option to is to upgrade to 8.15.2 when released.
++
+If you use synthetic source then you may be affected by this bug if the following is true:
+** If you have more fields then the `index.mapping.total_fields.limit` setting allows.
+** If you use dynamic mappings and the `index.mapping.total_fields.ignore_dynamic_beyond_limit` setting is enabled.
 
 [[bug-8.15.1]]
 [float]

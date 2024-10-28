@@ -163,9 +163,16 @@ RUN <%= retry.loop(package_manager,
           "      ${package_manager} update && \n" +
           "      ${package_manager} upgrade && \n" +
           "      ${package_manager} add --no-cache \n" +
-          "        bash ca-certificates curl libsystemd netcat-openbsd p11-kit p11-kit-trust shadow tini unzip zip zstd && \n" +
+          "        bash java-cacerts curl libstdc++ libsystemd netcat-openbsd p11-kit p11-kit-trust posix-libc-utils shadow tini unzip zip zstd && \n" +
           "      rm -rf /var/cache/apk/* "
      ) %>
+
+# Set Bash as the default shell for future commands
+SHELL ["/bin/bash", "-c"]
+
+# Optionally set Bash as the default shell in the container at runtime
+CMD ["/bin/bash"]
+
 <% } else if (docker_base == "default" || docker_base == "cloud") { %>
 
 # Change default shell to bash, then install required packages with retries.
@@ -224,7 +231,7 @@ COPY --from=builder --chown=0:0 /opt /opt
 <% } %>
 
 ENV PATH /usr/share/elasticsearch/bin:\$PATH
-
+ENV SHELL /bin/bash
 COPY ${bin_dir}/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 
 # 1. Sync the user and group permissions of /etc/passwd
@@ -249,6 +256,8 @@ RUN chmod g=u /etc/passwd && \\
 # stays up-to-date with changes to Ubuntu's store)
 COPY bin/docker-openjdk /etc/ca-certificates/update.d/docker-openjdk
 RUN /etc/ca-certificates/update.d/docker-openjdk
+<% } else if (docker_base == 'wolfi') { %>
+RUN ln -sf /etc/ssl/certs/java/cacerts /usr/share/elasticsearch/jdk/lib/security/cacerts
 <% } else { %>
 RUN ln -sf /etc/pki/ca-trust/extracted/java/cacerts /usr/share/elasticsearch/jdk/lib/security/cacerts
 <% } %>

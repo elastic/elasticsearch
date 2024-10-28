@@ -282,7 +282,7 @@ public class MetadataIndexAliasesService {
 
         @Override
         public void onAllNodesAcked() {
-            listener.onResponse(IndicesAliasesResponse.build(request.getActionResults()));
+            listener.onResponse(IndicesAliasesResponse.build(request.actionResults()));
         }
 
         @Override

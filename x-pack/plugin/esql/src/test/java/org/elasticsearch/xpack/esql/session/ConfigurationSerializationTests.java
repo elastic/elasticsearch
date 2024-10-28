@@ -102,7 +102,8 @@ public class ConfigurationSerializationTests extends AbstractWireSerializingTest
             resultTruncationDefaultSize,
             query,
             profile,
-            tables
+            tables,
+            System.nanoTime()
         );
 
     }

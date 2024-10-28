@@ -16,6 +16,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
@@ -70,7 +71,7 @@ public class ShardSearchFailureTests extends ESTestCase {
         ShardSearchFailure parsed;
         try (XContentParser parser = createParser(xContentType.xContent(), mutated)) {
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
-            parsed = ShardSearchFailure.fromXContent(parser);
+            parsed = SearchResponseUtils.parseShardSearchFailure(parser);
             assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
             assertNull(parser.nextToken());
         }

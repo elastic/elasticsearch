@@ -25,19 +25,22 @@ public class OpenAiChatCompletionRequestEntity implements ToXContentObject {
     private static final String ROLE_FIELD = "role";
     private static final String USER_FIELD = "user";
     private static final String CONTENT_FIELD = "content";
+    private static final String STREAM_FIELD = "stream";
 
     private final List<String> messages;
     private final String model;
 
     private final String user;
+    private final boolean stream;
 
-    public OpenAiChatCompletionRequestEntity(List<String> messages, String model, String user) {
+    public OpenAiChatCompletionRequestEntity(List<String> messages, String model, String user, boolean stream) {
         Objects.requireNonNull(messages);
         Objects.requireNonNull(model);
 
         this.messages = messages;
         this.model = model;
         this.user = user;
+        this.stream = stream;
     }
 
     @Override
@@ -63,6 +66,10 @@ public class OpenAiChatCompletionRequestEntity implements ToXContentObject {
 
         if (Strings.isNullOrEmpty(user) == false) {
             builder.field(USER_FIELD, user);
+        }
+
+        if (stream) {
+            builder.field(STREAM_FIELD, true);
         }
 
         builder.endObject();

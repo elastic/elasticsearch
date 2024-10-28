@@ -71,7 +71,15 @@ public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin, R
         return Collections.singletonMap(AzureRepository.TYPE, metadata -> {
             AzureStorageService storageService = azureStoreService.get();
             assert storageService != null;
-            return new AzureRepository(metadata, namedXContentRegistry, storageService, clusterService, bigArrays, recoverySettings);
+            return new AzureRepository(
+                metadata,
+                namedXContentRegistry,
+                storageService,
+                clusterService,
+                bigArrays,
+                recoverySettings,
+                repositoriesMetrics
+            );
         });
     }
 

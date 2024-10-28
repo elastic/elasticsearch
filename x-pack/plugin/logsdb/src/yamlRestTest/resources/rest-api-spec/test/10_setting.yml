@@ -1,0 +1,39 @@
+---
+synthetic_source_keep defaults:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ logsdb_index_mode ]
+      reason: "Support for 'logsdb' index mode capability required"
+
+  - do:
+      indices.create:
+        index: test1
+        body:
+          settings:
+            index:
+              mode: logsdb
+
+  - do:
+      indices.create:
+        index: test2
+
+  - do:
+      indices.get_settings:
+        index: test1
+        include_defaults: true
+
+  - is_true: test1
+  - match: { test1.settings.index.mode: "logsdb" }
+  - match: { test1.defaults.index.mapping.synthetic_source_keep: "arrays" }
+
+  - do:
+      indices.get_settings:
+        index: test2
+        include_defaults: true
+
+  - is_true: test2
+  - is_false: test2.settings.index.mode
+  - match: { test2.defaults.index.mapping.synthetic_source_keep: "none" }

@@ -45,7 +45,7 @@ emp_no:integer | x:date
 
 
 evalDateFormat
-from employees | sort hire_date | eval x = date_format(hire_date), y = date_format("YYYY-MM-dd", hire_date) | keep emp_no, x, y | limit 5;
+from employees | sort hire_date | eval x = date_format(hire_date), y = date_format("yyyy-MM-dd", hire_date) | keep emp_no, x, y | limit 5;
 
 emp_no:integer | x:keyword                     | y:keyword
 10009          | 1985-02-18T00:00:00.000Z      | 1985-02-18            
@@ -367,9 +367,9 @@ date1:date               | dd_ms:integer
 2023-12-02T11:00:00.000Z | 1000
 ;
 
-evalDateDiffMonthAsWhole0Months
+evalDateDiffMonthAsWhole0Months#[skip:-8.14.1, reason:omitting millis/timezone not allowed before 8.14]
 
-ROW from="2023-12-31T23:59:59.999Z"::DATETIME, to="2024-01-01T00:00:00"::DATETIME
+ROW from=TO_DATETIME("2023-12-31T23:59:59.999Z"), to=TO_DATETIME("2024-01-01T00:00:00")
 | EVAL msecs=DATE_DIFF("milliseconds", from, to), months=DATE_DIFF("month", from, to)
 ;
 
@@ -378,9 +378,9 @@ ROW from="2023-12-31T23:59:59.999Z"::DATETIME, to="2024-01-01T00:00:00"::DATETIM
 
 ;
 
-evalDateDiffMonthAsWhole1Month
+evalDateDiffMonthAsWhole1Month#[skip:-8.14.1, reason:omitting millis/timezone not allowed before 8.14]
 
-ROW from="2023-12-31T23:59:59.999Z"::DATETIME, to="2024-02-01T00:00:00"::DATETIME
+ROW from=TO_DATETIME("2023-12-31T23:59:59.999Z"), to=TO_DATETIME("2024-02-01T00:00:00")
 | EVAL secs=DATE_DIFF("seconds", from, to), months=DATE_DIFF("month", from, to)
 ;
 
@@ -392,7 +392,7 @@ ROW from="2023-12-31T23:59:59.999Z"::DATETIME, to="2024-02-01T00:00:00"::DATETIM
 evalDateDiffYearAsWhole0Years
 required_capability: date_diff_year_calendarial
 
-ROW from="2023-12-31T23:59:59.999Z"::DATETIME, to="2024-01-01T00:00:00"::DATETIME
+ROW from=TO_DATETIME("2023-12-31T23:59:59.999Z"), to=TO_DATETIME("2024-01-01T00:00:00")
 | EVAL msecs=DATE_DIFF("milliseconds", from, to), years=DATE_DIFF("year", from, to)
 ;
 
@@ -403,7 +403,7 @@ ROW from="2023-12-31T23:59:59.999Z"::DATETIME, to="2024-01-01T00:00:00"::DATETIM
 evalDateDiffYearAsWhole1Year
 required_capability: date_diff_year_calendarial
 
-ROW from="2023-12-31T23:59:59.999Z"::DATETIME, to="2025-01-01T00:00:00"::DATETIME
+ROW from=TO_DATETIME("2023-12-31T23:59:59.999Z"), to=TO_DATETIME("2025-01-01T00:00:00")
 | EVAL secs=DATE_DIFF("seconds", from, to), years=DATE_DIFF("year", from, to)
 ;
 
@@ -414,7 +414,7 @@ ROW from="2023-12-31T23:59:59.999Z"::DATETIME, to="2025-01-01T00:00:00"::DATETIM
 evalDateDiffYearAsWhole1Year
 required_capability: date_diff_year_calendarial
 
-ROW from="2024-01-01T00:00:00Z"::DATETIME, to="2025-01-01T00:00:00"::DATETIME
+ROW from=TO_DATETIME("2024-01-01T00:00:00Z"), to=TO_DATETIME("2025-01-01T00:00:00")
 | EVAL secs=DATE_DIFF("seconds", from, to), years=DATE_DIFF("year", from, to)
 ;
 
@@ -426,9 +426,9 @@ evalDateDiffYearForDocs
 required_capability: date_diff_year_calendarial
 
 // tag::evalDateDiffYearForDocs[]
-ROW end_23="2023-12-31T23:59:59.999Z"::DATETIME,
-  start_24="2024-01-01T00:00:00.000Z"::DATETIME,
-    end_24="2024-12-31T23:59:59.999"::DATETIME
+ROW end_23=TO_DATETIME("2023-12-31T23:59:59.999Z"),
+  start_24=TO_DATETIME("2024-01-01T00:00:00.000Z"),
+    end_24=TO_DATETIME("2024-12-31T23:59:59.999")
 | EVAL end23_to_start24=DATE_DIFF("year", end_23, start_24)
 | EVAL end23_to_end24=DATE_DIFF("year", end_23, end_24)
 | EVAL start_to_end_24=DATE_DIFF("year", start_24, end_24)
@@ -554,7 +554,7 @@ emp_no:integer | year:long    | month:long    | day:long
 dateFormatLocale
 from employees | where emp_no == 10049 or emp_no == 10050 | sort emp_no 
 | eval birth_month = date_format("MMMM", birth_date) | keep emp_no, birth_date, birth_month;
-warningRegex:Date format \[MMMM\] contains textual field specifiers that could change in JDK 23
+warningRegex:Date format \[MMMM\] contains textual field specifiers that could change in JDK 23.*
 ignoreOrder:true
 
 emp_no:integer  |  birth_date:datetime       | birth_month:keyword
@@ -956,7 +956,7 @@ docsDateFormat
 // tag::docsDateFormat[]
 FROM employees
 | KEEP first_name, last_name, hire_date
-| EVAL hired = DATE_FORMAT("YYYY-MM-dd", hire_date)
+| EVAL hired = DATE_FORMAT("yyyy-MM-dd", hire_date)
 // end::docsDateFormat[]
 | SORT first_name
 | LIMIT 3
@@ -974,7 +974,7 @@ evalDateFormatString
 required_capability: string_literal_auto_casting
 
 ROW a = 1
-| EVAL df = DATE_FORMAT("YYYY-MM-dd", "1989-06-02T00:00:00.000Z")
+| EVAL df = DATE_FORMAT("yyyy-MM-dd", "1989-06-02T00:00:00.000Z")
 ;
 
 a:integer | df:keyword
@@ -1269,4 +1269,20 @@ from employees
 emp_no:integer | birth_date:datetime
 10007          | 1957-05-23T00:00:00Z
 10008          | 1958-02-19T00:00:00Z
+;
+
+Least for dates
+required_capability: least_greatest_for_dates
+ROW a = LEAST(TO_DATETIME("1957-05-23T00:00:00Z"), TO_DATETIME("1958-02-19T00:00:00Z"));
+
+a:datetime
+1957-05-23T00:00:00
+;
+
+GREATEST for dates
+required_capability: least_greatest_for_dates
+ROW a = GREATEST(TO_DATETIME("1957-05-23T00:00:00Z"), TO_DATETIME("1958-02-19T00:00:00Z"));
+
+a:datetime
+1958-02-19T00:00:00
 ;

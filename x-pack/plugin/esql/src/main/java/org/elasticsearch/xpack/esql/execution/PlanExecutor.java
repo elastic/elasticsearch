@@ -8,7 +8,9 @@
 package org.elasticsearch.xpack.esql.execution;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
+import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
@@ -46,7 +48,7 @@ public class PlanExecutor {
         this.preAnalyzer = new PreAnalyzer();
         this.functionRegistry = new EsqlFunctionRegistry();
         this.mapper = new Mapper(functionRegistry);
-        this.metrics = new Metrics();
+        this.metrics = new Metrics(functionRegistry);
         this.verifier = new Verifier(metrics);
         this.planningMetricsManager = new PlanningMetricsManager(meterRegistry);
     }
@@ -56,6 +58,8 @@ public class PlanExecutor {
         String sessionId,
         Configuration cfg,
         EnrichPolicyResolver enrichPolicyResolver,
+        EsqlExecutionInfo executionInfo,
+        IndicesExpressionGrouper indicesExpressionGrouper,
         BiConsumer<PhysicalPlan, ActionListener<Result>> runPhase,
         ActionListener<Result> listener
     ) {
@@ -70,11 +74,12 @@ public class PlanExecutor {
             new LogicalPlanOptimizer(new LogicalOptimizerContext(cfg)),
             mapper,
             verifier,
-            planningMetrics
+            planningMetrics,
+            indicesExpressionGrouper
         );
         QueryMetric clientId = QueryMetric.fromString("rest");
         metrics.total(clientId);
-        session.execute(request, runPhase, wrap(x -> {
+        session.execute(request, executionInfo, runPhase, wrap(x -> {
             planningMetricsManager.publish(planningMetrics, true);
             listener.onResponse(x);
         }, ex -> {

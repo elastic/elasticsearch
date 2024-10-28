@@ -38,9 +38,10 @@ include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 ------------------------------------------------------------
 GET /_xpack/usage
 ------------------------------------------------------------
-// TEST[s/usage/usage?filter_path=-watcher.execution.actions.index*\,-watcher.execution.actions.logging*,-watcher.execution.actions.email*/]
+// TEST[s/usage/usage?filter_path=-watcher.execution.actions.index*\,-watcher.execution.actions.logging*,-watcher.execution.actions.email*,-esql.functions*/]
 // This response filter removes watcher logging results if they are included
 // to avoid errors in the CI builds.
+// Same for ES|QL functions, that is a long list and quickly evolving.
 
 [source,console-result]
 ------------------------------------------------------------
@@ -195,12 +196,28 @@ GET /_xpack/usage
         }
       }
     },
-    "node_count" : 1
+    "node_count" : 1,
+    "memory": {
+      anomaly_detectors_memory_bytes: 0,
+      data_frame_analytics_memory_bytes: 0,
+      pytorch_inference_memory_bytes: 0,
+      total_used_memory_bytes: 0
+    }
   },
   "inference": {
     "available" : true,
     "enabled" : true,
-    "models" : []
+    "models" : [{
+        "service": "elasticsearch",
+        "task_type": "SPARSE_EMBEDDING",
+        "count": 1
+      },
+      {
+        "service": "elasticsearch",
+        "task_type": "TEXT_EMBEDDING",
+        "count": 1
+      },
+    ]
   },
   "logstash" : {
     "available" : true,
@@ -228,8 +245,7 @@ GET /_xpack/usage
       "keep" : 0,
       "enrich" : 0,
       "from" : 0,
-      "row" : 0,
-      "meta" : 0
+      "row" : 0
     },
     "queries" : {
       "rest" : {

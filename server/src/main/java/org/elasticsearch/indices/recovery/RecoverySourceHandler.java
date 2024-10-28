@@ -315,7 +315,9 @@ public class RecoverySourceHandler {
                 cancellableThreads,
                 ActionListener.wrap(ignored -> {
                     final long endingSeqNo = shard.seqNoStats().getMaxSeqNo();
-                    logger.trace("snapshot for recovery; current size is [{}]", estimateNumberOfHistoryOperations(startingSeqNo));
+                    if (logger.isTraceEnabled()) {
+                        logger.trace("snapshot for recovery; current size is [{}]", estimateNumberOfHistoryOperations(startingSeqNo));
+                    }
                     final Translog.Snapshot phase2Snapshot = shard.newChangesSnapshot(
                         "peer-recovery",
                         startingSeqNo,
@@ -1374,7 +1376,7 @@ public class RecoverySourceHandler {
                         // we already have the file contents on heap no need to open the file again
                         currentInput = null;
                     } else {
-                        currentInput = store.directory().openInput(md.name(), IOContext.READONCE);
+                        currentInput = store.directory().openInput(md.name(), IOContext.DEFAULT);
                     }
                 }
 

@@ -13,7 +13,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.cluster.ClusterState;
@@ -31,7 +30,6 @@ import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -46,7 +44,6 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -162,55 +159,14 @@ public class JoinValidationService {
             return;
         }
 
-        if (connection.getTransportVersion().onOrAfter(TransportVersions.V_8_3_0)) {
-            if (executeRefs.tryIncRef()) {
-                try {
-                    execute(new JoinValidation(discoveryNode, connection, listener));
-                } finally {
-                    executeRefs.decRef();
-                }
-            } else {
-                listener.onFailure(new NodeClosedException(transportService.getLocalNode()));
+        if (executeRefs.tryIncRef()) {
+            try {
+                execute(new JoinValidation(discoveryNode, connection, listener));
+            } finally {
+                executeRefs.decRef();
             }
         } else {
-            legacyValidateJoin(discoveryNode, listener, connection);
-        }
-    }
-
-    @UpdateForV9
-    private void legacyValidateJoin(DiscoveryNode discoveryNode, ActionListener<Void> listener, Transport.Connection connection) {
-        final var responseHandler = TransportResponseHandler.empty(responseExecutor, listener.delegateResponse((l, e) -> {
-            logger.warn(() -> "failed to validate incoming join request from node [" + discoveryNode + "]", e);
-            listener.onFailure(
-                new IllegalStateException(
-                    String.format(
-                        Locale.ROOT,
-                        "failure when sending a join validation request from [%s] to [%s]",
-                        transportService.getLocalNode().descriptionWithoutAttributes(),
-                        discoveryNode.descriptionWithoutAttributes()
-                    ),
-                    e
-                )
-            );
-        }));
-        final var clusterState = clusterStateSupplier.get();
-        if (clusterState != null) {
-            assert clusterState.nodes().isLocalNodeElectedMaster();
-            transportService.sendRequest(
-                connection,
-                JOIN_VALIDATE_ACTION_NAME,
-                new ValidateJoinRequest(clusterState),
-                REQUEST_OPTIONS,
-                responseHandler
-            );
-        } else {
-            transportService.sendRequest(
-                connection,
-                JoinHelper.JOIN_PING_ACTION_NAME,
-                new JoinHelper.JoinPingRequest(),
-                REQUEST_OPTIONS,
-                responseHandler
-            );
+            listener.onFailure(new NodeClosedException(transportService.getLocalNode()));
         }
     }
 
@@ -341,7 +297,6 @@ public class JoinValidationService {
 
         @Override
         protected void doRun() {
-            assert connection.getTransportVersion().onOrAfter(TransportVersions.V_8_3_0) : discoveryNode.getVersion();
             // NB these things never run concurrently to each other, or to the cache cleaner (see IMPLEMENTATION NOTES above) so it is safe
             // to do these (non-atomic) things to the (unsynchronized) statesByVersion map.
             var transportVersion = connection.getTransportVersion();

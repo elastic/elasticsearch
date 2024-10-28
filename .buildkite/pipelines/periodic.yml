@@ -11,7 +11,6 @@ steps:
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
           preemptible: true
-          diskSizeGb: 250
         env:
           BWC_VERSION: 8.0.1
         retry:
@@ -31,7 +30,6 @@ steps:
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
           preemptible: true
-          diskSizeGb: 250
         env:
           BWC_VERSION: 8.1.3
         retry:
@@ -51,7 +49,6 @@ steps:
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
           preemptible: true
-          diskSizeGb: 250
         env:
           BWC_VERSION: 8.2.3
         retry:
@@ -71,7 +68,6 @@ steps:
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
           preemptible: true
-          diskSizeGb: 250
         env:
           BWC_VERSION: 8.3.3
         retry:
@@ -91,7 +87,6 @@ steps:
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
           preemptible: true
-          diskSizeGb: 250
         env:
           BWC_VERSION: 8.4.3
         retry:
@@ -111,7 +106,6 @@ steps:
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
           preemptible: true
-          diskSizeGb: 250
         env:
           BWC_VERSION: 8.5.3
         retry:
@@ -131,7 +125,6 @@ steps:
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
           preemptible: true
-          diskSizeGb: 250
         env:
           BWC_VERSION: 8.6.2
         retry:
@@ -151,7 +144,6 @@ steps:
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
           preemptible: true
-          diskSizeGb: 250
         env:
           BWC_VERSION: 8.7.1
         retry:
@@ -171,7 +163,6 @@ steps:
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
           preemptible: true
-          diskSizeGb: 250
         env:
           BWC_VERSION: 8.8.2
         retry:
@@ -191,7 +182,6 @@ steps:
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
           preemptible: true
-          diskSizeGb: 250
         env:
           BWC_VERSION: 8.9.2
         retry:
@@ -211,7 +201,6 @@ steps:
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
           preemptible: true
-          diskSizeGb: 250
         env:
           BWC_VERSION: 8.10.4
         retry:
@@ -231,7 +220,6 @@ steps:
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
           preemptible: true
-          diskSizeGb: 250
         env:
           BWC_VERSION: 8.11.4
         retry:
@@ -251,7 +239,6 @@ steps:
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
           preemptible: true
-          diskSizeGb: 250
         env:
           BWC_VERSION: 8.12.2
         retry:
@@ -271,7 +258,6 @@ steps:
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
           preemptible: true
-          diskSizeGb: 250
         env:
           BWC_VERSION: 8.13.4
         retry:
@@ -291,7 +277,6 @@ steps:
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
           preemptible: true
-          diskSizeGb: 250
         env:
           BWC_VERSION: 8.14.3
         retry:
@@ -302,8 +287,8 @@ steps:
             - signal_reason: agent_stop
               limit: 3
 
-      - label: 8.15.2 / bwc
-        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v8.15.2#bwcTest
+      - label: 8.15.4 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v8.15.4#bwcTest
         timeout_in_minutes: 300
         agents:
           provider: gcp
@@ -311,9 +296,8 @@ steps:
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
           preemptible: true
-          diskSizeGb: 250
         env:
-          BWC_VERSION: 8.15.2
+          BWC_VERSION: 8.15.4
         retry:
           automatic:
             - exit_status: "-1"
@@ -331,9 +315,27 @@ steps:
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
           preemptible: true
-          diskSizeGb: 250
         env:
           BWC_VERSION: 8.16.0
+        retry:
+          automatic:
+            - exit_status: "-1"
+              limit: 3
+              signal_reason: none
+            - signal_reason: agent_stop
+              limit: 3
+
+      - label: 8.17.0 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v8.17.0#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+          preemptible: true
+        env:
+          BWC_VERSION: 8.17.0
         retry:
           automatic:
             - exit_status: "-1"
@@ -351,7 +353,6 @@ steps:
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
           preemptible: true
-          diskSizeGb: 250
         env:
           BWC_VERSION: 9.0.0
         retry:
@@ -386,7 +387,6 @@ steps:
       image: family/elasticsearch-ubuntu-2004
       machineType: custom-32-98304
       buildDirectory: /dev/shm/bk
-      diskSizeGb: 250
   - label: example-plugins
     command: |-
       cd $$WORKSPACE/plugins/examples
@@ -398,7 +398,6 @@ steps:
       image: family/elasticsearch-ubuntu-2004
       machineType: custom-32-98304
       buildDirectory: /dev/shm/bk
-      diskSizeGb: 250
   - group: java-fips-matrix
     steps:
       - label: "{{matrix.ES_RUNTIME_JAVA}} / {{matrix.GRADLE_TASK}} / java-fips-matrix"
@@ -420,7 +419,6 @@ steps:
           image: family/elasticsearch-ubuntu-2004
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
-          diskSizeGb: 250
         env:
           ES_RUNTIME_JAVA: "{{matrix.ES_RUNTIME_JAVA}}"
           GRADLE_TASK: "{{matrix.GRADLE_TASK}}"
@@ -430,14 +428,13 @@ steps:
         matrix:
           setup:
             ES_RUNTIME_JAVA:
-              - openjdk17
-            BWC_VERSION: ["8.15.2", "8.16.0", "9.0.0"]
+              - openjdk21
+            BWC_VERSION: ["8.15.4", "8.16.0", "8.17.0", "9.0.0"]
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
-          diskSizeGb: 250
         env:
           ES_RUNTIME_JAVA: "{{matrix.ES_RUNTIME_JAVA}}"
           BWC_VERSION: "{{matrix.BWC_VERSION}}"
@@ -463,7 +460,6 @@ steps:
           image: family/elasticsearch-ubuntu-2004
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
-          diskSizeGb: 250
         env:
           ES_RUNTIME_JAVA: "{{matrix.ES_RUNTIME_JAVA}}"
           GRADLE_TASK: "{{matrix.GRADLE_TASK}}"
@@ -475,13 +471,12 @@ steps:
             ES_RUNTIME_JAVA:
               - openjdk21
               - openjdk23
-            BWC_VERSION: ["8.15.2", "8.16.0", "9.0.0"]
+            BWC_VERSION: ["8.15.4", "8.16.0", "8.17.0", "9.0.0"]
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
-          diskSizeGb: 250
         env:
           ES_RUNTIME_JAVA: "{{matrix.ES_RUNTIME_JAVA}}"
           BWC_VERSION: "{{matrix.BWC_VERSION}}"
@@ -517,7 +512,6 @@ steps:
           image: family/elasticsearch-ubuntu-2004
           machineType: n2-standard-8
           buildDirectory: /dev/shm/bk
-          diskSizeGb: 250
       - label: third-party / azure
         command: |
           export azure_storage_container=elasticsearch-ci-thirdparty
@@ -532,7 +526,6 @@ steps:
           image: family/elasticsearch-ubuntu-2004
           machineType: n2-standard-8
           buildDirectory: /dev/shm/bk
-          diskSizeGb: 250
       - label: third-party / gcs
         command: |
           export google_storage_bucket=elasticsearch-ci-thirdparty
@@ -547,7 +540,6 @@ steps:
           image: family/elasticsearch-ubuntu-2004
           machineType: n2-standard-8
           buildDirectory: /dev/shm/bk
-          diskSizeGb: 250
       - label: third-party / geoip
         command: |
           .ci/scripts/run-gradle.sh :modules:ingest-geoip:internalClusterTest -Dtests.jvm.argline="-Dgeoip_use_service=true"
@@ -557,7 +549,6 @@ steps:
           image: family/elasticsearch-ubuntu-2004
           machineType: n2-standard-8
           buildDirectory: /dev/shm/bk
-          diskSizeGb: 250
       - label: third-party / s3
         command: |
           export amazon_s3_bucket=elasticsearch-ci.us-west-2
@@ -572,7 +563,6 @@ steps:
           image: family/elasticsearch-ubuntu-2004
           machineType: n2-standard-8
           buildDirectory: /dev/shm/bk
-          diskSizeGb: 250
   - label: Upload Snyk Dependency Graph
     command: .ci/scripts/run-gradle.sh uploadSnykDependencyGraph -PsnykTargetReference=$BUILDKITE_BRANCH
     env:
@@ -583,7 +573,6 @@ steps:
       image: family/elasticsearch-ubuntu-2004
       machineType: n2-standard-8
       buildDirectory: /dev/shm/bk
-      diskSizeGb: 250
     if: build.branch == "main" || build.branch == "8.x" || build.branch == "7.17"
   - label: check-branch-consistency
     command: .ci/scripts/run-gradle.sh branchConsistency
@@ -592,7 +581,6 @@ steps:
       provider: gcp
       image: family/elasticsearch-ubuntu-2004
       machineType: n2-standard-2
-      diskSizeGb: 250
   - label: check-branch-protection-rules
     command: .buildkite/scripts/branch-protection.sh
     timeout_in_minutes: 5

@@ -82,7 +82,7 @@ public class StringBinaryIndexFieldData implements IndexFieldData<StringBinaryDV
     }
 
     @Override
-    public StringBinaryDVLeafFieldData loadDirect(LeafReaderContext context) throws Exception {
+    public StringBinaryDVLeafFieldData loadDirect(LeafReaderContext context) {
         return load(context);
     }
 }

@@ -39,7 +39,7 @@ if [ -f "/etc/os-release" ] ; then
         # Work around incorrect lintian version
         #  https://github.com/elastic/elasticsearch/issues/48573
         if [ $VERSION_ID == 10 ] ; then
-            sudo apt-get update -y
+            sudo apt-get update -y || true
             sudo apt-get install -y --allow-downgrades lintian=2.15.0
         fi
     fi
@@ -77,5 +77,6 @@ sudo -E env \
   --unset=ES_JAVA_HOME \
   --unset=JAVA_HOME \
   SYSTEM_JAVA_HOME=`readlink -f -n $BUILD_JAVA_HOME` \
-  ./gradlew -g $HOME/.gradle --scan --parallel --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ --continue $@
+  DOCKER_CONFIG="${HOME}/.docker" \
+  ./gradlew -g $HOME/.gradle --console=plain --scan --parallel --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ --continue $@
 

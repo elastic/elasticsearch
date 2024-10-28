@@ -44,6 +44,14 @@ To work around this issue, you have a number of options:
 <<esql-kibana-enable,disable ES|QL queries in {kib}>>
 ** Change the default data view in Discover to a smaller set of indices and/or one with fewer mapping conflicts.
 
+* Synthetic source bug. Synthetic source may fail generating the _source at runtime, causing failures in get APIs or
+partial failures in the search APIs. The result is that for the affected documents the _source can't be retrieved.
+There is no workaround and the only option to is to upgrade to 8.15.2 when released.
++
+If you use synthetic source then you may be affected by this bug if the following is true:
+** If you have more fields then the `index.mapping.total_fields.limit` setting allows.
+** If you use dynamic mappings and the `index.mapping.total_fields.ignore_dynamic_beyond_limit` setting is enabled.
+
 [[breaking-8.15.0]]
 [float]
 === Breaking changes

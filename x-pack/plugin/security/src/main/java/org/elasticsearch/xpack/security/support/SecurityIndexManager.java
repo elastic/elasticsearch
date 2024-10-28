@@ -54,6 +54,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -364,45 +365,80 @@ public class SecurityIndexManager implements ClusterStateListener {
      * Notifies {@code listener} once the security index is available, or calls {@code onFailure} on {@code timeout}.
      */
     public void onIndexAvailableForSearch(ActionListener<Void> listener, TimeValue timeout) {
-        logger.info("Will wait for security index [{}] to become available for search", getConcreteIndexName());
+        logger.info("Will wait for security index [{}] for [{}] to become available for search", getConcreteIndexName(), timeout);
 
-        final ActionListener<Void> notifyOnceListener = ActionListener.notifyOnce(listener);
+        if (state.indexAvailableForSearch) {
+            logger.debug("Security index [{}] is already available", getConcreteIndexName());
+            listener.onResponse(null);
+            return;
+        }
 
+        final AtomicBoolean isDone = new AtomicBoolean(false);
         final var indexAvailableForSearchListener = new StateConsumerWithCancellable() {
             @Override
             public void accept(SecurityIndexManager.State previousState, SecurityIndexManager.State nextState) {
                 if (nextState.indexAvailableForSearch) {
-                    assert cancellable != null;
-                    // cancel and removeStateListener are idempotent
-                    cancellable.cancel();
-                    removeStateListener(this);
-                    notifyOnceListener.onResponse(null);
+                    if (isDone.compareAndSet(false, true)) {
+                        cancel();
+                        removeStateListener(this);
+                        listener.onResponse(null);
+                    }
                 }
             }
         };
-        // schedule failure handling on timeout -- keep reference to cancellable so a successful completion can cancel the timeout
-        indexAvailableForSearchListener.cancellable = client.threadPool().schedule(() -> {
-            removeStateListener(indexAvailableForSearchListener);
-            notifyOnceListener.onFailure(
-                new ElasticsearchTimeoutException(
-                    "timed out waiting for security index [" + getConcreteIndexName() + "] to become available for search"
-                )
-            );
-        }, timeout, client.threadPool().generic());
+        // add listener _before_ registering timeout -- this way we are guaranteed it gets removed (either by timeout below, or successful
+        // completion above)
+        addStateListener(indexAvailableForSearchListener);
 
-        // in case the state has meanwhile changed to available, return immediately
-        if (state.indexAvailableForSearch) {
-            indexAvailableForSearchListener.cancellable.cancel();
-            notifyOnceListener.onResponse(null);
-        } else {
-            addStateListener(indexAvailableForSearchListener);
-        }
+        // schedule failure handling on timeout -- keep reference to cancellable so a successful completion can cancel the timeout
+        indexAvailableForSearchListener.setCancellable(client.threadPool().schedule(() -> {
+            if (isDone.compareAndSet(false, true)) {
+                removeStateListener(indexAvailableForSearchListener);
+                listener.onFailure(
+                    new ElasticsearchTimeoutException(
+                        "timed out waiting for security index [" + getConcreteIndexName() + "] to become available for search"
+                    )
+                );
+            }
+        }, timeout, client.threadPool().generic()));
     }
 
-    private abstract static class StateConsumerWithCancellable
+    // pkg-private for testing
+    List<BiConsumer<State, State>> getStateChangeListeners() {
+        return stateChangeListeners;
+    }
+
+    /**
+     * This class ensures that if cancel() is called _before_ setCancellable(), the passed-in cancellable is still correctly cancelled on
+     * a subsequent setCancellable() call.
+     */
+    // pkg-private for testing
+    abstract static class StateConsumerWithCancellable
         implements
-            BiConsumer<SecurityIndexManager.State, SecurityIndexManager.State> {
-        volatile Scheduler.ScheduledCancellable cancellable;
+            BiConsumer<SecurityIndexManager.State, SecurityIndexManager.State>,
+            Scheduler.Cancellable {
+        private volatile Scheduler.ScheduledCancellable cancellable;
+        private volatile boolean cancelled = false;
+
+        void setCancellable(Scheduler.ScheduledCancellable cancellable) {
+            this.cancellable = cancellable;
+            if (cancelled) {
+                cancel();
+            }
+        }
+
+        public boolean cancel() {
+            cancelled = true;
+            if (cancellable != null) {
+                // cancellable is idempotent, so it's fine to potentially call it multiple times
+                return cancellable.cancel();
+            }
+            return isCancelled();
+        }
+
+        public boolean isCancelled() {
+            return cancelled;
+        }
     }
 
     private Tuple<Boolean, Boolean> checkIndexAvailable(ClusterState state) {

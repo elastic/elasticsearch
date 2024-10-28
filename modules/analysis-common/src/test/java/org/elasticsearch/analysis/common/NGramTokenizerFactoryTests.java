@@ -28,7 +28,7 @@ import java.io.IOException;
 import java.io.StringReader;
 import java.util.Arrays;
 
-import static com.carrotsearch.randomizedtesting.RandomizedTest.scaledRandomIntBetween;
+import static org.apache.lucene.tests.analysis.BaseTokenStreamTestCase.assertTokenStreamContents;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class NGramTokenizerFactoryTests extends ESTokenStreamTestCase {
@@ -183,6 +183,9 @@ public class NGramTokenizerFactoryTests extends ESTokenStreamTestCase {
                 assertThat(edgeNGramTokenFilter, instanceOf(EdgeNGramTokenFilter.class));
             }
         }
+        assertWarnings(
+            "The [side] parameter is deprecated and will be removed. Use a [reverse] before and after the [edge_ngram] instead."
+        );
     }
 
     /*`

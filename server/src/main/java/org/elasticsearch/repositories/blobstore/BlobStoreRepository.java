@@ -1212,7 +1212,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     l -> new IndexSnapshotsDeletion(indexId).run(l)
                 ),
                 threadPool.info(ThreadPool.Names.SNAPSHOT).getMax(),
-                () -> {},
                 listeners::close
             );
         }
@@ -4030,7 +4029,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         final String file = fileInfo.physicalName();
         try (
             Releasable ignored = context.withCommitRef();
-            IndexInput indexInput = store.openVerifyingInput(file, IOContext.READONCE, fileInfo.metadata())
+            IndexInput indexInput = store.openVerifyingInput(file, IOContext.DEFAULT, fileInfo.metadata())
         ) {
             for (int i = 0; i < fileInfo.numberOfParts(); i++) {
                 final long partBytes = fileInfo.partBytes(i);

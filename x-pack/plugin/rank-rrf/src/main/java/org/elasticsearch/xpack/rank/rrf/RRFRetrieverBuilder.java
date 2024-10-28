@@ -7,25 +7,31 @@
 
 package org.elasticsearch.xpack.rank.rrf;
 
+import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.features.NodeFeature;
-import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.license.LicenseUtils;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.rank.RankBuilder;
+import org.elasticsearch.search.rank.RankDoc;
+import org.elasticsearch.search.retriever.CompoundRetrieverBuilder;
 import org.elasticsearch.search.retriever.RetrieverBuilder;
 import org.elasticsearch.search.retriever.RetrieverParserContext;
-import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.XPackPlugin;
 
 import java.io.IOException;
-import java.util.Collections;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.rank.rrf.RRFRankPlugin.NAME;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * An rrf retriever is used to represent an rrf rank element, but
@@ -34,30 +40,41 @@ import static org.elasticsearch.xpack.rank.rrf.RRFRankPlugin.NAME;
  * top docs that will then be combined and ranked according to the rrf
  * formula.
  */
-public final class RRFRetrieverBuilder extends RetrieverBuilder {
+public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetrieverBuilder> {
 
+    public static final String NAME = "rrf";
     public static final NodeFeature RRF_RETRIEVER_SUPPORTED = new NodeFeature("rrf_retriever_supported");
+    public static final NodeFeature RRF_RETRIEVER_COMPOSITION_SUPPORTED = new NodeFeature("rrf_retriever_composition_supported");
 
     public static final ParseField RETRIEVERS_FIELD = new ParseField("retrievers");
     public static final ParseField RANK_WINDOW_SIZE_FIELD = new ParseField("rank_window_size");
     public static final ParseField RANK_CONSTANT_FIELD = new ParseField("rank_constant");
 
-    public static final ObjectParser<RRFRetrieverBuilder, RetrieverParserContext> PARSER = new ObjectParser<>(
+    public static final int DEFAULT_RANK_CONSTANT = 60;
+    @SuppressWarnings("unchecked")
+    static final ConstructingObjectParser<RRFRetrieverBuilder, RetrieverParserContext> PARSER = new ConstructingObjectParser<>(
         NAME,
-        RRFRetrieverBuilder::new
+        false,
+        args -> {
+            List<RetrieverBuilder> childRetrievers = (List<RetrieverBuilder>) args[0];
+            List<RetrieverSource> innerRetrievers = childRetrievers.stream().map(r -> new RetrieverSource(r, null)).toList();
+            int rankWindowSize = args[1] == null ? RankBuilder.DEFAULT_RANK_WINDOW_SIZE : (int) args[1];
+            int rankConstant = args[2] == null ? DEFAULT_RANK_CONSTANT : (int) args[2];
+            return new RRFRetrieverBuilder(innerRetrievers, rankWindowSize, rankConstant);
+        }
     );
 
     static {
-        PARSER.declareObjectArray((r, v) -> r.retrieverBuilders = v, (p, c) -> {
+        PARSER.declareObjectArray(constructorArg(), (p, c) -> {
             p.nextToken();
             String name = p.currentName();
             RetrieverBuilder retrieverBuilder = p.namedObject(RetrieverBuilder.class, name, c);
+            c.trackRetrieverUsage(retrieverBuilder.getName());
             p.nextToken();
             return retrieverBuilder;
         }, RETRIEVERS_FIELD);
-        PARSER.declareInt((r, v) -> r.rankWindowSize = v, RANK_WINDOW_SIZE_FIELD);
-        PARSER.declareInt((r, v) -> r.rankConstant = v, RANK_CONSTANT_FIELD);
-
+        PARSER.declareInt(optionalConstructorArg(), RANK_WINDOW_SIZE_FIELD);
+        PARSER.declareInt(optionalConstructorArg(), RANK_CONSTANT_FIELD);
         RetrieverBuilder.declareBaseParserFields(NAME, PARSER);
     }
 
@@ -65,39 +82,25 @@ public final class RRFRetrieverBuilder extends RetrieverBuilder {
         if (context.clusterSupportsFeature(RRF_RETRIEVER_SUPPORTED) == false) {
             throw new ParsingException(parser.getTokenLocation(), "unknown retriever [" + NAME + "]");
         }
+        if (context.clusterSupportsFeature(RRF_RETRIEVER_COMPOSITION_SUPPORTED) == false) {
+            throw new IllegalArgumentException("[rrf] retriever composition feature is not supported by all nodes in the cluster");
+        }
         if (RRFRankPlugin.RANK_RRF_FEATURE.check(XPackPlugin.getSharedLicenseState()) == false) {
             throw LicenseUtils.newComplianceException("Reciprocal Rank Fusion (RRF)");
         }
         return PARSER.apply(parser, context);
     }
 
-    List<RetrieverBuilder> retrieverBuilders = Collections.emptyList();
-    int rankWindowSize = RRFRankBuilder.DEFAULT_RANK_WINDOW_SIZE;
-    int rankConstant = RRFRankBuilder.DEFAULT_RANK_CONSTANT;
+    private final int rankConstant;
 
-    @Override
-    public QueryBuilder topDocsQuery() {
-        throw new IllegalStateException("{" + getName() + "} cannot be nested");
+    public RRFRetrieverBuilder(int rankWindowSize, int rankConstant) {
+        this(new ArrayList<>(), rankWindowSize, rankConstant);
     }
 
-    @Override
-    public void extractToSearchSourceBuilder(SearchSourceBuilder searchSourceBuilder, boolean compoundUsed) {
-        if (compoundUsed) {
-            throw new IllegalArgumentException("[rank] cannot be used in children of compound retrievers");
-        }
-
-        for (RetrieverBuilder retrieverBuilder : retrieverBuilders) {
-            if (preFilterQueryBuilders.isEmpty() == false) {
-                retrieverBuilder.getPreFilterQueryBuilders().addAll(preFilterQueryBuilders);
-            }
-
-            retrieverBuilder.extractToSearchSourceBuilder(searchSourceBuilder, true);
-        }
-
-        searchSourceBuilder.rankBuilder(new RRFRankBuilder(rankWindowSize, rankConstant));
+    RRFRetrieverBuilder(List<RetrieverSource> childRetrievers, int rankWindowSize, int rankConstant) {
+        super(childRetrievers, rankWindowSize);
+        this.rankConstant = rankConstant;
     }
-
-    // ---- FOR TESTING XCONTENT PARSING ----
 
     @Override
     public String getName() {
@@ -105,36 +108,86 @@ public final class RRFRetrieverBuilder extends RetrieverBuilder {
     }
 
     @Override
+    protected RRFRetrieverBuilder clone(List<RetrieverSource> newRetrievers) {
+        return new RRFRetrieverBuilder(newRetrievers, this.rankWindowSize, this.rankConstant);
+    }
+
+    @Override
+    protected RRFRankDoc[] combineInnerRetrieverResults(List<ScoreDoc[]> rankResults) {
+        // combine the disjointed sets of TopDocs into a single set or RRFRankDocs
+        // each RRFRankDoc will have both the position and score for each query where
+        // it was within the result set for that query
+        // if a doc isn't part of a result set its position will be NO_RANK [0] and
+        // its score is [0f]
+        int queries = rankResults.size();
+        Map<RankDoc.RankKey, RRFRankDoc> docsToRankResults = Maps.newMapWithExpectedSize(rankWindowSize);
+        int index = 0;
+        for (var rrfRankResult : rankResults) {
+            int rank = 1;
+            for (ScoreDoc scoreDoc : rrfRankResult) {
+                final int findex = index;
+                final int frank = rank;
+                docsToRankResults.compute(new RankDoc.RankKey(scoreDoc.doc, scoreDoc.shardIndex), (key, value) -> {
+                    if (value == null) {
+                        value = new RRFRankDoc(scoreDoc.doc, scoreDoc.shardIndex, queries, rankConstant);
+                    }
+
+                    // calculate the current rrf score for this document
+                    // later used to sort and covert to a rank
+                    value.score += 1.0f / (rankConstant + frank);
+
+                    // record the position for each query
+                    // for explain and debugging
+                    value.positions[findex] = frank - 1;
+
+                    // record the score for each query
+                    // used to later re-rank on the coordinator
+                    value.scores[findex] = scoreDoc.score;
+
+                    return value;
+                });
+                ++rank;
+            }
+            ++index;
+        }
+
+        // sort the results based on rrf score, tiebreaker based on smaller doc id
+        RRFRankDoc[] sortedResults = docsToRankResults.values().toArray(RRFRankDoc[]::new);
+        Arrays.sort(sortedResults);
+        // trim the results if needed, otherwise each shard will always return `rank_window_sieze` results.
+        RRFRankDoc[] topResults = new RRFRankDoc[Math.min(rankWindowSize, sortedResults.length)];
+        for (int rank = 0; rank < topResults.length; ++rank) {
+            topResults[rank] = sortedResults[rank];
+            topResults[rank].rank = rank + 1;
+        }
+        return topResults;
+    }
+
+    // ---- FOR TESTING XCONTENT PARSING ----
+
+    @Override
+    public boolean doEquals(Object o) {
+        RRFRetrieverBuilder that = (RRFRetrieverBuilder) o;
+        return super.doEquals(o) && rankConstant == that.rankConstant;
+    }
+
+    @Override
+    public int doHashCode() {
+        return Objects.hash(super.doHashCode(), rankConstant);
+    }
+
+    @Override
     public void doToXContent(XContentBuilder builder, Params params) throws IOException {
-        if (retrieverBuilders.isEmpty() == false) {
+        if (innerRetrievers.isEmpty() == false) {
             builder.startArray(RETRIEVERS_FIELD.getPreferredName());
 
-            for (RetrieverBuilder retrieverBuilder : retrieverBuilders) {
-                builder.startObject();
-                builder.field(retrieverBuilder.getName());
-                retrieverBuilder.toXContent(builder, params);
-                builder.endObject();
+            for (var entry : innerRetrievers) {
+                entry.retriever().toXContent(builder, params);
             }
-
             builder.endArray();
         }
 
         builder.field(RANK_WINDOW_SIZE_FIELD.getPreferredName(), rankWindowSize);
         builder.field(RANK_CONSTANT_FIELD.getPreferredName(), rankConstant);
     }
-
-    @Override
-    public boolean doEquals(Object o) {
-        RRFRetrieverBuilder that = (RRFRetrieverBuilder) o;
-        return rankWindowSize == that.rankWindowSize
-            && rankConstant == that.rankConstant
-            && Objects.equals(retrieverBuilders, that.retrieverBuilders);
-    }
-
-    @Override
-    public int doHashCode() {
-        return Objects.hash(retrieverBuilders, rankWindowSize, rankConstant);
-    }
-
-    // ---- END FOR TESTING ----
 }

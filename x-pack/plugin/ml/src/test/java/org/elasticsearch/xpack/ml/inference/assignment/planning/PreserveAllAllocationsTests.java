@@ -83,13 +83,13 @@ public class PreserveAllAllocationsTests extends ESTestCase {
             List<AssignmentPlan.Deployment> modelsPreservingAllocations = preserveAllAllocations.modelsPreservingAllocations();
             assertThat(modelsPreservingAllocations, hasSize(2));
 
-            assertThat(modelsPreservingAllocations.get(0).id(), equalTo("m_1"));
+            assertThat(modelsPreservingAllocations.get(0).deploymentId(), equalTo("m_1"));
             assertThat(modelsPreservingAllocations.get(0).memoryBytes(), equalTo(ByteSizeValue.ofMb(30).getBytes()));
             assertThat(modelsPreservingAllocations.get(0).allocations(), equalTo(1));
             assertThat(modelsPreservingAllocations.get(0).threadsPerAllocation(), equalTo(1));
             assertThat(modelsPreservingAllocations.get(0).currentAllocationsByNodeId(), equalTo(Map.of("n_1", 0)));
 
-            assertThat(modelsPreservingAllocations.get(1).id(), equalTo("m_2"));
+            assertThat(modelsPreservingAllocations.get(1).deploymentId(), equalTo("m_2"));
             assertThat(modelsPreservingAllocations.get(1).memoryBytes(), equalTo(ByteSizeValue.ofMb(50).getBytes()));
             assertThat(modelsPreservingAllocations.get(1).allocations(), equalTo(3));
             assertThat(modelsPreservingAllocations.get(1).threadsPerAllocation(), equalTo(4));
@@ -166,7 +166,7 @@ public class PreserveAllAllocationsTests extends ESTestCase {
             List<AssignmentPlan.Deployment> modelsPreservingAllocations = preserveAllAllocations.modelsPreservingAllocations();
             assertThat(modelsPreservingAllocations, hasSize(2));
 
-            assertThat(modelsPreservingAllocations.get(0).id(), equalTo("m_1"));
+            assertThat(modelsPreservingAllocations.get(0).deploymentId(), equalTo("m_1"));
             assertThat(modelsPreservingAllocations.get(0).memoryBytes(), equalTo(ByteSizeValue.ofMb(30).getBytes()));
             assertThat(modelsPreservingAllocations.get(0).perDeploymentMemoryBytes(), equalTo(ByteSizeValue.ofMb(300).getBytes()));
             assertThat(modelsPreservingAllocations.get(0).perAllocationMemoryBytes(), equalTo(ByteSizeValue.ofMb(10).getBytes()));
@@ -174,7 +174,7 @@ public class PreserveAllAllocationsTests extends ESTestCase {
             assertThat(modelsPreservingAllocations.get(0).threadsPerAllocation(), equalTo(1));
             assertThat(modelsPreservingAllocations.get(0).currentAllocationsByNodeId(), equalTo(Map.of("n_1", 0)));
 
-            assertThat(modelsPreservingAllocations.get(1).id(), equalTo("m_2"));
+            assertThat(modelsPreservingAllocations.get(1).deploymentId(), equalTo("m_2"));
             assertThat(modelsPreservingAllocations.get(1).memoryBytes(), equalTo(ByteSizeValue.ofMb(50).getBytes()));
             assertThat(modelsPreservingAllocations.get(1).perDeploymentMemoryBytes(), equalTo(ByteSizeValue.ofMb(300).getBytes()));
             assertThat(modelsPreservingAllocations.get(1).perAllocationMemoryBytes(), equalTo(ByteSizeValue.ofMb(10).getBytes()));

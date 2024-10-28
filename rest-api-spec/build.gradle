@@ -53,3 +53,14 @@ tasks.register('enforceYamlTestConvention').configure {
 tasks.named("precommit").configure {
   dependsOn 'enforceYamlTestConvention'
 }
+
+tasks.named("yamlRestCompatTestTransform").configure ({ task ->
+  task.replaceValueInMatch("profile.shards.0.dfs.knn.0.query.0.description", "DocAndScoreQuery[0,...][0.009673266,...],0.009673266", "dfs knn vector profiling")
+  task.replaceValueInMatch("profile.shards.0.dfs.knn.0.query.0.description", "DocAndScoreQuery[0,...][0.009673266,...],0.009673266", "dfs knn vector profiling with vector_operations_count")
+  task.skipTest("indices.sort/10_basic/Index Sort", "warning does not exist for compatibility")
+  task.skipTest("search/330_fetch_fields/Test search rewrite", "warning does not exist for compatibility")
+  task.skipTest("indices.create/21_synthetic_source_stored/object param - nested object with stored array", "temporary until backported")
+  task.skipTest("cat.aliases/10_basic/Deprecated local parameter", "CAT APIs not covered by compatibility policy")
+  task.skipTest("cluster.desired_nodes/10_basic/Test delete desired nodes with node_version generates a warning", "node_version warning is removed in 9.0")
+  task.skipTest("cluster.desired_nodes/10_basic/Test update desired nodes with node_version generates a warning", "node_version warning is removed in 9.0")
+})

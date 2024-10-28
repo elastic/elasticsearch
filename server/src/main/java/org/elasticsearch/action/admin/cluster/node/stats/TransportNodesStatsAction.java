@@ -16,7 +16,9 @@ import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.admin.cluster.allocation.TransportGetAllocationStatsAction;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequestParameters.Metric;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
+import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
@@ -47,7 +49,7 @@ public class TransportNodesStatsAction extends TransportNodesAction<
     NodesStatsResponse,
     TransportNodesStatsAction.NodeStatsRequest,
     NodeStats,
-    Void> {
+    SubscribableListener<TransportGetAllocationStatsAction.Response>> {
 
     public static final ActionType<NodesStatsResponse> TYPE = new ActionType<>("cluster:monitor/nodes/stats");
 
@@ -77,37 +79,55 @@ public class TransportNodesStatsAction extends TransportNodesAction<
 
     @Override
     protected NodesStatsResponse newResponse(NodesStatsRequest request, List<NodeStats> responses, List<FailedNodeException> failures) {
-        return new NodesStatsResponse(clusterService.getClusterName(), responses, failures);
+        assert false;
+        throw new UnsupportedOperationException("use newResponseAsync instead");
+    }
+
+    @Override
+    protected SubscribableListener<TransportGetAllocationStatsAction.Response> createActionContext(Task task, NodesStatsRequest request) {
+        return SubscribableListener.newForked(l -> {
+            var metrics = request.getNodesStatsRequestParameters().requestedMetrics();
+            if (metrics.contains(Metric.FS) || metrics.contains(Metric.ALLOCATIONS)) {
+                new ParentTaskAssigningClient(client, clusterService.localNode(), task).execute(
+                    TransportGetAllocationStatsAction.TYPE,
+                    new TransportGetAllocationStatsAction.Request(
+                        Objects.requireNonNullElse(request.timeout(), RestUtils.REST_MASTER_TIMEOUT_DEFAULT),
+                        new TaskId(clusterService.localNode().getId(), task.getId()),
+                        metrics
+                    ),
+                    l
+                );
+            } else {
+                l.onResponse(null);
+            }
+        });
     }
 
     @Override
     protected void newResponseAsync(
         Task task,
         NodesStatsRequest request,
-        Void actionContext,
+        SubscribableListener<TransportGetAllocationStatsAction.Response> actionContext,
         List<NodeStats> responses,
         List<FailedNodeException> failures,
         ActionListener<NodesStatsResponse> listener
     ) {
-        var metrics = request.getNodesStatsRequestParameters().requestedMetrics();
-        if (metrics.contains(Metric.FS) || metrics.contains(Metric.ALLOCATIONS)) {
-            client.execute(
-                TransportGetAllocationStatsAction.TYPE,
-                new TransportGetAllocationStatsAction.Request(
-                    Objects.requireNonNullElse(request.timeout(), RestUtils.REST_MASTER_TIMEOUT_DEFAULT),
-                    new TaskId(clusterService.localNode().getId(), task.getId()),
-                    metrics
-                ),
-                listener.delegateFailure(
-                    (l, r) -> ActionListener.respondAndRelease(
-                        l,
-                        newResponse(request, merge(responses, r.getNodeAllocationStats(), r.getDiskThresholdSettings()), failures)
-                    )
+        actionContext
+            // merge in the stats from the master, if available
+            .andThenApply(
+                getAllocationStatsResponse -> new NodesStatsResponse(
+                    clusterService.getClusterName(),
+                    getAllocationStatsResponse == null
+                        ? responses
+                        : merge(
+                            responses,
+                            getAllocationStatsResponse.getNodeAllocationStats(),
+                            getAllocationStatsResponse.getDiskThresholdSettings()
+                        ),
+                    failures
                 )
-            );
-        } else {
-            ActionListener.run(listener, l -> ActionListener.respondAndRelease(l, newResponse(request, responses, failures)));
-        }
+            )
+            .addListener(listener);
     }
 
     private static List<NodeStats> merge(
@@ -166,8 +186,7 @@ public class TransportNodesStatsAction extends TransportNodesAction<
         public NodeStatsRequest(StreamInput in) throws IOException {
             super(in);
             this.nodesStatsRequestParameters = new NodesStatsRequestParameters(in);
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)
-                && in.getTransportVersion().before(TransportVersions.DROP_UNUSED_NODES_IDS)) {
+            if (in.getTransportVersion().between(TransportVersions.V_8_13_0, TransportVersions.V_8_15_0)) {
                 in.readStringArray(); // formerly nodeIds, now unused
             }
         }
@@ -194,8 +213,7 @@ public class TransportNodesStatsAction extends TransportNodesAction<
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             nodesStatsRequestParameters.writeTo(out);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)
-                && out.getTransportVersion().before(TransportVersions.DROP_UNUSED_NODES_IDS)) {
+            if (out.getTransportVersion().between(TransportVersions.V_8_13_0, TransportVersions.V_8_15_0)) {
                 out.writeStringArray(Strings.EMPTY_ARRAY); // formerly nodeIds, now unused
             }
         }

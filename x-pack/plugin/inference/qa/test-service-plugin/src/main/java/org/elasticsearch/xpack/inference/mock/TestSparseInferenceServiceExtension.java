@@ -37,7 +37,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 public class TestSparseInferenceServiceExtension implements InferenceServiceExtension {
     @Override
@@ -70,7 +69,6 @@ public class TestSparseInferenceServiceExtension implements InferenceServiceExte
             String modelId,
             TaskType taskType,
             Map<String, Object> config,
-            Set<String> platformArchitectures,
             ActionListener<Model> parsedModelListener
         ) {
             var serviceSettingsMap = (Map<String, Object>) config.remove(ModelConfigurations.SERVICE_SETTINGS);
@@ -88,6 +86,7 @@ public class TestSparseInferenceServiceExtension implements InferenceServiceExte
             Model model,
             @Nullable String query,
             List<String> input,
+            boolean stream,
             Map<String, Object> taskSettings,
             InputType inputType,
             TimeValue timeout,

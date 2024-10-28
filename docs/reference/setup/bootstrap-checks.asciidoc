@@ -60,6 +60,7 @@ in the <<set-jvm-options,JVM options>>. We strongly encourage you to do
 this if you are in this specific situation. This system property can be used to
 force execution of the bootstrap checks independent of the node configuration.
 
+[[bootstrap-checks-heap-size]]
 === Heap size check
 
 By default, {es} automatically sizes JVM heap based on a node's
@@ -71,6 +72,7 @@ size on startup. If the initial heap size is not equal to the maximum heap size,
 some JVM heap may not be locked after a resize. To avoid these issues, start the
 JVM with an initial heap size equal to the maximum heap size.
 
+[[bootstrap-checks-file-descriptor]]
 === File descriptor check
 
 File descriptors are a Unix construct for tracking open "files". In Unix
@@ -83,6 +85,7 @@ bootstrap check is enforced on OS X and Linux. To pass the file
 descriptor check, you might have to configure <<file-descriptors,file
 descriptors>>.
 
+[[bootstrap-checks-memory-lock]]
 === Memory lock check
 
 When the JVM does a major garbage collection it touches every page of
@@ -116,6 +119,7 @@ least 4096 threads. This can be done via `/etc/security/limits.conf`
 using the `nproc` setting (note that you might have to increase the
 limits for the `root` user too).
 
+[[bootstrap-checks-max-file-size]]
 === Max file size check
 
 The segment files that are the components of individual shards and the translog
@@ -144,6 +148,7 @@ address space. This can be done via adding `<user> - as unlimited`
 to `/etc/security/limits.conf`. This may require you to increase the limits
 for the `root` user too.
 
+[[bootstrap-checks-max-map-count]]
 === Maximum map count check
 
 Continuing from the previous <<max-size-virtual-memory-check,point>>, to
@@ -158,6 +163,7 @@ Alternatively, the maximum map count check is only needed if you are using
 indices. If you <<allow-mmap,do not allow>> the use of `mmap` then this
 bootstrap check will not be enforced.
 
+[[bootstrap-checks-client-jvm]]
 === Client JVM check
 
 There are two different JVMs provided by OpenJDK-derived JVMs: the
@@ -171,6 +177,7 @@ JVM check, you must start Elasticsearch with the server VM. On modern
 systems and operating systems, the server VM is the
 default.
 
+[[bootstrap-checks-serial-collector]]
 === Use serial collector check
 
 There are various garbage collectors for the OpenJDK-derived JVMs
@@ -187,6 +194,7 @@ configuration that ships with Elasticsearch configures Elasticsearch to
 use the G1GC garbage collector with JDK14 and later versions. For earlier
 JDK versions, the configuration defaults to the CMS collector.
 
+[[bootstrap-checks-syscall-filter]]
 === System call filter check
 Elasticsearch installs system call filters of various flavors depending
 on the operating system (e.g., seccomp on Linux). These system call
@@ -198,6 +206,7 @@ installed. To pass the system call filter check you must fix any
 configuration errors on your system that prevented system call filters
 from installing (check your logs).
 
+[[bootstrap-checks-onerror]]
 === OnError and OnOutOfMemoryError checks
 
 The JVM options `OnError` and `OnOutOfMemoryError` enable executing
@@ -214,6 +223,7 @@ use the JVM flag `ExitOnOutOfMemoryError`. While this does not have the
 full capabilities of `OnError` nor `OnOutOfMemoryError`, arbitrary
 forking will not be supported with seccomp enabled.
 
+[[bootstrap-checks-early-access]]
 === Early-access check
 
 The OpenJDK project provides early-access snapshots of upcoming releases. These
@@ -221,12 +231,14 @@ releases are not suitable for production. The early-access check detects these
 early-access snapshots. To pass this check, you must start Elasticsearch on a
 release build of the JVM.
 
+[[bootstrap-checks-all-permission]]
 === All permission check
 
 The all permission check ensures that the security policy used during bootstrap
 does not grant the `java.security.AllPermission` to Elasticsearch. Running with
 the all permission granted is equivalent to disabling the security manager.
 
+[[bootstrap-checks-discovery-configuration]]
 === Discovery configuration check
 
 By default, when Elasticsearch first starts up it will try and discover other

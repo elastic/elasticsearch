@@ -1819,12 +1819,6 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             160,
             TransportVersions.V_7_10_0
         ),
-        VERSION_MISMATCH_EXCEPTION(
-            org.elasticsearch.action.search.VersionMismatchException.class,
-            org.elasticsearch.action.search.VersionMismatchException::new,
-            161,
-            TransportVersions.V_7_12_0
-        ),
         AUTHENTICATION_PROCESSING_ERROR(
             org.elasticsearch.ElasticsearchAuthenticationProcessingError.class,
             org.elasticsearch.ElasticsearchAuthenticationProcessingError::new,
@@ -1923,7 +1917,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             ResourceAlreadyUploadedException.class,
             ResourceAlreadyUploadedException::new,
             181,
-            TransportVersions.ADD_RESOURCE_ALREADY_UPLOADED_EXCEPTION
+            TransportVersions.V_8_15_0
         ),
         INGEST_PIPELINE_EXCEPTION(
             org.elasticsearch.ingest.IngestPipelineException.class,

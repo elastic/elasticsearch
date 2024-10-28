@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.parser;
 import org.elasticsearch.Build;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.capabilities.UnresolvedException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -19,15 +20,19 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
-import org.elasticsearch.xpack.esql.core.expression.predicate.fulltext.StringQueryPredicate;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Not;
+import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.Order;
+import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.FilteredExpression;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.RLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mod;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
@@ -36,27 +41,35 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Les
 import org.elasticsearch.xpack.esql.plan.TableIdentifier;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
+import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
+import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 
-import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsConstant;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsIdentifier;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsPattern;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
 import static org.elasticsearch.xpack.esql.core.expression.Literal.FALSE;
 import static org.elasticsearch.xpack.esql.core.expression.Literal.TRUE;
@@ -314,6 +327,61 @@ public class StatementParserTests extends AbstractStatementParserTests {
         }
     }
 
+    public void testStatsWithGroupKeyAndAggFilter() throws Exception {
+        var a = attribute("a");
+        var f = new UnresolvedFunction(EMPTY, "min", DEFAULT, List.of(a));
+        var filter = new Alias(EMPTY, "min(a) where a > 1", new FilteredExpression(EMPTY, f, new GreaterThan(EMPTY, a, integer(1))));
+        assertEquals(
+            new Aggregate(EMPTY, PROCESSING_CMD_INPUT, Aggregate.AggregateType.STANDARD, List.of(a), List.of(filter, a)),
+            processingCommand("stats min(a) where a > 1 by a")
+        );
+    }
+
+    public void testStatsWithGroupKeyAndMixedAggAndFilter() throws Exception {
+        var a = attribute("a");
+        var min = new UnresolvedFunction(EMPTY, "min", DEFAULT, List.of(a));
+        var max = new UnresolvedFunction(EMPTY, "max", DEFAULT, List.of(a));
+        var avg = new UnresolvedFunction(EMPTY, "avg", DEFAULT, List.of(a));
+        var min_alias = new Alias(EMPTY, "min", min);
+
+        var max_filter_ex = new Or(
+            EMPTY,
+            new GreaterThan(EMPTY, new Mod(EMPTY, a, integer(3)), integer(10)),
+            new GreaterThan(EMPTY, new Div(EMPTY, a, integer(2)), integer(100))
+        );
+        var max_filter = new Alias(EMPTY, "max", new FilteredExpression(EMPTY, max, max_filter_ex));
+
+        var avg_filter_ex = new GreaterThan(EMPTY, new Div(EMPTY, a, integer(2)), integer(100));
+        var avg_filter = new Alias(EMPTY, "avg", new FilteredExpression(EMPTY, avg, avg_filter_ex));
+
+        assertEquals(
+            new Aggregate(
+                EMPTY,
+                PROCESSING_CMD_INPUT,
+                Aggregate.AggregateType.STANDARD,
+                List.of(a),
+                List.of(min_alias, max_filter, avg_filter, a)
+            ),
+            processingCommand("""
+                stats
+                min = min(a),
+                max = max(a) WHERE (a % 3 > 10 OR a / 2 > 100),
+                avg = avg(a) WHERE a / 2 > 100
+                BY a
+                """)
+        );
+    }
+
+    public void testStatsWithoutGroupKeyMixedAggAndFilter() throws Exception {
+        var a = attribute("a");
+        var f = new UnresolvedFunction(EMPTY, "min", DEFAULT, List.of(a));
+        var filter = new Alias(EMPTY, "min(a) where a > 1", new FilteredExpression(EMPTY, f, new GreaterThan(EMPTY, a, integer(1))));
+        assertEquals(
+            new Aggregate(EMPTY, PROCESSING_CMD_INPUT, Aggregate.AggregateType.STANDARD, List.of(), List.of(filter)),
+            processingCommand("stats min(a) where a > 1")
+        );
+    }
+
     public void testInlineStatsWithGroups() {
         var query = "inlinestats b = min(a) by c, d.e";
         if (Build.current().isSnapshot() == false) {
@@ -358,7 +426,12 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testStringAsIndexPattern() {
-        for (String command : List.of("FROM", "METRICS")) {
+        List<String> commands = new ArrayList<>();
+        commands.add("FROM");
+        if (Build.current().isSnapshot()) {
+            commands.add("METRICS");
+        }
+        for (String command : commands) {
             assertStringAsIndexPattern("foo", command + " \"foo\"");
             assertStringAsIndexPattern("foo,test-*", command + """
                  "foo","test-*"
@@ -379,25 +452,32 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 "<logstash-{now/M{yyyy.MM}}>,<logstash-{now/d{yyyy.MM.dd|+12:00}}>",
                 command + " <logstash-{now/M{yyyy.MM}}>, \"<logstash-{now/d{yyyy.MM.dd|+12:00}}>\""
             );
-
+            assertStringAsIndexPattern(
+                "-<logstash-{now/M{yyyy.MM}}>,-<-logstash-{now/M{yyyy.MM}}>,"
+                    + "-<logstash-{now/d{yyyy.MM.dd|+12:00}}>,-<-logstash-{now/d{yyyy.MM.dd|+12:00}}>",
+                command
+                    + " -<logstash-{now/M{yyyy.MM}}>, -<-logstash-{now/M{yyyy.MM}}>, "
+                    + "\"-<logstash-{now/d{yyyy.MM.dd|+12:00}}>\", \"-<-logstash-{now/d{yyyy.MM.dd|+12:00}}>\""
+            );
             assertStringAsIndexPattern("foo,test,xyz", command + " \"\"\"foo\"\"\",   test,\"xyz\"");
-
             assertStringAsIndexPattern("`backtick`,``multiple`back``ticks```", command + " `backtick`, ``multiple`back``ticks```");
-
             assertStringAsIndexPattern("test,metadata,metaata,.metadata", command + " test,\"metadata\", metaata, .metadata");
-
             assertStringAsIndexPattern(".dot", command + " .dot");
-
-            assertStringAsIndexPattern("cluster:index", command + " cluster:index");
             assertStringAsIndexPattern("cluster:index|pattern", command + " cluster:\"index|pattern\"");
-            assertStringAsIndexPattern("cluster:.index", command + " cluster:.index");
-            assertStringAsIndexPattern("cluster*:index*", command + " cluster*:index*");
-            assertStringAsIndexPattern("cluster*:*", command + " cluster*:*");
-            assertStringAsIndexPattern("*:index*", command + " *:index*");
-            assertStringAsIndexPattern("*:index|pattern", command + " *:\"index|pattern\"");
-            assertStringAsIndexPattern("*:*", command + " *:*");
-            assertStringAsIndexPattern("*:*,cluster*:index|pattern,i|p", command + " *:*, cluster*:\"index|pattern\", \"i|p\"");
+            assertStringAsIndexPattern("*:index|pattern", command + " \"*:index|pattern\"");
+            clusterAndIndexAsIndexPattern(command, "cluster:index");
+            clusterAndIndexAsIndexPattern(command, "cluster:.index");
+            clusterAndIndexAsIndexPattern(command, "cluster*:index*");
+            clusterAndIndexAsIndexPattern(command, "cluster*:<logstash-{now/D}>*");
+            clusterAndIndexAsIndexPattern(command, "cluster*:*");
+            clusterAndIndexAsIndexPattern(command, "*:index*");
+            clusterAndIndexAsIndexPattern(command, "*:*");
         }
+    }
+
+    private void clusterAndIndexAsIndexPattern(String command, String clusterAndIndex) {
+        assertStringAsIndexPattern(clusterAndIndex, command + " " + clusterAndIndex);
+        assertStringAsIndexPattern(clusterAndIndex, command + " \"" + clusterAndIndex + "\"");
     }
 
     public void testStringAsLookupIndexPattern() {
@@ -418,19 +498,105 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
 
         assertStringAsLookupIndexPattern("foo", "ROW x = 1 | LOOKUP \"\"\"foo\"\"\" ON j");
-
         assertStringAsLookupIndexPattern("`backtick`", "ROW x = 1 | LOOKUP `backtick` ON j");
         assertStringAsLookupIndexPattern("``multiple`back``ticks```", "ROW x = 1 | LOOKUP ``multiple`back``ticks``` ON j");
-
         assertStringAsLookupIndexPattern(".dot", "ROW x = 1 | LOOKUP .dot ON j");
+        clusterAndIndexAsLookupIndexPattern("cluster:index");
+        clusterAndIndexAsLookupIndexPattern("cluster:.index");
+        clusterAndIndexAsLookupIndexPattern("cluster*:index*");
+        clusterAndIndexAsLookupIndexPattern("cluster*:*");
+        clusterAndIndexAsLookupIndexPattern("*:index*");
+        clusterAndIndexAsLookupIndexPattern("*:*");
+    }
 
-        assertStringAsLookupIndexPattern("cluster:index", "ROW x = 1 | LOOKUP cluster:index ON j");
-        assertStringAsLookupIndexPattern("cluster:.index", "ROW x = 1 | LOOKUP cluster:.index ON j");
-        assertStringAsLookupIndexPattern("cluster*:index*", "ROW x = 1 | LOOKUP cluster*:index* ON j");
-        assertStringAsLookupIndexPattern("cluster*:*", "ROW x = 1 | LOOKUP cluster*:* ON j");
-        assertStringAsLookupIndexPattern("*:index*", "ROW x = 1 | LOOKUP  *:index* ON j");
-        assertStringAsLookupIndexPattern("*:*", "ROW x = 1 | LOOKUP  *:* ON j");
+    private void clusterAndIndexAsLookupIndexPattern(String clusterAndIndex) {
+        assertStringAsLookupIndexPattern(clusterAndIndex, "ROW x = 1 | LOOKUP " + clusterAndIndex + " ON j");
+        assertStringAsLookupIndexPattern(clusterAndIndex, "ROW x = 1 | LOOKUP \"" + clusterAndIndex + "\"" + " ON j");
+    }
 
+    public void testInvalidCharacterInIndexPattern() {
+        Map<String, String> commands = new HashMap<>();
+        commands.put("FROM {}", "line 1:7: ");
+        if (Build.current().isSnapshot()) {
+            commands.put("METRICS {}", "line 1:10: ");
+            commands.put("ROW x = 1 | LOOKUP {} ON j", "line 1:21: ");
+        }
+        String lineNumber;
+        for (String command : commands.keySet()) {
+            lineNumber = commands.get(command);
+            expectInvalidIndexNameErrorWithLineNumber(command, "index|pattern", lineNumber);
+            expectInvalidIndexNameErrorWithLineNumber(command, "index pattern", lineNumber);
+            expectInvalidIndexNameErrorWithLineNumber(command, "index#pattern", lineNumber);
+            expectInvalidIndexNameErrorWithLineNumber(command, "index?pattern", lineNumber);
+            expectInvalidIndexNameErrorWithLineNumber(command, "index>pattern", lineNumber);
+            expectInvalidIndexNameErrorWithLineNumber(command, "index<pattern", lineNumber);
+            expectInvalidIndexNameErrorWithLineNumber(command, "index/pattern", lineNumber);
+            expectInvalidIndexNameErrorWithLineNumber(command, "_indexpattern", lineNumber);
+            expectInvalidIndexNameErrorWithLineNumber(command, "+indexpattern", lineNumber);
+            expectInvalidIndexNameErrorWithLineNumber(command, "..", lineNumber);
+            expectInvalidIndexNameErrorWithLineNumber(command, "+<logstash-{now/d}>", lineNumber);
+            expectInvalidIndexNameErrorWithLineNumber(command, "_<logstash-{now/d}>", lineNumber);
+            expectInvalidIndexNameErrorWithLineNumber(command, "index\\pattern", lineNumber, "index\\pattern");
+            expectInvalidIndexNameErrorWithLineNumber(command, "\"index\\\\pattern\"", lineNumber, "index\\pattern");
+            expectInvalidIndexNameErrorWithLineNumber(command, "\"--indexpattern\"", lineNumber, "-indexpattern");
+            expectInvalidIndexNameErrorWithLineNumber(command, "--indexpattern", lineNumber, "-indexpattern");
+            expectInvalidIndexNameErrorWithLineNumber(command, "<--logstash-{now/M{yyyy.MM}}>", lineNumber, "-logstash-");
+            expectInvalidIndexNameErrorWithLineNumber(
+                command,
+                "\"--<logstash-{now/M{yyyy.MM}}>\"",
+                lineNumber,
+                "-<logstash-{now/M{yyyy.MM}}>"
+            );
+            expectInvalidIndexNameErrorWithLineNumber(command, "<logstash#{now/d}>", lineNumber, "logstash#");
+            expectInvalidIndexNameErrorWithLineNumber(command, "\"<logstash#{now/d}>\"", lineNumber, "logstash#");
+            expectInvalidIndexNameErrorWithLineNumber(command, "<<logstash{now/d}>>", lineNumber, "<logstash");
+            expectInvalidIndexNameErrorWithLineNumber(command, "\"<<logstash{now/d}>>\"", lineNumber, "<logstash");
+            expectInvalidIndexNameErrorWithLineNumber(command, "<<logstash<{now/d}>>>", lineNumber, "<logstash<");
+            expectInvalidIndexNameErrorWithLineNumber(command, "\"<<logstash<{now/d}>>>\"", lineNumber, "<logstash<");
+            expectInvalidIndexNameErrorWithLineNumber(command, "\"-<logstash- {now/d{yyyy.MM.dd|+12:00}}>\"", lineNumber, "logstash- ");
+        }
+
+        // comma separated indices, with exclusions
+        // Invalid index names after removing exclusion fail, when there is no index name with wildcard before it
+        for (String command : commands.keySet()) {
+            if (command.contains("LOOKUP")) {
+                continue;
+            }
+
+            lineNumber = command.contains("FROM") ? "line 1:21: " : "line 1:24: ";
+            expectInvalidIndexNameErrorWithLineNumber(command, "indexpattern, --indexpattern", lineNumber, "-indexpattern");
+            expectInvalidIndexNameErrorWithLineNumber(command, "indexpattern, \"--indexpattern\"", lineNumber, "-indexpattern");
+            expectInvalidIndexNameErrorWithLineNumber(command, "\"indexpattern, --indexpattern\"", commands.get(command), "-indexpattern");
+            clustersAndIndices(command, "indexpattern", "-indexpattern");
+        }
+
+        // Invalid index names, except invalid DateMath, are ignored if there is an index name with wildcard before it
+        String dateMathError = "unit [D] not supported for date math [/D]";
+        for (String command : commands.keySet()) {
+            if (command.contains("LOOKUP")) {
+                continue;
+            }
+            lineNumber = command.contains("FROM") ? "line 1:10: " : "line 1:13: ";
+            clustersAndIndices(command, "*", "-index#pattern");
+            clustersAndIndices(command, "index*", "-index#pattern");
+            clustersAndIndices(command, "*", "-<--logstash-{now/M{yyyy.MM}}>");
+            clustersAndIndices(command, "index*", "-<--logstash#-{now/M{yyyy.MM}}>");
+            expectDateMathErrorWithLineNumber(command, "*, \"-<-logstash-{now/D}>\"", lineNumber, dateMathError);
+            expectDateMathErrorWithLineNumber(command, "*, -<-logstash-{now/D}>", lineNumber, dateMathError);
+            expectDateMathErrorWithLineNumber(command, "\"*, -<-logstash-{now/D}>\"", commands.get(command), dateMathError);
+        }
+    }
+
+    private void clustersAndIndices(String command, String indexString1, String indexString2) {
+        assertEquals(unresolvedRelation(indexString1 + "," + indexString2), statement(command, indexString1 + ", " + indexString2));
+        assertEquals(
+            unresolvedRelation(indexString1 + "," + indexString2),
+            statement(command, indexString1 + ", \"" + indexString2 + "\"")
+        );
+        assertEquals(
+            unresolvedRelation(indexString1 + ", " + indexString2),
+            statement(command, "\"" + indexString1 + ", " + indexString2 + "\"")
+        );
     }
 
     public void testInvalidQuotingAsFromIndexPattern() {
@@ -716,11 +882,18 @@ public class StatementParserTests extends AbstractStatementParserTests {
             "row x = is_null(f)",
             "line 1:10: is_null function is not supported anymore, please use 'is null'/'is not null' predicates instead"
         );
+
+        if (Build.current().isSnapshot()) {
+            expectError(
+                "from test | eval x = ?fn1(f)",
+                List.of(paramAsIdentifier("fn1", "IS_NULL")),
+                "line 1:23: is_null function is not supported anymore, please use 'is null'/'is not null' predicates instead"
+            );
+        }
     }
 
     public void testMetadataFieldOnOtherSources() {
         expectError("row a = 1 metadata _index", "line 1:20: extraneous input '_index' expecting <EOF>");
-        expectError("meta functions metadata _index", "line 1:16: token recognition error at: 'm'");
         expectError("show info metadata _index", "line 1:11: token recognition error at: 'm'");
         expectError(
             "explain [from foo] metadata _index",
@@ -927,14 +1100,14 @@ public class StatementParserTests extends AbstractStatementParserTests {
             "row x = ?, y = ?, a = ?, b = ?, c = ?, d = ?, e = ?-1, f = ?+1",
             new QueryParams(
                 List.of(
-                    new QueryParam(null, 1, INTEGER),
-                    new QueryParam(null, "2", KEYWORD),
-                    new QueryParam(null, "2 days", KEYWORD),
-                    new QueryParam(null, "4 hours", KEYWORD),
-                    new QueryParam(null, "1.2.3", KEYWORD),
-                    new QueryParam(null, "127.0.0.1", KEYWORD),
-                    new QueryParam(null, 10, INTEGER),
-                    new QueryParam(null, 10, INTEGER)
+                    paramAsConstant(null, 1),
+                    paramAsConstant(null, "2"),
+                    paramAsConstant(null, "2 days"),
+                    paramAsConstant(null, "4 hours"),
+                    paramAsConstant(null, "1.2.3"),
+                    paramAsConstant(null, "127.0.0.1"),
+                    paramAsConstant(null, 10),
+                    paramAsConstant(null, 10)
                 )
             )
         );
@@ -993,23 +1166,12 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(alias.child().fold(), is(11));
     }
 
-    public void testMatchCommand() throws IOException {
-        assumeTrue("Match command available just for snapshots", Build.current().isSnapshot());
-        String queryString = "field: value";
-        assertEquals(
-            new Filter(EMPTY, PROCESSING_CMD_INPUT, new StringQueryPredicate(EMPTY, queryString, null)),
-            processingCommand("match \"" + queryString + "\"")
-        );
-
-        expectError("from a | match an unquoted string", "mismatched input 'an' expecting QUOTED_STRING");
-    }
-
     public void testMissingInputParams() {
-        expectError("row x = ?, y = ?", List.of(new QueryParam(null, 1, INTEGER)), "Not enough actual parameters 1");
+        expectError("row x = ?, y = ?", List.of(paramAsConstant(null, 1)), "Not enough actual parameters 1");
     }
 
     public void testNamedParams() {
-        LogicalPlan stm = statement("row x=?name1, y = ?name1", new QueryParams(List.of(new QueryParam("name1", 1, INTEGER))));
+        LogicalPlan stm = statement("row x=?name1, y = ?name1", new QueryParams(List.of(paramAsConstant("name1", 1))));
         assertThat(stm, instanceOf(Row.class));
         Row row = (Row) stm;
         assertThat(row.fields().size(), is(2));
@@ -1030,33 +1192,33 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testInvalidNamedParams() {
         expectError(
             "from test | where x < ?n1 | eval y = ?n2",
-            List.of(new QueryParam("n1", 5, INTEGER)),
+            List.of(paramAsConstant("n1", 5)),
             "Unknown query parameter [n2], did you mean [n1]?"
         );
 
         expectError(
             "from test | where x < ?n1 | eval y = ?n2",
-            List.of(new QueryParam("n1", 5, INTEGER), new QueryParam("n3", 5, INTEGER)),
+            List.of(paramAsConstant("n1", 5), paramAsConstant("n3", 5)),
             "Unknown query parameter [n2], did you mean any of [n3, n1]?"
         );
 
-        expectError("from test | where x < ?@1", List.of(new QueryParam("@1", 5, INTEGER)), "extraneous input '@1' expecting <EOF>");
+        expectError("from test | where x < ?@1", List.of(paramAsConstant("@1", 5)), "extraneous input '@1' expecting <EOF>");
 
-        expectError("from test | where x < ?#1", List.of(new QueryParam("#1", 5, INTEGER)), "token recognition error at: '#'");
+        expectError("from test | where x < ?#1", List.of(paramAsConstant("#1", 5)), "token recognition error at: '#'");
 
         expectError(
             "from test | where x < ??",
-            List.of(new QueryParam("n_1", 5, INTEGER), new QueryParam("n_2", 5, INTEGER)),
+            List.of(paramAsConstant("n_1", 5), paramAsConstant("n_2", 5)),
             "extraneous input '?' expecting <EOF>"
         );
 
-        expectError("from test | where x < ?Å", List.of(new QueryParam("Å", 5, INTEGER)), "line 1:24: token recognition error at: 'Å'");
+        expectError("from test | where x < ?Å", List.of(paramAsConstant("Å", 5)), "line 1:24: token recognition error at: 'Å'");
 
-        expectError("from test | eval x = ?Å", List.of(new QueryParam("Å", 5, INTEGER)), "line 1:23: token recognition error at: 'Å'");
+        expectError("from test | eval x = ?Å", List.of(paramAsConstant("Å", 5)), "line 1:23: token recognition error at: 'Å'");
     }
 
     public void testPositionalParams() {
-        LogicalPlan stm = statement("row x=?1, y=?1", new QueryParams(List.of(new QueryParam(null, 1, INTEGER))));
+        LogicalPlan stm = statement("row x=?1, y=?1", new QueryParams(List.of(paramAsConstant(null, 1))));
         assertThat(stm, instanceOf(Row.class));
         Row row = (Row) stm;
         assertThat(row.fields().size(), is(2));
@@ -1077,32 +1239,32 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testInvalidPositionalParams() {
         expectError(
             "from test | where x < ?0",
-            List.of(new QueryParam(null, 5, INTEGER)),
+            List.of(paramAsConstant(null, 5)),
             "No parameter is defined for position 0, did you mean position 1"
         );
 
         expectError(
             "from test | where x < ?2",
-            List.of(new QueryParam(null, 5, INTEGER)),
+            List.of(paramAsConstant(null, 5)),
             "No parameter is defined for position 2, did you mean position 1"
         );
 
         expectError(
             "from test | where x < ?0 and y < ?2",
-            List.of(new QueryParam(null, 5, INTEGER)),
+            List.of(paramAsConstant(null, 5)),
             "line 1:24: No parameter is defined for position 0, did you mean position 1?; "
                 + "line 1:35: No parameter is defined for position 2, did you mean position 1?"
         );
 
         expectError(
             "from test | where x < ?0",
-            List.of(new QueryParam(null, 5, INTEGER), new QueryParam(null, 10, INTEGER)),
+            List.of(paramAsConstant(null, 5), paramAsConstant(null, 10)),
             "No parameter is defined for position 0, did you mean any position between 1 and 2?"
         );
     }
 
     public void testParamInWhere() {
-        LogicalPlan plan = statement("from test | where x < ? |  limit 10", new QueryParams(List.of(new QueryParam(null, 5, INTEGER))));
+        LogicalPlan plan = statement("from test | where x < ? |  limit 10", new QueryParams(List.of(paramAsConstant(null, 5))));
         assertThat(plan, instanceOf(Limit.class));
         Limit limit = (Limit) plan;
         assertThat(limit.limit(), instanceOf(Literal.class));
@@ -1114,7 +1276,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(limit.children().get(0).children().size(), equalTo(1));
         assertThat(limit.children().get(0).children().get(0), instanceOf(UnresolvedRelation.class));
 
-        plan = statement("from test | where x < ?n1 |  limit 10", new QueryParams(List.of(new QueryParam("n1", 5, INTEGER))));
+        plan = statement("from test | where x < ?n1 |  limit 10", new QueryParams(List.of(paramAsConstant("n1", 5))));
         assertThat(plan, instanceOf(Limit.class));
         limit = (Limit) plan;
         assertThat(limit.limit(), instanceOf(Literal.class));
@@ -1126,7 +1288,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(limit.children().get(0).children().size(), equalTo(1));
         assertThat(limit.children().get(0).children().get(0), instanceOf(UnresolvedRelation.class));
 
-        plan = statement("from test | where x < ?_n1 |  limit 10", new QueryParams(List.of(new QueryParam("_n1", 5, INTEGER))));
+        plan = statement("from test | where x < ?_n1 |  limit 10", new QueryParams(List.of(paramAsConstant("_n1", 5))));
         assertThat(plan, instanceOf(Limit.class));
         limit = (Limit) plan;
         assertThat(limit.limit(), instanceOf(Literal.class));
@@ -1138,7 +1300,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(limit.children().get(0).children().size(), equalTo(1));
         assertThat(limit.children().get(0).children().get(0), instanceOf(UnresolvedRelation.class));
 
-        plan = statement("from test | where x < ?1 |  limit 10", new QueryParams(List.of(new QueryParam(null, 5, INTEGER))));
+        plan = statement("from test | where x < ?1 |  limit 10", new QueryParams(List.of(paramAsConstant(null, 5))));
         assertThat(plan, instanceOf(Limit.class));
         limit = (Limit) plan;
         assertThat(limit.limit(), instanceOf(Literal.class));
@@ -1150,7 +1312,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(limit.children().get(0).children().size(), equalTo(1));
         assertThat(limit.children().get(0).children().get(0), instanceOf(UnresolvedRelation.class));
 
-        plan = statement("from test | where x < ?__1 |  limit 10", new QueryParams(List.of(new QueryParam("__1", 5, INTEGER))));
+        plan = statement("from test | where x < ?__1 |  limit 10", new QueryParams(List.of(paramAsConstant("__1", 5))));
         assertThat(plan, instanceOf(Limit.class));
         limit = (Limit) plan;
         assertThat(limit.limit(), instanceOf(Literal.class));
@@ -1166,9 +1328,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testParamInEval() {
         LogicalPlan plan = statement(
             "from test | where x < ? | eval y = ? + ? |  limit 10",
-            new QueryParams(
-                List.of(new QueryParam(null, 5, INTEGER), new QueryParam(null, -1, INTEGER), new QueryParam(null, 100, INTEGER))
-            )
+            new QueryParams(List.of(paramAsConstant(null, 5), paramAsConstant(null, -1), paramAsConstant(null, 100)))
         );
         assertThat(plan, instanceOf(Limit.class));
         Limit limit = (Limit) plan;
@@ -1186,9 +1346,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
         plan = statement(
             "from test | where x < ?n1 | eval y = ?n2 + ?n3 |  limit 10",
-            new QueryParams(
-                List.of(new QueryParam("n1", 5, INTEGER), new QueryParam("n2", -1, INTEGER), new QueryParam("n3", 100, INTEGER))
-            )
+            new QueryParams(List.of(paramAsConstant("n1", 5), paramAsConstant("n2", -1), paramAsConstant("n3", 100)))
         );
         assertThat(plan, instanceOf(Limit.class));
         limit = (Limit) plan;
@@ -1206,9 +1364,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
         plan = statement(
             "from test | where x < ?_n1 | eval y = ?_n2 + ?_n3 |  limit 10",
-            new QueryParams(
-                List.of(new QueryParam("_n1", 5, INTEGER), new QueryParam("_n2", -1, INTEGER), new QueryParam("_n3", 100, INTEGER))
-            )
+            new QueryParams(List.of(paramAsConstant("_n1", 5), paramAsConstant("_n2", -1), paramAsConstant("_n3", 100)))
         );
         assertThat(plan, instanceOf(Limit.class));
         limit = (Limit) plan;
@@ -1226,7 +1382,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
         plan = statement(
             "from test | where x < ?1 | eval y = ?2 + ?1 |  limit 10",
-            new QueryParams(List.of(new QueryParam(null, 5, INTEGER), new QueryParam(null, -1, INTEGER)))
+            new QueryParams(List.of(paramAsConstant(null, 5), paramAsConstant(null, -1)))
         );
         assertThat(plan, instanceOf(Limit.class));
         limit = (Limit) plan;
@@ -1244,7 +1400,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
         plan = statement(
             "from test | where x < ?_1 | eval y = ?_2 + ?_1 |  limit 10",
-            new QueryParams(List.of(new QueryParam("_1", 5, INTEGER), new QueryParam("_2", -1, INTEGER)))
+            new QueryParams(List.of(paramAsConstant("_1", 5), paramAsConstant("_2", -1)))
         );
         assertThat(plan, instanceOf(Limit.class));
         limit = (Limit) plan;
@@ -1265,12 +1421,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         LogicalPlan plan = statement(
             "from test | where x < ? | eval y = ? + ? |  stats count(?) by z",
             new QueryParams(
-                List.of(
-                    new QueryParam(null, 5, INTEGER),
-                    new QueryParam(null, -1, INTEGER),
-                    new QueryParam(null, 100, INTEGER),
-                    new QueryParam(null, "*", KEYWORD)
-                )
+                List.of(paramAsConstant(null, 5), paramAsConstant(null, -1), paramAsConstant(null, 100), paramAsConstant(null, "*"))
             )
         );
         assertThat(plan, instanceOf(Aggregate.class));
@@ -1290,12 +1441,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         plan = statement(
             "from test | where x < ?n1 | eval y = ?n2 + ?n3 |  stats count(?n4) by z",
             new QueryParams(
-                List.of(
-                    new QueryParam("n1", 5, INTEGER),
-                    new QueryParam("n2", -1, INTEGER),
-                    new QueryParam("n3", 100, INTEGER),
-                    new QueryParam("n4", "*", KEYWORD)
-                )
+                List.of(paramAsConstant("n1", 5), paramAsConstant("n2", -1), paramAsConstant("n3", 100), paramAsConstant("n4", "*"))
             )
         );
         assertThat(plan, instanceOf(Aggregate.class));
@@ -1315,12 +1461,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         plan = statement(
             "from test | where x < ?_n1 | eval y = ?_n2 + ?_n3 |  stats count(?_n4) by z",
             new QueryParams(
-                List.of(
-                    new QueryParam("_n1", 5, INTEGER),
-                    new QueryParam("_n2", -1, INTEGER),
-                    new QueryParam("_n3", 100, INTEGER),
-                    new QueryParam("_n4", "*", KEYWORD)
-                )
+                List.of(paramAsConstant("_n1", 5), paramAsConstant("_n2", -1), paramAsConstant("_n3", 100), paramAsConstant("_n4", "*"))
             )
         );
         assertThat(plan, instanceOf(Aggregate.class));
@@ -1339,9 +1480,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
         plan = statement(
             "from test | where x < ?1 | eval y = ?2 + ?1 |  stats count(?3) by z",
-            new QueryParams(
-                List.of(new QueryParam(null, 5, INTEGER), new QueryParam(null, -1, INTEGER), new QueryParam(null, "*", KEYWORD))
-            )
+            new QueryParams(List.of(paramAsConstant(null, 5), paramAsConstant(null, -1), paramAsConstant(null, "*")))
         );
         assertThat(plan, instanceOf(Aggregate.class));
         agg = (Aggregate) plan;
@@ -1359,9 +1498,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
         plan = statement(
             "from test | where x < ?_1 | eval y = ?_2 + ?_1 |  stats count(?_3) by z",
-            new QueryParams(
-                List.of(new QueryParam("_1", 5, INTEGER), new QueryParam("_2", -1, INTEGER), new QueryParam("_3", "*", KEYWORD))
-            )
+            new QueryParams(List.of(paramAsConstant("_1", 5), paramAsConstant("_2", -1), paramAsConstant("_3", "*")))
         );
         assertThat(plan, instanceOf(Aggregate.class));
         agg = (Aggregate) plan;
@@ -1381,48 +1518,28 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testParamMixed() {
         expectError(
             "from test | where x < ? | eval y = ?n2 + ?n3 |  limit ?n4",
-            List.of(
-                new QueryParam("n1", 5, INTEGER),
-                new QueryParam("n2", -1, INTEGER),
-                new QueryParam("n3", 100, INTEGER),
-                new QueryParam("n4", 10, INTEGER)
-            ),
+            List.of(paramAsConstant("n1", 5), paramAsConstant("n2", -1), paramAsConstant("n3", 100), paramAsConstant("n4", 10)),
             "Inconsistent parameter declaration, "
                 + "use one of positional, named or anonymous params but not a combination of named and anonymous"
         );
 
         expectError(
             "from test | where x < ? | eval y = ?_n2 + ?n3 |  limit ?_4",
-            List.of(
-                new QueryParam("n1", 5, INTEGER),
-                new QueryParam("_n2", -1, INTEGER),
-                new QueryParam("n3", 100, INTEGER),
-                new QueryParam("n4", 10, INTEGER)
-            ),
+            List.of(paramAsConstant("n1", 5), paramAsConstant("_n2", -1), paramAsConstant("n3", 100), paramAsConstant("n4", 10)),
             "Inconsistent parameter declaration, "
                 + "use one of positional, named or anonymous params but not a combination of named and anonymous"
         );
 
         expectError(
             "from test | where x < ?1 | eval y = ?n2 + ?_n3 |  limit ?n4",
-            List.of(
-                new QueryParam("n1", 5, INTEGER),
-                new QueryParam("n2", -1, INTEGER),
-                new QueryParam("_n3", 100, INTEGER),
-                new QueryParam("n4", 10, INTEGER)
-            ),
+            List.of(paramAsConstant("n1", 5), paramAsConstant("n2", -1), paramAsConstant("_n3", 100), paramAsConstant("n4", 10)),
             "Inconsistent parameter declaration, "
                 + "use one of positional, named or anonymous params but not a combination of named and positional"
         );
 
         expectError(
             "from test | where x < ? | eval y = ?2 + ?n3 |  limit ?_n4",
-            List.of(
-                new QueryParam("n1", 5, INTEGER),
-                new QueryParam("n2", -1, INTEGER),
-                new QueryParam("n3", 100, INTEGER),
-                new QueryParam("_n4", 10, INTEGER)
-            ),
+            List.of(paramAsConstant("n1", 5), paramAsConstant("n2", -1), paramAsConstant("n3", 100), paramAsConstant("_n4", 10)),
             "Inconsistent parameter declaration, "
                 + "use one of positional, named or anonymous params but not a combination of positional and anonymous"
         );
@@ -1431,7 +1548,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testIntervalParam() {
         LogicalPlan stm = statement(
             "row x = ?1::datetime | eval y = ?1::datetime + ?2::date_period",
-            new QueryParams(List.of(new QueryParam("datetime", "2024-01-01", KEYWORD), new QueryParam("date_period", "3 days", KEYWORD)))
+            new QueryParams(List.of(paramAsConstant("datetime", "2024-01-01"), paramAsConstant("date_period", "3 days")))
         );
         assertThat(stm, instanceOf(Eval.class));
         Eval eval = (Eval) stm;
@@ -1442,6 +1559,447 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(field, instanceOf(Alias.class));
         assertThat(((Literal) ((Add) eval.fields().get(0).child()).left().children().get(0)).value(), equalTo("2024-01-01"));
         assertThat(((Literal) ((Add) eval.fields().get(0).child()).right().children().get(0)).value(), equalTo("3 days"));
+    }
+
+    public void testParamForIdentifier() {
+        assumeTrue(
+            "named parameters for identifiers and patterns require snapshot build",
+            EsqlCapabilities.Cap.NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES_SIMPLIFIED_SYNTAX.isEnabled()
+        );
+        // field names can appear in eval/where/stats/sort/keep/drop/rename/dissect/grok/enrich/mvexpand
+        // eval, where
+        assertEquals(
+            new Limit(
+                EMPTY,
+                new Literal(EMPTY, 1, INTEGER),
+                new Filter(
+                    EMPTY,
+                    new Eval(EMPTY, relation("test"), List.of(new Alias(EMPTY, "x", function("toString", List.of(attribute("f1.")))))),
+                    new Equals(EMPTY, attribute("f1."), attribute("f.2"))
+                )
+            ),
+            statement(
+                """
+                    from test
+                    | eval ?f0 = ?fn1(?f1)
+                    | where ?f1 == ?f2
+                    | limit 1""",
+                new QueryParams(
+                    List.of(
+                        paramAsIdentifier("f0", "x"),
+                        paramAsIdentifier("f1", "f1."),
+                        paramAsIdentifier("f2", "f.2"),
+                        paramAsIdentifier("fn1", "toString")
+                    )
+                )
+            )
+        );
+
+        assertEquals(
+            new Limit(
+                EMPTY,
+                new Literal(EMPTY, 1, INTEGER),
+                new Filter(
+                    EMPTY,
+                    new Eval(EMPTY, relation("test"), List.of(new Alias(EMPTY, "x", function("toString", List.of(attribute("f1..f.2")))))),
+                    new Equals(EMPTY, attribute("f3.*.f.4."), attribute("f.5.*.f.*.6"))
+                )
+            ),
+            statement(
+                """
+                    from test
+                    | eval ?f0 = ?fn1(?f1.?f2)
+                    | where ?f3.?f4 == ?f5.?f6
+                    | limit 1""",
+                new QueryParams(
+                    List.of(
+                        paramAsIdentifier("f0", "x"),
+                        paramAsIdentifier("f1", "f1."),
+                        paramAsIdentifier("f2", "f.2"),
+                        paramAsIdentifier("f3", "f3.*"),
+                        paramAsIdentifier("f4", "f.4."),
+                        paramAsIdentifier("f5", "f.5.*"),
+                        paramAsIdentifier("f6", "f.*.6"),
+                        paramAsIdentifier("fn1", "toString")
+                    )
+                )
+            )
+        );
+
+        // stats, sort, mv_expand
+        assertEquals(
+            new MvExpand(
+                EMPTY,
+                new OrderBy(
+                    EMPTY,
+                    new Aggregate(
+                        EMPTY,
+                        relation("test"),
+                        Aggregate.AggregateType.STANDARD,
+                        List.of(attribute("f.4.")),
+                        List.of(new Alias(EMPTY, "y", function("count", List.of(attribute("f3.*")))), attribute("f.4."))
+                    ),
+                    List.of(new Order(EMPTY, attribute("f.5.*"), Order.OrderDirection.ASC, Order.NullsPosition.LAST))
+                ),
+                attribute("f.6*"),
+                attribute("f.6*")
+            ),
+            statement(
+                """
+                    from test
+                    | stats y = ?fn2(?f3) by ?f4
+                    | sort ?f5
+                    | mv_expand ?f6""",
+                new QueryParams(
+                    List.of(
+                        paramAsIdentifier("f3", "f3.*"),
+                        paramAsIdentifier("f4", "f.4."),
+                        paramAsIdentifier("f5", "f.5.*"),
+                        paramAsIdentifier("f6", "f.6*"),
+                        paramAsIdentifier("fn2", "count")
+                    )
+                )
+            )
+        );
+
+        assertEquals(
+            new MvExpand(
+                EMPTY,
+                new OrderBy(
+                    EMPTY,
+                    new Aggregate(
+                        EMPTY,
+                        relation("test"),
+                        Aggregate.AggregateType.STANDARD,
+                        List.of(attribute("f.9.f10.*")),
+                        List.of(new Alias(EMPTY, "y", function("count", List.of(attribute("f.7*.f8.")))), attribute("f.9.f10.*"))
+                    ),
+                    List.of(new Order(EMPTY, attribute("f.11..f.12.*"), Order.OrderDirection.ASC, Order.NullsPosition.LAST))
+                ),
+                attribute("f.*.13.f.14*"),
+                attribute("f.*.13.f.14*")
+            ),
+            statement(
+                """
+                    from test
+                    | stats y = ?fn2(?f7.?f8) by ?f9.?f10
+                    | sort ?f11.?f12
+                    | mv_expand ?f13.?f14""",
+                new QueryParams(
+                    List.of(
+                        paramAsIdentifier("f7", "f.7*"),
+                        paramAsIdentifier("f8", "f8."),
+                        paramAsIdentifier("f9", "f.9"),
+                        paramAsIdentifier("f10", "f10.*"),
+                        paramAsIdentifier("f11", "f.11."),
+                        paramAsIdentifier("f12", "f.12.*"),
+                        paramAsIdentifier("f13", "f.*.13"),
+                        paramAsIdentifier("f14", "f.14*"),
+                        paramAsIdentifier("fn2", "count")
+                    )
+                )
+            )
+        );
+
+        // keep, drop, rename, grok, dissect
+        LogicalPlan plan = statement(
+            """
+                from test | keep ?f1, ?f2 | drop ?f3, ?f4 | dissect ?f5 "%{bar}" | grok ?f6 "%{WORD:foo}" | rename ?f7 as ?f8 | limit 1""",
+            new QueryParams(
+                List.of(
+                    paramAsIdentifier("f1", "f.1.*"),
+                    paramAsIdentifier("f2", "f.2"),
+                    paramAsIdentifier("f3", "f3."),
+                    paramAsIdentifier("f4", "f4.*"),
+                    paramAsIdentifier("f5", "f.5*"),
+                    paramAsIdentifier("f6", "f.6."),
+                    paramAsIdentifier("f7", "f7*."),
+                    paramAsIdentifier("f8", "f.8")
+                )
+            )
+        );
+        Limit limit = as(plan, Limit.class);
+        Rename rename = as(limit.child(), Rename.class);
+        assertEquals(rename.renamings(), List.of(new Alias(EMPTY, "f.8", attribute("f7*."))));
+        Grok grok = as(rename.child(), Grok.class);
+        assertEquals(grok.input(), attribute("f.6."));
+        assertEquals("%{WORD:foo}", grok.parser().pattern());
+        assertEquals(List.of(referenceAttribute("foo", KEYWORD)), grok.extractedFields());
+        Dissect dissect = as(grok.child(), Dissect.class);
+        assertEquals(dissect.input(), attribute("f.5*"));
+        assertEquals("%{bar}", dissect.parser().pattern());
+        assertEquals("", dissect.parser().appendSeparator());
+        assertEquals(List.of(referenceAttribute("bar", KEYWORD)), dissect.extractedFields());
+        Drop drop = as(dissect.child(), Drop.class);
+        List<? extends NamedExpression> removals = drop.removals();
+        assertEquals(removals, List.of(attribute("f3."), attribute("f4.*")));
+        Keep keep = as(drop.child(), Keep.class);
+        assertEquals(keep.projections(), List.of(attribute("f.1.*"), attribute("f.2")));
+
+        plan = statement(
+            """
+                from test | keep ?f1.?f2 | drop ?f3.?f4
+                | dissect ?f5.?f6 "%{bar}" | grok ?f7.?f8 "%{WORD:foo}"
+                | rename ?f9.?f10 as ?f11.?f12
+                | limit 1""",
+            new QueryParams(
+                List.of(
+                    paramAsIdentifier("f1", "f.1.*"),
+                    paramAsIdentifier("f2", "f.2"),
+                    paramAsIdentifier("f3", "f3."),
+                    paramAsIdentifier("f4", "f4.*"),
+                    paramAsIdentifier("f5", "f.5*"),
+                    paramAsIdentifier("f6", "f.6."),
+                    paramAsIdentifier("f7", "f7*."),
+                    paramAsIdentifier("f8", "f.8"),
+                    paramAsIdentifier("f9", "f.9*"),
+                    paramAsIdentifier("f10", "f.10."),
+                    paramAsIdentifier("f11", "f11*."),
+                    paramAsIdentifier("f12", "f.12")
+                )
+            )
+        );
+        limit = as(plan, Limit.class);
+        rename = as(limit.child(), Rename.class);
+        assertEquals(rename.renamings(), List.of(new Alias(EMPTY, "f11*..f.12", attribute("f.9*.f.10."))));
+        grok = as(rename.child(), Grok.class);
+        assertEquals(grok.input(), attribute("f7*..f.8"));
+        assertEquals("%{WORD:foo}", grok.parser().pattern());
+        assertEquals(List.of(referenceAttribute("foo", KEYWORD)), grok.extractedFields());
+        dissect = as(grok.child(), Dissect.class);
+        assertEquals(dissect.input(), attribute("f.5*.f.6."));
+        assertEquals("%{bar}", dissect.parser().pattern());
+        assertEquals("", dissect.parser().appendSeparator());
+        assertEquals(List.of(referenceAttribute("bar", KEYWORD)), dissect.extractedFields());
+        drop = as(dissect.child(), Drop.class);
+        removals = drop.removals();
+        assertEquals(removals, List.of(attribute("f3..f4.*")));
+        keep = as(drop.child(), Keep.class);
+        assertEquals(keep.projections(), List.of(attribute("f.1.*.f.2")));
+
+        // enrich
+        assertEquals(
+            new Enrich(
+                EMPTY,
+                relation("idx1"),
+                null,
+                new Literal(EMPTY, "idx2", KEYWORD),
+                attribute("f.1.*"),
+                null,
+                Map.of(),
+                List.of(new Alias(EMPTY, "f.2", attribute("f.3*")))
+            ),
+            statement(
+                "from idx1 | ENRICH idx2 ON ?f1 WITH ?f2 = ?f3",
+                new QueryParams(List.of(paramAsIdentifier("f1", "f.1.*"), paramAsIdentifier("f2", "f.2"), paramAsIdentifier("f3", "f.3*")))
+            )
+        );
+
+        assertEquals(
+            new Enrich(
+                EMPTY,
+                relation("idx1"),
+                null,
+                new Literal(EMPTY, "idx2", KEYWORD),
+                attribute("f.1.*.f.2"),
+                null,
+                Map.of(),
+                List.of(new Alias(EMPTY, "f.3*.f.4.*", attribute("f.5.f.6*")))
+            ),
+            statement(
+                "from idx1 | ENRICH idx2 ON ?f1.?f2 WITH ?f3.?f4 = ?f5.?f6",
+                new QueryParams(
+                    List.of(
+                        paramAsIdentifier("f1", "f.1.*"),
+                        paramAsIdentifier("f2", "f.2"),
+                        paramAsIdentifier("f3", "f.3*"),
+                        paramAsIdentifier("f4", "f.4.*"),
+                        paramAsIdentifier("f5", "f.5"),
+                        paramAsIdentifier("f6", "f.6*")
+                    )
+                )
+            )
+        );
+    }
+
+    public void testParamForIdentifierPattern() {
+        assumeTrue(
+            "named parameters for identifiers and patterns require snapshot build",
+            EsqlCapabilities.Cap.NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES_SIMPLIFIED_SYNTAX.isEnabled()
+        );
+        // name patterns can appear in keep and drop
+        // all patterns
+        LogicalPlan plan = statement(
+            "from test | keep ?f1, ?f2 | drop ?f3, ?f4",
+            new QueryParams(
+                List.of(
+                    paramAsPattern("f1", "f*1."),
+                    paramAsPattern("f2", "f.2*"),
+                    paramAsPattern("f3", "f3.*"),
+                    paramAsPattern("f4", "f.4.*")
+                )
+            )
+        );
+
+        Drop drop = as(plan, Drop.class);
+        List<? extends NamedExpression> removals = drop.removals();
+        assertEquals(removals.size(), 2);
+        UnresolvedNamePattern up = as(removals.get(0), UnresolvedNamePattern.class);
+        assertEquals(up.name(), "f3.*");
+        assertEquals(up.pattern(), "f3.*");
+        up = as(removals.get(1), UnresolvedNamePattern.class);
+        assertEquals(up.name(), "f.4.*");
+        assertEquals(up.pattern(), "f.4.*");
+        Keep keep = as(drop.child(), Keep.class);
+        assertEquals(keep.projections().size(), 2);
+        up = as(keep.projections().get(0), UnresolvedNamePattern.class);
+        assertEquals(up.name(), "f*1.");
+        assertEquals(up.pattern(), "f*1.");
+        up = as(keep.projections().get(1), UnresolvedNamePattern.class);
+        assertEquals(up.name(), "f.2*");
+        assertEquals(up.pattern(), "f.2*");
+        UnresolvedRelation ur = as(keep.child(), UnresolvedRelation.class);
+        assertEquals(ur, relation("test"));
+
+        plan = statement(
+            "from test | keep ?f1.?f2 | drop ?f3.?f4",
+            new QueryParams(
+                List.of(
+                    paramAsPattern("f1", "f*1."),
+                    paramAsPattern("f2", "f.2*"),
+                    paramAsPattern("f3", "f3.*"),
+                    paramAsPattern("f4", "f.4.*")
+                )
+            )
+        );
+
+        drop = as(plan, Drop.class);
+        removals = drop.removals();
+        assertEquals(removals.size(), 1);
+        up = as(removals.get(0), UnresolvedNamePattern.class);
+        assertEquals(up.name(), "f3.*.f.4.*");
+        assertEquals(up.pattern(), "f3.*.f.4.*");
+        keep = as(drop.child(), Keep.class);
+        assertEquals(keep.projections().size(), 1);
+        up = as(keep.projections().get(0), UnresolvedNamePattern.class);
+        assertEquals(up.name(), "f*1..f.2*");
+        assertEquals(up.pattern(), "f*1..f.2*");
+        ur = as(keep.child(), UnresolvedRelation.class);
+        assertEquals(ur, relation("test"));
+
+        // mixed names and patterns
+        plan = statement(
+            "from test | keep ?f1.?f2 | drop ?f3.?f4",
+            new QueryParams(
+                List.of(
+                    paramAsPattern("f1", "f*1."),
+                    paramAsPattern("f2", "`f.2*`*"),
+                    paramAsPattern("f3", "f3.*"),
+                    paramAsIdentifier("f4", "f.4.*")
+                )
+            )
+        );
+
+        drop = as(plan, Drop.class);
+        removals = drop.removals();
+        assertEquals(removals.size(), 1);
+        up = as(removals.get(0), UnresolvedNamePattern.class);
+        assertEquals("f3.*.f.4.*", up.name());
+        assertEquals("f3.*.`f.4.*`", up.pattern());
+        keep = as(drop.child(), Keep.class);
+        assertEquals(keep.projections().size(), 1);
+        up = as(keep.projections().get(0), UnresolvedNamePattern.class);
+        assertEquals("f*1..f.2**", up.name());
+        assertEquals("f*1..`f.2*`*", up.pattern());
+        ur = as(keep.child(), UnresolvedRelation.class);
+        assertEquals(ur, relation("test"));
+    }
+
+    public void testParamInInvalidPosition() {
+        assumeTrue(
+            "named parameters for identifiers and patterns require snapshot build",
+            EsqlCapabilities.Cap.NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES_SIMPLIFIED_SYNTAX.isEnabled()
+        );
+        // param for pattern is not supported in eval/where/stats/sort/rename/dissect/grok/enrich/mvexpand
+        // where/stats/sort/dissect/grok are covered in RestEsqlTestCase
+        List<String> invalidParamPositions = List.of("eval ?f1 = 1", "stats x = ?f1(*)", "mv_expand ?f1", "rename ?f1 as ?f2");
+        for (String invalidParamPosition : invalidParamPositions) {
+            for (String pattern : List.of("f1*", "*", "`f1*`", "`*`")) {
+                // pattern is not supported
+                expectError(
+                    "from test | " + invalidParamPosition,
+                    List.of(paramAsPattern("f1", pattern), paramAsPattern("f2", "f*2")),
+                    invalidParamPosition.contains("rename")
+                        ? "Using wildcards [*] in RENAME is not allowed [?f1 as ?f2]"
+                        : "Query parameter [?f1][" + pattern + "] declared as a pattern, cannot be used as an identifier"
+                );
+                // constant is not supported
+                expectError(
+                    "from test | " + invalidParamPosition,
+                    List.of(paramAsConstant("f1", pattern), paramAsConstant("f2", "f*2")),
+                    invalidParamPosition.contains("rename")
+                        ? "Query parameter [?f2] with value [f*2] declared as a constant, cannot be used as an identifier or pattern"
+                        : "Query parameter [?f1] with value [" + pattern + "] declared as a constant, cannot be used as an identifier"
+                );
+            }
+            // nulls
+            if (invalidParamPosition.contains("rename")) {
+                // rename null as null is allowed, there is no ParsingException or VerificationException thrown
+                // named parameter doesn't change this behavior, it will need to be revisited
+                continue;
+            }
+            expectError(
+                "from test | " + invalidParamPosition,
+                List.of(paramAsConstant("f1", null), paramAsConstant("f2", null)),
+                "Query parameter [?f1] is null or undefined"
+            );
+        }
+        // enrich with wildcard as pattern or constant is not supported
+        String enrich = "ENRICH idx2 ON ?f1 WITH ?f2 = ?f3";
+        for (String pattern : List.of("f.1.*", "*")) {
+            expectError(
+                "from idx1 | " + enrich,
+                List.of(paramAsPattern("f1", pattern), paramAsIdentifier("f2", "f.2"), paramAsIdentifier("f3", "f.3*")),
+                "Using wildcards [*] in ENRICH WITH projections is not allowed [" + pattern + "]"
+            );
+            expectError(
+                "from idx1 | " + enrich,
+                List.of(paramAsConstant("f1", pattern), paramAsIdentifier("f2", "f.2"), paramAsIdentifier("f3", "f.3*")),
+                "Query parameter [?f1] with value [" + pattern + "] declared as a constant, cannot be used as an identifier or pattern"
+            );
+        }
+    }
+
+    public void testMissingParam() {
+        assumeTrue(
+            "named parameters for identifiers and patterns require snapshot build",
+            EsqlCapabilities.Cap.NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES_SIMPLIFIED_SYNTAX.isEnabled()
+        );
+        // cover all processing commands eval/where/stats/sort/rename/dissect/grok/enrich/mvexpand/keep/drop
+        String error = "Unknown query parameter [f1], did you mean [f4]?";
+        String errorMvExpandFunctionNameCommandOption = "Query parameter [?f1] is null or undefined, cannot be used as an identifier";
+        List<String> missingParamGroupA = List.of(
+            "eval x = ?f1",
+            "where ?f1 == \"a\"",
+            "stats x = count(?f1)",
+            "sort ?f1",
+            "rename ?f1 as ?f2",
+            "dissect ?f1 \"%{bar}\"",
+            "grok ?f1 \"%{WORD:foo}\"",
+            "enrich idx2 ON ?f1 WITH ?f2 = ?f3",
+            "keep ?f1",
+            "drop ?f1"
+        );
+        List<String> missingParamGroupB = List.of("eval x = ?f1(f1)", "mv_expand ?f1");
+        for (String missingParam : Stream.concat(missingParamGroupA.stream(), missingParamGroupB.stream()).toList()) {
+            for (String identifierOrPattern : List.of("identifier", "identifierpattern")) {
+                expectError(
+                    "from test | " + missingParam,
+                    List.of(identifierOrPattern.equals("identifier") ? paramAsIdentifier("f4", "f1*") : paramAsPattern("f4", "f1*")),
+                    missingParamGroupB.contains(missingParam) ? errorMvExpandFunctionNameCommandOption : error
+                );
+            }
+        }
     }
 
     public void testFieldContainingDotsAndNumbers() {
@@ -1522,7 +2080,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testSpaceNotAllowedInIdPattern() throws Exception {
-        expectError("ROW a = 1| RENAME a AS this is `not okay`", "mismatched input 'is' expecting {'.', 'as'}");
+        expectError("ROW a = 1| RENAME a AS this is `not okay`", "mismatched input 'is' expecting {<EOF>, '|', ',', '.'}");
     }
 
     public void testSpaceNotAllowedInIdPatternKeep() throws Exception {
@@ -1582,7 +2140,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
             Map.entry("metrics foo,test-*", "foo,test-*"),
             Map.entry("metrics 123-test@foo_bar+baz1", "123-test@foo_bar+baz1"),
             Map.entry("metrics foo,   test,xyz", "foo,test,xyz"),
-            Map.entry("metrics <logstash-{now/M{yyyy.MM}}>>", "<logstash-{now/M{yyyy.MM}}>>")
+            Map.entry("metrics <logstash-{now/M{yyyy.MM}}>", "<logstash-{now/M{yyyy.MM}}>")
         );
         for (Map.Entry<String, String> e : patterns.entrySet()) {
             assertStatement(e.getKey(), unresolvedRelation(e.getValue()));

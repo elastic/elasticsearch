@@ -6,13 +6,13 @@
 
 [IMPORTANT]
 ====
-cat APIs are only intended for human consumption using the command line or the 
-{kib} console. They are _not_ intended for use by applications. For application 
+cat APIs are only intended for human consumption using the command line or the
+{kib} console. They are _not_ intended for use by applications. For application
 consumption, use the <<aliases,aliases API>>.
 ====
 
 Retrieves the cluster's <<aliases,index aliases>>, including filter and routing
-information. The API does not return data stream aliases.
+information. The API does not return <<data-streams,data stream>> aliases.
 
 [[cat-alias-api-request]]
 ==== {api-request-title}
@@ -44,8 +44,6 @@ include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=http-format]
 include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=cat-h]
 
 include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=help]
-
-include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=local]
 
 include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=cat-s]
 
@@ -104,6 +102,6 @@ alias4 test1 -      2            1,2            -
 This response shows that `alias2` has configured a filter, and specific routing
 configurations in `alias3` and `alias4`.
 
-If you only want to get information about specific aliases, you can specify 
-the aliases in comma-delimited format as a URL parameter, e.g., 
+If you only want to get information about specific aliases, you can specify
+the aliases in comma-delimited format as a URL parameter, e.g.,
 /_cat/aliases/alias1,alias2.

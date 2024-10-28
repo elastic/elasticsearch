@@ -623,7 +623,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
 
                 assertAcked(indicesAdmin().prepareDelete(indexName).get());
 
-                assertBusy(mockLog::assertAllExpectationsMatched);
+                mockLog.awaitAllExpectationsMatched();
             }
 
             respondToRecoverSnapshotFile.countDown();
@@ -1595,7 +1595,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
                     int docIdToMatch = randomIntBetween(0, docCount - 1);
                     assertResponse(searchRequestBuilder.setQuery(QueryBuilders.termQuery("field", docIdToMatch)), searchResponse -> {
                         assertThat(searchResponse.getSuccessfulShards(), equalTo(1));
-                        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
+                        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(1L));
                         SearchHit searchHit = searchResponse.getHits().getAt(0);
                         Map<String, Object> source = searchHit.getSourceAsMap();
                         assertThat(source, is(notNullValue()));
@@ -1613,7 +1613,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
 
     private void assertSearchResponseContainsAllIndexedDocs(SearchResponse searchResponse, long docCount) {
         assertThat(searchResponse.getSuccessfulShards(), equalTo(1));
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(docCount));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(docCount));
         for (int i = 0; i < searchResponse.getHits().getHits().length; i++) {
             SearchHit searchHit = searchResponse.getHits().getAt(i);
             Map<String, Object> source = searchHit.getSourceAsMap();

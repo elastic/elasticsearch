@@ -1,6 +1,0 @@
-pr: 112444
-summary: Full coverage of ECS by ecs@mappings when `date_detection` is disabled
-area: Mapping
-type: bug
-issues:
- - 112398

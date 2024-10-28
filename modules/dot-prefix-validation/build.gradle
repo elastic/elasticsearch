@@ -23,3 +23,7 @@ restResources {
 tasks.named('yamlRestTest') {
   usesDefaultDistribution()
 }
+
+tasks.named('yamlRestCompatTest') {
+  usesDefaultDistribution()
+}

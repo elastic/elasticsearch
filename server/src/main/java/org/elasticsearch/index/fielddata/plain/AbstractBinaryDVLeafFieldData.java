@@ -68,8 +68,4 @@ abstract class AbstractBinaryDVLeafFieldData implements LeafFieldData {
         };
     }
 
-    @Override
-    public void close() {
-        // no-op
-    }
 }

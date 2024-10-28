@@ -16,7 +16,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.XPackFeatureSet;
+import org.elasticsearch.xpack.core.XPackFeatureUsage;
 import org.elasticsearch.xpack.core.XPackField;
 
 import java.io.IOException;
@@ -24,7 +24,7 @@ import java.util.LongSummaryStatistics;
 import java.util.Map;
 import java.util.Objects;
 
-public class DataStreamLifecycleFeatureSetUsage extends XPackFeatureSet.Usage {
+public class DataStreamLifecycleFeatureSetUsage extends XPackFeatureUsage {
 
     public static final DataStreamLifecycleFeatureSetUsage DISABLED = new DataStreamLifecycleFeatureSetUsage();
     final LifecycleStats lifecycleStats;

@@ -2,9 +2,9 @@
 [[data-tiers]]
 == Data tiers
 
-A _data tier_ is a collection of <<modules-node,nodes>> within a cluster that share the same 
-<<node-roles,data node role>>, and a hardware profile that's appropriately sized for the role. Elastic recommends that nodes in the same tier share the same 
-hardware profile to avoid <<hotspotting,hot spotting>>. 
+A _data tier_ is a collection of <<modules-node,nodes>> within a cluster that share the same
+<<node-roles,data node role>>, and a hardware profile that's appropriately sized for the role. Elastic recommends that nodes in the same tier share the same
+hardware profile to avoid <<hotspotting,hot spotting>>.
 
 The data tiers that you use, and the way that you use them, depends on the data's <<data-management,category>>.
 
@@ -12,12 +12,12 @@ The following data tiers are can be used with each data category:
 
 Content data:
 
-* <<content-tier,Content tier>> nodes handle the indexing and query load for non-timeseries 
+* <<content-tier,Content tier>> nodes handle the indexing and query load for non-timeseries
 indices, such as a product catalog.
 
 Time series data:
 
-* <<hot-tier,Hot tier>> nodes handle the indexing load for time series data, 
+* <<hot-tier,Hot tier>> nodes handle the indexing load for time series data,
 such as logs or metrics. They hold your most recent, most-frequently-accessed data.
 * <<warm-tier,Warm tier>> nodes hold time series data that is accessed less-frequently
 and rarely needs to be updated.
@@ -27,30 +27,30 @@ infrequently and not normally updated. To save space, you can keep
 <<ilm-searchable-snapshot,{search-snaps}>> on the cold tier. These fully mounted
 indices eliminate the need for replicas, reducing required disk space by
 approximately 50% compared to the regular indices.
-* <<frozen-tier,Frozen tier>> nodes hold time series data that is accessed 
+* <<frozen-tier,Frozen tier>> nodes hold time series data that is accessed
 rarely and never updated. The frozen tier stores <<partially-mounted,partially
 mounted indices>> of <<ilm-searchable-snapshot,{search-snaps}>> exclusively.
 This extends the storage capacity even further — by up to 20 times compared to
-the warm tier. 
+the warm tier.
 
-TIP: The performance of an {es} node is often limited by the performance of the underlying storage and hardware profile. 
-For example hardware profiles, refer to Elastic Cloud's {cloud}/ec-reference-hardware.html[instance configurations]. 
+TIP: The performance of an {es} node is often limited by the performance of the underlying storage and hardware profile.
+For example hardware profiles, refer to Elastic Cloud's {cloud}/ec-reference-hardware.html[instance configurations].
 Review our recommendations for optimizing your storage for <<indexing-use-faster-hardware,indexing>> and <<search-use-faster-hardware,search>>.
 
-IMPORTANT: {es} generally expects nodes within a data tier to share the same 
-hardware profile. Variations not following this recommendation should be 
+IMPORTANT: {es} generally expects nodes within a data tier to share the same hardware profile
+and have the same disk capacity. Variations not following this recommendation should be
 carefully architected to avoid <<hotspotting,hot spotting>>.
 
 The way data tiers are used often depends on the data's category:
 
 - Content data remains on the <<content-tier,content tier>> for its entire
-data lifecycle. 
+data lifecycle.
 
-- Time series data may progress through the 
-descending temperature data tiers (hot, warm, cold, and frozen) according to your 
-performance, resiliency, and data retention requirements. 
-+ 
-You can automate these lifecycle transitions using the <<data-streams,data stream lifecycle>>, or custom <<index-lifecycle-management,{ilm}>>. 
+- Time series data may progress through the
+descending temperature data tiers (hot, warm, cold, and frozen) according to your
+performance, resiliency, and data retention requirements.
++
+You can automate these lifecycle transitions using the <<data-streams,data stream lifecycle>>, or custom <<index-lifecycle-management,{ilm}>>.
 
 [discrete]
 [[available-tier]]
@@ -75,9 +75,9 @@ While they are also responsible for indexing, content data is generally not inge
 as time series data such as logs and metrics. From a resiliency perspective the indices in this
 tier should be configured to use one or more replicas.
 
-The content tier is required and is often deployed within the same node 
+The content tier is required and is often deployed within the same node
 grouping as the hot tier. System indices and other indices that aren't part
-of a data stream are automatically allocated to the content tier. 
+of a data stream are automatically allocated to the content tier.
 // end::content-tier[]
 
 [discrete]
@@ -215,26 +215,26 @@ When {es} creates an index as part of a <<data-streams, data stream>>,
 by default {es} sets the `_tier_preference`
 to `data_hot` to automatically allocate the index shards to the hot tier.
 
-At the time of index creation, you can override the default setting by explicitly setting 
+At the time of index creation, you can override the default setting by explicitly setting
 the preferred value in one of two ways:
 
 - Using an <<index-templates,index template>>. Refer to <<getting-started-index-lifecycle-management,Automate rollover with ILM>> for details.
-- Within the <<indices-create-index,create index>> request body. 
+- Within the <<indices-create-index,create index>> request body.
 
-You can override this 
-setting after index creation by <<indices-update-settings,updating the index setting>> to the preferred 
-value. 
+You can override this
+setting after index creation by <<indices-update-settings,updating the index setting>> to the preferred
+value.
 
 This setting also accepts multiple tiers in order of preference. This prevents indices from remaining unallocated if no nodes are available in the preferred tier. For example, when {ilm} migrates an index to the cold phase, it sets the index `_tier_preference` to `data_cold,data_warm,data_hot`.
 
-To remove the data tier preference 
-setting, set the `_tier_preference` value to `null`. This allows the index to allocate to any data node within the cluster. Setting the `_tier_preference` to `null` does not restore the default value. Note that, in the case of managed indices, a <<ilm-migrate,migrate>> action might apply a new value in its place. 
+To remove the data tier preference
+setting, set the `_tier_preference` value to `null`. This allows the index to allocate to any data node within the cluster. Setting the `_tier_preference` to `null` does not restore the default value. Note that, in the case of managed indices, a <<ilm-migrate,migrate>> action might apply a new value in its place.
 
 [discrete]
 [[data-tier-allocation-value]]
 ==== Determine the current data tier preference
 
-You can check an existing index's data tier preference by <<indices-get-settings,polling its 
+You can check an existing index's data tier preference by <<indices-get-settings,polling its
 settings>> for `index.routing.allocation.include._tier_preference`:
 
 [source,console]
@@ -247,8 +247,8 @@ GET /my-index-000001/_settings?filter_path=*.settings.index.routing.allocation.i
 [[data-tier-allocation-troubleshooting]]
 ==== Troubleshooting
 
-The `_tier_preference` setting might conflict with other allocation settings. This conflict might prevent the shard from allocating. A conflict might occur when a cluster has not yet been completely <<troubleshoot-migrate-to-tiers,migrated 
-to data tiers>>. 
+The `_tier_preference` setting might conflict with other allocation settings. This conflict might prevent the shard from allocating. A conflict might occur when a cluster has not yet been completely <<troubleshoot-migrate-to-tiers,migrated
+to data tiers>>.
 
 This setting will not unallocate a currently allocated shard, but might prevent it from migrating from its current location to its designated data tier. To troubleshoot, call the <<cluster-allocation-explain,cluster allocation explain API>> and specify the suspected problematic shard.
 

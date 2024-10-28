@@ -1205,25 +1205,39 @@ public class VerifierTests extends ESTestCase {
 
     public void testQueryStringFunctionOnlyAllowedInWhere() throws Exception {
         assertEquals("1:9: [QSTR] function is only supported in WHERE commands", error("row a = qstr(\"Anna\")"));
-        checkFullTextFunctionsOnlyAllowedInWhere("QSTR", "qstr(\"Anna\")");
+        checkFullTextFunctionsOnlyAllowedInWhere("QSTR", "qstr(\"Anna\")", "function");
     }
 
     public void testMatchFunctionOnlyAllowedInWhere() throws Exception {
-        checkFullTextFunctionsOnlyAllowedInWhere("MATCH", "match(first_name, \"Anna\")");
+        checkFullTextFunctionsOnlyAllowedInWhere("MATCH", "match(first_name, \"Anna\")", "function");
     }
 
-    private void checkFullTextFunctionsOnlyAllowedInWhere(String functionName, String functionInvocation) throws Exception {
+    public void testMatchOperatornOnlyAllowedInWhere() throws Exception {
+        assumeTrue("skipping because MATCH operator is not enabled", EsqlCapabilities.Cap.MATCH_OPERATOR_COLON.isEnabled());
+        checkFullTextFunctionsOnlyAllowedInWhere(":", "first_name:\"Anna\"", "operator");
+    }
+
+    private void checkFullTextFunctionsOnlyAllowedInWhere(String functionName, String functionInvocation, String functionType)
+        throws Exception {
         assertEquals(
-            "1:22: [" + functionName + "] function is only supported in WHERE commands",
+            "1:22: [" + functionName + "] " + functionType + " is only supported in WHERE commands",
             error("from test | eval y = " + functionInvocation)
         );
         assertEquals(
-            "1:18: [" + functionName + "] function is only supported in WHERE commands",
+            "1:18: [" + functionName + "] " + functionType + " is only supported in WHERE commands",
             error("from test | sort " + functionInvocation + " asc")
         );
         assertEquals(
-            "1:23: [" + functionName + "] function is only supported in WHERE commands",
+            "1:23: [" + functionName + "] " + functionType + " is only supported in WHERE commands",
             error("from test | STATS c = " + functionInvocation + " BY first_name")
+        );
+        assertEquals(
+            "1:50: [" + functionName + "] " + functionType + " is only supported in WHERE commands",
+            error("from test | stats max_salary = max(salary) where " + functionInvocation)
+        );
+        assertEquals(
+            "1:47: [" + functionName + "] " + functionType + " is only supported in WHERE commands",
+            error("from test | stats max_salary = max(salary) by " + functionInvocation)
         );
     }
 
@@ -1301,33 +1315,71 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testQueryStringFunctionWithNonBooleanFunctions() {
-        checkFullTextFunctionsWithNonBooleanFunctions("QSTR", "qstr(\"first_name: Anna\")");
+        checkFullTextFunctionsWithNonBooleanFunctions("QSTR", "qstr(\"first_name: Anna\")", "function");
     }
 
     public void testMatchFunctionWithNonBooleanFunctions() {
-        checkFullTextFunctionsWithNonBooleanFunctions("MATCH", "match(first_name, \"Anna\")");
+        checkFullTextFunctionsWithNonBooleanFunctions("MATCH", "match(first_name, \"Anna\")", "function");
     }
 
-    private void checkFullTextFunctionsWithNonBooleanFunctions(String functionName, String functionInvocation) {
+    public void testMatchOperatorWithNonBooleanFunctions() {
+        assumeTrue("skipping because MATCH operator is not enabled", EsqlCapabilities.Cap.MATCH_OPERATOR_COLON.isEnabled());
+        checkFullTextFunctionsWithNonBooleanFunctions(":", "first_name:\"Anna\"", "operator");
+    }
+
+    private void checkFullTextFunctionsWithNonBooleanFunctions(String functionName, String functionInvocation, String functionType) {
+        if (functionType.equals("operator") == false) {
+            // The following tests are only possible for functions from a parsing perspective
+            assertEquals(
+                "1:19: Invalid condition ["
+                    + functionInvocation
+                    + " is not null]. ["
+                    + functionName
+                    + "] "
+                    + functionType
+                    + " can't be used with ISNOTNULL",
+                error("from test | where " + functionInvocation + " is not null")
+            );
+            assertEquals(
+                "1:19: Invalid condition ["
+                    + functionInvocation
+                    + " is null]. ["
+                    + functionName
+                    + "] "
+                    + functionType
+                    + " can't be used with ISNULL",
+                error("from test | where " + functionInvocation + " is null")
+            );
+            assertEquals(
+                "1:19: Invalid condition ["
+                    + functionInvocation
+                    + " in (\"hello\", \"world\")]. ["
+                    + functionName
+                    + "] "
+                    + functionType
+                    + " can't be used with IN",
+                error("from test | where " + functionInvocation + " in (\"hello\", \"world\")")
+            );
+        }
         assertEquals(
-            "1:19: Invalid condition ["
+            "1:19: Invalid condition [coalesce("
                 + functionInvocation
-                + " is not null]. ["
+                + ", "
+                + functionInvocation
+                + ")]. ["
                 + functionName
-                + "] function can't be used with ISNOTNULL",
-            error("from test | where " + functionInvocation + " is not null")
+                + "] "
+                + functionType
+                + " can't be used with COALESCE",
+            error("from test | where coalesce(" + functionInvocation + ", " + functionInvocation + ")")
         );
         assertEquals(
-            "1:19: Invalid condition [" + functionInvocation + " is null]. [" + functionName + "] function can't be used with ISNULL",
-            error("from test | where " + functionInvocation + " is null")
-        );
-        assertEquals(
-            "1:19: Invalid condition ["
+            "1:19: argument of [concat("
                 + functionInvocation
-                + " in (\"hello\", \"world\")]. ["
-                + functionName
-                + "] function can't be used with IN",
-            error("from test | where " + functionInvocation + " in (\"hello\", \"world\")")
+                + ", \"a\")] must be [string], found value ["
+                + functionInvocation
+                + "] type [boolean]",
+            error("from test | where concat(" + functionInvocation + ", \"a\")")
         );
     }
 

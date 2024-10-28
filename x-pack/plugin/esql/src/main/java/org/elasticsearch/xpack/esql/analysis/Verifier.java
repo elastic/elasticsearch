@@ -739,9 +739,10 @@ public class Verifier {
                 failures.add(
                     fail(
                         condition,
-                        "Invalid condition [{}]. [{}] function can't be used with {}",
+                        "Invalid condition [{}]. [{}] {} can't be used with {}",
                         condition.sourceText(),
                         ftf.functionName(),
+                        ftf.functionType(),
                         ((Function) parent).functionName()
                     )
                 );

@@ -166,7 +166,7 @@ public class SecurityMigrations {
             getRoleMappings(client, ActionListener.wrap(roleMappings -> {
                 List<String> roleMappingsToDelete = getDuplicateRoleMappingNames(roleMappings.mappings());
                 if (roleMappingsToDelete.isEmpty() == false) {
-                    logger.info("Found [" + roleMappingsToDelete.size() + "] role mappings to cleanup in .security index.");
+                    logger.info("Found [" + roleMappingsToDelete.size() + "] role mapping(s) to cleanup in .security index.");
                     deleteNativeRoleMappings(client, roleMappingsToDelete, listener);
                 } else {
                     listener.onResponse(null);
@@ -185,17 +185,18 @@ public class SecurityMigrations {
         }
 
         private void deleteNativeRoleMappings(Client client, List<String> names, ActionListener<Void> listener) {
+            assert names.isEmpty() == false;
             ActionListener<DeleteRoleMappingResponse> groupListener = new GroupedActionListener<>(
                 names.size(),
                 ActionListener.wrap(responses -> {
                     long foundRoleMappings = responses.stream().filter(DeleteRoleMappingResponse::isFound).count();
                     if (responses.size() > foundRoleMappings) {
                         logger.warn(
-                            "[" + (responses.size() - foundRoleMappings) + "] Role mappings not found during role mapping clean up."
+                            "[" + (responses.size() - foundRoleMappings) + "] Role mapping(s) not found during role mapping clean up."
                         );
                     }
                     if (foundRoleMappings > 0) {
-                        logger.info("Deleted [" + foundRoleMappings + "] duplicated role mapping from .security index");
+                        logger.info("Deleted [" + foundRoleMappings + "] duplicated role mapping(s) from .security index");
                     }
                     listener.onResponse(null);
                 }, listener::onFailure)

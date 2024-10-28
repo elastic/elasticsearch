@@ -218,6 +218,10 @@ public abstract class RetrieverBuilder implements Rewriteable<RetrieverBuilder>,
         this.rankDocs = rankDocs;
     }
 
+    public RankDoc[] getRankDocs() {
+        return rankDocs;
+    }
+
     /**
      * Gets the filters for this retriever.
      */

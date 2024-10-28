@@ -75,7 +75,7 @@ public class IndicesServiceBuilder {
     @Nullable
     CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException> requestCacheKeyDifferentiator;
     MapperMetrics mapperMetrics;
-    List<SearchOperationListener> searchOperationListener;
+    List<SearchOperationListener> searchOperationListener = List.of();
 
     public IndicesServiceBuilder settings(Settings settings) {
         this.settings = settings;

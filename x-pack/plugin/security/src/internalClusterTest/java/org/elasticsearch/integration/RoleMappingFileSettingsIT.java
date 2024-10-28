@@ -43,6 +43,7 @@ import org.junit.After;
 
 import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -178,7 +179,11 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
         logger.info("--> before writing JSON config to node {} with path {}", node, tempFilePath);
         logger.info(Strings.format(json, version));
         Files.write(tempFilePath, Strings.format(json, version).getBytes(StandardCharsets.UTF_8));
-        Files.move(tempFilePath, fileSettingsService.watchedFile(), StandardCopyOption.ATOMIC_MOVE);
+        try {
+            Files.move(tempFilePath, fileSettingsService.watchedFile(), StandardCopyOption.ATOMIC_MOVE);
+        } catch (AtomicMoveNotSupportedException e) {
+            Files.move(tempFilePath, fileSettingsService.watchedFile());
+        }
         logger.info("--> after writing JSON config to node {} with path {}", node, tempFilePath);
     }
 

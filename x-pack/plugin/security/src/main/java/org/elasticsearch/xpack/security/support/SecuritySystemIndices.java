@@ -68,7 +68,7 @@ public class SecuritySystemIndices {
      * The latest version of the security migration when the main security index was created
      */
     public static final Setting<Integer> MAIN_INDEX_CREATED_ON_MIGRATION_VERSION = Setting.intSetting(
-        "index.security.migration.version",
+        "index.security_migration_version",
         0,
         Setting.Property.IndexScope,
         Setting.Property.Final

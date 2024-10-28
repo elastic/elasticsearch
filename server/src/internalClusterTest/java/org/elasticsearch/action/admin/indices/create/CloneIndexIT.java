@@ -20,9 +20,12 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentType;
 
+import java.util.List;
+
 import static org.elasticsearch.action.admin.indices.create.ShrinkIndexIT.assertNoResizeSourceIndexSettings;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class CloneIndexIT extends ESIntegTestCase {
@@ -109,4 +112,47 @@ public class CloneIndexIT extends ESIntegTestCase {
 
     }
 
+    public void testResizeChangeIndexMode() {
+        prepareCreate("source").setSettings(indexSettings(1, 0)).setMapping("@timestamp", "type=date", "host.name", "type=keyword").get();
+        updateIndexSettings(Settings.builder().put("index.blocks.write", true), "source");
+        List<Settings> indexSettings = List.of(
+            Settings.builder().put("index.mode", "logsdb").build(),
+            Settings.builder().put("index.mode", "time_series").put("index.routing_path", "host.name").build(),
+            Settings.builder().put("index.mode", "lookup").build()
+        );
+        for (Settings settings : indexSettings) {
+            IllegalArgumentException error = expectThrows(IllegalArgumentException.class, () -> {
+                indicesAdmin().prepareResizeIndex("source", "target").setResizeType(ResizeType.CLONE).setSettings(settings).get();
+            });
+            assertThat(error.getMessage(), equalTo("can't change setting [index.mode] during resize"));
+        }
+    }
+
+    public void testResizeChangeSyntheticSource() {
+        prepareCreate("source").setSettings(indexSettings(between(1, 5), 0))
+            .setMapping("@timestamp", "type=date", "host.name", "type=keyword")
+            .get();
+        updateIndexSettings(Settings.builder().put("index.blocks.write", true), "source");
+        IllegalArgumentException error = expectThrows(IllegalArgumentException.class, () -> {
+            indicesAdmin().prepareResizeIndex("source", "target")
+                .setResizeType(ResizeType.CLONE)
+                .setSettings(Settings.builder().put("index.mapping.source.mode", "synthetic").putNull("index.blocks.write").build())
+                .get();
+        });
+        assertThat(error.getMessage(), containsString("can't change setting [index.mapping.source.mode] during resize"));
+    }
+
+    public void testResizeChangeIndexSorts() {
+        prepareCreate("source").setSettings(indexSettings(between(1, 5), 0))
+            .setMapping("@timestamp", "type=date", "host.name", "type=keyword")
+            .get();
+        updateIndexSettings(Settings.builder().put("index.blocks.write", true), "source");
+        IllegalArgumentException error = expectThrows(IllegalArgumentException.class, () -> {
+            indicesAdmin().prepareResizeIndex("source", "target")
+                .setResizeType(ResizeType.CLONE)
+                .setSettings(Settings.builder().putList("index.sort.field", List.of("@timestamp")).build())
+                .get();
+        });
+        assertThat(error.getMessage(), containsString("can't change setting [index.sort.field] during resize"));
+    }
 }

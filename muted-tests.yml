@@ -65,8 +65,6 @@ tests:
 - class: org.elasticsearch.xpack.restart.CoreFullClusterRestartIT
   method: testSnapshotRestore {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/111799
-- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
-  issue: https://github.com/elastic/elasticsearch/issues/112147
 - class: org.elasticsearch.smoketest.WatcherYamlRestIT
   method: test {p0=watcher/usage/10_basic/Test watcher usage stats output}
   issue: https://github.com/elastic/elasticsearch/issues/112189
@@ -200,9 +198,6 @@ tests:
 - class: org.elasticsearch.xpack.inference.InferenceCrudIT
   method: testGet
   issue: https://github.com/elastic/elasticsearch/issues/114135
-- class: org.elasticsearch.xpack.ilm.ExplainLifecycleIT
-  method: testStepInfoPreservedOnAutoRetry
-  issue: https://github.com/elastic/elasticsearch/issues/114220
 - class: org.elasticsearch.xpack.inference.InferenceRestIT
   method: test {p0=inference/30_semantic_text_inference/Calculates embeddings using the default ELSER 2 endpoint}
   issue: https://github.com/elastic/elasticsearch/issues/114412
@@ -267,9 +262,6 @@ tests:
 - class: org.elasticsearch.oldrepos.OldRepositoryAccessIT
   method: testOldRepoAccess
   issue: https://github.com/elastic/elasticsearch/issues/115631
-- class: org.elasticsearch.xpack.search.CrossClusterAsyncSearchIT
-  method: testCCSClusterDetailsWhereAllShardsSkippedInCanMatch
-  issue: https://github.com/elastic/elasticsearch/issues/115652
 - class: org.elasticsearch.index.get.GetResultTests
   method: testToAndFromXContent
   issue: https://github.com/elastic/elasticsearch/issues/115688
@@ -291,6 +283,9 @@ tests:
 - class: org.elasticsearch.xpack.spatial.search.GeoGridAggAndQueryConsistencyIT
   method: testGeoShapeGeoTile
   issue: https://github.com/elastic/elasticsearch/issues/115717
+- class: org.elasticsearch.xpack.spatial.search.GeoGridAggAndQueryConsistencyIT
+  method: testGeoShapeGeoHex
+  issue: https://github.com/elastic/elasticsearch/issues/115705
 
 # Examples:
 #

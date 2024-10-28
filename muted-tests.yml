@@ -346,6 +346,9 @@ tests:
 - class: org.elasticsearch.monitor.jvm.JvmStatsTests
   method: testJvmStats
   issue: https://github.com/elastic/elasticsearch/issues/115711
+- class: org.elasticsearch.xpack.inference.DefaultEndPointsIT
+  method: testInferDeploysDefaultE5
+  issue: https://github.com/elastic/elasticsearch/issues/115361
 
 # Examples:
 #

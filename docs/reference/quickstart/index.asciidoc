@@ -17,7 +17,7 @@ curl -fsSL https://elastic.co/start-local | sh
 ----
 // NOTCONSOLE
 
-Alternatively, see our <<elasticsearch-intro-deploy,other deployment options>>.
+Alternatively, refer to our <<elasticsearch-intro-deploy,other deployment options>>.
 
 [discrete]
 [[quickstart-list]]

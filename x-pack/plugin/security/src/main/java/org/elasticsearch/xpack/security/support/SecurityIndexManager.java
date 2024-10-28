@@ -205,10 +205,6 @@ public class SecurityIndexManager implements ClusterStateListener {
         return indexExists() && this.state.migrationsVersion.compareTo(expectedMigrationsVersion) >= 0;
     }
 
-    public boolean isCreatedOnLatestVersion() {
-        return this.state.createdOnLatestMigrationVersion;
-    }
-
     public ElasticsearchException getUnavailableReason(Availability availability) {
         // ensure usage of a local copy so all checks execute against the same state!
         if (defensiveCopy == false) {
@@ -333,7 +329,7 @@ public class SecurityIndexManager implements ClusterStateListener {
         }
         final State previousState = state;
         final IndexMetadata indexMetadata = resolveConcreteIndex(systemIndexDescriptor.getAliasName(), event.state().metadata());
-        final boolean createdOnLatestMigrationVersion = isCreatedOnLatestVersion(indexMetadata);
+        final boolean createdOnLatestVersion = isCreatedOnLatestVersion(indexMetadata);
         final Instant creationTime = indexMetadata != null ? Instant.ofEpochMilli(indexMetadata.getCreationDate()) : null;
         final boolean isIndexUpToDate = indexMetadata == null
             || INDEX_FORMAT_SETTING.get(indexMetadata.getSettings()) == systemIndexDescriptor.getIndexFormat();
@@ -373,7 +369,7 @@ public class SecurityIndexManager implements ClusterStateListener {
             indexAvailableForSearch,
             indexAvailableForWrite,
             mappingIsUpToDate,
-            createdOnLatestMigrationVersion,
+            createdOnLatestVersion,
             roleMappingsCleanupMigrationStatus,
             migrationsVersion,
             minClusterMappingVersion,
@@ -783,7 +779,7 @@ public class SecurityIndexManager implements ClusterStateListener {
         public final boolean indexAvailableForSearch;
         public final boolean indexAvailableForWrite;
         public final boolean mappingUpToDate;
-        public final boolean createdOnLatestMigrationVersion;
+        public final boolean createdOnLatestVersion;
         public final RoleMappingsCleanupMigrationStatus roleMappingsCleanupMigrationStatus;
         public final Integer migrationsVersion;
         // Min mapping version supported by the descriptors in the cluster
@@ -802,7 +798,7 @@ public class SecurityIndexManager implements ClusterStateListener {
             boolean indexAvailableForSearch,
             boolean indexAvailableForWrite,
             boolean mappingUpToDate,
-            boolean createdOnLatestMigrationVersion,
+            boolean createdOnLatestVersion,
             RoleMappingsCleanupMigrationStatus roleMappingsCleanupMigrationStatus,
             Integer migrationsVersion,
             SystemIndexDescriptor.MappingsVersion minClusterMappingVersion,
@@ -819,7 +815,7 @@ public class SecurityIndexManager implements ClusterStateListener {
             this.indexAvailableForWrite = indexAvailableForWrite;
             this.mappingUpToDate = mappingUpToDate;
             this.migrationsVersion = migrationsVersion;
-            this.createdOnLatestMigrationVersion = createdOnLatestMigrationVersion;
+            this.createdOnLatestVersion = createdOnLatestVersion;
             this.roleMappingsCleanupMigrationStatus = roleMappingsCleanupMigrationStatus;
             this.minClusterMappingVersion = minClusterMappingVersion;
             this.indexMappingVersion = indexMappingVersion;
@@ -840,7 +836,7 @@ public class SecurityIndexManager implements ClusterStateListener {
                 && indexAvailableForSearch == state.indexAvailableForSearch
                 && indexAvailableForWrite == state.indexAvailableForWrite
                 && mappingUpToDate == state.mappingUpToDate
-                && createdOnLatestMigrationVersion == state.createdOnLatestMigrationVersion
+                && createdOnLatestVersion == state.createdOnLatestVersion
                 && roleMappingsCleanupMigrationStatus == state.roleMappingsCleanupMigrationStatus
                 && Objects.equals(indexMappingVersion, state.indexMappingVersion)
                 && Objects.equals(migrationsVersion, state.migrationsVersion)
@@ -863,7 +859,7 @@ public class SecurityIndexManager implements ClusterStateListener {
                 indexAvailableForSearch,
                 indexAvailableForWrite,
                 mappingUpToDate,
-                createdOnLatestMigrationVersion,
+                createdOnLatestVersion,
                 roleMappingsCleanupMigrationStatus,
                 migrationsVersion,
                 minClusterMappingVersion,
@@ -888,7 +884,7 @@ public class SecurityIndexManager implements ClusterStateListener {
                 + ", mappingUpToDate="
                 + mappingUpToDate
                 + ", createdOnLatestVersion="
-                + createdOnLatestMigrationVersion
+                + createdOnLatestVersion
                 + ", roleMappingsCleanupMigrationStatus="
                 + roleMappingsCleanupMigrationStatus
                 + ", migrationsVersion="

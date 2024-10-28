@@ -1224,7 +1224,7 @@ public class Security extends Plugin
 
     private void applyPendingSecurityMigrations(SecurityIndexManager.State newState) {
         // If no migrations have been applied and the security index is on the latest version (new index), all migrations can be skipped
-        if (newState.migrationsVersion == 0 && newState.createdOnLatestMigrationVersion) {
+        if (newState.migrationsVersion == 0 && newState.createdOnLatestVersion) {
             submitPersistentMigrationTask(SecurityMigrations.MIGRATIONS_BY_VERSION.lastKey(), false);
             return;
         }

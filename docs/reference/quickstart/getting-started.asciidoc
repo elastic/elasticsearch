@@ -16,7 +16,7 @@ You can {kibana-ref}/console-kibana.html#import-export-console-requests[convert 
 
 [discrete]
 [[getting-started-requirements]]
-== Requirements
+=== Requirements
 
 You'll need a running {es} cluster, together with {kib} to use the Dev Tools API Console.
 Run the following command in your terminal to set up a <<run-elasticsearch-locally,single-node local cluster in Docker>>:

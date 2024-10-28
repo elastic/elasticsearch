@@ -21,7 +21,7 @@ To achieve these goals we'll use different Elasticsearch queries to perform full
 
 [discrete]
 [[full-text-filter-tutorial-requirements]]
-== Requirements
+=== Requirements
 
 You'll need a running {es} cluster, together with {kib} to use the Dev Tools API Console.
 Run the following command in your terminal to set up a <<run-elasticsearch-locally,single-node local cluster in Docker>>:

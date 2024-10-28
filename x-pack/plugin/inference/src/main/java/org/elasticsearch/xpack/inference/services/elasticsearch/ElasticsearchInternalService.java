@@ -33,7 +33,6 @@ import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.action.GetDeploymentStatsAction;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
-import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentStats;
@@ -84,8 +83,8 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
     );
 
     public static final int EMBEDDING_MAX_BATCH_SIZE = 10;
-    public static final String DEFAULT_ELSER_ID = ".elser-2";
-    public static final String DEFAULT_E5_ID = ".multi-e5-small";
+    public static final String DEFAULT_ELSER_ID = ".elser-2-elasticsearch";
+    public static final String DEFAULT_E5_ID = ".multilingual-e5-small-elasticsearch";
 
     private static final Logger logger = LogManager.getLogger(ElasticsearchInternalService.class);
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(ElasticsearchInternalService.class);
@@ -778,10 +777,17 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
 
     @Override
     public void updateModelsWithDynamicFields(List<Model> models, ActionListener<List<Model>> listener) {
+        if (models.isEmpty()) {
+            listener.onResponse(models);
+            return;
+        }
+
         var modelsByDeploymentIds = new HashMap<String, ElasticsearchInternalModel>();
         for (var model : models) {
+            assert model instanceof ElasticsearchInternalModel;
+
             if (model instanceof ElasticsearchInternalModel esModel) {
-                modelsByDeploymentIds.put(esModel.internalServiceSettings.deloymentId(), esModel);
+                modelsByDeploymentIds.put(esModel.mlNodeDeploymentId(), esModel);
             } else {
                 listener.onFailure(
                     new ElasticsearchStatusException(
@@ -794,11 +800,6 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
             }
         }
 
-        if (modelsByDeploymentIds.isEmpty()) {
-            listener.onResponse(models);
-            return;
-        }
-
         String deploymentIds = String.join(",", modelsByDeploymentIds.keySet());
         client.execute(
             GetDeploymentStatsAction.INSTANCE,
@@ -806,7 +807,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
             ActionListener.wrap(stats -> {
                 for (var deploymentStats : stats.getStats().results()) {
                     var model = modelsByDeploymentIds.get(deploymentStats.getDeploymentId());
-                    model.updateNumAllocation(deploymentStats.getNumberOfAllocations());
+                    model.updateNumAllocations(deploymentStats.getNumberOfAllocations());
                 }
                 listener.onResponse(new ArrayList<>(modelsByDeploymentIds.values()));
             }, e -> {
@@ -898,7 +899,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
                     listener.onFailure(
                         new ElasticsearchStatusException(
                             "Deployment [{}] uses model [{}] which does not match the model [{}] in the request.",
-                            RestStatus.BAD_REQUEST, // TODO better message
+                            RestStatus.BAD_REQUEST,
                             deploymentId,
                             response.get().getModelId(),
                             modelId
@@ -918,21 +919,22 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
                 checkTaskTypeForMlNodeModel(response.get().getModelId(), taskType, l.delegateFailureAndWrap((l2, compatibleTaskType) -> {
                     l2.onResponse(updatedSettings);
                 }));
+            } else {
+                listener.onFailure(new ElasticsearchStatusException("Cannot find deployment [{}]", RestStatus.NOT_FOUND, deploymentId));
             }
         }));
     }
 
     private void getDeployment(String deploymentId, ActionListener<Optional<AssignmentStats>> listener) {
         client.execute(
-            GetTrainedModelsStatsAction.INSTANCE,
-            new GetTrainedModelsStatsAction.Request(deploymentId),
+            GetDeploymentStatsAction.INSTANCE,
+            new GetDeploymentStatsAction.Request(deploymentId),
             listener.delegateFailureAndWrap((l, response) -> {
                 l.onResponse(
-                    response.getResources()
+                    response.getStats()
                         .results()
                         .stream()
-                        .filter(s -> s.getDeploymentStats() != null && s.getDeploymentStats().getDeploymentId().equals(deploymentId))
-                        .map(GetTrainedModelsStatsAction.Response.TrainedModelStats::getDeploymentStats)
+                        .filter(s -> s.getDeploymentId() != null && s.getDeploymentId().equals(deploymentId))
                         .findFirst()
                 );
             })

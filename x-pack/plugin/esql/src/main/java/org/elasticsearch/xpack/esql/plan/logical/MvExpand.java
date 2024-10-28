@@ -31,6 +31,10 @@ public class MvExpand extends UnaryPlan {
 
     private List<Attribute> output;
 
+    public MvExpand(Source source, LogicalPlan child, NamedExpression target, Attribute expanded) {
+        this(source, child, target, expanded, null);
+    }
+
     public MvExpand(Source source, LogicalPlan child, NamedExpression target, Attribute expanded, Integer limit) {
         super(source, child);
         this.target = target;
@@ -128,8 +132,7 @@ public class MvExpand extends UnaryPlan {
         if (false == super.equals(obj)) {
             return false;
         }
-        return Objects.equals(target, ((MvExpand) obj).target)
-            && Objects.equals(expanded, ((MvExpand) obj).expanded)
-            && Objects.equals(limit, ((MvExpand) obj).limit);
+        MvExpand other = ((MvExpand) obj);
+        return Objects.equals(target, other.target) && Objects.equals(expanded, other.expanded) && Objects.equals(limit, other.limit);
     }
 }

@@ -446,7 +446,7 @@ public class EsqlCapabilities {
         /**
          * Fix pushdown of LIMIT past MV_EXPAND
          */
-        FIX_MV_EXPAND_LIMIT_PUSHDOWN;
+        ADD_LIMIT_INSIDE_MV_EXPAND;
 
         private final boolean enabled;
 

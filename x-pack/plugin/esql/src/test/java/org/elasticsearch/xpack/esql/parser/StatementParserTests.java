@@ -1642,8 +1642,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     List.of(new Order(EMPTY, attribute("f.5.*"), Order.OrderDirection.ASC, Order.NullsPosition.LAST))
                 ),
                 attribute("f.6*"),
-                attribute("f.6*"),
-                null
+                attribute("f.6*")
             ),
             statement(
                 """

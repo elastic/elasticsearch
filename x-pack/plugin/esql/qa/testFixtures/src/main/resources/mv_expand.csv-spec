@@ -328,7 +328,7 @@ avg_worked_seconds:long | birth_date:date          | emp_no:integer | first_name
 
 // see https://github.com/elastic/elasticsearch/issues/102061
 sortMvExpand
-required_capability: fix_mv_expand_limit_pushdown
+required_capability: add_limit_inside_mv_expand
 row a = 1 | sort a | mv_expand a;
 
 a:integer
@@ -338,7 +338,7 @@ a:integer
 
 // see https://github.com/elastic/elasticsearch/issues/102061
 limitSortMvExpand
-required_capability: fix_mv_expand_limit_pushdown
+required_capability: add_limit_inside_mv_expand
 row a = 1 | limit 1 | sort a | mv_expand a;
 
 a:integer
@@ -348,7 +348,7 @@ a:integer
 
 // see https://github.com/elastic/elasticsearch/issues/102061
 limitSortMultipleMvExpand
-required_capability: fix_mv_expand_limit_pushdown
+required_capability: add_limit_inside_mv_expand
 row a = [1, 2, 3, 4, 5], b = 2, c = 3 |  sort a | mv_expand a | mv_expand b | mv_expand c | limit 3;
 
 a:integer | b:integer | c:integer
@@ -359,7 +359,7 @@ a:integer | b:integer | c:integer
 
 
 multipleLimitSortMultipleMvExpand
-required_capability: fix_mv_expand_limit_pushdown
+required_capability: add_limit_inside_mv_expand
 row a = [1, 2, 3, 4, 5], b = 2, c = 3 |  sort a | mv_expand a | limit 2 | mv_expand b | mv_expand c | limit 3;
 
 a:integer | b:integer | c:integer
@@ -369,7 +369,7 @@ a:integer | b:integer | c:integer
 
 
 multipleLimitSortMultipleMvExpand2
-required_capability: fix_mv_expand_limit_pushdown
+required_capability: add_limit_inside_mv_expand
 row a = [1, 2, 3, 4, 5], b = 2, c = 3 |  sort a | mv_expand a | limit 3 | mv_expand b | mv_expand c | limit 2;
 
 a:integer | b:integer | c:integer
@@ -380,7 +380,7 @@ a:integer | b:integer | c:integer
 
 //see https://github.com/elastic/elasticsearch/issues/102084
 whereMvExpand
-required_capability: fix_mv_expand_limit_pushdown
+required_capability: add_limit_inside_mv_expand
 row  a = 1, b = -15 | where b > 3   | mv_expand b;
 
 a:integer | b:integer

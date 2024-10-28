@@ -1487,6 +1487,144 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
     /**
      * Expected
+     * EsqlProject[[emp_no{f}#12, first_name{r}#22, salary{f}#17]]
+     * \_TopN[[Order[salary{f}#17,ASC,LAST], Order[first_name{r}#22,ASC,LAST]],1000[INTEGER]]
+     *   \_Filter[gender{f}#14 == [46][KEYWORD] AND WILDCARDLIKE(first_name{r}#22)]
+     *     \_MvExpand[first_name{f}#13,first_name{r}#22,null]
+     *       \_TopN[[Order[emp_no{f}#12,ASC,LAST]],10000[INTEGER]]
+     *         \_EsRelation[test][_meta_field{f}#18, emp_no{f}#12, first_name{f}#13, ..]
+     */
+    public void testAddDefaultLimit_BeforeMvExpand_WithFilterOnExpandedField_ResultTruncationDefaultSize() {
+        LogicalPlan plan = optimizedPlan("""
+            from test
+            | sort emp_no
+            | mv_expand first_name
+            | where gender == "F"
+            | where first_name LIKE "R*"
+            | keep emp_no, first_name, salary
+            | sort salary, first_name""");
+
+        var keep = as(plan, EsqlProject.class);
+        var topN = as(keep.child(), TopN.class);
+        assertThat(topN.limit().fold(), equalTo(1000));
+        assertThat(orderNames(topN), contains("salary", "first_name"));
+        var filter = as(topN.child(), Filter.class);
+        assertThat(filter.condition(), instanceOf(And.class));
+        var mvExp = as(filter.child(), MvExpand.class);
+        topN = as(mvExp.child(), TopN.class); // TODO is it correct? Double-check AddDefaultTopN rule
+        assertThat(orderNames(topN), contains("emp_no"));
+        as(topN.child(), EsRelation.class);
+    }
+
+    /**
+     * Expected
+     *
+     * MvExpand[first_name{f}#7,first_name{r}#16,10]
+     * \_TopN[[Order[emp_no{f}#6,DESC,FIRST]],10[INTEGER]]
+     *   \_Filter[emp_no{f}#6 &le; 10006[INTEGER]]
+     *     \_EsRelation[test][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]
+     */
+    public void testFilterWithSortBeforeMvExpand() {
+        LogicalPlan plan = optimizedPlan("""
+            from test
+            | where emp_no <= 10006
+            | sort emp_no desc
+            | mv_expand first_name
+            | limit 10""");
+
+        var mvExp = as(plan, MvExpand.class);
+        assertThat(mvExp.limit(), equalTo(10));
+        var topN = as(mvExp.child(), TopN.class);
+        assertThat(topN.limit().fold(), equalTo(10));
+        assertThat(orderNames(topN), contains("emp_no"));
+        var filter = as(topN.child(), Filter.class);
+        as(filter.child(), EsRelation.class);
+    }
+
+    /**
+     * Expected
+     *
+     * TopN[[Order[first_name{f}#10,ASC,LAST]],500[INTEGER]]
+     * \_MvExpand[last_name{f}#13,last_name{r}#20,null]
+     *   \_Filter[emp_no{r}#19 > 10050[INTEGER]]
+     *     \_MvExpand[emp_no{f}#9,emp_no{r}#19,null]
+     *       \_EsRelation[test][_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, g..]
+     */
+    public void testMultiMvExpand_SortDownBelow() {
+        LogicalPlan plan = optimizedPlan("""
+            from test
+            | sort last_name ASC
+            | mv_expand emp_no
+            | where  emp_no > 10050
+            | mv_expand last_name
+            | sort first_name""");
+
+        var topN = as(plan, TopN.class);
+        assertThat(topN.limit().fold(), equalTo(1000));
+        assertThat(orderNames(topN), contains("first_name"));
+        var mvExpand = as(topN.child(), MvExpand.class);
+        var filter = as(mvExpand.child(), Filter.class);
+        mvExpand = as(filter.child(), MvExpand.class);
+        var topN2 = as(mvExpand.child(), TopN.class);  // TODO is it correct? Double-check AddDefaultTopN rule
+        as(topN2.child(), EsRelation.class);
+    }
+
+    /**
+     * Expected
+     *
+     * MvExpand[c{r}#7,c{r}#16,10000]
+     * \_EsqlProject[[c{r}#7, a{r}#3]]
+     *   \_TopN[[Order[a{r}#3,ASC,FIRST]],7300[INTEGER]]
+     *     \_MvExpand[b{r}#5,b{r}#15,7300]
+     *       \_Limit[7300[INTEGER]]
+     *         \_Row[[null[NULL] AS a, 123[INTEGER] AS b, 234[INTEGER] AS c]]
+     */
+    public void testLimitThenSortBeforeMvExpand() {
+        LogicalPlan plan = optimizedPlan("""
+            row  a = null, b = 123, c = 234
+            | mv_expand b
+            | limit 7300
+            | keep c, a
+            | sort a NULLS FIRST
+            | mv_expand c""");
+
+        var mvExpand = as(plan, MvExpand.class);
+        assertThat(mvExpand.limit(), equalTo(10000));
+        var project = as(mvExpand.child(), EsqlProject.class);
+        var topN = as(project.child(), TopN.class);
+        assertThat(topN.limit().fold(), equalTo(7300));
+        assertThat(orderNames(topN), contains("a"));
+        mvExpand = as(topN.child(), MvExpand.class);
+        var limit = as(mvExpand.child(), Limit.class);
+        assertThat(limit.limit().fold(), equalTo(7300));
+        as(limit.child(), Row.class);
+    }
+
+
+    /**
+     * Expected
+     * TopN[[Order[first_name{r}#16,ASC,LAST]],10000[INTEGER]]
+     * \_MvExpand[first_name{f}#7,first_name{r}#16]
+     *   \_EsRelation[test][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]
+     */
+    public void testRemoveUnusedSortBeforeMvExpand_DefaultLimit10000() {
+        LogicalPlan plan = optimizedPlan("""
+            from test
+            | sort emp_no
+            | mv_expand first_name
+            | sort first_name
+            | limit 15000""");
+
+        var topN = as(plan, TopN.class);
+        assertThat(orderNames(topN), contains("first_name"));
+        assertThat(topN.limit().fold(), equalTo(10000));
+        var mvExpand = as(topN.child(), MvExpand.class);
+        var topN2 = as(mvExpand.child(), TopN.class); // TODO is it correct? Double-check AddDefaultTopN rule
+        as(topN2.child(), EsRelation.class);
+    }
+
+    /**
+     * Expected
      * EsqlProject[[emp_no{f}#104, first_name{f}#105, salary{f}#106]]
      *  \_TopN[[Order[salary{f}#106,ASC,LAST], Order[first_name{f}#105,ASC,LAST]],15[INTEGER]]
      *    \_Filter[gender{f}#215 == [46][KEYWORD] AND WILDCARDLIKE(first_name{f}#105)]

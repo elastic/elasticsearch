@@ -213,7 +213,7 @@ public class FileSettingsServiceTests extends ESTestCase {
         fileSettingsService.start();
         fileSettingsService.clusterChanged(new ClusterChangedEvent("test", clusterService.state(), ClusterState.EMPTY_STATE));
 
-        // wait for listener to be called
+        // wait file processing call
         assertTrue(latch.await(20, TimeUnit.SECONDS));
 
         verify(fileSettingsService, times(1)).processFileOnServiceStart();

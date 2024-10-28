@@ -11,32 +11,38 @@ configure(childProjects.values()) {
 
   apply plugin: 'base'
 
+  /*
+   * Although these libs are local to Elasticsearch, they can conflict with other similarly
+   * named libraries when downloaded into a single directory via maven. Here we set the
+   * name of all libs to begin with the "elasticsearch-" prefix. Additionally, subprojects
+   * of libs begin with their parents artifactId.
+   */
   def baseProject = project
-  def baseName = "elasticsearch-${it.name}"
+  def baseArtifactId = "elasticsearch-${it.name}"
   base {
-    archivesName = baseName
+    archivesName = baseArtifactId
   }
   subprojects {
     plugins.withType(JavaPlugin).whenPluginAdded {
-      def name = baseName
+      def subArtifactId = baseArtifactId
       def currentProject = project
       while (currentProject != baseProject) {
-        name += "-${currentProject.name}"
+        subArtifactId += "-${currentProject.name}"
         currentProject = currentProject.parent
       }
       base {
-        archivesName = name
+        archivesName = subArtifactId
       }
     }
   }
 
-  if (project.name == 'log4j') {
-    return
-  }
+  // log4j is a hack, and not really a full elasticsearch built jar
+  if (project.name != 'log4j') {
 
-  /*
-   * All subprojects are java projects using Elasticsearch's standard build
-   * tools.
-   */
-  apply plugin: 'elasticsearch.build'
+    /*
+     * All subprojects are java projects using Elasticsearch's standard build
+     * tools.
+     */
+    apply plugin: 'elasticsearch.build'
+  }
 }

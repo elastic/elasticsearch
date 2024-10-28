@@ -543,7 +543,9 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
                 Map<String, Object> responseAsMap = entityAsMap(response);
                 List<?> columns = (List<?>) responseAsMap.get("columns");
                 List<?> values = (List<?>) responseAsMap.get("values");
-                assertThat(columns.size(), equalTo(0));
+                assertThat(columns.size(), equalTo(1));
+                Map<String, ?> column1 = (Map<String, ?>) columns.get(0);
+                assertThat(column1.get("name").toString(), equalTo("<no-fields>"));
                 assertThat(values.size(), equalTo(0));
                 Map<String, ?> clusters = (Map<String, ?>) responseAsMap.get("_clusters");
                 Map<String, ?> details = (Map<String, ?>) clusters.get("details");

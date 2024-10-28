@@ -141,7 +141,6 @@ public class CrossClusterQueryUnavailableRemotesIT extends AbstractMultiClusters
             // 2) the REMOTE_CLUSTER_1 is unavailable
             // 3) both remotes are marked as skip_un=true
             String query = "FROM nomatch*," + REMOTE_CLUSTER_1 + ":logs-*," + REMOTE_CLUSTER_2 + ":nomatch* | STATS sum (v)";
-            System.err.println(query);
             try (EsqlQueryResponse resp = runQuery(query, requestIncludeMeta)) {
                 List<List<Object>> values = getValuesList(resp);
                 assertThat(values, hasSize(0));

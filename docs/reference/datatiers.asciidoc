@@ -37,9 +37,9 @@ TIP: The performance of an {es} node is often limited by the performance of the 
 For example hardware profiles, refer to Elastic Cloud's {cloud}/ec-reference-hardware.html[instance configurations]. 
 Review our recommendations for optimizing your storage for <<indexing-use-faster-hardware,indexing>> and <<search-use-faster-hardware,search>>.
 
-IMPORTANT: {es} generally expects nodes within a data tier to share the same hardware profile
-and have the same disk capacity. Variations not following this recommendation should be
-carefully architected to avoid <<hotspotting,hot spotting>>.
+IMPORTANT: {es} generally expects nodes within a data tier to share the same hardware profile (such as CPU, RAM, disk capacity) 
+as it spreads the load equally across all nodes within the data tier.
+Variations not following this recommendation should be carefully architected to avoid <<hotspotting,hot spotting>>.
 
 The way data tiers are used often depends on the data's category:
 

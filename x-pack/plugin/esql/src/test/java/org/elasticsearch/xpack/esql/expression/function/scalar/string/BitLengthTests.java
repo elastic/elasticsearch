@@ -56,7 +56,7 @@ public class BitLengthTests extends AbstractScalarFunctionTestCase {
                 title + " with keyword",
                 List.of(DataType.KEYWORD),
                 () -> new TestCaseSupplier.TestCase(
-                    List.of(new TestCaseSupplier.TypedData(new BytesRef(text.get()), DataType.KEYWORD, "f")),
+                    List.of(new TestCaseSupplier.TypedData(new BytesRef(text.get()), DataType.KEYWORD, "str")),
                     "BitLengthEvaluator[val=Attribute[channel=0]]",
                     DataType.INTEGER,
                     equalTo(expectedLength)
@@ -66,7 +66,7 @@ public class BitLengthTests extends AbstractScalarFunctionTestCase {
                 title + " with text",
                 List.of(DataType.TEXT),
                 () -> new TestCaseSupplier.TestCase(
-                    List.of(new TestCaseSupplier.TypedData(new BytesRef(text.get()), DataType.TEXT, "f")),
+                    List.of(new TestCaseSupplier.TypedData(new BytesRef(text.get()), DataType.TEXT, "str")),
                     "BitLengthEvaluator[val=Attribute[channel=0]]",
                     DataType.INTEGER,
                     equalTo(expectedLength)

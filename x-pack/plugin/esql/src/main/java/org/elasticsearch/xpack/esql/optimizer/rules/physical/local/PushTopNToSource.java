@@ -63,7 +63,7 @@ public class PushTopNToSource extends PhysicalOptimizerRules.ParameterizedOptimi
     @Override
     protected PhysicalPlan rule(TopNExec topNExec, LocalPhysicalOptimizerContext ctx) {
         Predicate<FieldAttribute> hasIdenticalDelegate = (fa) -> LucenePushDownUtils.hasIdenticalDelegate(fa, ctx.searchStats());
-        Predicate<FieldAttribute> isIndexed = (fa) -> ctx.searchStats().isIndexed(fa.fieldName());
+        Predicate<FieldAttribute> isIndexed = (fa) -> ctx.searchStats().isIndexed(fa.name());
         Pushable pushable = evaluatePushable(topNExec, hasIdenticalDelegate, isIndexed);
         return pushable.rewrite(topNExec);
     }

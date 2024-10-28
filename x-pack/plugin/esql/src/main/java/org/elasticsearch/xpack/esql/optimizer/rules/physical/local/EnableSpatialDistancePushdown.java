@@ -168,7 +168,7 @@ public class EnableSpatialDistancePushdown extends PhysicalOptimizerRules.Parame
 
     private Map<NameId, StDistance> getPushableDistances(List<Alias> aliases, SearchStats stats) {
         Map<NameId, StDistance> distances = new LinkedHashMap<>();
-        Predicate<FieldAttribute> isIndexed = (fa) -> stats.isIndexed(fa.fieldName());
+        Predicate<FieldAttribute> isIndexed = (fa) -> stats.isIndexed(fa.name());
         aliases.forEach(alias -> {
             if (alias.child() instanceof StDistance distance && canPushSpatialFunctionToSource(distance, isIndexed)) {
                 distances.put(alias.id(), distance);

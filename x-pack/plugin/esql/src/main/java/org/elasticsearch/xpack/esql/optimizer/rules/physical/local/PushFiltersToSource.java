@@ -79,7 +79,7 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
         List<Expression> nonPushable = new ArrayList<>();
         for (Expression exp : splitAnd(filterExec.condition())) {
             Predicate<FieldAttribute> hasIdenticalDelegate = (fa) -> LucenePushDownUtils.hasIdenticalDelegate(fa, ctx.searchStats());
-            Predicate<FieldAttribute> isIndexed = (fa) -> ctx.searchStats().isIndexed(fa.fieldName());
+            Predicate<FieldAttribute> isIndexed = (fa) -> ctx.searchStats().isIndexed(fa.name());
             (canPushToSource(exp, hasIdenticalDelegate, isIndexed) ? pushable : nonPushable).add(exp);
         }
         return rewrite(filterExec, queryExec, pushable, nonPushable, List.of());
@@ -96,7 +96,7 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
         List<Expression> nonPushable = new ArrayList<>();
         for (Expression exp : splitAnd(filterExec.condition())) {
             Predicate<FieldAttribute> hasIdenticalDelegate = (fa) -> LucenePushDownUtils.hasIdenticalDelegate(fa, ctx.searchStats());
-            Predicate<FieldAttribute> isIndexed = (fa) -> ctx.searchStats().isIndexed(fa.fieldName());
+            Predicate<FieldAttribute> isIndexed = (fa) -> ctx.searchStats().isIndexed(fa.name());
             Expression resExp = exp.transformUp(ReferenceAttribute.class, r -> aliasReplacedBy.resolve(r, r));
             (canPushToSource(resExp, hasIdenticalDelegate, isIndexed) ? pushable : nonPushable).add(exp);
         }

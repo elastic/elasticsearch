@@ -20,14 +20,13 @@ import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.search.TransportSearchAction.SearchTimeProvider;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
-import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.shard.ShardId;
@@ -43,7 +42,6 @@ import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.transport.Transport;
 
-import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -51,9 +49,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
+import java.util.concurrent.LinkedTransferQueue;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
@@ -238,7 +239,12 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                 assert shardRoutings.skip() == false;
                 assert shardIndexMap.containsKey(shardRoutings);
                 int shardIndex = shardIndexMap.get(shardRoutings);
-                performPhaseOnShard(shardIndex, shardRoutings, shardRoutings.nextOrNull());
+                final SearchShardTarget routing = shardRoutings.nextOrNull();
+                if (routing == null) {
+                    failOnUnavailable(shardIndex, shardRoutings);
+                } else {
+                    performPhaseOnShard(shardIndex, shardRoutings, routing);
+                }
             }
         }
     }
@@ -258,7 +264,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         int index = 0;
         assert stackTraceElements[index++].getMethodName().equals("getStackTrace");
         assert stackTraceElements[index++].getMethodName().equals("assertExecuteOnStartThread");
-        assert stackTraceElements[index++].getMethodName().equals("performPhaseOnShard");
+        assert stackTraceElements[index++].getMethodName().equals("failOnUnavailable");
         if (stackTraceElements[index].getMethodName().equals("performPhaseOnShard")) {
             assert stackTraceElements[index].getClassName().endsWith("CanMatchPreFilterSearchPhase");
             index++;
@@ -277,63 +283,51 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     }
 
     protected void performPhaseOnShard(final int shardIndex, final SearchShardIterator shardIt, final SearchShardTarget shard) {
-        /*
-         * We capture the thread that this phase is starting on. When we are called back after executing the phase, we are either on the
-         * same thread (because we never went async, or the same thread was selected from the thread pool) or a different thread. If we
-         * continue on the same thread in the case that we never went async and this happens repeatedly we will end up recursing deeply and
-         * could stack overflow. To prevent this, we fork if we are called back on the same thread that execution started on and otherwise
-         * we can continue (cf. InitialSearchPhase#maybeFork).
-         */
-        if (shard == null) {
-            assert assertExecuteOnStartThread();
-            SearchShardTarget unassignedShard = new SearchShardTarget(null, shardIt.shardId(), shardIt.getClusterAlias());
-            onShardFailure(shardIndex, unassignedShard, shardIt, new NoShardAvailableActionException(shardIt.shardId()));
+        if (throttleConcurrentRequests) {
+            var pendingExecutions = pendingExecutionsPerNode.computeIfAbsent(
+                shard.getNodeId(),
+                n -> new PendingExecutions(maxConcurrentRequestsPerNode)
+            );
+            pendingExecutions.submit(l -> doPerformPhaseOnShard(shardIndex, shardIt, shard, l));
         } else {
-            final PendingExecutions pendingExecutions = throttleConcurrentRequests
-                ? pendingExecutionsPerNode.computeIfAbsent(shard.getNodeId(), n -> new PendingExecutions(maxConcurrentRequestsPerNode))
-                : null;
-            Runnable r = () -> {
-                final Thread thread = Thread.currentThread();
-                try {
-                    executePhaseOnShard(shardIt, shard, new SearchActionListener<>(shard, shardIndex) {
-                        @Override
-                        public void innerOnResponse(Result result) {
-                            try {
-                                onShardResult(result, shardIt);
-                            } catch (Exception exc) {
-                                onShardFailure(shardIndex, shard, shardIt, exc);
-                            } finally {
-                                executeNext(pendingExecutions, thread);
-                            }
-                        }
+            doPerformPhaseOnShard(shardIndex, shardIt, shard, () -> {});
+        }
+    }
 
-                        @Override
-                        public void onFailure(Exception t) {
-                            try {
-                                onShardFailure(shardIndex, shard, shardIt, t);
-                            } finally {
-                                executeNext(pendingExecutions, thread);
-                            }
-                        }
-                    });
-                } catch (final Exception e) {
-                    try {
-                        /*
-                         * It is possible to run into connection exceptions here because we are getting the connection early and might
-                         * run into nodes that are not connected. In this case, on shard failure will move us to the next shard copy.
-                         */
-                        fork(() -> onShardFailure(shardIndex, shard, shardIt, e));
-                    } finally {
-                        executeNext(pendingExecutions, thread);
+    private void doPerformPhaseOnShard(int shardIndex, SearchShardIterator shardIt, SearchShardTarget shard, Releasable releasable) {
+        try {
+            executePhaseOnShard(shardIt, shard, new SearchActionListener<>(shard, shardIndex) {
+                @Override
+                public void innerOnResponse(Result result) {
+                    try (releasable) {
+                        onShardResult(result, shardIt);
+                    } catch (Exception exc) {
+                        onShardFailure(shardIndex, shard, shardIt, exc);
                     }
                 }
-            };
-            if (throttleConcurrentRequests) {
-                pendingExecutions.tryRun(r);
-            } else {
-                r.run();
+
+                @Override
+                public void onFailure(Exception e) {
+                    try (releasable) {
+                        onShardFailure(shardIndex, shard, shardIt, e);
+                    }
+                }
+            });
+        } catch (final Exception e) {
+            /*
+             * It is possible to run into connection exceptions here because we are getting the connection early and might
+             * run into nodes that are not connected. In this case, on shard failure will move us to the next shard copy.
+             */
+            try (releasable) {
+                onShardFailure(shardIndex, shard, shardIt, e);
             }
         }
+    }
+
+    private void failOnUnavailable(int shardIndex, SearchShardIterator shardIt) {
+        assert assertExecuteOnStartThread();
+        SearchShardTarget unassignedShard = new SearchShardTarget(null, shardIt.shardId(), shardIt.getClusterAlias());
+        onShardFailure(shardIndex, unassignedShard, shardIt, new NoShardAvailableActionException(shardIt.shardId()));
     }
 
     /**
@@ -347,34 +341,6 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         SearchShardTarget shard,
         SearchActionListener<Result> listener
     );
-
-    protected void fork(final Runnable runnable) {
-        executor.execute(new AbstractRunnable() {
-            @Override
-            public void onFailure(Exception e) {
-                logger.error(() -> "unexpected error during [" + task + "]", e);
-                assert false : e;
-            }
-
-            @Override
-            public void onRejection(Exception e) {
-                // avoid leaks during node shutdown by executing on the current thread if the executor shuts down
-                assert e instanceof EsRejectedExecutionException esre && esre.isExecutorShutdown() : e;
-                doRun();
-            }
-
-            @Override
-            protected void doRun() {
-                runnable.run();
-            }
-
-            @Override
-            public boolean isForceExecution() {
-                // we can not allow a stuffed queue to reject execution here
-                return true;
-            }
-        });
-    }
 
     @Override
     public final void executeNextPhase(SearchPhase currentPhase, SearchPhase nextPhase) {
@@ -794,61 +760,63 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
      */
     protected abstract SearchPhase getNextPhase(SearchPhaseResults<Result> results, SearchPhaseContext context);
 
-    private void executeNext(PendingExecutions pendingExecutions, Thread originalThread) {
-        executeNext(pendingExecutions == null ? null : pendingExecutions.finishAndGetNext(), originalThread);
-    }
-
-    void executeNext(Runnable runnable, Thread originalThread) {
-        if (runnable != null) {
-            assert throttleConcurrentRequests;
-            if (originalThread == Thread.currentThread()) {
-                fork(runnable);
-            } else {
-                runnable.run();
-            }
-        }
-    }
-
     private static final class PendingExecutions {
-        private final int permits;
-        private int permitsTaken = 0;
-        private final ArrayDeque<Runnable> queue = new ArrayDeque<>();
+        private final Semaphore semaphore;
+        private final LinkedTransferQueue<Consumer<Releasable>> queue = new LinkedTransferQueue<>();
 
         PendingExecutions(int permits) {
             assert permits > 0 : "not enough permits: " + permits;
-            this.permits = permits;
+            semaphore = new Semaphore(permits);
         }
 
-        Runnable finishAndGetNext() {
-            synchronized (this) {
-                permitsTaken--;
-                assert permitsTaken >= 0 : "illegal taken permits: " + permitsTaken;
-            }
-            return tryQueue(null);
-        }
-
-        void tryRun(Runnable runnable) {
-            Runnable r = tryQueue(runnable);
-            if (r != null) {
-                r.run();
-            }
-        }
-
-        private synchronized Runnable tryQueue(Runnable runnable) {
-            Runnable toExecute = null;
-            if (permitsTaken < permits) {
-                permitsTaken++;
-                toExecute = runnable;
-                if (toExecute == null) { // only poll if we don't have anything to execute
-                    toExecute = queue.poll();
+        void submit(Consumer<Releasable> task) {
+            if (semaphore.tryAcquire()) {
+                executeAndRelease(task);
+            } else {
+                queue.add(task);
+                if (semaphore.tryAcquire()) {
+                    task = pollNextTaskOrReleasePermit();
+                    if (task != null) {
+                        executeAndRelease(task);
+                    }
                 }
-                if (toExecute == null) {
-                    permitsTaken--;
-                }
-            } else if (runnable != null) {
-                queue.add(runnable);
             }
-            return toExecute;
+
+        }
+
+        private void executeAndRelease(Consumer<Releasable> task) {
+            while (task != null) {
+                final SubscribableListener<Void> onDone = new SubscribableListener<>();
+                task.accept(() -> onDone.onResponse(null));
+                if (onDone.isDone()) {
+                    // keep going on the current thread, no need to fork
+                    task = pollNextTaskOrReleasePermit();
+                } else {
+                    onDone.addListener(new ActionListener<>() {
+                        @Override
+                        public void onResponse(Void unused) {
+                            final Consumer<Releasable> nextTask = pollNextTaskOrReleasePermit();
+                            if (nextTask != null) {
+                                executeAndRelease(nextTask);
+                            }
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            assert false : e;
+                        }
+                    });
+                    return;
+                }
+            }
+        }
+
+        private Consumer<Releasable> pollNextTaskOrReleasePermit() {
+            var task = queue.poll();
+            if (task == null) {
+                semaphore.release();
+            }
+            return task;
         }
     }
 }

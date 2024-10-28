@@ -386,10 +386,12 @@ tasks.named("jar") {
 
 spotless {
   java {
-    // IDEs can sometimes run annotation processors that leave files in
-    // here, causing Spotless to complain. Even though this path ought not
-    // to exist, exclude it anyway in order to avoid spurious failures.
-    toggleOffOn()
+    // workaround for https://github.com/diffplug/spotless/issues/2317
+    //toggleOffOn()
+    target project.fileTree("src/main/java") {
+      include '**/*.java'
+      exclude '**/DockerBase.java'
+    }
   }
 }
 

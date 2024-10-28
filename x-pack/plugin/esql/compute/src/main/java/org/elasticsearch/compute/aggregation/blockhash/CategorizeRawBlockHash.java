@@ -7,10 +7,7 @@
 
 package org.elasticsearch.compute.aggregation.blockhash;
 
-import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.data.Block;
@@ -24,8 +21,6 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.ml.aggs.categorization.TokenListCategorizer;
 import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzer;
-
-import java.io.IOException;
 
 public class CategorizeRawBlockHash extends AbstractCategorizeBlockHash {
     private final CategorizeEvaluator evaluator;
@@ -48,18 +43,6 @@ public class CategorizeRawBlockHash extends AbstractCategorizeBlockHash {
     }
 
     @Override
-    public IntVector nonEmpty() {
-        // TODO
-        return null;
-    }
-
-    @Override
-    public BitArray seenGroupIds(BigArrays bigArrays) {
-        // TODO
-        return null;
-    }
-
-    @Override
     public void close() {
         evaluator.close();
     }
@@ -79,12 +62,7 @@ public class CategorizeRawBlockHash extends AbstractCategorizeBlockHash {
             @Fixed(includeInToString = false, build = true) CategorizationAnalyzer analyzer,
             @Fixed(includeInToString = false, build = true) TokenListCategorizer.CloseableTokenListCategorizer categorizer
         ) {
-            String s = v.utf8ToString();
-            try (TokenStream ts = analyzer.tokenStream("text", s)) {
-                return categorizer.computeCategory(ts, s.length(), 1).getId();
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
+            return categorizer.computeCategory(v.utf8ToString(), analyzer).getId();
         }
 
         public CategorizeEvaluator(

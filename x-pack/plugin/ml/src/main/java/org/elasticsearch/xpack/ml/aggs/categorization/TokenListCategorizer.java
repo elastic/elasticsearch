@@ -19,6 +19,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.xpack.ml.aggs.categorization.TokenListCategory.TokenAndWeight;
+import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzer;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -109,6 +110,14 @@ public class TokenListCategorizer implements Accountable {
         this.upperThreshold = (1.0f + threshold) / 2.0f;
         this.categoriesByNumMatches = new ArrayList<>();
         cacheRamUsage(0);
+    }
+
+    public TokenListCategory computeCategory(String s, CategorizationAnalyzer analyzer) {
+        try (TokenStream ts = analyzer.tokenStream("text", s)) {
+            return computeCategory(ts, s.length(), 1);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     public TokenListCategory computeCategory(TokenStream ts, int unfilteredStringLen, long numDocs) throws IOException {

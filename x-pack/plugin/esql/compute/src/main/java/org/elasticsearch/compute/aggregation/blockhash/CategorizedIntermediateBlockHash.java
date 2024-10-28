@@ -10,14 +10,10 @@ package org.elasticsearch.compute.aggregation.blockhash;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
-import org.elasticsearch.compute.data.CompositeBlock;
 import org.elasticsearch.compute.data.IntBlock;
-import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.xpack.ml.aggs.categorization.SerializableTokenListCategory;
 import org.elasticsearch.xpack.ml.aggs.categorization.TokenListCategorizer;
@@ -32,27 +28,24 @@ public class CategorizedIntermediateBlockHash extends AbstractCategorizeBlockHas
 
     CategorizedIntermediateBlockHash(
         BlockFactory blockFactory,
+        int channel,
         boolean outputPartial,
-        TokenListCategorizer.CloseableTokenListCategorizer categorizer,
-        IntBlockHash hash,
-        int channel
+        TokenListCategorizer.CloseableTokenListCategorizer categorizer
     ) {
         super(blockFactory, channel, outputPartial, categorizer);
-        this.hash = hash;
+        this.hash = new IntBlockHash(channel, blockFactory);
     }
 
     public void add(Page page, GroupingAggregatorFunction.AddInput addInput) {
-        CompositeBlock block = page.getBlock(channel());
-        BytesRefBlock groupingState = block.getBlock(0);
-        BytesRefBlock groups = block.getBlock(0);
+        BytesRefBlock categorizerState = page.getBlock(channel());
         Map<Integer, Integer> idMap;
-        if (groupingState.areAllValuesNull() == false) {
-            idMap = readIntermediate(groupingState.getBytesRef(0, new BytesRef()));
+        if (categorizerState.areAllValuesNull() == false) {
+            idMap = readIntermediate(categorizerState.getBytesRef(0, new BytesRef()));
         } else {
             idMap = Collections.emptyMap();
         }
-        try (IntBlock.Builder newIdsBuilder = blockFactory.newIntBlockBuilder(groups.getTotalValueCount())) {
-            for (int i = 0; i < groups.getTotalValueCount(); i++) {
+        try (IntBlock.Builder newIdsBuilder = blockFactory.newIntBlockBuilder(idMap.size())) {
+            for (int i = 0; i < idMap.size(); i++) {
                 newIdsBuilder.appendInt(idMap.get(i));
             }
             IntBlock newIds = newIdsBuilder.build();
@@ -77,17 +70,8 @@ public class CategorizedIntermediateBlockHash extends AbstractCategorizeBlockHas
     }
 
     @Override
-    public IntVector nonEmpty() {
-        return hash.nonEmpty();
-    }
-
-    @Override
-    public BitArray seenGroupIds(BigArrays bigArrays) {
-        return hash.seenGroupIds(bigArrays);
-    }
-
-    @Override
     public void close() {
-
+        categorizer.close();
+        hash.close();
     }
 }

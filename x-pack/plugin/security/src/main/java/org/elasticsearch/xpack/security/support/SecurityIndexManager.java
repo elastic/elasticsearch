@@ -737,6 +737,10 @@ public class SecurityIndexManager implements ClusterStateListener {
         }
     }
 
+    public boolean isCreatedOnLatestMigrationVersion() {
+        return state.createdOnLatestVersion;
+    }
+
     /**
      * Return true if the state moves from an unhealthy ("RED") index state to a healthy ("non-RED") state.
      */

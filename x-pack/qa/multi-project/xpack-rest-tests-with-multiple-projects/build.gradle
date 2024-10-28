@@ -1,0 +1,153 @@
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
+
+import org.elasticsearch.gradle.internal.info.BuildParams
+import org.elasticsearch.gradle.util.GradleUtils
+
+dependencies {
+  testImplementation project(xpackModule('core'))
+  testImplementation(testArtifact(project(xpackModule('core'))))
+  testImplementation project(':test:yaml-rest-runner')
+  testImplementation(testArtifact(project(":x-pack:plugin:security:qa:service-account"), "javaRestTest"))
+}
+
+// let the yamlRestTests see the classpath of test
+GradleUtils.extendSourceSet(project, "test", "yamlRestTest", tasks.named("yamlRestTest"))
+
+restResources {
+  restTests {
+    includeXpack '*'
+  }
+}
+
+tasks.named("yamlRestTest").configure {
+  usesDefaultDistribution()
+  ArrayList<String> blacklist = [
+    /* These tests don't work on multi-project yet - we need to go through each of them and make them work */
+    'aggregate-metrics/*/*',
+    'analytics/*/*',
+    'api_key/*/*',
+    'async_search/*/*',
+    'authenticate/*/*',
+    'change_password/*/*',
+    'constant_keyword/*/*',
+    'counted_keyword/*/*',
+    'data_streams/*/*',
+    'deprecation/*/*',
+    'dlm/*/*',
+    'enrich/*/*',
+    'esql/*/*',
+    'graph/*/*',
+    'health/*/*',
+    'ml/3rd_party_deployment/*',
+    'ml/bucket_correlation_agg/*',
+    'ml/bucket_count_ks_test_agg/*',
+    'ml/calendar_crud/*',
+    'ml/categorization_agg/*',
+    'ml/change_point_agg/*',
+    'ml/custom_all_field/*',
+    'ml/data_frame_analytics_cat_apis/*',
+    'ml/data_frame_analytics_crud/*',
+    'ml/data_frame_analytics_crud/*/*',
+    'ml/datafeed_cat_apis/*',
+    'ml/datafeeds_crud/*',
+    'ml/delete_expired_data/*',
+    'ml/delete_job_force/*',
+    'ml/evaluate_data_frame/*',
+    'ml/explain_data_frame_analytics/*',
+    'ml/filter_crud/*',
+    'ml/forecast/*',
+    'ml/frequent_item_sets_agg/*',
+    'ml/get_datafeed_stats/*',
+    'ml/get_datafeeds/*',
+    'ml/get_memory_stats/*',
+    'ml/get_model_snapshots/*',
+    'ml/get_model_snapshots/*/*',
+    'ml/get_trained_model_stats/*',
+    'ml/inference_crud/*',
+    'ml/inference_processor/*',
+    'ml/job_cat_apis/*',
+    'ml/job_groups/*',
+    'ml/jobs_crud/*',
+    'ml/jobs_get/*',
+    'ml/jobs_get_result_buckets/*',
+    'ml/jobs_get_result_categories/*',
+    'ml/jobs_get_result_influencers/*',
+    'ml/jobs_get_result_overall_buckets/*',
+    'ml/jobs_get_result_records/*',
+    'ml/jobs_get_stats/*',
+    'ml/learning_to_rank_rescorer/*',
+    'ml/ml_anomalies_default_mappings/*',
+    'ml/ml_info/*',
+    'ml/p_value_significant_term_score/*',
+    'ml/pipeline_inference/*',
+    'ml/post_data/*',
+    'ml/preview_data_frame_analytics/*',
+    'ml/preview_datafeed/*',
+    'ml/reset_job/*',
+    'ml/revert_model_snapshot/*',
+    'ml/search_knn_query_vector_builder/*',
+    'ml/set_upgrade_mode/*',
+    'ml/sparse_vector_search/*',
+    'ml/start_data_frame_analytics/*',
+    'ml/start_stop_datafeed/*',
+    'ml/stop_data_frame_analytics/*',
+    'ml/text_embedding_search/*',
+    'ml/text_expansion_search/*',
+    'ml/text_expansion_search_rank_features/*',
+    'ml/text_expansion_search_sparse_vector/*',
+    'ml/trained_model_cat_apis/*',
+    'ml/update_trained_model_deployment/*',
+    'ml/upgrade_job_snapshot/*',
+    'monitoring/bulk/*/*',
+    'privileges/10_basic/*',
+    'privileges/20_has_application_privs/*',
+    'privileges/30_superuser/*',
+    'privileges/40_get_user_privs/*',
+    'profiling/*/*',
+    'redact/*/*',
+    'role_mapping/*/*',
+    'roles/10_basic/*',
+    'roles/11_idx_arrays/*',
+    'roles/40_global_privileges/*',
+    'roles/50_remote_only/*',
+    'roles/60_bulk_roles/*',
+    'rollup/*/*',
+    'search-business-rules/*/*',
+    'searchable_snapshots/*/*',
+    'security/authz/*/*',
+    'security/authz/14_cat_indices/Test explicit request while multiple opened/closed authorized indices',
+    'security/authz_api_keys/*/*',
+    'security/hidden-index/*/*',
+    'security/settings/*/*',
+    'service_accounts/*/*',
+    'set_security_user/*/*',
+    'snapshot/10_basic/*',
+    'snapshot/20_operator_privileges_disabled/*',
+    'spatial/*/*',
+    'sql/sql/*',
+    'sql/translate/*',
+    'terms_enum/*/*',
+    'text_structure/find_field_structure/*',
+    'token/*/*',
+    'transform/*/*',
+    'transform/transforms_start_stop/Test start/stop only starts/stops specified transform',
+    'transform/transforms_start_stop/Test start/stop with field alias',
+    'transform/transforms_start_stop/Test start/stop/start continuous transform',
+    'transform/transforms_start_stop/Test start/stop/start transform',
+    'user_profile/*/*',
+    'users/10_basic/*',
+    'users/15_overwrite_user/*',
+    'users/16_update_user/*',
+    'users/30_enable_disable/*',
+    'users/31_create_disabled/*',
+    'users/40_query/*',
+    'vector-tile/*/*',
+    'versionfield/*/*',
+    'voting_only_node/*/*',
+    'wildcard/*/*',
+  ];
+  if (BuildParams.isSnapshotBuild() == false) {
+    blacklist += [];
+  }
+  systemProperty 'tests.rest.blacklist', blacklist.join(',')
+}

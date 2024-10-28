@@ -23,6 +23,7 @@ import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.transport.RemoteClusterAware;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
@@ -145,7 +146,8 @@ public class EsqlSession {
             executionInfo,
             listener.delegateFailureAndWrap(
                 (next, analyzedPlan) -> executeOptimizedPlan(request, executionInfo, runPhase, optimizedPlan(analyzedPlan), next)
-            )
+            ),
+            request.filter()
         );
     }
 
@@ -205,7 +207,8 @@ public class EsqlSession {
         return parsed;
     }
 
-    public void analyzedPlan(LogicalPlan parsed, EsqlExecutionInfo executionInfo, ActionListener<LogicalPlan> listener) {
+    public void analyzedPlan(LogicalPlan parsed, EsqlExecutionInfo executionInfo, ActionListener<LogicalPlan> listener,
+                             QueryBuilder requestFilter) {
         if (parsed.analyzed()) {
             listener.onResponse(parsed);
             return;
@@ -214,18 +217,29 @@ public class EsqlSession {
         preAnalyze(parsed, executionInfo, (indices, policies) -> {
             planningMetrics.gatherPreAnalysisMetrics(parsed);
             Analyzer analyzer = new Analyzer(new AnalyzerContext(configuration, functionRegistry, indices, policies), verifier);
-            var plan = analyzer.analyze(parsed);
+
+           LogicalPlan plan;
+            /*if (requestFilter != null) {
+                try {*/
+                    plan = analyzer.analyze(parsed);
+            /*    } catch (VerificationException ve) {
+
+                }
+            } else {
+                plan = analyzer.analyze(parsed);
+            }*/
             plan.setAnalyzed();
             LOGGER.debug("Analyzed plan:\n{}", plan);
             return plan;
-        }, listener);
+        }, listener, requestFilter);
     }
 
     private <T> void preAnalyze(
         LogicalPlan parsed,
         EsqlExecutionInfo executionInfo,
         BiFunction<IndexResolution, EnrichResolution, T> action,
-        ActionListener<T> listener
+        ActionListener<T> listener,
+        QueryBuilder requestFilter
     ) {
         PreAnalyzer.PreAnalysis preAnalysis = preAnalyzer.preAnalyze(parsed);
         var unresolvedPolicies = preAnalysis.enriches.stream()
@@ -262,7 +276,7 @@ public class EsqlSession {
                     }
                 }
                 ll.onResponse(action.apply(indexResolution, enrichResolution));
-            }), matchFields);
+            }), matchFields, requestFilter);
         }));
     }
 
@@ -270,7 +284,8 @@ public class EsqlSession {
         LogicalPlan parsed,
         EsqlExecutionInfo executionInfo,
         ActionListener<IndexResolution> listener,
-        Set<String> enrichPolicyMatchFields
+        Set<String> enrichPolicyMatchFields,
+        QueryBuilder requestFilter
     ) {
         PreAnalyzer.PreAnalysis preAnalysis = new PreAnalyzer().preAnalyze(parsed);
         // TODO we plan to support joins in the future when possible, but for now we'll just fail early if we see one
@@ -291,7 +306,7 @@ public class EsqlSession {
                     return new EsqlExecutionInfo.Cluster(clusterAlias, indexExpr, executionInfo.isSkipUnavailable(clusterAlias));
                 });
             }
-            indexResolver.resolveAsMergedMapping(table.index(), fieldNames, listener);
+            indexResolver.resolveAsMergedMapping(table.index(), fieldNames, requestFilter, listener);
         } else {
             try {
                 // occurs when dealing with local relations (row a = 1)

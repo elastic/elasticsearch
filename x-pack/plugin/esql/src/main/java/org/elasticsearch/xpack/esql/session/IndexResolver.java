@@ -19,6 +19,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsAction;
@@ -78,10 +79,11 @@ public class IndexResolver {
     /**
      * Resolves a pattern to one (potentially compound meaning that spawns multiple indices) mapping.
      */
-    public void resolveAsMergedMapping(String indexWildcard, Set<String> fieldNames, ActionListener<IndexResolution> listener) {
+    public void resolveAsMergedMapping(String indexWildcard, Set<String> fieldNames, QueryBuilder requestFilter,
+                                       ActionListener<IndexResolution> listener) {
         client.execute(
             EsqlResolveFieldsAction.TYPE,
-            createFieldCapsRequest(indexWildcard, fieldNames),
+            createFieldCapsRequest(indexWildcard, fieldNames, requestFilter),
             listener.delegateFailureAndWrap((l, response) -> l.onResponse(mergedMappings(indexWildcard, response)))
         );
     }
@@ -284,10 +286,11 @@ public class IndexResolver {
         return new InvalidMappedField(name, "mapped as different metric types in indices: " + indices);
     }
 
-    private static FieldCapabilitiesRequest createFieldCapsRequest(String index, Set<String> fieldNames) {
+    private static FieldCapabilitiesRequest createFieldCapsRequest(String index, Set<String> fieldNames, QueryBuilder requestFilter) {
         FieldCapabilitiesRequest req = new FieldCapabilitiesRequest().indices(Strings.commaDelimitedListToStringArray(index));
         req.fields(fieldNames.toArray(String[]::new));
         req.includeUnmapped(true);
+        req.indexFilter(requestFilter);
         // lenient because we throw our own errors looking at the response e.g. if something was not resolved
         // also because this way security doesn't throw authorization exceptions but rather honors ignore_unavailable
         req.indicesOptions(FIELD_CAPS_INDICES_OPTIONS);

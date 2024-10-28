@@ -215,7 +215,11 @@ public class TsdbDataStreamRestIT extends DisabledSecurityDataStreamTestCase {
             // Start trial to support synthetic source.
             Request startTrial = new Request("POST", "/_license/start_trial");
             startTrial.addParameter("acknowledge", "true");
-            client().performRequest(startTrial);  // Ignore failures, the API is not present in Serverless.
+            try {
+                client().performRequest(startTrial);
+            } catch (Exception e) {
+                // Ignore failures, the API is not present in Serverless.
+            }
             trialStarted = true;
         }
 

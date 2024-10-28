@@ -42,7 +42,6 @@ import org.mockito.stubbing.Answer;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.nio.file.AccessDeniedException;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -364,7 +363,7 @@ public class FileSettingsServiceTests extends ESTestCase {
 
             try {
                 Files.move(tempFile, path, REPLACE_EXISTING, ATOMIC_MOVE);
-            } catch (AtomicMoveNotSupportedException | AccessDeniedException e) {
+            } catch (AtomicMoveNotSupportedException e) {
                 Files.move(tempFile, path, REPLACE_EXISTING);
             }
         } catch (final IOException e) {

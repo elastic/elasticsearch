@@ -91,7 +91,7 @@ setup:
   - match: {esql.functions.cos: $functions_cos}
   - gt: {esql.functions.to_long: $functions_to_long}
   - match: {esql.functions.coalesce: $functions_coalesce}
-  - length: {esql.functions: 117} # check the "sister" test below for a likely update to the same esql.functions length check
+  - length: {esql.functions: 118} # check the "sister" test below for a likely update to the same esql.functions length check
 
 ---
 "Basic ESQL usage output (telemetry) non-snapshot version":
@@ -162,4 +162,4 @@ setup:
   - match: {esql.functions.cos: $functions_cos}
   - gt: {esql.functions.to_long: $functions_to_long}
   - match: {esql.functions.coalesce: $functions_coalesce}
-  - length: {esql.functions: 115} # check the "sister" test above for a likely update to the same esql.functions length check
+  - length: {esql.functions: 116} # check the "sister" test above for a likely update to the same esql.functions length check

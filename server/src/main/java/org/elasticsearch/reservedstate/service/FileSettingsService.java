@@ -146,7 +146,7 @@ public class FileSettingsService extends MasterNodeFileWatchingService implement
 
     @Override
     protected void onProcessFileChangesException(Exception e) {
-        if (e instanceof ExecutionException && e.getCause() instanceof FailedToCommitClusterStateException f) {
+        if (e instanceof ExecutionException && e.getCause() instanceof FailedToCommitClusterStateException) {
             logger.error("Unable to commit cluster state", e);
         } else {
             super.onProcessFileChangesException(e);

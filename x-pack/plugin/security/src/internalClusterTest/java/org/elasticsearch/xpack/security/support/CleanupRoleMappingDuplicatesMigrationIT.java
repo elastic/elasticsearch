@@ -315,21 +315,6 @@ public class CleanupRoleMappingDuplicatesMigrationIT extends SecurityIntegTestCa
         safeAwait(awaitMigrations);
     }
 
-    private void assertAllRoleMappings(String... roleMappingNames) {
-        GetRoleMappingsResponse response = client().execute(GetRoleMappingsAction.INSTANCE, new GetRoleMappingsRequest()).actionGet();
-
-        assertTrue(response.hasMappings());
-        assertThat(response.mappings().length, equalTo(roleMappingNames.length));
-
-        assertThat(
-            Arrays.stream(response.mappings()).map(ExpressionRoleMapping::getName).toList(),
-            containsInAnyOrder(
-                roleMappingNames
-
-            )
-        );
-    }
-
     /**
      * Make sure all versions are applied to cluster state sequentially
      */
@@ -356,6 +341,21 @@ public class CleanupRoleMappingDuplicatesMigrationIT extends SecurityIntegTestCa
         });
 
         return allVersionsCountDown;
+    }
+
+    private void assertAllRoleMappings(String... roleMappingNames) {
+        GetRoleMappingsResponse response = client().execute(GetRoleMappingsAction.INSTANCE, new GetRoleMappingsRequest()).actionGet();
+
+        assertTrue(response.hasMappings());
+        assertThat(response.mappings().length, equalTo(roleMappingNames.length));
+
+        assertThat(
+            Arrays.stream(response.mappings()).map(ExpressionRoleMapping::getName).toList(),
+            containsInAnyOrder(
+                roleMappingNames
+
+            )
+        );
     }
 
     private void awaitFileSettingsWatcher() throws Exception {
@@ -398,16 +398,17 @@ public class CleanupRoleMappingDuplicatesMigrationIT extends SecurityIntegTestCa
         assertThat(getCurrentMigrationVersion(), lessThan(expectedVersion));
     }
 
-    private int getCurrentMigrationVersion() {
-        return getCurrentMigrationVersion(internalCluster().getInstance(ClusterService.class).state());
-    }
-
     private int getCurrentMigrationVersion(ClusterState state) {
         IndexMetadata indexMetadata = state.metadata().getIndices().get(INTERNAL_SECURITY_MAIN_INDEX_7);
         if (indexMetadata == null || indexMetadata.getCustomData(MIGRATION_VERSION_CUSTOM_KEY) == null) {
             return 0;
         }
         return Integer.parseInt(indexMetadata.getCustomData(MIGRATION_VERSION_CUSTOM_KEY).get(MIGRATION_VERSION_CUSTOM_DATA_KEY));
+    }
+
+    private int getCurrentMigrationVersion() {
+        ClusterService clusterService = internalCluster().getInstance(ClusterService.class);
+        return getCurrentMigrationVersion(clusterService.state());
     }
 
     private void waitForMigrationCompletion(int version) throws Exception {

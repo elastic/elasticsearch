@@ -205,7 +205,7 @@ public class SecurityIndexManager implements ClusterStateListener {
         return indexExists() && this.state.migrationsVersion.compareTo(expectedMigrationsVersion) >= 0;
     }
 
-    public boolean isCreatedOnLatestMigrationVersion() {
+    public boolean isCreatedOnLatestVersion() {
         return this.state.createdOnLatestMigrationVersion;
     }
 
@@ -271,20 +271,12 @@ public class SecurityIndexManager implements ClusterStateListener {
     /**
      * Check if the index was created on the latest index version available in the cluster
      */
-    private static boolean isCreatedOnLatestMigrationVersion(IndexMetadata indexMetadata) {
-        if (indexMetadata == null) {
-            return false;
-        }
 
-        final Integer indexCreatedOnMigrationVersion = SecuritySystemIndices.MAIN_INDEX_CREATED_ON_MIGRATION_VERSION.get(
-            indexMetadata.getSettings()
-        );
-
-        // 1 is the first migration, before the MAIN_INDEX_CREATED_ON_MIGRATION_VERSION was introduced
-        if (indexCreatedOnMigrationVersion > 1) {
-            return indexCreatedOnMigrationVersion.equals(SecurityMigrations.MIGRATIONS_BY_VERSION.lastKey());
-        }
-        return SETTING_INDEX_VERSION_CREATED.get(indexMetadata.getSettings()).onOrAfter(IndexVersion.current());
+    private static boolean isCreatedOnLatestVersion(IndexMetadata indexMetadata) {
+        final IndexVersion indexVersionCreated = indexMetadata != null
+            ? SETTING_INDEX_VERSION_CREATED.get(indexMetadata.getSettings())
+            : null;
+        return indexVersionCreated != null && indexVersionCreated.onOrAfter(IndexVersion.current());
     }
 
     /**
@@ -341,7 +333,7 @@ public class SecurityIndexManager implements ClusterStateListener {
         }
         final State previousState = state;
         final IndexMetadata indexMetadata = resolveConcreteIndex(systemIndexDescriptor.getAliasName(), event.state().metadata());
-        final boolean createdOnLatestMigrationVersion = isCreatedOnLatestMigrationVersion(indexMetadata);
+        final boolean createdOnLatestMigrationVersion = isCreatedOnLatestVersion(indexMetadata);
         final Instant creationTime = indexMetadata != null ? Instant.ofEpochMilli(indexMetadata.getCreationDate()) : null;
         final boolean isIndexUpToDate = indexMetadata == null
             || INDEX_FORMAT_SETTING.get(indexMetadata.getSettings()) == systemIndexDescriptor.getIndexFormat();

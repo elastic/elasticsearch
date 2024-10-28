@@ -92,6 +92,7 @@ import org.elasticsearch.xpack.core.security.authz.permission.SimpleRole;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeTests;
+import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges.ManageApplicationPrivileges;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.Privilege;
@@ -1791,6 +1792,18 @@ public class RBACEngineTests extends ESTestCase {
                             null,
                             null,
                             null,
+                            null,
+                            null,
+                            null,
+                            new RemoteClusterPermissions().addGroup(
+                                new RemoteClusterPermissionGroup(
+                                    RemoteClusterPermissions.getSupportedRemoteClusterPermissions()
+                                        .stream()
+                                        .filter(s -> s.equals(ClusterPrivilegeResolver.MONITOR_STATS.name()))
+                                        .toArray(String[]::new),
+                                    new String[] { "*" }
+                                )
+                            ),
                             null,
                             null
                         )

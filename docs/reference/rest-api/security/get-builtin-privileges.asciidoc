@@ -153,7 +153,8 @@ A successful call returns an object with "cluster", "index", and "remote_cluster
     "write"
   ],
   "remote_cluster" : [
-    "monitor_enrich"
+    "monitor_enrich",
+    "monitor_stats"
   ]
 }
 --------------------------------------------------

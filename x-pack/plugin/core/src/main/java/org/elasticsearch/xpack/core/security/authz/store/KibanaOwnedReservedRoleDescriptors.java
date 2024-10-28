@@ -495,7 +495,6 @@ class KibanaOwnedReservedRoleDescriptors {
                 getRemoteIndicesReadPrivileges("metrics-apm.*"),
                 getRemoteIndicesReadPrivileges("traces-apm.*"),
                 getRemoteIndicesReadPrivileges("traces-apm-*") },
-            // TODO: test this!
             new RemoteClusterPermissions().addGroup(
                 new RemoteClusterPermissionGroup(
                     RemoteClusterPermissions.getSupportedRemoteClusterPermissions()

@@ -42,7 +42,6 @@ import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.action.GetDeploymentStatsAction;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
-import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentStats;
@@ -883,7 +882,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
                 null,
                 1,
                 useLinuxOptimizedModel ? ELSER_V2_MODEL_LINUX_X86 : ELSER_V2_MODEL,
-                new AdaptiveAllocationsSettings(Boolean.TRUE, 0, 8)
+                new AdaptiveAllocationsSettings(Boolean.TRUE, 0, 32)
             ),
             ElserMlNodeTaskSettings.DEFAULT,
             null // default chunking settings
@@ -896,7 +895,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
                 null,
                 1,
                 useLinuxOptimizedModel ? MULTILINGUAL_E5_SMALL_MODEL_ID_LINUX_X86 : MULTILINGUAL_E5_SMALL_MODEL_ID,
-                new AdaptiveAllocationsSettings(Boolean.TRUE, 0, 8)
+                new AdaptiveAllocationsSettings(Boolean.TRUE, 0, 32)
             ),
             null // default chunking settings
         );
@@ -937,7 +936,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
                     listener.onFailure(
                         new ElasticsearchStatusException(
                             "Deployment [{}] uses model [{}] which does not match the model [{}] in the request.",
-                            RestStatus.BAD_REQUEST, // TODO better message
+                            RestStatus.BAD_REQUEST,
                             deploymentId,
                             response.get().getModelId(),
                             modelId
@@ -957,21 +956,22 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
                 checkTaskTypeForMlNodeModel(response.get().getModelId(), taskType, l.delegateFailureAndWrap((l2, compatibleTaskType) -> {
                     l2.onResponse(updatedSettings);
                 }));
+            } else {
+                listener.onFailure(new ElasticsearchStatusException("Cannot find deployment [{}]", RestStatus.NOT_FOUND, deploymentId));
             }
         }));
     }
 
     private void getDeployment(String deploymentId, ActionListener<Optional<AssignmentStats>> listener) {
         client.execute(
-            GetTrainedModelsStatsAction.INSTANCE,
-            new GetTrainedModelsStatsAction.Request(deploymentId),
+            GetDeploymentStatsAction.INSTANCE,
+            new GetDeploymentStatsAction.Request(deploymentId),
             listener.delegateFailureAndWrap((l, response) -> {
                 l.onResponse(
-                    response.getResources()
+                    response.getStats()
                         .results()
                         .stream()
-                        .filter(s -> s.getDeploymentStats() != null && s.getDeploymentStats().getDeploymentId().equals(deploymentId))
-                        .map(GetTrainedModelsStatsAction.Response.TrainedModelStats::getDeploymentStats)
+                        .filter(s -> s.getDeploymentId() != null && s.getDeploymentId().equals(deploymentId))
                         .findFirst()
                 );
             })

@@ -286,6 +286,9 @@ tests:
 - class: org.elasticsearch.xpack.spatial.search.GeoGridAggAndQueryConsistencyIT
   method: testGeoShapeGeoHex
   issue: https://github.com/elastic/elasticsearch/issues/115705
+- class: org.elasticsearch.xpack.core.ml.calendars.ScheduledEventTests
+  method: testBuild_SucceedsWithDefaultSkipResultAndSkipModelUpdatesValues
+  issue: https://github.com/elastic/elasticsearch/issues/115476
 
 # Examples:
 #

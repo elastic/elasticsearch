@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Tau;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.BinarySpatialFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.BitLength;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.EndsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Left;
@@ -74,6 +75,7 @@ public abstract class EsqlScalarFunction extends ScalarFunction implements Evalu
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
         entries.add(And.ENTRY);
         entries.add(Atan2.ENTRY);
+        entries.add(BitLength.ENTRY);
         entries.add(Bucket.ENTRY);
         entries.add(Case.ENTRY);
         entries.add(Categorize.ENTRY);

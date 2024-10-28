@@ -38,6 +38,52 @@ emp_no:integer | l:integer
 10003 | 5
 ;
 
+bitLength
+row a = "hello", b = "" | eval y = bit_length(a) + bit_length(b);
+
+a:keyword | b:keyword | y:integer
+hello | | 40
+;
+
+bitLengthWithNonAsciiChars
+row a = "¡", b = "❗️" | eval y = bit_length(a) | eval z = bit_length(b);
+
+a:keyword | b:keyword | y:integer | z:integer
+¡ | ❗️ | 16 | 48
+;
+
+foldBitLength
+row a = 1 | eval b = bit_length("hello");
+
+a:integer | b:integer
+1 | 40
+;
+
+bitLengthAndSourceQuoting
+required_capability: double_quotes_source_enclosing
+from "employees" | sort emp_no | limit 3 | eval l = bit_length(first_name) | keep emp_no, l;
+
+emp_no:integer | l:integer
+10001 | 48
+10002 | 56
+10003 | 40
+;
+
+bitLengthInsideOtherFunction
+required_capability: fn_greatest
+row a = "abc", b = "de" | eval g = greatest(bit_length(a), bit_length(b), bit_length("fghi"));
+
+a:keyword | b:keyword | g:integer
+abc | de | 32
+;
+
+bitLengthNull
+row a = "abc" | eval l = bit_length(null);
+
+a:string | l:integer
+abc | null
+;
+
 startsWithConstant
 from employees | sort emp_no | limit 10 | eval f_S = starts_with(first_name, "S") | keep emp_no, first_name, f_S;
 

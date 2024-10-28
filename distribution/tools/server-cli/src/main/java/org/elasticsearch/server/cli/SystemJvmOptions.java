@@ -41,18 +41,9 @@ final class SystemJvmOptions {
                 // Entitlement agent
                 "-Djdk.attach.allowAttachSelf=true",
                 "-XX:+EnableDynamicAgentLoading",
-                "-Des.entitlement.agentJar="
-                    + workingDir.resolve(
-                        Path.of("lib", "tools", "entitlement-agent", "entitlement-agent-" + Build.current().version() + "-SNAPSHOT.jar")
-                    ),
-                "-Des.entitlement.bridgeJar="
-                    + workingDir.resolve(
-                        Path.of("lib", "tools", "entitlement-bridge", "entitlement-bridge-" + Build.current().version() + "-SNAPSHOT.jar")
-                    ),
-                "-Des.entitlement.runtimeJar="
-                    + workingDir.resolve(
-                        Path.of("lib", "tools", "entitlement-runtime", "entitlement-runtime-" + Build.current().version() + "-SNAPSHOT.jar")
-                    ),
+                entitlementJarPropertyOption("agent", workingDir),
+                entitlementJarPropertyOption("bridge", workingDir),
+                entitlementJarPropertyOption("runtime", workingDir),
                 // pre-touch JVM emory pages during initialization
                 "-XX:+AlwaysPreTouch",
                 // explicitly set the stack size
@@ -86,6 +77,14 @@ final class SystemJvmOptions {
             maybeSetReplayFile(distroType, isHotspot),
             maybeWorkaroundG1Bug()
         ).flatMap(s -> s).toList();
+    }
+
+    private static String entitlementJarPropertyOption(String libraryName, Path workingDir) {
+        String jarSuffix = "-" + Build.current().version() + (Build.current().isSnapshot()? "-SNAPSHOT" : "") + ".jar";
+        return "-Des.entitlement." + libraryName + "Jar="
+            + workingDir.resolve(
+            Path.of("lib", "tools", "entitlement-" + libraryName, "entitlement-" + libraryName + jarSuffix)
+        );
     }
 
     /*

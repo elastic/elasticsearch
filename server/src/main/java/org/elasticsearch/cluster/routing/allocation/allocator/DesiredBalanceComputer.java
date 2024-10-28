@@ -51,7 +51,7 @@ public class DesiredBalanceComputer {
     private static final Logger logger = LogManager.getLogger(DesiredBalanceComputer.class);
 
     private final ShardsAllocator delegateAllocator;
-    private final LongSupplier timeSupplier;
+    private final LongSupplier timeSupplierMillis;
 
     // stats
     protected final MeanMetric iterations = new MeanMetric();
@@ -66,7 +66,7 @@ public class DesiredBalanceComputer {
 
     public static final Setting<TimeValue> MAX_BALANCE_COMPUTATION_TIME_DURING_INDEX_CREATION_SETTING = Setting.timeSetting(
         "cluster.routing.allocation.desired_balance.max_balance_computation_time_during_index_creation",
-        TimeValue.timeValueSeconds(10),
+        TimeValue.timeValueSeconds(1),
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
@@ -78,9 +78,9 @@ public class DesiredBalanceComputer {
         this(clusterSettings, delegateAllocator, threadPool::relativeTimeInMillis);
     }
 
-    DesiredBalanceComputer(ClusterSettings clusterSettings, ShardsAllocator delegateAllocator, LongSupplier timeSupplier) {
+    DesiredBalanceComputer(ClusterSettings clusterSettings, ShardsAllocator delegateAllocator, LongSupplier timeSupplierMillis) {
         this.delegateAllocator = delegateAllocator;
-        this.timeSupplier = timeSupplier;
+        this.timeSupplierMillis = timeSupplierMillis;
         clusterSettings.initializeAndWatch(PROGRESS_LOG_INTERVAL_SETTING, value -> this.progressLogInterval = value);
         clusterSettings.initializeAndWatch(
             MAX_BALANCE_COMPUTATION_TIME_DURING_INDEX_CREATION_SETTING,
@@ -279,7 +279,7 @@ public class DesiredBalanceComputer {
 
         final int iterationCountReportInterval = computeIterationCountReportInterval(routingAllocation);
         final long timeWarningInterval = progressLogInterval.millis();
-        final long computationStartedTime = timeSupplier.getAsLong();
+        final long computationStartedTime = timeSupplierMillis.getAsLong();
         long nextReportTime = computationStartedTime + timeWarningInterval;
 
         int i = 0;
@@ -327,7 +327,7 @@ public class DesiredBalanceComputer {
 
             i++;
             final int iterations = i;
-            final long currentTime = timeSupplier.getAsLong();
+            final long currentTime = timeSupplierMillis.getAsLong();
             final boolean reportByTime = nextReportTime <= currentTime;
             final boolean reportByIterationCount = i % iterationCountReportInterval == 0;
             if (reportByTime || reportByIterationCount) {

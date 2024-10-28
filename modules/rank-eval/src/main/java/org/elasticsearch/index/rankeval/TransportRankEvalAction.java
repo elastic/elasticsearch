@@ -11,10 +11,14 @@ package org.elasticsearch.index.rankeval;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DelegatingActionListener;
+import org.elasticsearch.action.get.GetRequest;
+import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.MultiSearchResponse.Item;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchRequestBuilder;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
@@ -26,6 +30,9 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.QueryStringQueryBuilder;
+import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
@@ -92,9 +99,38 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
     @Override
     protected void doExecute(Task task, RankEvalRequest request, ActionListener<RankEvalResponse> listener) {
         RankEvalSpec evaluationSpecification = request.getRankEvalSpec();
+
+        if (evaluationSpecification.hasStoredCorpus()) {
+
+            loadRequestsFromStoredCorpus(evaluationSpecification.getStoredCorpus(), new ActionListener<>() {
+                @Override
+                public void onResponse(List<RatedRequest> ratedRequests) {
+                    if (ratedRequests.isEmpty()) {
+                        listener.onFailure(new IllegalArgumentException("No rated requests found in stored corpus"));
+                        return;
+                    }
+                    processRatedRequests(request, evaluationSpecification, List.copyOf(ratedRequests), listener);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    listener.onFailure(e);
+                }
+            });
+        } else {
+            processRatedRequests(request, evaluationSpecification, evaluationSpecification.getRatedRequests(), listener);
+        }
+
+    }
+
+    private void processRatedRequests(
+        RankEvalRequest request,
+        RankEvalSpec evaluationSpecification,
+        List<RatedRequest> ratedRequests,
+        ActionListener<RankEvalResponse> listener
+    ) {
         EvaluationMetric metric = evaluationSpecification.getMetric();
 
-        List<RatedRequest> ratedRequests = evaluationSpecification.getRatedRequests();
         Map<String, Exception> errors = new ConcurrentHashMap<>(ratedRequests.size());
 
         Map<String, TemplateScript.Factory> scriptsWithoutParams = new HashMap<>();
@@ -156,6 +192,91 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
                 errors
             )
         );
+    }
+
+    private void loadRequestsFromStoredCorpus(String storedCorpusId, ActionListener<List<RatedRequest>> actionListener) {
+        // load the stored corpus from the index
+        client.get(new GetRequest("search_relevance_datasets", storedCorpusId), new ActionListener<>() {
+            @Override
+            public void onResponse(GetResponse response) {
+                if (response.isExists() == false) {
+                    actionListener.onFailure(new IllegalArgumentException("Stored corpus not found"));
+                    return;
+                }
+                StoredCorpus corpus = new StoredCorpus(
+                    response.getId(),
+                    response.getSourceAsMap().get("name").toString(),
+                    response.getSourceAsMap().get("description").toString(),
+                    response.getSourceAsMap().get("index").toString()
+                );
+
+                // Now that we have the corpus, identify the queries to run
+                SearchRequest queryRequest = new SearchRequestBuilder(client).setIndices("search_relevance_queries")
+                    .setSource(new SearchSourceBuilder().query(new TermQueryBuilder("dataset_id", corpus.getId())))
+                    .setSize(10000)
+                    .request();
+                client.search(queryRequest, new ActionListener<>() {
+                    @Override
+                    public void onResponse(SearchResponse response) {
+                        List<RatedRequest> ratedRequests = new ArrayList<>();
+                        for (SearchHit hit : response.getHits().getHits()) {
+                            String queryId = hit.getId();
+                            Map<String, Object> source = hit.getSourceAsMap();
+                            String queryText = (String) source.get("text");
+
+                            // Finally, we want the qrels as well
+                            SearchRequest qrelsRequest = new SearchRequestBuilder(client).setIndices("search_relevance_qrels")
+                                .setSource(
+                                    new SearchSourceBuilder().query(
+                                        new BoolQueryBuilder().must(new TermQueryBuilder("dataset_id", corpus.getId()))
+                                            .must(new TermQueryBuilder("query_id", queryId))
+                                    )
+                                )
+                                .setSize(10000)
+                                .request();
+                            client.search(qrelsRequest, new ActionListener<>() {
+                                @Override
+                                public void onResponse(SearchResponse searchResponse) {
+                                    List<RatedDocument> ratedDocuments = new ArrayList<>();
+                                    for (SearchHit qrelHit : searchResponse.getHits().getHits()) {
+
+                                        Map<String, Object> qrelsSource = qrelHit.getSourceAsMap();
+                                        String queryId = (String) qrelsSource.get("query_id");
+                                        String corpusId = (String) qrelsSource.get("corpus_id");
+                                        int score = (int) Float.parseFloat(qrelsSource.get("score").toString());
+
+                                        RatedDocument ratedDocument = new RatedDocument(corpus.getIndex(), corpusId, score);
+                                        ratedDocuments.add(ratedDocument);
+
+                                        // TODO remove placeholder here
+                                        SearchSourceBuilder query = new SearchSourceBuilder().query(new QueryStringQueryBuilder(queryText));
+                                        ratedRequests.add(new RatedRequest(queryId, ratedDocuments, query));
+
+                                    }
+                                }
+
+                                @Override
+                                public void onFailure(Exception e) {
+                                    actionListener.onFailure(e);
+                                }
+                            });
+                        }
+                        actionListener.onResponse(ratedRequests);
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        actionListener.onFailure(e);
+                    }
+                });
+
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                actionListener.onFailure(e);
+            }
+        });
     }
 
     static class RankEvalActionListener extends DelegatingActionListener<MultiSearchResponse, RankEvalResponse> {

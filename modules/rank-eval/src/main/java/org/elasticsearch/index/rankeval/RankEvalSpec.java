@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.rankeval;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -42,6 +43,8 @@ import java.util.function.Predicate;
 public class RankEvalSpec implements Writeable, ToXContentObject {
     /** List of search request to use for the evaluation */
     private final List<RatedRequest> ratedRequests;
+    /** Name of the stored corpus from which we generate requests */
+    private final String storedCorpus;
     /** Definition of the quality metric, e.g. precision at N */
     private final EvaluationMetric metric;
     /** Maximum number of requests to execute in parallel. */
@@ -51,16 +54,21 @@ public class RankEvalSpec implements Writeable, ToXContentObject {
     /** optional: Templates to base test requests on */
     private final Map<String, Script> templates = new HashMap<>();
 
-    public RankEvalSpec(List<RatedRequest> ratedRequests, EvaluationMetric metric, Collection<ScriptWithId> templates) {
+    public RankEvalSpec(
+        List<RatedRequest> ratedRequests,
+        String storedCorpus,
+        EvaluationMetric metric,
+        Collection<ScriptWithId> templates
+    ) {
         this.metric = Objects.requireNonNull(metric, "Cannot evaluate ranking if no evaluation metric is provided.");
-        if (ratedRequests == null || ratedRequests.isEmpty()) {
-            throw new IllegalArgumentException(
-                "Cannot evaluate ranking if no search requests with rated results are provided. Seen: " + ratedRequests
-            );
+        if ((ratedRequests == null || ratedRequests.isEmpty()) ^ storedCorpus == null == false) {
+            throw new IllegalArgumentException("One of ratedRequests or storedCorpus required ");
         }
-        this.ratedRequests = ratedRequests;
+        this.ratedRequests = ratedRequests != null ? ratedRequests : List.of();
+        this.storedCorpus = storedCorpus;
+
         if (templates == null || templates.isEmpty()) {
-            for (RatedRequest request : ratedRequests) {
+            for (RatedRequest request : this.ratedRequests) {
                 if (request.getEvaluationRequest() == null) {
                     throw new IllegalStateException(
                         "Cannot evaluate ranking if neither template nor evaluation request is "
@@ -77,8 +85,8 @@ public class RankEvalSpec implements Writeable, ToXContentObject {
         }
     }
 
-    public RankEvalSpec(List<RatedRequest> ratedRequests, EvaluationMetric metric) {
-        this(ratedRequests, metric, null);
+    public RankEvalSpec(List<RatedRequest> ratedRequests, String storedCorpus, EvaluationMetric metric) {
+        this(ratedRequests, storedCorpus, metric, null);
     }
 
     public RankEvalSpec(StreamInput in) throws IOException {
@@ -95,6 +103,11 @@ public class RankEvalSpec implements Writeable, ToXContentObject {
             this.templates.put(key, value);
         }
         maxConcurrentSearches = in.readVInt();
+        if (in.getTransportVersion().onOrAfter(TransportVersions.RANK_EVAL_STORED_CORPORA)) {
+            storedCorpus = in.readOptionalString();
+        } else {
+            storedCorpus = null;
+        }
     }
 
     @Override
@@ -103,6 +116,9 @@ public class RankEvalSpec implements Writeable, ToXContentObject {
         out.writeNamedWriteable(metric);
         out.writeMap(templates, StreamOutput::writeWriteable);
         out.writeVInt(maxConcurrentSearches);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.RANK_EVAL_STORED_CORPORA)) {
+            out.writeOptionalString(storedCorpus);
+        }
     }
 
     /** Returns the metric to use for quality evaluation.*/
@@ -113,6 +129,14 @@ public class RankEvalSpec implements Writeable, ToXContentObject {
     /** Returns a list of intent to query translation specifications to evaluate. */
     public List<RatedRequest> getRatedRequests() {
         return Collections.unmodifiableList(ratedRequests);
+    }
+
+    public String getStoredCorpus() {
+        return storedCorpus;
+    }
+
+    public boolean hasStoredCorpus() {
+        return storedCorpus != null;
     }
 
     /** Returns the template to base test requests on. */
@@ -134,14 +158,15 @@ public class RankEvalSpec implements Writeable, ToXContentObject {
     private static final ParseField METRIC_FIELD = new ParseField("metric");
     private static final ParseField REQUESTS_FIELD = new ParseField("requests");
     private static final ParseField MAX_CONCURRENT_SEARCHES_FIELD = new ParseField("max_concurrent_searches");
+    private static final ParseField STORED_CORPUS_FIELD = new ParseField("stored_corpus");
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<RankEvalSpec, Predicate<NodeFeature>> PARSER = new ConstructingObjectParser<>(
         "rank_eval",
-        a -> new RankEvalSpec((List<RatedRequest>) a[0], (EvaluationMetric) a[1], (Collection<ScriptWithId>) a[2])
+        a -> new RankEvalSpec((List<RatedRequest>) a[0], (String) a[3], (EvaluationMetric) a[1], (Collection<ScriptWithId>) a[2])
     );
 
     static {
-        PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), (p, c) -> RatedRequest.fromXContent(p, c), REQUESTS_FIELD);
+        PARSER.declareObjectArray(ConstructingObjectParser.optionalConstructorArg(), RatedRequest::fromXContent, REQUESTS_FIELD);
         PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> parseMetric(p), METRIC_FIELD);
         PARSER.declareObjectArray(
             ConstructingObjectParser.optionalConstructorArg(),
@@ -149,6 +174,7 @@ public class RankEvalSpec implements Writeable, ToXContentObject {
             TEMPLATES_FIELD
         );
         PARSER.declareInt(RankEvalSpec::setMaxConcurrentSearches, MAX_CONCURRENT_SEARCHES_FIELD);
+        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), STORED_CORPUS_FIELD);
     }
 
     private static EvaluationMetric parseMetric(XContentParser parser) throws IOException {
@@ -237,11 +263,12 @@ public class RankEvalSpec implements Writeable, ToXContentObject {
         return Objects.equals(ratedRequests, other.ratedRequests)
             && Objects.equals(metric, other.metric)
             && Objects.equals(maxConcurrentSearches, other.maxConcurrentSearches)
-            && Objects.equals(templates, other.templates);
+            && Objects.equals(templates, other.templates)
+            && Objects.equals(storedCorpus, other.storedCorpus);
     }
 
     @Override
     public final int hashCode() {
-        return Objects.hash(ratedRequests, metric, templates, maxConcurrentSearches);
+        return Objects.hash(ratedRequests, metric, templates, maxConcurrentSearches, storedCorpus);
     }
 }

@@ -1275,8 +1275,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
         assumeTrue("Only if 'inference_chunking_settings' feature flag is enabled", ChunkingSettingsFeatureFlag.isEnabled());
 
         int wordsPerChunk = 10;
-        int numBatches = 3;
-        randomIntBetween(3, 6);
+        int numBatches = randomIntBetween(3, 6);
         int numChunks = randomIntBetween(
             ((numBatches - 1) * ElasticsearchInternalService.EMBEDDING_MAX_BATCH_SIZE) + 1,
             numBatches * ElasticsearchInternalService.EMBEDDING_MAX_BATCH_SIZE

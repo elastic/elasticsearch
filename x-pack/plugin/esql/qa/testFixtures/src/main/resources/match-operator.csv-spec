@@ -94,14 +94,14 @@ count(*): long  | author.keyword:keyword
 singleMatchWithTextFieldScoring
 required_capability: metadata_score
 required_capability: match_operator
-from books METADATA _score | where author match "William Faulkner" | keep book_no, author, _score | sort book_no | LIMIT 5;
+from books METADATA _score | where author match "William Faulkner" | sort book_no | keep author, _score | LIMIT 5;
 
-book_no:keyword | author:text | _score:double
-2713            | William Faulkner                                   | 4.272439002990723
-2883            | William Faulkner                                   | 4.272439002990723
-5404            | William Faulkner                                   | 4.272439002990723
-5578            | William Faulkner                                   | 4.272439002990723
-9896            | William Faulkner                                   | 4.272439002990723
+author:text | _score:double
+William Faulkner                                   | 4.272439002990723
+William Faulkner                                   | 4.272439002990723
+William Faulkner                                   | 4.272439002990723
+William Faulkner                                   | 4.272439002990723
+William Faulkner                                   | 4.272439002990723
 ;
 
 

@@ -22,9 +22,9 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
-import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
@@ -164,12 +164,12 @@ public class TransportClusterAllocationExplainAction extends TransportMasterNode
         RoutingAllocation allocation,
         Collection<ProjectId> projectIds
     ) {
-        final GlobalRoutingTable.ProjectLookup lookup = allocation.globalRoutingTable().getProjectLookup();
         ShardRouting foundShard = null;
         if (request.useAnyUnassignedShard()) {
             // If we can use any shard, return the first unassigned primary (if there is one) or the first unassigned replica (if not)
             for (ShardRouting unassigned : allocation.routingNodes().unassigned()) {
-                if (projectIds.contains(lookup.project(unassigned.index()).orElse(null))) {
+                final ProjectId projectId = allocation.metadata().lookupProject(unassigned.index()).map(ProjectMetadata::id).orElse(null);
+                if (projectIds.contains(projectId)) {
                     if (foundShard == null || unassigned.primary()) {
                         foundShard = unassigned;
                     }

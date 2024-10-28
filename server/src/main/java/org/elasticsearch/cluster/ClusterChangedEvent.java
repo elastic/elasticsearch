@@ -13,7 +13,6 @@ import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexGraveyard.IndexGraveyardDiff;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -90,18 +89,15 @@ public class ClusterChangedEvent {
      */
     public boolean indexRoutingTableChanged(Index index) {
         Objects.requireNonNull(index, "index must not be null");
-        Optional<ProjectId> projectId = state.globalRoutingTable().getProjectLookup().project(index);
-        Optional<ProjectId> previousProjectId = previousState.globalRoutingTable().getProjectLookup().project(index);
-        if (projectId.isEmpty() && previousProjectId.isEmpty()) {
-            return false;
+        final Optional<IndexRoutingTable> indexRoutingTable = state.globalRoutingTable().indexRouting(state.metadata(), index);
+
+        final Optional<IndexRoutingTable> previousIndexRoutingTable = previousState.globalRoutingTable()
+            .indexRouting(previousState.metadata(), index);
+
+        if (indexRoutingTable.isEmpty() || previousIndexRoutingTable.isEmpty()) {
+            return indexRoutingTable.isEmpty() != previousIndexRoutingTable.isEmpty();
         }
-        if (projectId.isPresent() && previousProjectId.isPresent()) {
-            IndexRoutingTable previousIndexRoutingTable = previousState.globalRoutingTable()
-                .routingTable(previousProjectId.get())
-                .index(index);
-            return state.globalRoutingTable().routingTable(projectId.get()).index(index) != previousIndexRoutingTable;
-        }
-        return true;
+        return indexRoutingTable.get() != previousIndexRoutingTable.get();
     }
 
     /**

@@ -63,7 +63,7 @@ public class OrderedShardsIterator implements Iterator<ShardRouting> {
 
     private static Comparator<ShardRouting> createShardsComparator(RoutingAllocation allocation) {
         return Comparator.comparing(shard -> {
-            final ProjectMetadata project = allocation.getProject(shard.index());
+            final ProjectMetadata project = allocation.metadata().projectFor(shard.index());
             var index = project.getIndicesLookup().get(shard.getIndexName());
             if (index != null && index.getParentDataStream() != null) {
                 // prioritize write indices of the data stream

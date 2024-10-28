@@ -42,6 +42,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.NamedObjectNotFoundException;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -58,6 +59,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.BiPredicate;
@@ -501,6 +503,17 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             shards += project.getTotalNumberOfShards();
         }
         return shards;
+    }
+
+    /**
+     * @return The total number of indices across all projects in this cluster
+     */
+    public int getTotalNumberOfIndices() {
+        int indexCount = 0;
+        for (ProjectMetadata project : projects().values()) {
+            indexCount += project.indices().size();
+        }
+        return indexCount;
     }
 
     public NodesShutdownMetadata nodeShutdowns() {
@@ -1555,4 +1568,112 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             return Builder.fromXContent(parser);
         }
     };
+
+    private volatile Metadata.ProjectLookup projectLookup = null;
+
+    /**
+     * Attempt to find a project for the supplied {@link Index}.
+     */
+    public Optional<ProjectMetadata> lookupProject(Index index) {
+        return getProjectLookup().project(index);
+    }
+
+    /**
+     * Attempt to find a project for the supplied {@link Index}.
+     * @throws org.elasticsearch.index.IndexNotFoundException if the index does not exist in any project
+     */
+    public ProjectMetadata projectFor(Index index) {
+        return lookupProject(index).orElseThrow(() -> new IndexNotFoundException("Index [ " + index + "] does not exist in any project"));
+    }
+
+    /**
+     * Attempt to find the IndexMetadata for the supplied {@link Index}.
+     * @throws org.elasticsearch.index.IndexNotFoundException if the index does not exist in any project
+     */
+    public IndexMetadata indexMetadata(Index index) {
+        return lookupProject(index).orElseThrow(() -> new IndexNotFoundException("Index [ " + index + "] does not exist in any project"))
+            .getIndexSafe(index);
+    }
+
+    ProjectLookup getProjectLookup() {
+        /*
+         * projectLookup is volatile, but this assignment is not synchronized
+         * That means it is possible that we will generate multiple lookup objects if there are multiple concurrent callers
+         * Those lookup objects will be identical, and the double assignment will be safe, but there is the cost of building the lookup
+         * more than once.
+         * In the single project case building the lookup is cheap, and synchronization would be costly.
+         * In the multiple project case, it might be cheaper to synchronize, but the long term solution is to maintain the lookup table
+         *  as projects/indices are added/removed rather than rebuild it each time the cluster-state/metadata object changes.
+         */
+        if (this.projectLookup == null) {
+            if (this.isSingleProject()) {
+                projectLookup = new SingleProjectLookup(getSingleProject());
+            } else {
+                projectLookup = new MultiProjectLookup();
+            }
+        }
+        return projectLookup;
+    }
+
+    /**
+     * A lookup table from {@link Index} to {@link ProjectId}
+     */
+    interface ProjectLookup {
+        /**
+         * Return the {@link ProjectId} for the provided {@link Index}, if it exists
+         */
+        Optional<ProjectMetadata> project(Index index);
+    }
+
+    /**
+     * An implementation of {@link ProjectLookup} that is optimized for the case where there is a single project.
+     *
+     */
+    static class SingleProjectLookup implements ProjectLookup {
+
+        private final ProjectMetadata project;
+
+        SingleProjectLookup(ProjectMetadata project) {
+            this.project = project;
+        }
+
+        @Override
+        public Optional<ProjectMetadata> project(Index index) {
+            if (project.hasIndex(index)) {
+                return Optional.of(project);
+            } else {
+                return Optional.empty();
+            }
+        }
+    }
+
+    class MultiProjectLookup implements ProjectLookup {
+        private final Map<String, ProjectMetadata> lookup;
+
+        private MultiProjectLookup() {
+            this.lookup = Maps.newMapWithExpectedSize(Metadata.this.getTotalNumberOfIndices());
+            for (var project : projectMetadata.values()) {
+                for (var indexMetadata : project) {
+                    final String uuid = indexMetadata.getIndex().getUUID();
+                    final ProjectMetadata previousProject = lookup.put(uuid, project);
+                    if (previousProject != null && previousProject != project) {
+                        throw new IllegalStateException(
+                            "Index UUID [" + uuid + "] exists in project [" + project.id() + "] and [" + previousProject.id() + "]"
+                        );
+                    }
+                }
+            }
+        }
+
+        @Override
+        public Optional<ProjectMetadata> project(Index index) {
+            final ProjectMetadata project = lookup.get(index.getUUID());
+            if (project != null && project.hasIndex(index)) {
+                return Optional.of(project);
+            } else {
+                return Optional.empty();
+            }
+        }
+    }
+
 }

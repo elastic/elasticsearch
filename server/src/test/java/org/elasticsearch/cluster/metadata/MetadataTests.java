@@ -30,6 +30,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -61,6 +62,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.lang.reflect.Field;
@@ -90,6 +92,8 @@ import static org.elasticsearch.cluster.metadata.Metadata.CONTEXT_MODE_PARAM;
 import static org.elasticsearch.cluster.metadata.ProjectMetadata.Builder.assertDataStreams;
 import static org.elasticsearch.test.LambdaMatchers.transformedItemsMatch;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
+import static org.elasticsearch.test.hamcrest.OptionalMatchers.isEmpty;
+import static org.elasticsearch.test.hamcrest.OptionalMatchers.isPresentWith;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anEmptyMap;
@@ -2757,7 +2761,8 @@ public class MetadataTests extends ESTestCase {
             "visibleClosedIndices",
             "indicesLookup",
             "mappingsByHash",
-            "oldestIndexVersion"
+            "oldestIndexVersion",
+            "projectLookup"
         );
 
         var diff = new HashSet<>(checkedForGlobalStateChanges);
@@ -2898,6 +2903,77 @@ public class MetadataTests extends ESTestCase {
             assertThrows(UnsupportedOperationException.class, () -> metadata.getSingleProjectCustom(type));
             assertThrows(UnsupportedOperationException.class, () -> metadata.getSingleProjectWithCustom(type));
         }
+    }
+
+    public void testProjectLookupWithSingleProject() {
+        final ProjectId projectId = Metadata.DEFAULT_PROJECT_ID;
+        final ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(projectId);
+
+        final int numberOfIndices = randomIntBetween(2, 20);
+        final List<IndexMetadata> indices = new ArrayList<>(numberOfIndices);
+        for (int i = 0; i < numberOfIndices; i++) {
+            final String uuid = randomUUID();
+            final IndexMetadata indexMetadata = IndexMetadata.builder(org.elasticsearch.core.Strings.format("index-%02d", i))
+                .settings(
+                    indexSettings(1, 0).put(IndexMetadata.SETTING_INDEX_UUID, uuid)
+                        .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                )
+                .build();
+            indices.add(indexMetadata);
+            projectBuilder.put(indexMetadata, false);
+        }
+
+        final Metadata.ProjectLookup lookup = Metadata.builder().put(projectBuilder).build().getProjectLookup();
+        assertThat(lookup, Matchers.instanceOf(Metadata.SingleProjectLookup.class));
+        indices.forEach(im -> {
+            final Index index = im.getIndex();
+            assertThat(lookup.project(index).map(ProjectMetadata::id), isPresentWith(projectId));
+
+            Index alt1 = new Index(index.getName(), randomValueOtherThan(im.getIndexUUID(), ESTestCase::randomUUID));
+            assertThat(lookup.project(alt1), isEmpty());
+
+            Index alt2 = new Index(randomAlphaOfLength(8), im.getIndexUUID());
+            assertThat(lookup.project(alt2), isEmpty());
+        });
+    }
+
+    public void testProjectLookupWithMultipleProjects() {
+        final int numberOfProjects = randomIntBetween(2, 8);
+        final Metadata.Builder metadataBuilder = Metadata.builder();
+        final Map<ProjectId, List<IndexMetadata>> indices = Maps.newMapWithExpectedSize(numberOfProjects);
+        for (int p = 1; p <= numberOfProjects; p++) {
+            final ProjectId projectId = new ProjectId(org.elasticsearch.core.Strings.format("proj_%02d", p));
+            final ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(projectId);
+
+            final int numberOfIndices = randomIntBetween(p, 10);
+            indices.put(projectId, new ArrayList<>(numberOfIndices));
+            for (int i = 0; i < numberOfIndices; i++) {
+                final String uuid = randomUUID();
+                final IndexMetadata indexMetadata = IndexMetadata.builder(org.elasticsearch.core.Strings.format("index-%02d", i))
+                    .settings(
+                        indexSettings(1, 0).put(IndexMetadata.SETTING_INDEX_UUID, uuid)
+                            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                    )
+                    .build();
+                indices.get(projectId).add(indexMetadata);
+                projectBuilder.put(indexMetadata, false);
+            }
+            metadataBuilder.put(projectBuilder);
+        }
+
+        final Metadata.ProjectLookup lookup = metadataBuilder.build().getProjectLookup();
+        assertThat(lookup, Matchers.instanceOf(Metadata.MultiProjectLookup.class));
+
+        indices.forEach((project, ix) -> ix.forEach(im -> {
+            final Index index = im.getIndex();
+            assertThat(lookup.project(index).map(ProjectMetadata::id), isPresentWith(project));
+
+            Index alt1 = new Index(index.getName(), randomValueOtherThan(im.getIndexUUID(), ESTestCase::randomUUID));
+            assertThat(lookup.project(alt1), isEmpty());
+
+            Index alt2 = new Index(randomAlphaOfLength(8), im.getIndexUUID());
+            assertThat(lookup.project(alt2), isEmpty());
+        }));
     }
 
     public static Metadata randomMetadata() {

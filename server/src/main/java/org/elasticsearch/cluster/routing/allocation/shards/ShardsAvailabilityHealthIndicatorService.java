@@ -18,7 +18,6 @@ import org.elasticsearch.cluster.health.ClusterShardHealth;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
-import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeFilters;
@@ -485,8 +484,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             }
             if ((routing.active() || isRestarting || isNew) == false) {
                 String indexName = routing.getIndexName();
-                ProjectId projectId = state.globalRoutingTable().getProjectLookup().project(routing.index()).get();
-                Settings indexSettings = state.getMetadata().getProject(projectId).index(indexName).getSettings();
+                Settings indexSettings = state.metadata().indexMetadata(routing.index()).getSettings();
                 if (SearchableSnapshotsSettings.isSearchableSnapshotStore(indexSettings)) {
                     searchableSnapshotsState.addSearchableSnapshotWithUnavailableShard(indexName);
                 } else {
@@ -691,7 +689,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         ClusterState state,
         List<NodeAllocationResult> nodeAllocationResults
     ) {
-        IndexMetadata indexMetadata = indexMetadata(state, shardRouting);
+        IndexMetadata indexMetadata = state.metadata().indexMetadata(shardRouting.index());
         List<Diagnosis.Definition> diagnosisDefs = new ArrayList<>();
         if (indexMetadata != null) {
             diagnosisDefs.addAll(checkIsAllocationDisabled(indexMetadata, nodeAllocationResults));
@@ -701,11 +699,6 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             diagnosisDefs.add(ACTION_CHECK_ALLOCATION_EXPLAIN_API);
         }
         return diagnosisDefs;
-    }
-
-    private static IndexMetadata indexMetadata(ClusterState state, ShardRouting shardRouting) {
-        final ProjectId projectId = state.globalRoutingTable().getProjectLookup().project(shardRouting.index()).get();
-        return state.metadata().getProject(projectId).index(shardRouting.index());
     }
 
     /**

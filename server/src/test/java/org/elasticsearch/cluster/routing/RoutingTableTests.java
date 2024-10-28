@@ -502,8 +502,7 @@ public class RoutingTableTests extends ESAllocationTestCase {
 
     public void testRoutingNodesRoundtrip() {
         final GlobalRoutingTable originalTable = clusterState.globalRoutingTable();
-        final RoutingNodes routingNodes = clusterState.getRoutingNodes();
-        final GlobalRoutingTable fromNodes = originalTable.rebuild(routingNodes);
+        final GlobalRoutingTable fromNodes = originalTable.rebuild(clusterState.getRoutingNodes(), clusterState.metadata());
         // we don't have an equals implementation for the routing table so we assert equality by checking for a noop diff
         final Diff<GlobalRoutingTable> routingTableDiff = fromNodes.diff(originalTable);
         assertSame(originalTable, routingTableDiff.apply(originalTable));

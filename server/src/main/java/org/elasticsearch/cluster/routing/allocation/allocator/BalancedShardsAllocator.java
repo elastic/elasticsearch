@@ -1501,7 +1501,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
     private record ProjectIndex(ProjectId project, String indexName) {
         ProjectIndex(RoutingAllocation allocation, ShardRouting shard) {
-            this(allocation.globalRoutingTable().getProjectLookup().project(shard.index()).get(), shard.getIndexName());
+            this(allocation.metadata().projectFor(shard.index()).id(), shard.getIndexName());
         }
 
         public void assertMatch(ShardRouting shard) {

@@ -50,6 +50,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.gateway.PriorityComparator;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.SnapshotsInfoService;
 
@@ -164,8 +165,7 @@ public class AllocationService {
 
     private static ClusterState buildResultAndLogHealthChange(ClusterState oldState, RoutingAllocation allocation, String reason) {
         final GlobalRoutingTable oldRoutingTable = oldState.globalRoutingTable();
-        final RoutingNodes newRoutingNodes = allocation.routingNodes();
-        final GlobalRoutingTable newRoutingTable = oldRoutingTable.rebuild(newRoutingNodes);
+        final GlobalRoutingTable newRoutingTable = oldRoutingTable.rebuild(allocation.routingNodes(), allocation.metadata());
         final Metadata newMetadata = allocation.updateMetadataWithRoutingChanges(newRoutingTable);
         assert newRoutingTable.validate(newMetadata); // validates the routing table is coherent with the cluster state metadata
 
@@ -676,16 +676,16 @@ public class AllocationService {
         RoutingNodes routingNodes = routingAllocation.routingNodes();
         for (ShardRouting startedShard : startedShardEntries) {
             assert startedShard.initializing() : "only initializing shards can be started";
-            assert routingAllocation.getProject(startedShard.index()).index(startedShard.index()) != null
+            assert routingAllocation.metadata().lookupProject(startedShard.index()).isPresent()
                 : "shard started for unknown index (shard entry: " + startedShard + ")";
             assert startedShard == routingNodes.getByAllocationId(startedShard.shardId(), startedShard.allocationId().getId())
                 : "shard routing to start does not exist in routing table, expected: "
                     + startedShard
                     + " but was: "
                     + routingNodes.getByAllocationId(startedShard.shardId(), startedShard.allocationId().getId());
-            long expectedShardSize = routingAllocation.getProject(startedShard.index())
-                .getIndexSafe(startedShard.index())
-                .isSearchableSnapshot() ? startedShard.getExpectedShardSize() : ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE;
+            long expectedShardSize = routingAllocation.metadata().indexMetadata(startedShard.index()).isSearchableSnapshot()
+                ? startedShard.getExpectedShardSize()
+                : ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE;
             routingNodes.startShard(startedShard, routingAllocation.changes(), expectedShardSize);
         }
     }
@@ -745,8 +745,9 @@ public class AllocationService {
 
     private ExistingShardsAllocator getAllocatorForShard(ShardRouting shardRouting, RoutingAllocation routingAllocation) {
         assert assertInitialized();
+        Index index = shardRouting.index();
         final String allocatorName = ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING.get(
-            routingAllocation.getProject(shardRouting.index()).getIndexSafe(shardRouting.index()).getSettings()
+            routingAllocation.metadata().indexMetadata(index).getSettings()
         );
         final ExistingShardsAllocator existingShardsAllocator = existingShardsAllocators.get(allocatorName);
         return existingShardsAllocator != null ? existingShardsAllocator : new NotFoundAllocator(allocatorName);

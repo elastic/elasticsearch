@@ -404,10 +404,15 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
     }
 
     /**
-     * @return The identifer of this project
+     * @return The identifier of this project
      */
     public ProjectId id() {
         return this.id;
+    }
+
+    @Override
+    public String toString() {
+        return getClass().getSimpleName() + "{" + this.id.id() + "}";
     }
 
     /**

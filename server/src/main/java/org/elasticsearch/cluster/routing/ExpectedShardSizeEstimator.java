@@ -12,14 +12,12 @@ package org.elasticsearch.cluster.routing;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 
-import java.util.Optional;
 import java.util.Set;
 
 public class ExpectedShardSizeEstimator {
@@ -29,15 +27,14 @@ public class ExpectedShardSizeEstimator {
     }
 
     public static long getExpectedShardSize(ShardRouting shard, long defaultSize, RoutingAllocation allocation) {
-        Optional<ProjectId> projectId = allocation.globalRoutingTable().getProjectLookup().project(shard.index());
-        assert projectId.isPresent() : "No project for " + shard;
+        ProjectMetadata project = allocation.metadata().projectFor(shard.index());
         return getExpectedShardSize(
             shard,
             defaultSize,
             allocation.clusterInfo(),
             allocation.snapshotShardSizeInfo(),
-            allocation.metadata().getProject(projectId.get()),
-            allocation.routingTable(projectId.get())
+            project,
+            allocation.routingTable(project.id())
         );
     }
 

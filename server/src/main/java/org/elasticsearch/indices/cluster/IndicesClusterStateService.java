@@ -26,7 +26,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
@@ -456,8 +456,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         RoutingNode localRoutingNode = state.getRoutingNodes().node(localNodeId);
         for (AllocatedIndex<? extends Shard> indexService : indicesService) {
             final Index index = indexService.getIndexSettings().getIndex();
-            final Optional<ProjectId> projectId = state.globalRoutingTable().getProjectLookup().project(index);
-            final IndexMetadata indexMetadata = projectId.map(id -> state.metadata().getProject(id).index(index)).orElse(null);
+            final Optional<ProjectMetadata> project = state.metadata().lookupProject(index);
+            final IndexMetadata indexMetadata = project.map(proj -> proj.index(index)).orElse(null);
             final IndexMetadata existingMetadata = indexService.getIndexSettings().getIndexMetadata();
 
             AllocatedIndices.IndexRemovalReason reason = null;
@@ -580,9 +580,9 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
             AllocatedIndex<? extends Shard> indexService = null;
             try {
-                final Optional<ProjectId> projectId = state.globalRoutingTable().getProjectLookup().project(index);
-                final IndexMetadata indexMetadata = state.metadata().getProject(projectId.get()).index(index);
-                logger.debug("creating index [{}] in project [{}]", index, projectId);
+                final ProjectMetadata project = state.metadata().projectFor(index);
+                final IndexMetadata indexMetadata = project.index(index);
+                logger.debug("creating index [{}] in project [{}]", index, project.id());
                 indexService = indicesService.createIndex(indexMetadata, buildInIndexListener, true);
                 indexService.updateMapping(null, indexMetadata);
             } catch (Exception e) {
@@ -629,8 +629,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         for (AllocatedIndex<? extends Shard> indexService : indicesService) {
             final IndexMetadata currentIndexMetadata = indexService.getIndexSettings().getIndexMetadata();
             final Index index = indexService.getIndexSettings().getIndex();
-            final Optional<ProjectId> projectId = state.globalRoutingTable().getProjectLookup().project(index);
-            final IndexMetadata newIndexMetadata = projectId.map(id -> state.metadata().getProject(id).index(index)).orElse(null);
+            final ProjectMetadata project = state.metadata().projectFor(index);
+            final IndexMetadata newIndexMetadata = project.index(index);
             assert newIndexMetadata != null : "index " + index + " should have been removed by deleteIndices";
             if (ClusterChangedEvent.indexMetadataChanged(currentIndexMetadata, newIndexMetadata)) {
                 String reason = null;
@@ -674,9 +674,9 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
         try {
             final DiscoveryNode sourceNode;
-            final Optional<ProjectId> projectId = state.globalRoutingTable().getProjectLookup().project(shardRouting.index());
+            final ProjectMetadata project = state.metadata().projectFor(shardRouting.index());
             if (shardRouting.recoverySource().getType() == Type.PEER) {
-                sourceNode = findSourceNodeForPeerRecovery(state.routingTable(projectId.get()), state.nodes(), shardRouting);
+                sourceNode = findSourceNodeForPeerRecovery(state.routingTable(project.id()), state.nodes(), shardRouting);
                 if (sourceNode == null) {
                     logger.trace("ignoring initializing shard {} - no source node can be found.", shardId);
                     return;
@@ -684,7 +684,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             } else {
                 sourceNode = null;
             }
-            final var primaryTerm = state.metadata().getProject(projectId.get()).index(shardRouting.index()).primaryTerm(shardRouting.id());
+            final var primaryTerm = project.index(shardRouting.index()).primaryTerm(shardRouting.id());
 
             final var pendingShardCreation = createOrRefreshPendingShardCreation(shardId, state.stateUUID());
             createShardWhenLockAvailable(
@@ -868,11 +868,11 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
         final long primaryTerm;
         try {
-            final Optional<ProjectId> projectId = clusterState.globalRoutingTable().getProjectLookup().project(shard.shardId().getIndex());
-            final IndexMetadata indexMetadata = clusterState.metadata().getProject(projectId.get()).index(shard.shardId().getIndex());
+            final ProjectMetadata project = clusterState.metadata().projectFor(shard.shardId().getIndex());
+            final IndexMetadata indexMetadata = project.index(shard.shardId().getIndex());
             primaryTerm = indexMetadata.primaryTerm(shard.shardId().id());
             final Set<String> inSyncIds = indexMetadata.inSyncAllocationIds(shard.shardId().id());
-            final IndexShardRoutingTable indexShardRoutingTable = clusterState.routingTable(projectId.get())
+            final IndexShardRoutingTable indexShardRoutingTable = clusterState.routingTable(project.id())
                 .shardRoutingTable(shardRouting.shardId());
             shard.updateShardState(
                 shardRouting,

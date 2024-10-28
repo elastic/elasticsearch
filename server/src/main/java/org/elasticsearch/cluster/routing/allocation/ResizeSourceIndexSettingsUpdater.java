@@ -11,7 +11,6 @@ package org.elasticsearch.cluster.routing.allocation;
 
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -42,13 +41,12 @@ public class ResizeSourceIndexSettingsUpdater implements RoutingChangesObserver 
     }
 
     public Metadata applyChanges(Metadata metadata, GlobalRoutingTable routingTable) {
-        final GlobalRoutingTable.ProjectLookup projectLookup = routingTable.getProjectLookup();
         if (changes.isEmpty() == false) {
-            final Map<ProjectId, Map<Index, Settings>> updatesByProject = Maps.newHashMapWithExpectedSize(routingTable.size());
+            final Map<ProjectMetadata, Map<Index, Settings>> updatesByProject = Maps.newHashMapWithExpectedSize(routingTable.size());
             for (Index index : changes) {
-                final ProjectId projectId = projectLookup.project(index).get();
-                var indexMetadata = metadata.getProject(projectId).getIndexSafe(index);
-                if (routingTable.routingTable(projectId).index(index).allPrimaryShardsActive()) {
+                final ProjectMetadata project = metadata.projectFor(index);
+                var indexMetadata = project.getIndexSafe(index);
+                if (routingTable.routingTable(project.id()).index(index).allPrimaryShardsActive()) {
                     assert indexMetadata.getResizeSourceIndex() != null : "no resize source index for " + index;
 
                     Settings.Builder builder = Settings.builder().put(indexMetadata.getSettings());
@@ -60,18 +58,17 @@ public class ResizeSourceIndexSettingsUpdater implements RoutingChangesObserver 
                     }
 
                     final Map<Index, Settings> updates = updatesByProject.computeIfAbsent(
-                        projectId,
+                        project,
                         ignore -> Maps.newMapWithExpectedSize(changes.size())
                     );
                     updates.put(index, builder.build());
                 }
             }
             Metadata.Builder builder = null;
-            for (Map.Entry<ProjectId, Map<Index, Settings>> entry : updatesByProject.entrySet()) {
-                ProjectId projectId = entry.getKey();
+            for (Map.Entry<ProjectMetadata, Map<Index, Settings>> entry : updatesByProject.entrySet()) {
+                ProjectMetadata origProject = entry.getKey();
                 Map<Index, Settings> updates = entry.getValue();
 
-                final ProjectMetadata origProject = metadata.getProject(projectId);
                 final ProjectMetadata updatedProject = origProject.withIndexSettingsUpdates(updates);
                 if (updatedProject != origProject) {
                     if (builder == null) {

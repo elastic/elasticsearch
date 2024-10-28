@@ -65,7 +65,7 @@ public class OrderedShardsIteratorTests extends ESAllocationTestCase {
         ordering.recordAllocation("node-1");
 
         var iterator = OrderedShardsIterator.createForNecessaryMoves(
-            createRoutingAllocation(nodes, Metadata.EMPTY_METADATA, routing),
+            createRoutingAllocation(nodes, createMetadata(routing), routing),
             ordering
         );
 
@@ -100,7 +100,7 @@ public class OrderedShardsIteratorTests extends ESAllocationTestCase {
         ordering.recordAllocation("node-2");
 
         var iterator = OrderedShardsIterator.createForNecessaryMoves(
-            createRoutingAllocation(nodes, Metadata.EMPTY_METADATA, routing),
+            createRoutingAllocation(nodes, createMetadata(routing), routing),
             ordering
         );
 
@@ -227,6 +227,18 @@ public class OrderedShardsIteratorTests extends ESAllocationTestCase {
                 isIndexShardAt(".ds-data-stream-2024.04.18-000002", "node-1")
             )
         );
+    }
+
+    private Metadata createMetadata(RoutingTable routingTable) {
+        final ProjectMetadata.Builder project = ProjectMetadata.builder(Metadata.DEFAULT_PROJECT_ID);
+        for (var idxRoutingTable : routingTable) {
+            final String indexName = idxRoutingTable.getIndex().getName();
+            final IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
+                .settings(indexSettings(IndexVersion.current(), 1, 1))
+                .build();
+            project.put(indexMetadata, false);
+        }
+        return Metadata.builder().put(project).build();
     }
 
     private static RoutingAllocation createRoutingAllocation(DiscoveryNodes nodes, Metadata metadata, RoutingTable routing) {

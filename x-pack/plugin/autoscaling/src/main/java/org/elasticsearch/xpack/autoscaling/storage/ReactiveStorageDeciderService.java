@@ -18,7 +18,7 @@ import org.elasticsearch.cluster.metadata.DesiredNodes;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
-import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeFilters;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -673,17 +673,14 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
         }
 
         private long getExpectedShardSize(ShardRouting shard) {
-            final ProjectId projectId = state.globalRoutingTable()
-                .getProjectLookup()
-                .project(shard.index())
-                .orElseThrow(() -> new IllegalArgumentException("cannot find project for shard [" + shard + "]"));
+            final ProjectMetadata project = state.metadata().projectFor(shard.index());
             return ExpectedShardSizeEstimator.getExpectedShardSize(
                 shard,
                 0L,
                 info,
                 shardSizeInfo,
-                state.metadata().getProject(projectId),
-                state.globalRoutingTable().routingTable(projectId)
+                project,
+                state.globalRoutingTable().routingTable(project.id())
             );
         }
 

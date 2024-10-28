@@ -41,7 +41,6 @@ public class GlobalRoutingTable implements Iterable<RoutingTable>, Diffable<Glob
     public static final GlobalRoutingTable EMPTY_ROUTING_TABLE = new GlobalRoutingTable(ImmutableOpenMap.of());
 
     private final ImmutableOpenMap<ProjectId, RoutingTable> routingTables;
-    private volatile ProjectLookup projectLookup = null;
 
     public GlobalRoutingTable(ImmutableOpenMap<ProjectId, RoutingTable> routingTables) {
         this.routingTables = routingTables;
@@ -49,12 +48,10 @@ public class GlobalRoutingTable implements Iterable<RoutingTable>, Diffable<Glob
 
     /**
      * Constructs a new routing table with the project routing tables rebuilt based on the provided {@link RoutingNodes} parameter.
-     *
      */
-    public GlobalRoutingTable rebuild(RoutingNodes routingNodes) {
+    public GlobalRoutingTable rebuild(RoutingNodes routingNodes, Metadata metadata) {
         // Step 1: Iterable over all ShardRouting entries in the nodes and split them by owning project-id
         final Map<ProjectId, List<ShardRouting>> byProject = Maps.transformValues(this.routingTables, ignore -> new ArrayList<>());
-        final var lookup = getProjectLookup();
         for (RoutingNode routingNode : routingNodes) {
             final String nodeContext = "Node [" + routingNode + "]";
             for (ShardRouting shardRoutingEntry : routingNode) {
@@ -62,14 +59,14 @@ public class GlobalRoutingTable implements Iterable<RoutingTable>, Diffable<Glob
                 if (shardRoutingEntry.initializing() && shardRoutingEntry.relocatingNodeId() != null) {
                     continue;
                 }
-                collectProjectEntry(shardRoutingEntry, byProject, lookup, nodeContext);
+                collectProjectEntry(shardRoutingEntry, byProject, metadata, nodeContext);
             }
         }
         for (ShardRouting shardRoutingEntry : routingNodes.unassigned()) {
-            collectProjectEntry(shardRoutingEntry, byProject, lookup, "unassigned-shards");
+            collectProjectEntry(shardRoutingEntry, byProject, metadata, "unassigned-shards");
         }
         for (ShardRouting shardRoutingEntry : routingNodes.unassigned().ignored()) {
-            collectProjectEntry(shardRoutingEntry, byProject, lookup, "ignored-shards");
+            collectProjectEntry(shardRoutingEntry, byProject, metadata, "ignored-shards");
         }
 
         // Step 2: Where necessary, build a new routing table for each project based on the shard routing
@@ -89,27 +86,27 @@ public class GlobalRoutingTable implements Iterable<RoutingTable>, Diffable<Glob
     }
 
     /**
-     * For the provided {@link ShardRouting}, determine the correct project (using the {@link MultiProjectLookup}),
+     * For the provided {@link ShardRouting}, determine the correct project (using {@link Metadata#lookupProject(Index)}),
      * and then add the {@link ShardRouting} to the correct list within the provided {@code Map}.
      *
      * @param shardRouting        The shard to add
      * @param projectRoutingLists The map to add to
-     * @param lookup              The index lookup table
+     * @param metadata            The cluster metadata (used to resolve the owning project)
      * @param context             The context in which the shard routing entry was found - used to build error messages
      */
     private static void collectProjectEntry(
         ShardRouting shardRouting,
         Map<ProjectId, List<ShardRouting>> projectRoutingLists,
-        ProjectLookup lookup,
+        Metadata metadata,
         String context
     ) {
-        ProjectId project = lookup.project(shardRouting.index())
+        ProjectMetadata project = metadata.lookupProject(shardRouting.index())
             .orElseThrow(
                 () -> new IllegalStateException(
                     "Found shard [" + shardRouting.shardId() + "] in " + context + ", but the index does not belong to any project"
                 )
             );
-        final List<ShardRouting> routingSet = projectRoutingLists.get(project);
+        final List<ShardRouting> routingSet = projectRoutingLists.get(project.id());
         if (routingSet == null) {
             throw new IllegalStateException(
                 "Shard ["
@@ -123,22 +120,10 @@ public class GlobalRoutingTable implements Iterable<RoutingTable>, Diffable<Glob
         routingSet.add(shardRouting);
     }
 
-    public ProjectLookup getProjectLookup() {
-        if (this.projectLookup == null) {
-            if (this.routingTables.size() == 1) {
-                final var singleEntry = this.routingTables.entrySet().iterator().next();
-                projectLookup = new SingleProjectLookup(singleEntry.getKey(), singleEntry.getValue());
-            } else {
-                projectLookup = new MultiProjectLookup();
-            }
-        }
-        return projectLookup;
-    }
-
     /**
      * TODO: Remove this method, replace with routingTable(ProjectId)
-     * @return
-     * <ul>
+     *
+     * @return <ul>
      *     <li>If this routing table is empty (has no projects), then an empty {@link RoutingTable}<li>
      *     <li>If this routing table has one element (a single project), then the {@link RoutingTable} for that project<li>
      *     <li>Otherwise throws an exception<li>
@@ -238,8 +223,8 @@ public class GlobalRoutingTable implements Iterable<RoutingTable>, Diffable<Glob
 
     /**
      * @return If this routing table contains {@code project},
-     *   then a new routing table that is a clone of this routing table with the specified project removed
-     *   Otherwise returns this routing table unchanged.
+     * then a new routing table that is a clone of this routing table with the specified project removed
+     * Otherwise returns this routing table unchanged.
      */
     public GlobalRoutingTable removeProject(ProjectId project) {
         if (this.routingTables.containsKey(project) == false) {
@@ -272,10 +257,11 @@ public class GlobalRoutingTable implements Iterable<RoutingTable>, Diffable<Glob
 
     /**
      * Validates that this routing table is consistent with the set of projects that exist in the {@link Metadata}.
-     * @throws IllegalStateException if validation fails
+     *
      * @return A {@code boolean} so that this method can be used in an {@code assert} statement.
      * This will be {@code true} if the routing table and metadata are in-sync.
      * Will never return {@code false} because validation execptions always throw an exception.
+     * @throws IllegalStateException if validation fails
      */
     public boolean validate(Metadata metadata) {
         Map<ProjectId, ProjectMetadata> metadataProjects = metadata.projects();
@@ -309,6 +295,14 @@ public class GlobalRoutingTable implements Iterable<RoutingTable>, Diffable<Glob
 
     public Iterable<IndexRoutingTable> indexRouting() {
         return Iterables.flatten(this);
+    }
+
+    public Optional<IndexRoutingTable> indexRouting(Metadata metadata, Index index) {
+        return metadata.lookupProject(index).flatMap(pm -> indexRouting(pm.id(), index));
+    }
+
+    public Optional<IndexRoutingTable> indexRouting(ProjectId id, Index index) {
+        return Optional.ofNullable(routingTable(id)).map(rt -> rt.index(index));
     }
 
     private static class GlobalRoutingTableDiff implements Diff<GlobalRoutingTable> {
@@ -425,70 +419,6 @@ public class GlobalRoutingTable implements Iterable<RoutingTable>, Diffable<Glob
     @Override
     public String toString() {
         return "global_routing_table{" + routingTables + "}";
-    }
-
-    /**
-     * A lookup table from {@link Index} to {@link ProjectId}
-     */
-    public interface ProjectLookup {
-        /**
-         * Return the {@link ProjectId} for the provided {@link Index}, if it exists
-         */
-        Optional<ProjectId> project(Index index);
-    }
-
-    /**
-     * An implementation of {@link ProjectLookup} that is optimized for the case where there is a single project.
-     *
-     */
-    static class SingleProjectLookup implements ProjectLookup {
-
-        final ProjectId projectId;
-        final RoutingTable routingTable;
-
-        SingleProjectLookup(ProjectId projectId, RoutingTable routingTable) {
-            this.projectId = projectId;
-            this.routingTable = routingTable;
-        }
-
-        @Override
-        public Optional<ProjectId> project(Index index) {
-            if (routingTable.hasIndex(index)) {
-                return Optional.of(projectId);
-            } else {
-                return Optional.empty();
-            }
-        }
-    }
-
-    class MultiProjectLookup implements ProjectLookup {
-        private final Map<String, ProjectId> lookup;
-
-        private MultiProjectLookup() {
-            this.lookup = Maps.newMapWithExpectedSize(totalIndexCount());
-            for (var entry : routingTables.entrySet()) {
-                final ProjectId projectId = entry.getKey();
-                for (var indexRouting : entry.getValue()) {
-                    final String uuid = indexRouting.getIndex().getUUID();
-                    final ProjectId previousProject = lookup.put(uuid, projectId);
-                    if (previousProject != null && previousProject != projectId) {
-                        throw new IllegalStateException(
-                            "Index UUID [" + uuid + "] exists in project [" + projectId + "] and [" + previousProject + "]"
-                        );
-                    }
-                }
-            }
-        }
-
-        @Override
-        public Optional<ProjectId> project(Index index) {
-            final ProjectId projectId = lookup.get(index.getUUID());
-            if (projectId != null && routingTables.get(projectId).hasIndex(index)) {
-                return Optional.of(projectId);
-            } else {
-                return Optional.empty();
-            }
-        }
     }
 
 }

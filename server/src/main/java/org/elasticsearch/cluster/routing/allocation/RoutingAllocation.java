@@ -16,7 +16,6 @@ import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.metadata.DesiredNodes;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
-import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.GlobalRoutingTable;
@@ -29,7 +28,6 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.RestoreService.RestoreInProgressUpdater;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
@@ -243,16 +241,6 @@ public class RoutingAllocation {
     }
 
     /**
-     * @return project-metadata for the project that contains the specified index
-     */
-    public ProjectMetadata getProject(Index index) {
-        var projectId = globalRoutingTable().getProjectLookup()
-            .project(index)
-            .orElseThrow(() -> new IllegalArgumentException("cannot find project for index [" + index + "]"));
-        return metadata().getProject(projectId);
-    }
-
-    /**
      * Get discovery nodes in current routing
      * @return discovery nodes
      */
@@ -451,10 +439,11 @@ public class RoutingAllocation {
     }
 
     public RoutingAllocation immutableClone() {
+        GlobalRoutingTable routingTable = clusterState.globalRoutingTable();
         return new RoutingAllocation(
             deciders,
             routingNodesChanged()
-                ? ClusterState.builder(clusterState).routingTable(clusterState.globalRoutingTable().rebuild(routingNodes)).build()
+                ? ClusterState.builder(clusterState).routingTable(routingTable.rebuild(routingNodes(), metadata())).build()
                 : clusterState,
             clusterInfo,
             shardSizeInfo,

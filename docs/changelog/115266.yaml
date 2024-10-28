@@ -3,4 +3,4 @@ summary: ES|QL CCS uses `skip_unavailable` setting for handling disconnected rem
   clusters
 area: ES|QL
 type: enhancement
-issues: []
+issues: [ 114531 ]

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.remotecluster;
 
-import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
@@ -496,7 +495,7 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
     }
 
     /**
-     * Note: invalid_remote is "invalid" because it has a bogus API key, but the cluster does actually exist
+     * Note: invalid_remote is "invalid" because it has a bogus API key and the cluster does not exist (cannot be connected to)
      */
     @SuppressWarnings("unchecked")
     public void testCrossClusterQueryAgainstInvalidRemote() throws Exception {
@@ -523,6 +522,9 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
         {
             var q = "FROM invalid_remote:employees,employees | SORT emp_id DESC | LIMIT 10";
             Response response = performRequestWithRemoteSearchUser(esqlRequest(q));
+            // TODO: when skip_unavailable=false for invalid_remote, a fatal exception should be thrown
+            // this does not yet happen because field-caps returns nothing for this cluster, rather
+            // than an error, so the current code cannot detect that error. Follow on PR will handle this.
             assertLocalOnlyResults(response);
         }
 
@@ -555,10 +557,9 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
                 assertThat(reason.get("reason").toString(), containsString("unable to connect to remote cluster"));
 
             } else {
-                // errors from invalid remote should thrown an exception if the cluster is marked with skip_unavailable=false
+                // errors from invalid remote should throw an exception if the cluster is marked with skip_unavailable=false
                 ResponseException error = expectThrows(ResponseException.class, () -> {
                     final Response response1 = performRequestWithRemoteSearchUser(esqlRequest(q));
-                    System.err.println(">>> >>> response: " + EntityUtils.toString(response1.getEntity()));
                 });
                 assertThat(error.getResponse().getStatusLine().getStatusCode(), equalTo(401));
                 assertThat(error.getMessage(), containsString("unable to find apikey"));

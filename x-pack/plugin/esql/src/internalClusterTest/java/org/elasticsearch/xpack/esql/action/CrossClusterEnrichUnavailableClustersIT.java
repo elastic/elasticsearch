@@ -8,44 +8,25 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.ingest.common.IngestCommonPlugin;
-import org.elasticsearch.injection.guice.Inject;
-import org.elasticsearch.license.LicenseService;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.protocol.xpack.XPackInfoRequest;
-import org.elasticsearch.protocol.xpack.XPackInfoResponse;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.test.AbstractMultiClustersTestCase;
 import org.elasticsearch.transport.RemoteClusterAware;
-import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
-import org.elasticsearch.xpack.core.action.TransportXPackInfoAction;
-import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
-import org.elasticsearch.xpack.core.action.XPackInfoFeatureResponse;
-import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyAction;
 import org.elasticsearch.xpack.core.enrich.action.PutEnrichPolicyAction;
-import org.elasticsearch.xpack.enrich.EnrichPlugin;
-import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -54,6 +35,8 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
+import static org.elasticsearch.xpack.esql.action.CrossClustersEnrichIT.enrichHosts;
+import static org.elasticsearch.xpack.esql.action.CrossClustersEnrichIT.enrichVendors;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -86,7 +69,7 @@ public class CrossClusterEnrichUnavailableClustersIT extends AbstractMultiCluste
     protected Collection<Class<? extends Plugin>> nodePlugins(String clusterAlias) {
         List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins(clusterAlias));
         plugins.add(EsqlPlugin.class);
-        plugins.add(LocalStateEnrich.class);
+        plugins.add(CrossClustersEnrichIT.LocalStateEnrich.class);
         plugins.add(IngestCommonPlugin.class);
         plugins.add(ReindexPlugin.class);
         return plugins;
@@ -96,9 +79,6 @@ public class CrossClusterEnrichUnavailableClustersIT extends AbstractMultiCluste
     protected Settings nodeSettings() {
         return Settings.builder().put(super.nodeSettings()).put(XPackSettings.SECURITY_ENABLED.getKey(), false).build();
     }
-
-    static final EnrichPolicy hostPolicy = new EnrichPolicy("match", null, List.of("hosts"), "ip", List.of("ip", "os"));
-    static final EnrichPolicy vendorPolicy = new EnrichPolicy("match", null, List.of("vendors"), "os", List.of("os", "vendor"));
 
     @Before
     public void setupHostsEnrich() {
@@ -132,8 +112,10 @@ public class CrossClusterEnrichUnavailableClustersIT extends AbstractMultiCluste
                 client.prepareIndex("hosts").setSource("ip", h.getKey(), "os", h.getValue()).get();
             }
             client.admin().indices().prepareRefresh("hosts").get();
-            client.execute(PutEnrichPolicyAction.INSTANCE, new PutEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, "hosts", hostPolicy))
-                .actionGet();
+            client.execute(
+                PutEnrichPolicyAction.INSTANCE,
+                new PutEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, "hosts", CrossClustersEnrichIT.hostPolicy)
+            ).actionGet();
             client.execute(ExecuteEnrichPolicyAction.INSTANCE, new ExecuteEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, "hosts"))
                 .actionGet();
             assertAcked(client.admin().indices().prepareDelete("hosts"));
@@ -153,8 +135,10 @@ public class CrossClusterEnrichUnavailableClustersIT extends AbstractMultiCluste
                 client.prepareIndex("vendors").setSource("os", v.getKey(), "vendor", v.getValue()).get();
             }
             client.admin().indices().prepareRefresh("vendors").get();
-            client.execute(PutEnrichPolicyAction.INSTANCE, new PutEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, "vendors", vendorPolicy))
-                .actionGet();
+            client.execute(
+                PutEnrichPolicyAction.INSTANCE,
+                new PutEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, "vendors", CrossClustersEnrichIT.vendorPolicy)
+            ).actionGet();
             client.execute(ExecuteEnrichPolicyAction.INSTANCE, new ExecuteEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, "vendors"))
                 .actionGet();
             assertAcked(client.admin().indices().prepareDelete("vendors"));
@@ -205,14 +189,6 @@ public class CrossClusterEnrichUnavailableClustersIT extends AbstractMultiCluste
             }
             client.admin().indices().prepareRefresh("events").get();
         }
-    }
-
-    static String enrichHosts(Enrich.Mode mode) {
-        return EsqlTestUtils.randomEnrichCommand("hosts", mode, hostPolicy.getMatchField(), hostPolicy.getEnrichFields());
-    }
-
-    static String enrichVendors(Enrich.Mode mode) {
-        return EsqlTestUtils.randomEnrichCommand("vendors", mode, vendorPolicy.getMatchField(), vendorPolicy.getEnrichFields());
     }
 
     public void testEnrichWithHostsPolicyAndDisconnectedRemotesWithSkipUnavailableTrue() throws IOException {
@@ -696,41 +672,5 @@ public class CrossClusterEnrichUnavailableClustersIT extends AbstractMultiCluste
             .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
             .setPersistentSettings(settingsBuilder.build())
             .get();
-    }
-
-    public static class LocalStateEnrich extends LocalStateCompositeXPackPlugin {
-
-        public LocalStateEnrich(final Settings settings, final Path configPath) {
-            super(settings, configPath);
-
-            plugins.add(new EnrichPlugin(settings) {
-                @Override
-                protected XPackLicenseState getLicenseState() {
-                    return this.getLicenseState();
-                }
-            });
-        }
-
-        public static class EnrichTransportXPackInfoAction extends TransportXPackInfoAction {
-            @Inject
-            public EnrichTransportXPackInfoAction(
-                TransportService transportService,
-                ActionFilters actionFilters,
-                LicenseService licenseService,
-                NodeClient client
-            ) {
-                super(transportService, actionFilters, licenseService, client);
-            }
-
-            @Override
-            protected List<ActionType<XPackInfoFeatureResponse>> infoActions() {
-                return Collections.singletonList(XPackInfoFeatureAction.ENRICH);
-            }
-        }
-
-        @Override
-        protected Class<? extends TransportAction<XPackInfoRequest, XPackInfoResponse>> getInfoAction() {
-            return EnrichTransportXPackInfoAction.class;
-        }
     }
 }

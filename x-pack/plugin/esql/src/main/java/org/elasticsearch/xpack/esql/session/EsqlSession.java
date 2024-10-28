@@ -196,8 +196,7 @@ public class EsqlSession {
                 return false;
             }
 
-            if ((e instanceof IllegalStateException ill && ill.getMessage().equals("No clusters to search"))
-                || ExceptionsHelper.isRemoteUnavailableException(e)) {
+            if (e instanceof NoClustersToSearchException || ExceptionsHelper.isRemoteUnavailableException(e)) {
                 for (String clusterAlias : executionInfo.clusterAliases()) {
                     if (executionInfo.isSkipUnavailable(clusterAlias) == false
                         && clusterAlias.equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY) == false) {
@@ -354,7 +353,7 @@ public class EsqlSession {
                         && executionInfo.getClusterStateCount(EsqlExecutionInfo.Cluster.Status.RUNNING) == 0) {
                         // for a CCS, if all clusters have been marked as SKIPPED, nothing to search so send a sentinel
                         // Exception to let the LogicalPlanActionListener decide how to proceed
-                        ll.onFailure(new IllegalStateException("No clusters to search"));
+                        ll.onFailure(new NoClustersToSearchException());
                         return;
                     }
 
@@ -424,7 +423,7 @@ public class EsqlSession {
             // if the preceding call to the enrich policy API found unavailable clusters, recreate the index expression to search
             // based only on available clusters (which could now be an empty list)
             String indexExpressionToResolve = createIndexExpressionFromAvailableClusters(executionInfo);
-            if (indexExpressionToResolve.equals("")) {
+            if (indexExpressionToResolve.isEmpty()) {
                 // if this was a pure remote CCS request (no local indices) and all remotes are offline, return an empty IndexResolution
                 listener.onResponse(IndexResolution.valid(new EsIndex(table.index(), Map.of(), Map.of())));
             } else {

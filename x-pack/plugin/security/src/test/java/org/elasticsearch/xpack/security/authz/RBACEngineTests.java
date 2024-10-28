@@ -1781,7 +1781,10 @@ public class RBACEngineTests extends ESTestCase {
                     new RoleDescriptorsIntersection(
                         new RoleDescriptor(
                             Role.REMOTE_USER_ROLE_NAME,
-                            null,
+                            RemoteClusterPermissions.getSupportedRemoteClusterPermissions()
+                                .stream()
+                                .filter(s -> s.equals(ClusterPrivilegeResolver.MONITOR_STATS.name()))
+                                .toArray(String[]::new),
                             new IndicesPrivileges[] {
                                 IndicesPrivileges.builder().indices(".monitoring-*").privileges("read", "read_cross_cluster").build(),
                                 IndicesPrivileges.builder().indices("apm-*").privileges("read", "read_cross_cluster").build(),
@@ -1792,18 +1795,6 @@ public class RBACEngineTests extends ESTestCase {
                             null,
                             null,
                             null,
-                            null,
-                            null,
-                            null,
-                            new RemoteClusterPermissions().addGroup(
-                                new RemoteClusterPermissionGroup(
-                                    RemoteClusterPermissions.getSupportedRemoteClusterPermissions()
-                                        .stream()
-                                        .filter(s -> s.equals(ClusterPrivilegeResolver.MONITOR_STATS.name()))
-                                        .toArray(String[]::new),
-                                    new String[] { "*" }
-                                )
-                            ),
                             null,
                             null
                         )

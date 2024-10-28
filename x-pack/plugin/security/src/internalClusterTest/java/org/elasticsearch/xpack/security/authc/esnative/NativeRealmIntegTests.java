@@ -30,7 +30,7 @@ import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.XPackFeatureSet;
+import org.elasticsearch.xpack.core.XPackFeatureUsage;
 import org.elasticsearch.xpack.core.action.XPackUsageAction;
 import org.elasticsearch.xpack.core.action.XPackUsageResponse;
 import org.elasticsearch.xpack.core.security.SecurityFeatureSetUsage;
@@ -945,7 +945,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         }
 
         XPackUsageResponse response = safeGet(client().execute(XPackUsageAction.INSTANCE, new XPackUsageRequest(SAFE_AWAIT_TIMEOUT)));
-        Optional<XPackFeatureSet.Usage> securityUsage = response.getUsages()
+        Optional<XPackFeatureUsage> securityUsage = response.getUsages()
             .stream()
             .filter(usage -> usage instanceof SecurityFeatureSetUsage)
             .findFirst();

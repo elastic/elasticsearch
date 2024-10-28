@@ -22,6 +22,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -227,7 +228,41 @@ public class FileSettingsRoleMappingsRestartIT extends SecurityIntegTestCase {
             )
         );
 
+        final CountDownLatch latch = new CountDownLatch(1);
+        final FileSettingsService fileSettingsService = internalCluster().getInstance(FileSettingsService.class, masterNode);
+        fileSettingsService.addFileChangedListener(latch::countDown);
+        // Don't increment version but write new file contents to test re-processing on restart
         writeJSONFileWithoutVersionIncrement(masterNode, testJSONOnlyUpdatedRoleMappings, logger, versionCounter);
+        // Make sure we saw a file settings update so that we know it got processed, but it did not affect cluster state
+        assertTrue(latch.await(20, TimeUnit.SECONDS));
+
+        // Nothing changed yet because version is the same and there was no restart
+        assertRoleMappingsInClusterState(
+            new ExpressionRoleMapping(
+                "everyone_kibana_alone",
+                new FieldExpression("username", List.of(new FieldExpression.FieldValue("*"))),
+                List.of("kibana_user"),
+                List.of(),
+                Map.of("uuid", "b9a59ba9-6b92-4be2-bb8d-02bb270cb3a7", "_foo", "something", METADATA_NAME_FIELD, "everyone_kibana_alone"),
+                true
+            ),
+            new ExpressionRoleMapping(
+                "everyone_fleet_alone",
+                new FieldExpression("username", List.of(new FieldExpression.FieldValue("*"))),
+                List.of("fleet_user"),
+                List.of(),
+                Map.of(
+                    "uuid",
+                    "b9a59ba9-6b92-4be3-bb8d-02bb270cb3a7",
+                    "_foo",
+                    "something_else",
+                    METADATA_NAME_FIELD,
+                    "everyone_fleet_alone"
+                ),
+                false
+            )
+        );
+
         logger.info("--> restart master");
         internalCluster().restartNode(masterNode);
         ensureGreen();

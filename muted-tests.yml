@@ -182,12 +182,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {categorize.Categorize SYNC}
   issue: https://github.com/elastic/elasticsearch/issues/113722
-- class: org.elasticsearch.ingest.geoip.DatabaseNodeServiceIT
-  method: testNonGzippedDatabase
-  issue: https://github.com/elastic/elasticsearch/issues/113821
-- class: org.elasticsearch.ingest.geoip.DatabaseNodeServiceIT
-  method: testGzippedDatabase
-  issue: https://github.com/elastic/elasticsearch/issues/113752
 - class: org.elasticsearch.threadpool.SimpleThreadPoolIT
   method: testThreadPoolMetrics
   issue: https://github.com/elastic/elasticsearch/issues/108320
@@ -270,15 +264,33 @@ tests:
 - class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
   method: test {yaml=cluster.stats/30_ccs_stats/cross-cluster search stats search}
   issue: https://github.com/elastic/elasticsearch/issues/115600
-- class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
-  method: test {yaml=indices.create/10_basic/Create lookup index}
-  issue: https://github.com/elastic/elasticsearch/issues/115605
 - class: org.elasticsearch.oldrepos.OldRepositoryAccessIT
   method: testOldRepoAccess
   issue: https://github.com/elastic/elasticsearch/issues/115631
 - class: org.elasticsearch.xpack.search.CrossClusterAsyncSearchIT
   method: testCCSClusterDetailsWhereAllShardsSkippedInCanMatch
   issue: https://github.com/elastic/elasticsearch/issues/115652
+- class: org.elasticsearch.index.get.GetResultTests
+  method: testToAndFromXContent
+  issue: https://github.com/elastic/elasticsearch/issues/115688
+- class: org.elasticsearch.action.update.UpdateResponseTests
+  method: testToAndFromXContent
+  issue: https://github.com/elastic/elasticsearch/issues/115689
+- class: org.elasticsearch.xpack.shutdown.NodeShutdownIT
+  method: testStalledShardMigrationProperlyDetected
+  issue: https://github.com/elastic/elasticsearch/issues/115697
+- class: org.elasticsearch.index.get.GetResultTests
+  method: testToAndFromXContentEmbedded
+  issue: https://github.com/elastic/elasticsearch/issues/115657
+- class: org.elasticsearch.xpack.spatial.search.GeoGridAggAndQueryConsistencyIT
+  method: testGeoShapeGeoHash
+  issue: https://github.com/elastic/elasticsearch/issues/115664
+- class: org.elasticsearch.xpack.inference.InferenceCrudIT
+  method: testSupportedStream
+  issue: https://github.com/elastic/elasticsearch/issues/113430
+- class: org.elasticsearch.xpack.spatial.search.GeoGridAggAndQueryConsistencyIT
+  method: testGeoShapeGeoTile
+  issue: https://github.com/elastic/elasticsearch/issues/115717
 
 # Examples:
 #

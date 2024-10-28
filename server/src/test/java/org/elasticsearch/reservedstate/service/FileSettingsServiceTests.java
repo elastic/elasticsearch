@@ -227,12 +227,11 @@ public class FileSettingsServiceTests extends ESTestCase {
             return null;
         }).when(controller).process(any(), any(XContentParser.class), any(), any());
 
-        CountDownLatch changesOnStartLatch = new CountDownLatch(1);
-
         Files.createDirectories(fileSettingsService.watchedFileDir());
         // contents of the JSON don't matter, we just need a file to exist
         writeTestFile(fileSettingsService.watchedFile(), "{}");
 
+        CountDownLatch changesOnStartLatch = new CountDownLatch(1);
         doAnswer((Answer<?>) invocation -> {
             try {
                 return invocation.callRealMethod();

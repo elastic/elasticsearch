@@ -24,6 +24,8 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.BuildVersion;
 import org.elasticsearch.env.Environment;
@@ -39,9 +41,11 @@ import org.junit.Before;
 import org.mockito.stubbing.Answer;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.file.AccessDeniedException;
+import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -50,6 +54,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
+import static java.nio.file.StandardCopyOption.ATOMIC_MOVE;
+import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.hasEntry;
@@ -192,8 +198,6 @@ public class FileSettingsServiceTests extends ESTestCase {
 
         CountDownLatch latch = new CountDownLatch(1);
 
-        fileSettingsService.addFileChangedListener(latch::countDown);
-
         Files.createDirectories(fileSettingsService.watchedFileDir());
         // contents of the JSON don't matter, we just need a file to exist
         writeTestFile(fileSettingsService.watchedFile(), "{}");
@@ -223,10 +227,7 @@ public class FileSettingsServiceTests extends ESTestCase {
             return null;
         }).when(controller).process(any(), any(XContentParser.class), any(), any());
 
-        // we get three events: initial clusterChanged event, first write, second write
-        CountDownLatch latch = new CountDownLatch(3);
-
-        fileSettingsService.addFileChangedListener(latch::countDown);
+        CountDownLatch changesOnStartLatch = new CountDownLatch(1);
 
         Files.createDirectories(fileSettingsService.watchedFileDir());
         // contents of the JSON don't matter, we just need a file to exist
@@ -236,27 +237,31 @@ public class FileSettingsServiceTests extends ESTestCase {
             try {
                 return invocation.callRealMethod();
             } finally {
-                latch.countDown();
+                changesOnStartLatch.countDown();
             }
         }).when(fileSettingsService).processFileOnServiceStart();
+
+        CountDownLatch changesLatch = new CountDownLatch(1);
         doAnswer((Answer<?>) invocation -> {
             try {
                 return invocation.callRealMethod();
             } finally {
-                latch.countDown();
+                changesLatch.countDown();
             }
         }).when(fileSettingsService).processFileChanges();
 
         fileSettingsService.start();
         fileSettingsService.clusterChanged(new ClusterChangedEvent("test", clusterService.state(), ClusterState.EMPTY_STATE));
-        // second file change; contents still don't matter
-        overwriteTestFile(fileSettingsService.watchedFile(), "{}");
 
-        // wait for listener to be called (once for initial processing, once for subsequent update)
-        assertTrue(latch.await(20, TimeUnit.SECONDS));
+        assertTrue(changesOnStartLatch.await(20, TimeUnit.SECONDS));
 
         verify(fileSettingsService, times(1)).processFileOnServiceStart();
         verify(controller, times(1)).process(any(), any(XContentParser.class), eq(ReservedStateVersionCheck.HIGHER_OR_SAME_VERSION), any());
+
+        // second file change; contents still don't matter
+        writeTestFile(fileSettingsService.watchedFile(), "[]");
+        assertTrue(changesLatch.await(20, TimeUnit.SECONDS));
+
         verify(fileSettingsService, times(1)).processFileChanges();
         verify(controller, times(1)).process(any(), any(XContentParser.class), eq(ReservedStateVersionCheck.HIGHER_VERSION_ONLY), any());
     }
@@ -352,15 +357,22 @@ public class FileSettingsServiceTests extends ESTestCase {
     }
 
     // helpers
-    private void writeTestFile(Path path, String contents) throws IOException {
-        Path tempFilePath = createTempFile();
-        Files.writeString(tempFilePath, contents);
-        Files.move(tempFilePath, path, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
-    }
+    private static void writeTestFile(Path path, String contents) {
+        Path tempFile = null;
+        try {
+            tempFile = Files.createTempFile(path.getParent(), path.getFileName().toString(), "tmp");
+            Files.writeString(tempFile, contents);
 
-    private void overwriteTestFile(Path path, String contents) throws IOException {
-        Path tempFilePath = createTempFile();
-        Files.writeString(tempFilePath, contents);
-        Files.move(tempFilePath, path, StandardCopyOption.REPLACE_EXISTING);
+            try {
+                Files.move(tempFile, path, REPLACE_EXISTING, ATOMIC_MOVE);
+            } catch (AtomicMoveNotSupportedException | AccessDeniedException e) {
+                Files.move(tempFile, path, REPLACE_EXISTING);
+            }
+        } catch (final IOException e) {
+            throw new UncheckedIOException(Strings.format("could not write file [%s]", path.toAbsolutePath()), e);
+        } finally {
+            // we are ignoring exceptions here, so we do not need handle whether or not tempFile was initialized nor if the file exists
+            IOUtils.deleteFilesIgnoringExceptions(tempFile);
+        }
     }
 }

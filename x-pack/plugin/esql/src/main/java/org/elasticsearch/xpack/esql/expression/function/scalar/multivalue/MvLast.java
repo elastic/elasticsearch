@@ -53,7 +53,6 @@ public class MvLast extends AbstractMultivalueFunction {
             "ip",
             "keyword",
             "long",
-            "text",
             "unsigned_long",
             "version" },
         description = """

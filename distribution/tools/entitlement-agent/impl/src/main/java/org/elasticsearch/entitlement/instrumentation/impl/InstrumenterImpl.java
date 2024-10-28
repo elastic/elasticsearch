@@ -15,8 +15,10 @@ import org.objectweb.asm.AnnotationVisitor;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.ClassWriter;
+import org.objectweb.asm.FieldVisitor;
 import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Opcodes;
+import org.objectweb.asm.RecordComponentVisitor;
 import org.objectweb.asm.Type;
 
 import java.io.IOException;
@@ -73,7 +75,13 @@ public class InstrumenterImpl implements Instrumenter {
     }
 
     class EntitlementClassVisitor extends ClassVisitor {
-        final String className;
+
+        private static final String ENTITLEMENT_ANNOTATION = "EntitlementInstrumented";
+
+        private final String className;
+
+        private boolean isAnnotationPresent;
+        private boolean annotationNeeded = true;
 
         EntitlementClassVisitor(int api, ClassVisitor classVisitor, String className) {
             super(api, classVisitor);
@@ -86,23 +94,83 @@ public class InstrumenterImpl implements Instrumenter {
         }
 
         @Override
+        public AnnotationVisitor visitAnnotation(String descriptor, boolean visible) {
+            if (visible && descriptor.equals(ENTITLEMENT_ANNOTATION)) {
+                isAnnotationPresent = true;
+                annotationNeeded = false;
+            }
+            return cv.visitAnnotation(descriptor, visible);
+        }
+
+        @Override
+        public void visitNestMember(String nestMember) {
+            addClassAnnotationIfNeeded();
+            super.visitNestMember(nestMember);
+        }
+
+        @Override
+        public void visitPermittedSubclass(String permittedSubclass) {
+            addClassAnnotationIfNeeded();
+            super.visitPermittedSubclass(permittedSubclass);
+        }
+
+        @Override
+        public void visitInnerClass(String name, String outerName, String innerName, int access) {
+            addClassAnnotationIfNeeded();
+            super.visitInnerClass(name, outerName, innerName, access);
+        }
+
+        @Override
+        public FieldVisitor visitField(int access, String name, String descriptor, String signature, Object value) {
+            addClassAnnotationIfNeeded();
+            return super.visitField(access, name, descriptor, signature, value);
+        }
+
+        @Override
+        public RecordComponentVisitor visitRecordComponent(String name, String descriptor, String signature) {
+            addClassAnnotationIfNeeded();
+            return super.visitRecordComponent(name, descriptor, signature);
+        }
+
+        @Override
         public MethodVisitor visitMethod(int access, String name, String descriptor, String signature, String[] exceptions) {
+            addClassAnnotationIfNeeded();
             var mv = super.visitMethod(access, name, descriptor, signature, exceptions);
-            boolean isStatic = (access & ACC_STATIC) != 0;
-            var key = new MethodKey(
-                className,
-                name,
-                Stream.of(Type.getArgumentTypes(descriptor)).map(Type::getInternalName).toList(),
-                isStatic
-            );
-            var instrumentationMethod = instrumentationMethods.get(key);
-            if (instrumentationMethod != null) {
-                // LOGGER.debug("Will instrument method {}", key);
-                return new EntitlementMethodVisitor(Opcodes.ASM9, mv, isStatic, descriptor, instrumentationMethod);
-            } else {
-                // LOGGER.trace("Will not instrument method {}", key);
+            if (isAnnotationPresent == false) {
+                boolean isStatic = (access & ACC_STATIC) != 0;
+                var key = new MethodKey(
+                    className,
+                    name,
+                    Stream.of(Type.getArgumentTypes(descriptor)).map(Type::getInternalName).toList(),
+                    isStatic
+                );
+                var instrumentationMethod = instrumentationMethods.get(key);
+                if (instrumentationMethod != null) {
+                    // LOGGER.debug("Will instrument method {}", key);
+                    return new EntitlementMethodVisitor(Opcodes.ASM9, mv, isStatic, descriptor, instrumentationMethod);
+                } else {
+                    // LOGGER.trace("Will not instrument method {}", key);
+                }
             }
             return mv;
+        }
+
+        /**
+         * A class annotation can be added via visitAnnotation; we need to call visitAnnotation after all other visitAnnotation
+         * calls (in case one of them detects our annotation is already present), but before any other subsequent visit* method is called
+         * (up to visitMethod -- if no visitMethod is called, there is nothing to instrument).
+         * This includes visitNestMember, visitPermittedSubclass, visitInnerClass, visitField, visitRecordComponent and, of course,
+         * visitMethod (see {@link ClassVisitor} javadoc).
+         */
+        private void addClassAnnotationIfNeeded() {
+            if (annotationNeeded) {
+                // logger.debug("Adding {} annotation", ENTITLEMENT_ANNOTATION);
+                AnnotationVisitor av = cv.visitAnnotation(ENTITLEMENT_ANNOTATION, true);
+                if (av != null) {
+                    av.visitEnd();
+                }
+                annotationNeeded = false;
+            }
         }
     }
 

@@ -40,6 +40,7 @@ import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.junit.After;
 import org.junit.Before;
@@ -54,6 +55,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
@@ -276,6 +278,51 @@ public class FileSettingsServiceTests extends ESTestCase {
 
         verify(fileSettingsService, times(1)).processFileChanges();
         verify(controller, times(1)).process(any(), any(XContentParser.class), eq(ReservedStateVersionCheck.HIGHER_VERSION_ONLY), any());
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testInvalidJSON() throws Exception {
+        System.out.println("Starting");
+        doAnswer((Answer<Void>) invocation -> {
+            invocation.getArgument(1, XContentParser.class).map(); // Throw if JSON is invalid
+            ((Consumer<Exception>) invocation.getArgument(3)).accept(null);
+            return null;
+        }).when(controller).process(any(), any(XContentParser.class), any(), any());
+
+        CyclicBarrier doneServiceStart = new CyclicBarrier(2);
+        CyclicBarrier doneFileChanged = new CyclicBarrier(2);
+
+        Files.createDirectories(fileSettingsService.watchedFileDir());
+        // contents of the JSON don't matter, we just need a file to exist
+        writeTestFile(fileSettingsService.watchedFile(), "{}");
+
+        // Note: the name "processFileOnServiceStart" is a bit misleading because it is not
+        // referring to fileSettingsService.start(). Rather, it is referring to the watcher
+        // thread itself initializing, which occurs asynchronously when clusterChanged is first called.
+        doAnswer((Answer<?>) invocation -> {
+            try {
+                return invocation.callRealMethod();
+            } finally {
+                doneServiceStart.await();
+            }
+        }).when(fileSettingsService).processFileOnServiceStart();
+        doAnswer((Answer<?>) invocation -> {
+            try {
+                return invocation.callRealMethod();
+            } finally {
+                doneFileChanged.await();
+            }
+        }).when(fileSettingsService).processFileChanges();
+
+        fileSettingsService.start();
+        fileSettingsService.clusterChanged(new ClusterChangedEvent("test", clusterService.state(), ClusterState.EMPTY_STATE));
+        doneServiceStart.await(20, TimeUnit.SECONDS);
+        overwriteTestFile(fileSettingsService.watchedFile(), "test_invalid_JSON");
+        doneFileChanged.await(20, TimeUnit.SECONDS);
+
+        verify(fileSettingsService, times(1)).processFileOnServiceStart(); // The initial state
+        verify(fileSettingsService, times(1)).processFileChanges(); // The changed state
+        verify(fileSettingsService, times(1)).onProcessFileChangesException(any(XContentParseException.class));
     }
 
     @SuppressWarnings("unchecked")

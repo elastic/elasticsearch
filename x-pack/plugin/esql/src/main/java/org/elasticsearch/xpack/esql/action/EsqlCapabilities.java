@@ -37,7 +37,7 @@ public class EsqlCapabilities {
          * on JDK versions less than 20 which are not supported in ES 9.0.0+ but this
          * exists to keep the {@code 8.x} branch similar to the {@code main} branch.
          */
-        FN_REVERSE_GRAPHEME_CLUSTERS,
+        FN_REVERSE_GRAPHEME_CLUSTERS(Runtime.version().feature() >= 20),
 
         /**
          * Support for function {@code CBRT}. Done in #108574.

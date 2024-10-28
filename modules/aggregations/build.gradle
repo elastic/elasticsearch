@@ -45,3 +45,8 @@ dependencies {
   compileOnly(project(':modules:lang-painless:spi'))
   clusterModules(project(':modules:lang-painless'))
 }
+
+tasks.named("yamlRestCompatTestTransform").configure({ task ->
+  task.skipTest("aggregations/date_agg_per_day_of_week/Date aggregartion per day of week", "week-date behaviour has changed")
+  task.skipTest("aggregations/time_series/Configure with no synthetic source", "temporary until backport")
+})

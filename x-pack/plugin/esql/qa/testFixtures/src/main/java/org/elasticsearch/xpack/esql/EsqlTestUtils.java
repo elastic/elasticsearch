@@ -46,6 +46,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.util.DateUtils;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
+import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.RLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
@@ -55,6 +56,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Les
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.parser.QueryParam;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -119,8 +121,12 @@ import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
+import static org.elasticsearch.xpack.esql.parser.ParserUtils.ParamClassification.IDENTIFIER;
+import static org.elasticsearch.xpack.esql.parser.ParserUtils.ParamClassification.PATTERN;
+import static org.elasticsearch.xpack.esql.parser.ParserUtils.ParamClassification.VALUE;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.junit.Assert.assertTrue;
 
@@ -255,7 +261,7 @@ public final class EsqlTestUtils {
 
     public static final Configuration TEST_CFG = configuration(new QueryPragmas(Settings.EMPTY));
 
-    public static final Verifier TEST_VERIFIER = new Verifier(new Metrics());
+    public static final Verifier TEST_VERIFIER = new Verifier(new Metrics(new EsqlFunctionRegistry()));
 
     private EsqlTestUtils() {}
 
@@ -270,7 +276,8 @@ public final class EsqlTestUtils {
             EsqlPlugin.QUERY_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(Settings.EMPTY),
             query,
             false,
-            TABLES
+            TABLES,
+            System.nanoTime()
         );
     }
 
@@ -641,7 +648,7 @@ public final class EsqlTestUtils {
             case KEYWORD -> new BytesRef(randomAlphaOfLength(5));
             case IP -> new BytesRef(InetAddressPoint.encode(randomIp(randomBoolean())));
             case TIME_DURATION -> Duration.ofMillis(randomLongBetween(-604800000L, 604800000L)); // plus/minus 7 days
-            case TEXT -> new BytesRef(randomAlphaOfLength(50));
+            case TEXT, SEMANTIC_TEXT -> new BytesRef(randomAlphaOfLength(50));
             case VERSION -> randomVersion().toBytesRef();
             case GEO_POINT -> GEO.asWkb(GeometryTestUtils.randomPoint());
             case CARTESIAN_POINT -> CARTESIAN.asWkb(ShapeTestUtils.randomPoint());
@@ -679,5 +686,17 @@ public final class EsqlTestUtils {
 
     public static RLike rlike(Expression left, String exp) {
         return new RLike(EMPTY, left, new RLikePattern(exp));
+    }
+
+    public static QueryParam paramAsConstant(String name, Object value) {
+        return new QueryParam(name, value, DataType.fromJava(value), VALUE);
+    }
+
+    public static QueryParam paramAsIdentifier(String name, Object value) {
+        return new QueryParam(name, value, NULL, IDENTIFIER);
+    }
+
+    public static QueryParam paramAsPattern(String name, Object value) {
+        return new QueryParam(name, value, NULL, PATTERN);
     }
 }

@@ -13,7 +13,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.indices.ExecutorNames;
 
 import java.util.List;
 
@@ -25,12 +24,11 @@ import java.util.List;
 public abstract class ExecutorBuilder<U extends ExecutorBuilder.ExecutorSettings> {
 
     private final String name;
-    private final boolean isSystem;
+    private final boolean isSystemThread;
 
-    public ExecutorBuilder(String name) {
+    public ExecutorBuilder(String name, boolean isSystemThread) {
         this.name = name;
-        this.isSystem = ExecutorNames.CRITICAL_SYSTEM_INDEX_THREAD_POOLS.contains(name)
-            || ExecutorNames.DEFAULT_SYSTEM_INDEX_THREAD_POOLS.contains(name);
+        this.isSystemThread = isSystemThread;
     }
 
     protected String name() {
@@ -94,7 +92,7 @@ public abstract class ExecutorBuilder<U extends ExecutorBuilder.ExecutorSettings
 
     }
 
-    public boolean isSystem() {
-        return isSystem;
+    public boolean isSystemThread() {
+        return isSystemThread;
     }
 }

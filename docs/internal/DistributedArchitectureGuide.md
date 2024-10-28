@@ -252,7 +252,7 @@ changes. The cloud service will add more resources to the cluster based on Elast
 Elasticsearch by itself cannot automatically scale.
 
 Autoscaling recommendations are tailored for the user [based on user defined policies][], composed of data
-roles (hot, frozen, etc) and [deciders][]. There's a public [webinar on autoscaling][], as well as the
+roles (hot, frozen, etc.) and [deciders][]. There's a public [webinar on autoscaling][], as well as the
 public [Autoscaling APIs] docs.
 
 Autoscaling's current implementation is based primary on storage requirements, as well as memory capacity
@@ -332,7 +332,7 @@ problems in the cluster. It uses [an algorithm defined here][]. Some examples ar
 [an algorithm defined here]: https://github.com/elastic/elasticsearch/blob/v8.13.2/x-pack/plugin/autoscaling/src/main/java/org/elasticsearch/xpack/autoscaling/storage/ReactiveStorageDeciderService.java#L158-L176
 
 The `ProactiveStorageDeciderService` maintains a forecast window that [defaults to 30 minutes][]. It only
-runs on data streams (ILM, rollover, etc), not regular indexes. It looks at past [index changes][] that
+runs on data streams (ILM, rollover, etc.), not regular indexes. It looks at past [index changes][] that
 took place within the forecast window to [predict][] resources that will be needed shortly.
 
 [defaults to 30 minutes]: https://github.com/elastic/elasticsearch/blob/v8.13.2/x-pack/plugin/autoscaling/src/main/java/org/elasticsearch/xpack/autoscaling/storage/ProactiveStorageDeciderService.java#L32

@@ -9,11 +9,12 @@
 
 package org.elasticsearch.action.admin.cluster.stats;
 
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -21,7 +22,10 @@ import java.util.Objects;
  */
 public final class DenseVectorFieldStats extends FieldStats {
     static final int UNSET = -1;
-
+    static final String NOT_INDEXED = "not_indexed";
+    Map<String, Integer> vectorIndexTypeCount; // count of mappings by index type
+    Map<String, Integer> vectorSimilarityTypeCount; // count of mappings by similarity
+    Map<String, Integer> vectorElementTypeCount; // count of mappings by element type
     int indexedVectorCount; // number of times vectors with index:true are used in mappings of this cluster
     int indexedVectorDimMin; // minimum dimension of indexed vectors in this cluster
     int indexedVectorDimMax; // maximum dimension of indexed vectors in this cluster
@@ -31,21 +35,14 @@ public final class DenseVectorFieldStats extends FieldStats {
         indexedVectorCount = 0;
         indexedVectorDimMin = UNSET;
         indexedVectorDimMax = UNSET;
-    }
-
-    DenseVectorFieldStats(StreamInput in) throws IOException {
-        super(in);
-        indexedVectorCount = in.readVInt();
-        indexedVectorDimMin = in.readVInt();
-        indexedVectorDimMax = in.readVInt();
+        vectorIndexTypeCount = new HashMap<>();
+        vectorSimilarityTypeCount = new HashMap<>();
+        vectorElementTypeCount = new HashMap<>();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeVInt(indexedVectorCount);
-        out.writeVInt(indexedVectorDimMin);
-        out.writeVInt(indexedVectorDimMax);
+        assert false : "writeTo should not be called on DenseVectorFieldStats";
     }
 
     @Override
@@ -53,6 +50,21 @@ public final class DenseVectorFieldStats extends FieldStats {
         builder.field("indexed_vector_count", indexedVectorCount);
         builder.field("indexed_vector_dim_min", indexedVectorDimMin);
         builder.field("indexed_vector_dim_max", indexedVectorDimMax);
+        if (vectorIndexTypeCount.isEmpty() == false) {
+            builder.startObject("vector_index_type_count");
+            builder.mapContents(vectorIndexTypeCount);
+            builder.endObject();
+        }
+        if (vectorSimilarityTypeCount.isEmpty() == false) {
+            builder.startObject("vector_similarity_type_count");
+            builder.mapContents(vectorSimilarityTypeCount);
+            builder.endObject();
+        }
+        if (vectorElementTypeCount.isEmpty() == false) {
+            builder.startObject("vector_element_type_count");
+            builder.mapContents(vectorElementTypeCount);
+            builder.endObject();
+        }
     }
 
     @Override
@@ -69,11 +81,53 @@ public final class DenseVectorFieldStats extends FieldStats {
         DenseVectorFieldStats that = (DenseVectorFieldStats) o;
         return indexedVectorCount == that.indexedVectorCount
             && indexedVectorDimMin == that.indexedVectorDimMin
-            && indexedVectorDimMax == that.indexedVectorDimMax;
+            && indexedVectorDimMax == that.indexedVectorDimMax
+            && Objects.equals(vectorIndexTypeCount, that.vectorIndexTypeCount)
+            && Objects.equals(vectorSimilarityTypeCount, that.vectorSimilarityTypeCount)
+            && Objects.equals(vectorElementTypeCount, that.vectorElementTypeCount);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), indexedVectorCount, indexedVectorDimMin, indexedVectorDimMax);
+        return Objects.hash(
+            super.hashCode(),
+            indexedVectorCount,
+            indexedVectorDimMin,
+            indexedVectorDimMax,
+            vectorIndexTypeCount,
+            vectorSimilarityTypeCount,
+            vectorElementTypeCount
+        );
+    }
+
+    @Override
+    public String toString() {
+        return "DenseVectorFieldStats{"
+            + "vectorIndexTypeCount="
+            + vectorIndexTypeCount
+            + ", vectorSimilarityTypeCount="
+            + vectorSimilarityTypeCount
+            + ", vectorElementTypeCount="
+            + vectorElementTypeCount
+            + ", indexedVectorCount="
+            + indexedVectorCount
+            + ", indexedVectorDimMin="
+            + indexedVectorDimMin
+            + ", indexedVectorDimMax="
+            + indexedVectorDimMax
+            + ", scriptCount="
+            + scriptCount
+            + ", scriptLangs="
+            + scriptLangs
+            + ", fieldScriptStats="
+            + fieldScriptStats
+            + ", name='"
+            + name
+            + '\''
+            + ", count="
+            + count
+            + ", indexCount="
+            + indexCount
+            + '}';
     }
 }

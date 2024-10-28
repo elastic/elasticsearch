@@ -17,13 +17,13 @@ import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.bulk.IncrementalBulkService;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
@@ -41,6 +41,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -59,13 +60,16 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 public class RestBulkAction extends BaseRestHandler {
 
     public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in bulk requests is deprecated.";
+    public static final String FAILURE_STORE_STATUS_CAPABILITY = "failure_store_status";
 
     private final boolean allowExplicitIndex;
     private final IncrementalBulkService bulkHandler;
+    private final Set<String> capabilities;
 
     public RestBulkAction(Settings settings, IncrementalBulkService bulkHandler) {
         this.allowExplicitIndex = MULTI_ALLOW_EXPLICIT_INDEX.get(settings);
         this.bulkHandler = bulkHandler;
+        this.capabilities = DataStream.isFailureStoreFeatureFlagEnabled() ? Set.of(FAILURE_STORE_STATUS_CAPABILITY) : Set.of();
     }
 
     @Override
@@ -74,9 +78,7 @@ public class RestBulkAction extends BaseRestHandler {
             new Route(POST, "/_bulk"),
             new Route(PUT, "/_bulk"),
             new Route(POST, "/{index}/_bulk"),
-            new Route(PUT, "/{index}/_bulk"),
-            Route.builder(POST, "/{index}/{type}/_bulk").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build(),
-            Route.builder(PUT, "/{index}/{type}/_bulk").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build()
+            new Route(PUT, "/{index}/_bulk")
         );
     }
 
@@ -88,9 +90,6 @@ public class RestBulkAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         if (request.isStreamedContent() == false) {
-            if (request.getRestApiVersion() == RestApiVersion.V_7 && request.hasParam("type")) {
-                request.param("type");
-            }
             BulkRequest bulkRequest = new BulkRequest();
             String defaultIndex = request.param("index");
             String defaultRouting = request.param("routing");
@@ -105,30 +104,39 @@ public class RestBulkAction extends BaseRestHandler {
             boolean defaultRequireDataStream = request.paramAsBoolean(DocWriteRequest.REQUIRE_DATA_STREAM, false);
             bulkRequest.timeout(request.paramAsTime("timeout", BulkShardRequest.DEFAULT_TIMEOUT));
             bulkRequest.setRefreshPolicy(request.param("refresh"));
-            bulkRequest.add(
-                request.requiredContent(),
-                defaultIndex,
-                defaultRouting,
-                defaultFetchSourceContext,
-                defaultPipeline,
-                defaultRequireAlias,
-                defaultRequireDataStream,
-                defaultListExecutedPipelines,
-                allowExplicitIndex,
-                request.getXContentType(),
-                request.getRestApiVersion()
-            );
+            try {
+                bulkRequest.add(
+                    request.requiredContent(),
+                    defaultIndex,
+                    defaultRouting,
+                    defaultFetchSourceContext,
+                    defaultPipeline,
+                    defaultRequireAlias,
+                    defaultRequireDataStream,
+                    defaultListExecutedPipelines,
+                    allowExplicitIndex,
+                    request.getXContentType(),
+                    request.getRestApiVersion()
+                );
+            } catch (Exception e) {
+                return channel -> new RestToXContentListener<>(channel).onFailure(parseFailureException(e));
+            }
 
             return channel -> client.bulk(bulkRequest, new RestRefCountedChunkedToXContentListener<>(channel));
         } else {
-            if (request.getRestApiVersion() == RestApiVersion.V_7 && request.hasParam("type")) {
-                request.param("type");
-            }
-
             String waitForActiveShards = request.param("wait_for_active_shards");
             TimeValue timeout = request.paramAsTime("timeout", BulkShardRequest.DEFAULT_TIMEOUT);
             String refresh = request.param("refresh");
             return new ChunkHandler(allowExplicitIndex, request, () -> bulkHandler.newBulkRequest(waitForActiveShards, timeout, refresh));
+        }
+    }
+
+    private static Exception parseFailureException(Exception e) {
+        if (e instanceof IllegalArgumentException) {
+            return e;
+        } else {
+            // TODO: Maybe improve in follow-up to be XContentParseException and include line number and column
+            return new ElasticsearchParseException("could not parse bulk request body", e);
         }
     }
 
@@ -224,9 +232,7 @@ public class RestBulkAction extends BaseRestHandler {
 
                 } catch (Exception e) {
                     shortCircuit();
-                    new RestToXContentListener<>(channel).onFailure(
-                        new ElasticsearchParseException("could not parse bulk request body", e)
-                    );
+                    new RestToXContentListener<>(channel).onFailure(parseFailureException(e));
                     return;
                 }
             }
@@ -290,5 +296,10 @@ public class RestBulkAction extends BaseRestHandler {
     @Override
     public boolean allowsUnsafeBuffers() {
         return true;
+    }
+
+    @Override
+    public Set<String> supportedCapabilities() {
+        return capabilities;
     }
 }

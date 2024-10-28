@@ -22,7 +22,6 @@ import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.seqno.SequenceNumbers;
-import org.elasticsearch.rest.action.document.RestBulkAction;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContent;
@@ -271,18 +270,11 @@ public final class BulkRequestParser {
                                 }
                                 index = stringDeduplicator.computeIfAbsent(parser.text(), Function.identity());
                             } else if (TYPE.match(currentFieldName, parser.getDeprecationHandler())) {
-                                if (parser.getRestApiVersion().matches(RestApiVersion.equalTo(RestApiVersion.V_7))) {
-                                    // for bigger bulks, deprecation throttling might not be enough
-                                    if (deprecateOrErrorOnType && typesDeprecationLogged == false) {
-                                        deprecationLogger.compatibleCritical("bulk_with_types", RestBulkAction.TYPES_DEPRECATION_MESSAGE);
-                                        typesDeprecationLogged = true;
-                                    }
-                                } else if (parser.getRestApiVersion().matches(RestApiVersion.onOrAfter(RestApiVersion.V_8))
-                                    && deprecateOrErrorOnType) {
-                                        throw new IllegalArgumentException(
-                                            "Action/metadata line [" + line + "] contains an unknown parameter [" + currentFieldName + "]"
-                                        );
-                                    }
+                                if (deprecateOrErrorOnType) {
+                                    throw new IllegalArgumentException(
+                                        "Action/metadata line [" + line + "] contains an unknown parameter [" + currentFieldName + "]"
+                                    );
+                                }
                                 type = stringDeduplicator.computeIfAbsent(parser.text(), Function.identity());
                             } else if (ID.match(currentFieldName, parser.getDeprecationHandler())) {
                                 id = parser.text();
@@ -454,7 +446,7 @@ public final class BulkRequestParser {
         return isIncremental ? consumed : from;
     }
 
-    @UpdateForV9
+    @UpdateForV9(owner = UpdateForV9.Owner.DISTRIBUTED_INDEXING)
     // Warnings will need to be replaced with XContentEOFException from 9.x
     private static void warnBulkActionNotProperlyClosed(String message) {
         deprecationLogger.compatibleCritical(STRICT_ACTION_PARSING_WARNING_KEY, message);

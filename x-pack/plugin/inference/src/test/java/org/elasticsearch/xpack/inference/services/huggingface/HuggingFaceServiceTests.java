@@ -17,6 +17,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
 import org.elasticsearch.inference.ChunkingOptions;
+import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
@@ -28,6 +29,7 @@ import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.inference.ChunkingSettingsFeatureFlag;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.InferenceChunkedTextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.ml.inference.results.ChunkedNlpInferenceResults;
@@ -50,13 +52,13 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.core.inference.results.InferenceChunkedTextEmbeddingFloatResultsTests.asMapWithListsInsteadOfArrays;
 import static org.elasticsearch.xpack.inference.Utils.getPersistedConfigMap;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
+import static org.elasticsearch.xpack.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettingsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.results.TextEmbeddingResultsTests.buildExpectationFloat;
@@ -64,6 +66,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.
 import static org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceServiceSettingsTests.getServiceSettingsMap;
 import static org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettingsTests.getSecretSettingsMap;
 import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -104,7 +107,72 @@ public class HuggingFaceServiceTests extends ESTestCase {
                 "id",
                 TaskType.TEXT_EMBEDDING,
                 getRequestConfigMap(getServiceSettingsMap("url"), getSecretSettingsMap("secret")),
-                Set.of(),
+                modelVerificationActionListener
+            );
+        }
+    }
+
+    public void testParseRequestConfig_ThrowsElasticsearchStatusExceptionWhenChunkingSettingsProvidedAndFeatureFlagDisabled()
+        throws IOException {
+        assumeTrue("Only if 'inference_chunking_settings' feature flag is disabled", ChunkingSettingsFeatureFlag.isEnabled() == false);
+        try (var service = createHuggingFaceService()) {
+            var config = getRequestConfigMap(getServiceSettingsMap("url"), getSecretSettingsMap("secret"));
+            config.put("extra_key", "value");
+
+            ActionListener<Model> modelVerificationListener = ActionListener.wrap(
+                model -> fail("Expected exception, but got model: " + model),
+                exception -> {
+                    assertThat(exception, instanceOf(ElasticsearchStatusException.class));
+                    assertThat(exception.getMessage(), containsString("Model configuration contains settings"));
+                }
+            );
+
+            service.parseRequestConfig(
+                "id",
+                TaskType.TEXT_EMBEDDING,
+                getRequestConfigMap(getServiceSettingsMap("url"), createRandomChunkingSettingsMap(), getSecretSettingsMap("secret")),
+                modelVerificationListener
+            );
+        }
+    }
+
+    public void testParseRequestConfig_CreatesAnEmbeddingsModelWhenChunkingSettingsProvidedAndFeatureFlagEnabled() throws IOException {
+        assumeTrue("Only if 'inference_chunking_settings' feature flag is enabled", ChunkingSettingsFeatureFlag.isEnabled());
+        try (var service = createHuggingFaceService()) {
+            ActionListener<Model> modelVerificationActionListener = ActionListener.<Model>wrap((model) -> {
+                assertThat(model, instanceOf(HuggingFaceEmbeddingsModel.class));
+
+                var embeddingsModel = (HuggingFaceEmbeddingsModel) model;
+                assertThat(embeddingsModel.getServiceSettings().uri().toString(), is("url"));
+                assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
+                assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
+            }, (e) -> fail("parse request should not fail " + e.getMessage()));
+
+            service.parseRequestConfig(
+                "id",
+                TaskType.TEXT_EMBEDDING,
+                getRequestConfigMap(getServiceSettingsMap("url"), createRandomChunkingSettingsMap(), getSecretSettingsMap("secret")),
+                modelVerificationActionListener
+            );
+        }
+    }
+
+    public void testParseRequestConfig_CreatesAnEmbeddingsModelWhenChunkingSettingsNotProvidedAndFeatureFlagEnabled() throws IOException {
+        assumeTrue("Only if 'inference_chunking_settings' feature flag is enabled", ChunkingSettingsFeatureFlag.isEnabled());
+        try (var service = createHuggingFaceService()) {
+            ActionListener<Model> modelVerificationActionListener = ActionListener.<Model>wrap((model) -> {
+                assertThat(model, instanceOf(HuggingFaceEmbeddingsModel.class));
+
+                var embeddingsModel = (HuggingFaceEmbeddingsModel) model;
+                assertThat(embeddingsModel.getServiceSettings().uri().toString(), is("url"));
+                assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
+                assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
+            }, (e) -> fail("parse request should not fail " + e.getMessage()));
+
+            service.parseRequestConfig(
+                "id",
+                TaskType.TEXT_EMBEDDING,
+                getRequestConfigMap(getServiceSettingsMap("url"), getSecretSettingsMap("secret")),
                 modelVerificationActionListener
             );
         }
@@ -124,7 +192,6 @@ public class HuggingFaceServiceTests extends ESTestCase {
                 "id",
                 TaskType.SPARSE_EMBEDDING,
                 getRequestConfigMap(getServiceSettingsMap("url"), getSecretSettingsMap("secret")),
-                Set.of(),
                 modelVerificationActionListener
             );
         }
@@ -146,7 +213,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
                 }
             );
 
-            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, Set.of(), modelVerificationActionListener);
+            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, modelVerificationActionListener);
         }
     }
 
@@ -168,7 +235,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
                 }
             );
 
-            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, Set.of(), modelVerificationActionListener);
+            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, modelVerificationActionListener);
         }
     }
 
@@ -190,7 +257,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
                 }
             );
 
-            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, Set.of(), modelVerificationActionListener);
+            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, modelVerificationActionListener);
         }
     }
 
@@ -209,6 +276,82 @@ public class HuggingFaceServiceTests extends ESTestCase {
 
             var embeddingsModel = (HuggingFaceEmbeddingsModel) model;
             assertThat(embeddingsModel.getServiceSettings().uri().toString(), is("url"));
+            assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
+        }
+    }
+
+    public void testParsePersistedConfigWithSecrets_CreatesAnEmbeddingsModelWithoutChunkingSettingsWhenFeatureFlagDisabled()
+        throws IOException {
+        assumeTrue("Only if 'inference_chunking_settings' feature flag is disabled", ChunkingSettingsFeatureFlag.isEnabled() == false);
+        try (var service = createHuggingFaceService()) {
+            var persistedConfig = getPersistedConfigMap(
+                getServiceSettingsMap("url"),
+                new HashMap<>(),
+                createRandomChunkingSettingsMap(),
+                getSecretSettingsMap("secret")
+            );
+
+            var model = service.parsePersistedConfigWithSecrets(
+                "id",
+                TaskType.TEXT_EMBEDDING,
+                persistedConfig.config(),
+                persistedConfig.secrets()
+            );
+
+            assertThat(model, instanceOf(HuggingFaceEmbeddingsModel.class));
+
+            var embeddingsModel = (HuggingFaceEmbeddingsModel) model;
+            assertThat(embeddingsModel.getServiceSettings().uri().toString(), is("url"));
+            assertNull(embeddingsModel.getConfigurations().getChunkingSettings());
+            assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
+        }
+    }
+
+    public void testParsePersistedConfigWithSecrets_CreatesAnEmbeddingsModelWhenChunkingSettingsProvidedAndFeatureFlagEnabled()
+        throws IOException {
+        assumeTrue("Only if 'inference_chunking_settings' feature flag is enabled", ChunkingSettingsFeatureFlag.isEnabled());
+        try (var service = createHuggingFaceService()) {
+            var persistedConfig = getPersistedConfigMap(
+                getServiceSettingsMap("url"),
+                new HashMap<>(),
+                createRandomChunkingSettingsMap(),
+                getSecretSettingsMap("secret")
+            );
+
+            var model = service.parsePersistedConfigWithSecrets(
+                "id",
+                TaskType.TEXT_EMBEDDING,
+                persistedConfig.config(),
+                persistedConfig.secrets()
+            );
+
+            assertThat(model, instanceOf(HuggingFaceEmbeddingsModel.class));
+
+            var embeddingsModel = (HuggingFaceEmbeddingsModel) model;
+            assertThat(embeddingsModel.getServiceSettings().uri().toString(), is("url"));
+            assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
+            assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
+        }
+    }
+
+    public void testParsePersistedConfigWithSecrets_CreatesAnEmbeddingsModelWhenChunkingSettingsNotProvidedAndFeatureFlagEnabled()
+        throws IOException {
+        assumeTrue("Only if 'inference_chunking_settings' feature flag is enabled", ChunkingSettingsFeatureFlag.isEnabled());
+        try (var service = createHuggingFaceService()) {
+            var persistedConfig = getPersistedConfigMap(getServiceSettingsMap("url"), new HashMap<>(), getSecretSettingsMap("secret"));
+
+            var model = service.parsePersistedConfigWithSecrets(
+                "id",
+                TaskType.TEXT_EMBEDDING,
+                persistedConfig.config(),
+                persistedConfig.secrets()
+            );
+
+            assertThat(model, instanceOf(HuggingFaceEmbeddingsModel.class));
+
+            var embeddingsModel = (HuggingFaceEmbeddingsModel) model;
+            assertThat(embeddingsModel.getServiceSettings().uri().toString(), is("url"));
+            assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
             assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
         }
     }
@@ -352,6 +495,55 @@ public class HuggingFaceServiceTests extends ESTestCase {
         }
     }
 
+    public void testParsePersistedConfig_CreatesAnEmbeddingsModelWithoutChunkingSettingsWhenChunkingSettingsFeatureFlagDisabled()
+        throws IOException {
+        assumeTrue("Only if 'inference_chunking_settings' feature flag is disabled", ChunkingSettingsFeatureFlag.isEnabled() == false);
+        try (var service = createHuggingFaceService()) {
+            var persistedConfig = getPersistedConfigMap(getServiceSettingsMap("url"), createRandomChunkingSettingsMap());
+
+            var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, persistedConfig.config());
+
+            assertThat(model, instanceOf(HuggingFaceEmbeddingsModel.class));
+
+            var embeddingsModel = (HuggingFaceEmbeddingsModel) model;
+            assertThat(embeddingsModel.getServiceSettings().uri().toString(), is("url"));
+            assertNull(embeddingsModel.getConfigurations().getChunkingSettings());
+            assertNull(embeddingsModel.getSecretSettings());
+        }
+    }
+
+    public void testParsePersistedConfig_CreatesAnEmbeddingsModelWhenChunkingSettingsProvidedAndFeatureFlagEnabled() throws IOException {
+        assumeTrue("Only if 'inference_chunking_settings' feature flag is enabled", ChunkingSettingsFeatureFlag.isEnabled());
+        try (var service = createHuggingFaceService()) {
+            var persistedConfig = getPersistedConfigMap(getServiceSettingsMap("url"), createRandomChunkingSettingsMap());
+
+            var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, persistedConfig.config());
+
+            assertThat(model, instanceOf(HuggingFaceEmbeddingsModel.class));
+
+            var embeddingsModel = (HuggingFaceEmbeddingsModel) model;
+            assertThat(embeddingsModel.getServiceSettings().uri().toString(), is("url"));
+            assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
+            assertNull(embeddingsModel.getSecretSettings());
+        }
+    }
+
+    public void testParsePersistedConfig_CreatesAnEmbeddingsModelWhenChunkingSettingsNotProvidedAndFeatureFlagEnabled() throws IOException {
+        assumeTrue("Only if 'inference_chunking_settings' feature flag is enabled", ChunkingSettingsFeatureFlag.isEnabled());
+        try (var service = createHuggingFaceService()) {
+            var persistedConfig = getPersistedConfigMap(getServiceSettingsMap("url"));
+
+            var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, persistedConfig.config());
+
+            assertThat(model, instanceOf(HuggingFaceEmbeddingsModel.class));
+
+            var embeddingsModel = (HuggingFaceEmbeddingsModel) model;
+            assertThat(embeddingsModel.getServiceSettings().uri().toString(), is("url"));
+            assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
+            assertNull(embeddingsModel.getSecretSettings());
+        }
+    }
+
     public void testParsePersistedConfig_CreatesAnElserModel() throws IOException {
         try (var service = createHuggingFaceService()) {
             var persistedConfig = getPersistedConfigMap(getServiceSettingsMap("url"), new HashMap<>());
@@ -438,6 +630,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
                 model,
                 null,
                 List.of("abc"),
+                false,
                 new HashMap<>(),
                 InputType.INGEST,
                 InferenceAction.Request.DEFAULT_TIMEOUT,
@@ -481,6 +674,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
                 model,
                 null,
                 List.of("abc"),
+                false,
                 new HashMap<>(),
                 InputType.INGEST,
                 InferenceAction.Request.DEFAULT_TIMEOUT,
@@ -592,6 +786,45 @@ public class HuggingFaceServiceTests extends ESTestCase {
                 result,
                 is(HuggingFaceEmbeddingsModelTests.createModel(getUrl(webServer), "secret", 1, 1, SimilarityMeasure.COSINE))
             );
+        }
+    }
+
+    public void testUpdateModelWithEmbeddingDetails_InvalidModelProvided() throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+        try (var service = new HuggingFaceService(senderFactory, createWithEmptySettings(threadPool))) {
+            var model = HuggingFaceElserModelTests.createModel(randomAlphaOfLength(10), randomAlphaOfLength(10));
+            assertThrows(
+                ElasticsearchStatusException.class,
+                () -> { service.updateModelWithEmbeddingDetails(model, randomNonNegativeInt()); }
+            );
+        }
+    }
+
+    public void testUpdateModelWithEmbeddingDetails_NullSimilarityInOriginalModel() throws IOException {
+        testUpdateModelWithEmbeddingDetails_Successful(null);
+    }
+
+    public void testUpdateModelWithEmbeddingDetails_NonNullSimilarityInOriginalModel() throws IOException {
+        testUpdateModelWithEmbeddingDetails_Successful(randomFrom(SimilarityMeasure.values()));
+    }
+
+    private void testUpdateModelWithEmbeddingDetails_Successful(SimilarityMeasure similarityMeasure) throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+        try (var service = new HuggingFaceService(senderFactory, createWithEmptySettings(threadPool))) {
+            var embeddingSize = randomNonNegativeInt();
+            var model = HuggingFaceEmbeddingsModelTests.createModel(
+                randomAlphaOfLength(10),
+                randomAlphaOfLength(10),
+                randomNonNegativeInt(),
+                randomNonNegativeInt(),
+                similarityMeasure
+            );
+
+            Model updatedModel = service.updateModelWithEmbeddingDetails(model, embeddingSize);
+
+            SimilarityMeasure expectedSimilarityMeasure = similarityMeasure == null ? SimilarityMeasure.COSINE : similarityMeasure;
+            assertEquals(expectedSimilarityMeasure, updatedModel.getServiceSettings().similarity());
+            assertEquals(embeddingSize, updatedModel.getServiceSettings().dimensions().intValue());
         }
     }
 
@@ -707,6 +940,17 @@ public class HuggingFaceServiceTests extends ESTestCase {
 
     private HuggingFaceService createHuggingFaceService() {
         return new HuggingFaceService(mock(HttpRequestSender.Factory.class), createWithEmptySettings(threadPool));
+    }
+
+    private Map<String, Object> getRequestConfigMap(
+        Map<String, Object> serviceSettings,
+        Map<String, Object> chunkingSettings,
+        Map<String, Object> secretSettings
+    ) {
+        var requestConfigMap = getRequestConfigMap(serviceSettings, secretSettings);
+        requestConfigMap.put(ModelConfigurations.CHUNKING_SETTINGS, chunkingSettings);
+
+        return requestConfigMap;
     }
 
     private Map<String, Object> getRequestConfigMap(Map<String, Object> serviceSettings, Map<String, Object> secretSettings) {

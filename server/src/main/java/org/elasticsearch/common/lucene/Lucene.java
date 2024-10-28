@@ -74,7 +74,6 @@ import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.lucene.grouping.TopFieldGroups;
-import org.elasticsearch.search.retriever.rankdoc.RankDocsSortField;
 import org.elasticsearch.search.sort.ShardDocSortField;
 
 import java.io.IOException;
@@ -89,7 +88,7 @@ import java.util.Map;
 import java.util.Objects;
 
 public class Lucene {
-    public static final String LATEST_CODEC = "Lucene99";
+    public static final String LATEST_CODEC = "Lucene100";
 
     public static final String SOFT_DELETES_FIELD = "__soft_deletes";
 
@@ -242,7 +241,7 @@ public class Lucene {
 
             @Override
             protected Object doBody(String segmentFileName) throws IOException {
-                try (IndexInput input = directory.openInput(segmentFileName, IOContext.READ)) {
+                try (IndexInput input = directory.openInput(segmentFileName, IOContext.READONCE)) {
                     CodecUtil.checksumEntireFile(input);
                 }
                 return null;
@@ -393,8 +392,8 @@ public class Lucene {
     private static final Class<?> GEO_DISTANCE_SORT_TYPE_CLASS = LatLonDocValuesField.newDistanceSort("some_geo_field", 0, 0).getClass();
 
     public static void writeTotalHits(StreamOutput out, TotalHits totalHits) throws IOException {
-        out.writeVLong(totalHits.value);
-        out.writeEnum(totalHits.relation);
+        out.writeVLong(totalHits.value());
+        out.writeEnum(totalHits.relation());
     }
 
     public static void writeTopDocs(StreamOutput out, TopDocsAndMaxScore topDocs) throws IOException {
@@ -553,8 +552,6 @@ public class Lucene {
             return newSortField;
         } else if (sortField.getClass() == ShardDocSortField.class) {
             return new SortField(sortField.getField(), SortField.Type.LONG, sortField.getReverse());
-        } else if (sortField.getClass() == RankDocsSortField.class) {
-            return new SortField(sortField.getField(), SortField.Type.INT, sortField.getReverse());
         } else {
             return sortField;
         }

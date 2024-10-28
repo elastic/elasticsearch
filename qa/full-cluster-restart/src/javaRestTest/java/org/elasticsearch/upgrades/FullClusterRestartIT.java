@@ -15,7 +15,6 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Build;
-import org.elasticsearch.action.admin.cluster.settings.RestClusterGetSettingsResponse;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
@@ -28,12 +27,12 @@ import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.CheckedFunction;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.rest.action.admin.indices.RestPutIndexTemplateAction;
+import org.elasticsearch.search.SearchFeatures;
 import org.elasticsearch.test.NotEqualMessageBuilder;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
@@ -43,10 +42,8 @@ import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.test.rest.RestTestLegacyFeatures;
-import org.elasticsearch.transport.Compression;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.Before;
@@ -59,7 +56,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -79,7 +75,6 @@ import static org.elasticsearch.cluster.routing.UnassignedInfo.INDEX_DELAYED_NOD
 import static org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
-import static org.elasticsearch.transport.RemoteClusterService.REMOTE_CLUSTER_COMPRESS;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
@@ -1207,15 +1202,8 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
             closeIndex(index);
         }
 
-        @UpdateForV9 // This check can be removed (always assume true)
-        var originalClusterSupportsReplicationOfClosedIndices = oldClusterHasFeature(RestTestLegacyFeatures.REPLICATION_OF_CLOSED_INDICES);
-
-        if (originalClusterSupportsReplicationOfClosedIndices) {
-            ensureGreenLongWait(index);
-            assertClosedIndex(index, true);
-        } else {
-            assertClosedIndex(index, false);
-        }
+        ensureGreenLongWait(index);
+        assertClosedIndex(index, true);
 
         if (isRunningAgainstOldCluster() == false) {
             openIndex(index);
@@ -1607,10 +1595,6 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
 
     @SuppressWarnings("unchecked")
     public void testSystemIndexMetadataIsUpgraded() throws Exception {
-
-        @UpdateForV9 // assumeTrue can be removed (condition always true)
-        var originalClusterTaskIndexIsSystemIndex = oldClusterHasFeature(RestTestLegacyFeatures.TASK_INDEX_SYSTEM_INDEX);
-        assumeTrue(".tasks became a system index in 7.10.0", originalClusterTaskIndexIsSystemIndex);
         final String systemIndexWarning = "this request accesses system indices: [.tasks], but in a future major version, direct "
             + "access to system indices will be prevented by default";
         if (isRunningAgainstOldCluster()) {
@@ -1670,29 +1654,6 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
                     throw new AssertionError(".tasks index does not exist yet");
                 }
             });
-
-            // If we are on 7.x create an alias that includes both a system index and a non-system index so we can be sure it gets
-            // upgraded properly. If we're already on 8.x, skip this part of the test.
-            if (clusterHasFeature(RestTestLegacyFeatures.SYSTEM_INDICES_REST_ACCESS_ENFORCED) == false) {
-                // Create an alias to make sure it gets upgraded properly
-                Request putAliasRequest = newXContentRequest(HttpMethod.POST, "/_aliases", (builder, params) -> {
-                    builder.startArray("actions");
-                    for (var index : List.of(".tasks", "test_index_reindex")) {
-                        builder.startObject()
-                            .startObject("add")
-                            .field("index", index)
-                            .field("alias", "test-system-alias")
-                            .endObject()
-                            .endObject();
-                    }
-                    return builder.endArray();
-                });
-                putAliasRequest.setOptions(expectVersionSpecificWarnings(v -> {
-                    v.current(systemIndexWarning);
-                    v.compatible(systemIndexWarning);
-                }));
-                assertThat(client().performRequest(putAliasRequest).getStatusLine().getStatusCode(), is(200));
-            }
         } else {
             assertBusy(() -> {
                 Request clusterStateRequest = new Request("GET", "/_cluster/state/metadata");
@@ -1727,63 +1688,207 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
     }
 
     /**
-     * This test ensures that soft deletes are enabled a when upgrading a pre-8 cluster to 8.0+
+     * This test ensures that search results on old indices using "persian" analyzer don't change
+     * after we introduce Lucene 10
      */
-    @UpdateForV9 // This test can be removed in v9
-    public void testEnableSoftDeletesOnRestore() throws Exception {
-        var originalClusterDidNotEnforceSoftDeletes = oldClusterHasFeature(RestTestLegacyFeatures.SOFT_DELETES_ENFORCED) == false;
-
-        assumeTrue("soft deletes must be enabled on 8.0+", originalClusterDidNotEnforceSoftDeletes);
-        final String snapshot = "snapshot-" + index;
-        if (isRunningAgainstOldCluster()) {
-            final Settings.Builder settings = indexSettings(1, 1);
-            settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), false);
-            createIndex(index, settings.build());
-            ensureGreen(index);
-            int numDocs = randomIntBetween(0, 100);
-            indexRandomDocuments(
-                numDocs,
-                true,
-                true,
-                randomBoolean(),
-                i -> jsonBuilder().startObject().field("field", "value").endObject()
-            );
-            // create repo
-            client().performRequest(newXContentRequest(HttpMethod.PUT, "/_snapshot/repo", (repoConfig, params) -> {
-                repoConfig.field("type", "fs");
-                repoConfig.startObject("settings");
-                repoConfig.field("compress", randomBoolean());
-                repoConfig.field("location", repoDirectory.getRoot().getPath());
-                repoConfig.endObject();
-                return repoConfig;
-            }));
-            // create snapshot
-            Request createSnapshot = newXContentRequest(
-                HttpMethod.PUT,
-                "/_snapshot/repo/" + snapshot,
-                (builder, params) -> builder.field("indices", index)
-            );
-            createSnapshot.addParameter("wait_for_completion", "true");
-            client().performRequest(createSnapshot);
-        } else {
-            String restoredIndex = "restored-" + index;
-            // Restore
-            Request restoreRequest = newXContentRequest(
-                HttpMethod.POST,
-                "/_snapshot/repo/" + snapshot + "/_restore",
-                (restoreCommand, params) -> {
-                    restoreCommand.field("indices", index);
-                    restoreCommand.field("rename_pattern", index);
-                    restoreCommand.field("rename_replacement", restoredIndex);
-                    restoreCommand.startObject("index_settings").field("index.soft_deletes.enabled", true).endObject();
-                    return restoreCommand;
+    public void testPersianAnalyzerBWC() throws Exception {
+        var originalClusterLegacyPersianAnalyzer = oldClusterHasFeature(SearchFeatures.LUCENE_10_0_0_UPGRADE) == false;
+        assumeTrue("Don't run this test if both versions already support stemming", originalClusterLegacyPersianAnalyzer);
+        final String indexName = "test_persian_stemmer";
+        Settings idxSettings = indexSettings(1, 1).build();
+        String mapping = """
+                {
+                  "properties": {
+                    "textfield" : {
+                      "type": "text",
+                      "analyzer": "persian"
+                    }
+                  }
                 }
+            """;
+
+        String query = """
+                {
+                  "query": {
+                    "match": {
+                      "textfield": "كتابها"
+                    }
+                  }
+                }
+            """;
+
+        if (isRunningAgainstOldCluster()) {
+            createIndex(client(), indexName, idxSettings, mapping);
+            ensureGreen(indexName);
+
+            assertOK(
+                client().performRequest(
+                    newXContentRequest(
+                        HttpMethod.POST,
+                        "/" + indexName + "/" + "_doc/1",
+                        (builder, params) -> builder.field("textfield", "كتابها")
+                    )
+                )
             );
-            restoreRequest.addParameter("wait_for_completion", "true");
-            client().performRequest(restoreRequest);
-            ensureGreen(restoredIndex);
-            int numDocs = countOfIndexedRandomDocuments();
-            assertTotalHits(numDocs, entityAsMap(client().performRequest(new Request("GET", "/" + restoredIndex + "/_search"))));
+            assertOK(
+                client().performRequest(
+                    newXContentRequest(
+                        HttpMethod.POST,
+                        "/" + indexName + "/" + "_doc/2",
+                        (builder, params) -> builder.field("textfield", "كتاب")
+                    )
+                )
+            );
+            refresh(indexName);
+
+            assertNumHits(indexName, 2, 1);
+
+            Request searchRequest = new Request("POST", "/" + indexName + "/_search");
+            searchRequest.setJsonEntity(query);
+            assertTotalHits(1, entityAsMap(client().performRequest(searchRequest)));
+        } else {
+            // old index should still only return one doc
+            Request searchRequest = new Request("POST", "/" + indexName + "/_search");
+            searchRequest.setJsonEntity(query);
+            assertTotalHits(1, entityAsMap(client().performRequest(searchRequest)));
+
+            String newIndexName = indexName + "_new";
+            createIndex(client(), newIndexName, idxSettings, mapping);
+            ensureGreen(newIndexName);
+
+            assertOK(
+                client().performRequest(
+                    newXContentRequest(
+                        HttpMethod.POST,
+                        "/" + newIndexName + "/" + "_doc/1",
+                        (builder, params) -> builder.field("textfield", "كتابها")
+                    )
+                )
+            );
+            assertOK(
+                client().performRequest(
+                    newXContentRequest(
+                        HttpMethod.POST,
+                        "/" + newIndexName + "/" + "_doc/2",
+                        (builder, params) -> builder.field("textfield", "كتاب")
+                    )
+                )
+            );
+            refresh(newIndexName);
+
+            searchRequest = new Request("POST", "/" + newIndexName + "/_search");
+            searchRequest.setJsonEntity(query);
+            assertTotalHits(2, entityAsMap(client().performRequest(searchRequest)));
+
+            // searching both indices (old and new analysis version) we should get 1 hit from the old and 2 from the new index
+            searchRequest = new Request("POST", "/" + indexName + "," + newIndexName + "/_search");
+            searchRequest.setJsonEntity(query);
+            assertTotalHits(3, entityAsMap(client().performRequest(searchRequest)));
+        }
+    }
+
+    /**
+     * This test ensures that search results on old indices using "romanain" analyzer don't change
+     * after we introduce Lucene 10
+     */
+    public void testRomanianAnalyzerBWC() throws Exception {
+        var originalClusterLegacyRomanianAnalyzer = oldClusterHasFeature(SearchFeatures.LUCENE_10_0_0_UPGRADE) == false;
+        assumeTrue("Don't run this test if both versions already support stemming", originalClusterLegacyRomanianAnalyzer);
+        final String indexName = "test_romanian_stemmer";
+        Settings idxSettings = indexSettings(1, 1).build();
+        String cedillaForm = "absenţa";
+        String commaForm = "absența";
+
+        String mapping = """
+                {
+                  "properties": {
+                    "textfield" : {
+                      "type": "text",
+                      "analyzer": "romanian"
+                    }
+                  }
+                }
+            """;
+
+        // query that uses the cedilla form of "t"
+        String query = """
+                {
+                  "query": {
+                    "match": {
+                      "textfield": "absenţa"
+                    }
+                  }
+                }
+            """;
+
+        if (isRunningAgainstOldCluster()) {
+            createIndex(client(), indexName, idxSettings, mapping);
+            ensureGreen(indexName);
+
+            assertOK(
+                client().performRequest(
+                    newXContentRequest(
+                        HttpMethod.POST,
+                        "/" + indexName + "/" + "_doc/1",
+                        (builder, params) -> builder.field("textfield", cedillaForm)
+                    )
+                )
+            );
+            assertOK(
+                client().performRequest(
+                    newXContentRequest(
+                        HttpMethod.POST,
+                        "/" + indexName + "/" + "_doc/2",
+                        // this doc uses the comma form
+                        (builder, params) -> builder.field("textfield", commaForm)
+                    )
+                )
+            );
+            refresh(indexName);
+
+            assertNumHits(indexName, 2, 1);
+
+            Request searchRequest = new Request("POST", "/" + indexName + "/_search");
+            searchRequest.setJsonEntity(query);
+            assertTotalHits(1, entityAsMap(client().performRequest(searchRequest)));
+        } else {
+            // old index should still only return one doc
+            Request searchRequest = new Request("POST", "/" + indexName + "/_search");
+            searchRequest.setJsonEntity(query);
+            assertTotalHits(1, entityAsMap(client().performRequest(searchRequest)));
+
+            String newIndexName = indexName + "_new";
+            createIndex(client(), newIndexName, idxSettings, mapping);
+            ensureGreen(newIndexName);
+
+            assertOK(
+                client().performRequest(
+                    newXContentRequest(
+                        HttpMethod.POST,
+                        "/" + newIndexName + "/" + "_doc/1",
+                        (builder, params) -> builder.field("textfield", cedillaForm)
+                    )
+                )
+            );
+            assertOK(
+                client().performRequest(
+                    newXContentRequest(
+                        HttpMethod.POST,
+                        "/" + newIndexName + "/" + "_doc/2",
+                        (builder, params) -> builder.field("textfield", commaForm)
+                    )
+                )
+            );
+            refresh(newIndexName);
+
+            searchRequest = new Request("POST", "/" + newIndexName + "/_search");
+            searchRequest.setJsonEntity(query);
+            assertTotalHits(2, entityAsMap(client().performRequest(searchRequest)));
+
+            // searching both indices (old and new analysis version) we should get 1 hit from the old and 2 from the new index
+            searchRequest = new Request("POST", "/" + indexName + "," + newIndexName + "/_search");
+            searchRequest.setJsonEntity(query);
+            assertTotalHits(3, entityAsMap(client().performRequest(searchRequest)));
         }
     }
 
@@ -1834,36 +1939,6 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
             restoreRequest.addParameter("wait_for_completion", "true");
             final ResponseException error = expectThrows(ResponseException.class, () -> client().performRequest(restoreRequest));
             assertThat(error.getMessage(), containsString("cannot disable setting [index.soft_deletes.enabled] on restore"));
-        }
-    }
-
-    /**
-     * In 7.14 the cluster.remote.*.transport.compress setting was changed from a boolean to an enum setting
-     * with true/false as options. This test ensures that the old boolean setting in cluster state is
-     * translated properly. This test can be removed in 9.0.
-     */
-    @UpdateForV9
-    public void testTransportCompressionSetting() throws IOException {
-        var originalClusterBooleanCompressSetting = oldClusterHasFeature(RestTestLegacyFeatures.NEW_TRANSPORT_COMPRESSED_SETTING) == false;
-        assumeTrue("the old transport.compress setting existed before 7.14", originalClusterBooleanCompressSetting);
-        if (isRunningAgainstOldCluster()) {
-            client().performRequest(
-                newXContentRequest(
-                    HttpMethod.PUT,
-                    "/_cluster/settings",
-                    (builder, params) -> builder.startObject("persistent")
-                        .field("cluster.remote.foo.seeds", Collections.singletonList("localhost:9200"))
-                        .field("cluster.remote.foo.transport.compress", "true")
-                        .endObject()
-                )
-            );
-        } else {
-            final Request getSettingsRequest = new Request("GET", "/_cluster/settings");
-            final Response getSettingsResponse = client().performRequest(getSettingsRequest);
-            try (XContentParser parser = createParser(JsonXContent.jsonXContent, getSettingsResponse.getEntity().getContent())) {
-                final Settings settings = RestClusterGetSettingsResponse.fromXContent(parser).getPersistentSettings();
-                assertThat(REMOTE_CLUSTER_COMPRESS.getConcreteSettingForNamespace("foo").get(settings), equalTo(Compression.Enabled.TRUE));
-            }
         }
     }
 

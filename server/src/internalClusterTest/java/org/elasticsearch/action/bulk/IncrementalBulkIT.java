@@ -15,6 +15,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Releasable;
@@ -37,6 +38,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -48,6 +50,7 @@ import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThan;
 
 public class IncrementalBulkIT extends ESIntegTestCase {
 
@@ -60,7 +63,10 @@ public class IncrementalBulkIT extends ESIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
-            .put(IndexingPressure.SPLIT_BULK_THRESHOLD.getKey(), "512B")
+            .put(IndexingPressure.SPLIT_BULK_LOW_WATERMARK.getKey(), "512B")
+            .put(IndexingPressure.SPLIT_BULK_LOW_WATERMARK_SIZE.getKey(), "2048B")
+            .put(IndexingPressure.SPLIT_BULK_HIGH_WATERMARK.getKey(), "2KB")
+            .put(IndexingPressure.SPLIT_BULK_HIGH_WATERMARK_SIZE.getKey(), "1024B")
             .build();
     }
 
@@ -77,14 +83,14 @@ public class IncrementalBulkIT extends ESIntegTestCase {
         AbstractRefCounted refCounted = AbstractRefCounted.of(() -> {});
         handler.lastItems(List.of(indexRequest), refCounted::decRef, future);
 
-        BulkResponse bulkResponse = future.actionGet();
+        BulkResponse bulkResponse = safeGet(future);
         assertNoFailures(bulkResponse);
 
         refresh(index);
 
         assertResponse(prepareSearch(index).setQuery(QueryBuilders.matchAllQuery()), searchResponse -> {
             assertNoFailures(searchResponse);
-            assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) 1));
+            assertThat(searchResponse.getHits().getTotalHits().value(), equalTo((long) 1));
         });
 
         assertFalse(refCounted.hasReferences());
@@ -140,7 +146,7 @@ public class IncrementalBulkIT extends ESIntegTestCase {
         }
     }
 
-    public void testIncrementalBulkRequestMemoryBackOff() throws Exception {
+    public void testIncrementalBulkLowWatermarkBackOff() throws Exception {
         String index = "test";
         createIndex(index);
 
@@ -155,7 +161,7 @@ public class IncrementalBulkIT extends ESIntegTestCase {
 
         IndexRequest indexRequest = indexRequest(index);
         long total = indexRequest.ramBytesUsed();
-        while (total < 512) {
+        while (total < 2048) {
             refCounted.incRef();
             handler.addItems(List.of(indexRequest), refCounted::decRef, () -> nextPage.set(true));
             assertTrue(nextPage.get());
@@ -173,8 +179,73 @@ public class IncrementalBulkIT extends ESIntegTestCase {
         PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
         handler.lastItems(List.of(indexRequest), refCounted::decRef, future);
 
-        BulkResponse bulkResponse = future.actionGet();
+        BulkResponse bulkResponse = safeGet(future);
         assertNoFailures(bulkResponse);
+        assertFalse(refCounted.hasReferences());
+    }
+
+    public void testIncrementalBulkHighWatermarkBackOff() throws Exception {
+        String index = "test";
+        createIndex(index);
+
+        String nodeName = internalCluster().getRandomNodeName();
+        IncrementalBulkService incrementalBulkService = internalCluster().getInstance(IncrementalBulkService.class, nodeName);
+        IndexingPressure indexingPressure = internalCluster().getInstance(IndexingPressure.class, nodeName);
+        ThreadPool threadPool = internalCluster().getInstance(ThreadPool.class, nodeName);
+
+        AbstractRefCounted refCounted = AbstractRefCounted.of(() -> {});
+        AtomicBoolean nextPage = new AtomicBoolean(false);
+
+        ArrayList<IncrementalBulkService.Handler> handlers = new ArrayList<>();
+        for (int i = 0; i < 4; ++i) {
+            ArrayList<DocWriteRequest<?>> requests = new ArrayList<>();
+            add512BRequests(requests, index);
+            IncrementalBulkService.Handler handler = incrementalBulkService.newBulkRequest();
+            handlers.add(handler);
+            refCounted.incRef();
+            handler.addItems(requests, refCounted::decRef, () -> nextPage.set(true));
+            assertTrue(nextPage.get());
+            nextPage.set(false);
+        }
+
+        // Test that a request smaller than SPLIT_BULK_HIGH_WATERMARK_SIZE (1KB) is not throttled
+        ArrayList<DocWriteRequest<?>> requestsNoThrottle = new ArrayList<>();
+        add512BRequests(requestsNoThrottle, index);
+        IncrementalBulkService.Handler handlerNoThrottle = incrementalBulkService.newBulkRequest();
+        handlers.add(handlerNoThrottle);
+        refCounted.incRef();
+        handlerNoThrottle.addItems(requestsNoThrottle, refCounted::decRef, () -> nextPage.set(true));
+        assertTrue(nextPage.get());
+        nextPage.set(false);
+
+        ArrayList<DocWriteRequest<?>> requestsThrottle = new ArrayList<>();
+        // Test that a request larger than SPLIT_BULK_HIGH_WATERMARK_SIZE (1KB) is throttled
+        add512BRequests(requestsThrottle, index);
+        add512BRequests(requestsThrottle, index);
+
+        CountDownLatch finishLatch = new CountDownLatch(1);
+        blockWritePool(threadPool, finishLatch);
+        IncrementalBulkService.Handler handlerThrottled = incrementalBulkService.newBulkRequest();
+        refCounted.incRef();
+        handlerThrottled.addItems(requestsThrottle, refCounted::decRef, () -> nextPage.set(true));
+        assertFalse(nextPage.get());
+        finishLatch.countDown();
+
+        handlers.add(handlerThrottled);
+
+        // Wait until we are ready for the next page
+        assertBusy(() -> assertTrue(nextPage.get()));
+
+        for (IncrementalBulkService.Handler h : handlers) {
+            refCounted.incRef();
+            PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
+            h.lastItems(List.of(indexRequest(index)), refCounted::decRef, future);
+            BulkResponse bulkResponse = safeGet(future);
+            assertNoFailures(bulkResponse);
+        }
+
+        assertBusy(() -> assertThat(indexingPressure.stats().getCurrentCombinedCoordinatingAndPrimaryBytes(), equalTo(0L)));
+        refCounted.decRef();
         assertFalse(refCounted.hasReferences());
     }
 
@@ -197,7 +268,7 @@ public class IncrementalBulkIT extends ESIntegTestCase {
 
             assertResponse(prepareSearch(index).setQuery(QueryBuilders.matchAllQuery()), searchResponse -> {
                 assertNoFailures(searchResponse);
-                assertThat(searchResponse.getHits().getTotalHits().value, equalTo(docs));
+                assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(docs));
             });
         }
     }
@@ -214,14 +285,8 @@ public class IncrementalBulkIT extends ESIntegTestCase {
             IncrementalBulkService incrementalBulkService = internalCluster().getInstance(IncrementalBulkService.class, randomNodeName);
             ThreadPool threadPool = internalCluster().getInstance(ThreadPool.class, randomNodeName);
 
-            int threadCount = threadPool.info(ThreadPool.Names.WRITE).getMax();
-            long queueSize = threadPool.info(ThreadPool.Names.WRITE).getQueueSize().singles();
-            blockWritePool(threadCount, threadPool, blockingLatch);
-
-            Runnable runnable = () -> {};
-            for (int i = 0; i < queueSize; i++) {
-                threadPool.executor(ThreadPool.Names.WRITE).execute(runnable);
-            }
+            blockWritePool(threadPool, blockingLatch);
+            fillWriteQueue(threadPool);
 
             IncrementalBulkService.Handler handler = incrementalBulkService.newBulkRequest();
             if (randomBoolean()) {
@@ -253,39 +318,36 @@ public class IncrementalBulkIT extends ESIntegTestCase {
             AbstractRefCounted refCounted = AbstractRefCounted.of(() -> {});
             PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
 
-            int threadCount = threadPool.info(ThreadPool.Names.WRITE).getMax();
-            long queueSize = threadPool.info(ThreadPool.Names.WRITE).getQueueSize().singles();
-
             CountDownLatch blockingLatch1 = new CountDownLatch(1);
 
             AtomicBoolean nextRequested = new AtomicBoolean(true);
             AtomicLong hits = new AtomicLong(0);
-            try (Releasable ignored2 = blockingLatch1::countDown;) {
-                blockWritePool(threadCount, threadPool, blockingLatch1);
+            try {
+                blockWritePool(threadPool, blockingLatch1);
                 while (nextRequested.get()) {
                     nextRequested.set(false);
                     refCounted.incRef();
                     handler.addItems(List.of(indexRequest(index)), refCounted::decRef, () -> nextRequested.set(true));
                     hits.incrementAndGet();
                 }
+            } finally {
+                blockingLatch1.countDown();
             }
             assertBusy(() -> assertTrue(nextRequested.get()));
 
             CountDownLatch blockingLatch2 = new CountDownLatch(1);
 
-            try (Releasable ignored3 = blockingLatch2::countDown;) {
-                blockWritePool(threadCount, threadPool, blockingLatch2);
-                Runnable runnable = () -> {};
-                // Fill Queue
-                for (int i = 0; i < queueSize; i++) {
-                    threadPool.executor(ThreadPool.Names.WRITE).execute(runnable);
-                }
+            try {
+                blockWritePool(threadPool, blockingLatch2);
+                fillWriteQueue(threadPool);
 
                 handler.lastItems(List.of(indexRequest(index)), refCounted::decRef, future);
+            } finally {
+                blockingLatch2.countDown();
             }
 
             // Should not throw because some succeeded
-            BulkResponse bulkResponse = future.actionGet();
+            BulkResponse bulkResponse = safeGet(future);
 
             assertTrue(bulkResponse.hasFailures());
             BulkItemResponse[] items = bulkResponse.getItems();
@@ -296,7 +358,7 @@ public class IncrementalBulkIT extends ESIntegTestCase {
 
             assertResponse(prepareSearch(index).setQuery(QueryBuilders.matchAllQuery()), searchResponse -> {
                 assertNoFailures(searchResponse);
-                assertThat(searchResponse.getHits().getTotalHits().value, equalTo(hits.get()));
+                assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(hits.get()));
             });
         }
     }
@@ -353,7 +415,7 @@ public class IncrementalBulkIT extends ESIntegTestCase {
         PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
         handler.lastItems(List.of(indexRequest(index)), refCounted::decRef, future);
 
-        BulkResponse bulkResponse = future.actionGet();
+        BulkResponse bulkResponse = safeGet(future);
         assertTrue(bulkResponse.hasFailures());
         for (int i = 0; i < hits.get(); ++i) {
             assertFalse(bulkResponse.getItems()[i].isFailed());
@@ -446,7 +508,7 @@ public class IncrementalBulkIT extends ESIntegTestCase {
         PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
         handler.lastItems(List.of(indexRequest(index)), refCounted::decRef, future);
 
-        BulkResponse bulkResponse = future.actionGet();
+        BulkResponse bulkResponse = safeGet(future);
         assertTrue(bulkResponse.hasFailures());
         for (int i = 0; i < hits.get(); ++i) {
             assertFalse(bulkResponse.getItems()[i].isFailed());
@@ -459,19 +521,55 @@ public class IncrementalBulkIT extends ESIntegTestCase {
         }
     }
 
-    private static void blockWritePool(int threadCount, ThreadPool threadPool, CountDownLatch blockingLatch) throws InterruptedException {
-        CountDownLatch startedLatch = new CountDownLatch(threadCount);
+    private static void blockWritePool(ThreadPool threadPool, CountDownLatch finishLatch) {
+        final var threadCount = threadPool.info(ThreadPool.Names.WRITE).getMax();
+        final var startBarrier = new CyclicBarrier(threadCount + 1);
+        final var blockingTask = new AbstractRunnable() {
+            @Override
+            public void onFailure(Exception e) {
+                fail(e);
+            }
+
+            @Override
+            protected void doRun() {
+                safeAwait(startBarrier);
+                safeAwait(finishLatch);
+            }
+
+            @Override
+            public boolean isForceExecution() {
+                return true;
+            }
+        };
         for (int i = 0; i < threadCount; i++) {
-            threadPool.executor(ThreadPool.Names.WRITE).execute(() -> {
-                startedLatch.countDown();
-                try {
-                    blockingLatch.await();
-                } catch (InterruptedException e) {
-                    throw new RuntimeException(e);
-                }
-            });
+            threadPool.executor(ThreadPool.Names.WRITE).execute(blockingTask);
         }
-        startedLatch.await();
+        safeAwait(startBarrier);
+    }
+
+    private static void fillWriteQueue(ThreadPool threadPool) {
+        final var queueSize = Math.toIntExact(threadPool.info(ThreadPool.Names.WRITE).getQueueSize().singles());
+        final var queueFilled = new AtomicBoolean(false);
+        final var queueFillingTask = new AbstractRunnable() {
+            @Override
+            public void onFailure(Exception e) {
+                fail(e);
+            }
+
+            @Override
+            protected void doRun() {
+                assertTrue("thread pool not blocked", queueFilled.get());
+            }
+
+            @Override
+            public boolean isForceExecution() {
+                return true;
+            }
+        };
+        for (int i = 0; i < queueSize; i++) {
+            threadPool.executor(ThreadPool.Names.WRITE).execute(queueFillingTask);
+        }
+        queueFilled.set(true);
     }
 
     private BulkResponse executeBulk(long docs, String index, IncrementalBulkService.Handler handler, ExecutorService executorService) {
@@ -507,6 +605,16 @@ public class IncrementalBulkIT extends ESIntegTestCase {
         BulkResponse bulkResponse = future.actionGet();
         assertFalse(refCounted.hasReferences());
         return bulkResponse;
+    }
+
+    private static void add512BRequests(ArrayList<DocWriteRequest<?>> requests, String index) {
+        long total = 0;
+        while (total < 512) {
+            IndexRequest indexRequest = indexRequest(index);
+            requests.add(indexRequest);
+            total += indexRequest.ramBytesUsed();
+        }
+        assertThat(total, lessThan(1024L));
     }
 
     private static IndexRequest indexRequest(String index) {

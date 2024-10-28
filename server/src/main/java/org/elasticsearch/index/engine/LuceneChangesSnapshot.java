@@ -119,7 +119,7 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
         this.parallelArray = new ParallelArray(this.searchBatchSize);
         this.indexVersionCreated = indexVersionCreated;
         final TopDocs topDocs = searchOperations(null, accessStats);
-        this.totalHits = Math.toIntExact(topDocs.totalHits.value);
+        this.totalHits = Math.toIntExact(topDocs.totalHits.value());
         this.scoreDocs = topDocs.scoreDocs;
         fillParallelArray(scoreDocs, parallelArray);
     }
@@ -301,7 +301,8 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
             new Sort(sortBySeqNo),
             searchBatchSize,
             after,
-            accurateTotalHits ? Integer.MAX_VALUE : 0
+            accurateTotalHits ? Integer.MAX_VALUE : 0,
+            false
         );
         return indexSearcher.search(rangeQuery, topFieldCollectorManager);
     }
@@ -340,7 +341,7 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
             assert storedFieldsReaderOrd == leaf.ord : storedFieldsReaderOrd + " != " + leaf.ord;
             storedFieldsReader.document(segmentDocID, fields);
         } else {
-            leaf.reader().document(segmentDocID, fields);
+            leaf.reader().storedFields().document(segmentDocID, fields);
         }
 
         final Translog.Operation op;

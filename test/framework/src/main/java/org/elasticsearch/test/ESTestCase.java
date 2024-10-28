@@ -33,12 +33,15 @@ import org.apache.logging.log4j.core.layout.PatternLayout;
 import org.apache.logging.log4j.status.StatusConsoleListener;
 import org.apache.logging.log4j.status.StatusData;
 import org.apache.logging.log4j.status.StatusLogger;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.tests.util.LuceneTestCase.SuppressCodecs;
 import org.apache.lucene.tests.util.TestRuleMarkFailure;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.tests.util.TimeUnits;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.ElasticsearchWrapperException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionFuture;
@@ -57,6 +60,7 @@ import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
@@ -206,6 +210,7 @@ import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
 
+import static com.carrotsearch.randomizedtesting.RandomizedTest.randomBoolean;
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.common.util.CollectionUtils.arrayAsArrayList;
 import static org.hamcrest.Matchers.anyOf;
@@ -214,7 +219,6 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.emptyCollectionOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
-import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.startsWith;
 
 /**
@@ -577,6 +581,24 @@ public abstract class ESTestCase extends LuceneTestCase {
         }
     }
 
+    private static final List<CircuitBreaker> breakers = Collections.synchronizedList(new ArrayList<>());
+
+    protected static CircuitBreaker newLimitedBreaker(ByteSizeValue max) {
+        CircuitBreaker breaker = new MockBigArrays.LimitedBreaker("<es-test-case>", max);
+        breakers.add(breaker);
+        return breaker;
+    }
+
+    @After
+    public final void allBreakersMemoryReleased() {
+        var breakersToCheck = new ArrayList<>(breakers);
+        // We clear it now to avoid keeping old breakers if the assertion fails
+        breakers.clear();
+        for (CircuitBreaker breaker : breakersToCheck) {
+            assertThat(breaker.getUsed(), equalTo(0L));
+        }
+    }
+
     /**
      * Whether or not we check after each test whether it has left warnings behind. That happens if any deprecated feature or syntax
      * was used by the test and the test didn't assert on it using {@link #assertWarnings(String...)}.
@@ -881,10 +903,11 @@ public abstract class ESTestCase extends LuceneTestCase {
      * @return a random instant between a min and a max value with a random nanosecond precision
      */
     public static Instant randomInstantBetween(Instant minInstant, Instant maxInstant) {
-        return Instant.ofEpochSecond(
-            randomLongBetween(minInstant.getEpochSecond(), maxInstant.getEpochSecond()),
-            randomLongBetween(0, 999999999)
-        );
+        long epochSecond = randomLongBetween(minInstant.getEpochSecond(), maxInstant.getEpochSecond());
+        long minNanos = epochSecond == minInstant.getEpochSecond() ? minInstant.getNano() : 0;
+        long maxNanos = epochSecond == maxInstant.getEpochSecond() ? maxInstant.getNano() : 999999999;
+        long nanos = randomLongBetween(minNanos, maxNanos);
+        return Instant.ofEpochSecond(epochSecond, nanos);
     }
 
     /**
@@ -1642,6 +1665,15 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     public String compatibleMediaType(XContentType type, RestApiVersion version) {
+        if (type.canonical().equals(type)) {
+            throw new IllegalArgumentException(
+                "Compatible header is only supported for vendor content types."
+                    + " You requested "
+                    + type.name()
+                    + "but likely want VND_"
+                    + type.name()
+            );
+        }
         return type.toParsedMediaType()
             .responseContentTypeHeader(Map.of(MediaType.COMPATIBLE_WITH_PARAMETER_NAME, String.valueOf(version.major)));
     }
@@ -2406,6 +2438,44 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     /**
+     * Wait for the exceptional completion of the given async action, with a timeout of {@link #SAFE_AWAIT_TIMEOUT},
+     * preserving the thread's interrupt status flag and converting a successful completion, interrupt or timeout into an {@link
+     * AssertionError} to trigger a test failure.
+     *
+     * @param responseType  Class of listener response type, to aid type inference but otherwise ignored.
+     * @param exceptionType Expected exception type. This method throws an {@link AssertionError} if a different type of exception is seen.
+     *
+     * @return The exception with which the {@code listener} was completed exceptionally.
+     */
+    public static <Response, ExpectedException extends Exception> ExpectedException safeAwaitFailure(
+        Class<ExpectedException> exceptionType,
+        Class<Response> responseType,
+        Consumer<ActionListener<Response>> consumer
+    ) {
+        return asInstanceOf(exceptionType, safeAwaitFailure(responseType, consumer));
+    }
+
+    /**
+     * Wait for the exceptional completion of the given async action, with a timeout of {@link #SAFE_AWAIT_TIMEOUT},
+     * preserving the thread's interrupt status flag and converting a successful completion, interrupt or timeout into an {@link
+     * AssertionError} to trigger a test failure. Any layers of {@link ElasticsearchWrapperException} are removed from the thrown exception
+     * using {@link ExceptionsHelper#unwrapCause}.
+     *
+     * @param responseType  Class of listener response type, to aid type inference but otherwise ignored.
+     * @param exceptionType Expected unwrapped exception type. This method throws an {@link AssertionError} if a different type of exception
+     *                      is seen.
+     *
+     * @return The unwrapped exception with which the {@code listener} was completed exceptionally.
+     */
+    public static <Response, ExpectedException extends Exception> ExpectedException safeAwaitAndUnwrapFailure(
+        Class<ExpectedException> exceptionType,
+        Class<Response> responseType,
+        Consumer<ActionListener<Response>> consumer
+    ) {
+        return asInstanceOf(exceptionType, ExceptionsHelper.unwrapCause(safeAwaitFailure(responseType, consumer)));
+    }
+
+    /**
      * Send the current thread to sleep for the given duration, asserting that the sleep is not interrupted but preserving the thread's
      * interrupt status flag in any case.
      */
@@ -2569,5 +2639,44 @@ public abstract class ESTestCase extends LuceneTestCase {
         } catch (Exception e) {
             throw new AssertionError("Failed to verify search contexts", e);
         }
+    }
+
+    /**
+     * Create a new searcher over the reader. This searcher might randomly use threads.
+     * Provides the same functionality as {@link LuceneTestCase#newSearcher(IndexReader)},
+     * with the only difference that concurrency will only ever be inter-segment and never intra-segment.
+     */
+    public static IndexSearcher newSearcher(IndexReader r) {
+        return newSearcher(r, true);
+    }
+
+    /**
+     * Create a new searcher over the reader. This searcher might randomly use threads.
+     * Provides the same functionality as {@link LuceneTestCase#newSearcher(IndexReader, boolean)},
+     * with the only difference that concurrency will only ever be inter-segment and never intra-segment.
+     */
+    public static IndexSearcher newSearcher(IndexReader r, boolean maybeWrap) {
+        return newSearcher(r, maybeWrap, true);
+    }
+
+    /**
+     * Create a new searcher over the reader. This searcher might randomly use threads.
+     * Provides the same functionality as {@link LuceneTestCase#newSearcher(IndexReader, boolean, boolean)},
+     * with the only difference that concurrency will only ever be inter-segment and never intra-segment.
+     */
+    public static IndexSearcher newSearcher(IndexReader r, boolean maybeWrap, boolean wrapWithAssertions) {
+        return newSearcher(r, maybeWrap, wrapWithAssertions, randomBoolean());
+    }
+
+    /**
+     * Create a new searcher over the reader.
+     * Provides the same functionality as {@link LuceneTestCase#newSearcher(IndexReader, boolean, boolean, boolean)},
+     * with the only difference that concurrency will only ever be inter-segment and never intra-segment.
+     */
+    public static IndexSearcher newSearcher(IndexReader r, boolean maybeWrap, boolean wrapWithAssertions, boolean useThreads) {
+        if (useThreads) {
+            return newSearcher(r, maybeWrap, wrapWithAssertions, Concurrency.INTER_SEGMENT);
+        }
+        return newSearcher(r, maybeWrap, wrapWithAssertions, Concurrency.NONE);
     }
 }

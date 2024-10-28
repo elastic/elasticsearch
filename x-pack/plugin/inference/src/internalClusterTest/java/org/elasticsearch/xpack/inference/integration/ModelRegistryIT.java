@@ -11,7 +11,11 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
@@ -20,29 +24,34 @@ import org.elasticsearch.inference.SecretSettings;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.inference.ChunkingSettingsFeatureFlag;
 import org.elasticsearch.xpack.inference.InferencePlugin;
+import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsTests;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
-import org.elasticsearch.xpack.inference.services.elser.ElserInternalModel;
-import org.elasticsearch.xpack.inference.services.elser.ElserInternalService;
-import org.elasticsearch.xpack.inference.services.elser.ElserInternalServiceSettingsTests;
-import org.elasticsearch.xpack.inference.services.elser.ElserInternalServiceTests;
-import org.elasticsearch.xpack.inference.services.elser.ElserMlNodeTaskSettingsTests;
+import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalModel;
+import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService;
+import org.elasticsearch.xpack.inference.services.elasticsearch.ElserInternalServiceSettingsTests;
+import org.elasticsearch.xpack.inference.services.elasticsearch.ElserMlNodeTaskSettingsTests;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -53,6 +62,8 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 
 public class ModelRegistryIT extends ESSingleNodeTestCase {
@@ -110,15 +121,22 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         assertThat(putModelHolder.get(), is(true));
 
         // now get the model
-        AtomicReference<ModelRegistry.UnparsedModel> modelHolder = new AtomicReference<>();
+        AtomicReference<UnparsedModel> modelHolder = new AtomicReference<>();
         blockingCall(listener -> modelRegistry.getModelWithSecrets(inferenceEntityId, listener), modelHolder, exceptionHolder);
         assertThat(exceptionHolder.get(), is(nullValue()));
         assertThat(modelHolder.get(), not(nullValue()));
 
         assertEquals(model.getConfigurations().getService(), modelHolder.get().service());
 
-        var elserService = new ElserInternalService(new InferenceServiceExtension.InferenceServiceFactoryContext(mock(Client.class)));
-        ElserInternalModel roundTripModel = elserService.parsePersistedConfigWithSecrets(
+        var elserService = new ElasticsearchInternalService(
+            new InferenceServiceExtension.InferenceServiceFactoryContext(
+                mock(Client.class),
+                mock(ThreadPool.class),
+                mock(ClusterService.class),
+                Settings.EMPTY
+            )
+        );
+        ElasticsearchInternalModel roundTripModel = (ElasticsearchInternalModel) elserService.parsePersistedConfigWithSecrets(
             modelHolder.get().inferenceEntityId(),
             modelHolder.get().taskType(),
             modelHolder.get().settings(),
@@ -166,7 +184,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
 
         // get should fail
         deleteResponseHolder.set(false);
-        AtomicReference<ModelRegistry.UnparsedModel> modelHolder = new AtomicReference<>();
+        AtomicReference<UnparsedModel> modelHolder = new AtomicReference<>();
         blockingCall(listener -> modelRegistry.getModelWithSecrets("model1", listener), modelHolder, exceptionHolder);
 
         assertThat(exceptionHolder.get(), not(nullValue()));
@@ -192,7 +210,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         }
 
         AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
-        AtomicReference<List<ModelRegistry.UnparsedModel>> modelHolder = new AtomicReference<>();
+        AtomicReference<List<UnparsedModel>> modelHolder = new AtomicReference<>();
         blockingCall(listener -> modelRegistry.getModelsByTaskType(TaskType.SPARSE_EMBEDDING, listener), modelHolder, exceptionHolder);
         assertThat(modelHolder.get(), hasSize(3));
         var sparseIds = sparseAndTextEmbeddingModels.stream()
@@ -233,8 +251,9 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
             assertNull(exceptionHolder.get());
         }
 
-        AtomicReference<List<ModelRegistry.UnparsedModel>> modelHolder = new AtomicReference<>();
-        blockingCall(listener -> modelRegistry.getAllModels(listener), modelHolder, exceptionHolder);
+        AtomicReference<List<UnparsedModel>> modelHolder = new AtomicReference<>();
+        blockingCall(listener -> modelRegistry.getAllModels(randomBoolean(), listener), modelHolder, exceptionHolder);
+        assertNull(exceptionHolder.get());
         assertThat(modelHolder.get(), hasSize(modelCount));
         var getAllModels = modelHolder.get();
 
@@ -262,19 +281,321 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         assertThat(putModelHolder.get(), is(true));
         assertNull(exceptionHolder.get());
 
-        AtomicReference<ModelRegistry.UnparsedModel> modelHolder = new AtomicReference<>();
+        AtomicReference<UnparsedModel> modelHolder = new AtomicReference<>();
         blockingCall(listener -> modelRegistry.getModelWithSecrets(inferenceEntityId, listener), modelHolder, exceptionHolder);
         assertThat(modelHolder.get().secrets().keySet(), hasSize(1));
         var secretSettings = (Map<String, Object>) modelHolder.get().secrets().get("secret_settings");
         assertThat(secretSettings.get("secret"), equalTo(secret));
+        assertReturnModelIsModifiable(modelHolder.get());
 
         // get model without secrets
         blockingCall(listener -> modelRegistry.getModel(inferenceEntityId, listener), modelHolder, exceptionHolder);
         assertThat(modelHolder.get().secrets().keySet(), empty());
+        assertReturnModelIsModifiable(modelHolder.get());
+    }
+
+    public void testGetAllModels_WithDefaults() throws Exception {
+        var serviceName = "foo";
+        int configuredModelCount = 10;
+        int defaultModelCount = 2;
+        int totalModelCount = 12;
+
+        var service = mock(InferenceService.class);
+
+        var defaultConfigs = new ArrayList<Model>();
+        var defaultIds = new ArrayList<InferenceService.DefaultConfigId>();
+        for (int i = 0; i < defaultModelCount; i++) {
+            var id = "default-" + i;
+            var taskType = randomFrom(TaskType.values());
+            defaultConfigs.add(createModel(id, taskType, serviceName));
+            defaultIds.add(new InferenceService.DefaultConfigId(id, taskType, service));
+        }
+
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            var listener = (ActionListener<List<Model>>) invocation.getArguments()[0];
+            listener.onResponse(defaultConfigs);
+            return Void.TYPE;
+        }).when(service).defaultConfigs(any());
+
+        defaultIds.forEach(modelRegistry::addDefaultIds);
+
+        AtomicReference<Boolean> putModelHolder = new AtomicReference<>();
+        AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
+
+        var createdModels = new HashMap<String, Model>();
+        for (int i = 0; i < configuredModelCount; i++) {
+            var id = randomAlphaOfLength(5) + i;
+            var model = createModel(id, randomFrom(TaskType.values()), serviceName);
+            createdModels.put(id, model);
+            blockingCall(listener -> modelRegistry.storeModel(model, listener), putModelHolder, exceptionHolder);
+            assertThat(putModelHolder.get(), is(true));
+            assertNull(exceptionHolder.get());
+        }
+
+        AtomicReference<List<UnparsedModel>> modelHolder = new AtomicReference<>();
+        blockingCall(listener -> modelRegistry.getAllModels(randomBoolean(), listener), modelHolder, exceptionHolder);
+        assertNull(exceptionHolder.get());
+        assertThat(modelHolder.get(), hasSize(totalModelCount));
+        var getAllModels = modelHolder.get();
+        assertReturnModelIsModifiable(modelHolder.get().get(0));
+
+        // same result but configs should have been persisted this time
+        blockingCall(listener -> modelRegistry.getAllModels(randomBoolean(), listener), modelHolder, exceptionHolder);
+        assertNull(exceptionHolder.get());
+        assertThat(modelHolder.get(), hasSize(totalModelCount));
+
+        // sort in the same order as the returned models
+        var ids = new ArrayList<>(defaultIds.stream().map(InferenceService.DefaultConfigId::inferenceId).toList());
+        ids.addAll(createdModels.keySet().stream().toList());
+        ids.sort(String::compareTo);
+        var configsById = defaultConfigs.stream().collect(Collectors.toMap(Model::getInferenceEntityId, Function.identity()));
+        for (int i = 0; i < totalModelCount; i++) {
+            var id = ids.get(i);
+            assertEquals(id, getAllModels.get(i).inferenceEntityId());
+            if (id.startsWith("default")) {
+                assertEquals(configsById.get(id).getTaskType(), getAllModels.get(i).taskType());
+                assertEquals(configsById.get(id).getConfigurations().getService(), getAllModels.get(i).service());
+            } else {
+                assertEquals(createdModels.get(id).getTaskType(), getAllModels.get(i).taskType());
+                assertEquals(createdModels.get(id).getConfigurations().getService(), getAllModels.get(i).service());
+            }
+        }
+    }
+
+    public void testGetAllModels_OnlyDefaults() throws Exception {
+        int defaultModelCount = 2;
+        var serviceName = "foo";
+        var service = mock(InferenceService.class);
+
+        var defaultConfigs = new ArrayList<Model>();
+        var defaultIds = new ArrayList<InferenceService.DefaultConfigId>();
+        for (int i = 0; i < defaultModelCount; i++) {
+            var id = "default-" + i;
+            var taskType = randomFrom(TaskType.values());
+            defaultConfigs.add(createModel(id, taskType, serviceName));
+            defaultIds.add(new InferenceService.DefaultConfigId(id, taskType, service));
+        }
+
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            var listener = (ActionListener<List<Model>>) invocation.getArguments()[0];
+            listener.onResponse(defaultConfigs);
+            return Void.TYPE;
+        }).when(service).defaultConfigs(any());
+
+        defaultIds.forEach(modelRegistry::addDefaultIds);
+
+        AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
+        AtomicReference<List<UnparsedModel>> modelHolder = new AtomicReference<>();
+        blockingCall(listener -> modelRegistry.getAllModels(randomBoolean(), listener), modelHolder, exceptionHolder);
+        assertNull(exceptionHolder.get());
+        assertThat(modelHolder.get(), hasSize(2));
+        var getAllModels = modelHolder.get();
+        assertReturnModelIsModifiable(modelHolder.get().get(0));
+
+        // sort in the same order as the returned models
+        var configsById = defaultConfigs.stream().collect(Collectors.toMap(Model::getInferenceEntityId, Function.identity()));
+        var ids = new ArrayList<>(configsById.keySet().stream().toList());
+        ids.sort(String::compareTo);
+        for (int i = 0; i < defaultModelCount; i++) {
+            var id = ids.get(i);
+            assertEquals(id, getAllModels.get(i).inferenceEntityId());
+            assertEquals(configsById.get(id).getTaskType(), getAllModels.get(i).taskType());
+            assertEquals(configsById.get(id).getConfigurations().getService(), getAllModels.get(i).service());
+        }
+    }
+
+    public void testGetAllModels_withDoNotPersist() throws Exception {
+        int defaultModelCount = 2;
+        var serviceName = "foo";
+        var service = mock(InferenceService.class);
+
+        var defaultConfigs = new ArrayList<Model>();
+        var defaultIds = new ArrayList<InferenceService.DefaultConfigId>();
+        for (int i = 0; i < defaultModelCount; i++) {
+            var id = "default-" + i;
+            var taskType = randomFrom(TaskType.values());
+            defaultConfigs.add(createModel(id, taskType, serviceName));
+            defaultIds.add(new InferenceService.DefaultConfigId(id, taskType, service));
+        }
+
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            var listener = (ActionListener<List<Model>>) invocation.getArguments()[0];
+            listener.onResponse(defaultConfigs);
+            return Void.TYPE;
+        }).when(service).defaultConfigs(any());
+
+        defaultIds.forEach(modelRegistry::addDefaultIds);
+
+        AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
+        AtomicReference<List<UnparsedModel>> modelHolder = new AtomicReference<>();
+        blockingCall(listener -> modelRegistry.getAllModels(false, listener), modelHolder, exceptionHolder);
+        assertNull(exceptionHolder.get());
+        assertThat(modelHolder.get(), hasSize(2));
+
+        expectThrows(IndexNotFoundException.class, () -> client().admin().indices().prepareGetIndex().addIndices(".inference").get());
+
+        // this time check the index is created
+        blockingCall(listener -> modelRegistry.getAllModels(true, listener), modelHolder, exceptionHolder);
+        assertNull(exceptionHolder.get());
+        assertThat(modelHolder.get(), hasSize(2));
+        assertInferenceIndexExists();
+    }
+
+    public void testGet_WithDefaults() throws InterruptedException {
+        var serviceName = "foo";
+        var service = mock(InferenceService.class);
+
+        var defaultConfigs = new ArrayList<Model>();
+        var defaultIds = new ArrayList<InferenceService.DefaultConfigId>();
+
+        defaultConfigs.add(createModel("default-sparse", TaskType.SPARSE_EMBEDDING, serviceName));
+        defaultConfigs.add(createModel("default-text", TaskType.TEXT_EMBEDDING, serviceName));
+        defaultIds.add(new InferenceService.DefaultConfigId("default-sparse", TaskType.SPARSE_EMBEDDING, service));
+        defaultIds.add(new InferenceService.DefaultConfigId("default-text", TaskType.TEXT_EMBEDDING, service));
+
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            var listener = (ActionListener<List<Model>>) invocation.getArguments()[0];
+            listener.onResponse(defaultConfigs);
+            return Void.TYPE;
+        }).when(service).defaultConfigs(any());
+        defaultIds.forEach(modelRegistry::addDefaultIds);
+
+        AtomicReference<Boolean> putModelHolder = new AtomicReference<>();
+        AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
+
+        var configured1 = createModel(randomAlphaOfLength(5) + 1, randomFrom(TaskType.values()), serviceName);
+        var configured2 = createModel(randomAlphaOfLength(5) + 1, randomFrom(TaskType.values()), serviceName);
+        blockingCall(listener -> modelRegistry.storeModel(configured1, listener), putModelHolder, exceptionHolder);
+        assertThat(putModelHolder.get(), is(true));
+        blockingCall(listener -> modelRegistry.storeModel(configured2, listener), putModelHolder, exceptionHolder);
+        assertThat(putModelHolder.get(), is(true));
+        assertNull(exceptionHolder.get());
+
+        AtomicReference<UnparsedModel> modelHolder = new AtomicReference<>();
+        blockingCall(listener -> modelRegistry.getModel("default-sparse", listener), modelHolder, exceptionHolder);
+        assertNull(exceptionHolder.get());
+        assertEquals("default-sparse", modelHolder.get().inferenceEntityId());
+        assertEquals(TaskType.SPARSE_EMBEDDING, modelHolder.get().taskType());
+        assertReturnModelIsModifiable(modelHolder.get());
+
+        blockingCall(listener -> modelRegistry.getModel("default-text", listener), modelHolder, exceptionHolder);
+        assertEquals("default-text", modelHolder.get().inferenceEntityId());
+        assertEquals(TaskType.TEXT_EMBEDDING, modelHolder.get().taskType());
+
+        blockingCall(listener -> modelRegistry.getModel(configured1.getInferenceEntityId(), listener), modelHolder, exceptionHolder);
+        assertEquals(configured1.getInferenceEntityId(), modelHolder.get().inferenceEntityId());
+        assertEquals(configured1.getTaskType(), modelHolder.get().taskType());
+    }
+
+    public void testGetByTaskType_WithDefaults() throws Exception {
+        var serviceName = "foo";
+
+        var defaultSparse = createModel("default-sparse", TaskType.SPARSE_EMBEDDING, serviceName);
+        var defaultText = createModel("default-text", TaskType.TEXT_EMBEDDING, serviceName);
+        var defaultChat = createModel("default-chat", TaskType.COMPLETION, serviceName);
+
+        var service = mock(InferenceService.class);
+        var defaultIds = new ArrayList<InferenceService.DefaultConfigId>();
+        defaultIds.add(new InferenceService.DefaultConfigId("default-sparse", TaskType.SPARSE_EMBEDDING, service));
+        defaultIds.add(new InferenceService.DefaultConfigId("default-text", TaskType.TEXT_EMBEDDING, service));
+        defaultIds.add(new InferenceService.DefaultConfigId("default-chat", TaskType.COMPLETION, service));
+
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            var listener = (ActionListener<List<Model>>) invocation.getArguments()[0];
+            listener.onResponse(List.of(defaultSparse, defaultChat, defaultText));
+            return Void.TYPE;
+        }).when(service).defaultConfigs(any());
+        defaultIds.forEach(modelRegistry::addDefaultIds);
+
+        AtomicReference<Boolean> putModelHolder = new AtomicReference<>();
+        AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
+
+        var configuredSparse = createModel("configured-sparse", TaskType.SPARSE_EMBEDDING, serviceName);
+        var configuredText = createModel("configured-text", TaskType.TEXT_EMBEDDING, serviceName);
+        var configuredRerank = createModel("configured-rerank", TaskType.RERANK, serviceName);
+        blockingCall(listener -> modelRegistry.storeModel(configuredSparse, listener), putModelHolder, exceptionHolder);
+        assertThat(putModelHolder.get(), is(true));
+        blockingCall(listener -> modelRegistry.storeModel(configuredText, listener), putModelHolder, exceptionHolder);
+        assertThat(putModelHolder.get(), is(true));
+        blockingCall(listener -> modelRegistry.storeModel(configuredRerank, listener), putModelHolder, exceptionHolder);
+        assertThat(putModelHolder.get(), is(true));
+        assertNull(exceptionHolder.get());
+
+        AtomicReference<List<UnparsedModel>> modelHolder = new AtomicReference<>();
+        blockingCall(listener -> modelRegistry.getModelsByTaskType(TaskType.SPARSE_EMBEDDING, listener), modelHolder, exceptionHolder);
+        if (exceptionHolder.get() != null) {
+            throw exceptionHolder.get();
+        }
+        assertNull(exceptionHolder.get());
+        assertThat(modelHolder.get(), hasSize(2));
+        assertEquals("configured-sparse", modelHolder.get().get(0).inferenceEntityId());
+        assertEquals("default-sparse", modelHolder.get().get(1).inferenceEntityId());
+
+        blockingCall(listener -> modelRegistry.getModelsByTaskType(TaskType.TEXT_EMBEDDING, listener), modelHolder, exceptionHolder);
+        assertThat(modelHolder.get(), hasSize(2));
+        assertEquals("configured-text", modelHolder.get().get(0).inferenceEntityId());
+        assertEquals("default-text", modelHolder.get().get(1).inferenceEntityId());
+        assertReturnModelIsModifiable(modelHolder.get().get(0));
+
+        blockingCall(listener -> modelRegistry.getModelsByTaskType(TaskType.RERANK, listener), modelHolder, exceptionHolder);
+        assertThat(modelHolder.get(), hasSize(1));
+        assertEquals("configured-rerank", modelHolder.get().get(0).inferenceEntityId());
+
+        blockingCall(listener -> modelRegistry.getModelsByTaskType(TaskType.COMPLETION, listener), modelHolder, exceptionHolder);
+        assertThat(modelHolder.get(), hasSize(1));
+        assertEquals("default-chat", modelHolder.get().get(0).inferenceEntityId());
+        assertReturnModelIsModifiable(modelHolder.get().get(0));
+    }
+
+    private void assertInferenceIndexExists() {
+        var indexResponse = client().admin().indices().prepareGetIndex().addIndices(".inference").get();
+        assertNotNull(indexResponse.getSettings());
+        assertNotNull(indexResponse.getMappings());
+    }
+
+    @SuppressWarnings("unchecked")
+    private void assertReturnModelIsModifiable(UnparsedModel unparsedModel) {
+        var settings = unparsedModel.settings();
+        if (settings != null) {
+            var serviceSettings = (Map<String, Object>) settings.get("service_settings");
+            if (serviceSettings != null && serviceSettings.size() > 0) {
+                var itr = serviceSettings.entrySet().iterator();
+                itr.next();
+                itr.remove();
+            }
+
+            var taskSettings = (Map<String, Object>) settings.get("task_settings");
+            if (taskSettings != null && taskSettings.size() > 0) {
+                var itr = taskSettings.entrySet().iterator();
+                itr.next();
+                itr.remove();
+            }
+
+            if (unparsedModel.secrets() != null && unparsedModel.secrets().size() > 0) {
+                var itr = unparsedModel.secrets().entrySet().iterator();
+                itr.next();
+                itr.remove();
+            }
+        }
     }
 
     private Model buildElserModelConfig(String inferenceEntityId, TaskType taskType) {
-        return ElserInternalServiceTests.randomModelConfig(inferenceEntityId, taskType);
+        return switch (taskType) {
+            case SPARSE_EMBEDDING -> new org.elasticsearch.xpack.inference.services.elasticsearch.ElserInternalModel(
+                inferenceEntityId,
+                taskType,
+                ElasticsearchInternalService.NAME,
+                ElserInternalServiceSettingsTests.createRandom(),
+                ElserMlNodeTaskSettingsTests.createRandom(),
+                ChunkingSettingsFeatureFlag.isEnabled() && randomBoolean() ? ChunkingSettingsTests.createRandomChunkingSettings() : null
+            );
+            default -> throw new IllegalArgumentException("task type " + taskType + " is not supported");
+        };
     }
 
     protected <T> void blockingCall(Consumer<ActionListener<T>> function, AtomicReference<T> response, AtomicReference<Exception> error)
@@ -297,7 +618,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
             new ModelWithUnknownField(
                 inferenceEntityId,
                 TaskType.SPARSE_EMBEDDING,
-                ElserInternalService.NAME,
+                ElasticsearchInternalService.NAME,
                 ElserInternalServiceSettingsTests.createRandom(),
                 ElserMlNodeTaskSettingsTests.createRandom()
             )
@@ -375,6 +696,15 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
             public void writeTo(StreamOutput out) throws IOException {
 
             }
+
+            @Override
+            public boolean isEmpty() {
+                return true;
+            }
+
+            public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
+                return this;
+            }
         }
 
         record TestSecretSettings(String key) implements SecretSettings {
@@ -399,6 +729,11 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
                 builder.field("secret", key);
                 builder.endObject();
                 return builder;
+            }
+
+            @Override
+            public SecretSettings newSecretSettings(Map<String, Object> newSecrets) {
+                return new TestSecretSettings(newSecrets.get("secret").toString());
             }
         }
 

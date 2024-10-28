@@ -71,7 +71,7 @@ GET _snapshot/my-repo
 ----
 // TEST[skip:we're not setting up repos in these tests]
 +
-The reponse will look like this:
+The response will look like this:
 +
 [source,console-result]
 ----

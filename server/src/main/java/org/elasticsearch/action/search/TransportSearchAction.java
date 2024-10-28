@@ -52,9 +52,9 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -128,8 +128,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     public static final String FROZEN_INDICES_DEPRECATION_MESSAGE = "Searching frozen indices [{}] is deprecated."
         + " Consider cold or frozen tiers in place of frozen indices. The frozen feature will be removed in a feature release.";
 
-    public static final FeatureFlag CCS_TELEMETRY_FEATURE_FLAG = new FeatureFlag("ccs_telemetry");
-
     /** The maximum number of shards for a single search request. */
     public static final Setting<Long> SHARD_COUNT_LIMIT_SETTING = Setting.longSetting(
         "action.search.shard_count.limit",
@@ -162,6 +160,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     private final SearchResponseMetrics searchResponseMetrics;
     private final Client client;
     private final UsageService usageService;
+    private final Settings settings;
 
     @Inject
     public TransportSearchAction(
@@ -194,8 +193,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.namedWriteableRegistry = namedWriteableRegistry;
         this.executorSelector = executorSelector;
-        this.defaultPreFilterShardSize = DEFAULT_PRE_FILTER_SHARD_SIZE.get(clusterService.getSettings());
-        this.ccsCheckCompatibility = SearchService.CCS_VERSION_CHECK_SETTING.get(clusterService.getSettings());
+        this.settings = clusterService.getSettings();
+        this.defaultPreFilterShardSize = DEFAULT_PRE_FILTER_SHARD_SIZE.get(settings);
+        this.ccsCheckCompatibility = SearchService.CCS_VERSION_CHECK_SETTING.get(settings);
         this.searchResponseMetrics = searchResponseMetrics;
         this.client = client;
         this.usageService = usageService;
@@ -372,7 +372,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     searchPhaseProvider.apply(delegate)
                 );
             } else {
-                if ((listener instanceof TelemetryListener tl) && CCS_TELEMETRY_FEATURE_FLAG.isEnabled()) {
+                if (listener instanceof TelemetryListener tl) {
                     tl.setRemotes(resolvedIndices.getRemoteClusterIndices().size());
                     if (task.isAsync()) {
                         tl.setFeature(CCSUsageTelemetry.ASYNC_FEATURE);
@@ -398,7 +398,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 }
                 final TaskId parentTaskId = task.taskInfo(clusterService.localNode().getId(), false).taskId();
                 if (shouldMinimizeRoundtrips(rewritten)) {
-                    if ((listener instanceof TelemetryListener tl) && CCS_TELEMETRY_FEATURE_FLAG.isEnabled()) {
+                    if (listener instanceof TelemetryListener tl) {
                         tl.setFeature(CCSUsageTelemetry.MRT_FEATURE);
                     }
                     final AggregationReduceContext.Builder aggregationReduceContextBuilder = rewritten.source() != null
@@ -502,6 +502,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         });
         final SearchSourceBuilder source = original.source();
         if (shouldOpenPIT(source)) {
+            // disabling shard reordering for request
+            original.setPreFilterShardSize(Integer.MAX_VALUE);
             openPIT(client, original, searchService.getDefaultKeepAliveInMillis(), listener.delegateFailureAndWrap((delegate, resp) -> {
                 // We set the keep alive to -1 to indicate that we don't need the pit id in the response.
                 // This is needed since we delete the pit prior to sending the response so the id doesn't exist anymore.
@@ -1245,6 +1247,29 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 indicesAndAliases,
                 concreteLocalIndices
             );
+
+            // localShardIterators is empty since there are no matching indices. In such cases,
+            // we update the local cluster's status from RUNNING to SUCCESSFUL right away. Before
+            // we attempt to do that, we must ensure that the local cluster was specified in the user's
+            // search request. This is done by trying to fetch the local cluster via getCluster() and
+            // checking for a non-null return value. If the local cluster was never specified, its status
+            // update can be skipped.
+            if (localShardIterators.isEmpty()
+                && clusters != SearchResponse.Clusters.EMPTY
+                && clusters.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY) != null) {
+                clusters.swapCluster(
+                    RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
+                    (alias, v) -> new SearchResponse.Cluster.Builder(v).setStatus(SearchResponse.Cluster.Status.SUCCESSFUL)
+                        .setTotalShards(0)
+                        .setSuccessfulShards(0)
+                        .setSkippedShards(0)
+                        .setFailedShards(0)
+                        .setFailures(Collections.emptyList())
+                        .setTook(TimeValue.timeValueMillis(0))
+                        .setTimedOut(false)
+                        .build()
+                );
+            }
         }
         final GroupShardsIterator<SearchShardIterator> shardIterators = mergeShardsIterators(localShardIterators, remoteShardIterators);
 
@@ -1433,6 +1458,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             SearchResponse.Clusters clusters
         ) {
             if (preFilter) {
+                // only for aggs we need to contact shards even if there are no matches
+                boolean requireAtLeastOneMatch = searchRequest.source() != null && searchRequest.source().aggregations() != null;
                 return new CanMatchPreFilterSearchPhase(
                     logger,
                     searchTransportService,
@@ -1444,7 +1471,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     shardIterators,
                     timeProvider,
                     task,
-                    true,
+                    requireAtLeastOneMatch,
                     searchService.getCoordinatorRewriteContextProvider(timeProvider::absoluteStartMillis),
                     listener.delegateFailureAndWrap(
                         (l, iters) -> newSearchPhase(
@@ -1866,7 +1893,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
          * Should we collect telemetry for this search?
          */
         private boolean collectTelemetry() {
-            return CCS_TELEMETRY_FEATURE_FLAG.isEnabled() && usageBuilder.getRemotesCount() > 0;
+            return SearchService.CCS_COLLECT_TELEMETRY.get(settings) && usageBuilder.getRemotesCount() > 0;
         }
 
         public void setRemotes(int count) {

@@ -39,7 +39,6 @@ gradle @elastic/es-delivery
 build-conventions @elastic/es-delivery
 build-tools @elastic/es-delivery
 build-tools-internal @elastic/es-delivery
-*.gradle @elastic/es-delivery
 .buildkite @elastic/es-delivery
 .ci @elastic/es-delivery
 .idea @elastic/es-delivery
@@ -70,7 +69,3 @@ server/src/main/java/org/elasticsearch/threadpool @elastic/es-core-infra
 # Security
 x-pack/plugin/core/src/main/java/org/elasticsearch/xpack/core/security/authz/privilege @elastic/es-security
 x-pack/plugin/core/src/main/java/org/elasticsearch/xpack/core/security/authz/store/ReservedRolesStore.java @elastic/es-security
-
-# Analytical engine
-x-pack/plugin/esql @elastic/es-analytical-engine
-x-pack/plugin/esql-core @elastic/es-analytical-engine

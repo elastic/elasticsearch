@@ -1,0 +1,151 @@
+---
+"cross-cluster search stats basic":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: GET
+          path: /_cluster/stats
+          capabilities:
+            - "ccs-stats"
+      reason: "Capability required to run test"
+
+  - do:
+      cluster.stats: { }
+
+  - is_true: ccs
+  - is_true: ccs._search
+  - is_false: ccs.clusters # no ccs clusters configured
+  - exists: ccs._search.total
+  - exists: ccs._search.success
+  - exists: ccs._search.skipped
+  - is_true: ccs._search.took
+  - is_true: ccs._search.took_mrt_true
+  - is_true: ccs._search.took_mrt_false
+  - exists: ccs._search.remotes_per_search_max
+  - exists: ccs._search.remotes_per_search_avg
+  - exists: ccs._search.failure_reasons
+  - exists: ccs._search.features
+  - exists: ccs._search.clients
+  - exists: ccs._search.clusters
+
+---
+"cross-cluster search stats search":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: GET
+          path: /_cluster/stats
+          capabilities:
+            - "ccs-stats"
+      reason: "Capability required to run test"
+
+  - do:
+      cluster.state: {}
+  - set: { master_node: master }
+  - do:
+      nodes.info:
+        metric: [ http, transport ]
+  - set: {nodes.$master.http.publish_address: host}
+  - set: {nodes.$master.transport.publish_address: transport_host}
+
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            cluster:
+              remote:
+                cluster_one:
+                  seeds:
+                    - "${transport_host}"
+                  skip_unavailable: true
+                cluster_two:
+                  seeds:
+                    - "${transport_host}"
+                  skip_unavailable: false
+  - is_true: persistent.cluster.remote.cluster_one
+
+  - do:
+      indices.create:
+          index: test
+          body:
+              settings:
+                  number_of_replicas: 0
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        refresh: true
+        body:
+          foo: bar
+
+  - do:
+      cluster.health:
+          wait_for_status: green
+
+  - do:
+      search:
+        index: "*,*:*"
+        body:
+          query:
+            match:
+              foo: bar
+
+  - do:
+      cluster.stats: {}
+  - is_true: ccs
+  - is_true: ccs._search
+  - is_false: ccs.clusters # Still no remotes since include_remotes is not set
+
+  - do:
+      cluster.stats:
+        include_remotes: true
+  - is_true: ccs
+  - is_true: ccs._search
+  - is_true: ccs.clusters # Now we have remotes
+  - is_true: ccs.clusters.cluster_one
+  - is_true: ccs.clusters.cluster_two
+  - is_true: ccs.clusters.cluster_one.cluster_uuid
+  - match: { ccs.clusters.cluster_one.mode: sniff }
+  - match: { ccs.clusters.cluster_one.skip_unavailable: true }
+  - match: { ccs.clusters.cluster_two.skip_unavailable: false }
+  - is_true: ccs.clusters.cluster_one.version
+  - match: { ccs.clusters.cluster_one.status: green }
+  - match: { ccs.clusters.cluster_two.status: green }
+  - is_true: ccs.clusters.cluster_one.nodes_count
+  - is_true: ccs.clusters.cluster_one.shards_count
+  - is_true: ccs.clusters.cluster_one.indices_count
+  - is_true: ccs.clusters.cluster_one.indices_total_size_in_bytes
+  - is_true: ccs.clusters.cluster_one.max_heap_in_bytes
+  - is_true: ccs.clusters.cluster_one.mem_total_in_bytes
+  - is_true: ccs._search.total
+  - is_true: ccs._search.success
+  - exists: ccs._search.skipped
+  - exists: ccs._search.took
+  - exists: ccs._search.took.max
+  - exists: ccs._search.took.avg
+  - exists: ccs._search.took.p90
+  - is_true: ccs._search.took_mrt_true
+  - exists: ccs._search.took_mrt_true.max
+  - exists: ccs._search.took_mrt_true.avg
+  - exists: ccs._search.took_mrt_true.p90
+  - is_true: ccs._search.took_mrt_false
+  - exists: ccs._search.took_mrt_false.max
+  - exists: ccs._search.took_mrt_false.avg
+  - exists: ccs._search.took_mrt_false.p90
+  - match: { ccs._search.remotes_per_search_max: 2 }
+  - match: { ccs._search.remotes_per_search_avg: 2.0 }
+  - exists: ccs._search.failure_reasons
+  - exists: ccs._search.features
+  - exists: ccs._search.clients
+  - is_true: ccs._search.clusters
+  - is_true: ccs._search.clusters.cluster_one
+  - is_true: ccs._search.clusters.cluster_two
+  - gte: {ccs._search.clusters.cluster_one.total: 1}
+  - gte: {ccs._search.clusters.cluster_two.total: 1}
+  - exists: ccs._search.clusters.cluster_one.skipped
+  - exists: ccs._search.clusters.cluster_two.skipped
+  - exists: ccs._search.clusters.cluster_one.took
+  - exists: ccs._search.clusters.cluster_one.took.max
+  - exists: ccs._search.clusters.cluster_one.took.avg
+  - exists: ccs._search.clusters.cluster_one.took.p90

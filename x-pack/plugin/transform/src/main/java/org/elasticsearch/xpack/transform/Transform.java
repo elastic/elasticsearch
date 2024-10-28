@@ -138,6 +138,14 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
     public static final Integer DEFAULT_INITIAL_MAX_PAGE_SEARCH_SIZE = Integer.valueOf(500);
     public static final TimeValue DEFAULT_TRANSFORM_FREQUENCY = TimeValue.timeValueSeconds(60);
 
+    /**
+     * Hard-coded timeout used for {@link org.elasticsearch.action.support.master.MasterNodeRequest#masterNodeTimeout()} for requests to
+     * the master node from transforms code. Wherever possible, prefer to use a user-controlled timeout instead of this.
+     *
+     * @see <a href="https://github.com/elastic/elasticsearch/issues/107984">#107984</a>
+     */
+    public static final TimeValue HARD_CODED_TRANSFORM_MASTER_NODE_TIMEOUT = TimeValue.THIRTY_SECONDS;
+
     public static final int DEFAULT_FAILURE_RETRIES = 10;
     // How many times the transform task can retry on a non-critical failure.
     // This cluster-level setting is deprecated, the users should be using transform-level setting instead.

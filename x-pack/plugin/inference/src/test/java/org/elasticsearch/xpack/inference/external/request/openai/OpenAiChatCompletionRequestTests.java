@@ -87,6 +87,17 @@ public class OpenAiChatCompletionRequestTests extends ESTestCase {
         assertThat(requestMap.get("n"), is(1));
     }
 
+    public void testCreateRequest_WithStreaming() throws URISyntaxException, IOException {
+        var request = createRequest(null, null, "secret", "abc", "model", null, true);
+        var httpRequest = request.createHttpRequest();
+
+        assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
+        var httpPost = (HttpPost) httpRequest.httpRequestBase();
+
+        var requestMap = entityAsMap(httpPost.getEntity().getContent());
+        assertThat(requestMap.get("stream"), is(true));
+    }
+
     public void testTruncate_DoesNotReduceInputTextSize() throws URISyntaxException, IOException {
         var request = createRequest(null, null, "secret", "abcd", "model", null);
         var truncatedRequest = request.truncate();
@@ -118,8 +129,20 @@ public class OpenAiChatCompletionRequestTests extends ESTestCase {
         String model,
         @Nullable String user
     ) {
+        return createRequest(url, org, apiKey, input, model, user, false);
+    }
+
+    public static OpenAiChatCompletionRequest createRequest(
+        @Nullable String url,
+        @Nullable String org,
+        String apiKey,
+        String input,
+        String model,
+        @Nullable String user,
+        boolean stream
+    ) {
         var chatCompletionModel = OpenAiChatCompletionModelTests.createChatCompletionModel(url, org, apiKey, model, user);
-        return new OpenAiChatCompletionRequest(List.of(input), chatCompletionModel);
+        return new OpenAiChatCompletionRequest(List.of(input), chatCompletionModel, stream);
     }
 
 }

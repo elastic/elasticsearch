@@ -26,7 +26,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainRequest;
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainResponse;
@@ -46,11 +45,10 @@ import org.elasticsearch.action.admin.indices.segments.IndexShardSegments;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentResponse;
 import org.elasticsearch.action.admin.indices.segments.ShardSegments;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequestBuilder;
+import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequestBuilder;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.bulk.IncrementalBulkService;
-import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.ingest.DeletePipelineRequest;
 import org.elasticsearch.action.ingest.DeletePipelineTransportAction;
@@ -196,7 +194,6 @@ import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.Callable;
-import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
@@ -911,9 +908,11 @@ public abstract class ESIntegTestCase extends ESTestCase {
     /** Ensures the result counts are as expected, and logs the results if different */
     public void assertResultsAndLogOnFailure(long expectedResults, SearchResponse searchResponse) {
         final TotalHits totalHits = searchResponse.getHits().getTotalHits();
-        if (totalHits.value != expectedResults || totalHits.relation != TotalHits.Relation.EQUAL_TO) {
+        if (totalHits.value() != expectedResults || totalHits.relation() != TotalHits.Relation.EQUAL_TO) {
             StringBuilder sb = new StringBuilder("search result contains [");
-            String value = Long.toString(totalHits.value) + (totalHits.relation == TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO ? "+" : "");
+            String value = Long.toString(totalHits.value()) + (totalHits.relation() == TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO
+                ? "+"
+                : "");
             sb.append(value).append("] results. expected [").append(expectedResults).append("]");
             String failMsg = sb.toString();
             for (SearchHit hit : searchResponse.getHits().getHits()) {
@@ -1550,6 +1549,37 @@ public abstract class ESIntegTestCase extends ESTestCase {
     }
 
     /**
+     * Runs random indexing until each shard in the given index is at least minBytesPerShard in size.
+     * Force merges all cluster shards down to one segment, and then invokes refresh to ensure all shard data is visible for readers,
+     * before returning.
+     *
+     * @return The final {@link ShardStats} for all shards of the index.
+     */
+    protected ShardStats[] indexAllShardsToAnEqualOrGreaterMinimumSize(final String indexName, long minBytesPerShard) {
+        while (true) {
+            indexRandom(false, indexName, scaledRandomIntBetween(100, 10000));
+            forceMerge();
+            refresh();
+
+            final ShardStats[] shardStats = indicesAdmin().prepareStats(indexName)
+                .clear()
+                .setStore(true)
+                .setTranslog(true)
+                .get()
+                .getShards();
+
+            var smallestShardSize = Arrays.stream(shardStats)
+                .mapToLong(it -> it.getStats().getStore().sizeInBytes())
+                .min()
+                .orElseThrow(() -> new AssertionError("no shards"));
+
+            if (smallestShardSize >= minBytesPerShard) {
+                return shardStats;
+            }
+        }
+    }
+
+    /**
      * Syntactic sugar for:
      * <pre>
      *   return client().prepareIndex(index).setId(id).setSource(source).get();
@@ -1782,48 +1812,11 @@ public abstract class ESIntegTestCase extends ESTestCase {
             logger.info("Index [{}] docs async: [{}] bulk: [{}] partitions [{}]", builders.size(), false, true, partition.size());
             for (List<IndexRequestBuilder> segmented : partition) {
                 BulkResponse actionGet;
-                if (randomBoolean()) {
-                    BulkRequestBuilder bulkBuilder = client().prepareBulk();
-                    for (IndexRequestBuilder indexRequestBuilder : segmented) {
-                        bulkBuilder.add(indexRequestBuilder);
-                    }
-                    actionGet = bulkBuilder.get();
-                } else {
-                    IncrementalBulkService bulkService = internalCluster().getInstance(IncrementalBulkService.class);
-                    IncrementalBulkService.Handler handler = bulkService.newBulkRequest();
-
-                    ConcurrentLinkedQueue<IndexRequest> queue = new ConcurrentLinkedQueue<>();
-                    segmented.forEach(b -> queue.add(b.request()));
-
-                    PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
-                    AtomicInteger runs = new AtomicInteger(0);
-                    Runnable r = new Runnable() {
-
-                        @Override
-                        public void run() {
-                            int toRemove = Math.min(randomIntBetween(5, 10), queue.size());
-                            ArrayList<DocWriteRequest<?>> docs = new ArrayList<>();
-                            for (int i = 0; i < toRemove; i++) {
-                                docs.add(queue.poll());
-                            }
-
-                            if (queue.isEmpty()) {
-                                handler.lastItems(docs, () -> {}, future);
-                            } else {
-                                handler.addItems(docs, () -> {}, () -> {
-                                    // Every 10 runs dispatch to new thread to prevent stackoverflow
-                                    if (runs.incrementAndGet() % 10 == 0) {
-                                        new Thread(this).start();
-                                    } else {
-                                        this.run();
-                                    }
-                                });
-                            }
-                        }
-                    };
-                    r.run();
-                    actionGet = future.actionGet();
+                BulkRequestBuilder bulkBuilder = client().prepareBulk();
+                for (IndexRequestBuilder indexRequestBuilder : segmented) {
+                    bulkBuilder.add(indexRequestBuilder);
                 }
+                actionGet = bulkBuilder.get();
                 assertThat(actionGet.hasFailures() ? actionGet.buildFailureMessage() : "", actionGet.hasFailures(), equalTo(false));
             }
         }
@@ -2105,7 +2098,10 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 randomFrom(1, 2, SearchRequest.DEFAULT_PRE_FILTER_SHARD_SIZE)
             );
         if (randomBoolean()) {
-            builder.put(IndexingPressure.SPLIT_BULK_THRESHOLD.getKey(), randomFrom("256B", "1KB", "64KB"));
+            builder.put(IndexingPressure.SPLIT_BULK_LOW_WATERMARK.getKey(), randomFrom("256B", "512B"));
+            builder.put(IndexingPressure.SPLIT_BULK_LOW_WATERMARK_SIZE.getKey(), "1KB");
+            builder.put(IndexingPressure.SPLIT_BULK_HIGH_WATERMARK.getKey(), randomFrom("1KB", "16KB", "64KB"));
+            builder.put(IndexingPressure.SPLIT_BULK_HIGH_WATERMARK_SIZE.getKey(), "256B");
         }
         return builder.build();
     }

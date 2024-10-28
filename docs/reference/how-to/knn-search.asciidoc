@@ -45,6 +45,12 @@ results contains the full document `_source`. When the documents contain
 high-dimensional `dense_vector` fields, the `_source` can be quite large and
 expensive to load. This could significantly slow down the speed of kNN search.
 
+NOTE: <<docs-reindex, reindex>>, <<docs-update, update>>,
+and <<docs-update-by-query, update by query>> operations generally
+require the `_source` field. Disabling `_source` for a field might result in
+unexpected behavior for these operations. For example, reindex might not actually
+contain the `dense_vector` field in the new index.
+
 You can disable storing `dense_vector` fields in the `_source` through the
 <<include-exclude, `excludes`>> mapping parameter. This prevents loading and
 returning large vectors during search, and also cuts down on the index size.
@@ -53,8 +59,7 @@ since it relies on separate data structures to perform the search. Before
 using the <<include-exclude, `excludes`>> parameter, make sure to review the
 downsides of omitting fields from `_source`.
 
-Another option is to use  <<synthetic-source,synthetic `_source`>> if all
-your index fields support it.
+Another option is to use  <<synthetic-source,synthetic `_source`>>.
 
 [discrete]
 === Ensure data nodes have enough memory
@@ -102,14 +107,14 @@ merges smaller segments into larger ones through a background
 explicit steps to reduce the number of index segments.
 
 [discrete]
-==== Force merge to one segment
+==== Increase maximum segment size
 
-The <<indices-forcemerge,force merge>> operation forces an index merge. If you
-force merge to one segment, the kNN search only need to check a single,
-all-inclusive HNSW graph. Force merging `dense_vector` fields is an expensive
-operation that can take significant time to complete.
-
-include::{es-ref-dir}/indices/forcemerge.asciidoc[tag=force-merge-read-only-warn]
+{es} provides many tunable settings for controlling the merge process. One
+important setting is `index.merge.policy.max_merged_segment`. This controls
+the maximum size of the segments that are created during the merge process.
+By increasing the value, you can reduce the number of segments in the index.
+The default value is `5GB`, but that might be too small for larger dimensional vectors.
+Consider increasing this value to `10GB` or `20GB` can help reduce the number of segments.
 
 [discrete]
 ==== Create large segments during bulk indexing

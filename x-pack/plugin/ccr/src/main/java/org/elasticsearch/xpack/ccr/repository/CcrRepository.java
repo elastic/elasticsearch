@@ -47,7 +47,6 @@ import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasable;
@@ -447,10 +446,8 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
             // schedule renewals to run during the restore
             final Scheduler.Cancellable renewable = threadPool.scheduleWithFixedDelay(() -> {
                 logger.trace("{} background renewal of retention lease [{}] during restore", shardId, retentionLeaseId);
-                final ThreadContext threadContext = threadPool.getThreadContext();
-                try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+                try (var ignore = threadPool.getThreadContext().newEmptySystemContext()) {
                     // we have to execute under the system context so that if security is enabled the renewal is authorized
-                    threadContext.markAsSystemContext();
                     CcrRetentionLeases.asyncRenewRetentionLease(
                         leaderShardId,
                         retentionLeaseId,
@@ -740,7 +737,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                 mds
             ) {
 
-                final MultiFileWriter multiFileWriter = new MultiFileWriter(store, recoveryState.getIndex(), "", logger, () -> {});
+                final MultiFileWriter multiFileWriter = new MultiFileWriter(store, recoveryState.getIndex(), "", logger);
                 long offset = 0;
 
                 @Override

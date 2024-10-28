@@ -15,12 +15,17 @@ import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.threadpool.ExecutorBuilder;
+import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.xpack.core.ml.packageloader.action.GetTrainedModelPackageConfigAction;
 import org.elasticsearch.xpack.core.ml.packageloader.action.LoadTrainedModelPackageAction;
 import org.elasticsearch.xpack.ml.packageloader.action.ModelDownloadTask;
+import org.elasticsearch.xpack.ml.packageloader.action.ModelImporter;
 import org.elasticsearch.xpack.ml.packageloader.action.TransportGetTrainedModelPackageConfigAction;
 import org.elasticsearch.xpack.ml.packageloader.action.TransportLoadTrainedModelPackage;
 
@@ -44,15 +49,14 @@ public class MachineLearningPackageLoader extends Plugin implements ActionPlugin
         Setting.Property.Dynamic
     );
 
-    // re-using thread pool setup by the ml plugin
-    public static final String UTILITY_THREAD_POOL_NAME = "ml_utility";
-
     // This link will be invalid for serverless, but serverless will never be
     // air-gapped, so this message should never be needed.
     private static final String MODEL_REPOSITORY_DOCUMENTATION_LINK = format(
         "https://www.elastic.co/guide/en/machine-learning/%s/ml-nlp-elser.html#air-gapped-install",
         Build.current().version().replaceFirst("^(\\d+\\.\\d+).*", "$1")
     );
+
+    public static final String MODEL_DOWNLOAD_THREADPOOL_NAME = "model_download";
 
     public MachineLearningPackageLoader() {}
 
@@ -78,6 +82,24 @@ public class MachineLearningPackageLoader extends Plugin implements ActionPlugin
                 ModelDownloadTask.DownloadStatus.NAME,
                 ModelDownloadTask.DownloadStatus::new
             )
+        );
+    }
+
+    @Override
+    public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
+        return List.of(modelDownloadExecutor(settings));
+    }
+
+    public static FixedExecutorBuilder modelDownloadExecutor(Settings settings) {
+        // Threadpool with a fixed number of threads for
+        // downloading the model definition files
+        return new FixedExecutorBuilder(
+            settings,
+            MODEL_DOWNLOAD_THREADPOOL_NAME,
+            ModelImporter.NUMBER_OF_STREAMS,
+            -1, // unbounded queue size
+            "xpack.ml.model_download_thread_pool",
+            EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
         );
     }
 

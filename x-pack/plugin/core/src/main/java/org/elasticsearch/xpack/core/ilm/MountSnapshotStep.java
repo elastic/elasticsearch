@@ -18,11 +18,13 @@ import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotAction;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest;
 
+import java.util.ArrayList;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -37,6 +39,25 @@ public class MountSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
 
     private final String restoredIndexPrefix;
     private final MountSearchableSnapshotRequest.Storage storageType;
+    @Nullable
+    private final Integer totalShardsPerNode;
+
+    public MountSnapshotStep(
+        StepKey key,
+        StepKey nextStepKey,
+        Client client,
+        String restoredIndexPrefix,
+        MountSearchableSnapshotRequest.Storage storageType,
+        @Nullable Integer totalShardsPerNode
+    ) {
+        super(key, nextStepKey, client);
+        this.restoredIndexPrefix = restoredIndexPrefix;
+        this.storageType = Objects.requireNonNull(storageType, "a storage type must be specified");
+        if (totalShardsPerNode != null && totalShardsPerNode < 1) {
+            throw new IllegalArgumentException("[" + SearchableSnapshotAction.TOTAL_SHARDS_PER_NODE.getPreferredName() + "] must be >= 1");
+        }
+        this.totalShardsPerNode = totalShardsPerNode;
+    }
 
     public MountSnapshotStep(
         StepKey key,
@@ -45,9 +66,7 @@ public class MountSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
         String restoredIndexPrefix,
         MountSearchableSnapshotRequest.Storage storageType
     ) {
-        super(key, nextStepKey, client);
-        this.restoredIndexPrefix = restoredIndexPrefix;
-        this.storageType = Objects.requireNonNull(storageType, "a storage type must be specified");
+        this(key, nextStepKey, client, restoredIndexPrefix, storageType, null);
     }
 
     @Override
@@ -61,6 +80,11 @@ public class MountSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
 
     public MountSearchableSnapshotRequest.Storage getStorage() {
         return storageType;
+    }
+
+    @Nullable
+    public Integer getTotalShardsPerNode() {
+        return totalShardsPerNode;
     }
 
     @Override
@@ -140,6 +164,9 @@ public class MountSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
         final Settings.Builder settingsBuilder = Settings.builder();
 
         overrideTierPreference(this.getKey().phase()).ifPresent(override -> settingsBuilder.put(DataTier.TIER_PREFERENCE, override));
+        if (totalShardsPerNode != null) {
+            settingsBuilder.put(ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), totalShardsPerNode);
+        }
 
         final MountSearchableSnapshotRequest mountSearchableSnapshotRequest = new MountSearchableSnapshotRequest(
             TimeValue.MAX_VALUE,
@@ -148,9 +175,9 @@ public class MountSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
             snapshotName,
             indexName,
             settingsBuilder.build(),
-            ignoredIndexSettings(this.getKey().phase()),
+            ignoredIndexSettings(),
             // we'll not wait for the snapshot to complete in this step as the async steps are executed from threads that shouldn't
-            // perform expensive operations (ie. clusterStateProcessed)
+            // perform expensive operations (i.e. clusterStateProcessed)
             false,
             storageType
         );
@@ -198,23 +225,27 @@ public class MountSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
      * setting, the restored index would be captured by the ILM runner and, depending on what ILM execution state was captured at snapshot
      * time, make it's way forward from _that_ step forward in the ILM policy. We'll re-set this setting on the restored index at a later
      * step once we restored a deterministic execution state
-     * - index.routing.allocation.total_shards_per_node: It is  likely that frozen tier has fewer nodes than the hot tier.
-     * Keeping this setting runs the risk that we will not have enough nodes to allocate all the shards in the
-     * frozen tier and the user does not have any way of fixing this. For this reason, we ignore this setting when moving to frozen.
+     * - index.routing.allocation.total_shards_per_node: It is likely that frozen tier has fewer nodes than the hot tier. If this setting
+     * is not specifically set in the frozen tier, keeping this setting runs the risk that we will not have enough nodes to
+     * allocate all the shards in the frozen tier and the user does not have any way of fixing this. For this reason, we ignore this
+     * setting when moving to frozen. We do not ignore this setting if it is specifically set in the mount searchable snapshot step
+     * of frozen tier.
      */
-    static String[] ignoredIndexSettings(String phase) {
+    String[] ignoredIndexSettings() {
+        ArrayList<String> ignoredSettings = new ArrayList<>();
+        ignoredSettings.add(LifecycleSettings.LIFECYCLE_NAME);
         // if we are mounting a searchable snapshot in the hot phase, then we should not change the total_shards_per_node setting
-        if (TimeseriesLifecycleType.FROZEN_PHASE.equals(phase)) {
-            return new String[] {
-                LifecycleSettings.LIFECYCLE_NAME,
-                ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey() };
+        // if total_shards_per_node setting is specifically set for the frozen phase and not propagated from previous phase,
+        // then it should not be ignored
+        if (TimeseriesLifecycleType.FROZEN_PHASE.equals(this.getKey().phase()) && this.totalShardsPerNode == null) {
+            ignoredSettings.add(ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey());
         }
-        return new String[] { LifecycleSettings.LIFECYCLE_NAME };
+        return ignoredSettings.toArray(new String[0]);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), restoredIndexPrefix, storageType);
+        return Objects.hash(super.hashCode(), restoredIndexPrefix, storageType, totalShardsPerNode);
     }
 
     @Override
@@ -228,6 +259,7 @@ public class MountSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
         MountSnapshotStep other = (MountSnapshotStep) obj;
         return super.equals(obj)
             && Objects.equals(restoredIndexPrefix, other.restoredIndexPrefix)
-            && Objects.equals(storageType, other.storageType);
+            && Objects.equals(storageType, other.storageType)
+            && Objects.equals(totalShardsPerNode, other.totalShardsPerNode);
     }
 }

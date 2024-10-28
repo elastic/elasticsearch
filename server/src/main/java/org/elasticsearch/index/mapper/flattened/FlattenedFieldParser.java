@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper.flattened;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedSetDocValuesField;
+import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexableField;
@@ -18,11 +19,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.DocumentParserContext;
-import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.XContentDataHelper;
-import org.elasticsearch.xcontent.CopyingXContentParser;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -39,6 +36,7 @@ class FlattenedFieldParser {
 
     private final String rootFieldFullPath;
     private final String keyedFieldFullPath;
+    private final String keyedIgnoredValuesFieldFullPath;
 
     private final MappedFieldType fieldType;
     private final int depthLimit;
@@ -48,6 +46,7 @@ class FlattenedFieldParser {
     FlattenedFieldParser(
         String rootFieldFullPath,
         String keyedFieldFullPath,
+        String keyedIgnoredValuesFieldFullPath,
         MappedFieldType fieldType,
         int depthLimit,
         int ignoreAbove,
@@ -55,6 +54,7 @@ class FlattenedFieldParser {
     ) {
         this.rootFieldFullPath = rootFieldFullPath;
         this.keyedFieldFullPath = keyedFieldFullPath;
+        this.keyedIgnoredValuesFieldFullPath = keyedIgnoredValuesFieldFullPath;
         this.fieldType = fieldType;
         this.depthLimit = depthLimit;
         this.ignoreAbove = ignoreAbove;
@@ -65,36 +65,18 @@ class FlattenedFieldParser {
         XContentParser parser = documentParserContext.parser();
         XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
 
-        XContentBuilder rawDataForSyntheticSource = null;
-        if (documentParserContext.canAddIgnoredField() && ignoreAbove < Integer.MAX_VALUE) {
-            var copyingParser = new CopyingXContentParser(parser);
-            rawDataForSyntheticSource = copyingParser.getBuilder();
-            parser = copyingParser;
-        }
-
         ContentPath path = new ContentPath();
         List<IndexableField> fields = new ArrayList<>();
 
         var context = new Context(parser, documentParserContext);
         parseObject(context, path, fields);
-        if (rawDataForSyntheticSource != null && context.isIgnoredValueEncountered()) {
-            // One or more inner fields are ignored due to `ignore_above`.
-            // Because of that we will store whole object as is in order to generate synthetic source.
-            documentParserContext.addIgnoredField(
-                IgnoredSourceFieldMapper.NameValue.fromContext(
-                    documentParserContext,
-                    rootFieldFullPath,
-                    XContentDataHelper.encodeXContentBuilder(rawDataForSyntheticSource)
-                )
-            );
-        }
 
         return fields;
     }
 
     private void parseObject(Context context, ContentPath path, List<IndexableField> fields) throws IOException {
         String currentName = null;
-        XContentParser parser = context.getParser();
+        XContentParser parser = context.parser();
         while (true) {
             XContentParser.Token token = parser.nextToken();
             if (token == XContentParser.Token.END_OBJECT) {
@@ -111,7 +93,7 @@ class FlattenedFieldParser {
     }
 
     private void parseArray(Context context, ContentPath path, String currentName, List<IndexableField> fields) throws IOException {
-        XContentParser parser = context.getParser();
+        XContentParser parser = context.parser();
         while (true) {
             XContentParser.Token token = parser.nextToken();
             if (token == XContentParser.Token.END_ARRAY) {
@@ -128,7 +110,7 @@ class FlattenedFieldParser {
         String currentName,
         List<IndexableField> fields
     ) throws IOException {
-        XContentParser parser = context.getParser();
+        XContentParser parser = context.parser();
         if (token == XContentParser.Token.START_OBJECT) {
             path.add(currentName);
             validateDepthLimit(path);
@@ -151,19 +133,23 @@ class FlattenedFieldParser {
     }
 
     private void addField(Context context, ContentPath path, String currentName, String value, List<IndexableField> fields) {
-        if (value.length() > ignoreAbove) {
-            context.onIgnoredValue();
-            return;
-        }
-
         String key = path.pathAsText(currentName);
         if (key.contains(SEPARATOR)) {
             throw new IllegalArgumentException(
                 "Keys in [flattened] fields cannot contain the reserved character \\0. Offending key: [" + key + "]."
             );
         }
+
         String keyedValue = createKeyedValue(key, value);
         BytesRef bytesKeyedValue = new BytesRef(keyedValue);
+
+        if (value.length() > ignoreAbove) {
+            if (context.documentParserContext().mappingLookup().isSourceSynthetic()) {
+                fields.add(new StoredField(keyedIgnoredValuesFieldFullPath, bytesKeyedValue));
+            }
+            return;
+        }
+
         // check the keyed value doesn't exceed the IndexWriter.MAX_TERM_LENGTH limit enforced by Lucene at index time
         // in that case we can already throw a more user friendly exception here which includes the offending fields key and value lengths
         if (bytesKeyedValue.length > IndexWriter.MAX_TERM_LENGTH) {
@@ -198,10 +184,10 @@ class FlattenedFieldParser {
             final String keyedFieldName = FlattenedFieldParser.extractKey(bytesKeyedValue).utf8ToString();
             if (fieldType.isDimension() && fieldType.dimensions().contains(keyedFieldName)) {
                 final BytesRef keyedFieldValue = FlattenedFieldParser.extractValue(bytesKeyedValue);
-                context.getDocumentParserContext()
+                context.documentParserContext()
                     .getDimensions()
                     .addString(rootFieldFullPath + "." + keyedFieldName, keyedFieldValue)
-                    .validate(context.getDocumentParserContext().indexSettings());
+                    .validate(context.documentParserContext().indexSettings());
             }
         }
     }
@@ -239,32 +225,5 @@ class FlattenedFieldParser {
         return new BytesRef(keyedValue.bytes, valueStart, keyedValue.length - valueStart);
     }
 
-    private static class Context {
-        private final XContentParser parser;
-        private final DocumentParserContext documentParserContext;
-
-        private boolean ignoredValueEncountered;
-
-        private Context(XContentParser parser, DocumentParserContext documentParserContext) {
-            this.parser = parser;
-            this.documentParserContext = documentParserContext;
-            this.ignoredValueEncountered = false;
-        }
-
-        public XContentParser getParser() {
-            return parser;
-        }
-
-        public DocumentParserContext getDocumentParserContext() {
-            return documentParserContext;
-        }
-
-        public void onIgnoredValue() {
-            this.ignoredValueEncountered = true;
-        }
-
-        public boolean isIgnoredValueEncountered() {
-            return ignoredValueEncountered;
-        }
-    }
+    private record Context(XContentParser parser, DocumentParserContext documentParserContext) {}
 }

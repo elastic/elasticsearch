@@ -25,6 +25,7 @@ import org.elasticsearch.action.admin.indices.analyze.TransportReloadAnalyzersAc
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.bulk.IndexDocFailureStoreStatus;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -229,7 +230,7 @@ public class SynonymsManagementAPIService {
         client.prepareSearch(SYNONYMS_ALIAS_NAME)
             .setSource(new SearchSourceBuilder().size(0).trackTotalHits(true))
             .execute(listener.delegateFailureAndWrap((searchListener, countResponse) -> {
-                long totalSynonymRules = countResponse.getHits().getTotalHits().value;
+                long totalSynonymRules = countResponse.getHits().getTotalHits().value();
                 if (totalSynonymRules > maxSynonymsSets) {
                     logger.warn(
                         "The number of synonym rules in the synonym set [{}] exceeds the maximum allowed."
@@ -264,7 +265,7 @@ public class SynonymsManagementAPIService {
             .setPreference(Preference.LOCAL.type())
             .setTrackTotalHits(true)
             .execute(new DelegatingIndexNotFoundActionListener<>(synonymSetId, listener, (searchListener, searchResponse) -> {
-                final long totalSynonymRules = searchResponse.getHits().getTotalHits().value;
+                final long totalSynonymRules = searchResponse.getHits().getTotalHits().value();
                 // If there are no rules, check that the synonym set actually exists to return the proper error
                 if (totalSynonymRules == 0) {
                     checkSynonymSetExists(synonymSetId, searchListener.delegateFailure((existsListener, response) -> {
@@ -382,7 +383,7 @@ public class SynonymsManagementAPIService {
                 .setPreference(Preference.LOCAL.type())
                 .setTrackTotalHits(true)
                 .execute(l1.delegateFailureAndWrap((searchListener, searchResponse) -> {
-                    long synonymsSetSize = searchResponse.getHits().getTotalHits().value;
+                    long synonymsSetSize = searchResponse.getHits().getTotalHits().value();
                     if (synonymsSetSize >= maxSynonymsSets) {
                         listener.onFailure(
                             new IllegalArgumentException("The number of synonym rules in a synonyms set cannot exceed " + maxSynonymsSets)
@@ -602,6 +603,9 @@ public class SynonymsManagementAPIService {
         @Override
         public void onFailure(Exception e) {
             Throwable cause = ExceptionsHelper.unwrapCause(e);
+            if (cause instanceof IndexDocFailureStoreStatus.ExceptionWithFailureStoreStatus) {
+                cause = cause.getCause();
+            }
             if (cause instanceof IndexNotFoundException) {
                 delegate.onFailure(new ResourceNotFoundException("synonyms set [" + synonymSetId + "] not found"));
                 return;

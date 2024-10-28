@@ -104,7 +104,7 @@ public final class ScalingExecutorBuilder extends ExecutorBuilder<ScalingExecuto
         final String prefix,
         final EsExecutors.TaskTrackingConfig trackingConfig
     ) {
-        super(name);
+        super(name, false);
         this.coreSetting = Setting.intSetting(settingsKey(prefix, "core"), core, Setting.Property.NodeScope);
         this.maxSetting = Setting.intSetting(settingsKey(prefix, "max"), max, Setting.Property.NodeScope);
         this.keepAliveSetting = Setting.timeSetting(settingsKey(prefix, "keep_alive"), keepAlive, Setting.Property.NodeScope);

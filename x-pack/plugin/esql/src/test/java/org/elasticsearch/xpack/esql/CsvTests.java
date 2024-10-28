@@ -48,6 +48,7 @@ import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.CsvTestUtils.ActualResults;
 import org.elasticsearch.xpack.esql.CsvTestUtils.Type;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
@@ -66,10 +67,7 @@ import org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
-import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerContext;
-import org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.TestLocalPhysicalPlanOptimizer;
-import org.elasticsearch.xpack.esql.optimizer.TestPhysicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -166,7 +164,6 @@ public class CsvTests extends ESTestCase {
     private final EsqlFunctionRegistry functionRegistry = new EsqlFunctionRegistry();
     private final EsqlParser parser = new EsqlParser();
     private final Mapper mapper = new Mapper(functionRegistry);
-    private final PhysicalPlanOptimizer physicalPlanOptimizer = new TestPhysicalPlanOptimizer(new PhysicalOptimizerContext(configuration));
     private ThreadPool threadPool;
     private Executor executor;
 
@@ -248,19 +245,23 @@ public class CsvTests extends ESTestCase {
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.UNION_TYPES.capabilityName())
             );
             assumeFalse(
-                "can't use match command in csv tests",
-                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.MATCH_COMMAND.capabilityName())
-            );
-            assumeFalse(
                 "can't use QSTR function in csv tests",
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.QSTR_FUNCTION.capabilityName())
+            );
+            assumeFalse(
+                "can't use MATCH function in csv tests",
+                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.MATCH_FUNCTION.capabilityName())
             );
 
             if (Build.current().isSnapshot()) {
                 assertThat(
                     "Capability is not included in the enabled list capabilities on a snapshot build. Spelling mistake?",
                     testCase.requiredCapabilities,
-                    everyItem(in(EsqlCapabilities.CAPABILITIES))
+                    everyItem(in(EsqlCapabilities.capabilities(true)))
+                );
+                assumeTrue(
+                    "Capability not supported in this build",
+                    EsqlCapabilities.capabilities(false).containsAll(testCase.requiredCapabilities)
                 );
             } else {
                 for (EsqlCapabilities.Cap c : EsqlCapabilities.Cap.values()) {
@@ -427,7 +428,8 @@ public class CsvTests extends ESTestCase {
             new LogicalPlanOptimizer(new LogicalOptimizerContext(configuration)),
             mapper,
             TEST_VERIFIER,
-            new PlanningMetrics()
+            new PlanningMetrics(),
+            null
         );
         TestPhysicalOperationProviders physicalOperationProviders = testOperationProviders(testDataset);
 
@@ -435,6 +437,7 @@ public class CsvTests extends ESTestCase {
 
         session.executeOptimizedPlan(
             new EsqlQueryRequest(),
+            new EsqlExecutionInfo(randomBoolean()),
             runPhase(bigArrays, physicalOperationProviders),
             session.optimizedPlan(analyzed),
             listener.delegateFailureAndWrap(
@@ -571,6 +574,6 @@ public class CsvTests extends ESTestCase {
             }
         };
         listener = ActionListener.releaseAfter(listener, () -> Releasables.close(drivers));
-        runner.runToCompletion(drivers, listener.map(ignore -> new Result(physicalPlan.output(), collectedPages, List.of())));
+        runner.runToCompletion(drivers, listener.map(ignore -> new Result(physicalPlan.output(), collectedPages, List.of(), null)));
     }
 }

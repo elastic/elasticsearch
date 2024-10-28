@@ -480,9 +480,10 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
     }
 
     private RepositoryVerificationException analyseRepositoryExpectFailure(RepositoryAnalyzeAction.Request request) {
-        return asInstanceOf(
+        return safeAwaitAndUnwrapFailure(
             RepositoryVerificationException.class,
-            ExceptionsHelper.unwrapCause(safeAwaitFailure(RepositoryAnalyzeAction.Response.class, l -> analyseRepository(request, l)))
+            RepositoryAnalyzeAction.Response.class,
+            l -> analyseRepository(request, l)
         );
     }
 

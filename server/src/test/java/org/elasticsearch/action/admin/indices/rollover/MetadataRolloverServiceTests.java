@@ -13,7 +13,7 @@ import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
-import org.elasticsearch.action.support.IndicesOptions.FailureStoreOptions;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasAction;
@@ -34,6 +34,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
@@ -63,6 +64,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class MetadataRolloverServiceTests extends ESTestCase {
 
@@ -745,14 +747,14 @@ public class MetadataRolloverServiceTests extends ESTestCase {
         final String defaultRolloverIndexName;
         final boolean useDataStream = randomBoolean();
         final Metadata.Builder builder = Metadata.builder();
-        var failureStoreOptions = FailureStoreOptions.DEFAULT;
+        var defaultSelectorOptions = IndicesOptions.SelectorOptions.DEFAULT;
         if (useDataStream) {
             DataStream dataStream = DataStreamTestHelper.randomInstance()
                 // ensure no replicate data stream
                 .promoteDataStream();
             rolloverTarget = dataStream.getName();
             if (dataStream.isFailureStoreEnabled() && randomBoolean()) {
-                failureStoreOptions = new FailureStoreOptions(false, true);
+                defaultSelectorOptions = IndicesOptions.SelectorOptions.FAILURES;
                 sourceIndexName = dataStream.getFailureStoreWriteIndex().getName();
                 defaultRolloverIndexName = DataStream.getDefaultFailureStoreName(
                     dataStream.getName(),
@@ -813,7 +815,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
             true,
             null,
             null,
-            failureStoreOptions.includeFailureIndices()
+            IndicesOptions.SelectorOptions.FAILURES.equals(defaultSelectorOptions)
         );
 
         newIndexName = newIndexName == null ? defaultRolloverIndexName : newIndexName;
@@ -833,6 +835,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
         final TestTelemetryPlugin telemetryPlugin = new TestTelemetryPlugin();
 
         ThreadPool testThreadPool = mock(ThreadPool.class);
+        when(testThreadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         MetadataRolloverService rolloverService = DataStreamTestHelper.getMetadataRolloverService(
             dataStream,
             testThreadPool,

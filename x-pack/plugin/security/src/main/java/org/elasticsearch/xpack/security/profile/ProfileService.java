@@ -16,7 +16,6 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.get.GetRequest;
@@ -37,6 +36,7 @@ import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.Lucene;
@@ -414,19 +414,19 @@ public class ProfileService {
                             logger.debug("error on counting total profiles", items[0].getFailure());
                             usage.put("total", 0L);
                         } else {
-                            usage.put("total", items[0].getResponse().getHits().getTotalHits().value);
+                            usage.put("total", items[0].getResponse().getHits().getTotalHits().value());
                         }
                         if (items[1].isFailure()) {
                             logger.debug("error on counting enabled profiles", items[0].getFailure());
                             usage.put("enabled", 0L);
                         } else {
-                            usage.put("enabled", items[1].getResponse().getHits().getTotalHits().value);
+                            usage.put("enabled", items[1].getResponse().getHits().getTotalHits().value());
                         }
                         if (items[2].isFailure()) {
                             logger.debug("error on counting recent profiles", items[0].getFailure());
                             usage.put("recent", 0L);
                         } else {
-                            usage.put("recent", items[2].getResponse().getHits().getTotalHits().value);
+                            usage.put("recent", items[2].getResponse().getHits().getTotalHits().value());
                         }
                         listener.onResponse(usage);
                     }, listener::onFailure)

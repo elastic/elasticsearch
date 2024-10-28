@@ -693,7 +693,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
                 }
             }, 30, TimeUnit.SECONDS);
             cancellable.cancel();
-            assertBusy(mockLog::assertAllExpectationsMatched);
+            mockLog.awaitAllExpectationsMatched();
             logger.info("--> waiting for field-caps tasks to be cancelled");
             assertBusy(() -> {
                 List<TaskInfo> tasks = clusterAdmin().prepareListTasks()

@@ -11,7 +11,7 @@ setup:
         refresh: true
         body:
           - create: {}
-          - '{"@timestamp":"2024-07-18T14:48:33.467654000Z","data_stream":{"dataset":"generic.otel","namespace":"default"}, "attributes": { "foo": "bar"}, "body_text":"Error: Unable to connect to the database.","severity_text":"ERROR","severity_number":3,"trace_id":"abc123xyz456def789ghi012jkl345"}'
+          - '{"@timestamp":"2024-07-18T14:48:33.467654000Z","data_stream":{"dataset":"generic.otel","namespace":"default"}, "attributes": { "foo": "bar"}, "body":{"text":"Error: Unable to connect to the database."},"severity_text":"ERROR","severity_number":3,"trace_id":"abc123xyz456def789ghi012jkl345"}'
   - is_false: errors
   - do:
       search:
@@ -39,7 +39,8 @@ setup:
             attributes:
               foo: [3, 2, 1]
               bar: [b, c, a]
-            body_text: "Error: Unable to connect to the database."
+            body:
+              text: "Error: Unable to connect to the database."
             severity_text: ERROR
   - is_false: errors
   - do:
@@ -48,6 +49,178 @@ setup:
         body:
           fields: ["*"]
   - length: { hits.hits: 1 }
-  - match: { hits.hits.0.fields.resource\.attributes\.host\.ip: ["0.0.0.0", "127.0.0.1"] }
-  - match: { hits.hits.0.fields.attributes\.foo: [1, 2, 3] }
-  - match: { hits.hits.0.fields.attributes\.bar: [a, b, c] }
+  - match: { hits.hits.0.fields.resource\.attributes\.host\.ip: ["127.0.0.1", "0.0.0.0"] }
+  - match: { hits.hits.0.fields.attributes\.foo: [3, 2, 1] }
+  - match: { hits.hits.0.fields.attributes\.bar: [b, c, a] }
+---
+"Exception aliases":
+  - do:
+      bulk:
+        index: logs-generic.otel-default
+        refresh: true
+        body:
+          - create: {}
+          - '{"@timestamp":"2024-07-18T14:48:33.467654000Z","data_stream":{"dataset":"generic.otel","namespace":"default"}, "attributes": { "exception.type": "MyException", "exception.message": "foo", "exception.stacktrace": "Exception in thread \"main\" java.lang.RuntimeException: Test exception\n at com.example.GenerateTrace.methodB(GenerateTrace.java:13)\n at com.example.GenerateTrace.methodA(GenerateTrace.java:9)\n at com.example.GenerateTrace.main(GenerateTrace.java:5)" },"trace_id":"abc123xyz456def789ghi012jkl345"}'
+  - is_false: errors
+  - do:
+      search:
+        index: logs-generic.otel-default
+        body:
+          fields: ["error.exception.type", "error.exception.message", "error.stack_trace"]
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0.fields.error\.exception\.type: ["MyException"] }
+  - match: { hits.hits.0.fields.error\.exception\.message: ["foo"] }
+  - match: { hits.hits.0.fields.error\.stack_trace: ["Exception in thread \"main\" java.lang.RuntimeException: Test exception\n at com.example.GenerateTrace.methodB(GenerateTrace.java:13)\n at com.example.GenerateTrace.methodA(GenerateTrace.java:9)\n at com.example.GenerateTrace.main(GenerateTrace.java:5)"] }
+---
+"resource.attributes.host.name @timestamp should be used as sort fields":
+  - do:
+      bulk:
+        index: logs-generic.otel-default
+        refresh: true
+        body:
+          - create: {}
+          - '{"@timestamp":"2024-07-18T14:49:33.467654000Z","data_stream":{"dataset":"generic.otel","namespace":"default"}, "body": {"text":"error1"}}'
+  - is_false: errors
+  - do:
+      indices.get_data_stream:
+        name: logs-generic.otel-default
+  - set: { data_streams.0.indices.0.index_name: datastream-backing-index }
+  - do:
+      indices.get_settings:
+        index: $datastream-backing-index
+  - is_true: $datastream-backing-index
+  - match: { .$datastream-backing-index.settings.index.sort.field.0: "resource.attributes.host.name" }
+  - match: { .$datastream-backing-index.settings.index.sort.field.1: "@timestamp" }
+---
+Event body:
+  - do:
+      bulk:
+        index: logs-generic.otel-default
+        refresh: true
+        body:
+          - create: {}
+          - "@timestamp": 2024-07-18T14:48:33.467654000Z
+            resource:
+              attributes:
+                service.name: my-service
+            attributes:
+              event.name: foo
+            body:
+              structured:
+                foo:
+                  bar: baz
+  - is_false: errors
+  - do:
+      indices.get_data_stream:
+        name: logs-generic.otel-default
+  - set: { data_streams.0.indices.0.index_name: datastream-backing-index }
+  - do:
+      indices.get_mapping:
+        index: $datastream-backing-index
+  - is_true: $datastream-backing-index
+  - match: { .$datastream-backing-index.mappings.properties.body.properties.structured.properties.foo\.bar.type: "keyword" }
+---
+Structured log body:
+  - do:
+      bulk:
+        index: logs-generic.otel-default
+        refresh: true
+        body:
+          - create: {}
+          - "@timestamp": 2024-07-18T14:48:33.467654000Z
+            resource:
+              attributes:
+                service.name: my-service
+            body:
+              flattened:
+                foo:
+                  bar: baz
+  - is_false: errors
+  - do:
+      indices.get_data_stream:
+        name: logs-generic.otel-default
+  - set: { data_streams.0.indices.0.index_name: datastream-backing-index }
+  - do:
+      indices.get_mapping:
+        index: $datastream-backing-index
+  - is_true: $datastream-backing-index
+  - match: { .$datastream-backing-index.mappings.properties.body.properties.flattened.type: "flattened" }
+---
+"event.dataset alias must point to data_stream.dataset":
+  - do:
+      bulk:
+        index: logs-generic.otel-default
+        refresh: true
+        body:
+          - create: {}
+          - '{"@timestamp":"2024-07-18T14:49:33.467654000Z","data_stream":{"dataset":"generic.otel","namespace":"default"}, "body_text":"error1"}'
+  - is_false: errors
+  - is_false: errors
+  - do:
+      search:
+        index: logs-generic.otel-default
+        body:
+          fields: ["event.dataset"]
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0.fields.event\.dataset: ["generic.otel"] }
+---
+host.name pass-through:
+  - do:
+      bulk:
+        index: logs-generic.otel-default
+        refresh: true
+        body:
+          - create: {}
+          - "@timestamp": 2024-07-18T14:48:33.467654000Z
+            resource:
+              attributes:
+                host.name: localhost
+  - is_false: errors
+  - do:
+      search:
+        index: logs-generic.otel-default
+        body:
+          query:
+            term:
+              host.name: localhost
+          fields: [ "*" ]
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0.fields.resource\.attributes\.host\.name: [ "localhost" ] }
+  - match: { hits.hits.0.fields.host\.name: [ "localhost" ] }
+---
+"kubernetes.* -> resource.attributes.k8s.* aliases":
+  - do:
+      bulk:
+        index: logs-generic.otel-default
+        refresh: true
+        body:
+          - create: { }
+          - "@timestamp": 2024-07-18T14:48:33.467654000Z
+            data_stream:
+              dataset: generic.otel
+              namespace: default
+            resource:
+              attributes:
+                k8s.container.name: myContainerName
+                k8s.cronjob.name: myCronJobName
+                k8s.job.name: myJobName
+                k8s.statefulset.name: myStatefulsetName
+                k8s.daemonset.name: myDaemonsetName
+                k8s.replicaset.name: myReplicasetName
+                k8s.node.uid: myNodeUid
+                k8s.node.hostname: myNodeHostname
+  - is_false: errors
+  - do:
+      search:
+        index: logs-generic.otel-default
+        body:
+          fields: ["kubernetes.container.name", "kubernetes.cronjob.name", "kubernetes.job.name", "kubernetes.statefulset.name", "kubernetes.daemonset.name", "kubernetes.replicaset.name", "kubernetes.node.uid", "kubernetes.node.hostname" ]
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0.fields.kubernetes\.container\.name : ["myContainerName"] }
+  - match: { hits.hits.0.fields.kubernetes\.cronjob\.name : ["myCronJobName"] }
+  - match: { hits.hits.0.fields.kubernetes\.job\.name : ["myJobName"] }
+  - match: { hits.hits.0.fields.kubernetes\.statefulset\.name : ["myStatefulsetName"] }
+  - match: { hits.hits.0.fields.kubernetes\.daemonset\.name : ["myDaemonsetName"] }
+  - match: { hits.hits.0.fields.kubernetes\.replicaset\.name : ["myReplicasetName"] }
+  - match: { hits.hits.0.fields.kubernetes\.node\.uid : ["myNodeUid"] }
+  - match: { hits.hits.0.fields.kubernetes\.node\.hostname : ["myNodeHostname"] }

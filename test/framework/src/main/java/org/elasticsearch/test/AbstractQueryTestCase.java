@@ -751,6 +751,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                 }
                 break;
             case INT_FIELD_NAME:
+            case INT_ALIAS_FIELD_NAME:
                 value = randomIntBetween(0, 10);
                 break;
             case DOUBLE_FIELD_NAME:
@@ -815,6 +816,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     protected static Fuzziness randomFuzziness(String fieldName) {
         switch (fieldName) {
             case INT_FIELD_NAME:
+            case INT_ALIAS_FIELD_NAME:
             case DOUBLE_FIELD_NAME:
             case DATE_FIELD_NAME:
             case DATE_NANOS_FIELD_NAME:

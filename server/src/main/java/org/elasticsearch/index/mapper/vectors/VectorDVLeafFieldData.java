@@ -33,6 +33,8 @@ import org.elasticsearch.search.DocValueFormat;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 
@@ -91,8 +93,7 @@ final class VectorDVLeafFieldData implements LeafFieldData {
         int dims = elementType == ElementType.BIT ? this.dims / Byte.SIZE : this.dims;
         return switch (elementType) {
             case BYTE, BIT -> new FormattedDocValues() {
-                private byte[] values;
-                private int valuesCursor;
+                private List<Byte> values;
                 private ByteVectorValues byteVectorValues; // use when indexed
                 private KnnVectorValues.DocIndexIterator iterator; // use when indexed
                 private BinaryDocValues binary; // use when not indexed
@@ -107,7 +108,10 @@ final class VectorDVLeafFieldData implements LeafFieldData {
                         if (iterator.advance(docId) == NO_MORE_DOCS) {
                             return false;
                         }
-                        values = byteVectorValues.vectorValue(iterator.index());
+                        values = new ArrayList<>(dims);
+                        for (byte b : byteVectorValues.vectorValue(iterator.index())) {
+                            values.add(b);
+                        }
                     } else {
                         if (binary == null) {
                             binary = DocValues.getBinary(reader, field);
@@ -120,27 +124,25 @@ final class VectorDVLeafFieldData implements LeafFieldData {
                         if (indexVersion.onOrAfter(DenseVectorFieldMapper.LITTLE_ENDIAN_FLOAT_STORED_INDEX_VERSION)) {
                             byteBuffer.order(ByteOrder.LITTLE_ENDIAN);
                         }
-                        values = new byte[dims];
+                        values = new ArrayList<>(dims);
                         for (int dim = 0; dim < dims; dim++) {
-                            values[dim] = byteBuffer.get();
+                            values.add(byteBuffer.get());
                         }
                     }
-                    valuesCursor = 0;
                     return true;
                 }
 
                 @Override
                 public int docValueCount() {
-                    return dims;
+                    return 1;
                 }
 
                 public Object nextValue() {
-                    return values[valuesCursor++];
+                    return values;
                 }
             };
             case FLOAT -> new FormattedDocValues() {
-                private float[] values;
-                private int valuesCursor;
+                private List<Float> values;
                 private FloatVectorValues floatVectorValues; // use when indexed
                 private KnnVectorValues.DocIndexIterator iterator; // use when indexed
                 private BinaryDocValues binary; // use when not indexed
@@ -155,7 +157,10 @@ final class VectorDVLeafFieldData implements LeafFieldData {
                         if (iterator.advance(docId) == NO_MORE_DOCS) {
                             return false;
                         }
-                        values = floatVectorValues.vectorValue(iterator.index());
+                        values = new ArrayList<>(dims);
+                        for (float f : floatVectorValues.vectorValue(iterator.index())) {
+                            values.add(f);
+                        }
                     } else {
                         if (binary == null) {
                             binary = DocValues.getBinary(reader, field);
@@ -168,23 +173,22 @@ final class VectorDVLeafFieldData implements LeafFieldData {
                         if (indexVersion.onOrAfter(DenseVectorFieldMapper.LITTLE_ENDIAN_FLOAT_STORED_INDEX_VERSION)) {
                             byteBuffer.order(ByteOrder.LITTLE_ENDIAN);
                         }
-                        values = new float[dims];
+                        values = new ArrayList<>(dims);
                         for (int dim = 0; dim < dims; dim++) {
-                            values[dim] = byteBuffer.getFloat();
+                            values.add(byteBuffer.getFloat());
                         }
                     }
-                    valuesCursor = 0;
                     return true;
                 }
 
                 @Override
                 public int docValueCount() {
-                    return dims;
+                    return 1;
                 }
 
                 @Override
                 public Object nextValue() {
-                    return values[valuesCursor++];
+                    return values;
                 }
             };
         };

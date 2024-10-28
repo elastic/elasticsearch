@@ -262,9 +262,6 @@ tests:
 - class: org.elasticsearch.oldrepos.OldRepositoryAccessIT
   method: testOldRepoAccess
   issue: https://github.com/elastic/elasticsearch/issues/115631
-- class: org.elasticsearch.xpack.search.CrossClusterAsyncSearchIT
-  method: testCCSClusterDetailsWhereAllShardsSkippedInCanMatch
-  issue: https://github.com/elastic/elasticsearch/issues/115652
 - class: org.elasticsearch.index.get.GetResultTests
   method: testToAndFromXContent
   issue: https://github.com/elastic/elasticsearch/issues/115688

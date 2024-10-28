@@ -2410,7 +2410,6 @@ public class SnapshotResiliencyTests extends ESTestCase {
                             Collections.emptyList(),
                             client,
                             null,
-                            DocumentParsingProvider.EMPTY_INSTANCE,
                             FailureStoreMetrics.NOOP
                         ),
                         mockFeatureService,
@@ -2431,7 +2430,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     threadPool,
                     shardStateAction,
                     mappingUpdatedAction,
-                    new UpdateHelper(scriptService, DocumentParsingProvider.EMPTY_INSTANCE),
+                    new UpdateHelper(scriptService),
                     actionFilters,
                     indexingMemoryLimits,
                     EmptySystemIndices.INSTANCE,

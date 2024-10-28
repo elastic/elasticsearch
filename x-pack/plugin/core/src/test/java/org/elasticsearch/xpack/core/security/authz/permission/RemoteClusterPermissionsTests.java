@@ -15,6 +15,8 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.xcontent.XContentUtils;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -27,6 +29,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.TransportVersions.ROLE_MONITOR_STATS;
 import static org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions.ROLE_REMOTE_CLUSTER_PRIVS;
@@ -161,25 +164,25 @@ public class RemoteClusterPermissionsTests extends AbstractXContentSerializingTe
         }
     }
 
-    public void testMonitorEnrichPerVersion() {
-        testRemotePermissionPerVersion("monitor_enrich", ROLE_REMOTE_CLUSTER_PRIVS);
-        testRemotePermissionPerVersion("monitor_stats", ROLE_MONITOR_STATS);
+    public void testPermissionsPerVersion() {
+        testPermissionPerVersion("monitor_enrich", ROLE_REMOTE_CLUSTER_PRIVS);
+        testPermissionPerVersion("monitor_stats", ROLE_MONITOR_STATS);
     }
 
-    private void testRemotePermissionPerVersion(String permission, TransportVersion version) {
+    private void testPermissionPerVersion(String permission, TransportVersion version) {
         // test permission before, after and on the version
         String[] privileges = randomBoolean() ? new String[] { permission } : new String[] { permission, "foo", "bar" };
         String[] before = new RemoteClusterPermissions().addGroup(new RemoteClusterPermissionGroup(privileges, new String[] { "*" }))
             .privilegeNames("*", TransportVersionUtils.getPreviousVersion(version));
-        // empty set since monitor_enrich is not allowed in the before version
+        // empty set since permissions is not allowed in the before version
         assertThat(Set.of(before), equalTo(Collections.emptySet()));
         String[] on = new RemoteClusterPermissions().addGroup(new RemoteClusterPermissionGroup(privileges, new String[] { "*" }))
             .privilegeNames("*", version);
-        // only monitor_enrich since the other values are not allowed
+        // the permission is found on that provided version
         assertThat(Set.of(on), equalTo(Set.of(permission)));
         String[] after = new RemoteClusterPermissions().addGroup(new RemoteClusterPermissionGroup(privileges, new String[] { "*" }))
             .privilegeNames("*", TransportVersion.current());
-        // only monitor_enrich since the other values are not allowed
+        // current version (after the version) has the permission
         assertThat(Set.of(after), equalTo(Set.of(permission)));
     }
 
@@ -223,22 +226,48 @@ public class RemoteClusterPermissionsTests extends AbstractXContentSerializingTe
 
     @Override
     protected RemoteClusterPermissions createTestInstance() {
+        Set<String> all = RemoteClusterPermissions.allowedRemoteClusterPermissions.values()
+            .stream()
+            .flatMap(Set::stream)
+            .collect(Collectors.toSet());
+        List<String> randomPermission = randomList(1, all.size(), () -> randomFrom(all));
         return new RemoteClusterPermissions().addGroup(
-            new RemoteClusterPermissionGroup(new String[] { "monitor_enrich" }, new String[] { "*" })
+            new RemoteClusterPermissionGroup(randomPermission.toArray(new String[0]), new String[] { "*" })
         );
     }
 
     @Override
     protected RemoteClusterPermissions mutateInstance(RemoteClusterPermissions instance) throws IOException {
         return new RemoteClusterPermissions().addGroup(
-            new RemoteClusterPermissionGroup(new String[] { "monitor_enrich" }, new String[] { "*" })
+            new RemoteClusterPermissionGroup(new String[] { "monitor_enrich", "monitor_stats" }, new String[] { "*" })
         ).addGroup(new RemoteClusterPermissionGroup(new String[] { "foobar" }, new String[] { "*" }));
     }
 
     @Override
     protected RemoteClusterPermissions doParseInstance(XContentParser parser) throws IOException {
-        // fromXContent/parsing isn't supported since we still do old school manual parsing of the role descriptor
-        return createTestInstance();
+        // fromXContent/object parsing isn't supported since we still do old school manual parsing of the role descriptor
+        // so this test is silly because it only tests we know how to manually parse the test instance in this test
+        // this is needed since we want the other parts from the AbstractXContentSerializingTestCase suite
+        RemoteClusterPermissions remoteClusterPermissions = new RemoteClusterPermissions();
+        String[] privileges = null;
+        String[] clusters = null;
+        XContentParser.Token token;
+        String currentFieldName = null;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.START_OBJECT) {
+                continue;
+            }
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if (RoleDescriptor.Fields.PRIVILEGES.match(currentFieldName, parser.getDeprecationHandler())) {
+                privileges = XContentUtils.readStringArray(parser, false);
+
+            } else if (RoleDescriptor.Fields.CLUSTERS.match(currentFieldName, parser.getDeprecationHandler())) {
+                clusters = XContentUtils.readStringArray(parser, false);
+            }
+        }
+        remoteClusterPermissions.addGroup(new RemoteClusterPermissionGroup(privileges, clusters));
+        return remoteClusterPermissions;
     }
 
     @Override

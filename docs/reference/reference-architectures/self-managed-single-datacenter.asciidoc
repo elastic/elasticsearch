@@ -1,5 +1,5 @@
 [[self-managed-single-datacenter]]
-=== Self-managed hot-frozen multi-region architecture for time series data
+== Self-managed hot-frozen multi-region architecture for time series data
 ++++
 <titleabbrev>Architecture: Self-managed - multi-region</titleabbrev>
 ++++
@@ -16,7 +16,7 @@ TIP: This architecture includes all the necessary components of the Elastic Stac
 
 [discrete]
 [[single-datacenter-use-case]]
-==== Use case
+=== Use case
 
 This architecture is intended for organizations that need to do the following:
 
@@ -29,13 +29,13 @@ This architecture is intended for organizations that need to do the following:
 
 [discrete]
 [[single-datacenter-architecture]]
-==== Architecture
+=== Architecture
 
 image::images/single-datacenter.png["A self hosted single datacenter deployment"]
 
 [discrete]
 [[single-datacenter-considerations]]
-==== Important considerations
+=== Important considerations
 
 The following list are important conderations for this architecture:
 
@@ -69,14 +69,14 @@ The following list are important conderations for this architecture:
 
 [discrete]
 [[single-datacenter-limitations]]
-==== Limitations of this architecture
+=== Limitations of this architecture
 * This design does not address cross region disaster recovery.
 * Only a single copy of the most recently written data that is not yet part of a snapshot data exists during maintenance windows.
 * This design assumes the data is written once and not updated.
 
 [discrete]
 [[single-datacenter-resources]]
-==== Resources and references
+=== Resources and references
 
 * <<shard-size-best-practices,Size your shards>>
 * https://www.elastic.co/guide/en/elasticsearch/reference/current/index.html[Elasticsearch Documentation]

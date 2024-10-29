@@ -1,5 +1,5 @@
 [[elastic-cloud-architecture]]
-=== Elastic Cloud Hot-Frozen Architecture for Time Series Data
+== Elastic Cloud Hot-Frozen Architecture for Time Series Data
 ++++
 <titleabbrev>Architecture: Elastic Cloud hot-frozen</titleabbrev>
 ++++
@@ -13,7 +13,7 @@ The most important foundational step to any architecture is designing your deplo
 
 [discrete]
 [[cloud-hot-use-case]]
-==== Use case
+=== Use case
 
 This architecture is intended for organizations that need to do the following:
 
@@ -24,13 +24,13 @@ This architecture is intended for organizations that need to do the following:
 
 [discrete]
 [[cloud-hot-frozen-architecture]]
-==== Architecture
+=== Architecture
 
 image::images/elastic-cloud-architecture.png["An Elastic Cloud Architecture"]
 
 [discrete]
 [[cloud-hot-frozen-considerations]]
-==== Important considerations
+=== Important considerations
 
 The following list are important conderations for this architecture:
 
@@ -39,12 +39,12 @@ The following list are important conderations for this architecture:
 
 [discrete]
 [[cloud-architecture-limitations]]
-==== Limitations of this architecture
+=== Limitations of this architecture
 * This architecture is a high-availability Elasticsearch architecture. It is not intended as a Disaster Recovery architecture since it is deployed across Availability Zones in a single cloud region. This architecture can be enhanced for Disaster Recovery by adding a second deployment in another cloud region. Details on Disaster Recovery for Elasticsearch can be found at, https://www.elastic.co/guide/en/elasticsearch/reference/current/xpack-ccr.html#ccr-disaster-recovery[disaster recovery].
 
 [discrete]
 [[cloud-hot-frozen-resources]]
-==== Resources and references
+=== Resources and references
 
 * https://www.elastic.co/guide/en/cloud/current/ec-getting-started.html[Elastic Cloud (Elasticsearch Service)]
 * https://www.elastic.co/guide/en/cloud/current/ec-prepare-production.html[Elastic Cloud - Preparing a deployment for production]

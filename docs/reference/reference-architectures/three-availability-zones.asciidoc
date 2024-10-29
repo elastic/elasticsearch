@@ -1,5 +1,5 @@
 [[three-availability-zones]]
-=== Self-managed hot-frozen three availability zone architecture for time series data
+== Self-managed hot-frozen three availability zone architecture for time series data
 ++++
 <titleabbrev>Architecture: Self-managed - one region</titleabbrev>
 ++++
@@ -10,7 +10,7 @@ TIP: This architecture includes all the necessary components of the Elastic Stac
 
 [discrete]
 [[three-availability-zones-use-case]]
-==== Use case
+=== Use case
 
 This architecture is intended for organizations that need to do the following: 
 
@@ -23,13 +23,13 @@ This architecture is intended for organizations that need to do the following:
 
 [discrete]
 [[three-availability-zones-architecture]]
-==== Architecture
+=== Architecture
 
 image::images/three-availability-zone.png["A three-availability-zones time-series architecture"]
 
 [discrete]
 [[three-availability-zones-considerations]]
-==== Important considerations
+=== Important considerations
 
 The following list are important conderations for this architecture:
 
@@ -47,7 +47,7 @@ The following list are important conderations for this architecture:
 
 [discrete]
 [[three-zone-limitations]]
-==== Limitations of this architecture
+=== Limitations of this architecture
 
 ** No region resilience
 ** Only a single copy of the most recently written data that is not yet part of a snapshot data exists during maintenance windows.
@@ -56,7 +56,7 @@ The following list are important conderations for this architecture:
 
 [discrete]
 [[three-zone-benefits]]
-==== Benefits of this architecture
+=== Benefits of this architecture
 
 ** Reduces cost by leveraging the Frozen tier as soon as that makes sense from an ingest and most frequently read documents perspective
 ** Significantly reduces the likelihood of hot-spotting due to the sharding strategy
@@ -64,7 +64,7 @@ The following list are important conderations for this architecture:
 
 [discrete]
 [[three-availability-zones-resources]]
-==== Resources and references
+=== Resources and references
 
 * <<shard-size-best-practices,Size your shards>>
 * https://www.elastic.co/guide/en/elasticsearch/reference/current/index.html[Elasticsearch Documentation]

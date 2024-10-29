@@ -1,5 +1,5 @@
 [[multi-region-two-datacenter-architecture]]
-=== Self-managed hot-frozen multi-region architecture for time series data
+== Self-managed hot-frozen multi-region architecture for time series data
 ++++
 <titleabbrev>Architecture: Self-managed - two datacenter</titleabbrev>
 ++++
@@ -10,7 +10,7 @@ TIP: This architecture includes all the necessary components of the Elastic Stac
 
 [discrete]
 [[multi-region-use-case]]
-==== Use case
+=== Use case
 
 This architecture is intended for organizations that need to do the following: 
 
@@ -19,24 +19,24 @@ This architecture is intended for organizations that need to do the following:
 
 [discrete]
 [[multi-region-architecture]]
-==== Architecture
+=== Architecture
 
 image::images/multi-region-two-datacenter.png["A multi-region time-series architecture across two datacenters"]
 
 [discrete]
 [[multi-region-considerations]]
-==== Important considerations
+=== Important considerations
 
 The following list are important conderations for this architecture:
 
 [discrete]
 [[multi-region-limitations]]
-==== Limitations of this architecture
+=== Limitations of this architecture
 * No region resilience
 
 [discrete]
 [[multi-region-resources]]
-==== Resources and references
+=== Resources and references
 
 * <<shard-size-best-practices,Size your shards>>
 * https://www.elastic.co/guide/en/elasticsearch/reference/current/index.html[Elasticsearch Documentation]

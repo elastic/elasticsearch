@@ -22,6 +22,14 @@ These reference architectures are recommendations and should be adapted to fit y
 [cols="50, 50"]
 |===
 | *Architecture* | *When to use*
+| <<elastic-cloud-architecture>>
+
+This architecture is a Hot-Frozen architecture that is optimized for time series datasets while keeping all of the data fully searchable. It leverages Elastic Cloud where we apply best practices and run your cluster on optimal cloud instance types that we have selected through extenstive testing. It maintains index structures that allow for fast search in cloud object stores. 
+
+a| 
+* You want to leverage cloud provider hardware that have been extensively tested.
+* You need long retention periods with the ability to search indices in an object store cost-effectively.
+* Leverage cloud provider's highly available object stores for data integrity so you don't have to depend on your own.
 
 | <<multi-region-two-datacenter-architecture>>
 
@@ -31,14 +39,6 @@ a|
 * Monitor the performance and health of their applications in real-time
 * Provide insights and alerts to ensure optimal performance and quick issue resolution.
 
-| <<elastic-cloud-architecture>>
-
-A Hot-Frozen Elasticsearch Cluster architecture is cost optimized for large time-series datasets while keeping all of the data fully searchable while also maintaining index structures that allow for fast search in S3. 
-
-a| 
-* You want to host your deployment in the cloud
-* Ideal for observability use case
-* Lorem ipsum
 
 | <<self-managed-single-datacenter>>
 

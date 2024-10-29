@@ -329,8 +329,11 @@ public class RestTestBasePlugin implements Plugin<Project> {
                     Collection<Dependency> additionalDependencies = new LinkedHashSet<>();
                     for (Iterator<Dependency> iterator = dependencies.iterator(); iterator.hasNext();) {
                         Dependency dependency = iterator.next();
+                        // this logic of relying on other projects metadata should probably live in a build service
                         if (dependency instanceof ProjectDependency projectDependency) {
-                            Project dependencyProject = projectDependency.getDependencyProject();
+                            Project dependencyProject = project.project(
+                                ((ProjectDependencyInternal) projectDependency).getIdentityPath().getPath()
+                            );
                             List<String> extendedPlugins = dependencyProject.getExtensions()
                                 .getByType(PluginPropertiesExtension.class)
                                 .getExtendedPlugins();

@@ -21,8 +21,6 @@ import org.junit.ClassRule;
 @TimeoutSuite(millis = 30 * TimeUnits.MINUTE)
 public class CoreWithMultipleProjectsClientYamlTestSuiteIT extends MultipleProjectsClientYamlSuiteTestCase {
 
-    private static boolean firstRun = true;
-
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .module("constant-keyword")
@@ -49,16 +47,6 @@ public class CoreWithMultipleProjectsClientYamlTestSuiteIT extends MultipleProje
 
     public CoreWithMultipleProjectsClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
-    }
-
-    @Override
-    protected boolean shouldCreateTestIndex() {
-        if (firstRun) {
-            firstRun = false;
-            return true;
-        } else {
-            return false;
-        }
     }
 
     @ParametersFactory

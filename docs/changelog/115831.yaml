@@ -1,0 +1,12 @@
+pr: 115831
+summary: Increase minimum threshold in shard balancer
+area: Allocation
+type: breaking
+issues: []
+breaking:
+  title: Increase minimum threshold in shard balancer
+  area: Allocation
+  details: Please describe the details of this change for the release notes. You can
+    use asciidoc.
+  impact: Please describe the impact of this change to users
+  notable: false

@@ -529,13 +529,7 @@ public final class EsqlExpressionTranslators {
     public static class MatchFunctionTranslator extends ExpressionTranslator<Match> {
         @Override
         protected Query asQuery(Match match, TranslatorHandler handler) {
-            return new MatchQuery(
-                match.source(),
-                ((FieldAttribute) match.field()).name(),
-                match.queryAsText(),
-                match.boost(),
-                match.fuzziness()
-            );
+            return new MatchQuery(match.source(), ((FieldAttribute) match.field()).name(), match.queryAsText());
         }
     }
 

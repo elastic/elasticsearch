@@ -48,47 +48,12 @@ public class MatchTests extends AbstractFunctionTestCase {
         List<TestCaseSupplier> suppliers = new LinkedList<>();
         for (DataType fieldType : DataType.stringTypes()) {
             for (DataType queryType : DataType.stringTypes()) {
-                addPositiveTestCase(null, null, List.of(fieldType, queryType), supportedPerPosition, suppliers);
+                addPositiveTestCase(List.of(fieldType, queryType), supportedPerPosition, suppliers);
                 addNonFieldTestCase(List.of(fieldType, queryType), supportedPerPosition, suppliers);
             }
         }
 
-        // We can't add all combinations for all params - let's do it for the mandatory ones
         List<TestCaseSupplier> suppliersWithErrors = errorsForCasesWithoutExamples(suppliers, (v, p) -> "string");
-
-        // Use valid values for the first two params, test boost
-        for (Number boost : new Number[] { 2, 2.3 }) {
-            List<DataType> paramDataTypes = List.of(DataType.KEYWORD, DataType.KEYWORD, DataType.fromJava(boost));
-            addPositiveTestCase(boost, null, paramDataTypes, supportedPerPosition, suppliersWithErrors);
-        }
-
-        validFunctionParameters().filter(dt -> dt.isNumeric() == false).forEach(dt -> {
-            List<DataType> paramDataTypes = List.of(DataType.KEYWORD, DataType.KEYWORD, dt);
-            suppliersWithErrors.add(
-                new TestCaseSupplier(
-                    "type error for boost " + TestCaseSupplier.nameFromTypes(paramDataTypes),
-                    paramDataTypes,
-                    typeErrorSupplier(true, supportedPerPosition, paramDataTypes, MatchTests::matchTypeErrorSupplier)
-                )
-            );
-        });
-
-        // Use valid values for the first three params, test boost
-        for (Object fuzziness : new Object[] { 2, "AUTO" }) {
-            List<DataType> paramDataTypes = List.of(DataType.KEYWORD, DataType.KEYWORD, DataType.DOUBLE, DataType.fromJava(fuzziness));
-            addPositiveTestCase(3.5, fuzziness, paramDataTypes, supportedPerPosition, suppliersWithErrors);
-        }
-
-        validFunctionParameters().filter(dt -> dt != DataType.INTEGER && dt != DataType.KEYWORD).forEach(dt -> {
-            List<DataType> paramDataTypes = List.of(DataType.KEYWORD, DataType.KEYWORD, DataType.DOUBLE, dt);
-            suppliersWithErrors.add(
-                new TestCaseSupplier(
-                    "type error for fuzziness " + TestCaseSupplier.nameFromTypes(paramDataTypes),
-                    paramDataTypes,
-                    typeErrorSupplier(true, supportedPerPosition, paramDataTypes, MatchTests::matchTypeErrorSupplier)
-                )
-            );
-        });
 
         // Don't test null, as it is not allowed but the expected message is not a type error - so we check it separately in VerifierTests
         return parameterSuppliersFromTypedData(
@@ -97,8 +62,6 @@ public class MatchTests extends AbstractFunctionTestCase {
     }
 
     private static void addPositiveTestCase(
-        Number boost,
-        Object fuzziness,
         List<DataType> paramDataTypes,
         List<Set<DataType>> supportedPerPosition,
         List<TestCaseSupplier> suppliers
@@ -107,10 +70,10 @@ public class MatchTests extends AbstractFunctionTestCase {
         // Positive case - creates an ES field from the field parameter type
         suppliers.add(
             new TestCaseSupplier(
-                getTestCaseName(paramDataTypes, "-ES field", boost, fuzziness),
+                getTestCaseName(paramDataTypes, "-ES field"),
                 paramDataTypes,
                 () -> new TestCaseSupplier.TestCase(
-                    getTestParams(paramDataTypes, boost, fuzziness),
+                    getTestParams(paramDataTypes),
                     "EndsWithEvaluator[str=Attribute[channel=0], suffix=Attribute[channel=1]]",
                     DataType.BOOLEAN,
                     equalTo(true)
@@ -127,14 +90,14 @@ public class MatchTests extends AbstractFunctionTestCase {
         // Negative case - use directly the field parameter type
         suppliers.add(
             new TestCaseSupplier(
-                getTestCaseName(paramDataTypes, "-non ES field", null, null),
+                getTestCaseName(paramDataTypes, "-non ES field"),
                 paramDataTypes,
                 typeErrorSupplier(true, supportedPerPosition, paramDataTypes, MatchTests::matchTypeErrorSupplier)
             )
         );
     }
 
-    private static List<TestCaseSupplier.TypedData> getTestParams(List<DataType> paramDataTypes, Number boost, Object fuzziness) {
+    private static List<TestCaseSupplier.TypedData> getTestParams(List<DataType> paramDataTypes) {
         String fieldName = randomIdentifier();
         List<TestCaseSupplier.TypedData> params = new ArrayList<>();
         params.add(
@@ -145,26 +108,14 @@ public class MatchTests extends AbstractFunctionTestCase {
             )
         );
         params.add(new TestCaseSupplier.TypedData(new BytesRef(randomAlphaOfLength(10)), paramDataTypes.get(1), "query"));
-        if (paramDataTypes.size() > 2) {
-            params.add(new TestCaseSupplier.TypedData(boost, paramDataTypes.get(2), "boost"));
-        }
-        if (paramDataTypes.size() > 3) {
-            params.add(new TestCaseSupplier.TypedData(fuzziness, paramDataTypes.get(3), "fuzziness"));
-        }
         return params;
     }
 
-    private static String getTestCaseName(List<DataType> paramDataTypes, String fieldType, Number boost, Object fuzziness) {
+    private static String getTestCaseName(List<DataType> paramDataTypes, String fieldType) {
         StringBuilder sb = new StringBuilder();
         sb.append("<");
         sb.append(paramDataTypes.get(0)).append(fieldType).append(", ");
         sb.append(paramDataTypes.get(1));
-        if (paramDataTypes.size() > 2) {
-            sb.append(", ").append(paramDataTypes.get(2));
-        }
-        if (paramDataTypes.size() > 3) {
-            sb.append(", ").append(paramDataTypes.get(3));
-        }
         sb.append(">");
         return sb.toString();
     }
@@ -175,11 +126,6 @@ public class MatchTests extends AbstractFunctionTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        Expression field = args.get(0);
-        Expression query = args.get(1);
-        Expression boost = args.size() > 2 ? args.get(2) : null;
-        Expression fuzziness = args.size() > 3 ? args.get(3) : null;
-
-        return new Match(source, field, query, boost, fuzziness);
+        return new Match(source, args.get(0), args.get(1));
     }
 }

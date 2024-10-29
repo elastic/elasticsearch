@@ -208,9 +208,7 @@ MINUS : '-';
 ASTERISK : '*';
 SLASH : '/';
 PERCENT : '%';
-DEV_CARET : {this.isDevVersion()}? '^';
 COLON : {this.isDevVersion()}? ':';
-DEV_TILDE : {this.isDevVersion()}? '~';
 
 NESTED_WHERE : WHERE -> type(WHERE);
 

@@ -184,36 +184,6 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitMatchBooleanExpression(EsqlBaseParser.MatchBooleanExpressionContext ctx);
   /**
-   * Enter a parse tree produced by {@link EsqlBaseParser#fuzzinessExpression}.
-   * @param ctx the parse tree
-   */
-  void enterFuzzinessExpression(EsqlBaseParser.FuzzinessExpressionContext ctx);
-  /**
-   * Exit a parse tree produced by {@link EsqlBaseParser#fuzzinessExpression}.
-   * @param ctx the parse tree
-   */
-  void exitFuzzinessExpression(EsqlBaseParser.FuzzinessExpressionContext ctx);
-  /**
-   * Enter a parse tree produced by {@link EsqlBaseParser#fuzzinessValue}.
-   * @param ctx the parse tree
-   */
-  void enterFuzzinessValue(EsqlBaseParser.FuzzinessValueContext ctx);
-  /**
-   * Exit a parse tree produced by {@link EsqlBaseParser#fuzzinessValue}.
-   * @param ctx the parse tree
-   */
-  void exitFuzzinessValue(EsqlBaseParser.FuzzinessValueContext ctx);
-  /**
-   * Enter a parse tree produced by {@link EsqlBaseParser#boostExpression}.
-   * @param ctx the parse tree
-   */
-  void enterBoostExpression(EsqlBaseParser.BoostExpressionContext ctx);
-  /**
-   * Exit a parse tree produced by {@link EsqlBaseParser#boostExpression}.
-   * @param ctx the parse tree
-   */
-  void exitBoostExpression(EsqlBaseParser.BoostExpressionContext ctx);
-  /**
    * Enter a parse tree produced by the {@code valueExpressionDefault}
    * labeled alternative in {@link EsqlBaseParser#valueExpression}.
    * @param ctx the parse tree

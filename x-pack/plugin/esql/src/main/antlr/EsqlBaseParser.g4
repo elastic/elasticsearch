@@ -77,20 +77,8 @@ regexBooleanExpression
     ;
 
 matchBooleanExpression
-    : fieldExp=valueExpression (boostExpression)? COLON queryString=valueExpression (fuzzinessExpression)?
+    : fieldExp=qualifiedName COLON queryString=primaryExpression
     ;
-
-fuzzinessExpression
-    : DEV_TILDE fuzzinessValue?
-    ;
-
-fuzzinessValue
-    : distance=operatorExpression
-    | AUTO(COLON INTEGER_LITERAL (COMMA INTEGER_LITERAL)?)?
-    ;
-
-boostExpression
-    : DEV_CARET operatorExpression;
 
 valueExpression
     : operatorExpression                                                                      #valueExpressionDefault

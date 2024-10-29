@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.parser;
 
 import org.elasticsearch.Build;
-import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
@@ -2298,59 +2297,9 @@ public class StatementParserTests extends AbstractStatementParserTests {
         var matchField = (UnresolvedAttribute) match.field();
         assertThat(matchField.name(), equalTo("field"));
         assertThat(match.query().fold(), equalTo("value"));
-        assertNull(match.boost());
-        assertNull(match.fuzziness());
-    }
-
-    public void testMatchOperatorWithBoosting() {
-        var plan = statement("FROM test | WHERE field^2.1:\"value\"");
-        var filter = as(plan, Filter.class);
-        var match = (Match) filter.condition();
-        var matchField = (UnresolvedAttribute) match.field();
-        assertThat(matchField.name(), equalTo("field"));
-        assertThat(match.query().fold(), equalTo("value"));
-        assertThat(match.boost(), equalTo(2.1));
-        assertNull(match.fuzziness());
-    }
-
-    public void testMatchOperatorWithFuzziness() {
-        checkMatchOperatorWithFuzziness("~", Fuzziness.TWO);
-        checkMatchOperatorWithFuzziness("~1", Fuzziness.ONE);
-        checkMatchOperatorWithFuzziness("~2", Fuzziness.TWO);
-        checkMatchOperatorWithFuzziness("~AUTO", Fuzziness.AUTO);
-        checkMatchOperatorWithFuzziness("~AUTO:1,2", Fuzziness.fromString("AUTO:1,2"));
-    }
-
-    public void checkMatchOperatorWithFuzziness(String fuzzinessValue, Fuzziness fuzinessExpected) {
-        var plan = statement("FROM test | WHERE field:\"value\"" + fuzzinessValue);
-        var filter = as(plan, Filter.class);
-        var match = (Match) filter.condition();
-        var matchField = (UnresolvedAttribute) match.field();
-        assertThat(matchField.name(), equalTo("field"));
-        assertThat(match.query().fold(), equalTo("value"));
-        assertThat(match.boost(), equalTo(1.0));
-        assertThat(match.fuzziness(), equalTo(fuzinessExpected));
-    }
-
-    public void testMatchOperatorWithBoostingAndFuzziness() {
-        var plan = statement("FROM test | WHERE field^1.2:\"value\"~1");
-        var filter = as(plan, Filter.class);
-        var match = (Match) filter.condition();
-        var matchField = (UnresolvedAttribute) match.field();
-        assertThat(matchField.name(), equalTo("field"));
-        assertThat(match.query().fold(), equalTo("value"));
-        assertThat(match.boost(), equalTo(1.2));
-        assertThat(match.fuzziness(), equalTo(Fuzziness.ONE));
     }
 
     public void testInvalidMatchOperator() {
         expectError("from test | WHERE field:", "line 1:25: mismatched input '<EOF>' expecting {QUOTED_STRING, ");
-        expectError("from test | WHERE field^:\"value\"", "line 1:25: extraneous input ':' expecting {QUOTED_STRING,");
-        expectError("from test | WHERE field:\"value\"~AUTO:1,2,3", "line 1:41: mismatched input ',' expecting {<EOF>, '|', 'and', 'or'}");
-        expectError("from test | WHERE field:\"value\"~AUTO:a,b", "line 1:38: mismatched input 'a' expecting INTEGER_LITERAL");
-        expectError(
-            "from test | WHERE field:\"value\"~AUTO:1-5",
-            "line 1:39: mismatched input '-' expecting {<EOF>, '|', 'and', ',', 'or'}"
-        );
     }
 }

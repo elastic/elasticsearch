@@ -1264,13 +1264,6 @@ public class VerifierTests extends ESTestCase {
         checkWithDisjunctions(":", "first_name : \"Anna\"", "operator");
     }
 
-    public void testMatchOperatorUnknownColumns() {
-        assumeTrue("skipping because MATCH operator is not enabled", EsqlCapabilities.Cap.MATCH_OPERATOR_COLON.isEnabled());
-
-        assertEquals("1:38: Unknown column [x]", error("from test | where first_name: \"Anna\"~x"));
-        assertEquals("1:30: Unknown column [x]", error("from test | where first_name^x: \"Anna\""));
-    }
-
     private void checkWithDisjunctions(String functionName, String functionInvocation, String functionType) {
         assertEquals(
             LoggerMessageFormat.format(

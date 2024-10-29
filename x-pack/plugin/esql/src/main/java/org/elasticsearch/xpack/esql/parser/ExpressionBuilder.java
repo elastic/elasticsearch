@@ -923,36 +923,6 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
 
     @Override
     public Expression visitMatchBooleanExpression(EsqlBaseParser.MatchBooleanExpressionContext ctx) {
-        Expression boostExp = visitBoostExpression(ctx.boostExpression());
-        Expression fuzzinessExp = visitFuzzinessExpression(ctx.fuzzinessExpression());
-        // If fuzziness is set, but boost is not, set boost to 1 to fill the optional parameter
-        if (fuzzinessExp != null && boostExp == null) {
-            boostExp = new Literal(source(ctx), 1, DataType.INTEGER);
-        }
-        return Match.operator(source(ctx), expression(ctx.fieldExp), expression(ctx.queryString), boostExp, fuzzinessExp);
-    }
-
-    @Override
-    public Expression visitBoostExpression(EsqlBaseParser.BoostExpressionContext ctx) {
-        if (ctx == null) {
-            return null;
-        }
-        return expression(ctx.operatorExpression());
-    }
-
-    @Override
-    public Expression visitFuzzinessExpression(EsqlBaseParser.FuzzinessExpressionContext ctx) {
-        if (ctx == null) {
-            return null;
-        }
-
-        EsqlBaseParser.FuzzinessValueContext fuzzinessValue = ctx.fuzzinessValue();
-        if (fuzzinessValue == null) {
-            // Default value for query string query
-            return new Literal(source(ctx), 2, DataType.INTEGER);
-        } else if (fuzzinessValue.operatorExpression() != null) {
-            return expression(fuzzinessValue.operatorExpression());
-        }
-        return new Literal(source(fuzzinessValue), fuzzinessValue.getText(), DataType.KEYWORD);
+        return Match.operator(source(ctx), expression(ctx.fieldExp), expression(ctx.queryString));
     }
 }

@@ -36,7 +36,7 @@ The following list are important conderations for this architecture:
 
 ** A yellow cluster state is acceptable during maintenance.  (This will be due to replica shards being unassigned.)
 
-* **Sample Initial Settings / Configuration:**
+* **Sample Initial Settings / Configuration:
 
 ** 3 Master Nodes (1 that is voting only) - Note: an odd number of initial master nodes is required.
 

@@ -28,10 +28,13 @@ image::images/elastic-cloud-architecture.png["An Elastic Cloud Architecture"]
 
 The following list are important conderations for this architecture:
 
+* Frozen tiers are read-only so once data rolls over to the frozen tier, documnets can not longer be updated. If you need to update documents for some part of the data lifecycle, you will need a larger https://www.elastic.co/guide/en/elasticsearch/reference/current/data-tiers.html#hot-tier[hot tier], or introduce a https://www.elastic.co/guide/en/elasticsearch/reference/current/data-tiers.html#warm-tier[warm tier] to cover the time period needed for document updates.
+* This architecture leverages a Hot/Frozen architecture. If you require https://www.elastic.co/guide/en/security/current/about-rules.html[detection rule lookback] or complex dashboards you may need to leverage a https://www.elastic.co/guide/en/elasticsearch/reference/current/data-tiers.html#cold-tier[cold tier].
+
 [discrete]
 [[cloud-architecture-limitations]]
 ==== Limitations of this architecture
-* This architecture is a high-availability Elasticsearch architecture. It is not intended as a Disaster Recovery architecture since it is deployed across Availability Zones in a single cloud region. This architecture can be enhanced for Disaster Recovery by adding a second deployment in another cloud region. Details on Disaster Recovery for Elasticsearch can be found https://www.elastic.co/guide/en/elasticsearch/reference/current/xpack-ccr.html#ccr-disaster-recovery[here].
+* This architecture is a high-availability Elasticsearch architecture. It is not intended as a Disaster Recovery architecture since it is deployed across Availability Zones in a single cloud region. This architecture can be enhanced for Disaster Recovery by adding a second deployment in another cloud region. Details on Disaster Recovery for Elasticsearch can be found at, https://www.elastic.co/guide/en/elasticsearch/reference/current/xpack-ccr.html#ccr-disaster-recovery[disaster recovery].
 
 [discrete]
 [[cloud-hot-frozen-resources]]

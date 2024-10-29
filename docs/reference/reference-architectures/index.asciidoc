@@ -3,15 +3,13 @@
 
 Elasticsearch reference architectures serve as blueprints for deploying, managing, and optimizing Elasticsearch clusters tailored to different use cases. Whether you're handling logs, metrics, or sophisticated search applications, these reference architectures ensure scalability, reliability, and efficient resource utilization. By leveraging these guidelines, organizations can confidently deploy Elasticsearch, minimizing risks and complexities.
 
-These architectures are designed by Solutions Architectures to provide standardized, proven solutions that help users with best practices for:
+These architectures are designed by Solutions Architects to provide standardized, proven solutions that help users with best practices for deploying Elasticsearch. Some of the key areas of focus are listed below. 
 
 * Infrastructure setup
 * Data ingestion
 * Indexing
 * Search performance
-* High availability. 
-
-
+* High availability 
 
 TIP: These architectures are specific to running your deployment on-premises or cloud. If you are using Elastic serverless we take care of all of this for you. For all the deployment options, see https://www.elastic.co/guide/en/elasticsearch/reference/current/elasticsearch-intro-deploy.html[Run Elasticsearch].
 
@@ -23,11 +21,11 @@ These reference architectures are recommendations and should be adapted to fit y
 
 [cols="50, 50"]
 |===
-| *Architecture* | *Use case*
+| *Architecture* | *When to use*
 
 | <<multi-region-two-datacenter-architecture>>
 
-image:images/multi-region-two-datacenter.png[Image showing a multi-region two datacenter architecture]
+A scalable and highly available architecture for Elasticsearch using two datacenters in separate geographical regions
 
 a| 
 * Monitor the performance and health of their applications in real-time
@@ -35,31 +33,30 @@ a|
 
 | <<elastic-cloud-architecture>>
 
-image:images/elastic-cloud-architecture.png[Image showing a Elastic Cloud Hot-Frozen Architecture]
+A Hot-Frozen Elasticsearch Cluster architecture is cost optimized for large time-series datasets while keeping all of the data fully searchable while also maintaining index structures that allow for fast search in S3. 
 
 a| 
-* Ipsum lorem 
+* You want to host your deployment in the cloud
+* Ideal for observability use case
 * Lorem ipsum
 
 | <<self-managed-single-datacenter>>
 
-image:images/single-datacenter.png[Image showing a single datacenter architecture]
+An architecture is designed to satisfy high availability requirements under normal processing as well as including high availability and resiliency during node maintenance or re-paving activities.
 
 a| 
-* TBD
+* When you only have one datacenter available
 * TBD.
 
 | <<three-availability-zones>>
 
-image:images/three-availability-zone.png[Image showing a three Availability zone architecture]
+Need a short description here...
 
 a| 
 * TBD
 * TBD
 |
 |===
-
-include::general-cluster-guidance.asciidoc[]
 
 include::multi-region-two-datacenter-architecture.asciidoc[leveloffset=-1]
 

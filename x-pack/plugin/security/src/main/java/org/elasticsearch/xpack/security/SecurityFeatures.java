@@ -17,13 +17,14 @@ import java.util.Set;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MIGRATION_FRAMEWORK;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_PROFILE_ORIGIN_FEATURE;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_ROLES_METADATA_FLATTENED;
+import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_ROLE_MAPPING_CLEANUP;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.VERSION_SECURITY_PROFILE_ORIGIN;
 
 public class SecurityFeatures implements FeatureSpecification {
 
     @Override
     public Set<NodeFeature> getFeatures() {
-        return Set.of(SECURITY_ROLES_METADATA_FLATTENED, SECURITY_MIGRATION_FRAMEWORK);
+        return Set.of(SECURITY_ROLE_MAPPING_CLEANUP, SECURITY_ROLES_METADATA_FLATTENED, SECURITY_MIGRATION_FRAMEWORK);
     }
 
     @Override

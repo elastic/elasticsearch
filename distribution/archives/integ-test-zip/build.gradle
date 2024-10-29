@@ -8,7 +8,6 @@
  */
 
 import org.apache.tools.ant.filters.ReplaceTokens
-import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
 apply plugin: 'elasticsearch.internal-java-rest-test'
 
@@ -35,8 +34,4 @@ publishing {
       artifact(buildDist.flatMap { it.archiveFile })
     }
   }
-}
-
-tasks.withType(StandaloneRestIntegTestTask).configureEach  {
-  dependsOn "assemble"
 }

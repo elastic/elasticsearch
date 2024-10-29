@@ -51,6 +51,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Substring;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToLower;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToUpper;
+import org.elasticsearch.xpack.esql.expression.function.scalar.util.Slow;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
@@ -116,6 +117,7 @@ public abstract class EsqlScalarFunction extends ScalarFunction implements Evalu
         entries.addAll(EsqlBinaryComparison.getNamedWriteables());
         entries.addAll(FullTextPredicate.getNamedWriteables());
         entries.addAll(UnaryScalarFunction.getNamedWriteables());
+        entries.add(Slow.ENTRY);
         return entries;
     }
 

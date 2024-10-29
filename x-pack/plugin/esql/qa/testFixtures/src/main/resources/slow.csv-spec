@@ -1,0 +1,8 @@
+SLOW
+from employees | sort emp_no | where slow(true, 5) | keep emp_no, still_hired | limit 3;
+
+emp_no:integer | still_hired:boolean
+10001          | true
+10002          | true
+10003          | false
+;

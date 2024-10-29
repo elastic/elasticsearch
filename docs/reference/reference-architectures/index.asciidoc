@@ -61,10 +61,10 @@ a|
 
 include::general-cluster-guidance.asciidoc[]
 
-include::multi-region-two-datacenter-architecture.asciidoc[]
+include::multi-region-two-datacenter-architecture.asciidoc[leveloffset=-1]
 
-include::elastic-cloud-architecture.asciidoc[]
+include::elastic-cloud-architecture.asciidoc[leveloffset=-1]
 
-include::self-managed-single-datacenter.asciidoc[]
+include::self-managed-single-datacenter.asciidoc[leveloffset=-1]
 
-include::three-availability-zones.asciidoc[]
+include::three-availability-zones.asciidoc[leveloffset=-1]

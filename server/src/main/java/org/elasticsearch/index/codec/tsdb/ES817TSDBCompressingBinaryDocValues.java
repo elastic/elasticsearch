@@ -294,7 +294,7 @@ class ES817TSDBCompressingBinaryDocValues {
                     offsets[i] = offsets[i - 1] + data.readVInt();
                 }
                 final int headerBytes = Math.toIntExact(data.getFilePointer() - blockAddress);
-                final int decompressedLen = blockBytes(blockAddress, docID + block.numDocs) - headerBytes;
+                final int decompressedLen = blockBytes(blockAddress, block.firstDocId + block.numDocs) - headerBytes;
                 values.length = offsets[block.numDocs];
                 values.bytes = ArrayUtil.growNoCopy(values.bytes, values.length);
                 decompress(data, values.bytes, decompressedLen, values.length);

@@ -22,23 +22,31 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.BaseDocValuesFormatTestCase;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.util.TestUtil;
+import org.elasticsearch.common.logging.LogConfigurator;
+import org.elasticsearch.test.MockLog;
 
 import java.io.IOException;
 import java.util.Arrays;
 
 /** Tests ES87TSDBDocValuesFormat with custom skipper interval size. */
-public class ES87TSDBDocValuesFormatVariableSkipIntervalTests extends BaseDocValuesFormatTestCase {
+public class ES817TSDBDocValuesFormatVariableSkipIntervalTests extends BaseDocValuesFormatTestCase {
+
+    static {
+        LogConfigurator.loadLog4jPlugins();
+        LogConfigurator.configureESLogging();
+        MockLog.init();
+    }
 
     @Override
     protected Codec getCodec() {
         // small interval size to test with many intervals
-        return TestUtil.alwaysDocValuesFormat(new ES87TSDBDocValuesFormat(random().nextInt(4, 16)));
+        return TestUtil.alwaysDocValuesFormat(new ES817TSDBDocValuesFormat(random().nextInt(4, 16)));
     }
 
     public void testSkipIndexIntervalSize() {
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
-            () -> new ES87TSDBDocValuesFormat(random().nextInt(Integer.MIN_VALUE, 2))
+            () -> new ES817TSDBDocValuesFormat(random().nextInt(Integer.MIN_VALUE, 2))
         );
         assertTrue(ex.getMessage().contains("skipIndexIntervalSize must be > 1"));
     }

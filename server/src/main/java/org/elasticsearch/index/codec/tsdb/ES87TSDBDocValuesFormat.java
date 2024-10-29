@@ -75,25 +75,15 @@ public class ES87TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValuesF
         }
     }
 
-    private final int skipIndexIntervalSize;
-
     /** Default constructor. */
     public ES87TSDBDocValuesFormat() {
-        this(DEFAULT_SKIP_INDEX_INTERVAL_SIZE);
-    }
-
-    /** Doc values fields format with specified skipIndexIntervalSize. */
-    public ES87TSDBDocValuesFormat(int skipIndexIntervalSize) {
         super(CODEC_NAME);
-        if (skipIndexIntervalSize < 2) {
-            throw new IllegalArgumentException("skipIndexIntervalSize must be > 1, got [" + skipIndexIntervalSize + "]");
-        }
-        this.skipIndexIntervalSize = skipIndexIntervalSize;
     }
 
     @Override
     public DocValuesConsumer fieldsConsumer(SegmentWriteState state) throws IOException {
-        return new ES87TSDBDocValuesConsumer(state, skipIndexIntervalSize, DATA_CODEC, DATA_EXTENSION, META_CODEC, META_EXTENSION);
+        assert false : "read-only codec";
+        throw new UnsupportedOperationException();
     }
 
     @Override

@@ -9,13 +9,14 @@
 
 package org.elasticsearch.server.cli;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 
+import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
+import java.util.jar.JarFile;
 import java.util.stream.Stream;
 
 final class SystemJvmOptions {
@@ -80,10 +81,16 @@ final class SystemJvmOptions {
     }
 
     private static String entitlementJarPropertyOption(String libraryName, Path workingDir) {
-        String jarSuffix = "-" + Build.current().version() + (Build.current().isSnapshot()? "-SNAPSHOT" : "") + ".jar";
+        String jarSuffix;
+        try (JarFile cliJar = new JarFile(SystemJvmOptions.class.getProtectionDomain().getCodeSource().getLocation().getPath())) {
+            jarSuffix = cliJar.getManifest().getMainAttributes().getValue("X-Compile-Elasticsearch-Entitlement-Jar-Suffix");
+            System.out.println("********** jarSuffix: " + jarSuffix);
+        } catch (IOException e) {
+            throw new IllegalStateException("Unable to determine location of entitlement jar files", e);
+        }
         return "-Des.entitlement." + libraryName + "Jar="
             + workingDir.resolve(
-            Path.of("lib", "tools", "entitlement-" + libraryName, "entitlement-" + libraryName + jarSuffix)
+            Path.of("lib", "tools", "entitlement-" + libraryName, "entitlement-" + libraryName + jarSuffix + ".jar")
         );
     }
 

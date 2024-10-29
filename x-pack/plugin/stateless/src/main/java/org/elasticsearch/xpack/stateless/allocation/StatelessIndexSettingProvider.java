@@ -46,6 +46,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.PER_INDEX_MAX_NUM
 
 public class StatelessIndexSettingProvider implements IndexSettingProvider {
     private static final Logger logger = LogManager.getLogger(StatelessIndexSettingProvider.class);
+    private final IndexSettingProvider indexModeSettingsProvider = new IndexMode.IndexModeSettingsProvider();
 
     /**
      * Sets the number of shards that a new index will have, absent the create index request specifying the number of shards.
@@ -97,8 +98,19 @@ public class StatelessIndexSettingProvider implements IndexSettingProvider {
             settings.put(ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING.getKey(), Stateless.NAME);
         }
 
+        final Settings indexModeSettings = indexModeSettingsProvider.getAdditionalIndexSettings(
+            indexName,
+            dataStreamName,
+            templateIndexMode,
+            metadata,
+            resolvedAt,
+            indexTemplateAndCreateRequestSettings,
+            combinedTemplateMappings
+        );
+
         if (dataStreamName == null
             && false == INDEX_NUMBER_OF_SHARDS_SETTING.exists(indexTemplateAndCreateRequestSettings)
+            && false == INDEX_NUMBER_OF_SHARDS_SETTING.exists(indexModeSettings)
             && false == systemNamePredicate.test(indexName)) {
             int defaultShards = defaultNumberOfShardsForRegularIndices > 0
                 ? defaultNumberOfShardsForRegularIndices

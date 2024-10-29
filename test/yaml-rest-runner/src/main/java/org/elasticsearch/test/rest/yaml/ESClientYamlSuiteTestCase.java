@@ -18,13 +18,10 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.tests.util.TimeUnits;
 import org.elasticsearch.client.Node;
 import org.elasticsearch.client.Request;
-import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
-import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.client.sniff.ElasticsearchNodesSniffer;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -41,11 +38,8 @@ import org.elasticsearch.test.rest.yaml.section.DoSection;
 import org.elasticsearch.test.rest.yaml.section.ExecutableSection;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.junit.AfterClass;
 import org.junit.Before;
-import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -66,8 +60,6 @@ import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-
-import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 
 /**
  * Runs a suite of yaml tests shared with all the official Elasticsearch
@@ -123,15 +115,6 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
 
     protected ESClientYamlSuiteTestCase(ClientYamlTestCandidate testCandidate) {
         this.testCandidate = testCandidate;
-    }
-
-    private static Settings globalTemplateIndexSettings;
-
-    @BeforeClass
-    public static void initializeGlobalTemplateIndexSettings() {
-        globalTemplateIndexSettings = usually()
-            ? Settings.EMPTY
-            : Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2).build();
     }
 
     @Before
@@ -511,34 +494,6 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
             inFipsJvm() && testCandidate.getTestSection().getPrerequisiteSection().hasYamlRunnerFeature("fips_140")
         );
 
-        final Settings globalTemplateSettings = getGlobalTemplateSettings(
-            testCandidate.getTestSection().getPrerequisiteSection().hasYamlRunnerFeature("default_shards")
-        );
-        if (globalTemplateSettings.isEmpty() == false && ESRestTestCase.has(ProductFeature.LEGACY_TEMPLATES)) {
-
-            final XContentBuilder template = jsonBuilder();
-            template.startObject();
-            {
-                template.array("index_patterns", "*");
-                template.startObject("settings");
-                globalTemplateSettings.toXContent(template, ToXContent.EMPTY_PARAMS);
-                template.endObject();
-            }
-            template.endObject();
-
-            final Request request = new Request("PUT", "/_template/global");
-            request.setJsonEntity(Strings.toString(template));
-            // Because not all case have transitioned to a composable template, it's possible that
-            // this can overlap an installed composable template since this is a global (*)
-            // template. In order to avoid this failing the test, we override the warnings handler
-            // to be permissive in this case. This can be removed once all tests use composable
-            // templates instead of legacy templates
-            RequestOptions.Builder builder = RequestOptions.DEFAULT.toBuilder();
-            builder.setWarningsHandler(WarningsHandler.PERMISSIVE);
-            request.setOptions(builder.build());
-            adminClient().performRequest(request);
-        }
-
         if (skipSetupSections() == false && testCandidate.getSetupSection().isEmpty() == false) {
             logger.debug("start setup test [{}]", testCandidate.getTestPath());
             for (ExecutableSection executableSection : testCandidate.getSetupSection().getExecutableSections()) {
@@ -564,19 +519,13 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
 
     @Deprecated
     protected Settings getGlobalTemplateSettings(List<String> features) {
-        if (features.contains("default_shards")) {
-            return Settings.EMPTY;
-        } else {
-            return globalTemplateIndexSettings;
-        }
+        // This method will be deleted once its uses in serverless are deleted
+        return Settings.EMPTY;
     }
 
     protected Settings getGlobalTemplateSettings(boolean defaultShardsFeature) {
-        if (defaultShardsFeature) {
-            return Settings.EMPTY;
-        } else {
-            return globalTemplateIndexSettings;
-        }
+        // This method will be deleted once its uses in serverless are deleted
+        return Settings.EMPTY;
     }
 
     protected boolean skipSetupSections() {

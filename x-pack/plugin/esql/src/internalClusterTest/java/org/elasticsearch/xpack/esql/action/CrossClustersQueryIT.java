@@ -26,6 +26,7 @@ import org.elasticsearch.test.AbstractMultiClustersTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
@@ -726,6 +727,20 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
             throw new AssertionError(e);
         }));
         assertTrue(latch.await(30, TimeUnit.SECONDS));
+    }
+
+    public void testSearchesWhereClusterExpressionCannotBeResolved() {
+        setupTwoClusters();
+
+        VerificationException ex = assertThrows(
+            VerificationException.class,
+            () -> runQuery(
+                "FROM nosuchcluster*:web_traffic | WHERE verb==\"GET\" | KEEP is_https, user_Agent, verb | STATS count(*)",
+                false
+            )
+        );
+
+        assertEquals("No matching clusters [nosuchcluster*:web_traffic]", ex.getMessage());
     }
 
     private static void assertClusterMetadataInResponse(EsqlQueryResponse resp, boolean responseExpectMeta) {

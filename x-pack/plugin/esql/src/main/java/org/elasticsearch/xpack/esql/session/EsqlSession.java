@@ -23,6 +23,7 @@ import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.transport.RemoteClusterAware;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
@@ -283,6 +284,17 @@ public class EsqlSession {
             var fieldNames = fieldNames(parsed, enrichPolicyMatchFields);
 
             Map<String, OriginalIndices> clusterIndices = indicesExpressionGrouper.groupIndices(IndicesOptions.DEFAULT, table.index());
+            // If groupIndices() could not resolve the wildcard-ed cluster, it returns the local cluster
+            // and sets the indices to an empty array. If this scenario is not explicitly handled, any
+            // searches involving the unresolved cluster will fall back and return results from local
+            // cluster.
+            if (clusterIndices.size() == 1) {
+                OriginalIndices localCluster = clusterIndices.get(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+                if (localCluster != null && localCluster.indices() == Strings.EMPTY_ARRAY) {
+                    throw new VerificationException("No matching clusters [" + table.index() + "]");
+                }
+            }
+
             for (Map.Entry<String, OriginalIndices> entry : clusterIndices.entrySet()) {
                 final String clusterAlias = entry.getKey();
                 String indexExpr = Strings.arrayToCommaDelimitedString(entry.getValue().indices());

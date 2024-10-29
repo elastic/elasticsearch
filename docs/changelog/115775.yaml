@@ -1,0 +1,7 @@
+pr: 115775
+summary: Do not fallback to the local cluster in ES|QL if remote cluster could not
+  be resolved
+area: Search
+type: bug
+issues:
+ - 115262

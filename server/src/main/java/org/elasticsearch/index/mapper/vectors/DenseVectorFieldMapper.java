@@ -23,6 +23,7 @@ import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.FloatVectorValues;
+import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SegmentReadState;
@@ -36,7 +37,6 @@ import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexVersion;
@@ -110,7 +110,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
     public static final NodeFeature INT4_QUANTIZATION = new NodeFeature("mapper.vectors.int4_quantization");
     public static final NodeFeature BIT_VECTORS = new NodeFeature("mapper.vectors.bit_vectors");
     public static final NodeFeature BBQ_FORMAT = new NodeFeature("mapper.vectors.bbq");
-    public static final FeatureFlag BBQ_FEATURE_FLAG = new FeatureFlag("bbq_index_format");
 
     public static final IndexVersion MAGNITUDE_STORED_INDEX_VERSION = IndexVersions.V_7_5_0;
     public static final IndexVersion INDEXED_BY_DEFAULT_INDEX_VERSION = IndexVersions.FIRST_DETACHED_INDEX_VERSION;
@@ -2259,9 +2258,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
             throw new MapperParsingException("Unknown vector index options type [" + type + "] for field [" + fieldName + "]");
         }
         VectorIndexType parsedType = vectorIndexType.get();
-        if ((parsedType == VectorIndexType.BBQ_FLAT || parsedType == VectorIndexType.BBQ_HNSW) && BBQ_FEATURE_FLAG.isEnabled() == false) {
-            throw new MapperParsingException("Unknown vector index options type [" + type + "] for field [" + fieldName + "]");
-        }
         return parsedType.parseIndexOptions(fieldName, indexOptionsMap);
     }
 
@@ -2314,6 +2310,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         private ByteVectorValues byteVectorValues;
         private boolean hasValue;
         private boolean hasMagnitude;
+        private int ord;
 
         private final IndexVersion indexCreatedVersion;
         private final VectorSimilarity vectorSimilarity;
@@ -2331,16 +2328,20 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 if (indexCreatedVersion.onOrAfter(NORMALIZE_COSINE) && VectorSimilarity.COSINE.equals(vectorSimilarity)) {
                     magnitudeReader = leafReader.getNumericDocValues(fullPath() + COSINE_MAGNITUDE_FIELD_SUFFIX);
                 }
+                KnnVectorValues.DocIndexIterator iterator = values.iterator();
                 return docId -> {
-                    hasValue = docId == values.advance(docId);
+                    hasValue = docId == iterator.advance(docId);
                     hasMagnitude = hasValue && magnitudeReader != null && magnitudeReader.advanceExact(docId);
+                    ord = iterator.index();
                     return hasValue;
                 };
             }
             byteVectorValues = leafReader.getByteVectorValues(fullPath());
             if (byteVectorValues != null) {
+                KnnVectorValues.DocIndexIterator iterator = byteVectorValues.iterator();
                 return docId -> {
-                    hasValue = docId == byteVectorValues.advance(docId);
+                    hasValue = docId == iterator.advance(docId);
+                    ord = iterator.index();
                     return hasValue;
                 };
             }
@@ -2363,7 +2364,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
             b.startArray(leafName());
             if (values != null) {
-                for (float v : values.vectorValue()) {
+                for (float v : values.vectorValue(ord)) {
                     if (hasMagnitude) {
                         b.value(v * magnitude);
                     } else {
@@ -2371,7 +2372,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     }
                 }
             } else if (byteVectorValues != null) {
-                byte[] vectorValue = byteVectorValues.vectorValue();
+                byte[] vectorValue = byteVectorValues.vectorValue(ord);
                 for (byte value : vectorValue) {
                     b.value(value);
                 }

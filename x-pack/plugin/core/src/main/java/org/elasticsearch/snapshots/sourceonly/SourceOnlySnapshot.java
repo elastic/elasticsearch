@@ -254,6 +254,7 @@ public class SourceOnlySnapshot {
                             false,
                             IndexOptions.NONE,
                             DocValuesType.NONE,
+                            fieldInfo.docValuesSkipIndexType(),
                             -1,
                             fieldInfo.attributes(),
                             0,

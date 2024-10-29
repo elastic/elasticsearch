@@ -1,0 +1,5 @@
+pr: 114784
+summary: "[ES|QL] make named parameter for identifier and pattern snapshot"
+area: ES|QL
+type: bug
+issues: []

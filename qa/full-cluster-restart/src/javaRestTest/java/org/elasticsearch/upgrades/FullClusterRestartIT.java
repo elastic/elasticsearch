@@ -16,9 +16,11 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.common.Strings;
@@ -27,12 +29,13 @@ import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.CheckedFunction;
-import org.elasticsearch.core.UpdateForV9;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.rest.action.admin.indices.RestPutIndexTemplateAction;
+import org.elasticsearch.search.SearchFeatures;
 import org.elasticsearch.test.NotEqualMessageBuilder;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
@@ -72,6 +75,7 @@ import static java.util.Collections.singletonMap;
 import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.SYSTEM_INDEX_ENFORCEMENT_INDEX_VERSION;
 import static org.elasticsearch.cluster.routing.UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING;
+import static org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator.THRESHOLD_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
@@ -1202,15 +1206,8 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
             closeIndex(index);
         }
 
-        @UpdateForV9(owner = UpdateForV9.Owner.DISTRIBUTED_INDEXING) // This check can be removed (always assume true)
-        var originalClusterSupportsReplicationOfClosedIndices = oldClusterHasFeature(RestTestLegacyFeatures.REPLICATION_OF_CLOSED_INDICES);
-
-        if (originalClusterSupportsReplicationOfClosedIndices) {
-            ensureGreenLongWait(index);
-            assertClosedIndex(index, true);
-        } else {
-            assertClosedIndex(index, false);
-        }
+        ensureGreenLongWait(index);
+        assertClosedIndex(index, true);
 
         if (isRunningAgainstOldCluster() == false) {
             openIndex(index);
@@ -1694,6 +1691,211 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
         }
     }
 
+    /**
+     * This test ensures that search results on old indices using "persian" analyzer don't change
+     * after we introduce Lucene 10
+     */
+    public void testPersianAnalyzerBWC() throws Exception {
+        var originalClusterLegacyPersianAnalyzer = oldClusterHasFeature(SearchFeatures.LUCENE_10_0_0_UPGRADE) == false;
+        assumeTrue("Don't run this test if both versions already support stemming", originalClusterLegacyPersianAnalyzer);
+        final String indexName = "test_persian_stemmer";
+        Settings idxSettings = indexSettings(1, 1).build();
+        String mapping = """
+                {
+                  "properties": {
+                    "textfield" : {
+                      "type": "text",
+                      "analyzer": "persian"
+                    }
+                  }
+                }
+            """;
+
+        String query = """
+                {
+                  "query": {
+                    "match": {
+                      "textfield": "كتابها"
+                    }
+                  }
+                }
+            """;
+
+        if (isRunningAgainstOldCluster()) {
+            createIndex(client(), indexName, idxSettings, mapping);
+            ensureGreen(indexName);
+
+            assertOK(
+                client().performRequest(
+                    newXContentRequest(
+                        HttpMethod.POST,
+                        "/" + indexName + "/" + "_doc/1",
+                        (builder, params) -> builder.field("textfield", "كتابها")
+                    )
+                )
+            );
+            assertOK(
+                client().performRequest(
+                    newXContentRequest(
+                        HttpMethod.POST,
+                        "/" + indexName + "/" + "_doc/2",
+                        (builder, params) -> builder.field("textfield", "كتاب")
+                    )
+                )
+            );
+            refresh(indexName);
+
+            assertNumHits(indexName, 2, 1);
+
+            Request searchRequest = new Request("POST", "/" + indexName + "/_search");
+            searchRequest.setJsonEntity(query);
+            assertTotalHits(1, entityAsMap(client().performRequest(searchRequest)));
+        } else {
+            // old index should still only return one doc
+            Request searchRequest = new Request("POST", "/" + indexName + "/_search");
+            searchRequest.setJsonEntity(query);
+            assertTotalHits(1, entityAsMap(client().performRequest(searchRequest)));
+
+            String newIndexName = indexName + "_new";
+            createIndex(client(), newIndexName, idxSettings, mapping);
+            ensureGreen(newIndexName);
+
+            assertOK(
+                client().performRequest(
+                    newXContentRequest(
+                        HttpMethod.POST,
+                        "/" + newIndexName + "/" + "_doc/1",
+                        (builder, params) -> builder.field("textfield", "كتابها")
+                    )
+                )
+            );
+            assertOK(
+                client().performRequest(
+                    newXContentRequest(
+                        HttpMethod.POST,
+                        "/" + newIndexName + "/" + "_doc/2",
+                        (builder, params) -> builder.field("textfield", "كتاب")
+                    )
+                )
+            );
+            refresh(newIndexName);
+
+            searchRequest = new Request("POST", "/" + newIndexName + "/_search");
+            searchRequest.setJsonEntity(query);
+            assertTotalHits(2, entityAsMap(client().performRequest(searchRequest)));
+
+            // searching both indices (old and new analysis version) we should get 1 hit from the old and 2 from the new index
+            searchRequest = new Request("POST", "/" + indexName + "," + newIndexName + "/_search");
+            searchRequest.setJsonEntity(query);
+            assertTotalHits(3, entityAsMap(client().performRequest(searchRequest)));
+        }
+    }
+
+    /**
+     * This test ensures that search results on old indices using "romanain" analyzer don't change
+     * after we introduce Lucene 10
+     */
+    public void testRomanianAnalyzerBWC() throws Exception {
+        var originalClusterLegacyRomanianAnalyzer = oldClusterHasFeature(SearchFeatures.LUCENE_10_0_0_UPGRADE) == false;
+        assumeTrue("Don't run this test if both versions already support stemming", originalClusterLegacyRomanianAnalyzer);
+        final String indexName = "test_romanian_stemmer";
+        Settings idxSettings = indexSettings(1, 1).build();
+        String cedillaForm = "absenţa";
+        String commaForm = "absența";
+
+        String mapping = """
+                {
+                  "properties": {
+                    "textfield" : {
+                      "type": "text",
+                      "analyzer": "romanian"
+                    }
+                  }
+                }
+            """;
+
+        // query that uses the cedilla form of "t"
+        String query = """
+                {
+                  "query": {
+                    "match": {
+                      "textfield": "absenţa"
+                    }
+                  }
+                }
+            """;
+
+        if (isRunningAgainstOldCluster()) {
+            createIndex(client(), indexName, idxSettings, mapping);
+            ensureGreen(indexName);
+
+            assertOK(
+                client().performRequest(
+                    newXContentRequest(
+                        HttpMethod.POST,
+                        "/" + indexName + "/" + "_doc/1",
+                        (builder, params) -> builder.field("textfield", cedillaForm)
+                    )
+                )
+            );
+            assertOK(
+                client().performRequest(
+                    newXContentRequest(
+                        HttpMethod.POST,
+                        "/" + indexName + "/" + "_doc/2",
+                        // this doc uses the comma form
+                        (builder, params) -> builder.field("textfield", commaForm)
+                    )
+                )
+            );
+            refresh(indexName);
+
+            assertNumHits(indexName, 2, 1);
+
+            Request searchRequest = new Request("POST", "/" + indexName + "/_search");
+            searchRequest.setJsonEntity(query);
+            assertTotalHits(1, entityAsMap(client().performRequest(searchRequest)));
+        } else {
+            // old index should still only return one doc
+            Request searchRequest = new Request("POST", "/" + indexName + "/_search");
+            searchRequest.setJsonEntity(query);
+            assertTotalHits(1, entityAsMap(client().performRequest(searchRequest)));
+
+            String newIndexName = indexName + "_new";
+            createIndex(client(), newIndexName, idxSettings, mapping);
+            ensureGreen(newIndexName);
+
+            assertOK(
+                client().performRequest(
+                    newXContentRequest(
+                        HttpMethod.POST,
+                        "/" + newIndexName + "/" + "_doc/1",
+                        (builder, params) -> builder.field("textfield", cedillaForm)
+                    )
+                )
+            );
+            assertOK(
+                client().performRequest(
+                    newXContentRequest(
+                        HttpMethod.POST,
+                        "/" + newIndexName + "/" + "_doc/2",
+                        (builder, params) -> builder.field("textfield", commaForm)
+                    )
+                )
+            );
+            refresh(newIndexName);
+
+            searchRequest = new Request("POST", "/" + newIndexName + "/_search");
+            searchRequest.setJsonEntity(query);
+            assertTotalHits(2, entityAsMap(client().performRequest(searchRequest)));
+
+            // searching both indices (old and new analysis version) we should get 1 hit from the old and 2 from the new index
+            searchRequest = new Request("POST", "/" + indexName + "," + newIndexName + "/_search");
+            searchRequest.setJsonEntity(query);
+            assertTotalHits(3, entityAsMap(client().performRequest(searchRequest)));
+        }
+    }
+
     public void testForbidDisableSoftDeletesOnRestore() throws Exception {
         final String snapshot = "snapshot-" + index;
         if (isRunningAgainstOldCluster()) {
@@ -1750,5 +1952,36 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
         assertThat(XContentMapValues.extractValue("_shards.total", resp), equalTo(totalShards));
         assertThat(XContentMapValues.extractValue("_shards.successful", resp), equalTo(totalShards));
         assertThat(extractTotalHits(resp), equalTo(numHits));
+    }
+
+    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED_COORDINATION) // this test is just about v8->v9 upgrades, remove it in v10
+    public void testBalancedShardsAllocatorThreshold() throws Exception {
+        assumeTrue("test only applies for v8->v9 upgrades", getOldClusterTestVersion().getMajor() == 8);
+
+        final var chosenValue = randomFrom("0", "0.1", "0.5", "0.999");
+
+        if (isRunningAgainstOldCluster()) {
+            final var request = newXContentRequest(
+                HttpMethod.PUT,
+                "/_cluster/settings",
+                (builder, params) -> builder.startObject("persistent").field(THRESHOLD_SETTING.getKey(), chosenValue).endObject()
+            );
+            request.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
+            assertOK(client().performRequest(request));
+        }
+
+        final var clusterSettingsResponse = ObjectPath.createFromResponse(
+            client().performRequest(new Request("GET", "/_cluster/settings"))
+        );
+
+        final var settingsPath = "persistent." + THRESHOLD_SETTING.getKey();
+        final var settingValue = clusterSettingsResponse.evaluate(settingsPath);
+
+        if (isRunningAgainstOldCluster()) {
+            assertEquals(chosenValue, settingValue);
+        } else {
+            assertNull(settingValue);
+            assertNotNull(clusterSettingsResponse.<String>evaluate("persistent.archived." + THRESHOLD_SETTING.getKey()));
+        }
     }
 }

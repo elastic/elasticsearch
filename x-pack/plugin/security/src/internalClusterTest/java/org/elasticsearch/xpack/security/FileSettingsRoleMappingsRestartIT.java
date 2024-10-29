@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security;
 
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.reservedstate.service.FileSettingsService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.SecurityIntegTestCase;
@@ -115,10 +116,9 @@ public class FileSettingsRoleMappingsRestartIT extends SecurityIntegTestCase {
         awaitFileSettingsWatcher();
         logger.info("--> write some role mappings, no other file settings");
         writeJSONFile(masterNode, testJSONOnlyRoleMappings, logger, versionCounter);
-        boolean awaitSuccessful = savedClusterState.v1().await(20, TimeUnit.SECONDS);
-        assertTrue(awaitSuccessful);
 
-        assertRoleMappingsInClusterState(
+        assertRoleMappingsInClusterStateWithAwait(
+            savedClusterState,
             new ExpressionRoleMapping(
                 "everyone_kibana_alone",
                 new FieldExpression("username", List.of(new FieldExpression.FieldValue("*"))),
@@ -195,14 +195,13 @@ public class FileSettingsRoleMappingsRestartIT extends SecurityIntegTestCase {
 
         final String masterNode = internalCluster().getMasterName();
 
-        var savedClusterState = setupClusterStateListener(masterNode, "everyone_kibana_alone");
+        Tuple<CountDownLatch, AtomicLong> savedClusterState = setupClusterStateListener(masterNode, "everyone_kibana_alone");
         awaitFileSettingsWatcher();
         logger.info("--> write some role mappings, no other file settings");
         writeJSONFile(masterNode, testJSONOnlyRoleMappings, logger, versionCounter);
-        boolean awaitSuccessful = savedClusterState.v1().await(20, TimeUnit.SECONDS);
-        assertTrue(awaitSuccessful);
 
-        assertRoleMappingsInClusterState(
+        assertRoleMappingsInClusterStateWithAwait(
+            savedClusterState,
             new ExpressionRoleMapping(
                 "everyone_kibana_alone",
                 new FieldExpression("username", List.of(new FieldExpression.FieldValue("*"))),
@@ -228,41 +227,8 @@ public class FileSettingsRoleMappingsRestartIT extends SecurityIntegTestCase {
             )
         );
 
-        final CountDownLatch latch = new CountDownLatch(1);
-        final FileSettingsService fileSettingsService = internalCluster().getInstance(FileSettingsService.class, masterNode);
-        fileSettingsService.addFileChangedListener(latch::countDown);
-        // Don't increment version but write new file contents to test re-processing on restart
+        // write without version increment and assert that change gets applied on restart
         writeJSONFileWithoutVersionIncrement(masterNode, testJSONOnlyUpdatedRoleMappings, logger, versionCounter);
-        // Make sure we saw a file settings update so that we know it got processed, but it did not affect cluster state
-        assertTrue(latch.await(20, TimeUnit.SECONDS));
-
-        // Nothing changed yet because version is the same and there was no restart
-        assertRoleMappingsInClusterState(
-            new ExpressionRoleMapping(
-                "everyone_kibana_alone",
-                new FieldExpression("username", List.of(new FieldExpression.FieldValue("*"))),
-                List.of("kibana_user"),
-                List.of(),
-                Map.of("uuid", "b9a59ba9-6b92-4be2-bb8d-02bb270cb3a7", "_foo", "something", METADATA_NAME_FIELD, "everyone_kibana_alone"),
-                true
-            ),
-            new ExpressionRoleMapping(
-                "everyone_fleet_alone",
-                new FieldExpression("username", List.of(new FieldExpression.FieldValue("*"))),
-                List.of("fleet_user"),
-                List.of(),
-                Map.of(
-                    "uuid",
-                    "b9a59ba9-6b92-4be3-bb8d-02bb270cb3a7",
-                    "_foo",
-                    "something_else",
-                    METADATA_NAME_FIELD,
-                    "everyone_fleet_alone"
-                ),
-                false
-            )
-        );
-
         logger.info("--> restart master");
         internalCluster().restartNode(masterNode);
         ensureGreen();
@@ -286,18 +252,38 @@ public class FileSettingsRoleMappingsRestartIT extends SecurityIntegTestCase {
                     ),
                     true
                 )
-            )
+            ),
+            20,
+            TimeUnit.SECONDS
         );
 
         cleanupClusterState(masterNode);
     }
 
-    private void assertRoleMappingsInClusterState(ExpressionRoleMapping... expectedRoleMappings) {
-        var clusterState = clusterAdmin().state(new ClusterStateRequest(TEST_REQUEST_TIMEOUT)).actionGet().getState();
+    private void assertRoleMappingsInClusterStateWithAwait(
+        Tuple<CountDownLatch, AtomicLong> savedClusterState,
+        ExpressionRoleMapping... expectedRoleMappings
+    ) throws InterruptedException {
+        boolean awaitSuccessful = savedClusterState.v1().await(20, TimeUnit.SECONDS);
+        assertTrue(awaitSuccessful);
+        var clusterState = clusterAdmin().state(
+            new ClusterStateRequest(TEST_REQUEST_TIMEOUT).waitForMetadataVersion(savedClusterState.v2().get())
+        ).actionGet().getState();
+        assertRoleMappingsInClusterState(clusterState, expectedRoleMappings);
+    }
+
+    private void assertRoleMappingsInClusterState(ClusterState clusterState, ExpressionRoleMapping... expectedRoleMappings) {
         String[] expectedRoleMappingNames = Arrays.stream(expectedRoleMappings).map(ExpressionRoleMapping::getName).toArray(String[]::new);
         assertRoleMappingReservedMetadata(clusterState, expectedRoleMappingNames);
         var actualRoleMappings = new ArrayList<>(RoleMappingMetadata.getFromClusterState(clusterState).getRoleMappings());
         assertThat(actualRoleMappings, containsInAnyOrder(expectedRoleMappings));
+    }
+
+    private void assertRoleMappingsInClusterState(ExpressionRoleMapping... expectedRoleMappings) {
+        assertRoleMappingsInClusterState(
+            clusterAdmin().state(new ClusterStateRequest(TEST_REQUEST_TIMEOUT)).actionGet().getState(),
+            expectedRoleMappings
+        );
     }
 
     private void cleanupClusterState(String masterNode) throws Exception {

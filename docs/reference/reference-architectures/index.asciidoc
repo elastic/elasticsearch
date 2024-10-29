@@ -57,4 +57,4 @@ Additionally, we have architectures specifically tailored to the ingestion porti
 
 include::general-cluster-guidance.asciidoc[]
 
-include::high-availability.asciidoc[]
+include::architecture-diagrams.asciidoc[]

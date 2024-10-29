@@ -1,5 +1,5 @@
-[[reference-architecture-high-availability]]
-== Time series highly available architectures
+[[architecture-diagrams]]
+== Architecture diagrams
 
 This page outlines reference architectures designed to ensure high availability for time series data in Elasticsearch deployments. These architectures leverage Elasticsearch's features—such as shard allocation, and replication to provide resilient, scalable solutions.
 

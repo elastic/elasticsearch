@@ -1,5 +1,5 @@
 [[multi-region-two-datacenter-architecture]]
-=== Multi-Region - Two Datacenters
+=== Multi-region - two datacenters
 
 This article defines a scalable and highly available architecture for Elasticsearch using two datacenters in separate geographical regions. 
 

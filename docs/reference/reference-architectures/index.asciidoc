@@ -1,11 +1,21 @@
 [[reference-architectures]]
 = Reference architectures
 
-Elasticsearch Reference Architectures serve as blueprints for deploying, managing, and optimizing Elasticsearch clusters tailored to different use cases. These architectures are designed by Solutions Architectures to provide standardized, proven solutions that help users with best practices for infrastructure setup, data ingestion, indexing, search performance, and high availability. Whether you're handling logs, metrics, or sophisticated search applications, these reference architectures ensure scalability, reliability, and efficient resource utilization. By leveraging these guidelines, organizations can confidently deploy Elasticsearch, achieving optimal performance while minimizing risks and complexities.
+Elasticsearch reference architectures serve as blueprints for deploying, managing, and optimizing Elasticsearch clusters tailored to different use cases. Whether you're handling logs, metrics, or sophisticated search applications, these reference architectures ensure scalability, reliability, and efficient resource utilization. By leveraging these guidelines, organizations can confidently deploy Elasticsearch, minimizing risks and complexities.
+
+These architectures are designed by Solutions Architectures to provide standardized, proven solutions that help users with best practices for:
+
+* Infrastructure setup
+* Data ingestion
+* Indexing
+* Search performance
+* High availability. 
+
+
 
 TIP: You can host {es} on your own hardware or send your data to {es} on {ecloud} or serverless. 
 
-These reference architectures are recommendations and should be adapted to fit your specific environment and needs. Each solution can vary based on the unique requirements and conditions of your setup.
+These reference architectures are recommendations and should be adapted to fit your specific environment and needs. Each solution can vary based on the unique requirements and conditions of your deployment. In these architectures we discuss about how to deploy cluster components. For information about designing ingest architectures to feed content into your cluster, refer to https://www.elastic.co/guide/en/ingest/current/use-case-arch.html[Ingest architectures]
 
 [discrete]
 [[reference-architectures-time-series-2]]
@@ -49,12 +59,12 @@ a|
 |
 |===
 
-[discrete]
-[[reference-architectures-ingest-architectures]]
-=== Ingest architectures
-
-Additionally, we have architectures specifically tailored to the ingestion portion of your architecture and these can be found at, https://www.elastic.co/guide/en/ingest/current/use-case-arch.html[Ingest architectures]
-
 include::general-cluster-guidance.asciidoc[]
 
-include::architecture-diagrams.asciidoc[]
+include::multi-region-two-datacenter-architecture.asciidoc[]
+
+include::elastic-cloud-architecture.asciidoc[]
+
+include::self-managed-single-datacenter.asciidoc[]
+
+include::three-availability-zones.asciidoc[]

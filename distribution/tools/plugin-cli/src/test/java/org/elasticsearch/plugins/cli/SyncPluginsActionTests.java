@@ -158,6 +158,22 @@ public class SyncPluginsActionTests extends ESTestCase {
     }
 
     /**
+     * Check that when there is an official plugin in the config file and in the cached config, then we
+     * calculate that the plugin does not need to be upgraded.
+     */
+    public void test_getPluginChanges_withOfficialPluginCachedConfigAndNoChanges_returnsNoChanges() throws Exception {
+        createPlugin("analysis-icu");
+        config.setPlugins(List.of(new InstallablePlugin("analysis-icu")));
+
+        final PluginsConfig cachedConfig = new PluginsConfig();
+        cachedConfig.setPlugins(List.of(new InstallablePlugin("analysis-icu")));
+
+        final PluginChanges pluginChanges = action.getPluginChanges(config, Optional.of(cachedConfig));
+
+        assertThat(pluginChanges.isEmpty(), is(true));
+    }
+
+    /**
      * Check that if an unofficial plugins' location has not changed in the cached config, then we
      * calculate that the plugin does not need to be upgraded.
      */

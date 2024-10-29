@@ -39,8 +39,8 @@ public class SecurityIndexRoleMappingCleanupIT extends AbstractUpgradeTestCase {
                 minimumTransportVersion().onOrAfter(V_8_15_0)
             );
             // Since the old cluster has role mappings in cluster state, but doesn't check duplicates, create duplicates
-            createNativeRoleMapping("operator_role_mapping_1", Map.of("meta", "test"));
-            createNativeRoleMapping("operator_role_mapping_2", Map.of("meta", "test"));
+            createNativeRoleMapping("operator_role_mapping_1", Map.of("meta", "test"), true);
+            createNativeRoleMapping("operator_role_mapping_2", Map.of("meta", "test"), true);
             // API will return only native role mappings
             assertAllRoleMappings(client(), "operator_role_mapping_1", "operator_role_mapping_2");
         } else if (CLUSTER_TYPE == ClusterType.MIXED) {

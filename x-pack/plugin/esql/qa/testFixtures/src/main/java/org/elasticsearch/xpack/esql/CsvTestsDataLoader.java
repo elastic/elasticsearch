@@ -64,6 +64,9 @@ public class CsvTestsDataLoader {
     private static final TestsDataset SAMPLE_DATA_TS_LONG = SAMPLE_DATA.withIndex("sample_data_ts_long")
         .withData("sample_data_ts_long.csv")
         .withTypeMapping(Map.of("@timestamp", "long"));
+    private static final TestsDataset SAMPLE_DATA_TS_NANOS = SAMPLE_DATA.withIndex("sample_data_ts_nanos")
+        .withData("sample_data_ts_nanos.csv")
+        .withTypeMapping(Map.of("@timestamp", "date_nanos"));
     private static final TestsDataset MISSING_IP_SAMPLE_DATA = new TestsDataset("missing_ip_sample_data");
     private static final TestsDataset CLIENT_IPS = new TestsDataset("clientips");
     private static final TestsDataset CLIENT_CIDR = new TestsDataset("client_cidr");
@@ -97,6 +100,7 @@ public class CsvTestsDataLoader {
         Map.entry(ALERTS.indexName, ALERTS),
         Map.entry(SAMPLE_DATA_STR.indexName, SAMPLE_DATA_STR),
         Map.entry(SAMPLE_DATA_TS_LONG.indexName, SAMPLE_DATA_TS_LONG),
+        Map.entry(SAMPLE_DATA_TS_NANOS.indexName, SAMPLE_DATA_TS_NANOS),
         Map.entry(MISSING_IP_SAMPLE_DATA.indexName, MISSING_IP_SAMPLE_DATA),
         Map.entry(CLIENT_IPS.indexName, CLIENT_IPS),
         Map.entry(CLIENT_CIDR.indexName, CLIENT_CIDR),

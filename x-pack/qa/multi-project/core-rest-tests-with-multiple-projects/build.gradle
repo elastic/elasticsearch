@@ -1,8 +1,10 @@
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
 import org.elasticsearch.gradle.internal.info.BuildParams
+import org.elasticsearch.gradle.util.GradleUtils
 
 dependencies {
   testImplementation project(':x-pack:qa')
+  testImplementation project(':x-pack:qa:multi-project:yaml-test-framework')
   clusterModules project(':modules:mapper-extras')
   clusterModules project(':modules:rank-eval')
   clusterModules project(':modules:ingest-common')
@@ -16,6 +18,9 @@ dependencies {
   clusterModules project(xpackModule('mapper-constant-keyword'))
   clusterModules project(xpackModule('wildcard'))
 }
+
+// let the yamlRestTests see the classpath of test
+GradleUtils.extendSourceSet(project, "test", "yamlRestTest", tasks.named("yamlRestTest"))
 
 restResources {
   restTests {

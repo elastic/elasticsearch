@@ -1077,6 +1077,13 @@ public class OpenAiServiceTests extends ESTestCase {
             .hasErrorContaining("You didn't provide an API key...");
     }
 
+    public void testSupportsStreaming() throws IOException {
+        try (var service = new OpenAiService(mock(), createWithEmptySettings(mock()))) {
+            assertTrue(service.canStream(TaskType.COMPLETION));
+            assertTrue(service.canStream(TaskType.ANY));
+        }
+    }
+
     public void testCheckModelConfig_IncludesMaxTokens() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 

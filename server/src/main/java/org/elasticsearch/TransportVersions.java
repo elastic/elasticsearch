@@ -185,8 +185,7 @@ public class TransportVersions {
     public static final TransportVersion INDEX_REQUEST_REMOVE_METERING = def(8_780_00_0);
     public static final TransportVersion CPU_STAT_STRING_PARSING = def(8_781_00_0);
     public static final TransportVersion QUERY_RULES_RETRIEVER = def(8_782_00_0);
-
-    public static final TransportVersion INCLUDE_IS_DATA_STREAM_BACKING_INDEX_METADATA = def(8_782_00_0);
+    public static final TransportVersion INCLUDE_IS_DATA_STREAM_BACKING_INDEX_METADATA = def(8_783_00_0);
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _

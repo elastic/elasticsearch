@@ -11,21 +11,27 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.Collection;
+import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 
 /**
  * Base class for running YAML Rest tests against a cluster with multiple projects
@@ -57,17 +63,14 @@ public abstract class MultipleProjectsClientYamlSuiteTestCase extends ESClientYa
             createProject(project);
         }
 
-        if (shouldCreateTestIndex()) {
-            // To verify everything is configured correctly, we create an index in the default project (using the admin client)
-            // And check it's not visible by the regular (project) client
-            // This ensures that the regular client (used by the yaml tests) is correctly pointing to a non-default project
-            createIndex(adminClient(), "test-index", indexSettings(1, 1).build());
-            assertThat(indexExists(adminClient(), "test-index"), equalTo(true));
-            assertThat(indexExists(client(), "test-index"), equalTo(false));
-        }
+        // The admin client does not set a project id, and can see all projects
+        assertProjectIds(
+            adminClient(),
+            CollectionUtils.concatLists(List.of(Metadata.DEFAULT_PROJECT_ID.id(), activeProject), extraProjects)
+        );
+        // The test client can only see the project it targets
+        assertProjectIds(client(), List.of(activeProject));
     }
-
-    protected abstract boolean shouldCreateTestIndex();
 
     @After
     public void removeProjects() throws Exception {
@@ -97,6 +100,27 @@ public abstract class MultipleProjectsClientYamlSuiteTestCase extends ESClientYa
             logger.info("Deleted project {} : {}", project, response.getStatusLine());
         } catch (ResponseException e) {
             logger.error("Failed to delete project: {}", project);
+            throw e;
+        }
+    }
+
+    private void assertProjectIds(RestClient client, List<String> expectedProjects) throws IOException {
+        final Collection<String> actualProjects = getProjectIds(client);
+        assertThat(
+            "Cluster returned project ids: " + actualProjects,
+            actualProjects,
+            containsInAnyOrder(expectedProjects.toArray(String[]::new))
+        );
+    }
+
+    protected Collection<String> getProjectIds(RestClient client) throws IOException {
+        final Request request = new Request("GET", "/_cluster/state/routing_table?multi_project=true");
+        try {
+            final ObjectPath response = ObjectPath.createFromResponse(client.performRequest(request));
+            final List<Map<String, Object>> projectRouting = response.evaluate("routing_table.projects");
+            return projectRouting.stream().map(obj -> (String) obj.get("id")).toList();
+        } catch (ResponseException e) {
+            logger.error("Failed to retrieve cluster state");
             throw e;
         }
     }

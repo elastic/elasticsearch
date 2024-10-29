@@ -12,7 +12,6 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 
 import org.apache.lucene.tests.util.TimeUnits;
-import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
@@ -49,13 +48,6 @@ public class XpackWithMultipleProjectsClientYamlTestSuiteIT extends MultipleProj
 
     public XpackWithMultipleProjectsClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
-    }
-
-    @Override
-    @FixForMultiProject
-    protected boolean shouldCreateTestIndex() {
-        // This currently doesn't work because X-Pack defines some additional allocation deciders that aren't multi-project ready
-        return false;
     }
 
     @ParametersFactory

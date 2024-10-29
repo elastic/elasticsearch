@@ -43,8 +43,6 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Flow;
 
-import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
-
 /**
  * Not marking this as "final" so we can subclass it for mocking
  */
@@ -95,14 +93,14 @@ public class AmazonBedrockInferenceClient extends AmazonBedrockBaseClient {
         internalClient.converseStream(
             request,
             ConverseStreamResponseHandler.builder().subscriber(() -> FlowAdapters.toSubscriber(awsResponseProcessor)).build()
-        ).handleAsync((r, e) -> {
-            if(e != null) {
+        ).handle((r, e) -> {
+            if (e != null) {
                 awsResponseProcessor.onError(e);
                 return null;
             } else {
                 return r;
             }
-        }, threadPool.executor(UTILITY_THREAD_POOL_NAME));
+        });
         return awsResponseProcessor;
     }
 

@@ -96,7 +96,7 @@ class AmazonBedrockStreamingChatProcessor implements Flow.Processor<ConverseStre
             )
         );
         if (isDone.compareAndSet(false, true) && checkAndResetDemand() && onErrorCalled.compareAndSet(false, true)) {
-            downstream.onError(error.get());
+            runOnUtilityThreadPool(() -> downstream.onError(amazonBedrockRuntimeException));
         }
     }
 

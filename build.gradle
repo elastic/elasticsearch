@@ -215,25 +215,11 @@ tasks.register("verifyVersions") {
   }
 }
 
-/*
- * When adding backcompat behavior that spans major versions, temporarily
- * disabling the backcompat tests is necessary. This flag controls
- * the enabled state of every bwc task. It should be set back to true
- * after the backport of the backcompat code is complete.
- */
-
+// TODO: This flag existed as a mechanism to disable bwc tests during a backport. It is no
+// longer used for that purpose, but instead a way to run only functional tests. We should
+// rework the functionalTests task to be more explicit about which tasks it wants to run
+// so that that this flag is no longer needed.
 boolean bwc_tests_enabled = true
-// place a PR link here when committing bwc changes:
-String bwc_tests_disabled_issue = ""
-if (bwc_tests_enabled == false) {
-  if (bwc_tests_disabled_issue.isEmpty()) {
-    throw new GradleException("bwc_tests_disabled_issue must be set when bwc_tests_enabled == false")
-  }
-  println "========================= WARNING ========================="
-  println "         Backwards compatibility tests are disabled!"
-  println "See ${bwc_tests_disabled_issue}"
-  println "==========================================================="
-}
 if (project.gradle.startParameter.taskNames.any { it.startsWith("checkPart") || it == 'functionalTests' }) {
   // Disable BWC tests for checkPart* tasks and platform support tests as it's expected that this will run on it's own check
   bwc_tests_enabled = false

@@ -13,7 +13,7 @@ These architectures are designed by Solutions Architectures to provide standardi
 
 
 
-TIP: You can host {es} on your own hardware or send your data to {es} on {ecloud} or serverless. 
+TIP: These architectures are specific to running your deployment on-premises or cloud. If you are using Elastic serverless we take care of all of this for you. For all the deployment options, see https://www.elastic.co/guide/en/elasticsearch/reference/current/elasticsearch-intro-deploy.html[Run Elasticsearch].
 
 These reference architectures are recommendations and should be adapted to fit your specific environment and needs. Each solution can vary based on the unique requirements and conditions of your deployment. In these architectures we discuss about how to deploy cluster components. For information about designing ingest architectures to feed content into your cluster, refer to https://www.elastic.co/guide/en/ingest/current/use-case-arch.html[Ingest architectures]
 

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.entitlement.agent;
 
+import org.elasticsearch.bootstrap.EntitlementBootstrap;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.internal.provider.ProviderLocator;
 import org.elasticsearch.entitlement.api.EntitlementChecks;
@@ -30,22 +31,13 @@ public class EntitlementAgent {
     }
 
     public static void agentmain(String agentArgs, Instrumentation inst) throws Exception {
-        // Add the bridge library (the one with the entitlement checking interface) to the bootstrap classpath.
-        // We can't actually reference the classes here for real before this point because they won't resolve.
-        var bridgeJarName = System.getProperty("es.entitlement.bridgeJar");
-        if (bridgeJarName == null) {
-            throw new IllegalArgumentException("System property es.entitlement.bridgeJar is required");
-        }
-        addJarToBootstrapClassLoader(inst, bridgeJarName);
+        var parameters = EntitlementBootstrap.agentParameters();
+        // Add the entitlement libraries to the classpath.
+        // We can't actually reference the classes here for real before this, because they won't resolve.
+        addJarToBootstrapClassLoader(inst, parameters.bridgeLibrary());
+        addJarToSystemClassLoader(inst, parameters.runtimeLibrary());
 
-        // Ditto runtime library on the system classpath
-        var runtimeJarName = System.getProperty("es.entitlement.runtimeJar");
-        if (runtimeJarName == null) {
-            throw new IllegalArgumentException("System property es.entitlement.runtimeJar is required");
-        }
-        addJarToSystemClassLoader(inst, runtimeJarName);
-
-        // The checks should be available and ready before we start instrumenting methods
+        // Ensure the checks are available and ready before we start adding instrumentation that will try to use them
         EntitlementProvider.checks();
 
         Method targetMethod = System.class.getMethod("exit", int.class);

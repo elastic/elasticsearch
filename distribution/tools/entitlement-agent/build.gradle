@@ -22,6 +22,7 @@ dependencies {
   entitlementBridge project(":distribution:tools:entitlement-bridge")
   entitlementRuntime project(":distribution:tools:entitlement-runtime")
   compileOnly project(":libs:elasticsearch-core")
+  compileOnly project(":server") // Let's goooooo
   compileOnly project(":distribution:tools:entitlement-bridge")
   compileOnly project(":distribution:tools:entitlement-runtime")
   testImplementation project(":test:framework")

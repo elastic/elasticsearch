@@ -22,17 +22,24 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
+import static java.util.Objects.requireNonNull;
+
 public final class EntitlementBootstrap {
     private static volatile AgentParameters agentParameters = null;
 
-    public AgentParameters agentParameters() {
+    public static AgentParameters agentParameters() {
         return agentParameters;
     }
 
     public record AgentParameters(
         String bridgeLibrary,
         String runtimeLibrary
-    ) {}
+    ) {
+        public AgentParameters {
+            requireNonNull(bridgeLibrary);
+            requireNonNull(runtimeLibrary);
+        }
+    }
 
     @SuppressForbidden(reason = "VirtualMachine.loadAgent is the only way to attach the agent dynamically")
     static void configure() {

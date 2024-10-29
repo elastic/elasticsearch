@@ -9,8 +9,6 @@
 
 package org.elasticsearch.test.cluster.local;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.test.cluster.SettingsProvider;
 import org.elasticsearch.test.cluster.local.LocalClusterSpec.LocalNodeSpec;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
@@ -22,7 +20,8 @@ import java.util.stream.Collectors;
 
 public class DefaultSettingsProvider implements SettingsProvider {
 
-    private static final Logger LOGGER = LogManager.getLogger(DefaultSettingsProvider.class);
+    private static final String MULTI_NODE_DISCOVERY_TYPE = "multi-node";
+    private static final String DISCOVERY_TYPE_SETTING = "discovery.type";
 
     @Override
     public Map<String, String> get(LocalNodeSpec nodeSpec) {
@@ -79,18 +78,23 @@ public class DefaultSettingsProvider implements SettingsProvider {
             .filter(Objects::nonNull)
             .collect(Collectors.joining(","));
 
-        if (masterEligibleNodes.isEmpty()) {
-            LOGGER.warn(
-                "Cluster configured with no master-eligible nodes. It may cause split-brain if more than one node is in the cluster."
-            );
-        }
+        if (isMultiNodeCluster(nodeSpec.getCluster())) {
+            if (masterEligibleNodes.isEmpty()) {
+                throw new IllegalStateException(
+                    "Cannot start multi-node cluster '" + nodeSpec.getCluster().getName() + "' as configured with no master-eligible nodes."
+                );
+            }
 
-        if (masterEligibleNodes.isEmpty() == false) {
             settings.put("cluster.initial_master_nodes", "[" + masterEligibleNodes + "]");
             settings.put("discovery.seed_providers", "file");
             settings.put("discovery.seed_hosts", "[]");
         }
 
         return settings;
+    }
+
+    private boolean isMultiNodeCluster(LocalClusterSpec cluster) {
+        return cluster.getNodes().size() > 1 ||
+            cluster.getNodes().getFirst().getSetting(DISCOVERY_TYPE_SETTING, MULTI_NODE_DISCOVERY_TYPE).equals(MULTI_NODE_DISCOVERY_TYPE);
     }
 }

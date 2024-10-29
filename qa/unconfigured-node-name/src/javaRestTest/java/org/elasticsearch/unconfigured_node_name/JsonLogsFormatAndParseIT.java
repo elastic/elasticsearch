@@ -29,6 +29,7 @@ public class JsonLogsFormatAndParseIT extends JsonLogsIntegTestCase {
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .setting("xpack.security.enabled", "false")
+        .setting("discovery.type", "single-node")
         .withNode(
             localNodeSpecBuilder -> localNodeSpecBuilder.withoutName()
                 .environment("HOSTNAME", HOSTNAME)

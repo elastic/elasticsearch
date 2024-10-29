@@ -93,13 +93,9 @@ public class AmazonBedrockInferenceClient extends AmazonBedrockBaseClient {
         internalClient.converseStream(
             request,
             ConverseStreamResponseHandler.builder().subscriber(() -> FlowAdapters.toSubscriber(awsResponseProcessor)).build()
-        ).handle((r, e) -> {
-            if (e != null) {
-                awsResponseProcessor.onError(e);
-                return null;
-            } else {
-                return r;
-            }
+        ).exceptionally(e -> {
+            awsResponseProcessor.onError(e);
+            return null; // Void
         });
         return awsResponseProcessor;
     }

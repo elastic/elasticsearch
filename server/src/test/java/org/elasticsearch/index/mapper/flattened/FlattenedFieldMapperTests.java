@@ -1,20 +1,25 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper.flattened;
 
+import org.apache.lucene.document.Document;
 import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -27,6 +32,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper.KeyedFlattenedFieldType;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper.RootFlattenedFieldType;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -34,10 +40,14 @@ import org.elasticsearch.xcontent.XContentType;
 import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -46,6 +56,8 @@ import java.util.TreeMap;
 import static org.apache.lucene.tests.analysis.BaseTokenStreamTestCase.assertTokenStreamContents;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasSize;
 
 public class FlattenedFieldMapperTests extends MapperTestCase {
 
@@ -189,18 +201,30 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
         }
     }
 
-    public void testDimensionMultiValuedField() throws IOException {
-        XContentBuilder mapping = fieldMapping(b -> {
+    public void testDimensionMultiValuedFieldTSDB() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
             minimalMapping(b);
             b.field("time_series_dimensions", List.of("key1", "key2", "field3.key3"));
-        });
-        DocumentMapper mapper = randomBoolean() ? createDocumentMapper(mapping) : createTimeSeriesModeDocumentMapper(mapping);
+        }), IndexMode.TIME_SERIES);
 
-        Exception e = expectThrows(
-            DocumentParsingException.class,
-            () -> mapper.parse(source(b -> b.array("field.key1", "value1", "value2")))
-        );
-        assertThat(e.getCause().getMessage(), containsString("Dimension field [field.key1] cannot be a multi-valued field"));
+        ParsedDocument doc = mapper.parse(source(null, b -> {
+            b.array("field.key1", "value1", "value2");
+            b.field("@timestamp", Instant.now());
+        }, TimeSeriesRoutingHashFieldMapper.encode(randomInt())));
+        assertThat(doc.docs().get(0).getFields("field"), hasSize(greaterThan(1)));
+    }
+
+    public void testDimensionMultiValuedFieldNonTSDB() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("time_series_dimensions", List.of("key1", "key2", "field3.key3"));
+        }), randomFrom(IndexMode.STANDARD, IndexMode.LOGSDB));
+
+        ParsedDocument doc = mapper.parse(source(b -> {
+            b.array("field.key1", "value1", "value2");
+            b.field("@timestamp", Instant.now());
+        }));
+        assertThat(doc.docs().get(0).getFields("field"), hasSize(greaterThan(1)));
     }
 
     public void testDisableIndex() throws Exception {
@@ -694,7 +718,7 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
         throw new AssumptionViolatedException("not supported");
     }
 
-    private static void randomMapExample(final TreeMap<Object, Object> example, int depth, int maxDepth) {
+    private static void randomMapExample(final Map<String, Object> example, int depth, int maxDepth) {
         for (int i = 0; i < randomIntBetween(2, 5); i++) {
             int j = depth >= maxDepth ? randomIntBetween(1, 2) : randomIntBetween(1, 3);
             switch (j) {
@@ -710,7 +734,7 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
                     example.put(randomAlphaOfLength(6), randomList);
                 }
                 case 3 -> {
-                    final TreeMap<Object, Object> nested = new TreeMap<>();
+                    final Map<String, Object> nested = new HashMap<>();
                     randomMapExample(nested, depth + 1, maxDepth);
                     example.put(randomAlphaOfLength(10), nested);
                 }
@@ -724,21 +748,78 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
 
         @Override
         public SyntheticSourceExample example(int maxValues) throws IOException {
-            // NOTE: values must be keywords and we use a TreeMap to preserve order (doc values are sorted and the result
-            // is created with keys and nested keys in sorted order).
-            final TreeMap<Object, Object> map = new TreeMap<>();
-            randomMapExample(map, 0, maxValues);
-            return new SyntheticSourceExample(map, map, this::mapping);
+            if (randomBoolean()) {
+                // Create a singleton value
+                var value = randomObject();
+                return new SyntheticSourceExample(value, mergeIntoExpectedMap(List.of(value)), this::mapping);
+            }
+
+            // Create an array of flattened field values
+            var values = new ArrayList<Map<String, Object>>();
+            for (int i = 0; i < maxValues; i++) {
+                values.add(randomObject());
+            }
+            var merged = mergeIntoExpectedMap(values);
+
+            return new SyntheticSourceExample(values, merged, this::mapping);
+        }
+
+        private Map<String, Object> randomObject() {
+            var maxDepth = randomIntBetween(1, 3);
+
+            final Map<String, Object> map = new HashMap<>();
+            randomMapExample(map, 0, maxDepth);
+
+            return map;
+        }
+
+        // Since arrays are moved to leafs in synthetic source, the result is not an array of objects
+        // but one big object containing merged values from all input objects.
+        // This function performs that transformation.
+        private Map<String, Object> mergeIntoExpectedMap(List<Map<String, Object>> inputValues) {
+            // Fields are sorted since they come (mostly) from doc_values.
+            var result = new TreeMap<String, Object>();
+            doMerge(inputValues, result);
+            return result;
+        }
+
+        @SuppressWarnings("unchecked")
+        private void doMerge(List<Map<String, Object>> inputValues, TreeMap<String, Object> result) {
+            for (var iv : inputValues) {
+                for (var field : iv.entrySet()) {
+                    if (field.getValue() instanceof Map<?, ?> inputNestedMap) {
+                        var intermediateResultMap = result.get(field.getKey());
+                        if (intermediateResultMap == null) {
+                            var map = new TreeMap<String, Object>();
+
+                            result.put(field.getKey(), map);
+                            doMerge(List.of((Map<String, Object>) inputNestedMap), map);
+                        } else if (intermediateResultMap instanceof Map<?, ?> m) {
+                            doMerge(List.of((Map<String, Object>) inputNestedMap), (TreeMap<String, Object>) m);
+                        } else {
+                            throw new IllegalStateException("Conflicting entries in merged map");
+                        }
+                    } else {
+                        var valueAtCurrentLevel = result.get(field.getKey());
+                        if (valueAtCurrentLevel == null) {
+                            result.put(field.getKey(), field.getValue());
+                        } else if (valueAtCurrentLevel instanceof List) {
+                            ((List<Object>) valueAtCurrentLevel).add(field.getValue());
+                        } else {
+                            var list = new ArrayList<>();
+                            list.add(valueAtCurrentLevel);
+                            list.add(field.getValue());
+
+                            result.put(field.getKey(), list);
+                        }
+                    }
+                }
+            }
         }
 
         @Override
         public List<SyntheticSourceInvalidExample> invalidExample() throws IOException {
-            return List.of(
-                new SyntheticSourceInvalidExample(
-                    equalTo("field [field] of type [flattened] doesn't support synthetic " + "source because it doesn't have doc values"),
-                    b -> b.field("type", "flattened").field("doc_values", false)
-                )
-            );
+            return List.of();
         }
 
         private void mapping(XContentBuilder b) throws IOException {
@@ -749,8 +830,57 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
         }
     }
 
+    public void testSyntheticSourceWithOnlyIgnoredValues() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(syntheticSourceMapping(b -> {
+            b.startObject("field").field("type", "flattened").field("ignore_above", 1).endObject();
+        }));
+
+        var syntheticSource = syntheticSource(mapper, b -> {
+            b.startObject("field");
+            {
+                b.field("key1", "val1");
+                b.startObject("obj1");
+                {
+                    b.field("key2", "val2");
+                    b.field("key3", List.of("val3", "val4"));
+                }
+                b.endObject();
+            }
+            b.endObject();
+        });
+        assertThat(syntheticSource, equalTo("{\"field\":{\"key1\":\"val1\",\"obj1\":{\"key2\":\"val2\",\"key3\":[\"val3\",\"val4\"]}}}"));
+    }
+
     @Override
     protected boolean supportsCopyTo() {
         return false;
+    }
+
+    @Override
+    public void assertStoredFieldsEquals(String info, IndexReader leftReader, IndexReader rightReader) throws IOException {
+        assert leftReader.maxDoc() == rightReader.maxDoc();
+        StoredFields leftStoredFields = leftReader.storedFields();
+        StoredFields rightStoredFields = rightReader.storedFields();
+        for (int i = 0; i < leftReader.maxDoc(); i++) {
+            Document leftDoc = leftStoredFields.document(i);
+            Document rightDoc = rightStoredFields.document(i);
+
+            // Everything is from LuceneTestCase except this part.
+            // LuceneTestCase sorts by name of the field only which results in a difference
+            // between keyed ignored field values that have the same name.
+            Comparator<IndexableField> comp = Comparator.comparing(IndexableField::name).thenComparing(IndexableField::binaryValue);
+            List<IndexableField> leftFields = new ArrayList<>(leftDoc.getFields());
+            List<IndexableField> rightFields = new ArrayList<>(rightDoc.getFields());
+            Collections.sort(leftFields, comp);
+            Collections.sort(rightFields, comp);
+
+            Iterator<IndexableField> leftIterator = leftFields.iterator();
+            Iterator<IndexableField> rightIterator = rightFields.iterator();
+            while (leftIterator.hasNext()) {
+                assertTrue(info, rightIterator.hasNext());
+                assertStoredFieldEquals(info, leftIterator.next(), rightIterator.next());
+            }
+            assertFalse(info, rightIterator.hasNext());
+        }
     }
 }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.upgrades;
@@ -19,6 +20,7 @@ import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
+import org.elasticsearch.test.rest.RestTestLegacyFeatures;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 import org.junit.ClassRule;
@@ -37,6 +39,7 @@ public class LogsIndexModeFullClusterRestartIT extends ParameterizedFullClusterR
     @ClassRule
     public static final ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
+        .version(getOldClusterTestVersion())
         .module("constant-keyword")
         .module("data-streams")
         .module("mapper-extras")
@@ -44,7 +47,6 @@ public class LogsIndexModeFullClusterRestartIT extends ParameterizedFullClusterR
         .module("x-pack-stack")
         .setting("xpack.security.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
-        .setting("cluster.logsdb.enabled", "true")
         .build();
 
     public LogsIndexModeFullClusterRestartIT(@Name("cluster") FullClusterRestartUpgradeStatus upgradeStatus) {
@@ -123,6 +125,8 @@ public class LogsIndexModeFullClusterRestartIT extends ParameterizedFullClusterR
         }""";
 
     public void testLogsIndexing() throws IOException {
+        assumeTrue("Test uses data streams", oldClusterHasFeature(RestTestLegacyFeatures.DATA_STREAMS_SUPPORTED));
+
         if (isRunningAgainstOldCluster()) {
             assertOK(client().performRequest(putTemplate(client(), "logs-template", STANDARD_TEMPLATE)));
             assertOK(client().performRequest(createDataStream("logs-apache-production")));

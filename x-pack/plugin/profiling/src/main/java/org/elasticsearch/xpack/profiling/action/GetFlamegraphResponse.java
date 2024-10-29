@@ -11,12 +11,13 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -25,9 +26,9 @@ public class GetFlamegraphResponse extends ActionResponse implements ChunkedToXC
     private final int size;
     private final double samplingRate;
     private final long selfCPU;
-    @UpdateForV9 // remove this field - it is unused in Kibana
+    @UpdateForV9(owner = UpdateForV9.Owner.PROFILING) // remove this field - it is unused in Kibana
     private final long totalCPU;
-    @UpdateForV9 // remove this field - it is unused in Kibana
+    @UpdateForV9(owner = UpdateForV9.Owner.PROFILING) // remove this field - it is unused in Kibana
     private final long totalSamples;
     private final List<Map<String, Integer>> edges;
     private final List<String> fileIds;
@@ -173,92 +174,59 @@ public class GetFlamegraphResponse extends ActionResponse implements ChunkedToXC
         return totalSamples;
     }
 
-    @UpdateForV9 // change casing from Camel Case to Snake Case (requires updates in Kibana as well)
+    @UpdateForV9(owner = UpdateForV9.Owner.PROFILING) // change casing from Camel Case to Snake Case (requires updates in Kibana as well)
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-        return Iterators.concat(
-            ChunkedToXContentHelper.startObject(),
-            ChunkedToXContentHelper.array(
-                "Edges",
-                Iterators.flatMap(
-                    edges.iterator(),
-                    perNodeEdges -> Iterators.concat(
-                        ChunkedToXContentHelper.startArray(),
-                        Iterators.map(perNodeEdges.entrySet().iterator(), edge -> (b, p) -> b.value(edge.getValue())),
-                        ChunkedToXContentHelper.endArray()
-                    )
-                )
-            ),
-            ChunkedToXContentHelper.array("FileID", Iterators.map(fileIds.iterator(), e -> (b, p) -> b.value(e))),
-            ChunkedToXContentHelper.array("FrameType", Iterators.map(frameTypes.iterator(), e -> (b, p) -> b.value(e))),
-            ChunkedToXContentHelper.array("Inline", Iterators.map(inlineFrames.iterator(), e -> (b, p) -> b.value(e))),
-            ChunkedToXContentHelper.array("ExeFilename", Iterators.map(fileNames.iterator(), e -> (b, p) -> b.value(e))),
-            ChunkedToXContentHelper.array("AddressOrLine", Iterators.map(addressOrLines.iterator(), e -> (b, p) -> b.value(e))),
-            ChunkedToXContentHelper.array("FunctionName", Iterators.map(functionNames.iterator(), e -> (b, p) -> b.value(e))),
-            ChunkedToXContentHelper.singleChunk((b, p) -> {
-                b.startArray("FunctionOffset");
-                for (int functionOffset : functionOffsets) {
-                    b.value(functionOffset);
-                }
-                return b.endArray();
-            }),
-            ChunkedToXContentHelper.array("SourceFilename", Iterators.map(sourceFileNames.iterator(), e -> (b, p) -> b.value(e))),
-            ChunkedToXContentHelper.singleChunk((b, p) -> {
-                b.startArray("SourceLine");
-                for (int sourceLine : sourceLines) {
-                    b.value(sourceLine);
-                }
-                return b.endArray();
-            }),
-            ChunkedToXContentHelper.singleChunk((b, p) -> {
-                b.startArray("CountInclusive");
-                for (long countInclusive : countInclusive) {
-                    b.value(countInclusive);
-                }
-                return b.endArray();
-            }),
-            ChunkedToXContentHelper.singleChunk((b, p) -> {
-                b.startArray("CountExclusive");
-                for (long c : countExclusive) {
-                    b.value(c);
-                }
-                return b.endArray();
-            }),
-            ChunkedToXContentHelper.singleChunk((b, p) -> {
-                b.startArray("AnnualCO2TonsInclusive");
-                for (double co2Tons : annualCO2TonsInclusive) {
-                    // write as raw value - we need direct control over the output representation (here: limit to 4 decimal places)
-                    b.rawValue(NumberUtils.doubleToString(co2Tons));
-                }
-                return b.endArray();
-            }),
-            ChunkedToXContentHelper.singleChunk((b, p) -> {
-                b.startArray("AnnualCO2TonsExclusive");
-                for (double co2Tons : annualCO2TonsExclusive) {
-                    b.rawValue(NumberUtils.doubleToString(co2Tons));
-                }
-                return b.endArray();
-            }),
-            ChunkedToXContentHelper.singleChunk((b, p) -> {
-                b.startArray("AnnualCostsUSDInclusive");
-                for (double costs : annualCostsUSDInclusive) {
-                    b.rawValue(NumberUtils.doubleToString(costs));
-                }
-                return b.endArray();
-            }),
-            ChunkedToXContentHelper.singleChunk((b, p) -> {
-                b.startArray("AnnualCostsUSDExclusive");
-                for (double costs : annualCostsUSDExclusive) {
-                    b.rawValue(NumberUtils.doubleToString(costs));
-                }
-                return b.endArray();
-            }),
-            Iterators.single((b, p) -> b.field("Size", size)),
-            Iterators.single((b, p) -> b.field("SamplingRate", samplingRate)),
-            Iterators.single((b, p) -> b.field("SelfCPU", selfCPU)),
-            Iterators.single((b, p) -> b.field("TotalCPU", totalCPU)),
-            Iterators.single((b, p) -> b.field("TotalSamples", totalSamples)),
-            ChunkedToXContentHelper.endObject()
-        );
+        return ChunkedToXContent.builder(params).object(ob -> {
+            ob.array("Edges", edges.iterator(), (eb, e) -> eb.array(intValues(e.values())));
+            ob.array("FileID", fileIds.toArray(String[]::new));
+            ob.array("FrameType", intValues(frameTypes));
+            ob.array("Inline", inlineFrames.iterator(), e -> (b, p) -> b.value(e));
+            ob.array("ExeFilename", fileNames.toArray(String[]::new));
+            ob.array("AddressOrLine", intValues(addressOrLines));
+            ob.array("FunctionName", functionNames.toArray(String[]::new));
+            ob.array("FunctionOffset", intValues(functionOffsets));
+            ob.array("SourceFilename", sourceFileNames.toArray(String[]::new));
+            ob.array("SourceLine", intValues(sourceLines));
+            ob.array("CountInclusive", longValues(countInclusive));
+            ob.array("CountExclusive", longValues(countExclusive));
+            ob.array("AnnualCO2TonsInclusive", doubleValues(annualCO2TonsInclusive));
+            ob.array("AnnualCO2TonsExclusive", doubleValues(annualCO2TonsExclusive));
+            ob.array("AnnualCostsUSDInclusive", doubleValues(annualCostsUSDInclusive));
+            ob.array("AnnualCostsUSDExclusive", doubleValues(annualCostsUSDExclusive));
+            ob.field("Size", size);
+            ob.field("SamplingRate", samplingRate);
+            ob.field("SelfCPU", selfCPU);
+            ob.field("TotalCPU", totalCPU);
+            ob.field("TotalSamples", totalSamples);
+        });
+    }
+
+    private static Iterator<ToXContent> intValues(Collection<Integer> values) {
+        return Iterators.single((b, p) -> {
+            for (Integer i : values) {
+                b.value(i);
+            }
+            return b;
+        });
+    }
+
+    private static Iterator<ToXContent> longValues(Collection<Long> values) {
+        return Iterators.single((b, p) -> {
+            for (Long l : values) {
+                b.value(l);
+            }
+            return b;
+        });
+    }
+
+    private static Iterator<ToXContent> doubleValues(Collection<Double> values) {
+        return Iterators.single((b, p) -> {
+            for (Double d : values) {
+                // write as raw value - we need direct control over the output representation (here: limit to 4 decimal places)
+                b.rawValue(NumberUtils.doubleToString(d));
+            }
+            return b;
+        });
     }
 }

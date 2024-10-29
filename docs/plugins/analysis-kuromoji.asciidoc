@@ -86,7 +86,7 @@ The `kuromoji_iteration_mark` normalizes Japanese horizontal iteration marks
 
 `normalize_kanji`::
 
-    Indicates whether kanji iteration marks should be normalize. Defaults to `true`.
+    Indicates whether kanji iteration marks should be normalized. Defaults to `true`.
 
 `normalize_kana`::
 
@@ -132,6 +132,11 @@ unknown words. It can be set to:
 `discard_punctuation`::
 
     Whether punctuation should be discarded from the output. Defaults to `true`.
+
+`lenient`::
+
+    Whether the `user_dictionary` should be deduplicated on the provided `text`.
+    False by default causing duplicates to generate an error.
 
 `user_dictionary`::
 +
@@ -189,7 +194,7 @@ PUT kuromoji_sample
 +
 --
 Additional expert user parameters `nbest_cost` and `nbest_examples` can be used
-to include additional tokens that most likely according to the statistical model.
+to include additional tokens that are most likely according to the statistical model.
 If both parameters are used, the largest number of both is applied.
 
 `nbest_cost`::
@@ -221,7 +226,8 @@ PUT kuromoji_sample
             "type": "kuromoji_tokenizer",
             "mode": "extended",
             "discard_punctuation": "false",
-            "user_dictionary": "userdict_ja.txt"
+            "user_dictionary": "userdict_ja.txt",
+            "lenient": "true"
           }
         },
         "analyzer": {
@@ -622,5 +628,125 @@ Which results in:
     "type" : "word",
     "position" : 0
   } ]
+}
+--------------------------------------------------
+
+[[analysis-kuromoji-hiragana-uppercase]]
+==== `hiragana_uppercase` token filter
+
+The `hiragana_uppercase` token filter normalizes small letters (捨て仮名) in hiragana into standard letters.
+This filter is useful if you want to search against old style Japanese text such as
+patents, legal documents, contract policies, etc.
+
+For example:
+
+[source,console]
+--------------------------------------------------
+PUT kuromoji_sample
+{
+  "settings": {
+    "index": {
+      "analysis": {
+        "analyzer": {
+          "my_analyzer": {
+            "tokenizer": "kuromoji_tokenizer",
+            "filter": [
+              "hiragana_uppercase"
+            ]
+          }
+        }
+      }
+    }
+  }
+}
+
+GET kuromoji_sample/_analyze
+{
+  "analyzer": "my_analyzer",
+  "text": "ちょっとまって"
+}
+--------------------------------------------------
+
+Which results in:
+
+[source,console-result]
+--------------------------------------------------
+{
+  "tokens": [
+    {
+      "token": "ちよつと",
+      "start_offset": 0,
+      "end_offset": 4,
+      "type": "word",
+      "position": 0
+    },
+    {
+      "token": "まつ",
+      "start_offset": 4,
+      "end_offset": 6,
+      "type": "word",
+      "position": 1
+    },
+    {
+      "token": "て",
+      "start_offset": 6,
+      "end_offset": 7,
+      "type": "word",
+      "position": 2
+    }
+  ]
+}
+--------------------------------------------------
+
+[[analysis-kuromoji-katakana-uppercase]]
+==== `katakana_uppercase` token filter
+
+The `katakana_uppercase` token filter normalizes small letters (捨て仮名) in katakana into standard letters.
+This filter is useful if you want to search against old style Japanese text such as
+patents, legal documents, contract policies, etc.
+
+For example:
+
+[source,console]
+--------------------------------------------------
+PUT kuromoji_sample
+{
+  "settings": {
+    "index": {
+      "analysis": {
+        "analyzer": {
+          "my_analyzer": {
+            "tokenizer": "kuromoji_tokenizer",
+            "filter": [
+              "katakana_uppercase"
+            ]
+          }
+        }
+      }
+    }
+  }
+}
+
+GET kuromoji_sample/_analyze
+{
+  "analyzer": "my_analyzer",
+  "text": "ストップウォッチ"
+}
+--------------------------------------------------
+
+Which results in:
+
+[source,console-result]
+--------------------------------------------------
+{
+  "tokens": [
+    {
+      "token": "ストツプウオツチ",
+      "start_offset": 0,
+      "end_offset": 8,
+      "type": "word",
+      "position": 0
+    }
+  ]
 }
 --------------------------------------------------

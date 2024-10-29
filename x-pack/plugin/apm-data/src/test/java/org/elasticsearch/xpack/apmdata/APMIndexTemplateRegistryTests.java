@@ -75,7 +75,6 @@ import static org.mockito.Mockito.when;
 public class APMIndexTemplateRegistryTests extends ESTestCase {
     private APMIndexTemplateRegistry apmIndexTemplateRegistry;
     private StackTemplateRegistryAccessor stackTemplateRegistryAccessor;
-    private ClusterService clusterService;
     private ThreadPool threadPool;
     private VerifyingClient client;
 
@@ -89,7 +88,7 @@ public class APMIndexTemplateRegistryTests extends ESTestCase {
 
         threadPool = new TestThreadPool(this.getClass().getName());
         client = new VerifyingClient(threadPool);
-        clusterService = ClusterServiceUtils.createClusterService(threadPool, clusterSettings);
+        ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool, clusterSettings);
         FeatureService featureService = new FeatureService(List.of(new DataStreamFeatures()));
         stackTemplateRegistryAccessor = new StackTemplateRegistryAccessor(
             new StackTemplateRegistry(Settings.EMPTY, clusterService, threadPool, client, NamedXContentRegistry.EMPTY, featureService)
@@ -313,11 +312,15 @@ public class APMIndexTemplateRegistryTests extends ESTestCase {
             // Each index template should be composed of the following optional component templates:
             // <data_stream.type>@custom
             // <data_stream.type>-<data_stream.dataset>@custom
+            // <data_stream.type>-fallback@ilm
             final List<String> optionalComponentTemplates = template.composedOf()
                 .stream()
                 .filter(t -> template.getIgnoreMissingComponentTemplates().contains(t))
                 .toList();
-            assertThat(optionalComponentTemplates, containsInAnyOrder(namePrefix + "@custom", dataStreamType + "@custom"));
+            assertThat(
+                optionalComponentTemplates,
+                containsInAnyOrder(namePrefix + "@custom", dataStreamType + "@custom", namePrefix + "-fallback@ilm")
+            );
 
             // There should be no required custom component templates.
             final List<String> requiredCustomComponentTemplates = template.getRequiredComponentTemplates()
@@ -375,6 +378,20 @@ public class APMIndexTemplateRegistryTests extends ESTestCase {
 
         ClusterChangedEvent event = createClusterChangedEvent(Map.of(), Map.of(), nodes);
         apmIndexTemplateRegistry.clusterChanged(event);
+    }
+
+    public void testILMComponentTemplatesInstalled() throws Exception {
+        int ilmFallbackCount = 0;
+        for (Map.Entry<String, ComponentTemplate> entry : apmIndexTemplateRegistry.getComponentTemplateConfigs().entrySet()) {
+            final String name = entry.getKey();
+            final int atIndex = name.lastIndexOf('@');
+            assertThat(atIndex, not(equalTo(-1)));
+            if ("ilm".equals(name.substring(atIndex + 1))) {
+                ilmFallbackCount++;
+            }
+        }
+        // Each index template should have a corresponding ILM fallback policy
+        assertThat(apmIndexTemplateRegistry.getComposableTemplateConfigs().size(), equalTo(ilmFallbackCount));
     }
 
     private Map<String, ComponentTemplate> getIndependentComponentTemplateConfigs() {

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.monitor.metrics;
@@ -12,7 +13,10 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.SingleObjectCache;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.stats.IndexingPressureStats;
@@ -23,9 +27,12 @@ import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
 import java.io.IOException;
+import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * NodeMetrics monitors various statistics of an Elasticsearch node and exposes them as metrics through
@@ -743,16 +750,49 @@ public class NodeMetrics extends AbstractLifecycleComponent {
      * refresh() is called, cache is updated and the new instance returned.
      */
     private class NodeStatsCache extends SingleObjectCache<NodeStats> {
+        private static final NodeStats MISSING_NODE_STATS = new NodeStats(
+            new DiscoveryNode(
+                "_na",
+                "_na",
+                new TransportAddress(InetAddress.getLoopbackAddress(), 0),
+                Map.of(),
+                Set.of(),
+                VersionInformation.CURRENT
+            ),
+            0,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+        );
         private boolean refresh;
 
         NodeStatsCache(TimeValue interval) {
-            super(interval, getNodeStats());
+            super(interval, MISSING_NODE_STATS);
             this.refresh = true;
         }
 
         @Override
         protected NodeStats refresh() {
             return refresh ? getNodeStats() : getNoRefresh();
+        }
+
+        @Override
+        protected boolean needsRefresh() {
+            return getNoRefresh() == MISSING_NODE_STATS || super.needsRefresh();
         }
 
         public void stopRefreshing() {

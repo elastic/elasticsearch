@@ -84,12 +84,11 @@ class InferencePyTorchAction extends AbstractPyTorchAction<InferenceResults> {
             logger.debug(() -> format("[%s] skipping inference on request [%s] as it has timed out", getDeploymentId(), getRequestId()));
             return;
         }
+        final String requestIdStr = String.valueOf(getRequestId());
         if (isCancelled()) {
-            onFailure("inference task cancelled");
+            onCancel();
             return;
         }
-
-        final String requestIdStr = String.valueOf(getRequestId());
         try {
             String inputText = input.extractInput(getProcessContext().getModelInput().get());
             if (prefixType != TrainedModelPrefixStrings.PrefixType.NONE) {
@@ -141,7 +140,7 @@ class InferencePyTorchAction extends AbstractPyTorchAction<InferenceResults> {
 
             // Tokenization is non-trivial, so check for cancellation one last time before sending request to the native process
             if (isCancelled()) {
-                onFailure("inference task cancelled");
+                onCancel();
                 return;
             }
             getProcessContext().getResultProcessor()
@@ -196,9 +195,11 @@ class InferencePyTorchAction extends AbstractPyTorchAction<InferenceResults> {
             return;
         }
         if (isCancelled()) {
-            onFailure("inference task cancelled");
+            onCancel();
             return;
         }
+
+        getProcessContext().getResultProcessor().updateStats(pyTorchResult);
         InferenceResults results = inferenceResultsProcessor.processResult(
             tokenization,
             pyTorchResult.inferenceResult(),

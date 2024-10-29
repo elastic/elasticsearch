@@ -8,7 +8,9 @@
 package org.elasticsearch.xpack.esql.planner;
 
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
@@ -30,7 +32,6 @@ import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinType;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
-import org.elasticsearch.xpack.esql.plan.logical.meta.MetaFunctions;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowInfo;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
@@ -51,10 +52,10 @@ import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.RowExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
+import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
 
-import static org.elasticsearch.xpack.esql.plan.physical.AggregateExec.Mode;
-import static org.elasticsearch.xpack.esql.plan.physical.AggregateExec.Mode.FINAL;
-import static org.elasticsearch.xpack.esql.plan.physical.AggregateExec.Mode.PARTIAL;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * <p>This class is part of the planner</p>
@@ -98,9 +99,6 @@ public class Mapper {
         }
 
         // Commands
-        if (p instanceof MetaFunctions metaFunctions) {
-            return new ShowExec(metaFunctions.source(), metaFunctions.output(), metaFunctions.values(functionRegistry));
-        }
         if (p instanceof ShowInfo showInfo) {
             return new ShowExec(showInfo.source(), showInfo.output(), showInfo.values());
         }
@@ -108,6 +106,46 @@ public class Mapper {
         //
         // Unary Plan
         //
+        if (localMode == false && p instanceof Enrich enrich && enrich.mode() == Enrich.Mode.REMOTE) {
+            // When we have remote enrich, we want to put it under FragmentExec, so it would be executed remotely.
+            // We're only going to do it on the coordinator node.
+            // The way we're going to do it is as follows:
+            // 1. Locate FragmentExec in the tree. If we have no FragmentExec, we won't do anything.
+            // 2. Put this Enrich under it, removing everything that was below it previously.
+            // 3. Above FragmentExec, we should deal with pipeline breakers, since pipeline ops already are supposed to go under
+            // FragmentExec.
+            // 4. Aggregates can't appear here since the plan should have errored out if we have aggregate inside remote Enrich.
+            // 5. So we should be keeping: LimitExec, ExchangeExec, OrderExec, TopNExec (actually OrderExec probably can't happen anyway).
+
+            var child = map(enrich.child());
+            AtomicBoolean hasFragment = new AtomicBoolean(false);
+
+            var childTransformed = child.transformUp((f) -> {
+                // Once we reached FragmentExec, we stuff our Enrich under it
+                if (f instanceof FragmentExec) {
+                    hasFragment.set(true);
+                    return new FragmentExec(p);
+                }
+                if (f instanceof EnrichExec enrichExec) {
+                    // It can only be ANY because COORDINATOR would have errored out earlier, and REMOTE should be under FragmentExec
+                    assert enrichExec.mode() == Enrich.Mode.ANY : "enrich must be in ANY mode here";
+                    return enrichExec.child();
+                }
+                if (f instanceof UnaryExec unaryExec) {
+                    if (f instanceof LimitExec || f instanceof ExchangeExec || f instanceof OrderExec || f instanceof TopNExec) {
+                        return f;
+                    } else {
+                        return unaryExec.child();
+                    }
+                }
+                // Currently, it's either UnaryExec or LeafExec. Leaf will either resolve to FragmentExec or we'll ignore it.
+                return f;
+            });
+
+            if (hasFragment.get()) {
+                return childTransformed;
+            }
+        }
 
         if (p instanceof UnaryPlan ua) {
             var child = map(ua.child());
@@ -216,9 +254,13 @@ public class Mapper {
     }
 
     private PhysicalPlan map(Aggregate aggregate, PhysicalPlan child) {
+        List<Attribute> intermediateAttributes = AbstractPhysicalOperationProviders.intermediateAttributes(
+            aggregate.aggregates(),
+            aggregate.groupings()
+        );
         // in local mode the only aggregate that can appear is the partial side under an exchange
         if (localMode) {
-            child = aggExec(aggregate, child, PARTIAL);
+            child = aggExec(aggregate, child, AggregatorMode.INITIAL, intermediateAttributes);
         }
         // otherwise create both sides of the aggregate (for parallelism purposes), if no fragment is present
         // TODO: might be easier long term to end up with just one node and split if necessary instead of doing that always at this stage
@@ -226,23 +268,35 @@ public class Mapper {
             child = addExchangeForFragment(aggregate, child);
             // exchange was added - use the intermediates for the output
             if (child instanceof ExchangeExec exchange) {
-                var output = AbstractPhysicalOperationProviders.intermediateAttributes(aggregate.aggregates(), aggregate.groupings());
-                child = new ExchangeExec(child.source(), output, true, exchange.child());
+                child = new ExchangeExec(child.source(), intermediateAttributes, true, exchange.child());
             }
             // if no exchange was added, create the partial aggregate
             else {
-                child = aggExec(aggregate, child, PARTIAL);
+                child = aggExec(aggregate, child, AggregatorMode.INITIAL, intermediateAttributes);
             }
 
             // regardless, always add the final agg
-            child = aggExec(aggregate, child, FINAL);
+            child = aggExec(aggregate, child, AggregatorMode.FINAL, intermediateAttributes);
         }
 
         return child;
     }
 
-    private static AggregateExec aggExec(Aggregate aggregate, PhysicalPlan child, Mode aggMode) {
-        return new AggregateExec(aggregate.source(), child, aggregate.groupings(), aggregate.aggregates(), aggMode, null);
+    private static AggregateExec aggExec(
+        Aggregate aggregate,
+        PhysicalPlan child,
+        AggregatorMode aggMode,
+        List<Attribute> intermediateAttributes
+    ) {
+        return new AggregateExec(
+            aggregate.source(),
+            child,
+            aggregate.groupings(),
+            aggregate.aggregates(),
+            aggMode,
+            intermediateAttributes,
+            null
+        );
     }
 
     private PhysicalPlan map(Limit limit, PhysicalPlan child) {

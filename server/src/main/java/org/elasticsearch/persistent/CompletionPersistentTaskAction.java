@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.persistent;
 
@@ -18,9 +19,9 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -34,28 +35,18 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * ActionType that is used by executor node to indicate that the persistent action finished or failed on the node and needs to be
  * removed from the cluster state in case of successful completion or restarted on some other node in case of failure.
  */
-public class CompletionPersistentTaskAction extends ActionType<PersistentTaskResponse> {
+public class CompletionPersistentTaskAction {
 
-    public static final CompletionPersistentTaskAction INSTANCE = new CompletionPersistentTaskAction();
-    public static final String NAME = "cluster:admin/persistent/completion";
+    public static final ActionType<PersistentTaskResponse> INSTANCE = new ActionType<>("cluster:admin/persistent/completion");
 
-    private CompletionPersistentTaskAction() {
-        super(NAME);
-    }
+    private CompletionPersistentTaskAction() {/* no instances */}
 
     public static class Request extends MasterNodeRequest<Request> {
 
-        private String taskId;
-
-        private Exception exception;
-
-        private long allocationId = -1;
-
-        private String localAbortReason;
-
-        public Request() {
-            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
-        }
+        private final String taskId;
+        private final Exception exception;
+        private final long allocationId;
+        private final String localAbortReason;
 
         public Request(StreamInput in) throws IOException {
             super(in);
@@ -128,7 +119,7 @@ public class CompletionPersistentTaskAction extends ActionType<PersistentTaskRes
             IndexNameExpressionResolver indexNameExpressionResolver
         ) {
             super(
-                CompletionPersistentTaskAction.NAME,
+                INSTANCE.name(),
                 transportService,
                 clusterService,
                 threadPool,

@@ -29,7 +29,7 @@ public class Sin extends AbstractTrigonometricFunction {
 
     @FunctionInfo(
         returnType = "double",
-        description = "Returns ths {wikipedia}/Sine_and_cosine[Sine] trigonometric function of an angle.",
+        description = "Returns the {wikipedia}/Sine_and_cosine[sine] of an angle.",
         examples = @Example(file = "floats", tag = "sin")
     )
     public Sin(

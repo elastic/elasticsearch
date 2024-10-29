@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.snapshots;
@@ -24,6 +25,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.RefCountingRunnable;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -277,9 +279,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         final String repositoryName = request.repository();
         final String snapshotName = IndexNameExpressionResolver.resolveDateMathExpression(request.snapshot());
         validate(repositoryName, snapshotName);
-        // TODO: create snapshot UUID in CreateSnapshotRequest and make this operation idempotent to cleanly deal with transport layer
-        // retries
-        final SnapshotId snapshotId = new SnapshotId(snapshotName, UUIDs.randomBase64UUID()); // new UUID for the snapshot
+        final SnapshotId snapshotId = new SnapshotId(snapshotName, request.uuid());
         Repository repository = repositoriesService.repository(request.repository());
         if (repository.isReadOnly()) {
             listener.onFailure(new RepositoryException(repository.getMetadata().name(), "cannot create snapshot in a readonly repository"));
@@ -2493,19 +2493,11 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 );
                 return;
             }
+            final SubscribableListener<Void> doneFuture = new SubscribableListener<>();
             repositoriesService.repository(deleteEntry.repository())
-                .deleteSnapshots(snapshotIds, repositoryData.getGenId(), minNodeVersion, new SnapshotDeleteListener() {
-
-                    private final ListenableFuture<Void> doneFuture = new ListenableFuture<>();
-
+                .deleteSnapshots(snapshotIds, repositoryData.getGenId(), minNodeVersion, new ActionListener<>() {
                     @Override
-                    public void onDone() {
-                        logger.info("snapshots {} deleted", snapshotIds);
-                        doneFuture.onResponse(null);
-                    }
-
-                    @Override
-                    public void onRepositoryDataWritten(RepositoryData updatedRepoData) {
+                    public void onResponse(RepositoryData updatedRepoData) {
                         removeSnapshotDeletionFromClusterState(
                             deleteEntry,
                             updatedRepoData,
@@ -2551,6 +2543,9 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                             }
                         );
                     }
+                }, () -> {
+                    logger.info("snapshots {} deleted", snapshotIds);
+                    doneFuture.onResponse(null);
                 });
         }
     }
@@ -3956,9 +3951,13 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             );
             final SnapshotsInProgress initialSnapshots = SnapshotsInProgress.get(state);
             SnapshotsInProgress snapshotsInProgress = shardsUpdateContext.computeUpdatedState();
+            final RegisteredPolicySnapshots.Builder registeredPolicySnapshots = state.metadata()
+                .custom(RegisteredPolicySnapshots.TYPE, RegisteredPolicySnapshots.EMPTY)
+                .builder();
             for (final var taskContext : batchExecutionContext.taskContexts()) {
                 if (taskContext.getTask() instanceof CreateSnapshotTask task) {
                     try {
+                        registeredPolicySnapshots.maybeAdd(task.createSnapshotRequest.userMetadata(), task.snapshot.getSnapshotId());
                         final var repoMeta = RepositoriesMetadata.get(state).repository(task.snapshot.getRepository());
                         if (Objects.equals(task.initialRepositoryMetadata, repoMeta)) {
                             snapshotsInProgress = createSnapshot(task, taskContext, state, snapshotsInProgress);
@@ -3983,7 +3982,11 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             if (snapshotsInProgress == initialSnapshots) {
                 return state;
             }
-            return ClusterState.builder(state).putCustom(SnapshotsInProgress.TYPE, snapshotsInProgress).build();
+
+            return ClusterState.builder(state)
+                .putCustom(SnapshotsInProgress.TYPE, snapshotsInProgress)
+                .metadata(Metadata.builder(state.metadata()).putCustom(RegisteredPolicySnapshots.TYPE, registeredPolicySnapshots.build()))
+                .build();
         }
 
         private SnapshotsInProgress createSnapshot(

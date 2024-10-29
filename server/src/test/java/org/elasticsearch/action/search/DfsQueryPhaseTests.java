@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.action.search;
 
@@ -150,11 +151,11 @@ public class DfsQueryPhaseTests extends ESTestCase {
             assertNotNull(responseRef.get());
             assertNotNull(responseRef.get().get(0));
             assertNull(responseRef.get().get(0).fetchResult());
-            assertEquals(1, responseRef.get().get(0).queryResult().topDocs().topDocs.totalHits.value);
+            assertEquals(1, responseRef.get().get(0).queryResult().topDocs().topDocs.totalHits.value());
             assertEquals(42, responseRef.get().get(0).queryResult().topDocs().topDocs.scoreDocs[0].doc);
             assertNotNull(responseRef.get().get(1));
             assertNull(responseRef.get().get(1).fetchResult());
-            assertEquals(1, responseRef.get().get(1).queryResult().topDocs().topDocs.totalHits.value);
+            assertEquals(1, responseRef.get().get(1).queryResult().topDocs().topDocs.totalHits.value());
             assertEquals(84, responseRef.get().get(1).queryResult().topDocs().topDocs.scoreDocs[0].doc);
             assertTrue(mockSearchPhaseContext.releasedSearchContexts.isEmpty());
             assertEquals(2, mockSearchPhaseContext.numSuccess.get());
@@ -235,7 +236,7 @@ public class DfsQueryPhaseTests extends ESTestCase {
             assertNotNull(responseRef.get());
             assertNotNull(responseRef.get().get(0));
             assertNull(responseRef.get().get(0).fetchResult());
-            assertEquals(1, responseRef.get().get(0).queryResult().topDocs().topDocs.totalHits.value);
+            assertEquals(1, responseRef.get().get(0).queryResult().topDocs().topDocs.totalHits.value());
             assertEquals(42, responseRef.get().get(0).queryResult().topDocs().topDocs.scoreDocs[0].doc);
             assertNull(responseRef.get().get(1));
 
@@ -353,12 +354,14 @@ public class DfsQueryPhaseTests extends ESTestCase {
         KnnScoreDocQueryBuilder ksdqb0 = new KnnScoreDocQueryBuilder(
             new ScoreDoc[] { new ScoreDoc(1, 3.0f, 1), new ScoreDoc(4, 1.5f, 1) },
             "vector",
-            VectorData.fromFloats(new float[] { 0.0f })
+            VectorData.fromFloats(new float[] { 0.0f }),
+            null
         );
         KnnScoreDocQueryBuilder ksdqb1 = new KnnScoreDocQueryBuilder(
             new ScoreDoc[] { new ScoreDoc(1, 2.0f, 1) },
             "vector2",
-            VectorData.fromFloats(new float[] { 0.0f })
+            VectorData.fromFloats(new float[] { 0.0f }),
+            null
         );
         assertEquals(
             List.of(bm25, ksdqb0, ksdqb1),

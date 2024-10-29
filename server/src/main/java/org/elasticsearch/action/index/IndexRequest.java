@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.index;
@@ -38,7 +39,7 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.ingest.IngestService;
-import org.elasticsearch.plugins.internal.DocumentSizeObserver;
+import org.elasticsearch.plugins.internal.XContentParserDecorator;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -145,8 +146,6 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
      * rawTimestamp field is used on the coordinate node, it doesn't need to be serialised.
      */
     private Object rawTimestamp;
-    private long normalisedBytesParsed = -1;
-    private boolean originatesFromUpdateByScript;
 
     public IndexRequest(StreamInput in) throws IOException {
         this(null, in);
@@ -181,7 +180,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         dynamicTemplates = in.readMap(StreamInput::readString);
         if (in.getTransportVersion().onOrAfter(PIPELINES_HAVE_RUN_FIELD_ADDED)
             && in.getTransportVersion().before(TransportVersions.V_8_13_0)) {
-            in.readBoolean();
+            in.readBoolean(); // obsolete, prior to tracking normalisedBytesParsed
         }
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             this.listExecutedPipelines = in.readBoolean();
@@ -194,15 +193,20 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         }
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
             requireDataStream = in.readBoolean();
-            normalisedBytesParsed = in.readZLong();
         } else {
             requireDataStream = false;
         }
 
-        if (in.getTransportVersion().onOrAfter(TransportVersions.INDEX_REQUEST_UPDATE_BY_SCRIPT_ORIGIN)) {
-            originatesFromUpdateByScript = in.readBoolean();
-        } else {
-            originatesFromUpdateByScript = false;
+        if (in.getTransportVersion().before(TransportVersions.INDEX_REQUEST_REMOVE_METERING)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
+                in.readZLong(); // obsolete normalisedBytesParsed
+            }
+            if (in.getTransportVersion().onOrAfter(TransportVersions.INDEX_REQUEST_UPDATE_BY_SCRIPT_ORIGIN)) {
+                in.readBoolean(); // obsolete originatesFromUpdateByScript
+            }
+            if (in.getTransportVersion().onOrAfter(TransportVersions.INDEX_REQUEST_UPDATE_BY_DOC_ORIGIN)) {
+                in.readBoolean(); // obsolete originatesFromUpdateByDoc
+            }
         }
     }
 
@@ -407,8 +411,8 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         return XContentHelper.convertToMap(source, false, contentType).v2();
     }
 
-    public Map<String, Object> sourceAsMap(DocumentSizeObserver documentSizeObserver) {
-        return XContentHelper.convertToMap(source, false, contentType, documentSizeObserver).v2();
+    public Map<String, Object> sourceAsMap(XContentParserDecorator parserDecorator) {
+        return XContentHelper.convertToMap(source, false, contentType, parserDecorator).v2();
     }
 
     /**
@@ -751,7 +755,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         out.writeMap(dynamicTemplates, StreamOutput::writeString);
         if (out.getTransportVersion().onOrAfter(PIPELINES_HAVE_RUN_FIELD_ADDED)
             && out.getTransportVersion().before(TransportVersions.V_8_13_0)) {
-            out.writeBoolean(normalisedBytesParsed != -1L);
+            out.writeBoolean(false); // obsolete, prior to tracking normalisedBytesParsed
         }
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             out.writeBoolean(listExecutedPipelines);
@@ -762,11 +766,18 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
 
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
             out.writeBoolean(requireDataStream);
-            out.writeZLong(normalisedBytesParsed);
         }
 
-        if (out.getTransportVersion().onOrAfter(TransportVersions.INDEX_REQUEST_UPDATE_BY_SCRIPT_ORIGIN)) {
-            out.writeBoolean(originatesFromUpdateByScript);
+        if (out.getTransportVersion().before(TransportVersions.INDEX_REQUEST_REMOVE_METERING)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
+                out.writeZLong(-1);  // obsolete normalisedBytesParsed
+            }
+            if (out.getTransportVersion().onOrAfter(TransportVersions.INDEX_REQUEST_UPDATE_BY_SCRIPT_ORIGIN)) {
+                out.writeBoolean(false); // obsolete originatesFromUpdateByScript
+            }
+            if (out.getTransportVersion().onOrAfter(TransportVersions.INDEX_REQUEST_UPDATE_BY_DOC_ORIGIN)) {
+                out.writeBoolean(false); // obsolete originatesFromUpdateByDoc
+            }
         }
     }
 
@@ -869,6 +880,9 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         return this;
     }
 
+    /**
+     * Transient flag denoting that the local request should be routed to a failure store. Not persisted across the wire.
+     */
     public boolean isWriteToFailureStore() {
         return writeToFailureStore;
     }
@@ -914,33 +928,6 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     }
 
     /**
-     * Returns a number of bytes observed when parsing a document in earlier stages of ingestion (like update/ingest service)
-     * Defaults to -1 when a document size was not observed in earlier stages.
-     * @return a number of bytes observed
-     */
-    public long getNormalisedBytesParsed() {
-        return normalisedBytesParsed;
-    }
-
-    /**
-     * Sets number of bytes observed by a <code>DocumentSizeObserver</code>
-     * @return an index request
-     */
-    public IndexRequest setNormalisedBytesParsed(long normalisedBytesParsed) {
-        this.normalisedBytesParsed = normalisedBytesParsed;
-        return this;
-    }
-
-    /**
-     * when observing document size while parsing, this method indicates that this request should not be recorded.
-     * @return an index request
-     */
-    public IndexRequest noParsedBytesToReport() {
-        this.normalisedBytesParsed = 0;
-        return this;
-    }
-
-    /**
      * Adds the pipeline to the list of executed pipelines, if listExecutedPipelines is true
      *
      * @param pipeline
@@ -969,14 +956,5 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         } else {
             return Collections.unmodifiableList(executedPipelines);
         }
-    }
-
-    public IndexRequest setOriginatesFromUpdateByScript(boolean originatesFromUpdateByScript) {
-        this.originatesFromUpdateByScript = originatesFromUpdateByScript;
-        return this;
-    }
-
-    public boolean originatesFromUpdateByScript() {
-        return this.originatesFromUpdateByScript;
     }
 }

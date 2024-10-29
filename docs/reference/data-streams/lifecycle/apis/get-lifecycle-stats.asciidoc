@@ -4,7 +4,7 @@
 <titleabbrev>Get Data Stream Lifecycle</titleabbrev>
 ++++
 
-Gets stats about the execution of data stream lifecycle.
+Gets stats about the execution of <<data-stream-lifecycle,data stream lifecycle>>.
 
 [[get-lifecycle-stats-api-prereqs]]
 ==== {api-prereq-title}

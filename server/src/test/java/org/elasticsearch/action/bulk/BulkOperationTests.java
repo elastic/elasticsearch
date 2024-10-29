@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.bulk;
@@ -20,6 +21,7 @@ import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterName;
@@ -30,18 +32,17 @@ import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.coordination.NoMasterBlockService;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamOptions;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MapperException;
 import org.elasticsearch.index.shard.ShardId;
@@ -60,9 +61,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -132,7 +131,7 @@ public class BulkOperationTests extends ESTestCase {
     );
     private final DataStream dataStream3 = DataStream.builder(fsRolloverDataStreamName, List.of(ds3BackingIndex1.getIndex()))
         .setGeneration(1)
-        .setFailureStoreEnabled(true)
+        .setDataStreamOptions(DataStreamOptions.FAILURE_STORE_ENABLED)
         .setFailureIndices(
             DataStream.DataStreamIndices.failureIndicesBuilder(List.of(ds3FailureStore1.getIndex())).setRolloverOnWrite(true).build()
         )
@@ -147,13 +146,11 @@ public class BulkOperationTests extends ESTestCase {
                         ComposableIndexTemplate.builder()
                             .indexPatterns(List.of(dataStreamName))
                             .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false, false))
-                            .template(new Template(null, null, null, null))
                             .build(),
                         "ds-template-with-failure-store",
                         ComposableIndexTemplate.builder()
                             .indexPatterns(List.of(fsDataStreamName, fsRolloverDataStreamName))
                             .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false, true))
-                            .template(new Template(null, null, null, null))
                             .build()
                     )
                 )
@@ -201,9 +198,6 @@ public class BulkOperationTests extends ESTestCase {
     public void testClusterBlockedFailsBulk() {
         NodeClient client = getNodeClient(assertNoClientInteraction());
 
-        CompletableFuture<BulkResponse> future = new CompletableFuture<>();
-        ActionListener<BulkResponse> listener = ActionListener.wrap(future::complete, future::completeExceptionally);
-
         // Not retryable
         ClusterState state = ClusterState.builder(DEFAULT_STATE)
             .blocks(ClusterBlocks.builder().addGlobalBlock(Metadata.CLUSTER_READ_ONLY_BLOCK).build())
@@ -215,9 +209,10 @@ public class BulkOperationTests extends ESTestCase {
         when(observer.isTimedOut()).thenReturn(false);
         doThrow(new AssertionError("Should not wait")).when(observer).waitForNextChange(any());
 
-        newBulkOperation(client, new BulkRequest(), state, observer, listener).run();
-
-        expectThrows(ExecutionException.class, ClusterBlockException.class, future::get);
+        assertThat(
+            safeAwaitFailure(BulkResponse.class, l -> newBulkOperation(client, new BulkRequest(), state, observer, l).run()),
+            instanceOf(ClusterBlockException.class)
+        );
     }
 
     /**
@@ -225,9 +220,6 @@ public class BulkOperationTests extends ESTestCase {
      */
     public void testTimeoutOnRetryableClusterBlockedFailsBulk() {
         NodeClient client = getNodeClient(assertNoClientInteraction());
-
-        CompletableFuture<BulkResponse> future = new CompletableFuture<>();
-        ActionListener<BulkResponse> listener = ActionListener.wrap(future::complete, future::completeExceptionally);
 
         // Retryable
         final ClusterState state = ClusterState.builder(DEFAULT_STATE)
@@ -248,9 +240,11 @@ public class BulkOperationTests extends ESTestCase {
             return null;
         }).doThrow(new AssertionError("Should not wait")).when(observer).waitForNextChange(any());
 
-        newBulkOperation(client, new BulkRequest(), state, observer, listener).run();
+        assertThat(
+            safeAwaitFailure(BulkResponse.class, l -> newBulkOperation(client, new BulkRequest(), state, observer, l).run()),
+            instanceOf(ClusterBlockException.class)
+        );
 
-        expectThrows(ExecutionException.class, ClusterBlockException.class, future::get);
         verify(observer, times(2)).isTimedOut();
         verify(observer, times(1)).waitForNextChange(any());
     }
@@ -260,9 +254,6 @@ public class BulkOperationTests extends ESTestCase {
      */
     public void testNodeClosedOnRetryableClusterBlockedFailsBulk() {
         NodeClient client = getNodeClient(assertNoClientInteraction());
-
-        CompletableFuture<BulkResponse> future = new CompletableFuture<>();
-        ActionListener<BulkResponse> listener = ActionListener.wrap(future::complete, future::completeExceptionally);
 
         // Retryable
         final ClusterState state = ClusterState.builder(DEFAULT_STATE)
@@ -278,9 +269,10 @@ public class BulkOperationTests extends ESTestCase {
             return null;
         }).doThrow(new AssertionError("Should not wait")).when(observer).waitForNextChange(any());
 
-        newBulkOperation(client, new BulkRequest(), state, observer, listener).run();
-
-        expectThrows(ExecutionException.class, NodeClosedException.class, future::get);
+        assertThat(
+            safeAwaitFailure(BulkResponse.class, l -> newBulkOperation(client, new BulkRequest(), state, observer, l).run()),
+            instanceOf(NodeClosedException.class)
+        );
         verify(observer, times(1)).isTimedOut();
         verify(observer, times(1)).waitForNextChange(any());
     }
@@ -296,12 +288,7 @@ public class BulkOperationTests extends ESTestCase {
 
         NodeClient client = getNodeClient(acceptAllShardWrites());
 
-        CompletableFuture<BulkResponse> future = new CompletableFuture<>();
-        ActionListener<BulkResponse> listener = ActionListener.wrap(future::complete, future::completeExceptionally);
-
-        newBulkOperation(client, bulkRequest, listener).run();
-
-        BulkResponse bulkItemResponses = future.get();
+        BulkResponse bulkItemResponses = safeAwait(l -> newBulkOperation(client, bulkRequest, l).run());
         assertThat(bulkItemResponses.hasFailures(), is(false));
     }
 
@@ -318,12 +305,7 @@ public class BulkOperationTests extends ESTestCase {
             shardSpecificResponse(Map.of(new ShardId(indexMetadata.getIndex(), 0), failWithException(() -> new MapperException("test"))))
         );
 
-        CompletableFuture<BulkResponse> future = new CompletableFuture<>();
-        ActionListener<BulkResponse> listener = ActionListener.wrap(future::complete, future::completeExceptionally);
-
-        newBulkOperation(client, bulkRequest, listener).run();
-
-        BulkResponse bulkItemResponses = future.get();
+        BulkResponse bulkItemResponses = safeAwait(l -> newBulkOperation(client, bulkRequest, l).run());
         assertThat(bulkItemResponses.hasFailures(), is(true));
         BulkItemResponse failedItem = Arrays.stream(bulkItemResponses.getItems())
             .filter(BulkItemResponse::isFailed)
@@ -344,12 +326,7 @@ public class BulkOperationTests extends ESTestCase {
 
         NodeClient client = getNodeClient(acceptAllShardWrites());
 
-        CompletableFuture<BulkResponse> future = new CompletableFuture<>();
-        ActionListener<BulkResponse> listener = ActionListener.wrap(future::complete, future::completeExceptionally);
-
-        newBulkOperation(client, bulkRequest, listener).run();
-
-        BulkResponse bulkItemResponses = future.get();
+        BulkResponse bulkItemResponses = safeAwait(l -> newBulkOperation(client, bulkRequest, l).run());
         assertThat(bulkItemResponses.hasFailures(), is(false));
     }
 
@@ -366,12 +343,7 @@ public class BulkOperationTests extends ESTestCase {
             shardSpecificResponse(Map.of(new ShardId(ds1BackingIndex2.getIndex(), 0), failWithException(() -> new MapperException("test"))))
         );
 
-        CompletableFuture<BulkResponse> future = new CompletableFuture<>();
-        ActionListener<BulkResponse> listener = ActionListener.wrap(future::complete, future::completeExceptionally);
-
-        newBulkOperation(client, bulkRequest, listener).run();
-
-        BulkResponse bulkItemResponses = future.get();
+        BulkResponse bulkItemResponses = safeAwait(l -> newBulkOperation(client, bulkRequest, l).run());
         assertThat(bulkItemResponses.hasFailures(), is(true));
         BulkItemResponse failedItem = Arrays.stream(bulkItemResponses.getItems())
             .filter(BulkItemResponse::isFailed)
@@ -396,18 +368,15 @@ public class BulkOperationTests extends ESTestCase {
             shardSpecificResponse(Map.of(new ShardId(ds2BackingIndex1.getIndex(), 0), failWithException(() -> new MapperException("test"))))
         );
 
-        CompletableFuture<BulkResponse> future = new CompletableFuture<>();
-        ActionListener<BulkResponse> listener = ActionListener.wrap(future::complete, future::completeExceptionally);
-
-        newBulkOperation(client, bulkRequest, listener).run();
-
-        BulkResponse bulkItemResponses = future.get();
+        BulkResponse bulkItemResponses = safeAwait(l -> newBulkOperation(client, bulkRequest, l).run());
         assertThat(bulkItemResponses.hasFailures(), is(false));
         BulkItemResponse failedItem = Arrays.stream(bulkItemResponses.getItems())
             .filter(item -> item.getIndex().equals(ds2FailureStore1.getIndex().getName()))
             .findFirst()
             .orElseThrow(() -> new AssertionError("Could not find redirected item"));
         assertThat(failedItem, is(notNullValue()));
+        // Ensure the status in the successful response gets through
+        assertThat(failedItem.getFailureStoreStatus(), equalTo(IndexDocFailureStoreStatus.USED));
     }
 
     /**
@@ -426,18 +395,15 @@ public class BulkOperationTests extends ESTestCase {
             thatFailsDocuments(Map.of(new IndexAndId(ds2BackingIndex1.getIndex().getName(), "3"), () -> new MapperException("test")))
         );
 
-        CompletableFuture<BulkResponse> future = new CompletableFuture<>();
-        ActionListener<BulkResponse> listener = ActionListener.wrap(future::complete, future::completeExceptionally);
-
-        newBulkOperation(client, bulkRequest, listener).run();
-
-        BulkResponse bulkItemResponses = future.get();
+        BulkResponse bulkItemResponses = safeAwait(l -> newBulkOperation(client, bulkRequest, l).run());
         assertThat(bulkItemResponses.hasFailures(), is(false));
         BulkItemResponse failedItem = Arrays.stream(bulkItemResponses.getItems())
             .filter(item -> item.getIndex().equals(ds2FailureStore1.getIndex().getName()))
             .findFirst()
             .orElseThrow(() -> new AssertionError("Could not find redirected item"));
         assertThat(failedItem.getIndex(), is(notNullValue()));
+        // Ensure the status in the successful response gets through
+        assertThat(failedItem.getFailureStoreStatus(), equalTo(IndexDocFailureStoreStatus.USED));
     }
 
     /**
@@ -465,12 +431,7 @@ public class BulkOperationTests extends ESTestCase {
             )
         );
 
-        CompletableFuture<BulkResponse> future = new CompletableFuture<>();
-        ActionListener<BulkResponse> listener = ActionListener.wrap(future::complete, future::completeExceptionally);
-
-        newBulkOperation(client, bulkRequest, listener).run();
-
-        BulkResponse bulkItemResponses = future.get();
+        BulkResponse bulkItemResponses = safeAwait(l -> newBulkOperation(client, bulkRequest, l).run());
         assertThat(bulkItemResponses.hasFailures(), is(true));
         BulkItemResponse failedItem = Arrays.stream(bulkItemResponses.getItems())
             .filter(BulkItemResponse::isFailed)
@@ -481,6 +442,7 @@ public class BulkOperationTests extends ESTestCase {
         assertThat(failedItem.getFailure().getCause().getSuppressed().length, is(not(equalTo(0))));
         assertThat(failedItem.getFailure().getCause().getSuppressed()[0], is(instanceOf(MapperException.class)));
         assertThat(failedItem.getFailure().getCause().getSuppressed()[0].getMessage(), is(equalTo("failure store test failure")));
+        assertThat(failedItem.getFailureStoreStatus(), equalTo(IndexDocFailureStoreStatus.FAILED));
     }
 
     /**
@@ -500,16 +462,12 @@ public class BulkOperationTests extends ESTestCase {
             thatFailsDocuments(Map.of(new IndexAndId(ds2BackingIndex1.getIndex().getName(), "3"), () -> new MapperException("root cause")))
         );
 
-        CompletableFuture<BulkResponse> future = new CompletableFuture<>();
-        ActionListener<BulkResponse> listener = ActionListener.wrap(future::complete, future::completeExceptionally);
-
         // Mock a failure store document converter that always fails
         FailureStoreDocumentConverter mockConverter = mock(FailureStoreDocumentConverter.class);
         when(mockConverter.transformFailedRequest(any(), any(), any(), any())).thenThrow(new IOException("Could not serialize json"));
 
-        newBulkOperation(client, bulkRequest, mockConverter, listener).run();
+        BulkResponse bulkItemResponses = safeAwait(l -> newBulkOperation(client, bulkRequest, mockConverter, l).run());
 
-        BulkResponse bulkItemResponses = future.get();
         assertThat(bulkItemResponses.hasFailures(), is(true));
         BulkItemResponse failedItem = Arrays.stream(bulkItemResponses.getItems())
             .filter(BulkItemResponse::isFailed)
@@ -520,6 +478,7 @@ public class BulkOperationTests extends ESTestCase {
         assertThat(failedItem.getFailure().getCause().getSuppressed().length, is(not(equalTo(0))));
         assertThat(failedItem.getFailure().getCause().getSuppressed()[0], is(instanceOf(IOException.class)));
         assertThat(failedItem.getFailure().getCause().getSuppressed()[0].getMessage(), is(equalTo("Could not serialize json")));
+        assertThat(failedItem.getFailureStoreStatus(), equalTo(IndexDocFailureStoreStatus.FAILED));
     }
 
     /**
@@ -579,12 +538,9 @@ public class BulkOperationTests extends ESTestCase {
             return null;
         }).when(observer).waitForNextChange(any());
 
-        CompletableFuture<BulkResponse> future = new CompletableFuture<>();
-        ActionListener<BulkResponse> listener = ActionListener.notifyOnce(
-            ActionListener.wrap(future::complete, future::completeExceptionally)
+        final SubscribableListener<BulkResponse> responseListener = SubscribableListener.newForked(
+            l -> newBulkOperation(client, bulkRequest, DEFAULT_STATE, observer, l).run()
         );
-
-        newBulkOperation(client, bulkRequest, DEFAULT_STATE, observer, listener).run();
 
         // The operation will attempt to write the documents in the request, receive a failure, wait for a stable cluster state, and then
         // redirect the failed documents to the failure store. Wait for that failure store write to start:
@@ -595,7 +551,7 @@ public class BulkOperationTests extends ESTestCase {
         }
 
         // Check to make sure there is no response yet
-        if (future.isDone()) {
+        if (responseListener.isDone()) {
             // we're going to fail the test, but be a good citizen and unblock the other thread first
             beginFailureStoreWrite.countDown();
             fail("bulk operation completed prematurely");
@@ -605,13 +561,15 @@ public class BulkOperationTests extends ESTestCase {
         beginFailureStoreWrite.countDown();
 
         // Await final result and verify
-        BulkResponse bulkItemResponses = future.get();
+        BulkResponse bulkItemResponses = safeAwait(responseListener);
         assertThat(bulkItemResponses.hasFailures(), is(false));
         BulkItemResponse failedItem = Arrays.stream(bulkItemResponses.getItems())
             .filter(item -> item.getIndex().equals(ds2FailureStore1.getIndex().getName()))
             .findFirst()
             .orElseThrow(() -> new AssertionError("Could not find redirected item"));
         assertThat(failedItem, is(notNullValue()));
+        // Ensure the status in the successful response gets through
+        assertThat(failedItem.getFailureStoreStatus(), equalTo(IndexDocFailureStoreStatus.USED));
 
         verify(observer, times(1)).isTimedOut();
         verify(observer, times(1)).waitForNextChange(any());
@@ -650,12 +608,7 @@ public class BulkOperationTests extends ESTestCase {
         when(observer.isTimedOut()).thenReturn(false);
         doThrow(new AssertionError("Should not wait on non retryable block")).when(observer).waitForNextChange(any());
 
-        CompletableFuture<BulkResponse> future = new CompletableFuture<>();
-        ActionListener<BulkResponse> listener = ActionListener.wrap(future::complete, future::completeExceptionally);
-
-        newBulkOperation(client, bulkRequest, DEFAULT_STATE, observer, listener).run();
-
-        BulkResponse bulkItemResponses = future.get();
+        BulkResponse bulkItemResponses = safeAwait(l -> newBulkOperation(client, bulkRequest, DEFAULT_STATE, observer, l).run());
         assertThat(bulkItemResponses.hasFailures(), is(true));
         BulkItemResponse failedItem = Arrays.stream(bulkItemResponses.getItems())
             .filter(BulkItemResponse::isFailed)
@@ -669,6 +622,7 @@ public class BulkOperationTests extends ESTestCase {
             failedItem.getFailure().getCause().getSuppressed()[0].getMessage(),
             is(equalTo("blocked by: [FORBIDDEN/5/index read-only (api)];"))
         );
+        assertThat(failedItem.getFailureStoreStatus(), equalTo(IndexDocFailureStoreStatus.FAILED));
 
         verify(observer, times(0)).isTimedOut();
         verify(observer, times(0)).waitForNextChange(any());
@@ -715,12 +669,7 @@ public class BulkOperationTests extends ESTestCase {
             return null;
         }).doThrow(new AssertionError("Should not wait any longer")).when(observer).waitForNextChange(any());
 
-        CompletableFuture<BulkResponse> future = new CompletableFuture<>();
-        ActionListener<BulkResponse> listener = ActionListener.wrap(future::complete, future::completeExceptionally);
-
-        newBulkOperation(client, bulkRequest, DEFAULT_STATE, observer, listener).run();
-
-        BulkResponse bulkItemResponses = future.get();
+        BulkResponse bulkItemResponses = safeAwait(l -> newBulkOperation(client, bulkRequest, DEFAULT_STATE, observer, l).run());
         assertThat(bulkItemResponses.hasFailures(), is(true));
         BulkItemResponse failedItem = Arrays.stream(bulkItemResponses.getItems())
             .filter(BulkItemResponse::isFailed)
@@ -734,6 +683,7 @@ public class BulkOperationTests extends ESTestCase {
             failedItem.getFailure().getCause().getSuppressed()[0].getMessage(),
             is(equalTo("blocked by: [SERVICE_UNAVAILABLE/2/no master];"))
         );
+        assertThat(failedItem.getFailureStoreStatus(), equalTo(IndexDocFailureStoreStatus.FAILED));
 
         verify(observer, times(2)).isTimedOut();
         verify(observer, times(1)).waitForNextChange(any());
@@ -775,12 +725,10 @@ public class BulkOperationTests extends ESTestCase {
             return null;
         }).doThrow(new AssertionError("Should not wait any longer")).when(observer).waitForNextChange(any());
 
-        CompletableFuture<BulkResponse> future = new CompletableFuture<>();
-        ActionListener<BulkResponse> listener = ActionListener.wrap(future::complete, future::completeExceptionally);
-
-        newBulkOperation(client, bulkRequest, DEFAULT_STATE, observer, listener).run();
-
-        expectThrows(ExecutionException.class, NodeClosedException.class, future::get);
+        assertThat(
+            safeAwaitFailure(BulkResponse.class, l -> newBulkOperation(client, bulkRequest, DEFAULT_STATE, observer, l).run()),
+            instanceOf(NodeClosedException.class)
+        );
 
         verify(observer, times(1)).isTimedOut();
         verify(observer, times(1)).waitForNextChange(any());
@@ -832,17 +780,14 @@ public class BulkOperationTests extends ESTestCase {
         ClusterState rolledOverState = ClusterState.builder(DEFAULT_STATE).metadata(metadata).build();
         ClusterStateObserver observer = mockObserver(DEFAULT_STATE, DEFAULT_STATE, rolledOverState);
 
-        CompletableFuture<BulkResponse> future = new CompletableFuture<>();
-        ActionListener<BulkResponse> listener = ActionListener.wrap(future::complete, future::completeExceptionally);
-
-        newBulkOperation(client, bulkRequest, DEFAULT_STATE, observer, listener).run();
-
-        BulkResponse bulkItemResponses = future.get();
+        BulkResponse bulkItemResponses = safeAwait(l -> newBulkOperation(client, bulkRequest, DEFAULT_STATE, observer, l).run());
         BulkItemResponse failedItem = Arrays.stream(bulkItemResponses.getItems())
             .filter(item -> item.getIndex().equals(ds3FailureStore2.getIndex().getName()))
             .findFirst()
             .orElseThrow(() -> new AssertionError("Could not find redirected item"));
         assertThat(failedItem, is(notNullValue()));
+        // Ensure the status in the successful response gets through
+        assertThat(failedItem.getFailureStoreStatus(), equalTo(IndexDocFailureStoreStatus.USED));
     }
 
     /**
@@ -880,12 +825,7 @@ public class BulkOperationTests extends ESTestCase {
         ClusterState rolledOverState = ClusterState.builder(DEFAULT_STATE).metadata(metadata).build();
         ClusterStateObserver observer = mockObserver(DEFAULT_STATE, DEFAULT_STATE, rolledOverState);
 
-        CompletableFuture<BulkResponse> future = new CompletableFuture<>();
-        ActionListener<BulkResponse> listener = ActionListener.wrap(future::complete, future::completeExceptionally);
-
-        newBulkOperation(client, bulkRequest, DEFAULT_STATE, observer, listener).run();
-
-        BulkResponse bulkItemResponses = future.get();
+        BulkResponse bulkItemResponses = safeAwait(l -> newBulkOperation(client, bulkRequest, DEFAULT_STATE, observer, l).run());
         BulkItemResponse failedItem = Arrays.stream(bulkItemResponses.getItems())
             .filter(BulkItemResponse::isFailed)
             .findFirst()
@@ -895,6 +835,7 @@ public class BulkOperationTests extends ESTestCase {
         assertThat(failedItem.getFailure().getCause().getSuppressed().length, is(not(equalTo(0))));
         assertThat(failedItem.getFailure().getCause().getSuppressed()[0], is(instanceOf(Exception.class)));
         assertThat(failedItem.getFailure().getCause().getSuppressed()[0].getMessage(), is(equalTo("rollover failed")));
+        assertThat(failedItem.getFailureStoreStatus(), equalTo(IndexDocFailureStoreStatus.FAILED));
     }
 
     /**
@@ -908,14 +849,12 @@ public class BulkOperationTests extends ESTestCase {
      * Accepts all write operations from the given request object when it is encountered in the mock shard bulk action
      */
     private static BiConsumer<BulkShardRequest, ActionListener<BulkShardResponse>> acceptAllShardWrites() {
-        return (BulkShardRequest request, ActionListener<BulkShardResponse> listener) -> {
-            listener.onResponse(
-                new BulkShardResponse(
-                    request.shardId(),
-                    Arrays.stream(request.items()).map(item -> requestToResponse(request.shardId(), item)).toArray(BulkItemResponse[]::new)
-                )
-            );
-        };
+        return (BulkShardRequest request, ActionListener<BulkShardResponse> listener) -> listener.onResponse(
+            new BulkShardResponse(
+                request.shardId(),
+                Arrays.stream(request.items()).map(item -> requestToResponse(request.shardId(), item)).toArray(BulkItemResponse[]::new)
+            )
+        );
     }
 
     /**
@@ -992,8 +931,11 @@ public class BulkOperationTests extends ESTestCase {
      * Create a shard-level result given a bulk item
      */
     private static BulkItemResponse requestToResponse(ShardId shardId, BulkItemRequest itemRequest) {
+        var failureStatus = itemRequest.request() instanceof IndexRequest ir && ir.isWriteToFailureStore()
+            ? IndexDocFailureStoreStatus.USED
+            : IndexDocFailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN;
         return BulkItemResponse.success(itemRequest.id(), itemRequest.request().opType(), switch (itemRequest.request().opType()) {
-            case INDEX, CREATE -> new IndexResponse(shardId, itemRequest.request().id(), 1, 1, 1, true);
+            case INDEX, CREATE -> new IndexResponse(shardId, itemRequest.request().id(), 1, 1, 1, true, null, failureStatus);
             case UPDATE -> new UpdateResponse(shardId, itemRequest.request().id(), 1, 1, 1, DocWriteResponse.Result.UPDATED);
             case DELETE -> new DeleteResponse(shardId, itemRequest.request().id(), 1, 1, 1, true);
         });
@@ -1080,7 +1022,6 @@ public class BulkOperationTests extends ESTestCase {
             client,
             request,
             new AtomicArray<>(request.numberOfActions()),
-            Map.of(),
             mockObserver(DEFAULT_STATE),
             listener,
             new FailureStoreDocumentConverter()
@@ -1098,7 +1039,6 @@ public class BulkOperationTests extends ESTestCase {
             client,
             request,
             new AtomicArray<>(request.numberOfActions()),
-            Map.of(),
             mockObserver(DEFAULT_STATE),
             listener,
             failureStoreDocumentConverter
@@ -1117,7 +1057,6 @@ public class BulkOperationTests extends ESTestCase {
             client,
             request,
             new AtomicArray<>(request.numberOfActions()),
-            Map.of(),
             observer,
             listener,
             new FailureStoreDocumentConverter()
@@ -1129,7 +1068,6 @@ public class BulkOperationTests extends ESTestCase {
         NodeClient client,
         BulkRequest request,
         AtomicArray<BulkItemResponse> existingResponses,
-        Map<String, IndexNotFoundException> indicesThatCanNotBeCreated,
         ClusterStateObserver observer,
         ActionListener<BulkResponse> listener,
         FailureStoreDocumentConverter failureStoreDocumentConverter
@@ -1158,13 +1096,13 @@ public class BulkOperationTests extends ESTestCase {
             request,
             client,
             existingResponses,
-            indicesThatCanNotBeCreated,
             indexNameExpressionResolver,
             () -> endTime,
             timeZero,
             listener,
             observer,
-            failureStoreDocumentConverter
+            failureStoreDocumentConverter,
+            FailureStoreMetrics.NOOP
         );
     }
 

@@ -86,10 +86,6 @@ include::{esql-specs}/bucket.csv-spec[tag=docsBucketNumericWithSpan]
 |===
 include::{esql-specs}/bucket.csv-spec[tag=docsBucketNumericWithSpan-result]
 |===
-
-NOTE: When providing the bucket size as the second parameter, it must be
-of a floating point type.
-
 Create hourly buckets for the last 24 hours, and calculate the number of events per hour:
 [source.merge.styled,esql]
 ----

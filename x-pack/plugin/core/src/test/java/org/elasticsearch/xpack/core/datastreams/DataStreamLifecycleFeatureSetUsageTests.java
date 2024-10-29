@@ -7,21 +7,25 @@
 
 package org.elasticsearch.xpack.core.datastreams;
 
+import org.elasticsearch.action.admin.indices.rollover.RolloverConditions;
+import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamGlobalRetention;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.test.ESTestCase;
 
+import java.util.HashMap;
 import java.util.List;
-import java.util.LongSummaryStatistics;
+import java.util.Map;
 import java.util.UUID;
 
 import static org.elasticsearch.xpack.core.action.DataStreamLifecycleUsageTransportAction.calculateStats;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class DataStreamLifecycleFeatureSetUsageTests extends AbstractWireSerializingTestCase<DataStreamLifecycleFeatureSetUsage> {
@@ -32,13 +36,28 @@ public class DataStreamLifecycleFeatureSetUsageTests extends AbstractWireSeriali
             ? new DataStreamLifecycleFeatureSetUsage(
                 new DataStreamLifecycleFeatureSetUsage.LifecycleStats(
                     randomNonNegativeLong(),
-                    randomNonNegativeLong(),
-                    randomNonNegativeLong(),
-                    randomDouble(),
-                    randomBoolean()
+                    randomBoolean(),
+                    generateRetentionStats(),
+                    generateRetentionStats(),
+                    randomBoolean() ? Map.of() : Map.of("default", generateGlobalRetention(), "max", generateGlobalRetention())
                 )
             )
             : DataStreamLifecycleFeatureSetUsage.DISABLED;
+    }
+
+    private static DataStreamLifecycleFeatureSetUsage.GlobalRetentionStats generateGlobalRetention() {
+        return new DataStreamLifecycleFeatureSetUsage.GlobalRetentionStats(randomNonNegativeLong(), randomNonNegativeLong());
+    }
+
+    private static DataStreamLifecycleFeatureSetUsage.RetentionStats generateRetentionStats() {
+        return randomBoolean()
+            ? DataStreamLifecycleFeatureSetUsage.RetentionStats.NO_DATA
+            : new DataStreamLifecycleFeatureSetUsage.RetentionStats(
+                randomNonNegativeLong(),
+                randomDoubleBetween(0.0, 110.0, false),
+                randomNonNegativeLong(),
+                randomNonNegativeLong()
+            );
     }
 
     @Override
@@ -46,54 +65,40 @@ public class DataStreamLifecycleFeatureSetUsageTests extends AbstractWireSeriali
         if (instance.equals(DataStreamLifecycleFeatureSetUsage.DISABLED)) {
             return new DataStreamLifecycleFeatureSetUsage(DataStreamLifecycleFeatureSetUsage.LifecycleStats.INITIAL);
         }
-        return switch (randomInt(4)) {
-            case 0 -> new DataStreamLifecycleFeatureSetUsage(
-                new DataStreamLifecycleFeatureSetUsage.LifecycleStats(
-                    randomValueOtherThan(instance.lifecycleStats.dataStreamsWithLifecyclesCount, ESTestCase::randomLong),
-                    instance.lifecycleStats.minRetentionMillis,
-                    instance.lifecycleStats.maxRetentionMillis,
-                    instance.lifecycleStats.averageRetentionMillis,
-                    instance.lifecycleStats.defaultRolloverUsed
-                )
+        var count = instance.lifecycleStats.dataStreamsWithLifecyclesCount;
+        var defaultRollover = instance.lifecycleStats.defaultRolloverUsed;
+        var dataRetentionStats = instance.lifecycleStats.dataRetentionStats;
+        var effectiveRetentionStats = instance.lifecycleStats.effectiveRetentionStats;
+        var maxRetention = instance.lifecycleStats.globalRetentionStats.get("max");
+        var defaultRetention = instance.lifecycleStats.globalRetentionStats.get("default");
+        switch (randomInt(5)) {
+            case 0 -> count += (count > 0 ? -1 : 1);
+            case 1 -> defaultRollover = defaultRollover == false;
+            case 2 -> dataRetentionStats = randomValueOtherThan(
+                dataRetentionStats,
+                DataStreamLifecycleFeatureSetUsageTests::generateRetentionStats
             );
-            case 1 -> new DataStreamLifecycleFeatureSetUsage(
-                new DataStreamLifecycleFeatureSetUsage.LifecycleStats(
-                    instance.lifecycleStats.dataStreamsWithLifecyclesCount,
-                    randomValueOtherThan(instance.lifecycleStats.minRetentionMillis, ESTestCase::randomLong),
-                    instance.lifecycleStats.maxRetentionMillis,
-                    instance.lifecycleStats.averageRetentionMillis,
-                    instance.lifecycleStats.defaultRolloverUsed
-                )
+            case 3 -> effectiveRetentionStats = randomValueOtherThan(
+                effectiveRetentionStats,
+                DataStreamLifecycleFeatureSetUsageTests::generateRetentionStats
             );
-            case 2 -> new DataStreamLifecycleFeatureSetUsage(
-                new DataStreamLifecycleFeatureSetUsage.LifecycleStats(
-                    instance.lifecycleStats.dataStreamsWithLifecyclesCount,
-                    instance.lifecycleStats.minRetentionMillis,
-                    randomValueOtherThan(instance.lifecycleStats.maxRetentionMillis, ESTestCase::randomLong),
-                    instance.lifecycleStats.averageRetentionMillis,
-                    instance.lifecycleStats.defaultRolloverUsed
-                )
-            );
-            case 3 -> new DataStreamLifecycleFeatureSetUsage(
-                new DataStreamLifecycleFeatureSetUsage.LifecycleStats(
-                    instance.lifecycleStats.dataStreamsWithLifecyclesCount,
-                    instance.lifecycleStats.minRetentionMillis,
-                    instance.lifecycleStats.maxRetentionMillis,
-                    randomValueOtherThan(instance.lifecycleStats.averageRetentionMillis, ESTestCase::randomDouble),
-                    instance.lifecycleStats.defaultRolloverUsed
-                )
-            );
-            case 4 -> new DataStreamLifecycleFeatureSetUsage(
-                new DataStreamLifecycleFeatureSetUsage.LifecycleStats(
-                    instance.lifecycleStats.dataStreamsWithLifecyclesCount,
-                    instance.lifecycleStats.minRetentionMillis,
-                    instance.lifecycleStats.maxRetentionMillis,
-                    instance.lifecycleStats.averageRetentionMillis,
-                    instance.lifecycleStats.defaultRolloverUsed == false
-                )
+            case 4 -> maxRetention = randomValueOtherThan(maxRetention, DataStreamLifecycleFeatureSetUsageTests::generateGlobalRetention);
+            case 5 -> defaultRetention = randomValueOtherThan(
+                defaultRetention,
+                DataStreamLifecycleFeatureSetUsageTests::generateGlobalRetention
             );
             default -> throw new RuntimeException("unreachable");
-        };
+        }
+        Map<String, DataStreamLifecycleFeatureSetUsage.GlobalRetentionStats> map = new HashMap<>();
+        if (defaultRetention != null) {
+            map.put("default", defaultRetention);
+        }
+        if (maxRetention != null) {
+            map.put("max", maxRetention);
+        }
+        return new DataStreamLifecycleFeatureSetUsage(
+            new DataStreamLifecycleFeatureSetUsage.LifecycleStats(count, defaultRollover, dataRetentionStats, effectiveRetentionStats, map)
+        );
     }
 
     public void testLifecycleStats() {
@@ -112,7 +117,7 @@ public class DataStreamLifecycleFeatureSetUsageTests extends AbstractWireSeriali
                 1L,
                 null,
                 false,
-                new DataStreamLifecycle(new DataStreamLifecycle.Retention(TimeValue.timeValueMillis(1000)), null, true)
+                new DataStreamLifecycle(new DataStreamLifecycle.Retention(TimeValue.timeValueSeconds(50)), null, true)
             ),
             DataStreamTestHelper.newInstance(
                 randomAlphaOfLength(10),
@@ -120,7 +125,7 @@ public class DataStreamLifecycleFeatureSetUsageTests extends AbstractWireSeriali
                 1L,
                 null,
                 false,
-                new DataStreamLifecycle(new DataStreamLifecycle.Retention(TimeValue.timeValueMillis(100)), null, true)
+                new DataStreamLifecycle(new DataStreamLifecycle.Retention(TimeValue.timeValueMillis(150)), null, true)
             ),
             DataStreamTestHelper.newInstance(
                 randomAlphaOfLength(10),
@@ -128,7 +133,7 @@ public class DataStreamLifecycleFeatureSetUsageTests extends AbstractWireSeriali
                 1L,
                 null,
                 false,
-                new DataStreamLifecycle(new DataStreamLifecycle.Retention(TimeValue.timeValueMillis(5000)), null, false)
+                new DataStreamLifecycle(new DataStreamLifecycle.Retention(TimeValue.timeValueSeconds(5)), null, false)
             ),
             DataStreamTestHelper.newInstance(
                 randomAlphaOfLength(10),
@@ -140,15 +145,70 @@ public class DataStreamLifecycleFeatureSetUsageTests extends AbstractWireSeriali
             )
         );
 
-        Tuple<Long, LongSummaryStatistics> stats = calculateStats(dataStreams);
-        // 3 data streams with an enabled lifecycle
-        assertThat(stats.v1(), is(3L));
-        LongSummaryStatistics longSummaryStatistics = stats.v2();
-        assertThat(longSummaryStatistics.getMax(), is(1000L));
-        assertThat(longSummaryStatistics.getMin(), is(100L));
-        // only counting the ones with an effective retention in the summary statistics
-        assertThat(longSummaryStatistics.getCount(), is(2L));
-        assertThat(longSummaryStatistics.getAverage(), is(550.0));
+        // Test empty global retention
+        {
+            boolean useDefault = randomBoolean();
+            RolloverConfiguration rollover = useDefault
+                ? DataStreamLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING.getDefault(Settings.EMPTY)
+                : new RolloverConfiguration(new RolloverConditions());
+            DataStreamLifecycleFeatureSetUsage.LifecycleStats stats = calculateStats(dataStreams, rollover, null);
+
+            assertThat(stats.dataStreamsWithLifecyclesCount, is(3L));
+            assertThat(stats.defaultRolloverUsed, is(useDefault));
+            // Data retention
+            assertThat(stats.dataRetentionStats.dataStreamCount(), is(2L));
+            assertThat(stats.dataRetentionStats.maxMillis(), is(50_000L));
+            assertThat(stats.dataRetentionStats.minMillis(), is(150L));
+            assertThat(stats.dataRetentionStats.avgMillis(), is(25_075.0));
+
+            assertThat(stats.effectiveRetentionStats.dataStreamCount(), is(2L));
+            assertThat(stats.effectiveRetentionStats.maxMillis(), is(50_000L));
+            assertThat(stats.effectiveRetentionStats.minMillis(), is(150L));
+            assertThat(stats.effectiveRetentionStats.avgMillis(), is(25_075.0));
+
+            assertThat(stats.globalRetentionStats, equalTo(Map.of()));
+        }
+
+        // Test with global retention
+        {
+            boolean useDefault = randomBoolean();
+            RolloverConfiguration rollover = useDefault
+                ? DataStreamLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING.getDefault(Settings.EMPTY)
+                : new RolloverConfiguration(new RolloverConditions());
+            TimeValue defaultRetention = TimeValue.timeValueSeconds(10);
+            TimeValue maxRetention = TimeValue.timeValueSeconds(20);
+            DataStreamLifecycleFeatureSetUsage.LifecycleStats stats = calculateStats(
+                dataStreams,
+                rollover,
+                new DataStreamGlobalRetention(defaultRetention, maxRetention)
+            );
+
+            assertThat(stats.dataStreamsWithLifecyclesCount, is(3L));
+            assertThat(stats.defaultRolloverUsed, is(useDefault));
+            // Data retention
+            assertThat(stats.dataRetentionStats.dataStreamCount(), is(2L));
+            assertThat(stats.dataRetentionStats.maxMillis(), is(50_000L));
+            assertThat(stats.dataRetentionStats.minMillis(), is(150L));
+            assertThat(stats.dataRetentionStats.avgMillis(), is(25_075.0));
+
+            // Effective retention
+            assertThat(stats.effectiveRetentionStats.dataStreamCount(), is(3L));
+            assertThat(stats.effectiveRetentionStats.maxMillis(), is(20_000L));
+            assertThat(stats.effectiveRetentionStats.minMillis(), is(150L));
+            assertThat(stats.effectiveRetentionStats.avgMillis(), is(10_050.0));
+
+            assertThat(
+                stats.globalRetentionStats,
+                equalTo(
+                    Map.of(
+                        "default",
+                        new DataStreamLifecycleFeatureSetUsage.GlobalRetentionStats(1L, 10_000L),
+                        "max",
+                        new DataStreamLifecycleFeatureSetUsage.GlobalRetentionStats(1L, 20_000L)
+                    )
+                )
+            );
+        }
     }
 
     @Override

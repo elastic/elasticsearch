@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 
@@ -135,7 +136,7 @@ tasks.register("updateCIBwcVersions") {
   }
 
   doLast {
-    writeVersions(file(".ci/bwcVersions"), filterIntermediatePatches(BuildParams.bwcVersions.allIndexCompatible))
+    writeVersions(file(".ci/bwcVersions"), filterIntermediatePatches(BuildParams.bwcVersions.indexCompatible))
     writeVersions(file(".ci/snapshotBwcVersions"), filterIntermediatePatches(BuildParams.bwcVersions.unreleasedIndexCompatible))
     expandBwcList(
       ".buildkite/pipelines/intake.yml",
@@ -149,7 +150,7 @@ tasks.register("updateCIBwcVersions") {
         new ListExpansion(versions: filterIntermediatePatches(BuildParams.bwcVersions.unreleasedIndexCompatible), variable: "BWC_LIST"),
       ],
       [
-        new StepExpansion(templatePath: ".buildkite/pipelines/periodic.bwc.template.yml", versions: filterIntermediatePatches(BuildParams.bwcVersions.allIndexCompatible), variable: "BWC_STEPS"),
+        new StepExpansion(templatePath: ".buildkite/pipelines/periodic.bwc.template.yml", versions: filterIntermediatePatches(BuildParams.bwcVersions.indexCompatible), variable: "BWC_STEPS"),
       ]
     )
 
@@ -157,7 +158,7 @@ tasks.register("updateCIBwcVersions") {
       ".buildkite/pipelines/periodic-packaging.yml",
       ".buildkite/pipelines/periodic-packaging.template.yml",
       ".buildkite/pipelines/periodic-packaging.bwc.template.yml",
-      filterIntermediatePatches(BuildParams.bwcVersions.allIndexCompatible)
+      filterIntermediatePatches(BuildParams.bwcVersions.indexCompatible)
     )
   }
 }
@@ -186,7 +187,7 @@ tasks.register("verifyVersions") {
           .collect { Version.fromString(it) }
       )
     }
-    verifyCiYaml(file(".ci/bwcVersions"), filterIntermediatePatches(BuildParams.bwcVersions.allIndexCompatible))
+    verifyCiYaml(file(".ci/bwcVersions"), filterIntermediatePatches(BuildParams.bwcVersions.indexCompatible))
     verifyCiYaml(file(".ci/snapshotBwcVersions"), BuildParams.bwcVersions.unreleasedIndexCompatible)
 
     // Make sure backport bot config file is up to date

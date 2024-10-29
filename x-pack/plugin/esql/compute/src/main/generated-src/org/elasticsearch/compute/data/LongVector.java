@@ -30,6 +30,9 @@ public sealed interface LongVector extends Vector permits ConstantLongVector, Lo
     LongVector filter(int... positions);
 
     @Override
+    LongBlock keepMask(BooleanVector mask);
+
+    @Override
     ReleasableIterator<? extends LongBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize);
 
     /**

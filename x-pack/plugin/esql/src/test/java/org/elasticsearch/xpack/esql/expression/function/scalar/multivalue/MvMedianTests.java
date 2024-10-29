@@ -99,9 +99,4 @@ public class MvMedianTests extends AbstractMultivalueFunctionTestCase {
     protected Expression build(Source source, Expression field) {
         return new MvMedian(source, field);
     }
-
-    @Override
-    protected DataType[] supportedTypes() {
-        return representableNumerics();
-    }
 }

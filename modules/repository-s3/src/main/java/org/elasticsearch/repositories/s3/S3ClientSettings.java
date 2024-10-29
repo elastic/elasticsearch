@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.repositories.s3;
@@ -24,7 +25,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.Function;
 
 /**
  * A container for settings used to create an S3 client.
@@ -163,14 +163,14 @@ final class S3ClientSettings {
     static final Setting.AffixSetting<String> REGION = Setting.affixKeySetting(
         PREFIX,
         "region",
-        key -> new Setting<>(key, "", Function.identity(), Property.NodeScope)
+        key -> Setting.simpleString(key, Property.NodeScope)
     );
 
     /** An override for the signer to use. */
     static final Setting.AffixSetting<String> SIGNER_OVERRIDE = Setting.affixKeySetting(
         PREFIX,
         "signer_override",
-        key -> new Setting<>(key, "", Function.identity(), Property.NodeScope)
+        key -> Setting.simpleString(key, Property.NodeScope)
     );
 
     /** Credentials to authenticate with s3. */

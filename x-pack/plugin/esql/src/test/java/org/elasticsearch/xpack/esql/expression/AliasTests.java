@@ -17,10 +17,8 @@ import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.tree.SourceTests;
-import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.expression.function.ReferenceAttributeTests;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
-import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 
@@ -32,31 +30,32 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.in;
 
 public class AliasTests extends AbstractWireTestCase<Alias> {
-    @Override
-    protected Alias createTestInstance() {
+    public static Alias randomAlias() {
         Source source = SourceTests.randomSource();
         String name = randomAlphaOfLength(5);
-        String qualifier = randomBoolean() ? null : randomAlphaOfLength(3);
         // TODO better randomChild
-        Expression child = ReferenceAttributeTests.randomReferenceAttribute();
+        Expression child = ReferenceAttributeTests.randomReferenceAttribute(false);
         boolean synthetic = randomBoolean();
-        return new Alias(source, name, qualifier, child, new NameId(), synthetic);
+        return new Alias(source, name, child, new NameId(), synthetic);
+    }
+
+    @Override
+    protected Alias createTestInstance() {
+        return randomAlias();
     }
 
     @Override
     protected Alias mutateInstance(Alias instance) throws IOException {
         Source source = instance.source();
         String name = instance.name();
-        String qualifier = instance.qualifier();
         Expression child = instance.child();
         boolean synthetic = instance.synthetic();
-        switch (between(0, 3)) {
+        switch (between(0, 2)) {
             case 0 -> name = randomAlphaOfLength(name.length() + 1);
-            case 1 -> qualifier = randomValueOtherThan(qualifier, () -> randomBoolean() ? null : randomAlphaOfLength(3));
-            case 2 -> child = randomValueOtherThan(child, ReferenceAttributeTests::randomReferenceAttribute);
-            case 3 -> synthetic = false == synthetic;
+            case 1 -> child = randomValueOtherThan(child, () -> ReferenceAttributeTests.randomReferenceAttribute(false));
+            case 2 -> synthetic = false == synthetic;
         }
-        return new Alias(source, name, qualifier, child, instance.id(), synthetic);
+        return new Alias(source, name, child, instance.id(), synthetic);
     }
 
     @Override
@@ -64,9 +63,9 @@ public class AliasTests extends AbstractWireTestCase<Alias> {
         return copyInstance(
             instance,
             getNamedWriteableRegistry(),
-            (out, v) -> new PlanStreamOutput(out, new PlanNameRegistry(), null).writeNamedWriteable(v),
+            (out, v) -> new PlanStreamOutput(out, null).writeNamedWriteable(v),
             in -> {
-                PlanStreamInput pin = new PlanStreamInput(in, new PlanNameRegistry(), in.namedWriteableRegistry(), null);
+                PlanStreamInput pin = new PlanStreamInput(in, in.namedWriteableRegistry(), null);
                 Alias deser = (Alias) pin.readNamedWriteable(NamedExpression.class);
                 assertThat(deser.id(), equalTo(pin.mapNameId(Long.parseLong(instance.id().toString()))));
                 return deser;
@@ -80,7 +79,6 @@ public class AliasTests extends AbstractWireTestCase<Alias> {
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>(NamedExpression.getNamedWriteables());
         entries.addAll(Attribute.getNamedWriteables());
         entries.add(UnsupportedAttribute.ENTRY);
-        entries.addAll(EsField.getNamedWriteables());
         entries.addAll(Expression.getNamedWriteables());
         return new NamedWriteableRegistry(entries);
     }

@@ -146,7 +146,7 @@ public abstract class AsyncOperator implements Operator {
         Exception e = failureCollector.getFailure();
         if (e != null) {
             discardPages();
-            throw ExceptionsHelper.convertToElastic(e);
+            throw ExceptionsHelper.convertToRuntime(e);
         }
     }
 
@@ -199,7 +199,7 @@ public abstract class AsyncOperator implements Operator {
     }
 
     @Override
-    public SubscribableListener<Void> isBlocked() {
+    public IsBlockedResult isBlocked() {
         // TODO: Add an exchange service between async operation instead?
         if (finished) {
             return Operator.NOT_BLOCKED;
@@ -216,7 +216,7 @@ public abstract class AsyncOperator implements Operator {
             if (blockedFuture == null) {
                 blockedFuture = new SubscribableListener<>();
             }
-            return blockedFuture;
+            return new IsBlockedResult(blockedFuture, getClass().getSimpleName());
         }
     }
 

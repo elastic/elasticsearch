@@ -29,7 +29,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
-import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsFeatureFlag;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AllocationStatus;
 import org.elasticsearch.xpack.core.ml.inference.assignment.Priority;
@@ -72,7 +71,7 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
     public static final AllocationStatus.State DEFAULT_WAITFOR_STATE = AllocationStatus.State.STARTED;
     public static final int DEFAULT_NUM_ALLOCATIONS = 1;
     public static final int DEFAULT_NUM_THREADS = 1;
-    public static final int DEFAULT_QUEUE_CAPACITY = 1024;
+    public static final int DEFAULT_QUEUE_CAPACITY = 10_000;
     public static final Priority DEFAULT_PRIORITY = Priority.NORMAL;
 
     public StartTrainedModelDeploymentAction() {
@@ -90,7 +89,7 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
         /**
          * If the queue is created then we can OOM when we create the queue.
          */
-        private static final int MAX_QUEUE_CAPACITY = 1_000_000;
+        private static final int MAX_QUEUE_CAPACITY = 100_000;
 
         public static final ParseField MODEL_ID = new ParseField("model_id");
         public static final ParseField DEPLOYMENT_ID = new ParseField("deployment_id");
@@ -120,14 +119,12 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
                 ObjectParser.ValueType.VALUE
             );
             PARSER.declareString(Request::setPriority, PRIORITY);
-            if (AdaptiveAllocationsFeatureFlag.isEnabled()) {
-                PARSER.declareObjectOrNull(
-                    Request::setAdaptiveAllocationsSettings,
-                    (p, c) -> AdaptiveAllocationsSettings.PARSER.parse(p, c).build(),
-                    null,
-                    ADAPTIVE_ALLOCATIONS
-                );
-            }
+            PARSER.declareObjectOrNull(
+                Request::setAdaptiveAllocationsSettings,
+                (p, c) -> AdaptiveAllocationsSettings.PARSER.parse(p, c).build(),
+                null,
+                ADAPTIVE_ALLOCATIONS
+            );
         }
 
         public static Request parseRequest(String modelId, String deploymentId, XContentParser parser) {
@@ -240,7 +237,9 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             if (numberOfAllocations != null) {
                 return numberOfAllocations;
             } else {
-                if (adaptiveAllocationsSettings == null || adaptiveAllocationsSettings.getMinNumberOfAllocations() == null) {
+                if (adaptiveAllocationsSettings == null
+                    || adaptiveAllocationsSettings.getMinNumberOfAllocations() == null
+                    || adaptiveAllocationsSettings.getMinNumberOfAllocations() == 0) {
                     return DEFAULT_NUM_ALLOCATIONS;
                 } else {
                     return adaptiveAllocationsSettings.getMinNumberOfAllocations();
@@ -357,7 +356,7 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
                 if (numberOfAllocations < 1) {
                     validationException.addValidationError("[" + NUMBER_OF_ALLOCATIONS + "] must be a positive integer");
                 }
-                if (adaptiveAllocationsSettings != null && adaptiveAllocationsSettings.getEnabled()) {
+                if (adaptiveAllocationsSettings != null && adaptiveAllocationsSettings.getEnabled() == Boolean.TRUE) {
                     validationException.addValidationError(
                         "[" + NUMBER_OF_ALLOCATIONS + "] cannot be set if adaptive allocations is enabled"
                     );
@@ -624,6 +623,9 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
          * @return the estimated memory (in bytes) required for the model deployment to run
          */
         public long estimateMemoryUsageBytes() {
+            if (numberOfAllocations == 0) {
+                return 0;
+            }
             // We already take into account 2x the model bytes. If the cache size is larger than the model bytes, then
             // we need to take it into account when returning the estimate.
             if (cacheSize != null && cacheSize.getBytes() > modelBytes) {
@@ -797,6 +799,9 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
         long perAllocationMemoryBytes,
         int numberOfAllocations
     ) {
+        if (numberOfAllocations == 0) {
+            return 0;
+        }
         // While loading the model in the process we need twice the model size.
 
         // 1. If ELSER v1 or v2 then 2004MB

@@ -7,8 +7,13 @@
 
 package org.elasticsearch.xpack.esql.core.util;
 
+import org.elasticsearch.TransportVersions;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.EsField;
 
 import java.io.IOException;
 
@@ -33,4 +38,25 @@ public interface PlanStreamInput {
      * the same result.
      */
     NameId mapNameId(long id) throws IOException;
+
+    /**
+     * Reads an Attribute using the attribute cache.
+     * @param constructor the constructor needed to build the actual attribute when read from the wire
+     * @return An attribute; this will generally be the same type as the provided constructor
+     * @throws IOException
+     */
+    <A extends Attribute> A readAttributeWithCache(CheckedFunction<StreamInput, A, IOException> constructor) throws IOException;
+
+    <A extends EsField> A readEsFieldWithCache() throws IOException;
+
+    String readCachedString() throws IOException;
+
+    static String readCachedStringWithVersionCheck(StreamInput planStreamInput) throws IOException {
+        if (planStreamInput.getTransportVersion().before(TransportVersions.ESQL_CACHED_STRING_SERIALIZATION)) {
+            return planStreamInput.readString();
+        }
+        return ((PlanStreamInput) planStreamInput).readCachedString();
+    }
+
+    String readOptionalCachedString() throws IOException;
 }

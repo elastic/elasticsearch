@@ -54,7 +54,7 @@ public class SnapshotUserRoleIntegTests extends NativeRealmIntegTestCase {
         logger.info("-->  creating ordinary index");
         final int shards = between(1, 10);
         ordinaryIndex = randomAlphaOfLength(4).toLowerCase(Locale.ROOT);
-        assertAcked(prepareCreate(ordinaryIndex, 0, Settings.builder().put("number_of_shards", shards).put("number_of_replicas", 0)));
+        assertAcked(prepareCreate(ordinaryIndex, 0, indexSettings(shards, 0)));
         ensureGreen();
 
         logger.info("-->  creating snapshot_user user");

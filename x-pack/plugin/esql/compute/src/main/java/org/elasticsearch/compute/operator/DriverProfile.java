@@ -9,11 +9,10 @@ package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ToXContent;
@@ -27,6 +26,16 @@ import java.util.Objects;
  * Profile results from a single {@link Driver}.
  */
 public class DriverProfile implements Writeable, ChunkedToXContentObject {
+    /**
+     * Millis since epoch when the driver started.
+     */
+    private final long startMillis;
+
+    /**
+     * Millis since epoch when the driver stopped.
+     */
+    private final long stopMillis;
+
     /**
      * Nanos between creation and completion of the {@link Driver}.
      */
@@ -45,18 +54,38 @@ public class DriverProfile implements Writeable, ChunkedToXContentObject {
     private final long iterations;
 
     /**
-     * Status of each {@link Operator} in the driver when it finishes.
+     * Status of each {@link Operator} in the driver when it finished.
      */
     private final List<DriverStatus.OperatorStatus> operators;
 
-    public DriverProfile(long tookNanos, long cpuNanos, long iterations, List<DriverStatus.OperatorStatus> operators) {
+    private final DriverSleeps sleeps;
+
+    public DriverProfile(
+        long startMillis,
+        long stopMillis,
+        long tookNanos,
+        long cpuNanos,
+        long iterations,
+        List<DriverStatus.OperatorStatus> operators,
+        DriverSleeps sleeps
+    ) {
+        this.startMillis = startMillis;
+        this.stopMillis = stopMillis;
         this.tookNanos = tookNanos;
         this.cpuNanos = cpuNanos;
         this.iterations = iterations;
         this.operators = operators;
+        this.sleeps = sleeps;
     }
 
     public DriverProfile(StreamInput in) throws IOException {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE_SLEEPS)) {
+            this.startMillis = in.readVLong();
+            this.stopMillis = in.readVLong();
+        } else {
+            this.startMillis = 0;
+            this.stopMillis = 0;
+        }
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
             this.tookNanos = in.readVLong();
             this.cpuNanos = in.readVLong();
@@ -67,16 +96,36 @@ public class DriverProfile implements Writeable, ChunkedToXContentObject {
             this.iterations = 0;
         }
         this.operators = in.readCollectionAsImmutableList(DriverStatus.OperatorStatus::new);
+        this.sleeps = DriverSleeps.read(in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE_SLEEPS)) {
+            out.writeVLong(startMillis);
+            out.writeVLong(stopMillis);
+        }
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
             out.writeVLong(tookNanos);
             out.writeVLong(cpuNanos);
             out.writeVLong(iterations);
         }
         out.writeCollection(operators);
+        sleeps.writeTo(out);
+    }
+
+    /**
+     * Millis since epoch when the driver started.
+     */
+    public long startMillis() {
+        return startMillis;
+    }
+
+    /**
+     * Millis since epoch when the driver stopped.
+     */
+    public long stopMillis() {
+        return stopMillis;
     }
 
     /**
@@ -102,24 +151,40 @@ public class DriverProfile implements Writeable, ChunkedToXContentObject {
         return iterations;
     }
 
+    /**
+     * Status of each {@link Operator} in the driver when it finished.
+     */
     public List<DriverStatus.OperatorStatus> operators() {
         return operators;
     }
 
+    /**
+     * Records of the times the driver has slept.
+     */
+    public DriverSleeps sleeps() {
+        return sleeps;
+    }
+
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-        return Iterators.concat(ChunkedToXContentHelper.startObject(), Iterators.single((b, p) -> {
-            b.field("took_nanos", tookNanos);
-            if (b.humanReadable()) {
-                b.field("took_time", TimeValue.timeValueNanos(tookNanos));
-            }
-            b.field("cpu_nanos", cpuNanos);
-            if (b.humanReadable()) {
-                b.field("cpu_time", TimeValue.timeValueNanos(cpuNanos));
-            }
-            b.field("iterations", iterations);
-            return b;
-        }), ChunkedToXContentHelper.array("operators", operators.iterator()), ChunkedToXContentHelper.endObject());
+        return ChunkedToXContent.builder(params).object(ob -> {
+            ob.append((b, p) -> {
+                b.timestampFieldsFromUnixEpochMillis("start_millis", "start", startMillis);
+                b.timestampFieldsFromUnixEpochMillis("stop_millis", "stop", stopMillis);
+                b.field("took_nanos", tookNanos);
+                if (b.humanReadable()) {
+                    b.field("took_time", TimeValue.timeValueNanos(tookNanos));
+                }
+                b.field("cpu_nanos", cpuNanos);
+                if (b.humanReadable()) {
+                    b.field("cpu_time", TimeValue.timeValueNanos(cpuNanos));
+                }
+                b.field("iterations", iterations);
+                return b;
+            });
+            ob.array("operators", operators.iterator());
+            ob.field("sleeps", sleeps);
+        });
     }
 
     @Override
@@ -131,15 +196,18 @@ public class DriverProfile implements Writeable, ChunkedToXContentObject {
             return false;
         }
         DriverProfile that = (DriverProfile) o;
-        return tookNanos == that.tookNanos
+        return startMillis == that.startMillis
+            && stopMillis == that.stopMillis
+            && tookNanos == that.tookNanos
             && cpuNanos == that.cpuNanos
             && iterations == that.iterations
-            && Objects.equals(operators, that.operators);
+            && Objects.equals(operators, that.operators)
+            && sleeps.equals(that.sleeps);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(tookNanos, cpuNanos, iterations, operators);
+        return Objects.hash(startMillis, stopMillis, tookNanos, cpuNanos, iterations, operators, sleeps);
     }
 
     @Override

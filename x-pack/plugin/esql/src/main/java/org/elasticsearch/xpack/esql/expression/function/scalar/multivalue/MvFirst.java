@@ -45,6 +45,7 @@ public class MvFirst extends AbstractMultivalueFunction {
             "cartesian_point",
             "cartesian_shape",
             "date",
+            "date_nanos",
             "double",
             "geo_point",
             "geo_shape",
@@ -52,14 +53,13 @@ public class MvFirst extends AbstractMultivalueFunction {
             "ip",
             "keyword",
             "long",
-            "text",
             "unsigned_long",
             "version" },
         description = """
             Converts a multivalued expression into a single valued column containing the
             first value. This is most useful when reading from a function that emits
-            multivalued columns in a known order like <<esql-split>>.
-
+            multivalued columns in a known order like <<esql-split>>.""",
+        detailedDescription = """
             The order that <<esql-multivalued-fields, multivalued fields>> are read from
             underlying storage is not guaranteed. It is *frequently* ascending, but don't
             rely on that. If you need the minimum value use <<esql-mv_min>> instead of
@@ -76,6 +76,7 @@ public class MvFirst extends AbstractMultivalueFunction {
                 "cartesian_point",
                 "cartesian_shape",
                 "date",
+                "date_nanos",
                 "double",
                 "geo_point",
                 "geo_shape",

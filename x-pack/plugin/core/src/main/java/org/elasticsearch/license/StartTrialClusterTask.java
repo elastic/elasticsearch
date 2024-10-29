@@ -24,7 +24,7 @@ import java.util.UUID;
 
 public class StartTrialClusterTask implements ClusterStateTaskListener {
 
-    private static final String ACKNOWLEDGEMENT_HEADER = "This API initiates a free 30-day trial for all platinum features. "
+    private static final String ACKNOWLEDGEMENT_HEADER = "This API initiates a free 30-day trial for all subscription features. "
         + "By starting this trial, you agree that it is subject to the terms and conditions at"
         + " https://www.elastic.co/legal/trial_license/. To begin your free trial, call /start_trial again and specify "
         + "the \"acknowledge=true\" parameter.";

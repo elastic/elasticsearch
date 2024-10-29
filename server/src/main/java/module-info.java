@@ -1,13 +1,12 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-import org.elasticsearch.index.codec.Elasticsearch814Codec;
-import org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormat;
 import org.elasticsearch.plugins.internal.RestExtension;
 
 /** The Elasticsearch Server Module. */
@@ -24,7 +23,6 @@ module org.elasticsearch.server {
     requires org.elasticsearch.nativeaccess;
     requires org.elasticsearch.geo;
     requires org.elasticsearch.lz4;
-    requires org.elasticsearch.pluginclassloader;
     requires org.elasticsearch.securesm;
     requires org.elasticsearch.xcontent;
     requires org.elasticsearch.logging;
@@ -159,7 +157,6 @@ module org.elasticsearch.server {
     exports org.elasticsearch.client.internal.support;
     exports org.elasticsearch.client.internal.transport;
     exports org.elasticsearch.cluster;
-    exports org.elasticsearch.cluster.ack;
     exports org.elasticsearch.cluster.action.index;
     exports org.elasticsearch.cluster.action.shard;
     exports org.elasticsearch.cluster.block;
@@ -190,14 +187,15 @@ module org.elasticsearch.server {
     exports org.elasticsearch.common.file;
     exports org.elasticsearch.common.geo;
     exports org.elasticsearch.common.hash;
-    exports org.elasticsearch.common.inject;
-    exports org.elasticsearch.common.inject.binder;
-    exports org.elasticsearch.common.inject.internal;
-    exports org.elasticsearch.common.inject.matcher;
-    exports org.elasticsearch.common.inject.multibindings;
-    exports org.elasticsearch.common.inject.name;
-    exports org.elasticsearch.common.inject.spi;
-    exports org.elasticsearch.common.inject.util;
+    exports org.elasticsearch.injection.api;
+    exports org.elasticsearch.injection.guice;
+    exports org.elasticsearch.injection.guice.binder;
+    exports org.elasticsearch.injection.guice.internal;
+    exports org.elasticsearch.injection.guice.matcher;
+    exports org.elasticsearch.injection.guice.multibindings;
+    exports org.elasticsearch.injection.guice.name;
+    exports org.elasticsearch.injection.guice.spi;
+    exports org.elasticsearch.injection.guice.util;
     exports org.elasticsearch.common.io;
     exports org.elasticsearch.common.io.stream;
     exports org.elasticsearch.common.logging;
@@ -364,6 +362,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.search.rank.rerank;
     exports org.elasticsearch.search.rescore;
     exports org.elasticsearch.search.retriever;
+    exports org.elasticsearch.search.retriever.rankdoc;
     exports org.elasticsearch.search.runtime;
     exports org.elasticsearch.search.searchafter;
     exports org.elasticsearch.search.slice;
@@ -402,7 +401,6 @@ module org.elasticsearch.server {
     exports org.elasticsearch.telemetry;
     exports org.elasticsearch.telemetry.metric;
 
-    provides java.util.spi.CalendarDataProvider with org.elasticsearch.common.time.IsoCalendarDataProvider;
     provides org.elasticsearch.xcontent.ErrorOnUnknown with org.elasticsearch.common.xcontent.SuggestingErrorOnUnknown;
     provides org.elasticsearch.xcontent.XContentBuilderExtension with org.elasticsearch.common.xcontent.XContentElasticsearchExtension;
     provides org.elasticsearch.cli.CliToolProvider
@@ -417,7 +415,6 @@ module org.elasticsearch.server {
     uses org.elasticsearch.internal.BuildExtension;
     uses org.elasticsearch.features.FeatureSpecification;
     uses org.elasticsearch.plugins.internal.LoggingDataProvider;
-    uses org.elasticsearch.cluster.metadata.DataStreamFactoryRetention;
 
     provides org.elasticsearch.features.FeatureSpecification
         with
@@ -428,7 +425,9 @@ module org.elasticsearch.server {
             org.elasticsearch.cluster.metadata.MetadataFeatures,
             org.elasticsearch.rest.RestFeatures,
             org.elasticsearch.indices.IndicesFeatures,
+            org.elasticsearch.repositories.RepositoriesFeatures,
             org.elasticsearch.action.admin.cluster.allocation.AllocationStatsFeatures,
+            org.elasticsearch.rest.action.admin.cluster.ClusterRerouteFeatures,
             org.elasticsearch.index.mapper.MapperFeatures,
             org.elasticsearch.ingest.IngestGeoIpFeatures,
             org.elasticsearch.search.SearchFeatures,
@@ -445,16 +444,22 @@ module org.elasticsearch.server {
             org.elasticsearch.index.codec.bloomfilter.ES85BloomFilterPostingsFormat,
             org.elasticsearch.index.codec.bloomfilter.ES87BloomFilterPostingsFormat,
             org.elasticsearch.index.codec.postings.ES812PostingsFormat;
-    provides org.apache.lucene.codecs.DocValuesFormat with ES87TSDBDocValuesFormat;
+    provides org.apache.lucene.codecs.DocValuesFormat with org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormat;
     provides org.apache.lucene.codecs.KnnVectorsFormat
         with
             org.elasticsearch.index.codec.vectors.ES813FlatVectorFormat,
             org.elasticsearch.index.codec.vectors.ES813Int8FlatVectorFormat,
             org.elasticsearch.index.codec.vectors.ES814HnswScalarQuantizedVectorsFormat,
             org.elasticsearch.index.codec.vectors.ES815HnswBitVectorsFormat,
-            org.elasticsearch.index.codec.vectors.ES815BitFlatVectorFormat;
+            org.elasticsearch.index.codec.vectors.ES815BitFlatVectorFormat,
+            org.elasticsearch.index.codec.vectors.ES816BinaryQuantizedVectorsFormat,
+            org.elasticsearch.index.codec.vectors.ES816HnswBinaryQuantizedVectorsFormat;
 
-    provides org.apache.lucene.codecs.Codec with Elasticsearch814Codec;
+    provides org.apache.lucene.codecs.Codec
+        with
+            org.elasticsearch.index.codec.Elasticsearch814Codec,
+            org.elasticsearch.index.codec.Elasticsearch816Codec,
+            org.elasticsearch.index.codec.Elasticsearch900Codec;
 
     provides org.apache.logging.log4j.core.util.ContextDataProvider with org.elasticsearch.common.logging.DynamicContextDataProvider;
 

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.lucene.search;
@@ -18,7 +19,7 @@ import org.apache.lucene.queries.spans.SpanMultiTermQueryWrapper;
 import org.apache.lucene.queries.spans.SpanOrQuery;
 import org.apache.lucene.queries.spans.SpanQuery;
 import org.apache.lucene.queries.spans.SpanTermQuery;
-import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.AttributeSource;
@@ -41,7 +42,7 @@ public class SpanBooleanQueryRewriteWithMaxClause extends SpanMultiTermQueryWrap
     private final boolean hardLimit;
 
     public SpanBooleanQueryRewriteWithMaxClause() {
-        this(BooleanQuery.getMaxClauseCount(), true);
+        this(IndexSearcher.getMaxClauseCount(), true);
     }
 
     public SpanBooleanQueryRewriteWithMaxClause(int maxExpansions, boolean hardLimit) {
@@ -58,10 +59,11 @@ public class SpanBooleanQueryRewriteWithMaxClause extends SpanMultiTermQueryWrap
     }
 
     @Override
-    public SpanQuery rewrite(IndexReader reader, MultiTermQuery query) throws IOException {
+    public SpanQuery rewrite(IndexSearcher indexSearcher, MultiTermQuery query) throws IOException {
         final MultiTermQuery.RewriteMethod delegate = new MultiTermQuery.RewriteMethod() {
             @Override
-            public Query rewrite(IndexReader reader, MultiTermQuery query) throws IOException {
+            public Query rewrite(IndexSearcher indexSearcher, MultiTermQuery query) throws IOException {
+                IndexReader reader = indexSearcher.getIndexReader();
                 Collection<SpanQuery> queries = collectTerms(reader, query);
                 if (queries.size() == 0) {
                     return new SpanMatchNoDocsQuery(query.getField(), "no expansion found for " + query.toString());
@@ -98,7 +100,7 @@ public class SpanBooleanQueryRewriteWithMaxClause extends SpanMultiTermQueryWrap
                                         + query.toString()
                                         + " ] "
                                         + "exceeds maxClauseCount [ Boolean maxClauseCount is set to "
-                                        + BooleanQuery.getMaxClauseCount()
+                                        + IndexSearcher.getMaxClauseCount()
                                         + "]"
                                 );
                             } else {
@@ -111,6 +113,6 @@ public class SpanBooleanQueryRewriteWithMaxClause extends SpanMultiTermQueryWrap
                 return queries;
             }
         };
-        return (SpanQuery) delegate.rewrite(reader, query);
+        return (SpanQuery) delegate.rewrite(indexSearcher, query);
     }
 }

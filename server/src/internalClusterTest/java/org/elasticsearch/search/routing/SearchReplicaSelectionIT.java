@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.routing;
@@ -50,15 +51,15 @@ public class SearchReplicaSelectionIT extends ESIntegTestCase {
         // Before we've gathered stats for all nodes, we should try each node once.
         Set<String> nodeIds = new HashSet<>();
         assertResponse(client.prepareSearch().setQuery(matchAllQuery()), response -> {
-            assertThat(response.getHits().getTotalHits().value, equalTo(1L));
+            assertThat(response.getHits().getTotalHits().value(), equalTo(1L));
             nodeIds.add(response.getHits().getAt(0).getShard().getNodeId());
         });
         assertResponse(client.prepareSearch().setQuery(matchAllQuery()), response -> {
-            assertThat(response.getHits().getTotalHits().value, equalTo(1L));
+            assertThat(response.getHits().getTotalHits().value(), equalTo(1L));
             nodeIds.add(response.getHits().getAt(0).getShard().getNodeId());
         });
         assertResponse(client.prepareSearch().setQuery(matchAllQuery()), response -> {
-            assertThat(response.getHits().getTotalHits().value, equalTo(1L));
+            assertThat(response.getHits().getTotalHits().value(), equalTo(1L));
             nodeIds.add(response.getHits().getAt(0).getShard().getNodeId());
         });
         assertEquals(3, nodeIds.size());
@@ -68,7 +69,7 @@ public class SearchReplicaSelectionIT extends ESIntegTestCase {
             client.prepareSearch().setQuery(matchAllQuery()).get().decRef();
         }
 
-        ClusterStateResponse clusterStateResponse = client.admin().cluster().prepareState().get();
+        ClusterStateResponse clusterStateResponse = client.admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get();
         Map<String, DiscoveryNode> coordinatingNodes = clusterStateResponse.getState().nodes().getCoordinatingOnlyNodes();
         assertEquals(1, coordinatingNodes.size());
 

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index;
@@ -14,6 +15,7 @@ import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.UpdateForV9;
 
 import java.lang.reflect.Field;
+import java.text.ParseException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -47,29 +49,38 @@ public class IndexVersions {
         return new IndexVersion(id, luceneVersion);
     }
 
-    @UpdateForV9 // remove the index versions with which v9 will not need to interact
-    public static final IndexVersion ZERO = def(0, Version.LATEST);
-    public static final IndexVersion V_7_0_0 = def(7_00_00_99, Version.LUCENE_8_0_0);
+    // TODO: this is just a hack to allow to keep the V7 IndexVersion constants, during compilation. Remove
+    private static Version parseUnchecked(String version) {
+        try {
+            return Version.parse(version);
+        } catch (ParseException e) {
+            throw new RuntimeException(e);
+        }
+    }
 
-    public static final IndexVersion V_7_1_0 = def(7_01_00_99, Version.LUCENE_8_0_0);
-    public static final IndexVersion V_7_2_0 = def(7_02_00_99, Version.LUCENE_8_0_0);
-    public static final IndexVersion V_7_2_1 = def(7_02_01_99, Version.LUCENE_8_0_0);
-    public static final IndexVersion V_7_3_0 = def(7_03_00_99, Version.LUCENE_8_1_0);
-    public static final IndexVersion V_7_4_0 = def(7_04_00_99, Version.LUCENE_8_2_0);
-    public static final IndexVersion V_7_5_0 = def(7_05_00_99, Version.LUCENE_8_3_0);
-    public static final IndexVersion V_7_5_2 = def(7_05_02_99, Version.LUCENE_8_3_0);
-    public static final IndexVersion V_7_6_0 = def(7_06_00_99, Version.LUCENE_8_4_0);
-    public static final IndexVersion V_7_7_0 = def(7_07_00_99, Version.LUCENE_8_5_1);
-    public static final IndexVersion V_7_8_0 = def(7_08_00_99, Version.LUCENE_8_5_1);
-    public static final IndexVersion V_7_9_0 = def(7_09_00_99, Version.LUCENE_8_6_0);
-    public static final IndexVersion V_7_10_0 = def(7_10_00_99, Version.LUCENE_8_7_0);
-    public static final IndexVersion V_7_11_0 = def(7_11_00_99, Version.LUCENE_8_7_0);
-    public static final IndexVersion V_7_12_0 = def(7_12_00_99, Version.LUCENE_8_8_0);
-    public static final IndexVersion V_7_13_0 = def(7_13_00_99, Version.LUCENE_8_8_2);
-    public static final IndexVersion V_7_14_0 = def(7_14_00_99, Version.LUCENE_8_9_0);
-    public static final IndexVersion V_7_15_0 = def(7_15_00_99, Version.LUCENE_8_9_0);
-    public static final IndexVersion V_7_16_0 = def(7_16_00_99, Version.LUCENE_8_10_1);
-    public static final IndexVersion V_7_17_0 = def(7_17_00_99, Version.LUCENE_8_11_1);
+    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA) // remove the index versions with which v9 will not need to interact
+    public static final IndexVersion ZERO = def(0, Version.LATEST);
+
+    public static final IndexVersion V_7_0_0 = def(7_00_00_99, parseUnchecked("8.0.0"));
+    public static final IndexVersion V_7_1_0 = def(7_01_00_99, parseUnchecked("8.0.0"));
+    public static final IndexVersion V_7_2_0 = def(7_02_00_99, parseUnchecked("8.0.0"));
+    public static final IndexVersion V_7_2_1 = def(7_02_01_99, parseUnchecked("8.0.0"));
+    public static final IndexVersion V_7_3_0 = def(7_03_00_99, parseUnchecked("8.1.0"));
+    public static final IndexVersion V_7_4_0 = def(7_04_00_99, parseUnchecked("8.2.0"));
+    public static final IndexVersion V_7_5_0 = def(7_05_00_99, parseUnchecked("8.3.0"));
+    public static final IndexVersion V_7_5_2 = def(7_05_02_99, parseUnchecked("8.3.0"));
+    public static final IndexVersion V_7_6_0 = def(7_06_00_99, parseUnchecked("8.4.0"));
+    public static final IndexVersion V_7_7_0 = def(7_07_00_99, parseUnchecked("8.5.1"));
+    public static final IndexVersion V_7_8_0 = def(7_08_00_99, parseUnchecked("8.5.1"));
+    public static final IndexVersion V_7_9_0 = def(7_09_00_99, parseUnchecked("8.6.0"));
+    public static final IndexVersion V_7_10_0 = def(7_10_00_99, parseUnchecked("8.7.0"));
+    public static final IndexVersion V_7_11_0 = def(7_11_00_99, parseUnchecked("8.7.0"));
+    public static final IndexVersion V_7_12_0 = def(7_12_00_99, parseUnchecked("8.8.0"));
+    public static final IndexVersion V_7_13_0 = def(7_13_00_99, parseUnchecked("8.8.2"));
+    public static final IndexVersion V_7_14_0 = def(7_14_00_99, parseUnchecked("8.9.0"));
+    public static final IndexVersion V_7_15_0 = def(7_15_00_99, parseUnchecked("8.9.0"));
+    public static final IndexVersion V_7_16_0 = def(7_16_00_99, parseUnchecked("8.10.1"));
+    public static final IndexVersion V_7_17_0 = def(7_17_00_99, parseUnchecked("8.11.1"));
     public static final IndexVersion V_8_0_0 = def(8_00_00_99, Version.LUCENE_9_0_0);
     public static final IndexVersion V_8_1_0 = def(8_01_00_99, Version.LUCENE_9_0_0);
     public static final IndexVersion V_8_2_0 = def(8_02_00_99, Version.LUCENE_9_1_0);
@@ -112,6 +123,14 @@ public class IndexVersions {
     public static final IndexVersion ADD_SECURITY_MIGRATION = def(8_510_00_0, Version.LUCENE_9_11_0);
     public static final IndexVersion UPGRADE_TO_LUCENE_9_11_1 = def(8_511_00_0, Version.LUCENE_9_11_1);
     public static final IndexVersion INDEX_SORTING_ON_NESTED = def(8_512_00_0, Version.LUCENE_9_11_1);
+    public static final IndexVersion LENIENT_UPDATEABLE_SYNONYMS = def(8_513_00_0, Version.LUCENE_9_11_1);
+    public static final IndexVersion ENABLE_IGNORE_MALFORMED_LOGSDB = def(8_514_00_0, Version.LUCENE_9_11_1);
+    public static final IndexVersion MERGE_ON_RECOVERY_VERSION = def(8_515_00_0, Version.LUCENE_9_11_1);
+    public static final IndexVersion UPGRADE_TO_LUCENE_9_12 = def(8_516_00_0, Version.LUCENE_9_12_0);
+    public static final IndexVersion ENABLE_IGNORE_ABOVE_LOGSDB = def(8_517_00_0, Version.LUCENE_9_12_0);
+    public static final IndexVersion ADD_ROLE_MAPPING_CLEANUP_MIGRATION = def(8_518_00_0, Version.LUCENE_9_12_0);
+    public static final IndexVersion UPGRADE_TO_LUCENE_10_0_0 = def(9_000_00_0, Version.LUCENE_10_0_0);
+
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _
@@ -165,7 +184,7 @@ public class IndexVersions {
      * In branches 8.7-8.11 see server/src/main/java/org/elasticsearch/index/IndexVersion.java for the equivalent definitions.
      */
 
-    public static final IndexVersion MINIMUM_COMPATIBLE = V_7_0_0;
+    public static final IndexVersion MINIMUM_COMPATIBLE = V_8_0_0;
 
     static final NavigableMap<Integer, IndexVersion> VERSION_IDS = getAllVersionIds(IndexVersions.class);
     static final IndexVersion LATEST_DEFINED;
@@ -216,11 +235,13 @@ public class IndexVersions {
         return Collections.unmodifiableNavigableMap(builder);
     }
 
+    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA)
+    // We can simplify this once we've removed all references to index versions earlier than MINIMUM_COMPATIBLE
     static Collection<IndexVersion> getAllVersions() {
-        return VERSION_IDS.values();
+        return VERSION_IDS.values().stream().filter(v -> v.onOrAfter(MINIMUM_COMPATIBLE)).toList();
     }
 
-    static final IntFunction<String> VERSION_LOOKUP = ReleaseVersions.generateVersionsLookup(IndexVersions.class);
+    static final IntFunction<String> VERSION_LOOKUP = ReleaseVersions.generateVersionsLookup(IndexVersions.class, LATEST_DEFINED.id());
 
     // no instance
     private IndexVersions() {}

@@ -449,6 +449,115 @@
         index: test-generic
   - match: { test-generic.mappings.properties.parent.properties.child\.grandchild.type: "keyword" }
 
+
+---
+"Composable index templates that include subobjects: auto at root":
+  - requires:
+      cluster_features: ["mapper.subobjects_auto"]
+      reason: "https://github.com/elastic/elasticsearch/issues/96768 fixed at 8.11.0"
+      test_runner_features: "allowed_warnings"
+
+  - do:
+      cluster.put_component_template:
+        name: test-subobjects
+        body:
+          template:
+            mappings:
+              subobjects: auto
+              properties:
+                message:
+                  enabled: false
+
+  - do:
+      cluster.put_component_template:
+        name: test-field
+        body:
+          template:
+            mappings:
+              properties:
+                parent.subfield:
+                  type: keyword
+
+  - do:
+      allowed_warnings:
+        - "index template [test-composable-template] has index patterns [test-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [test-composable-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: test-composable-template
+        body:
+          index_patterns:
+            - test-*
+          composed_of:
+            - test-subobjects
+            - test-field
+  - is_true: acknowledged
+
+  - do:
+      indices.create:
+        index: test-generic
+
+  - do:
+      indices.get_mapping:
+        index: test-generic
+  - match: { test-generic.mappings.properties.parent\.subfield.type: "keyword" }
+  - match: { test-generic.mappings.properties.message.type: "object" }
+
+---
+"Composable index templates that include subobjects: auto on arbitrary field":
+  - requires:
+      cluster_features: ["mapper.subobjects_auto"]
+      reason: "https://github.com/elastic/elasticsearch/issues/96768 fixed at 8.11.0"
+      test_runner_features: "allowed_warnings"
+
+  - do:
+      cluster.put_component_template:
+        name: test-subobjects
+        body:
+          template:
+            mappings:
+              properties:
+                parent:
+                  type: object
+                  subobjects: auto
+                  properties:
+                    message:
+                      enabled: false
+
+  - do:
+      cluster.put_component_template:
+        name: test-subfield
+        body:
+          template:
+            mappings:
+              properties:
+                parent:
+                  properties:
+                    child.grandchild:
+                      type: keyword
+
+  - do:
+      allowed_warnings:
+        - "index template [test-composable-template] has index patterns [test-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [test-composable-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: test-composable-template
+        body:
+          index_patterns:
+            - test-*
+          composed_of:
+            - test-subobjects
+            - test-subfield
+  - is_true: acknowledged
+
+  - do:
+      indices.create:
+        index: test-generic
+
+  - do:
+      indices.get_mapping:
+        index: test-generic
+  - match: { test-generic.mappings.properties.parent.properties.child\.grandchild.type: "keyword" }
+  - match: { test-generic.mappings.properties.parent.properties.message.type: "object" }
+
+
 ---
 "Composition of component templates with different legal field mappings":
   - skip:

@@ -41,6 +41,9 @@ public sealed interface DoubleBlock extends Block permits DoubleArrayBlock, Doub
     DoubleBlock filter(int... positions);
 
     @Override
+    DoubleBlock keepMask(BooleanVector mask);
+
+    @Override
     ReleasableIterator<? extends DoubleBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize);
 
     @Override

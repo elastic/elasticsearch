@@ -1,5 +1,0 @@
-pr: 109470
-summary: Enabling profiling for `RankBuilders` and adding tests for RRF
-area: Ranking
-type: enhancement
-issues: []

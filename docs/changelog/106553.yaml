@@ -1,5 +1,0 @@
-pr: 106553
-summary: Add support for hiragana_uppercase & katakana_uppercase token filters in kuromoji analysis plugin
-area: Search
-type: enhancement
-issues: []

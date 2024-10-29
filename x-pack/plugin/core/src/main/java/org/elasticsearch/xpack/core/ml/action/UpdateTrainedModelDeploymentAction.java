@@ -20,7 +20,6 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsFeatureFlag;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -50,14 +49,12 @@ public class UpdateTrainedModelDeploymentAction extends ActionType<CreateTrained
         static {
             PARSER.declareString(Request::setDeploymentId, MODEL_ID);
             PARSER.declareInt(Request::setNumberOfAllocations, NUMBER_OF_ALLOCATIONS);
-            if (AdaptiveAllocationsFeatureFlag.isEnabled()) {
-                PARSER.declareObjectOrNull(
-                    Request::setAdaptiveAllocationsSettings,
-                    (p, c) -> AdaptiveAllocationsSettings.PARSER.parse(p, c).build(),
-                    AdaptiveAllocationsSettings.RESET_PLACEHOLDER,
-                    ADAPTIVE_ALLOCATIONS
-                );
-            }
+            PARSER.declareObjectOrNull(
+                Request::setAdaptiveAllocationsSettings,
+                (p, c) -> AdaptiveAllocationsSettings.PARSER.parse(p, c).build(),
+                AdaptiveAllocationsSettings.RESET_PLACEHOLDER,
+                ADAPTIVE_ALLOCATIONS
+            );
             PARSER.declareString((r, val) -> r.ackTimeout(TimeValue.parseTimeValue(val, TIMEOUT.getPreferredName())), TIMEOUT);
         }
 
@@ -164,10 +161,12 @@ public class UpdateTrainedModelDeploymentAction extends ActionType<CreateTrained
         public ActionRequestValidationException validate() {
             ActionRequestValidationException validationException = new ActionRequestValidationException();
             if (numberOfAllocations != null) {
-                if (numberOfAllocations < 1) {
+                if (numberOfAllocations < 0 || (isInternal == false && numberOfAllocations == 0)) {
                     validationException.addValidationError("[" + NUMBER_OF_ALLOCATIONS + "] must be a positive integer");
                 }
-                if (isInternal == false && adaptiveAllocationsSettings != null && adaptiveAllocationsSettings.getEnabled()) {
+                if (isInternal == false
+                    && adaptiveAllocationsSettings != null
+                    && adaptiveAllocationsSettings.getEnabled() == Boolean.TRUE) {
                     validationException.addValidationError(
                         "[" + NUMBER_OF_ALLOCATIONS + "] cannot be set if adaptive allocations is enabled"
                     );

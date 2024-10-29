@@ -30,7 +30,10 @@ must be unique and should not match any other deployment ID or model ID, unless
 it is the same as the ID of the model being deployed. If `deployment_id` is not
 set, it defaults to the `model_id`.
 
-Scaling inference performance can be achieved by setting the parameters
+You can enable adaptive allocations to automatically scale model allocations up
+and down based on the actual resource requirement of the processes.
+
+Manually scaling inference performance can be achieved by setting the parameters
 `number_of_allocations` and `threads_per_allocation`.
 
 Increasing `threads_per_allocation` means more threads are used when an
@@ -58,6 +61,46 @@ include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=model-id]
 [[start-trained-model-deployment-query-params]]
 == {api-query-parms-title}
 
+`deployment_id`::
+(Optional, string)
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=deployment-id]
++
+--
+Defaults to `model_id`.
+--
+
+`timeout`::
+(Optional, time)
+Controls the amount of time to wait for the model to deploy. Defaults to 30
+seconds.
+
+`wait_for`::
+(Optional, string)
+Specifies the allocation status to wait for before returning. Defaults to
+`started`. The value `starting` indicates deployment is starting but not yet on
+any node. The value `started` indicates the model has started on at least one
+node. The value `fully_allocated` indicates the deployment has started on all
+valid nodes.
+
+[[start-trained-model-deployment-request-body]]
+== {api-request-body-title}
+
+`adaptive_allocations`::
+(Optional, object)
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=adaptive-allocation]
+
+`enabled`:::
+(Optional, Boolean)
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=adaptive-allocation-enabled]
+
+`max_number_of_allocations`:::
+(Optional, integer)
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=adaptive-allocation-max-number]
+
+`min_number_of_allocations`:::
+(Optional, integer)
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=adaptive-allocation-min-number]
+
 `cache_size`::
 (Optional, <<byte-units,byte value>>)
 The inference cache size (in memory outside the JVM heap) per node for the
@@ -65,15 +108,11 @@ model. In serverless, the cache is disabled by default. Otherwise, the default v
 `model_size_bytes` field in the <<get-trained-models-stats>>. To disable the
 cache, `0b` can be provided.
 
-`deployment_id`::
-(Optional, string)
-include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=deployment-id]
-Defaults to `model_id`.
-
 `number_of_allocations`::
 (Optional, integer)
 The total number of allocations this model is assigned across {ml} nodes.
-Increasing this value generally increases the throughput. Defaults to 1.
+Increasing this value generally increases the throughput. Defaults to `1`.
+If `adaptive_allocations` is enabled, do not set this value, because it's automatically set.
 
 `priority`::
 (Optional, string)
@@ -110,18 +149,6 @@ compute-bound process; `threads_per_allocations` must not exceed the number of
 available allocated processors per node. Defaults to 1. Must be a power of 2.
 Max allowed value is 32.
 
-`timeout`::
-(Optional, time)
-Controls the amount of time to wait for the model to deploy. Defaults to 30
-seconds.
-
-`wait_for`::
-(Optional, string)
-Specifies the allocation status to wait for before returning. Defaults to
-`started`. The value `starting` indicates deployment is starting but not yet on
-any node. The value `started` indicates the model has started on at least one
-node. The value `fully_allocated` indicates the deployment has started on all
-valid nodes.
 
 [[start-trained-model-deployment-example]]
 == {api-examples-title}
@@ -180,5 +207,26 @@ The `my_model` trained model can be deployed again with a different ID:
 [source,console]
 --------------------------------------------------
 POST _ml/trained_models/my_model/deployment/_start?deployment_id=my_model_for_search
+--------------------------------------------------
+// TEST[skip:TBD]
+
+
+[[start-trained-model-deployment-adaptive-allocation-example]]
+=== Setting adaptive allocations
+
+The following example starts a new deployment of the `my_model` trained model
+with the ID `my_model_for_search` and enables adaptive allocations with the
+minimum number of 3 allocations and the maximum number of 10. 
+
+[source,console]
+--------------------------------------------------
+POST _ml/trained_models/my_model/deployment/_start?deployment_id=my_model_for_search
+{
+  "adaptive_allocations": {
+    "enabled": true,
+    "min_number_of_allocations": 3,
+    "max_number_of_allocations": 10
+  }
+}
 --------------------------------------------------
 // TEST[skip:TBD]

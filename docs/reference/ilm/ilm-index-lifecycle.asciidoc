@@ -5,7 +5,7 @@
 <titleabbrev>Index lifecycle</titleabbrev>
 ++++
 
-{ilm-init} defines five index lifecycle _phases_:
+<<index-lifecycle-management,{ilm-init}>> defines five index lifecycle _phases_:
 
 * **Hot**: The index is actively being updated and queried.
 * **Warm**: The index is no longer being updated but is still being queried.

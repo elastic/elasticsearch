@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping;
@@ -21,6 +22,7 @@ import org.elasticsearch.xpack.core.security.authz.RoleMappingMetadata;
 
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.security.SecurityExtension.SecurityComponents;
 
@@ -28,12 +30,11 @@ import static org.elasticsearch.xpack.core.security.SecurityExtension.SecurityCo
  * A role mapper the reads the role mapping rules (i.e. {@link ExpressionRoleMapping}s) from the cluster state
  * (i.e. {@link RoleMappingMetadata}). This is not enabled by default.
  */
-public final class ClusterStateRoleMapper extends AbstractRoleMapperClearRealmCache implements ClusterStateListener {
-
+public class ClusterStateRoleMapper extends AbstractRoleMapperClearRealmCache implements ClusterStateListener {
     /**
-     * This setting is never registered by the xpack security plugin - in order to enable the
+     * This setting is never registered by the xpack security plugin - in order to disable the
      * cluster-state based role mapper another plugin must register it as a boolean setting
-     * and set it to `true`.
+     * and set it to `false`.
      * If this setting is set to <code>true</code> then:
      * <ul>
      *     <li>Realms that make use role mappings (all realms but file and native) will,
@@ -54,8 +55,8 @@ public final class ClusterStateRoleMapper extends AbstractRoleMapperClearRealmCa
     public ClusterStateRoleMapper(Settings settings, ScriptService scriptService, ClusterService clusterService) {
         this.scriptService = scriptService;
         this.clusterService = clusterService;
-        // this role mapper is disabled by default and only code in other plugins can enable it
-        this.enabled = settings.getAsBoolean(CLUSTER_STATE_ROLE_MAPPINGS_ENABLED, false);
+        // this role mapper is enabled by default and only code in other plugins can disable it
+        this.enabled = settings.getAsBoolean(CLUSTER_STATE_ROLE_MAPPINGS_ENABLED, true);
         if (this.enabled) {
             clusterService.addListener(this);
         }
@@ -81,13 +82,26 @@ public final class ClusterStateRoleMapper extends AbstractRoleMapperClearRealmCa
         }
     }
 
-    private Set<ExpressionRoleMapping> getMappings() {
+    public boolean hasMapping(String name) {
+        if (enabled == false) {
+            return false;
+        }
+        return false == getMappings(Set.of(name)).isEmpty();
+    }
+
+    public Set<ExpressionRoleMapping> getMappings() {
+        return getMappings(null);
+    }
+
+    public Set<ExpressionRoleMapping> getMappings(@Nullable Set<String> names) {
         if (enabled == false) {
             return Set.of();
-        } else {
-            final Set<ExpressionRoleMapping> mappings = RoleMappingMetadata.getFromClusterState(clusterService.state()).getRoleMappings();
-            logger.trace("Retrieved [{}] mapping(s) from cluster state", mappings.size());
+        }
+        final Set<ExpressionRoleMapping> mappings = RoleMappingMetadata.getFromClusterState(clusterService.state()).getRoleMappings();
+        logger.trace("Retrieved [{}] mapping(s) from cluster state", mappings.size());
+        if (names == null || names.isEmpty()) {
             return mappings;
         }
+        return mappings.stream().filter(roleMapping -> names.contains(roleMapping.getName())).collect(Collectors.toSet());
     }
 }

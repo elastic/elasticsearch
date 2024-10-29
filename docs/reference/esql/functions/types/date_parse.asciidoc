@@ -5,8 +5,8 @@
 [%header.monospaced.styled,format=dsv,separator=|]
 |===
 datePattern | dateString | result
-keyword | keyword | datetime
-keyword | text | datetime
-text | keyword | datetime
-text | text | datetime
+keyword | keyword | date
+keyword | text | date
+text | keyword | date
+text | text | date
 |===

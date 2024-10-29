@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.indexing;
 
@@ -56,9 +57,9 @@ public class IndexActionIT extends ESIntegTestCase {
                 try {
                     logger.debug("running search with all types");
                     assertResponse(prepareSearch("test"), response -> {
-                        if (response.getHits().getTotalHits().value != numOfDocs) {
+                        if (response.getHits().getTotalHits().value() != numOfDocs) {
                             final String message = "Count is "
-                                + response.getHits().getTotalHits().value
+                                + response.getHits().getTotalHits().value()
                                 + " but "
                                 + numOfDocs
                                 + " was expected. "
@@ -76,9 +77,9 @@ public class IndexActionIT extends ESIntegTestCase {
                 try {
                     logger.debug("running search with a specific type");
                     assertResponse(prepareSearch("test"), response -> {
-                        if (response.getHits().getTotalHits().value != numOfDocs) {
+                        if (response.getHits().getTotalHits().value() != numOfDocs) {
                             final String message = "Count is "
-                                + response.getHits().getTotalHits().value
+                                + response.getHits().getTotalHits().value()
                                 + " but "
                                 + numOfDocs
                                 + " was expected. "

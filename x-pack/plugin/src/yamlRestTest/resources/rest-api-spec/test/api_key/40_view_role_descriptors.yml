@@ -21,7 +21,7 @@ setup:
               ],
               "applications": [
                 {
-                  "application": "myapp",
+                  "application": "apm",
                   "privileges": ["*"],
                   "resources": ["*"]
                 }
@@ -497,7 +497,7 @@ teardown:
       ],
       "applications" : [
         {
-          "application" : "myapp",
+          "application" : "apm",
           "privileges" : [
             "*"
           ],

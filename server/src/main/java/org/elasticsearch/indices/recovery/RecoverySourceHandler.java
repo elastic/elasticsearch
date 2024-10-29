@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices.recovery;
@@ -314,7 +315,9 @@ public class RecoverySourceHandler {
                 cancellableThreads,
                 ActionListener.wrap(ignored -> {
                     final long endingSeqNo = shard.seqNoStats().getMaxSeqNo();
-                    logger.trace("snapshot for recovery; current size is [{}]", estimateNumberOfHistoryOperations(startingSeqNo));
+                    if (logger.isTraceEnabled()) {
+                        logger.trace("snapshot for recovery; current size is [{}]", estimateNumberOfHistoryOperations(startingSeqNo));
+                    }
                     final Translog.Snapshot phase2Snapshot = shard.newChangesSnapshot(
                         "peer-recovery",
                         startingSeqNo,
@@ -700,7 +703,7 @@ public class RecoverySourceHandler {
                 .newForked(this::sendShardRecoveryPlanFileInfo)
                 // instruct the target to recover files from snapshot, possibly updating the plan on failure
                 .<List<StoreFileMetadata>>andThen(
-                    (l, ignored) -> recoverSnapshotFiles(shardRecoveryPlan, l.delegateResponse((recoverSnapshotFilesListener, e) -> {
+                    l -> recoverSnapshotFiles(shardRecoveryPlan, l.delegateResponse((recoverSnapshotFilesListener, e) -> {
                         if (shardRecoveryPlan.canRecoverSnapshotFilesFromSourceNode() == false
                             && e instanceof CancellableThreads.ExecutionCancelledException == false) {
                             shardRecoveryPlan = shardRecoveryPlan.getFallbackPlan();
@@ -731,10 +734,7 @@ public class RecoverySourceHandler {
                 })
                 // create a retention lease
                 .<RetentionLease>andThen(
-                    (createRetentionLeaseListener, ignored) -> createRetentionLease(
-                        shardRecoveryPlan.getStartingSeqNo(),
-                        createRetentionLeaseListener
-                    )
+                    createRetentionLeaseListener -> createRetentionLease(shardRecoveryPlan.getStartingSeqNo(), createRetentionLeaseListener)
                 )
                 // run cleanFiles, renaming temp files, removing surplus ones, creating an empty translog and so on
                 .<Void>andThen((finalRecoveryPlanListener, retentionLease) -> {
@@ -1376,7 +1376,7 @@ public class RecoverySourceHandler {
                         // we already have the file contents on heap no need to open the file again
                         currentInput = null;
                     } else {
-                        currentInput = store.directory().openInput(md.name(), IOContext.READONCE);
+                        currentInput = store.directory().openInput(md.name(), IOContext.DEFAULT);
                     }
                 }
 

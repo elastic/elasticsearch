@@ -1,5 +1,0 @@
-pr: 110431
-summary: "[Inference API] Fix serialization for inference delete endpoint response"
-area: Machine Learning
-type: bug
-issues: []

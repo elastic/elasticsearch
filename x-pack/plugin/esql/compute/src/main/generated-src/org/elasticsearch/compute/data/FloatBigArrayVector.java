@@ -77,6 +77,32 @@ public final class FloatBigArrayVector extends AbstractVector implements FloatVe
     }
 
     @Override
+    public FloatBlock keepMask(BooleanVector mask) {
+        if (getPositionCount() == 0) {
+            incRef();
+            return new FloatVectorBlock(this);
+        }
+        if (mask.isConstant()) {
+            if (mask.getBoolean(0)) {
+                incRef();
+                return new FloatVectorBlock(this);
+            }
+            return (FloatBlock) blockFactory().newConstantNullBlock(getPositionCount());
+        }
+        try (FloatBlock.Builder builder = blockFactory().newFloatBlockBuilder(getPositionCount())) {
+            // TODO if X-ArrayBlock used BooleanVector for it's null mask then we could shuffle references here.
+            for (int p = 0; p < getPositionCount(); p++) {
+                if (mask.getBoolean(p)) {
+                    builder.appendFloat(getFloat(p));
+                } else {
+                    builder.appendNull();
+                }
+            }
+            return builder.build();
+        }
+    }
+
+    @Override
     public ReleasableIterator<FloatBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
         return new FloatLookup(asBlock(), positions, targetBlockSize);
     }

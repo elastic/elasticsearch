@@ -12,6 +12,8 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.license.License;
+import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
@@ -22,6 +24,7 @@ import org.elasticsearch.xpack.core.ml.utils.NamedXContentObject;
 import java.util.Arrays;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.xpack.core.ml.MachineLearningField.ML_API_FEATURE;
 
 public interface InferenceConfig extends NamedXContentObject, VersionedNamedWriteable {
 
@@ -113,5 +116,13 @@ public interface InferenceConfig extends NamedXContentObject, VersionedNamedWrit
             getName(),
             updateName
         );
+    }
+
+    default License.OperationMode getMinLicenseSupported() {
+        return ML_API_FEATURE.getMinimumOperationMode();
+    }
+
+    default License.OperationMode getMinLicenseSupportedForAction(RestRequest.Method method) {
+        return getMinLicenseSupported();
     }
 }

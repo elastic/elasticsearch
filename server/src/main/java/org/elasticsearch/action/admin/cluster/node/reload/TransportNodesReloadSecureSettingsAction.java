@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.node.reload;
@@ -19,11 +20,11 @@ import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.ReloadablePlugin;
 import org.elasticsearch.tasks.Task;
@@ -38,7 +39,8 @@ public class TransportNodesReloadSecureSettingsAction extends TransportNodesActi
     NodesReloadSecureSettingsRequest,
     NodesReloadSecureSettingsResponse,
     NodesReloadSecureSettingsRequest.NodeRequest,
-    NodesReloadSecureSettingsResponse.NodeResponse> {
+    NodesReloadSecureSettingsResponse.NodeResponse,
+    Void> {
 
     public static final ActionType<NodesReloadSecureSettingsResponse> TYPE = new ActionType<>("cluster:admin/nodes/reload_secure_settings");
 
@@ -123,6 +125,7 @@ public class TransportNodesReloadSecureSettingsAction extends TransportNodesActi
             final List<Exception> exceptions = new ArrayList<>();
             // broadcast the new settings object (with the open embedded keystore) to all reloadable plugins
             pluginsService.filterPlugins(ReloadablePlugin.class).forEach(p -> {
+                logger.debug("Reloading plugin [" + p.getClass().getSimpleName() + "]");
                 try {
                     p.reload(settingsWithKeystore);
                 } catch (final Exception e) {

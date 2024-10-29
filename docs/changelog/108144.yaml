@@ -1,5 +1,0 @@
-pr: 108144
-summary: Bump Tika dependency to 2.9.2
-area: Ingest Node
-type: upgrade
-issues: []

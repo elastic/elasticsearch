@@ -26,7 +26,7 @@ tasks.named('javaRestTest') {
 tasks.named('yamlRestTest') {
   usesDefaultDistribution()
 }
-tasks.named('yamlRestTestV7CompatTest') {
+tasks.named('yamlRestCompatTest') {
   usesDefaultDistribution()
 }
 

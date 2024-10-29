@@ -44,8 +44,8 @@ public enum JoinType implements Writeable {
             case 0 -> INNER;
             case 1 -> LEFT;
             case 2 -> RIGHT;
-            case 4 -> FULL;
-            case 5 -> CROSS;
+            case 3 -> FULL;
+            case 4 -> CROSS;
             default -> throw new IllegalArgumentException("unsupported join [" + id + "]");
         };
     }

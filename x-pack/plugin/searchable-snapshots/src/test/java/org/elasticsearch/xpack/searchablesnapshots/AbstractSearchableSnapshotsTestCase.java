@@ -144,7 +144,7 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
             nodeEnvironment,
             Settings.EMPTY,
             threadPool,
-            SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME,
+            threadPool.executor(SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME),
             BlobCacheMetrics.NOOP
         );
     }
@@ -167,7 +167,7 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
             singlePathNodeEnvironment,
             cacheSettings.build(),
             threadPool,
-            SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME,
+            threadPool.executor(SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME),
             BlobCacheMetrics.NOOP
         );
     }
@@ -192,7 +192,7 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
                 .put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), cacheRangeSize)
                 .build(),
             threadPool,
-            SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME,
+            threadPool.executor(SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME),
             BlobCacheMetrics.NOOP
         );
     }
@@ -348,8 +348,8 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
      * uses a different buffer size for them.
      */
     public static IOContext randomIOContext() {
-        final IOContext ioContext = randomFrom(IOContext.DEFAULT, IOContext.READ, IOContext.READONCE);
-        assert ioContext.context != IOContext.Context.MERGE;
+        final IOContext ioContext = randomFrom(IOContext.DEFAULT, IOContext.READONCE);
+        assert ioContext.context() != IOContext.Context.MERGE;
         return ioContext;
     }
 }

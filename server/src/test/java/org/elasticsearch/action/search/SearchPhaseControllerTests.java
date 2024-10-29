@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.search;
@@ -58,7 +59,6 @@ import org.elasticsearch.search.profile.aggregation.AggregationProfileShardResul
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.rank.RankShardResult;
-import org.elasticsearch.search.rank.TestRankDoc;
 import org.elasticsearch.search.rank.TestRankShardResult;
 import org.elasticsearch.search.rank.context.QueryPhaseRankCoordinatorContext;
 import org.elasticsearch.search.suggest.SortBy;
@@ -297,8 +297,8 @@ public class SearchPhaseControllerTests extends ESTestCase {
                     if (trackTotalHits == SearchContext.TRACK_TOTAL_HITS_DISABLED) {
                         assertNull(mergedResponse.hits.getTotalHits());
                     } else {
-                        assertThat(mergedResponse.hits.getTotalHits().value, equalTo(0L));
-                        assertEquals(mergedResponse.hits.getTotalHits().relation, Relation.EQUAL_TO);
+                        assertThat(mergedResponse.hits.getTotalHits().value(), equalTo(0L));
+                        assertEquals(mergedResponse.hits.getTotalHits().relation(), Relation.EQUAL_TO);
                     }
                     for (SearchHit hit : mergedResponse.hits().getHits()) {
                         SearchPhaseResult searchPhaseResult = fetchResults.get(hit.getShard().getShardId().id());
@@ -415,8 +415,8 @@ public class SearchPhaseControllerTests extends ESTestCase {
                     if (trackTotalHits == SearchContext.TRACK_TOTAL_HITS_DISABLED) {
                         assertNull(mergedResponse.hits.getTotalHits());
                     } else {
-                        assertThat(mergedResponse.hits.getTotalHits().value, equalTo(0L));
-                        assertEquals(mergedResponse.hits.getTotalHits().relation, Relation.EQUAL_TO);
+                        assertThat(mergedResponse.hits.getTotalHits().value(), equalTo(0L));
+                        assertEquals(mergedResponse.hits.getTotalHits().relation(), Relation.EQUAL_TO);
                     }
                     int rank = 1;
                     for (SearchHit hit : mergedResponse.hits().getHits()) {
@@ -463,10 +463,10 @@ public class SearchPhaseControllerTests extends ESTestCase {
                 topDocs = Lucene.EMPTY_TOP_DOCS;
             } else if (rank) {
                 int nDocs = randomIntBetween(0, searchHitsSize);
-                TestRankDoc[] rankDocs = new TestRankDoc[nDocs];
+                RankDoc[] rankDocs = new RankDoc[nDocs];
                 for (int i = 0; i < nDocs; i++) {
                     float score = useConstantScore ? 1.0F : Math.abs(randomFloat());
-                    rankDocs[i] = new TestRankDoc(i, score, shardIndex);
+                    rankDocs[i] = new RankDoc(i, score, shardIndex);
                     maxScore = Math.max(score, maxScore);
                 }
                 querySearchResult.setRankShardResult(new TestRankShardResult(rankDocs));
@@ -522,8 +522,8 @@ public class SearchPhaseControllerTests extends ESTestCase {
         int resultCount = 0;
         for (SearchPhaseResult shardResult : results.asList()) {
             TopDocs topDocs = shardResult.queryResult().topDocs().topDocs;
-            assert topDocs.totalHits.relation == Relation.EQUAL_TO;
-            resultCount += (int) topDocs.totalHits.value;
+            assert topDocs.totalHits.relation() == Relation.EQUAL_TO;
+            resultCount += (int) topDocs.totalHits.value();
         }
         return resultCount;
     }
@@ -784,7 +784,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
             assertEquals(max.get(), internalMax.value(), 0.0D);
             assertEquals(1, reduce.sortedTopDocs().scoreDocs().length);
             assertEquals(max.get(), reduce.maxScore(), 0.0f);
-            assertEquals(expectedNumResults, reduce.totalHits().value);
+            assertEquals(expectedNumResults, reduce.totalHits().value());
             assertEquals(max.get(), reduce.sortedTopDocs().scoreDocs()[0].score, 0.0f);
             assertFalse(reduce.sortedTopDocs().isSortedByField());
             assertNull(reduce.sortedTopDocs().sortFields());
@@ -844,7 +844,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
             assertEquals(max.get(), internalMax.value(), 0.0D);
             assertEquals(0, reduce.sortedTopDocs().scoreDocs().length);
             assertEquals(max.get(), reduce.maxScore(), 0.0f);
-            assertEquals(expectedNumResults, reduce.totalHits().value);
+            assertEquals(expectedNumResults, reduce.totalHits().value());
             assertFalse(reduce.sortedTopDocs().isSortedByField());
             assertNull(reduce.sortedTopDocs().sortFields());
             assertNull(reduce.sortedTopDocs().collapseField());
@@ -902,7 +902,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
             assertAggReduction(request);
             assertEquals(1, reduce.sortedTopDocs().scoreDocs().length);
             assertEquals(max.get(), reduce.maxScore(), 0.0f);
-            assertEquals(expectedNumResults, reduce.totalHits().value);
+            assertEquals(expectedNumResults, reduce.totalHits().value());
             assertEquals(max.get(), reduce.sortedTopDocs().scoreDocs()[0].score, 0.0f);
             assertFalse(reduce.sortedTopDocs().isSortedByField());
             assertNull(reduce.sortedTopDocs().sortFields());
@@ -969,7 +969,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
             ScoreDoc[] scoreDocs = reduce.sortedTopDocs().scoreDocs();
             assertEquals(5, scoreDocs.length);
             assertEquals(100.f, reduce.maxScore(), 0.0f);
-            assertEquals(12, reduce.totalHits().value);
+            assertEquals(12, reduce.totalHits().value());
             assertEquals(95.0f, scoreDocs[0].score, 0.0f);
             assertEquals(94.0f, scoreDocs[1].score, 0.0f);
             assertEquals(93.0f, scoreDocs[2].score, 0.0f);
@@ -1022,7 +1022,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
             SearchPhaseController.ReducedQueryPhase reduce = consumer.reduce();
             assertAggReduction(request);
             assertEquals(Math.min(expectedNumResults, size), reduce.sortedTopDocs().scoreDocs().length);
-            assertEquals(expectedNumResults, reduce.totalHits().value);
+            assertEquals(expectedNumResults, reduce.totalHits().value());
             assertEquals(max.get(), ((FieldDoc) reduce.sortedTopDocs().scoreDocs()[0]).fields[0]);
             assertTrue(reduce.sortedTopDocs().isSortedByField());
             assertEquals(1, reduce.sortedTopDocs().sortFields().length);
@@ -1079,7 +1079,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
             SearchPhaseController.ReducedQueryPhase reduce = consumer.reduce();
             assertAggReduction(request);
             assertEquals(3, reduce.sortedTopDocs().scoreDocs().length);
-            assertEquals(expectedNumResults, reduce.totalHits().value);
+            assertEquals(expectedNumResults, reduce.totalHits().value());
             assertEquals(a, ((FieldDoc) reduce.sortedTopDocs().scoreDocs()[0]).fields[0]);
             assertEquals(b, ((FieldDoc) reduce.sortedTopDocs().scoreDocs()[1]).fields[0]);
             assertEquals(c, ((FieldDoc) reduce.sortedTopDocs().scoreDocs()[2]).fields[0]);
@@ -1199,7 +1199,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
             assertEquals(maxScoreCompletion, reduce.sortedTopDocs().scoreDocs()[0].score, 0f);
             assertEquals(0, reduce.sortedTopDocs().scoreDocs()[0].doc);
             assertNotEquals(-1, reduce.sortedTopDocs().scoreDocs()[0].shardIndex);
-            assertEquals(0, reduce.totalHits().value);
+            assertEquals(0, reduce.totalHits().value());
             assertFalse(reduce.sortedTopDocs().isSortedByField());
             assertNull(reduce.sortedTopDocs().sortFields());
             assertNull(reduce.sortedTopDocs().collapseField());
@@ -1290,7 +1290,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
                 assertEquals(max.get(), internalMax.value(), 0.0D);
                 assertEquals(1, reduce.sortedTopDocs().scoreDocs().length);
                 assertEquals(max.get(), reduce.maxScore(), 0.0f);
-                assertEquals(expectedNumResults, reduce.totalHits().value);
+                assertEquals(expectedNumResults, reduce.totalHits().value());
                 assertEquals(max.get(), reduce.sortedTopDocs().scoreDocs()[0].score, 0.0f);
                 assertFalse(reduce.sortedTopDocs().isSortedByField());
                 assertNull(reduce.sortedTopDocs().sortFields());

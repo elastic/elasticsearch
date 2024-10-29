@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.env;
@@ -27,13 +28,15 @@ final class DefaultBuildVersion extends BuildVersion {
 
     public static BuildVersion CURRENT = new DefaultBuildVersion(Version.CURRENT.id());
 
-    private final int versionId;
     private final Version version;
 
     DefaultBuildVersion(int versionId) {
         assert versionId >= 0 : "Release version IDs must be non-negative integers";
-        this.versionId = versionId;
         this.version = Version.fromId(versionId);
+    }
+
+    DefaultBuildVersion(String version) {
+        this.version = Version.fromString(Objects.requireNonNull(version));
     }
 
     @Override
@@ -48,12 +51,7 @@ final class DefaultBuildVersion extends BuildVersion {
 
     @Override
     public int id() {
-        return versionId;
-    }
-
-    @Override
-    public Version toVersion() {
-        return version;
+        return version.id();
     }
 
     @Override
@@ -61,16 +59,16 @@ final class DefaultBuildVersion extends BuildVersion {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         DefaultBuildVersion that = (DefaultBuildVersion) o;
-        return versionId == that.versionId;
+        return version.equals(that.version);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(versionId);
+        return Objects.hash(version.id());
     }
 
     @Override
     public String toString() {
-        return Version.fromId(versionId).toString();
+        return version.toString();
     }
 }

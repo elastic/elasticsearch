@@ -1,6 +1,0 @@
-pr: 108349
-summary: "Ecs@mappings: reduce scope for `ecs_geo_point`"
-area: Data streams
-type: bug
-issues:
- - 108338

@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.esql.plan.logical.join;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
@@ -15,7 +18,6 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
@@ -29,6 +31,7 @@ import java.util.Set;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 
 public class Join extends BinaryPlan {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Join", Join::new);
 
     private final JoinConfig config;
     private List<Attribute> lazyOutput;
@@ -51,20 +54,31 @@ public class Join extends BinaryPlan {
         this.config = new JoinConfig(type, matchFields, leftFields, rightFields);
     }
 
-    public Join(PlanStreamInput in) throws IOException {
-        super(Source.readFrom(in), in.readLogicalPlanNode(), in.readLogicalPlanNode());
+    public Join(StreamInput in) throws IOException {
+        super(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(LogicalPlan.class), in.readNamedWriteable(LogicalPlan.class));
         this.config = new JoinConfig(in);
     }
 
-    public void writeTo(PlanStreamOutput out) throws IOException {
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
         source().writeTo(out);
-        out.writeLogicalPlanNode(left());
-        out.writeLogicalPlanNode(right());
+        out.writeNamedWriteable(left());
+        out.writeNamedWriteable(right());
         config.writeTo(out);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
     }
 
     public JoinConfig config() {
         return config;
+    }
+
+    @Override
+    protected AttributeSet computeReferences() {
+        return Expressions.references(config.leftFields()).combine(Expressions.references(config.rightFields()));
     }
 
     @Override
@@ -147,7 +161,7 @@ public class Join extends BinaryPlan {
         List<Attribute> out = new ArrayList<>(output.size());
         for (Attribute a : output) {
             if (a.resolved() && a instanceof ReferenceAttribute == false) {
-                out.add(new ReferenceAttribute(a.source(), a.name(), a.dataType(), a.qualifier(), a.nullable(), a.id(), a.synthetic()));
+                out.add(new ReferenceAttribute(a.source(), a.name(), a.dataType(), a.nullable(), a.id(), a.synthetic()));
             } else {
                 out.add(a);
             }
@@ -174,6 +188,11 @@ public class Join extends BinaryPlan {
         // - the children are resolved
         // - the condition (if present) is resolved to a boolean
         return childrenResolved() && expressionsResolved();
+    }
+
+    @Override
+    public String commandName() {
+        return "JOIN";
     }
 
     @Override

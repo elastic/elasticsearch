@@ -23,6 +23,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomLiteral;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.hamcrest.Matchers.equalTo;
@@ -178,6 +179,23 @@ public class MvSliceTests extends AbstractScalarFunctionTestCase {
                 ),
                 "MvSliceLongEvaluator[field=Attribute[channel=0], start=Attribute[channel=1], end=Attribute[channel=2]]",
                 DataType.DATETIME,
+                equalTo(start == end ? field.get(start) : field.subList(start, end + 1))
+            );
+        }));
+
+        suppliers.add(new TestCaseSupplier(List.of(DataType.DATE_NANOS, DataType.INTEGER, DataType.INTEGER), () -> {
+            List<Long> field = randomList(1, 10, () -> randomLong());
+            int length = field.size();
+            int start = randomIntBetween(0, length - 1);
+            int end = randomIntBetween(start, length - 1);
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(field, DataType.DATE_NANOS, "field"),
+                    new TestCaseSupplier.TypedData(start, DataType.INTEGER, "start"),
+                    new TestCaseSupplier.TypedData(end, DataType.INTEGER, "end")
+                ),
+                "MvSliceLongEvaluator[field=Attribute[channel=0], start=Attribute[channel=1], end=Attribute[channel=2]]",
+                DataType.DATE_NANOS,
                 equalTo(start == end ? field.get(start) : field.subList(start, end + 1))
             );
         }));

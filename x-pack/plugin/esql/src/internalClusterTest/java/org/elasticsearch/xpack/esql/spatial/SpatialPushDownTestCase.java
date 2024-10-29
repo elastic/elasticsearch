@@ -28,7 +28,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 /**
  * Base class to check that a query than can be pushed down gives the same result
  * if it is actually pushed down and when it is executed by the compute engine,
- *
+ * <p>
  * For doing that we create two indices, one fully indexed and another with index
  * and doc values disabled. Then we index the same data in both indices and we check
  * that the same ES|QL queries produce the same results in both.
@@ -64,12 +64,11 @@ public abstract class SpatialPushDownTestCase extends ESIntegTestCase {
         assertPushedDownQueries(false);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/110830")
     public void testPushedDownQueriesMultiValue() throws RuntimeException {
         assertPushedDownQueries(true);
     }
 
-    private void assertPushedDownQueries(boolean multiValue) throws RuntimeException {
+    protected void initIndexes() {
         assertAcked(prepareCreate("indexed").setMapping(String.format(Locale.ROOT, """
             {
               "properties" : {
@@ -85,6 +84,10 @@ public abstract class SpatialPushDownTestCase extends ESIntegTestCase {
               }
             }
             """, fieldType())));
+    }
+
+    private void assertPushedDownQueries(boolean multiValue) throws RuntimeException {
+        initIndexes();
         for (int i = 0; i < random().nextInt(50, 100); i++) {
             if (multiValue) {
                 final String[] values = new String[randomIntBetween(1, 5)];
@@ -102,6 +105,10 @@ public abstract class SpatialPushDownTestCase extends ESIntegTestCase {
 
         refresh("indexed", "not-indexed");
 
+        String smallRectangleCW = "POLYGON ((-10 -10, -10 10, 10 10, 10 -10, -10 -10))";
+        assertFunction("ST_WITHIN", smallRectangleCW);
+        String smallRectangleCCW = "POLYGON ((-10 -10, 10 -10, 10 10, -10 10, -10 -10))";
+        assertFunction("ST_WITHIN", smallRectangleCCW);
         for (int i = 0; i < 10; i++) {
             final Geometry geometry = getQueryGeometry();
             final String wkt = WellKnownText.toWKT(geometry);
@@ -115,7 +122,7 @@ public abstract class SpatialPushDownTestCase extends ESIntegTestCase {
         }
     }
 
-    private void assertFunction(String spatialFunction, String wkt) {
+    protected void assertFunction(String spatialFunction, String wkt) {
         final String query1 = String.format(Locale.ROOT, """
             FROM indexed | WHERE %s(location, %s("%s")) | STATS COUNT(*)
             """, spatialFunction, castingFunction(), wkt);
@@ -126,7 +133,9 @@ public abstract class SpatialPushDownTestCase extends ESIntegTestCase {
             EsqlQueryResponse response1 = EsqlQueryRequestBuilder.newRequestBuilder(client()).query(query1).get();
             EsqlQueryResponse response2 = EsqlQueryRequestBuilder.newRequestBuilder(client()).query(query2).get();
         ) {
-            assertEquals(response1.response().column(0).iterator().next(), response2.response().column(0).iterator().next());
+            Object indexedResult = response1.response().column(0).iterator().next();
+            Object notIndexedResult = response2.response().column(0).iterator().next();
+            assertEquals(spatialFunction, indexedResult, notIndexedResult);
         }
     }
 

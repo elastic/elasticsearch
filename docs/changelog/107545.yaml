@@ -1,6 +1,0 @@
-pr: 107545
-summary: "ESQL: Union Types Support"
-area: ES|QL
-type: enhancement
-issues:
- - 100603

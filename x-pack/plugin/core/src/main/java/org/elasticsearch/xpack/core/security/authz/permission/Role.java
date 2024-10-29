@@ -233,7 +233,7 @@ public interface Role {
         }
 
         public Builder cluster(Set<String> privilegeNames, Iterable<ConfigurableClusterPrivilege> configurableClusterPrivileges) {
-            ClusterPermission.Builder builder = ClusterPermission.builder();
+            ClusterPermission.Builder builder = new ClusterPermission.Builder(restrictedIndices);
             if (privilegeNames.isEmpty() == false) {
                 for (String name : privilegeNames) {
                     builder = ClusterPrivilegeResolver.resolve(name).buildPermission(builder);

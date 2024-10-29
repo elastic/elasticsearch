@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.support;
@@ -408,6 +409,32 @@ public class SubscribableListener<T> implements ActionListener<T> {
                 // nothing more can be done here
             }
         }
+    }
+
+    /**
+     * Creates and returns a new {@link SubscribableListener} {@code L} and subscribes {@code nextStep} to this listener such that if this
+     * listener is completed successfully then the result is discarded and {@code nextStep} is invoked with argument {@code L}. If this
+     * listener is completed with exception {@code E} then so is {@code L}.
+     * <p>
+     * This can be used to construct a sequence of async actions, each ignoring the result of the previous ones:
+     * <pre>
+     * l.andThen(l1 -> forkAction1(args1, l1)).andThen(l2 -> forkAction2(args2, l2)).addListener(finalListener);
+     * </pre>
+     * After creating this chain, completing {@code l} with a successful response will call {@code forkAction1}, which will on completion
+     * call {@code forkAction2}, which will in turn pass its response to {@code finalListener}. A failure of any step will bypass the
+     * remaining steps and ultimately fail {@code finalListener}.
+     * <p>
+     * The threading of the {@code nextStep} callback is the same as for listeners added with {@link #addListener}: if this listener is
+     * already complete then {@code nextStep} is invoked on the thread calling {@link #andThen} and in its thread context, but if this
+     * listener is incomplete then {@code nextStep} is invoked on the completing thread and in its thread context. In other words, if you
+     * want to ensure that {@code nextStep} is invoked using a particular executor, then you must do both of:
+     * <ul>
+     * <li>Ensure that this {@link SubscribableListener} is always completed using that executor, and</li>
+     * <li>Invoke {@link #andThen} using that executor.</li>
+     * </ul>
+     */
+    public <U> SubscribableListener<U> andThen(CheckedConsumer<ActionListener<U>, ? extends Exception> nextStep) {
+        return newForked(l -> addListener(l.delegateFailureIgnoreResponseAndWrap(nextStep)));
     }
 
     /**

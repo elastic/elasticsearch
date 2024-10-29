@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.update;
@@ -21,8 +22,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.get.GetResult;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptEngine;
@@ -61,6 +64,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class UpdateRequestTests extends ESTestCase {
 
@@ -116,7 +120,7 @@ public class UpdateRequestTests extends ESTestCase {
         final MockScriptEngine engine = new MockScriptEngine("mock", scripts, Collections.emptyMap());
         Map<String, ScriptEngine> engines = Collections.singletonMap(engine.getType(), engine);
         ScriptService scriptService = new ScriptService(baseSettings, engines, ScriptModule.CORE_CONTEXTS, () -> 1L);
-        updateHelper = new UpdateHelper(scriptService, DocumentParsingProvider.EMPTY_INSTANCE);
+        updateHelper = new UpdateHelper(scriptService);
     }
 
     @SuppressWarnings("unchecked")
@@ -377,9 +381,10 @@ public class UpdateRequestTests extends ESTestCase {
                 .script(mockInlineScript("ctx._source.update_timestamp = ctx._now"))
                 .scriptedUpsert(true);
             long nowInMillis = randomNonNegativeLong();
+            IndexShard indexShard = createMockIndexShard(new ShardId("test", "_na_", 0));
             // We simulate that the document is not existing yet
             GetResult getResult = new GetResult("test", "2", UNASSIGNED_SEQ_NO, 0, 0, false, null, null, null);
-            UpdateHelper.Result result = updateHelper.prepare(new ShardId("test", "_na_", 0), updateRequest, getResult, () -> nowInMillis);
+            UpdateHelper.Result result = updateHelper.prepare(indexShard, updateRequest, getResult, () -> nowInMillis);
             Writeable action = result.action();
             assertThat(action, instanceOf(IndexRequest.class));
             IndexRequest indexAction = (IndexRequest) action;
@@ -418,12 +423,8 @@ public class UpdateRequestTests extends ESTestCase {
     }
 
     private void runTimeoutTest(final GetResult getResult, final UpdateRequest updateRequest) {
-        final UpdateHelper.Result result = updateHelper.prepare(
-            new ShardId("test", "", 0),
-            updateRequest,
-            getResult,
-            ESTestCase::randomNonNegativeLong
-        );
+        final IndexShard indexShard = createMockIndexShard(new ShardId("test", "", 0));
+        final UpdateHelper.Result result = updateHelper.prepare(indexShard, updateRequest, getResult, ESTestCase::randomNonNegativeLong);
         final Writeable action = result.action();
         assertThat(action, instanceOf(ReplicationRequest.class));
         final ReplicationRequest<?> request = (ReplicationRequest<?>) action;
@@ -585,21 +586,21 @@ public class UpdateRequestTests extends ESTestCase {
     }
 
     public void testNoopDetection() throws Exception {
-        ShardId shardId = new ShardId("test", "", 0);
+        IndexShard indexShard = createMockIndexShard(new ShardId("test", "", 0));
         GetResult getResult = new GetResult("test", "1", 0, 1, 0, true, new BytesArray("{\"body\": \"foo\"}"), null, null);
 
         UpdateRequest request;
         try (var parser = createParser(JsonXContent.jsonXContent, new BytesArray("{\"doc\": {\"body\": \"foo\"}}"))) {
             request = new UpdateRequest("test", "1").fromXContent(parser);
         }
-        UpdateHelper updateHelper = new UpdateHelper(mock(ScriptService.class), DocumentParsingProvider.EMPTY_INSTANCE);
-        UpdateHelper.Result result = updateHelper.prepareUpdateIndexRequest(shardId, request, getResult, true);
+        UpdateHelper updateHelper = new UpdateHelper(mock(ScriptService.class));
+        UpdateHelper.Result result = updateHelper.prepareUpdateIndexRequest(indexShard, request, getResult, true);
 
         assertThat(result.action(), instanceOf(UpdateResponse.class));
         assertThat(result.getResponseResult(), equalTo(DocWriteResponse.Result.NOOP));
 
         // Try again, with detectNoop turned off
-        result = updateHelper.prepareUpdateIndexRequest(shardId, request, getResult, false);
+        result = updateHelper.prepareUpdateIndexRequest(indexShard, request, getResult, false);
         assertThat(result.action(), instanceOf(IndexRequest.class));
         assertThat(result.getResponseResult(), equalTo(DocWriteResponse.Result.UPDATED));
         assertThat(result.updatedSourceAsMap().get("body").toString(), equalTo("foo"));
@@ -607,7 +608,7 @@ public class UpdateRequestTests extends ESTestCase {
         try (var parser = createParser(JsonXContent.jsonXContent, new BytesArray("{\"doc\": {\"body\": \"bar\"}}"))) {
             // Change the request to be a different doc
             request = new UpdateRequest("test", "1").fromXContent(parser);
-            result = updateHelper.prepareUpdateIndexRequest(shardId, request, getResult, true);
+            result = updateHelper.prepareUpdateIndexRequest(indexShard, request, getResult, true);
 
             assertThat(result.action(), instanceOf(IndexRequest.class));
             assertThat(result.getResponseResult(), equalTo(DocWriteResponse.Result.UPDATED));
@@ -617,13 +618,13 @@ public class UpdateRequestTests extends ESTestCase {
     }
 
     public void testUpdateScript() throws Exception {
-        ShardId shardId = new ShardId("test", "", 0);
+        IndexShard indexShard = createMockIndexShard(new ShardId("test", "", 0));
         GetResult getResult = new GetResult("test", "1", 0, 1, 0, true, new BytesArray("{\"body\": \"bar\"}"), null, null);
 
         UpdateRequest request = new UpdateRequest("test", "1").script(mockInlineScript("ctx._source.body = \"foo\""));
 
         UpdateHelper.Result result = updateHelper.prepareUpdateScriptRequest(
-            shardId,
+            indexShard,
             request,
             getResult,
             ESTestCase::randomNonNegativeLong
@@ -636,7 +637,7 @@ public class UpdateRequestTests extends ESTestCase {
         // Now where the script changes the op to "delete"
         request = new UpdateRequest("test", "1").script(mockInlineScript("ctx.op = 'delete'"));
 
-        result = updateHelper.prepareUpdateScriptRequest(shardId, request, getResult, ESTestCase::randomNonNegativeLong);
+        result = updateHelper.prepareUpdateScriptRequest(indexShard, request, getResult, ESTestCase::randomNonNegativeLong);
 
         assertThat(result.action(), instanceOf(DeleteRequest.class));
         assertThat(result.getResponseResult(), equalTo(DocWriteResponse.Result.DELETED));
@@ -649,7 +650,7 @@ public class UpdateRequestTests extends ESTestCase {
             request = new UpdateRequest("test", "1").script(mockInlineScript("ctx.op = 'bad'"));
         }
 
-        result = updateHelper.prepareUpdateScriptRequest(shardId, request, getResult, ESTestCase::randomNonNegativeLong);
+        result = updateHelper.prepareUpdateScriptRequest(indexShard, request, getResult, ESTestCase::randomNonNegativeLong);
 
         assertThat(result.action(), instanceOf(UpdateResponse.class));
         assertThat(result.getResponseResult(), equalTo(DocWriteResponse.Result.NOOP));
@@ -666,5 +667,16 @@ public class UpdateRequestTests extends ESTestCase {
                 update {[test][1], doc_as_upsert[false], doc[index {[null][null], source[{"body":"bar"}]}], \
                 scripted_upsert[false], detect_noop[true]}"""));
         }
+    }
+
+    private static IndexShard createMockIndexShard(ShardId shardId) {
+        MapperService mapperService = mock(MapperService.class);
+        when(mapperService.mappingLookup()).thenReturn(MappingLookup.EMPTY);
+
+        IndexShard indexShard = mock(IndexShard.class);
+        when(indexShard.shardId()).thenReturn(shardId);
+        when(indexShard.mapperService()).thenReturn(mapperService);
+
+        return indexShard;
     }
 }

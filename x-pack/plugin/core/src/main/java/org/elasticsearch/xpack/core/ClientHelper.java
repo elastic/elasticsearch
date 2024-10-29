@@ -194,6 +194,7 @@ public final class ClientHelper {
     public static final String CONNECTORS_ORIGIN = "connectors";
     public static final String INFERENCE_ORIGIN = "inference";
     public static final String APM_ORIGIN = "apm";
+    public static final String OTEL_ORIGIN = "otel";
 
     private ClientHelper() {}
 
@@ -266,7 +267,7 @@ public final class ClientHelper {
                 return supplier.get();
             }
         } else {
-            try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashContext()) {
+            try (var ignore = client.threadPool().getThreadContext().stashContext()) {
                 client.threadPool().getThreadContext().copyHeaders(filteredHeaders.entrySet());
                 return supplier.get();
             }

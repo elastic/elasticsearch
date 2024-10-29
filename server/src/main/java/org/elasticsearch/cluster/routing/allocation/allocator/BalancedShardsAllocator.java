@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing.allocation.allocator;
@@ -31,9 +32,6 @@ import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision.Type;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.logging.DeprecationCategory;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -41,9 +39,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.gateway.PriorityComparator;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.injection.guice.Inject;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -108,7 +106,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
     public static final Setting<Float> THRESHOLD_SETTING = Setting.floatSetting(
         "cluster.routing.allocation.balance.threshold",
         1.0f,
-        0.0f,
+        1.0f,
         Property.Dynamic,
         Property.NodeScope
     );
@@ -139,32 +137,8 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         clusterSettings.initializeAndWatch(INDEX_BALANCE_FACTOR_SETTING, value -> this.indexBalanceFactor = value);
         clusterSettings.initializeAndWatch(WRITE_LOAD_BALANCE_FACTOR_SETTING, value -> this.writeLoadBalanceFactor = value);
         clusterSettings.initializeAndWatch(DISK_USAGE_BALANCE_FACTOR_SETTING, value -> this.diskUsageBalanceFactor = value);
-        clusterSettings.initializeAndWatch(THRESHOLD_SETTING, value -> this.threshold = ensureValidThreshold(value));
+        clusterSettings.initializeAndWatch(THRESHOLD_SETTING, value -> this.threshold = value);
         this.writeLoadForecaster = writeLoadForecaster;
-    }
-
-    /**
-     * Clamp threshold to be at least 1, and log a critical deprecation warning if smaller values are given.
-     *
-     * Once {@link org.elasticsearch.Version#V_7_17_0} goes out of scope, start to properly reject such bad values.
-     */
-    @UpdateForV9
-    private static float ensureValidThreshold(float threshold) {
-        if (1.0f <= threshold) {
-            return threshold;
-        } else {
-            DeprecationLogger.getLogger(BalancedShardsAllocator.class)
-                .critical(
-                    DeprecationCategory.SETTINGS,
-                    "balance_threshold_too_small",
-                    "ignoring value [{}] for [{}] since it is smaller than 1.0; "
-                        + "setting [{}] to a value smaller than 1.0 will be forbidden in a future release",
-                    threshold,
-                    THRESHOLD_SETTING.getKey(),
-                    THRESHOLD_SETTING.getKey()
-                );
-            return 1.0f;
-        }
     }
 
     @Override
@@ -413,6 +387,11 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
         private float maxShardSizeBytes(String index) {
             final var indexMetadata = metadata.index(index);
+            if (indexMetadata.ignoreDiskWatermarks()) {
+                // disk watermarks are ignored for partial searchable snapshots
+                // and is equivalent to indexMetadata.isPartialSearchableSnapshot()
+                return 0;
+            }
             var maxShardSizeBytes = indexMetadata.getForecastedShardSizeInBytes().orElse(0L);
             for (int shard = 0; shard < indexMetadata.getNumberOfShards(); shard++) {
                 final var shardId = new ShardId(indexMetadata.getIndex(), shard);

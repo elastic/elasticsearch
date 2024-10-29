@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations.metrics;
 
@@ -50,7 +51,7 @@ public class InternalTDigestPercentileRanks extends AbstractInternalTDigestPerce
         DocValueFormat format,
         Map<String, Object> metadata
     ) {
-        TDigestState state = TDigestState.create(compression, executionHint);
+        TDigestState state = TDigestState.createWithoutCircuitBreaking(compression, executionHint);
         return new InternalTDigestPercentileRanks(name, keys, state, keyed, format, metadata);
     }
 

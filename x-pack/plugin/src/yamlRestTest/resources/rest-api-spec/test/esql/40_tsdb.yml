@@ -178,11 +178,19 @@ cast counter then filter:
 
 ---
 sort on counter without cast:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [sorting_on_source_and_counters_forbidden]
+      reason: "Sorting on counters shouldn't have been possible"
   - do:
-      catch: bad_request
+      catch: /cannot sort on counter_long/
       esql.query:
         body:
-          query: 'from test |  KEEP k8s.pod.network.tx | sort @k8s.pod.network.tx | limit 1'
+          query: 'from test |  KEEP k8s.pod.network.tx | sort k8s.pod.network.tx | limit 1'
 
 ---
 cast then sort on counter:
@@ -253,12 +261,24 @@ from index pattern unsupported counter:
 
 ---
 from index pattern explicit counter use:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [union_types_fix_rename_resolution]
+      reason: "Union type resolution fix for rename also allows direct usage of unsupported fields in KEEP"
+
   - do:
-      catch: '/Cannot use field \[k8s.pod.network.tx\] due to ambiguities being mapped as different metric types in indices: \[test, test2\]/'
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'FROM test* | keep *.tx'
-
+  - match: {columns.0.name: "k8s.pod.network.tx"}
+  - match: {columns.0.type: "unsupported"}
+  - length: {values: 10}
 
 ---
 _source:

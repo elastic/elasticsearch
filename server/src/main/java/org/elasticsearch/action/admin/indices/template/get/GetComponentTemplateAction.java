@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.template.get;
@@ -121,8 +122,6 @@ public class GetComponentTemplateAction extends ActionType<GetComponentTemplateA
         private final Map<String, ComponentTemplate> componentTemplates;
         @Nullable
         private final RolloverConfiguration rolloverConfiguration;
-        @Nullable
-        private final DataStreamGlobalRetention globalRetention;
 
         public Response(StreamInput in) throws IOException {
             super(in);
@@ -132,25 +131,39 @@ public class GetComponentTemplateAction extends ActionType<GetComponentTemplateA
             } else {
                 rolloverConfiguration = null;
             }
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
-                globalRetention = in.readOptionalWriteable(DataStreamGlobalRetention::read);
-            } else {
-                globalRetention = null;
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)
+                && in.getTransportVersion().before(TransportVersions.REMOVE_GLOBAL_RETENTION_FROM_TEMPLATES)) {
+                in.readOptionalWriteable(DataStreamGlobalRetention::read);
             }
         }
 
+        /**
+         * Please use {@link GetComponentTemplateAction.Response#Response(Map)}
+         */
+        @Deprecated
         public Response(Map<String, ComponentTemplate> componentTemplates, @Nullable DataStreamGlobalRetention globalRetention) {
-            this(componentTemplates, null, globalRetention);
+            this(componentTemplates, (RolloverConfiguration) null);
         }
 
+        /**
+         * Please use {@link GetComponentTemplateAction.Response#Response(Map, RolloverConfiguration)}
+         */
+        @Deprecated
         public Response(
             Map<String, ComponentTemplate> componentTemplates,
             @Nullable RolloverConfiguration rolloverConfiguration,
-            @Nullable DataStreamGlobalRetention globalRetention
+            @Nullable DataStreamGlobalRetention ignored
         ) {
+            this(componentTemplates, rolloverConfiguration);
+        }
+
+        public Response(Map<String, ComponentTemplate> componentTemplates) {
+            this(componentTemplates, (RolloverConfiguration) null);
+        }
+
+        public Response(Map<String, ComponentTemplate> componentTemplates, @Nullable RolloverConfiguration rolloverConfiguration) {
             this.componentTemplates = componentTemplates;
             this.rolloverConfiguration = rolloverConfiguration;
-            this.globalRetention = globalRetention;
         }
 
         public Map<String, ComponentTemplate> getComponentTemplates() {
@@ -161,8 +174,14 @@ public class GetComponentTemplateAction extends ActionType<GetComponentTemplateA
             return rolloverConfiguration;
         }
 
+        /**
+         * @return null
+         * @deprecated The global retention is not used anymore in the component template response
+         */
+        @Deprecated
+        @Nullable
         public DataStreamGlobalRetention getGlobalRetention() {
-            return globalRetention;
+            return null;
         }
 
         @Override
@@ -171,8 +190,9 @@ public class GetComponentTemplateAction extends ActionType<GetComponentTemplateA
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
                 out.writeOptionalWriteable(rolloverConfiguration);
             }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
-                out.writeOptionalWriteable(globalRetention);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)
+                && out.getTransportVersion().before(TransportVersions.REMOVE_GLOBAL_RETENTION_FROM_TEMPLATES)) {
+                out.writeOptionalWriteable(null);
             }
         }
 
@@ -182,13 +202,12 @@ public class GetComponentTemplateAction extends ActionType<GetComponentTemplateA
             if (o == null || getClass() != o.getClass()) return false;
             Response that = (Response) o;
             return Objects.equals(componentTemplates, that.componentTemplates)
-                && Objects.equals(rolloverConfiguration, that.rolloverConfiguration)
-                && Objects.equals(globalRetention, that.globalRetention);
+                && Objects.equals(rolloverConfiguration, that.rolloverConfiguration);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(componentTemplates, rolloverConfiguration, globalRetention);
+            return Objects.hash(componentTemplates, rolloverConfiguration);
         }
 
         @Override
@@ -208,5 +227,4 @@ public class GetComponentTemplateAction extends ActionType<GetComponentTemplateA
         }
 
     }
-
 }

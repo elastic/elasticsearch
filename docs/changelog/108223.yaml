@@ -1,5 +1,0 @@
-pr: 108223
-summary: Upgrade bouncy castle (non-fips) to 1.78.1
-area: Security
-type: upgrade
-issues: []

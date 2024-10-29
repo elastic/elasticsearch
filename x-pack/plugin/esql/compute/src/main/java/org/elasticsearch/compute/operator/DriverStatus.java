@@ -79,6 +79,8 @@ public class DriverStatus implements Task.Status {
      */
     private final List<OperatorStatus> activeOperators;
 
+    private final DriverSleeps sleeps;
+
     DriverStatus(
         String sessionId,
         long started,
@@ -87,7 +89,8 @@ public class DriverStatus implements Task.Status {
         long iterations,
         Status status,
         List<OperatorStatus> completedOperators,
-        List<OperatorStatus> activeOperators
+        List<OperatorStatus> activeOperators,
+        DriverSleeps sleeps
     ) {
         this.sessionId = sessionId;
         this.started = started;
@@ -97,6 +100,7 @@ public class DriverStatus implements Task.Status {
         this.status = status;
         this.completedOperators = completedOperators;
         this.activeOperators = activeOperators;
+        this.sleeps = sleeps;
     }
 
     public DriverStatus(StreamInput in) throws IOException {
@@ -105,13 +109,14 @@ public class DriverStatus implements Task.Status {
         this.lastUpdated = in.readLong();
         this.cpuNanos = in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0) ? in.readVLong() : 0;
         this.iterations = in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0) ? in.readVLong() : 0;
-        this.status = Status.valueOf(in.readString());
+        this.status = Status.read(in);
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             this.completedOperators = in.readCollectionAsImmutableList(OperatorStatus::new);
         } else {
             this.completedOperators = List.of();
         }
         this.activeOperators = in.readCollectionAsImmutableList(OperatorStatus::new);
+        this.sleeps = DriverSleeps.read(in);
     }
 
     @Override
@@ -125,11 +130,12 @@ public class DriverStatus implements Task.Status {
             out.writeVLong(cpuNanos);
             out.writeVLong(iterations);
         }
-        out.writeString(status.toString());
+        status.writeTo(out);
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             out.writeCollection(completedOperators);
         }
         out.writeCollection(activeOperators);
+        sleeps.writeTo(out);
     }
 
     @Override
@@ -189,6 +195,13 @@ public class DriverStatus implements Task.Status {
     }
 
     /**
+     * Records of the times the driver has slept.
+     */
+    public DriverSleeps sleeps() {
+        return sleeps;
+    }
+
+    /**
      * Status of each active {@link Operator} in the driver.
      */
     public List<OperatorStatus> activeOperators() {
@@ -206,7 +219,7 @@ public class DriverStatus implements Task.Status {
             builder.field("cpu_time", TimeValue.timeValueNanos(cpuNanos));
         }
         builder.field("iterations", iterations);
-        builder.field("status", status.toString().toLowerCase(Locale.ROOT));
+        builder.field("status", status, params);
         builder.startArray("completed_operators");
         for (OperatorStatus completed : completedOperators) {
             builder.value(completed);
@@ -217,6 +230,7 @@ public class DriverStatus implements Task.Status {
             builder.value(active);
         }
         builder.endArray();
+        builder.field("sleeps", sleeps, params);
         return builder.endObject();
     }
 
@@ -232,12 +246,13 @@ public class DriverStatus implements Task.Status {
             && iterations == that.iterations
             && status == that.status
             && completedOperators.equals(that.completedOperators)
-            && activeOperators.equals(that.activeOperators);
+            && activeOperators.equals(that.activeOperators)
+            && sleeps.equals(that.sleeps);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(sessionId, started, lastUpdated, cpuNanos, iterations, status, completedOperators, activeOperators);
+        return Objects.hash(sessionId, started, lastUpdated, cpuNanos, iterations, status, completedOperators, activeOperators, sleeps);
     }
 
     @Override
@@ -313,13 +328,22 @@ public class DriverStatus implements Task.Status {
         }
     }
 
-    public enum Status implements ToXContentFragment {
+    public enum Status implements Writeable, ToXContentFragment {
         QUEUED,
         STARTING,
         RUNNING,
         ASYNC,
         WAITING,
         DONE;
+
+        public static Status read(StreamInput in) throws IOException {
+            return Status.valueOf(in.readString());
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(toString());
+        }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {

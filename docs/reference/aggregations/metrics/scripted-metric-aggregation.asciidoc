@@ -6,6 +6,8 @@
 
 A metric aggregation that executes using scripts to provide a metric output.
 
+WARNING: `scripted_metric` is not available in {serverless-full}.
+
 WARNING: Using scripts can result in slower search speeds. See
 <<scripts-and-search-speed>>.
 
@@ -127,7 +129,7 @@ init_script::       Executed prior to any collection of documents. Allows the ag
 +
 In the above example, the `init_script` creates an array `transactions` in the `state` object.
 
-map_script::        Executed once per document collected. This is a required script. 
+map_script::        Executed once per document collected. This is a required script.
 +
 In the above example, the `map_script` checks the value of the type field. If the value is 'sale' the value of the amount field
 is added to the transactions array. If the value of the type field is not 'sale' the negated value of the amount field is added
@@ -282,4 +284,4 @@ params::           Optional. An object whose contents will be passed as variable
 
 If a parent bucket of the scripted metric aggregation does not collect any documents an empty aggregation response will be returned from the
 shard with a `null` value. In this case the `reduce_script`'s `states` variable will contain `null` as a response from that shard.
-`reduce_script`'s should therefore expect and deal with `null` responses from shards.  
+`reduce_script`'s should therefore expect and deal with `null` responses from shards.

@@ -80,12 +80,40 @@ public class ServiceAccountIT extends ESRestTestCase {
         }
         """;
 
+    private static final String ELASTIC_AUTO_OPS_ROLE_DESCRIPTOR = """
+        {
+            "cluster": [
+                "monitor",
+                "read_ilm",
+                "read_slm"
+            ],
+            "indices": [
+                {
+                    "names": [
+                        "*"
+                    ],
+                    "privileges": [
+                        "monitor",
+                        "view_index_metadata"
+                    ],
+                    "allow_restricted_indices": true
+                }
+            ],
+            "applications": [],
+            "run_as": [],
+            "metadata": {},
+            "transient_metadata": {
+                "enabled": true
+            }
+        }""";
+
     private static final String ELASTIC_FLEET_SERVER_ROLE_DESCRIPTOR = """
         {
               "cluster": [
                 "monitor",
                 "manage_own_api_key",
-                "read_fleet_secrets"
+                "read_fleet_secrets",
+                "cluster:admin/xpack/connector/*"
               ],
               "indices": [
                 {
@@ -257,6 +285,37 @@ public class ServiceAccountIT extends ESRestTestCase {
                     "auto_configure"
                   ],
                   "allow_restricted_indices": false
+                },
+                {
+                  "names": [
+                    ".elastic-connectors*"
+                  ],
+                  "privileges": [
+                    "read",
+                    "write",
+                    "monitor",
+                    "create_index",
+                    "auto_configure",
+                    "maintenance",
+                    "view_index_metadata"
+                  ],
+                  "allow_restricted_indices": false
+                },
+                {
+                  "names": [
+                    "content-*",
+                    ".search-acl-filter-*"
+                  ],
+                  "privileges": [
+                    "read",
+                    "write",
+                    "monitor",
+                    "create_index",
+                    "auto_configure",
+                    "maintenance",
+                    "view_index_metadata"
+                  ],
+                  "allow_restricted_indices": false
                 }
               ],
               "applications": [        {
@@ -399,6 +458,10 @@ public class ServiceAccountIT extends ESRestTestCase {
         final Response getServiceAccountResponse3 = client().performRequest(getServiceAccountRequest3);
         assertOK(getServiceAccountResponse3);
         assertServiceAccountRoleDescriptor(getServiceAccountResponse3, "elastic/fleet-server", ELASTIC_FLEET_SERVER_ROLE_DESCRIPTOR);
+
+        final Request getServiceAccountRequestAutoOps = new Request("GET", "_security/service/elastic/auto-ops");
+        final Response getServiceAccountResponseAutoOps = client().performRequest(getServiceAccountRequestAutoOps);
+        assertServiceAccountRoleDescriptor(getServiceAccountResponseAutoOps, "elastic/auto-ops", ELASTIC_AUTO_OPS_ROLE_DESCRIPTOR);
 
         final Request getServiceAccountRequestKibana = new Request("GET", "_security/service/elastic/kibana");
         final Response getServiceAccountResponseKibana = client().performRequest(getServiceAccountRequestKibana);

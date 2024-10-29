@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.security;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.SecureString;
@@ -21,6 +20,8 @@ import org.elasticsearch.test.cluster.local.model.User;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.junit.After;
+import org.junit.Before;
 import org.junit.ClassRule;
 
 import java.io.IOException;
@@ -50,8 +51,6 @@ public final class LicenseDLSFLSRoleIT extends ESRestTestCase {
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .nodes(1)
         .distribution(DistributionType.DEFAULT)
-        // start as "trial"
-        .setting("xpack.license.self_generated.type", "trial")
         .setting("xpack.security.enabled", "true")
         .setting("xpack.security.http.ssl.enabled", "false")
         .setting("xpack.security.transport.ssl.enabled", "false")
@@ -60,6 +59,23 @@ public final class LicenseDLSFLSRoleIT extends ESRestTestCase {
         .user(REST_USER, REST_PASSWORD.toString(), "security_test_role", false)
         .user(READ_SECURITY_USER, READ_SECURITY_PASSWORD.toString(), "read_security_user_role", false)
         .build();
+
+    @Before
+    public void setupLicense() throws IOException {
+        // start with trial license
+        Request request = new Request("POST", "/_license/start_trial?acknowledge=true");
+        Response response = adminClient().performRequest(request);
+        assertOK(response);
+        assertTrue((boolean) responseAsMap(response).get("trial_was_started"));
+    }
+
+    @After
+    public void removeLicense() throws IOException {
+        // start with trial license
+        Request request = new Request("DELETE", "/_license");
+        Response response = adminClient().performRequest(request);
+        assertOK(response);
+    }
 
     @Override
     protected String getTestRestCluster() {
@@ -78,10 +94,7 @@ public final class LicenseDLSFLSRoleIT extends ESRestTestCase {
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
-    @SuppressWarnings("unchecked")
     public void testQueryDLSFLSRolesShowAsDisabled() throws Exception {
-        // auto-generated "trial"
-        waitForLicense(adminClient(), "trial");
         // neither DLS nor FLS role
         {
             RoleDescriptor.IndicesPrivileges[] indicesPrivileges = new RoleDescriptor.IndicesPrivileges[] {
@@ -138,7 +151,6 @@ public final class LicenseDLSFLSRoleIT extends ESRestTestCase {
         Map<String, Object> responseMap = responseAsMap(response);
         assertTrue(((Boolean) responseMap.get("basic_was_started")));
         assertTrue(((Boolean) responseMap.get("acknowledged")));
-        waitForLicense(adminClient(), "basic");
         // now the same roles show up as disabled ("enabled" is "false")
         assertQuery(client(), "", 4, roles -> {
             roles.sort(Comparator.comparing(o -> ((String) o.get("name"))));
@@ -174,23 +186,5 @@ public final class LicenseDLSFLSRoleIT extends ESRestTestCase {
         assertTrue(roleMap.containsKey("transient_metadata"));
         assertThat(roleMap.get("transient_metadata"), instanceOf(Map.class));
         assertThat(((Map<String, Object>) roleMap.get("transient_metadata")).get("enabled"), equalTo(enabled));
-    }
-
-    @SuppressWarnings("unchecked")
-    private static void waitForLicense(RestClient adminClient, String type) throws Exception {
-        final Request request = new Request("GET", "_license");
-        assertBusy(() -> {
-            Response response;
-            try {
-                response = adminClient.performRequest(request);
-            } catch (ResponseException e) {
-                throw new AssertionError("license not yet installed", e);
-            }
-            assertOK(response);
-            Map<String, Object> responseMap = responseAsMap(response);
-            assertTrue(responseMap.containsKey("license"));
-            assertThat(((Map<String, Object>) responseMap.get("license")).get("status"), equalTo("active"));
-            assertThat(((Map<String, Object>) responseMap.get("license")).get("type"), equalTo(type));
-        });
     }
 }

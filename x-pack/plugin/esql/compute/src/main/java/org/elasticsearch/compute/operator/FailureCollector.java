@@ -46,10 +46,19 @@ public final class FailureCollector {
         this.maxExceptions = maxExceptions;
     }
 
-    public void unwrapAndCollect(Exception originEx) {
-        final Exception e = originEx instanceof TransportException
-            ? (originEx.getCause() instanceof Exception cause ? cause : new ElasticsearchException(originEx.getCause()))
-            : originEx;
+    private static Exception unwrapTransportException(TransportException te) {
+        final Throwable cause = te.getCause();
+        if (cause == null) {
+            return te;
+        } else if (cause instanceof Exception ex) {
+            return ex;
+        } else {
+            return new ElasticsearchException(cause);
+        }
+    }
+
+    public void unwrapAndCollect(Exception e) {
+        e = e instanceof TransportException te ? unwrapTransportException(te) : e;
         if (ExceptionsHelper.unwrap(e, TaskCancelledException.class) != null) {
             if (cancelledExceptionsCount.incrementAndGet() <= maxExceptions) {
                 cancelledExceptions.add(e);

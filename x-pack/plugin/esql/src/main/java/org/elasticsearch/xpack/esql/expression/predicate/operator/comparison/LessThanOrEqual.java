@@ -34,6 +34,7 @@ public class LessThanOrEqual extends EsqlBinaryComparison implements Negatable<E
         Map.entry(DataType.LONG, LessThanOrEqualLongsEvaluator.Factory::new),
         Map.entry(DataType.UNSIGNED_LONG, LessThanOrEqualLongsEvaluator.Factory::new),
         Map.entry(DataType.DATETIME, LessThanOrEqualLongsEvaluator.Factory::new),
+        Map.entry(DataType.DATE_NANOS, LessThanOrEqualLongsEvaluator.Factory::new),
         Map.entry(DataType.KEYWORD, LessThanOrEqualKeywordsEvaluator.Factory::new),
         Map.entry(DataType.TEXT, LessThanOrEqualKeywordsEvaluator.Factory::new),
         Map.entry(DataType.VERSION, LessThanOrEqualKeywordsEvaluator.Factory::new),

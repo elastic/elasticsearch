@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.enrich;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
+import org.elasticsearch.action.ingest.PutPipelineTransportAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -20,6 +21,8 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+
+import static org.elasticsearch.xpack.enrich.EnrichPolicyRunner.ENRICH_MASTER_REQUEST_TIMEOUT;
 
 /**
  * Manages the definitions and lifecycle of the ingest pipeline used by the reindex operation within the Enrich Policy execution.
@@ -67,8 +70,17 @@ public class EnrichPolicyReindexPipeline {
      */
     public static void create(Client client, ActionListener<AcknowledgedResponse> listener) {
         final BytesReference pipeline = BytesReference.bytes(currentEnrichPipelineDefinition(XContentType.JSON));
-        final PutPipelineRequest request = new PutPipelineRequest(pipelineName(), pipeline, XContentType.JSON);
-        client.admin().cluster().putPipeline(request, listener);
+        client.execute(
+            PutPipelineTransportAction.TYPE,
+            new PutPipelineRequest(
+                ENRICH_MASTER_REQUEST_TIMEOUT,
+                ENRICH_MASTER_REQUEST_TIMEOUT,
+                pipelineName(),
+                pipeline,
+                XContentType.JSON
+            ),
+            listener
+        );
     }
 
     private static XContentBuilder currentEnrichPipelineDefinition(XContentType xContentType) {

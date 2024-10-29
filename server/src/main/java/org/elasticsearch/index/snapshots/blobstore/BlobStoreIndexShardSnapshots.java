@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.snapshots.blobstore;
@@ -264,6 +265,12 @@ public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, To
         return builder;
     }
 
+    static volatile boolean INTEGRITY_ASSERTIONS_ENABLED = true;
+
+    public static boolean areIntegrityAssertionsEnabled() {
+        return INTEGRITY_ASSERTIONS_ENABLED;
+    }
+
     public static BlobStoreIndexShardSnapshots fromXContent(XContentParser parser) throws IOException {
         XContentParser.Token token = parser.currentToken();
         if (token == null) { // New parser
@@ -317,7 +324,12 @@ public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, To
             List<FileInfo> fileInfosBuilder = new ArrayList<>();
             for (String file : entry.v2()) {
                 FileInfo fileInfo = files.get(file);
-                assert fileInfo != null;
+                if (fileInfo == null) {
+                    // could happen in production if the repo contents are corrupted
+                    final var exception = new IllegalStateException("shard index inconsistent at file [" + file + "]");
+                    assert INTEGRITY_ASSERTIONS_ENABLED == false : exception;
+                    throw exception;
+                }
                 fileInfosBuilder.add(fileInfo);
             }
             snapshots.add(new SnapshotFiles(entry.v1(), Collections.unmodifiableList(fileInfosBuilder), historyUUIDs.get(entry.v1())));

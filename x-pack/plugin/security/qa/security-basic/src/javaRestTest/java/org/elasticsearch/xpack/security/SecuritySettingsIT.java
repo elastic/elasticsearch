@@ -19,6 +19,7 @@ import java.io.IOException;
 import static org.elasticsearch.test.XContentTestUtils.createJsonMapView;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 public class SecuritySettingsIT extends SecurityInBasicRestTestCase {
 
@@ -70,6 +71,54 @@ public class SecuritySettingsIT extends SecurityInBasicRestTestCase {
         assertOK(getResp);
         final XContentTestUtils.JsonMapView mapView = createJsonMapView(getResp.getEntity().getContent());
         assertThat(mapView.get("security.index.auto_expand_replicas"), equalTo("0-all"));
+        assertThat(mapView.get("security-profile.index.auto_expand_replicas"), equalTo("0-all"));
+    }
+
+    public void testTierPreference() throws IOException {
+        {
+            Request req = new Request("PUT", "/_security/settings");
+            req.setJsonEntity("""
+                {
+                    "security": {
+                        "index.routing.allocation.include._tier_preference": "data_hot"
+                    },
+                    "security-profile": {
+                        "index.routing.allocation.include._tier_preference": "data_hot"
+                    }
+                }
+                """);
+            Response resp = adminClient().performRequest(req);
+            assertOK(resp);
+            Request getRequest = new Request("GET", "/_security/settings");
+            Response getResp = adminClient().performRequest(getRequest);
+            assertOK(getResp);
+            final XContentTestUtils.JsonMapView mapView = createJsonMapView(getResp.getEntity().getContent());
+            assertThat(mapView.get("security.index.routing.allocation.include._tier_preference"), equalTo("data_hot"));
+            assertThat(mapView.get("security-profile.index.routing.allocation.include._tier_preference"), equalTo("data_hot"));
+        }
+
+        {
+            Request req = new Request("PUT", "/_security/settings");
+            req.setJsonEntity("""
+                {
+                    "security": {
+                        "index.routing.allocation.include._tier_preference": null
+                    },
+                    "security-profile": {
+                        "index.routing.allocation.include._tier_preference": null
+                    }
+                }
+                """);
+            Response resp = adminClient().performRequest(req);
+            assertOK(resp);
+            Request getRequest = new Request("GET", "/_security/settings");
+            Response getResp = adminClient().performRequest(getRequest);
+            assertOK(getResp);
+            final XContentTestUtils.JsonMapView mapView = createJsonMapView(getResp.getEntity().getContent());
+            assertThat(mapView.get("security.index.routing.allocation.include._tier_preference"), nullValue());
+            assertThat(mapView.get("security-profile.index.routing.allocation.include._tier_preference"), nullValue());
+        }
+
     }
 
     public void testNoUpdatesThrowsException() throws IOException {
@@ -85,7 +134,7 @@ public class SecuritySettingsIT extends SecurityInBasicRestTestCase {
         ResponseException ex = expectThrows(ResponseException.class, () -> adminClient().performRequest(req));
         assertThat(
             EntityUtils.toString(ex.getResponse().getEntity()),
-            containsString("illegal settings for index [security]: " + "[index.max_ngram_diff], these settings may not be configured.")
+            containsString("illegal setting for index [security]: " + "[index.max_ngram_diff], this setting may not be configured.")
         );
     }
 

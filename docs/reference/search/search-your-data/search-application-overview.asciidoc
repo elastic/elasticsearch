@@ -74,7 +74,7 @@ To create a new search application in {kib}:
 . Name your search application.
 . Select *Create*.
 
-Your search application should now be available in the list of search applications.
+Your search application should now be available in the list.
 
 //[.screenshot]
 // image::../../images/search-applications/search-applications-create.png[Create search application screen]

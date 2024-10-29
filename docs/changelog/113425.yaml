@@ -1,0 +1,5 @@
+pr: 113425
+summary: Add `ensureGreen` test method for use with `adminClient`
+area: Infra/Metrics
+type: enhancement
+issues: []

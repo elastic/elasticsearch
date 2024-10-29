@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.datastreams.lifecycle;
 
@@ -51,8 +52,6 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
-import org.elasticsearch.datastreams.lifecycle.action.DeleteDataStreamGlobalRetentionAction;
-import org.elasticsearch.datastreams.lifecycle.action.PutDataStreamGlobalRetentionAction;
 import org.elasticsearch.datastreams.lifecycle.health.DataStreamLifecycleHealthIndicatorService;
 import org.elasticsearch.health.Diagnosis;
 import org.elasticsearch.health.GetHealthAction;
@@ -149,13 +148,20 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
 
         putComposableIndexTemplate("id1", null, List.of("metrics-foo*"), null, null, lifecycle, false);
         String dataStreamName = "metrics-foo";
-        CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(dataStreamName);
+        CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
+            dataStreamName
+        );
         client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).get();
 
         indexDocs(dataStreamName, 1);
 
         assertBusy(() -> {
-            GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[] { dataStreamName });
+            GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(
+                TEST_REQUEST_TIMEOUT,
+                new String[] { dataStreamName }
+            );
             GetDataStreamAction.Response getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)
                 .actionGet();
             assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(1));
@@ -175,13 +181,20 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
         putComposableIndexTemplate("id1", null, List.of("metrics-foo*"), null, null, lifecycle, false);
 
         String dataStreamName = "metrics-foo";
-        CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(dataStreamName);
+        CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
+            dataStreamName
+        );
         client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).get();
 
         indexDocs(dataStreamName, 1);
 
         assertBusy(() -> {
-            GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[] { dataStreamName });
+            GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(
+                TEST_REQUEST_TIMEOUT,
+                new String[] { dataStreamName }
+            );
             GetDataStreamAction.Response getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)
                 .actionGet();
             assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(1));
@@ -206,29 +219,19 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
         AtomicLong now = new AtomicLong(clock.millis());
         dataStreamLifecycleServices.forEach(dataStreamLifecycleService -> dataStreamLifecycleService.setNowSupplier(now::get));
         try {
-            // Putting in place a global retention that we expect will be ignored by the system data stream:
-            final int globalRetentionSeconds = 10;
-            client().execute(
-                PutDataStreamGlobalRetentionAction.INSTANCE,
-                new PutDataStreamGlobalRetentionAction.Request(
-                    TEST_REQUEST_TIMEOUT,
-                    TimeValue.timeValueSeconds(globalRetentionSeconds),
-                    TimeValue.timeValueSeconds(globalRetentionSeconds)
-                )
-            ).actionGet();
             try {
 
-                CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(SYSTEM_DATA_STREAM_NAME);
+                CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(
+                    TEST_REQUEST_TIMEOUT,
+                    TEST_REQUEST_TIMEOUT,
+                    SYSTEM_DATA_STREAM_NAME
+                );
                 client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).actionGet();
                 indexDocs(SYSTEM_DATA_STREAM_NAME, 1);
-                /*
-                 * First we advance the time to well beyond the global retention (10s) but well under the configured retention (100d).
-                 * We expect to see that rollover has occurred but that the old index has not been deleted since the global retention is
-                 * ignored.
-                 */
-                now.addAndGet(TimeValue.timeValueSeconds(3 * globalRetentionSeconds).millis());
+                now.addAndGet(TimeValue.timeValueSeconds(30).millis());
                 assertBusy(() -> {
                     GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(
+                        TEST_REQUEST_TIMEOUT,
                         new String[] { SYSTEM_DATA_STREAM_NAME }
                     );
                     GetDataStreamAction.Response getDataStreamResponse = client().execute(
@@ -248,6 +251,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
                 now.addAndGet(TimeValue.timeValueDays(3 * TestSystemDataStreamPlugin.SYSTEM_DATA_STREAM_RETENTION_DAYS).millis());
                 assertBusy(() -> {
                     GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(
+                        TEST_REQUEST_TIMEOUT,
                         new String[] { SYSTEM_DATA_STREAM_NAME }
                     );
                     GetDataStreamAction.Response getDataStreamResponse = client().execute(
@@ -297,12 +301,12 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
                     }
                 });
 
-                client().execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request(SYSTEM_DATA_STREAM_NAME)).actionGet();
-            } finally {
                 client().execute(
-                    DeleteDataStreamGlobalRetentionAction.INSTANCE,
-                    new DeleteDataStreamGlobalRetentionAction.Request(TEST_REQUEST_TIMEOUT)
-                );
+                    DeleteDataStreamAction.INSTANCE,
+                    new DeleteDataStreamAction.Request(TEST_REQUEST_TIMEOUT, SYSTEM_DATA_STREAM_NAME)
+                ).actionGet();
+            } finally {
+                // reset properties
             }
         } finally {
             dataStreamLifecycleServices.forEach(dataStreamLifecycleService -> dataStreamLifecycleService.setNowSupplier(clock::millis));
@@ -320,7 +324,11 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
         putComposableIndexTemplate("id1", null, List.of("metrics-foo*"), null, null, lifecycle, false);
 
         String dataStreamName = "metrics-foo";
-        CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(dataStreamName);
+        CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
+            dataStreamName
+        );
         client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).get();
 
         indexDocs(dataStreamName, 1);
@@ -337,7 +345,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
         request.indexTemplate(
             ComposableIndexTemplate.builder()
                 .indexPatterns(List.of("index_*"))
-                .template(new Template(null, CompressedXContent.fromJSON(mapping), null, null))
+                .template(Template.builder().mappings(CompressedXContent.fromJSON(mapping)))
                 .build()
         );
         client().execute(TransportPutComposableIndexTemplateAction.TYPE, request).actionGet();
@@ -347,7 +355,11 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
         createIndex(indexWithOldOriginationDate, Settings.builder().put(LIFECYCLE_ORIGINATION_DATE, originTimeMillis).build());
         client().execute(
             ModifyDataStreamsAction.INSTANCE,
-            new ModifyDataStreamsAction.Request(List.of(DataStreamAction.addBackingIndex(dataStreamName, indexWithOldOriginationDate)))
+            new ModifyDataStreamsAction.Request(
+                TEST_REQUEST_TIMEOUT,
+                TEST_REQUEST_TIMEOUT,
+                List.of(DataStreamAction.addBackingIndex(dataStreamName, indexWithOldOriginationDate))
+            )
         ).get();
 
         String indexWithNewOriginationDate = "index_new";
@@ -355,11 +367,18 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
         createIndex(indexWithNewOriginationDate, Settings.builder().put(LIFECYCLE_ORIGINATION_DATE, originTimeMillis).build());
         client().execute(
             ModifyDataStreamsAction.INSTANCE,
-            new ModifyDataStreamsAction.Request(List.of(DataStreamAction.addBackingIndex(dataStreamName, indexWithNewOriginationDate)))
+            new ModifyDataStreamsAction.Request(
+                TEST_REQUEST_TIMEOUT,
+                TEST_REQUEST_TIMEOUT,
+                List.of(DataStreamAction.addBackingIndex(dataStreamName, indexWithNewOriginationDate))
+            )
         ).get();
 
         assertBusy(() -> {
-            GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[] { dataStreamName });
+            GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(
+                TEST_REQUEST_TIMEOUT,
+                new String[] { dataStreamName }
+            );
             GetDataStreamAction.Response getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)
                 .actionGet();
             assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(1));
@@ -377,7 +396,11 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
         putComposableIndexTemplate("id1", null, List.of("metrics-foo*"), null, null, lifecycle, false);
 
         String dataStreamName = "metrics-foo";
-        CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(dataStreamName);
+        CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
+            dataStreamName
+        );
         client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).get();
         client().admin().indices().rolloverIndex(new RolloverRequest(dataStreamName, null)).actionGet();
         client().admin().indices().rolloverIndex(new RolloverRequest(dataStreamName, null)).actionGet();
@@ -387,7 +410,10 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
         updateLifecycle(dataStreamName, TimeValue.timeValueMillis(1));
         // Verify that the retention has changed for all backing indices
         assertBusy(() -> {
-            GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[] { dataStreamName });
+            GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(
+                TEST_REQUEST_TIMEOUT,
+                new String[] { dataStreamName }
+            );
             GetDataStreamAction.Response getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)
                 .actionGet();
             assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(1));
@@ -416,10 +442,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
             "id1",
             null,
             List.of(dataStreamName + "*"),
-            Settings.builder()
-                .put("index.number_of_replicas", 1)
-                .put("index.number_of_shards", 1)
-                .put(MergePolicyConfig.INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING.getKey(), ONE_HUNDRED_MB)
+            indexSettings(1, 1).put(MergePolicyConfig.INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING.getKey(), ONE_HUNDRED_MB)
                 .put(MergePolicyConfig.INDEX_MERGE_POLICY_MERGE_FACTOR_SETTING.getKey(), TARGET_MERGE_FACTOR_VALUE)
                 .build(),
             null,
@@ -441,7 +464,11 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
                 });
         }
 
-        CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(dataStreamName);
+        CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
+            dataStreamName
+        );
         client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).get();
         int finalGeneration = randomIntBetween(3, 4);
         for (int currentGeneration = 1; currentGeneration < finalGeneration; currentGeneration++) {
@@ -469,7 +496,10 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
             // run data stream lifecycle once
             dataStreamLifecycleService.run(clusterService.state());
             assertBusy(() -> {
-                GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[] { dataStreamName });
+                GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(
+                    TEST_REQUEST_TIMEOUT,
+                    new String[] { dataStreamName }
+                );
                 GetDataStreamAction.Response getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)
                     .actionGet();
                 assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(1));
@@ -524,14 +554,21 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
         );
 
         String dataStreamName = "metrics-foo";
-        CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(dataStreamName);
+        CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
+            dataStreamName
+        );
         client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).get();
 
         indexDocs(dataStreamName, 1);
 
         // let's allow one rollover to go through
         assertBusy(() -> {
-            GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[] { dataStreamName });
+            GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(
+                TEST_REQUEST_TIMEOUT,
+                new String[] { dataStreamName }
+            );
             GetDataStreamAction.Response getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)
                 .actionGet();
             assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(1));
@@ -565,6 +602,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
             assertThat(writeIndexRolloverError.error(), containsString("maximum normal shards open"));
 
             ExplainDataStreamLifecycleAction.Request explainRequest = new ExplainDataStreamLifecycleAction.Request(
+                TEST_REQUEST_TIMEOUT,
                 new String[] { dataStreamName }
             );
             ExplainDataStreamLifecycleAction.Response response = client().execute(ExplainDataStreamLifecycleAction.INSTANCE, explainRequest)
@@ -675,13 +713,20 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
         );
 
         String dataStreamName = "metrics-foo";
-        CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(dataStreamName);
+        CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
+            dataStreamName
+        );
         client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).get();
         indexDocs(dataStreamName, 1);
 
         // let's allow one rollover to go through
         assertBusy(() -> {
-            GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[] { dataStreamName });
+            GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(
+                TEST_REQUEST_TIMEOUT,
+                new String[] { dataStreamName }
+            );
             GetDataStreamAction.Response getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)
                 .actionGet();
             assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(1));
@@ -704,7 +749,10 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
             updateLifecycle(dataStreamName, TimeValue.timeValueSeconds(1));
 
             assertBusy(() -> {
-                GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[] { dataStreamName });
+                GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(
+                    TEST_REQUEST_TIMEOUT,
+                    new String[] { dataStreamName }
+                );
                 GetDataStreamAction.Response getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)
                     .actionGet();
                 assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(1));
@@ -774,7 +822,10 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
             updateIndexSettings(Settings.builder().put(READ_ONLY.settingName(), false), firstGenerationIndex);
 
             assertBusy(() -> {
-                GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[] { dataStreamName });
+                GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(
+                    TEST_REQUEST_TIMEOUT,
+                    new String[] { dataStreamName }
+                );
                 GetDataStreamAction.Response getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)
                     .actionGet();
                 assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(1));
@@ -838,13 +889,20 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
         );
 
         String dataStreamName = "metrics-foo";
-        CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(dataStreamName);
+        CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
+            dataStreamName
+        );
         client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).get();
         indexDocs(dataStreamName, 1);
 
         // let's allow one rollover to go through
         assertBusy(() -> {
-            GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[] { dataStreamName });
+            GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(
+                TEST_REQUEST_TIMEOUT,
+                new String[] { dataStreamName }
+            );
             GetDataStreamAction.Response getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)
                 .actionGet();
             assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(1));
@@ -860,7 +918,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
         String firstGenerationIndex = getBackingIndices(dataStreamName).get(0);
         ClusterGetSettingsAction.Response response = client().execute(
             ClusterGetSettingsAction.INSTANCE,
-            new ClusterGetSettingsAction.Request()
+            new ClusterGetSettingsAction.Request(TEST_REQUEST_TIMEOUT)
         ).get();
         Settings clusterSettings = response.persistentSettings();
 
@@ -921,7 +979,11 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
 
         putComposableIndexTemplate("id1", null, List.of("metrics-foo*"), null, null, lifecycle, false);
         String dataStreamName = "metrics-foo";
-        CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(dataStreamName);
+        CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
+            dataStreamName
+        );
         client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).get();
 
         indexDocs(dataStreamName, 10);
@@ -932,7 +994,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
 
             ExplainDataStreamLifecycleAction.Response dataStreamLifecycleExplainResponse = client().execute(
                 ExplainDataStreamLifecycleAction.INSTANCE,
-                new ExplainDataStreamLifecycleAction.Request(new String[] { writeIndex })
+                new ExplainDataStreamLifecycleAction.Request(TEST_REQUEST_TIMEOUT, new String[] { writeIndex })
             ).actionGet();
             assertThat(dataStreamLifecycleExplainResponse.getIndices().size(), is(1));
             for (ExplainIndexDataStreamLifecycle index : dataStreamLifecycleExplainResponse.getIndices()) {
@@ -951,7 +1013,13 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
 
         client().execute(
             PutDataStreamLifecycleAction.INSTANCE,
-            new PutDataStreamLifecycleAction.Request(new String[] { dataStreamName }, null, true)
+            new PutDataStreamLifecycleAction.Request(
+                TEST_REQUEST_TIMEOUT,
+                TEST_REQUEST_TIMEOUT,
+                new String[] { dataStreamName },
+                null,
+                true
+            )
         );
 
         assertBusy(() -> {
@@ -994,14 +1062,21 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
             }""", List.of("metrics-fs*"), Settings.builder().put("index.number_of_replicas", 0).build(), null, lifecycle, true);
 
         String dataStreamName = "metrics-fs";
-        CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(dataStreamName);
+        CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
+            dataStreamName
+        );
         client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).get();
 
         indexInvalidFlagDocs(dataStreamName, 1);
 
         // Let's verify the rollover
         assertBusy(() -> {
-            GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[] { dataStreamName });
+            GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(
+                TEST_REQUEST_TIMEOUT,
+                new String[] { dataStreamName }
+            );
             GetDataStreamAction.Response getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)
                 .actionGet();
             assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(1));
@@ -1019,7 +1094,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
         // Let's verify the merge settings
         ClusterGetSettingsAction.Response response = client().execute(
             ClusterGetSettingsAction.INSTANCE,
-            new ClusterGetSettingsAction.Request()
+            new ClusterGetSettingsAction.Request(TEST_REQUEST_TIMEOUT)
         ).get();
         Settings clusterSettings = response.persistentSettings();
 
@@ -1043,7 +1118,10 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
 
         // And finally apply retention
         assertBusy(() -> {
-            GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[] { dataStreamName });
+            GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(
+                TEST_REQUEST_TIMEOUT,
+                new String[] { dataStreamName }
+            );
             GetDataStreamAction.Response getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)
                 .actionGet();
             assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(1));
@@ -1057,7 +1135,10 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
     }
 
     private static List<String> getBackingIndices(String dataStreamName) {
-        GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[] { dataStreamName });
+        GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            new String[] { dataStreamName }
+        );
         GetDataStreamAction.Response getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)
             .actionGet();
         assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(1));
@@ -1066,7 +1147,10 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
     }
 
     private static List<String> getFailureIndices(String dataStreamName) {
-        GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[] { dataStreamName });
+        GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            new String[] { dataStreamName }
+        );
         GetDataStreamAction.Response getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)
             .actionGet();
         assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(1));
@@ -1137,7 +1221,12 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
         request.indexTemplate(
             ComposableIndexTemplate.builder()
                 .indexPatterns(patterns)
-                .template(new Template(settings, mappings == null ? null : CompressedXContent.fromJSON(mappings), null, lifecycle))
+                .template(
+                    Template.builder()
+                        .settings(settings)
+                        .mappings(mappings == null ? null : CompressedXContent.fromJSON(mappings))
+                        .lifecycle(lifecycle)
+                )
                 .metadata(metadata)
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false, withFailureStore))
                 .build()
@@ -1147,6 +1236,8 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
 
     static void updateLifecycle(String dataStreamName, TimeValue dataRetention) {
         PutDataStreamLifecycleAction.Request putDataLifecycleRequest = new PutDataStreamLifecycleAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
             new String[] { dataStreamName },
             dataRetention
         );
@@ -1182,14 +1273,12 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
                         .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
                         .indexPatterns(List.of(DataStream.BACKING_INDEX_PREFIX + SYSTEM_DATA_STREAM_NAME + "*"))
                         .template(
-                            new Template(
-                                Settings.EMPTY,
-                                null,
-                                null,
-                                DataStreamLifecycle.newBuilder()
-                                    .dataRetention(TimeValue.timeValueDays(SYSTEM_DATA_STREAM_RETENTION_DAYS))
-                                    .build()
-                            )
+                            Template.builder()
+                                .settings(Settings.EMPTY)
+                                .lifecycle(
+                                    DataStreamLifecycle.newBuilder()
+                                        .dataRetention(TimeValue.timeValueDays(SYSTEM_DATA_STREAM_RETENTION_DAYS))
+                                )
                         )
                         .build(),
                     Map.of(),

@@ -17,7 +17,7 @@ PUT _application/analytics/my_analytics_collection
 
 ////
 
-Removes an Analytics Collection and its associated data stream.
+Removes a <<behavioral-analytics-overview,Behavioral Analytics>> Collection and its associated data stream.
 
 [[delete-analytics-collection-request]]
 ==== {api-request-title}

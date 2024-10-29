@@ -62,14 +62,13 @@ public class RestGetBuiltinPrivilegesAction extends SecurityBaseRestHandler {
 
     @Override
     public RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
-        final boolean restrictResponse = request.hasParam(RestRequest.PATH_RESTRICTED);
         return channel -> client.execute(
             GetBuiltinPrivilegesAction.INSTANCE,
             new GetBuiltinPrivilegesRequest(),
             new RestBuilderListener<>(channel) {
                 @Override
                 public RestResponse buildResponse(GetBuiltinPrivilegesResponse response, XContentBuilder builder) throws Exception {
-                    final var translatedResponse = responseTranslator.translate(response, restrictResponse);
+                    final var translatedResponse = responseTranslator.translate(response);
                     builder.startObject();
                     builder.array("cluster", translatedResponse.getClusterPrivileges());
                     builder.array("index", translatedResponse.getIndexPrivileges());
@@ -86,9 +85,9 @@ public class RestGetBuiltinPrivilegesAction extends SecurityBaseRestHandler {
 
     @Override
     protected Exception innerCheckFeatureAvailable(RestRequest request) {
-        final boolean restrictPath = request.hasParam(RestRequest.PATH_RESTRICTED);
-        assert false == restrictPath || DiscoveryNode.isStateless(settings);
-        if (false == restrictPath) {
+        final boolean shouldRestrictForServerless = shouldRestrictForServerless(request);
+        assert false == shouldRestrictForServerless || DiscoveryNode.isStateless(settings);
+        if (false == shouldRestrictForServerless) {
             return super.innerCheckFeatureAvailable(request);
         }
         // This is a temporary hack: we are re-using the native roles setting as an overall feature flag for custom roles.
@@ -107,4 +106,7 @@ public class RestGetBuiltinPrivilegesAction extends SecurityBaseRestHandler {
         }
     }
 
+    private boolean shouldRestrictForServerless(RestRequest request) {
+        return request.isServerlessRequest() && false == request.isOperatorRequest();
+    }
 }

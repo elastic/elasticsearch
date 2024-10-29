@@ -79,5 +79,7 @@
   ],
   "examples" : [
     "ROW words=\"foo;bar;baz;qux;quux;corge\"\n| EVAL word = SPLIT(words, \";\")"
-  ]
+  ],
+  "preview" : false,
+  "snapshot_only" : false
 }

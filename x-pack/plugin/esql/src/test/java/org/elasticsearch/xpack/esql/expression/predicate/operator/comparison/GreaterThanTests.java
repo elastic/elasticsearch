@@ -106,7 +106,6 @@ public class GreaterThanTests extends AbstractScalarFunctionTestCase {
             )
         );
         // Datetime
-        // TODO: I'm surprised this passes. Shouldn't there be a cast from DateTime to Long?
         suppliers.addAll(
             TestCaseSupplier.forBinaryNotCasting(
                 "GreaterThanLongsEvaluator",
@@ -116,6 +115,20 @@ public class GreaterThanTests extends AbstractScalarFunctionTestCase {
                 DataType.BOOLEAN,
                 TestCaseSupplier.dateCases(),
                 TestCaseSupplier.dateCases(),
+                List.of(),
+                false
+            )
+        );
+
+        suppliers.addAll(
+            TestCaseSupplier.forBinaryNotCasting(
+                "GreaterThanLongsEvaluator",
+                "lhs",
+                "rhs",
+                (l, r) -> ((Number) l).longValue() > ((Number) r).longValue(),
+                DataType.BOOLEAN,
+                TestCaseSupplier.dateNanosCases(),
+                TestCaseSupplier.dateNanosCases(),
                 List.of(),
                 false
             )
@@ -137,7 +150,7 @@ public class GreaterThanTests extends AbstractScalarFunctionTestCase {
                     o,
                     v,
                     t,
-                    (l, p) -> "datetime, double, integer, ip, keyword, long, text, unsigned_long or version"
+                    (l, p) -> "date_nanos, datetime, double, integer, ip, keyword, long, text, unsigned_long or version"
                 )
             )
         );

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.search.stats;
@@ -56,13 +57,10 @@ public final class ShardSearchStats implements SearchOperationListener {
 
     @Override
     public void onPreQueryPhase(SearchContext searchContext) {
-        computeStats(searchContext, statsHolder -> {
-            if (searchContext.hasOnlySuggest()) {
-                statsHolder.suggestCurrent.inc();
-            } else {
-                statsHolder.queryCurrent.inc();
-            }
-        });
+        computeStats(
+            searchContext,
+            searchContext.hasOnlySuggest() ? statsHolder -> statsHolder.suggestCurrent.inc() : statsHolder -> statsHolder.queryCurrent.inc()
+        );
     }
 
     @Override
@@ -72,20 +70,19 @@ public final class ShardSearchStats implements SearchOperationListener {
                 statsHolder.suggestCurrent.dec();
             } else {
                 statsHolder.queryCurrent.dec();
+                statsHolder.queryFailure.inc();
             }
         });
     }
 
     @Override
     public void onQueryPhase(SearchContext searchContext, long tookInNanos) {
-        computeStats(searchContext, statsHolder -> {
-            if (searchContext.hasOnlySuggest()) {
-                statsHolder.suggestMetric.inc(tookInNanos);
-                statsHolder.suggestCurrent.dec();
-            } else {
-                statsHolder.queryMetric.inc(tookInNanos);
-                statsHolder.queryCurrent.dec();
-            }
+        computeStats(searchContext, searchContext.hasOnlySuggest() ? statsHolder -> {
+            statsHolder.suggestMetric.inc(tookInNanos);
+            statsHolder.suggestCurrent.dec();
+        } : statsHolder -> {
+            statsHolder.queryMetric.inc(tookInNanos);
+            statsHolder.queryCurrent.dec();
         });
     }
 
@@ -96,7 +93,10 @@ public final class ShardSearchStats implements SearchOperationListener {
 
     @Override
     public void onFailedFetchPhase(SearchContext searchContext) {
-        computeStats(searchContext, statsHolder -> statsHolder.fetchCurrent.dec());
+        computeStats(searchContext, statsHolder -> {
+            statsHolder.fetchCurrent.dec();
+            statsHolder.fetchFailure.inc();
+        });
     }
 
     @Override
@@ -109,8 +109,9 @@ public final class ShardSearchStats implements SearchOperationListener {
 
     private void computeStats(SearchContext searchContext, Consumer<StatsHolder> consumer) {
         consumer.accept(totalStats);
-        if (searchContext.groupStats() != null) {
-            for (String group : searchContext.groupStats()) {
+        var groupStats = searchContext.groupStats();
+        if (groupStats != null) {
+            for (String group : groupStats) {
                 consumer.accept(groupStats(group));
             }
         }
@@ -169,14 +170,19 @@ public final class ShardSearchStats implements SearchOperationListener {
         final CounterMetric scrollCurrent = new CounterMetric();
         final CounterMetric suggestCurrent = new CounterMetric();
 
+        final CounterMetric queryFailure = new CounterMetric();
+        final CounterMetric fetchFailure = new CounterMetric();
+
         SearchStats.Stats stats() {
             return new SearchStats.Stats(
                 queryMetric.count(),
                 TimeUnit.NANOSECONDS.toMillis(queryMetric.sum()),
                 queryCurrent.count(),
+                queryFailure.count(),
                 fetchMetric.count(),
                 TimeUnit.NANOSECONDS.toMillis(fetchMetric.sum()),
                 fetchCurrent.count(),
+                fetchFailure.count(),
                 scrollMetric.count(),
                 TimeUnit.MICROSECONDS.toMillis(scrollMetric.sum()),
                 scrollCurrent.count(),

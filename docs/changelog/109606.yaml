@@ -1,5 +1,0 @@
-pr: 109606
-summary: Avoid NPE if `users_roles` file does not exist
-area: Authentication
-type: bug
-issues: []

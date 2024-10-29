@@ -1,20 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.server.cli;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.core.SuppressForbidden;
 
-import java.io.File;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -25,7 +22,6 @@ final class SystemJvmOptions {
     static List<String> systemJvmOptions(Settings nodeSettings, final Map<String, String> sysprops) {
         String distroType = sysprops.get("es.distribution.type");
         boolean isHotspot = sysprops.getOrDefault("sun.management.compiler", "").contains("HotSpot");
-        String libraryPath = findLibraryPath(sysprops);
 
         return Stream.concat(
             Stream.of(
@@ -64,17 +60,11 @@ final class SystemJvmOptions {
                 "-Dlog4j.shutdownHookEnabled=false",
                 "-Dlog4j2.disable.jmx=true",
                 "-Dlog4j2.formatMsgNoLookups=true",
-                /*
-                 * Due to internationalization enhancements in JDK 9 Elasticsearch need to set the provider to COMPAT otherwise time/date
-                 * parsing will break in an incompatible way for some date patterns and locales.
-                 */
-                "-Djava.locale.providers=SPI,COMPAT",
+                "-Djava.locale.providers=CLDR",
                 maybeEnableNativeAccess(),
                 maybeOverrideDockerCgroup(distroType),
                 maybeSetActiveProcessorCount(nodeSettings),
                 setReplayFile(distroType, isHotspot),
-                "-Djava.library.path=" + libraryPath,
-                "-Djna.library.path=" + libraryPath,
                 // Pass through distribution type
                 "-Des.distribution.type=" + distroType
             ),
@@ -143,39 +133,5 @@ final class SystemJvmOptions {
             return Stream.of("-XX:+UnlockDiagnosticVMOptions", "-XX:G1NumCollectionsKeepPinned=10000000");
         }
         return Stream.of();
-    }
-
-    private static String findLibraryPath(Map<String, String> sysprops) {
-        // working dir is ES installation, so we use relative path here
-        Path platformDir = Paths.get("lib", "platform");
-        String existingPath = sysprops.get("java.library.path");
-        assert existingPath != null;
-
-        String osname = sysprops.get("os.name");
-        String os;
-        if (osname.startsWith("Windows")) {
-            os = "windows";
-        } else if (osname.startsWith("Linux")) {
-            os = "linux";
-        } else if (osname.startsWith("Mac OS")) {
-            os = "darwin";
-        } else {
-            os = "unsupported_os[" + osname + "]";
-        }
-        String archname = sysprops.get("os.arch");
-        String arch;
-        if (archname.equals("amd64") || archname.equals("x86_64")) {
-            arch = "x64";
-        } else if (archname.equals("aarch64")) {
-            arch = archname;
-        } else {
-            arch = "unsupported_arch[" + archname + "]";
-        }
-        return platformDir.resolve(os + "-" + arch).toAbsolutePath() + getPathSeparator() + existingPath;
-    }
-
-    @SuppressForbidden(reason = "no way to get path separator with nio")
-    private static String getPathSeparator() {
-        return File.pathSeparator;
     }
 }

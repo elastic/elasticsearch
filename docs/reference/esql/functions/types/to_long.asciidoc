@@ -8,7 +8,7 @@ field | result
 boolean | long
 counter_integer | long
 counter_long | long
-datetime | long
+date | long
 double | long
 integer | long
 keyword | long

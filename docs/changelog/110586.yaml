@@ -1,5 +1,0 @@
-pr: 110586
-summary: "ESQL: Fix Max doubles bug with negatives and add tests for Max and Min"
-area: ES|QL
-type: bug
-issues: []

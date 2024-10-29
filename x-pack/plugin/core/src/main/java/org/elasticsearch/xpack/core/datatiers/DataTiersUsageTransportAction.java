@@ -22,9 +22,9 @@ import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.indices.NodeIndicesStats;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 import org.elasticsearch.search.aggregations.metrics.TDigestState;
 import org.elasticsearch.tasks.Task;
@@ -149,7 +149,7 @@ public class DataTiersUsageTransportAction extends XPackUsageFeatureTransportAct
         long docCount = 0;
         int primaryShardCount = 0;
         long primaryByteCount = 0L;
-        final TDigestState valueSketch = TDigestState.create(1000);
+        final TDigestState valueSketch = TDigestState.createWithoutCircuitBreaking(1000);
     }
 
     // Visible for testing
@@ -228,13 +228,14 @@ public class DataTiersUsageTransportAction extends XPackUsageFeatureTransportAct
             return 0;
         } else {
             final double approximateMedian = valuesSketch.quantile(0.5);
-            final TDigestState approximatedDeviationsSketch = TDigestState.createUsingParamsFrom(valuesSketch);
-            valuesSketch.centroids().forEach(centroid -> {
-                final double deviation = Math.abs(approximateMedian - centroid.mean());
-                approximatedDeviationsSketch.add(deviation, centroid.count());
-            });
+            try (TDigestState approximatedDeviationsSketch = TDigestState.createUsingParamsFrom(valuesSketch)) {
+                valuesSketch.centroids().forEach(centroid -> {
+                    final double deviation = Math.abs(approximateMedian - centroid.mean());
+                    approximatedDeviationsSketch.add(deviation, centroid.count());
+                });
 
-            return (long) approximatedDeviationsSketch.quantile(0.5);
+                return (long) approximatedDeviationsSketch.quantile(0.5);
+            }
         }
     }
 

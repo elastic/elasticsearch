@@ -12,8 +12,14 @@ import org.apache.lucene.util.BytesRef;
 $endif$
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.unit.ByteSizeValue;
+$if(BytesRef)$
+import org.elasticsearch.core.ReleasableIterator;
+import org.elasticsearch.core.Releasables;
+
+$else$
 import org.elasticsearch.core.ReleasableIterator;
 
+$endif$
 /**
  * Vector implementation that stores a constant $type$ value.
  * This class is generated. Do not edit it.
@@ -61,6 +67,49 @@ $endif$
     }
 
     @Override
+    public $Type$Block keepMask(BooleanVector mask) {
+        if (getPositionCount() == 0) {
+            incRef();
+            return new $Type$VectorBlock(this);
+        }
+        if (mask.isConstant()) {
+            if (mask.getBoolean(0)) {
+                incRef();
+                return new $Type$VectorBlock(this);
+            }
+            return ($Type$Block) blockFactory().newConstantNullBlock(getPositionCount());
+        }
+$if(BytesRef)$
+        IntBlock ordinals = null;
+        BytesRefVector bytes = null;
+        try {
+            try (IntVector unmaskedOrdinals = blockFactory().newConstantIntVector(0, getPositionCount())) {
+                ordinals = unmaskedOrdinals.keepMask(mask);
+            }
+            bytes = blockFactory().newConstantBytesRefVector(value, getPositionCount());
+            OrdinalBytesRefBlock result = new OrdinalBytesRefBlock(ordinals, bytes);
+            ordinals = null;
+            bytes = null;
+            return result;
+        } finally {
+            Releasables.close(ordinals, bytes);
+        }
+$else$
+        try ($Type$Block.Builder builder = blockFactory().new$Type$BlockBuilder(getPositionCount())) {
+            // TODO if X-ArrayBlock used BooleanVector for it's null mask then we could shuffle references here.
+            for (int p = 0; p < getPositionCount(); p++) {
+                if (mask.getBoolean(p)) {
+                    builder.append$Type$(value);
+                } else {
+                    builder.appendNull();
+                }
+            }
+            return builder.build();
+        }
+$endif$
+    }
+
+    @Override
     public ReleasableIterator<$Type$Block> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
         if (positions.getPositionCount() == 0) {
             return ReleasableIterator.empty();
@@ -97,6 +146,23 @@ $if(int)$
     @Override
     public int max() {
         return value;
+    }
+
+$elseif(boolean)$
+    /**
+     * Are all values {@code true}? This will scan all values to check and always answer accurately.
+     */
+    @Override
+    public boolean allTrue() {
+        return value;
+    }
+
+    /**
+     * Are all values {@code false}? This will scan all values to check and always answer accurately.
+     */
+    @Override
+    public boolean allFalse() {
+        return value == false;
     }
 $endif$
 

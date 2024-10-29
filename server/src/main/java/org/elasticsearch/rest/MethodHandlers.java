@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.rest;
@@ -12,6 +13,8 @@ import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.http.HttpRouteStats;
 import org.elasticsearch.http.HttpRouteStatsTracker;
 
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.VarHandle;
 import java.util.EnumMap;
 import java.util.Map;
 import java.util.Set;
@@ -24,7 +27,18 @@ final class MethodHandlers {
     private final String path;
     private final Map<RestRequest.Method, Map<RestApiVersion, RestHandler>> methodHandlers;
 
-    private final HttpRouteStatsTracker statsTracker = new HttpRouteStatsTracker();
+    @SuppressWarnings("unused") // only accessed via #STATS_TRACKER_HANDLE, lazy initialized because instances consume non-trivial heap
+    private volatile HttpRouteStatsTracker statsTracker;
+
+    private static final VarHandle STATS_TRACKER_HANDLE;
+
+    static {
+        try {
+            STATS_TRACKER_HANDLE = MethodHandles.lookup().findVarHandle(MethodHandlers.class, "statsTracker", HttpRouteStatsTracker.class);
+        } catch (NoSuchFieldException | IllegalAccessException e) {
+            throw new ExceptionInInitializerError(e);
+        }
+    }
 
     MethodHandlers(String path) {
         this.path = path;
@@ -72,19 +86,26 @@ final class MethodHandlers {
         return methodHandlers.keySet();
     }
 
-    public void addRequestStats(int contentLength) {
-        statsTracker.addRequestStats(contentLength);
-    }
-
-    public void addResponseStats(long contentLength) {
-        statsTracker.addResponseStats(contentLength);
-    }
-
-    public void addResponseTime(long timeMillis) {
-        statsTracker.addResponseTime(timeMillis);
-    }
-
     public HttpRouteStats getStats() {
-        return statsTracker.getStats();
+        var tracker = existingStatsTracker();
+        if (tracker == null) {
+            return HttpRouteStats.EMPTY;
+        }
+        return tracker.getStats();
+    }
+
+    public HttpRouteStatsTracker statsTracker() {
+        var tracker = existingStatsTracker();
+        if (tracker == null) {
+            var newTracker = new HttpRouteStatsTracker();
+            if ((tracker = (HttpRouteStatsTracker) STATS_TRACKER_HANDLE.compareAndExchange(this, null, newTracker)) == null) {
+                tracker = newTracker;
+            }
+        }
+        return tracker;
+    }
+
+    private HttpRouteStatsTracker existingStatsTracker() {
+        return (HttpRouteStatsTracker) STATS_TRACKER_HANDLE.getAcquire(this);
     }
 }

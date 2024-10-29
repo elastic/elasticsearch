@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.fieldcaps;
@@ -15,6 +16,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexMode;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -33,18 +35,21 @@ public final class FieldCapabilitiesIndexResponse implements Writeable {
     private final Map<String, IndexFieldCapabilities> responseMap;
     private final boolean canMatch;
     private final transient TransportVersion originVersion;
+    private final IndexMode indexMode;
 
     public FieldCapabilitiesIndexResponse(
         String indexName,
         @Nullable String indexMappingHash,
         Map<String, IndexFieldCapabilities> responseMap,
-        boolean canMatch
+        boolean canMatch,
+        IndexMode indexMode
     ) {
         this.indexName = indexName;
         this.indexMappingHash = indexMappingHash;
         this.responseMap = responseMap;
         this.canMatch = canMatch;
         this.originVersion = TransportVersion.current();
+        this.indexMode = indexMode;
     }
 
     FieldCapabilitiesIndexResponse(StreamInput in) throws IOException {
@@ -57,6 +62,11 @@ public final class FieldCapabilitiesIndexResponse implements Writeable {
         } else {
             this.indexMappingHash = null;
         }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.FIELD_CAPS_RESPONSE_INDEX_MODE)) {
+            this.indexMode = IndexMode.readFrom(in);
+        } else {
+            this.indexMode = IndexMode.STANDARD;
+        }
     }
 
     @Override
@@ -67,9 +77,12 @@ public final class FieldCapabilitiesIndexResponse implements Writeable {
         if (out.getTransportVersion().onOrAfter(MAPPING_HASH_VERSION)) {
             out.writeOptionalString(indexMappingHash);
         }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.FIELD_CAPS_RESPONSE_INDEX_MODE)) {
+            IndexMode.writeTo(indexMode, out);
+        }
     }
 
-    private record CompressedGroup(String[] indices, String mappingHash, int[] fields) {}
+    private record CompressedGroup(String[] indices, IndexMode indexMode, String mappingHash, int[] fields) {}
 
     static List<FieldCapabilitiesIndexResponse> readList(StreamInput input) throws IOException {
         if (input.getTransportVersion().before(MAPPING_HASH_VERSION)) {
@@ -92,10 +105,12 @@ public final class FieldCapabilitiesIndexResponse implements Writeable {
     private static void collectCompressedResponses(StreamInput input, int groups, ArrayList<FieldCapabilitiesIndexResponse> responses)
         throws IOException {
         final CompressedGroup[] compressedGroups = new CompressedGroup[groups];
+        final boolean readIndexMode = input.getTransportVersion().onOrAfter(TransportVersions.FIELD_CAPS_RESPONSE_INDEX_MODE);
         for (int i = 0; i < groups; i++) {
             final String[] indices = input.readStringArray();
+            final IndexMode indexMode = readIndexMode ? IndexMode.readFrom(input) : IndexMode.STANDARD;
             final String mappingHash = input.readString();
-            compressedGroups[i] = new CompressedGroup(indices, mappingHash, input.readIntArray());
+            compressedGroups[i] = new CompressedGroup(indices, indexMode, mappingHash, input.readIntArray());
         }
         final IndexFieldCapabilities[] ifcLookup = input.readArray(IndexFieldCapabilities::readFrom, IndexFieldCapabilities[]::new);
         for (CompressedGroup compressedGroup : compressedGroups) {
@@ -105,7 +120,7 @@ public final class FieldCapabilitiesIndexResponse implements Writeable {
                 ifc.put(val.name(), val);
             }
             for (String index : compressedGroup.indices) {
-                responses.add(new FieldCapabilitiesIndexResponse(index, compressedGroup.mappingHash, ifc, true));
+                responses.add(new FieldCapabilitiesIndexResponse(index, compressedGroup.mappingHash, ifc, true, compressedGroup.indexMode));
             }
         }
     }
@@ -117,7 +132,7 @@ public final class FieldCapabilitiesIndexResponse implements Writeable {
             final String mappingHash = input.readString();
             final Map<String, IndexFieldCapabilities> ifc = input.readMap(IndexFieldCapabilities::readFrom);
             for (String index : indices) {
-                responses.add(new FieldCapabilitiesIndexResponse(index, mappingHash, ifc, true));
+                responses.add(new FieldCapabilitiesIndexResponse(index, mappingHash, ifc, true, IndexMode.STANDARD));
             }
         }
     }
@@ -164,6 +179,9 @@ public final class FieldCapabilitiesIndexResponse implements Writeable {
         output.writeCollection(groupedResponsesMap.values(), (o, fieldCapabilitiesIndexResponses) -> {
             o.writeCollection(fieldCapabilitiesIndexResponses, (oo, r) -> oo.writeString(r.indexName));
             var first = fieldCapabilitiesIndexResponses.get(0);
+            if (output.getTransportVersion().onOrAfter(TransportVersions.FIELD_CAPS_RESPONSE_INDEX_MODE)) {
+                IndexMode.writeTo(first.indexMode, o);
+            }
             o.writeString(first.indexMappingHash);
             o.writeVInt(first.responseMap.size());
             for (IndexFieldCapabilities ifc : first.responseMap.values()) {
@@ -190,6 +208,10 @@ public final class FieldCapabilitiesIndexResponse implements Writeable {
     @Nullable
     public String getIndexMappingHash() {
         return indexMappingHash;
+    }
+
+    public IndexMode getIndexMode() {
+        return indexMode;
     }
 
     public boolean canMatch() {

@@ -1,6 +1,0 @@
-pr: 109449
-summary: Reset max page size to settings value
-area: Transform
-type: bug
-issues:
- - 109308

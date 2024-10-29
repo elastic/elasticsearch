@@ -405,13 +405,8 @@ public class CcrRollingUpgradeIT extends AbstractMultiClusterUpgradeTestCase {
         assertOK(client.performRequest(new Request("POST", "/" + followerIndex + "/_ccr/resume_follow")));
     }
 
-    private static void ensureGreen(RestClient client, String index) throws IOException {
-        Request request = new Request("GET", "/_cluster/health/" + index);
-        request.addParameter("wait_for_status", "green");
-        request.addParameter("wait_for_no_relocating_shards", "true");
-        request.addParameter("timeout", "70s");
-        request.addParameter("level", "shards");
-        client.performRequest(request);
+    @Override
+    protected final String getEnsureGreenTimeout() {
+        return "70s";
     }
-
 }

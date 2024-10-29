@@ -67,11 +67,70 @@ emp_no:integer | avg_worked_seconds:long | gender:keyword | max_avg_worked_secon
          10030 |               394597613 | M              | 394597613
 ;
 
-// TODO allow inline calculation like BY l = SUBSTRING(
 maxOfLongByCalculatedKeyword
-required_capability: inlinestats
+required_capability: inlinestats_v2
 
 // tag::longest-tenured-by-first[]
+FROM employees
+| KEEP emp_no, avg_worked_seconds, last_name
+| INLINESTATS max_avg_worked_seconds = MAX(avg_worked_seconds) BY SUBSTRING(last_name, 0, 1)
+| WHERE max_avg_worked_seconds == avg_worked_seconds
+| SORT last_name ASC
+| LIMIT 5
+// end::longest-tenured-by-first[]
+;
+
+// tag::longest-tenured-by-first-result[]
+emp_no:integer | avg_worked_seconds:long | last_name:keyword | SUBSTRING(last_name, 0, 1):keyword | max_avg_worked_seconds:long
+         10065 |               372660279 | Awdeh             | A                                  | 372660279
+         10074 |               382397583 | Bernatsky         | B                                  | 382397583
+         10044 |               387408356 | Casley            | C                                  | 387408356
+         10030 |               394597613 | Demeyer           | D                                  | 394597613
+         10087 |               305782871 | Eugenio           | E                                  | 305782871
+// end::longest-tenured-by-first-result[]
+;
+
+maxOfLongByCalculatedNamedKeyword
+required_capability: inlinestats_v2
+
+FROM employees
+| KEEP emp_no, avg_worked_seconds, last_name
+| INLINESTATS max_avg_worked_seconds = MAX(avg_worked_seconds) BY l = SUBSTRING(last_name, 0, 1)
+| WHERE max_avg_worked_seconds == avg_worked_seconds
+| SORT last_name ASC
+| LIMIT 5
+;
+
+emp_no:integer | avg_worked_seconds:long | last_name:keyword | l:keyword | max_avg_worked_seconds:long
+         10065 |               372660279 | Awdeh             | A         | 372660279
+         10074 |               382397583 | Bernatsky         | B         | 382397583
+         10044 |               387408356 | Casley            | C         | 387408356
+         10030 |               394597613 | Demeyer           | D         | 394597613
+         10087 |               305782871 | Eugenio           | E         | 305782871
+;
+
+maxOfLongByCalculatedDroppedKeyword
+required_capability: inlinestats_v2
+
+FROM employees
+| INLINESTATS max_avg_worked_seconds = MAX(avg_worked_seconds) BY l = SUBSTRING(last_name, 0, 1)
+| WHERE max_avg_worked_seconds == avg_worked_seconds
+| KEEP emp_no, avg_worked_seconds, last_name, max_avg_worked_seconds  
+| SORT last_name ASC
+| LIMIT 5
+;
+
+emp_no:integer | avg_worked_seconds:long | last_name:keyword | max_avg_worked_seconds:long
+         10065 |               372660279 | Awdeh             | 372660279
+         10074 |               382397583 | Bernatsky         | 382397583
+         10044 |               387408356 | Casley            | 387408356
+         10030 |               394597613 | Demeyer           | 394597613
+         10087 |               305782871 | Eugenio           | 305782871
+;
+
+maxOfLongByEvaledKeyword
+required_capability: inlinestats
+
 FROM employees
 | EVAL l = SUBSTRING(last_name, 0, 1)
 | KEEP emp_no, avg_worked_seconds, l
@@ -79,17 +138,14 @@ FROM employees
 | WHERE max_avg_worked_seconds == avg_worked_seconds
 | SORT l ASC
 | LIMIT 5
-// end::longest-tenured-by-first[]
 ;
 
-// tag::longest-tenured-by-first-result[]
 emp_no:integer | avg_worked_seconds:long | l:keyword | max_avg_worked_seconds:long
          10065 |               372660279 | A         | 372660279
          10074 |               382397583 | B         | 382397583
          10044 |               387408356 | C         | 387408356
          10030 |               394597613 | D         | 394597613
          10087 |               305782871 | E         | 305782871
-// end::longest-tenured-by-first-result[]
 ;
 
 maxOfLongByInt
@@ -498,4 +554,102 @@ emp_no:integer | salary:integer | ninety_fifth_salary:double
          10027 |          73851 | 73584.95
          10029 |          74999 | 73584.95
          10045 |          74970 | 73584.95
+;
+
+byTwoCalculated
+required_capability: inlinestats_v2
+
+FROM airports
+| WHERE abbrev IS NOT NULL
+| KEEP abbrev, scalerank, location
+| INLINESTATS min_sl=MIN(scalerank)
+           BY lat_10 = ROUND(ST_Y(location), -1)
+            , lon_10 = ROUND(ST_X(location), -1)
+| SORT abbrev DESC
+| LIMIT 3
+;
+
+abbrev:keyword | scalerank:integer |             location:geo_point             | lat_10:double | lon_10:double | min_sl:integer
+           ZRH |                 3 | POINT(8.56221279534765 47.4523895064915)   |            50 |            10 | 2
+           ZNZ |                 4 | POINT (39.2223319841558 -6.21857034620282) |           -10 |            40 | 4
+           ZLO |                 7 | POINT (-104.560095200097 19.1480860285854) |            20 |          -100 | 2
+;
+
+byTwoCalculatedSecondOverwrites
+required_capability: inlinestats_v2
+
+FROM airports
+| WHERE abbrev IS NOT NULL
+| KEEP abbrev, scalerank, location
+| INLINESTATS min_sl=MIN(scalerank)
+           BY x = ROUND(ST_Y(location), -1)
+            , x = ROUND(ST_X(location), -1)
+| SORT abbrev DESC
+| LIMIT 3
+;
+
+abbrev:keyword | scalerank:integer |             location:geo_point             | x:double | min_sl:integer
+           ZRH |                 3 | POINT(8.56221279534765 47.4523895064915)   |       10 | 2
+           ZNZ |                 4 | POINT (39.2223319841558 -6.21857034620282) |       40 | 2
+           ZLO |                 7 | POINT (-104.560095200097 19.1480860285854) |     -100 | 2
+;
+
+byTwoCalculatedSecondOverwritesReferencingFirst
+required_capability: inlinestats_v2
+
+FROM airports
+| WHERE abbrev IS NOT NULL
+| KEEP abbrev, scalerank, location
+| EVAL x = ST_X(location)
+| INLINESTATS min_sl=MIN(scalerank)
+           BY x = ROUND(x, -1)
+            , x = ROUND(x, -1)
+| SORT abbrev DESC
+| LIMIT 3
+;
+
+abbrev:keyword | scalerank:integer |             location:geo_point             | x:double | min_sl:integer
+           ZRH |                 3 | POINT(8.56221279534765 47.4523895064915)   |       10 | 2
+           ZNZ |                 4 | POINT (39.2223319841558 -6.21857034620282) |       40 | 2
+           ZLO |                 7 | POINT (-104.560095200097 19.1480860285854) |     -100 | 2
+;
+
+
+groupShadowsAgg
+required_capability: inlinestats_v2
+
+FROM airports
+| WHERE abbrev IS NOT NULL
+| KEEP abbrev, scalerank, location
+| INLINESTATS min_sl=MIN(scalerank)
+            , lat_10 = ROUND(ST_Y(location), -1)
+           BY lat_10 = ROUND(ST_Y(location), -1)
+            , lon_10 = ROUND(ST_X(location), -1)
+| SORT abbrev DESC
+| LIMIT 3
+;
+
+abbrev:keyword | scalerank:integer |             location:geo_point             | lat_10:double | lon_10:double | min_sl:integer
+           ZRH |                 3 | POINT(8.56221279534765 47.4523895064915)   |            50 |            10 | 2
+           ZNZ |                 4 | POINT (39.2223319841558 -6.21857034620282) |           -10 |            40 | 4
+           ZLO |                 7 | POINT (-104.560095200097 19.1480860285854) |            20 |          -100 | 2
+;
+
+groupShadowsField
+required_capability: inlinestats_v2
+
+  FROM employees
+| KEEP emp_no, salary, hire_date
+| INLINESTATS avg_salary = AVG(salary)
+           BY hire_date = DATE_TRUNC(1 year, hire_date)
+| WHERE salary > avg_salary
+| SORT emp_no ASC
+| LIMIT 4
+;
+
+emp_no:integer | salary:integer |  hire_date:datetime  | avg_salary:double
+         10001 |          57305 | 1986-01-01T00:00:00Z | 43869.63636363636
+         10002 |          56371 | 1985-01-01T00:00:00Z | 51831.818181818184
+         10003 |          61805 | 1986-01-01T00:00:00Z | 43869.63636363636
+         10005 |          63528 | 1989-01-01T00:00:00Z | 53487.07692307692
 ;

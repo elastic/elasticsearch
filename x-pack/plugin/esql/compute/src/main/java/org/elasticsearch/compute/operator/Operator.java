@@ -88,11 +88,11 @@ public interface Operator extends Releasable {
      * If the operator is not blocked, this method returns {@link #NOT_BLOCKED} which is an already
      * completed future.
      */
-    default SubscribableListener<Void> isBlocked() {
+    default IsBlockedResult isBlocked() {
         return NOT_BLOCKED;
     }
 
-    SubscribableListener<Void> NOT_BLOCKED = SubscribableListener.newSucceeded(null);
+    IsBlockedResult NOT_BLOCKED = new IsBlockedResult(SubscribableListener.newSucceeded(null), "not blocked");
 
     /**
      * A factory for creating intermediate operators.

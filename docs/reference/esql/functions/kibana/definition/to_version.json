@@ -43,5 +43,7 @@
   ],
   "examples" : [
     "ROW v = TO_VERSION(\"1.2.3\")"
-  ]
+  ],
+  "preview" : false,
+  "snapshot_only" : false
 }

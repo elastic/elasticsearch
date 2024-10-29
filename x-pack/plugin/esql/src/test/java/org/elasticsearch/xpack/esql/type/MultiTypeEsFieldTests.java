@@ -9,13 +9,14 @@ package org.elasticsearch.xpack.esql.type;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.test.AbstractNamedWriteableTestCase;
+import org.elasticsearch.test.AbstractWireTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToBoolean;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCartesianPoint;
@@ -29,11 +30,9 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToVersion;
-import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
-import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
-import org.elasticsearch.xpack.esql.session.EsqlConfigurationSerializationTests;
+import org.elasticsearch.xpack.esql.session.Configuration;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -42,6 +41,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomConfiguration;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isString;
 
 /**
@@ -57,13 +57,13 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.isString;
  * These differences can be minimized once Expression is fully supported in the new serialization approach, and the esql and esql.core
  * modules are merged, or at least the relevant classes are moved.
  */
-public class MultiTypeEsFieldTests extends AbstractNamedWriteableTestCase<MultiTypeEsField> {
+public class MultiTypeEsFieldTests extends AbstractWireTestCase<MultiTypeEsField> {
 
-    private EsqlConfiguration config;
+    private Configuration config;
 
     @Before
     public void initConfig() {
-        config = EsqlConfigurationSerializationTests.randomConfiguration();
+        config = randomConfiguration();
     }
 
     @Override
@@ -94,29 +94,16 @@ public class MultiTypeEsFieldTests extends AbstractNamedWriteableTestCase<MultiT
     protected final NamedWriteableRegistry getNamedWriteableRegistry() {
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>(UnaryScalarFunction.getNamedWriteables());
         entries.addAll(Attribute.getNamedWriteables());
-        entries.addAll(EsField.getNamedWriteables());
-        entries.add(MultiTypeEsField.ENTRY);
         entries.addAll(Expression.getNamedWriteables());
         return new NamedWriteableRegistry(entries);
     }
 
     @Override
-    protected final Class<MultiTypeEsField> categoryClass() {
-        return MultiTypeEsField.class;
-    }
-
-    @Override
     protected final MultiTypeEsField copyInstance(MultiTypeEsField instance, TransportVersion version) throws IOException {
-        return copyInstance(
-            instance,
-            getNamedWriteableRegistry(),
-            (out, v) -> new PlanStreamOutput(out, new PlanNameRegistry(), config).writeNamedWriteable(v),
-            in -> {
-                PlanStreamInput pin = new PlanStreamInput(in, new PlanNameRegistry(), in.namedWriteableRegistry(), config);
-                return (MultiTypeEsField) pin.readNamedWriteable(EsField.class);
-            },
-            version
-        );
+        return copyInstance(instance, getNamedWriteableRegistry(), (out, v) -> v.writeTo(new PlanStreamOutput(out, config)), in -> {
+            PlanStreamInput pin = new PlanStreamInput(in, in.namedWriteableRegistry(), config);
+            return EsField.readFrom(pin);
+        }, version);
     }
 
     private static Map<String, Expression> randomConvertExpressions(String name, boolean toString, DataType dataType) {

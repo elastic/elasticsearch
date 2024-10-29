@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.core.tree;
 
+import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 
 import java.util.ArrayList;
@@ -32,7 +33,7 @@ import static java.util.Collections.emptyList;
  *
  * @param <T> node type
  */
-public abstract class Node<T extends Node<T>> {
+public abstract class Node<T extends Node<T>> implements NamedWriteable {
     private static final int TO_STRING_MAX_PROP = 10;
     private static final int TO_STRING_MAX_WIDTH = 110;
 
@@ -265,11 +266,11 @@ public abstract class Node<T extends Node<T>> {
      * <p>
      * Normally, you want to use one of the static {@code create} methods to implement this.
      * <p>
-     * For {@link org.elasticsearch.xpack.esql.core.plan.QueryPlan}s, it is very important that
+     * For {@code QueryPlan}s, it is very important that
      * the properties contain all of the expressions and references relevant to this node, and
      * that all of the properties are used in the provided constructor; otherwise query plan
      * transformations like
-     * {@link org.elasticsearch.xpack.esql.core.plan.QueryPlan#transformExpressionsOnly(Function)}
+     * {@code QueryPlan#transformExpressionsOnly(Function)}
      * will not have an effect.
      */
     protected abstract NodeInfo<? extends T> info();

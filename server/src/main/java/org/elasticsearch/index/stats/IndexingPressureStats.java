@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.stats;
@@ -79,7 +80,7 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
             primaryDocumentRejections = -1L;
         }
 
-        if (in.getTransportVersion().onOrAfter(TransportVersions.INDEXING_PRESSURE_REQUEST_REJECTIONS_COUNT)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
             totalCoordinatingRequests = in.readVLong();
         } else {
             totalCoordinatingRequests = -1L;
@@ -156,7 +157,7 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
             out.writeVLong(primaryDocumentRejections);
         }
 
-        if (out.getTransportVersion().onOrAfter(TransportVersions.INDEXING_PRESSURE_REQUEST_REJECTIONS_COUNT)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
             out.writeVLong(totalCoordinatingRequests);
         }
     }

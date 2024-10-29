@@ -22,7 +22,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -30,6 +29,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.countedterms.CountedTermsAggregationBuilder;
@@ -179,7 +179,7 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
             .setQuery(request.getQuery())
             .setTrackTotalHits(true)
             .execute(ActionListener.wrap(searchResponse -> {
-                long sampleCount = searchResponse.getHits().getTotalHits().value;
+                long sampleCount = searchResponse.getHits().getTotalHits().value();
                 EventsIndex resampledIndex = mediumDownsampled.getResampledIndex(request.getSampleSize(), sampleCount);
                 log.debug(
                     "User requested [{}] samples, [{}] samples matched in [{}]. Picking [{}]",
@@ -220,7 +220,7 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
             .setPreference(String.valueOf(request.hashCode()))
             .setQuery(request.getQuery())
             .execute(ActionListener.wrap(searchResponse -> {
-                long sampleCount = searchResponse.getHits().getTotalHits().value;
+                long sampleCount = searchResponse.getHits().getTotalHits().value();
                 int requestedSampleCount = request.getSampleSize();
                 // random sampler aggregation does not support sampling rates between 0.5 and 1.0 -> clamp to 1.0
                 if (sampleCount <= requestedSampleCount * 2L) {

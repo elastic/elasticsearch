@@ -1,31 +1,37 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.repositories.azure;
 
 import fixture.azure.AzureHttpFixture;
 
+import com.azure.core.exception.HttpResponseException;
 import com.azure.storage.blob.BlobContainerClient;
 import com.azure.storage.blob.BlobServiceClient;
 import com.azure.storage.blob.models.BlobStorageException;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Booleans;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.AbstractThirdPartyRepositoryTestCase;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
@@ -42,6 +48,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
 public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyRepositoryTestCase {
+    private static final Logger logger = LogManager.getLogger(AzureStorageCleanupThirdPartyTests.class);
     private static final boolean USE_FIXTURE = Booleans.parseBoolean(System.getProperty("test.azure.fixture", "true"));
 
     private static final String AZURE_ACCOUNT = System.getProperty("test.azure.account");
@@ -51,33 +58,10 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
         USE_FIXTURE ? AzureHttpFixture.Protocol.HTTP : AzureHttpFixture.Protocol.NONE,
         AZURE_ACCOUNT,
         System.getProperty("test.azure.container"),
+        System.getProperty("test.azure.tenant_id"),
+        System.getProperty("test.azure.client_id"),
         AzureHttpFixture.sharedKeyForAccountPredicate(AZURE_ACCOUNT)
     );
-
-    @Override
-    public void testCreateSnapshot() {
-        super.testCreateSnapshot();
-    }
-
-    @Override
-    public void testIndexLatest() throws Exception {
-        super.testIndexLatest();
-    }
-
-    @Override
-    public void testListChildren() {
-        super.testListChildren();
-    }
-
-    @Override
-    public void testCleanup() throws Exception {
-        super.testCleanup();
-    }
-
-    @Override
-    public void testReadFromPositionWithLength() {
-        super.testReadFromPositionWithLength();
-    }
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
@@ -108,8 +92,10 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("azure.client.default.account", System.getProperty("test.azure.account"));
         if (hasSasToken) {
+            logger.info("--> Using SAS token authentication");
             secureSettings.setString("azure.client.default.sas_token", System.getProperty("test.azure.sas_token"));
         } else {
+            logger.info("--> Using key authentication");
             secureSettings.setString("azure.client.default.key", System.getProperty("test.azure.key"));
         }
         return secureSettings;
@@ -141,7 +127,8 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
         final PlainActionFuture<Void> future = new PlainActionFuture<>();
         repository.threadPool().generic().execute(ActionRunnable.wrap(future, l -> {
             final AzureBlobStore blobStore = (AzureBlobStore) repository.blobStore();
-            final AzureBlobServiceClient azureBlobServiceClient = blobStore.getService().client("default", LocationMode.PRIMARY_ONLY);
+            final AzureBlobServiceClient azureBlobServiceClient = blobStore.getService()
+                .client("default", LocationMode.PRIMARY_ONLY, randomFrom(OperationPurpose.values()));
             final BlobServiceClient client = azureBlobServiceClient.getSyncClient();
             try {
                 SocketAccess.doPrivilegedException(() -> {
@@ -186,8 +173,8 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
 
     public void testReadFromPositionLargerThanBlobLength() {
         testReadFromPositionLargerThanBlobLength(
-            e -> asInstanceOf(BlobStorageException.class, e.getCause()).getStatusCode() == RestStatus.REQUESTED_RANGE_NOT_SATISFIED
-                .getStatus()
+            e -> asInstanceOf(BlobStorageException.class, ExceptionsHelper.unwrap(e, HttpResponseException.class))
+                .getStatusCode() == RestStatus.REQUESTED_RANGE_NOT_SATISFIED.getStatus()
         );
     }
 }

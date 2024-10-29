@@ -7,9 +7,11 @@
 
 package org.elasticsearch.xpack.esql.expression.function;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.capabilities.Unresolvable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -20,11 +22,16 @@ import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
+import org.elasticsearch.xpack.esql.core.util.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
 import java.util.Objects;
+
+import static org.elasticsearch.xpack.esql.core.util.PlanStreamInput.readCachedStringWithVersionCheck;
+import static org.elasticsearch.xpack.esql.core.util.PlanStreamOutput.writeCachedStringWithVersionCheck;
 
 /**
  * Unsupported attribute meaning an attribute that has been found yet cannot be used (hence why UnresolvedAttribute
@@ -36,17 +43,17 @@ public final class UnsupportedAttribute extends FieldAttribute implements Unreso
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Attribute.class,
         "UnsupportedAttribute",
-        UnsupportedAttribute::new
+        UnsupportedAttribute::readFrom
     );
     public static final NamedWriteableRegistry.Entry NAMED_EXPRESSION_ENTRY = new NamedWriteableRegistry.Entry(
         NamedExpression.class,
         ENTRY.name,
-        UnsupportedAttribute::new
+        UnsupportedAttribute::readFrom
     );
     public static final NamedWriteableRegistry.Entry EXPRESSION_ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         ENTRY.name,
-        UnsupportedAttribute::new
+        UnsupportedAttribute::readFrom
     );
 
     private final String message;
@@ -60,21 +67,22 @@ public final class UnsupportedAttribute extends FieldAttribute implements Unreso
         this(source, name, field, null);
     }
 
-    public UnsupportedAttribute(Source source, String name, UnsupportedEsField field, String customMessage) {
+    public UnsupportedAttribute(Source source, String name, UnsupportedEsField field, @Nullable String customMessage) {
         this(source, name, field, customMessage, null);
     }
 
-    public UnsupportedAttribute(Source source, String name, UnsupportedEsField field, String customMessage, NameId id) {
-        super(source, null, name, field, null, Nullability.TRUE, id, false);
+    public UnsupportedAttribute(Source source, String name, UnsupportedEsField field, @Nullable String customMessage, @Nullable NameId id) {
+        super(source, null, name, field, Nullability.TRUE, id, false);
         this.hasCustomMessage = customMessage != null;
-        this.message = customMessage == null ? errorMessage(qualifiedName(), field) : customMessage;
+        this.message = customMessage == null ? errorMessage(name(), field) : customMessage;
     }
 
-    public UnsupportedAttribute(StreamInput in) throws IOException {
+    private UnsupportedAttribute(StreamInput in) throws IOException {
         this(
             Source.readFrom((PlanStreamInput) in),
-            in.readString(),
-            new UnsupportedEsField(in),
+            readCachedStringWithVersionCheck(in),
+            in.getTransportVersion().onOrAfter(TransportVersions.ESQL_ES_FIELD_CACHED_SERIALIZATION)
+                || in.getTransportVersion().isPatchFrom(TransportVersions.V_8_15_2) ? EsField.readFrom(in) : new UnsupportedEsField(in),
             in.readOptionalString(),
             NameId.readFrom((PlanStreamInput) in)
         );
@@ -82,11 +90,22 @@ public final class UnsupportedAttribute extends FieldAttribute implements Unreso
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        Source.EMPTY.writeTo(out);
-        out.writeString(name());
-        field().writeTo(out);
-        out.writeOptionalString(hasCustomMessage ? message : null);
-        id().writeTo(out);
+        if (((PlanStreamOutput) out).writeAttributeCacheHeader(this)) {
+            Source.EMPTY.writeTo(out);
+            writeCachedStringWithVersionCheck(out, name());
+            if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_ES_FIELD_CACHED_SERIALIZATION)
+                || out.getTransportVersion().isPatchFrom(TransportVersions.V_8_15_2)) {
+                field().writeTo(out);
+            } else {
+                field().writeContent(out);
+            }
+            out.writeOptionalString(hasCustomMessage ? message : null);
+            id().writeTo(out);
+        }
+    }
+
+    public static UnsupportedAttribute readFrom(StreamInput in) throws IOException {
+        return ((PlanStreamInput) in).readAttributeWithCache(UnsupportedAttribute::new);
     }
 
     @Override
@@ -117,15 +136,7 @@ public final class UnsupportedAttribute extends FieldAttribute implements Unreso
     }
 
     @Override
-    protected Attribute clone(
-        Source source,
-        String name,
-        DataType type,
-        String qualifier,
-        Nullability nullability,
-        NameId id,
-        boolean synthetic
-    ) {
+    protected Attribute clone(Source source, String name, DataType type, Nullability nullability, NameId id, boolean synthetic) {
         return new UnsupportedAttribute(source, name, field(), hasCustomMessage ? message : null, id);
     }
 
@@ -135,7 +146,7 @@ public final class UnsupportedAttribute extends FieldAttribute implements Unreso
 
     @Override
     public String toString() {
-        return "!" + qualifiedName();
+        return "!" + name();
     }
 
     @Override

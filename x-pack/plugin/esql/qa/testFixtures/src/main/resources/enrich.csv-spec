@@ -468,26 +468,6 @@ client_ip:ip | count_env:i | max_env:keyword
 ;
 
 
-enrichCidr2#[skip:-8.99.99, reason:ip_range support not added yet]
-required_capability: enrich_load
-
-FROM sample_data
-| ENRICH client_cidr_policy ON client_ip WITH env, client_cidr
-| KEEP client_ip, env, client_cidr
-| SORT client_ip
-;
-
-client_ip:ip | env:keyword               | client_cidr:ip_range
-172.21.3.15  | [Development, Production] | 172.21.3.0/24
-172.21.3.15  | [Development, Production] | 172.21.3.0/24
-172.21.3.15  | [Development, Production] | 172.21.3.0/24
-172.21.3.15  | [Development, Production] | 172.21.3.0/24
-172.21.0.5   | Development               | 172.21.0.0/16
-172.21.2.113 | [Development, QA]         | 172.21.2.0/24
-172.21.2.162 | [Development, QA]         | 172.21.2.0/24
-;
-
-
 enrichAgesStatsYear#[skip:-8.13.99, reason:ENRICH extended in 8.14.0]
 required_capability: enrich_load
 

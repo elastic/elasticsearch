@@ -34,7 +34,12 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 
 // account for slow stored secure settings updates (involves removing and re-creating the keystore)
 @TimeoutSuite(millis = 10 * TimeUnits.MINUTE)
@@ -78,6 +83,7 @@ public class RemoteClusterSecurityReloadCredentialsRestIT extends AbstractRemote
             })
             .rolesFile(Resource.fromClasspath("roles.yml"))
             .user(REMOTE_SEARCH_USER, PASS.toString(), "read_remote_shared_logs", false)
+            .user(MANAGE_USER, PASS.toString(), "manage_role", false)
             .build();
     }
 
@@ -234,6 +240,30 @@ public class RemoteClusterSecurityReloadCredentialsRestIT extends AbstractRemote
         request.setOptions(
             RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", headerFromRandomAuthMethod(REMOTE_SEARCH_USER, PASS))
         );
+        return client().performRequest(request);
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    protected void reloadSecureSettings() throws IOException {
+        final Request request = new Request("POST", "/_nodes/reload_secure_settings");
+        request.setJsonEntity("{\"secure_settings_password\":\"" + KEYSTORE_PASSWORD + "\"}");
+        // execute as user with only `manage` cluster privilege
+        final Response reloadResponse = performRequestWithManageUser(request);
+        assertOK(reloadResponse);
+        final Map<String, Object> map = entityAsMap(reloadResponse);
+        assertThat(map.get("nodes"), instanceOf(Map.class));
+        final Map<String, Object> nodes = (Map<String, Object>) map.get("nodes");
+        assertThat(nodes, is(not(anEmptyMap())));
+        for (Map.Entry<String, Object> entry : nodes.entrySet()) {
+            assertThat(entry.getValue(), instanceOf(Map.class));
+            final Map<String, Object> node = (Map<String, Object>) entry.getValue();
+            assertThat(node.get("reload_exception"), nullValue());
+        }
+    }
+
+    private Response performRequestWithManageUser(final Request request) throws IOException {
+        request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", headerFromRandomAuthMethod(MANAGE_USER, PASS)));
         return client().performRequest(request);
     }
 

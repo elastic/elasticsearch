@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -11,7 +12,6 @@ package org.elasticsearch.index.mapper;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -124,7 +124,10 @@ public final class MappingParser {
         Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappers = metadataMappersSupplier.get();
         Map<String, Object> meta = null;
 
-        boolean isSourceSynthetic = mappingParserContext.getIndexSettings().getMode().isSyntheticSourceEnabled();
+        // TODO this should be the final value once `_source.mode` mapping parameter is not used anymore
+        // and it should not be reassigned below.
+        // For now it is still possible to set `_source.mode` so this is correct.
+        boolean isSourceSynthetic = SourceFieldMapper.isSynthetic(mappingParserContext.getIndexSettings());
         boolean isDataStream = false;
 
         Iterator<Map.Entry<String, Object>> iterator = mappingSource.entrySet().iterator();
@@ -146,10 +149,6 @@ public final class MappingParser {
                 assert fieldNodeMap.isEmpty();
 
                 if (metadataFieldMapper instanceof SourceFieldMapper sfm) {
-                    // Validation in other places should have failed first
-                    assert sfm.isSynthetic()
-                        || (sfm.isSynthetic() == false && mappingParserContext.getIndexSettings().getMode() != IndexMode.TIME_SERIES)
-                        : "synthetic source can't be disabled in a time series index";
                     isSourceSynthetic = sfm.isSynthetic();
                 }
 

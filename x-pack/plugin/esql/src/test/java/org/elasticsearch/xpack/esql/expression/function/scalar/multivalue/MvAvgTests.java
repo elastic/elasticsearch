@@ -64,11 +64,6 @@ public class MvAvgTests extends AbstractMultivalueFunctionTestCase {
     }
 
     @Override
-    protected DataType[] supportedTypes() {
-        return representableNumerics();
-    }
-
-    @Override
     protected DataType expectedType(List<DataType> argTypes) {
         return DataType.DOUBLE;  // Averages are always a double
     }

@@ -8,16 +8,21 @@
 package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.TransportListTasksAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.license.License;
+import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.license.internal.XPackLicenseStatus;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -35,11 +40,13 @@ import org.elasticsearch.xpack.core.ml.action.PutTrainedModelAction;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfigTests;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinition;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelInputTests;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelType;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfigTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.FillMaskConfigTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.LearningToRankConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ModelPackageConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ModelPackageConfigTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NerConfigTests;
@@ -50,6 +57,7 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextClassification
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextEmbeddingConfigTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextExpansionConfigTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextSimilarityConfigTests;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.langident.LangIdentNeuralNetwork;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
@@ -60,10 +68,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.xpack.ml.utils.TaskRetrieverTests.getTaskInfoListOfOne;
 import static org.elasticsearch.xpack.ml.utils.TaskRetrieverTests.mockClientWithTasksResponse;
 import static org.elasticsearch.xpack.ml.utils.TaskRetrieverTests.mockListTasksClient;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.same;
@@ -73,6 +83,7 @@ import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class TransportPutTrainedModelActionTests extends ESTestCase {
     private static final TimeValue TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
@@ -271,6 +282,56 @@ public class TransportPutTrainedModelActionTests extends ESTestCase {
         verify(actionSpy).callVerifyMlNodesAndModelArchitectures(any(), successListener.capture(), any(), any());
 
         ensureNoWarnings();
+    }
+
+    public void testValidateModelDefinition_FailsWhenLicenseIsNotSupported() throws IOException {
+        ModelPackageConfig packageConfig = ModelPackageConfigTests.randomModulePackageConfig();
+
+        TrainedModelConfig.Builder trainedModelConfigBuilder = new TrainedModelConfig.Builder().setModelId(
+            "." + packageConfig.getPackagedModelId()
+        ).setInput(TrainedModelInputTests.createRandomInput());
+
+        TransportPutTrainedModelAction.setTrainedModelConfigFieldsFromPackagedModel(
+            trainedModelConfigBuilder,
+            packageConfig,
+            xContentRegistry()
+        );
+
+        var mockTrainedModelDefinition = mock(TrainedModelDefinition.class);
+        when(mockTrainedModelDefinition.getTrainedModel()).thenReturn(mock(LangIdentNeuralNetwork.class));
+        var trainedModelConfig = trainedModelConfigBuilder.setLicenseLevel("basic").build();
+
+        var mockModelInferenceConfig = spy(new LearningToRankConfig(1, List.of(), Map.of()));
+        when(mockModelInferenceConfig.isTargetTypeSupported(any())).thenReturn(true);
+
+        var mockTrainedModelConfig = spy(trainedModelConfig);
+        when(mockTrainedModelConfig.getModelType()).thenReturn(TrainedModelType.LANG_IDENT);
+        when(mockTrainedModelConfig.getModelDefinition()).thenReturn(mockTrainedModelDefinition);
+        when(mockTrainedModelConfig.getInferenceConfig()).thenReturn(mockModelInferenceConfig);
+
+        ActionListener<PutTrainedModelAction.Response> responseListener = ActionListener.wrap(
+            response -> fail("Expected exception, but got response: " + response),
+            exception -> {
+                assertThat(exception, instanceOf(ElasticsearchSecurityException.class));
+                assertThat(exception.getMessage(), is("Model of type [learning_to_rank] requires [ENTERPRISE] license level"));
+            }
+        );
+
+        var mockClusterState = mock(ClusterState.class);
+
+        AtomicInteger currentTime = new AtomicInteger(100);
+        var mockXPackLicenseStatus = new XPackLicenseStatus(License.OperationMode.BASIC, true, "");
+        var mockLicenseState = new XPackLicenseState(currentTime::get, mockXPackLicenseStatus);
+
+        assertThat(
+            TransportPutTrainedModelAction.validateModelDefinition(
+                mockTrainedModelConfig,
+                mockClusterState,
+                mockLicenseState,
+                responseListener
+            ),
+            is(false)
+        );
     }
 
     private static void prepareGetTrainedModelResponse(Client client, List<TrainedModelConfig> trainedModels) {

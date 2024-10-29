@@ -5,7 +5,7 @@
 <titleabbrev>Create auto-follow pattern</titleabbrev>
 ++++
 
-Creates an auto-follow pattern.
+Creates a {ccr} <<ccr-auto-follow,auto-follow pattern>>.
 
 [[ccr-put-auto-follow-pattern-request]]
 ==== {api-request-title}

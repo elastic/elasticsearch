@@ -30,7 +30,20 @@ public sealed interface BooleanVector extends Vector permits ConstantBooleanVect
     BooleanVector filter(int... positions);
 
     @Override
+    BooleanBlock keepMask(BooleanVector mask);
+
+    @Override
     ReleasableIterator<? extends BooleanBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize);
+
+    /**
+     * Are all values {@code true}? This will scan all values to check and always answer accurately.
+     */
+    boolean allTrue();
+
+    /**
+     * Are all values {@code false}? This will scan all values to check and always answer accurately.
+     */
+    boolean allFalse();
 
     /**
      * Compares the given object with this vector for equality. Returns {@code true} if and only if the

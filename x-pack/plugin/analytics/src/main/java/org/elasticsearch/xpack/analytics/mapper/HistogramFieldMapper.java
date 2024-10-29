@@ -57,7 +57,6 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Map;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
@@ -99,8 +98,7 @@ public class HistogramFieldMapper extends FieldMapper {
             return new HistogramFieldMapper(
                 leafName(),
                 new HistogramFieldType(context.buildFullName(leafName()), meta.getValue()),
-                multiFieldsBuilder.build(this, context),
-                copyTo,
+                builderParams(this, context),
                 this
             );
         }
@@ -114,14 +112,8 @@ public class HistogramFieldMapper extends FieldMapper {
     private final Explicit<Boolean> ignoreMalformed;
     private final boolean ignoreMalformedByDefault;
 
-    public HistogramFieldMapper(
-        String simpleName,
-        MappedFieldType mappedFieldType,
-        MultiFields multiFields,
-        CopyTo copyTo,
-        Builder builder
-    ) {
-        super(simpleName, mappedFieldType, multiFields, copyTo);
+    public HistogramFieldMapper(String simpleName, MappedFieldType mappedFieldType, BuilderParams builderParams, Builder builder) {
+        super(simpleName, mappedFieldType, builderParams);
         this.ignoreMalformed = builder.ignoreMalformed.getValue();
         this.ignoreMalformedByDefault = builder.ignoreMalformed.getDefaultValue().value();
     }
@@ -241,10 +233,6 @@ public class HistogramFieldMapper extends FieldMapper {
                             return 0; // Unknown
                         }
 
-                        @Override
-                        public void close() {
-
-                        }
                     };
                 }
 
@@ -508,34 +496,20 @@ public class HistogramFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected SyntheticSourceMode syntheticSourceMode() {
-        return SyntheticSourceMode.NATIVE;
-    }
-
-    @Override
-    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-        if (copyTo.copyToFields().isEmpty() != true) {
-            throw new IllegalArgumentException(
-                "field [" + fullPath() + "] of type [histogram] doesn't support synthetic source because it declares copy_to"
-            );
-        }
-
-        return new CompositeSyntheticFieldLoader(
+    protected SyntheticSourceSupport syntheticSourceSupport() {
+        var loader = new CompositeSyntheticFieldLoader(
             leafName(),
             fullPath(),
             new HistogramSyntheticFieldLoader(),
             new CompositeSyntheticFieldLoader.MalformedValuesLayer(fullPath())
         );
+
+        return new SyntheticSourceSupport.Native(loader);
     }
 
-    private class HistogramSyntheticFieldLoader implements CompositeSyntheticFieldLoader.SyntheticFieldLoaderLayer {
+    private class HistogramSyntheticFieldLoader implements CompositeSyntheticFieldLoader.DocValuesLayer {
         private final InternalHistogramValue value = new InternalHistogramValue();
         private BytesRef binaryValue;
-
-        @Override
-        public Stream<Map.Entry<String, SourceLoader.SyntheticFieldLoader.StoredFieldLoader>> storedFieldLoaders() {
-            return Stream.of();
-        }
 
         @Override
         public SourceLoader.SyntheticFieldLoader.DocValuesLoader docValuesLoader(LeafReader leafReader, int[] docIdsInLeaf)

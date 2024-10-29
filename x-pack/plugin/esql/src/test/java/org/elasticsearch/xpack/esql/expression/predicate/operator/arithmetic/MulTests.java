@@ -21,7 +21,6 @@ import java.util.List;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.asLongUnsigned;
-import static org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.AbstractArithmeticTestCase.arithmeticExceptionOverflowCase;
 import static org.hamcrest.Matchers.equalTo;
 
 public class MulTests extends AbstractScalarFunctionTestCase {
@@ -125,7 +124,7 @@ public class MulTests extends AbstractScalarFunctionTestCase {
             )
         );
 
-        return parameterSuppliersFromTypedData(suppliers);
+        return parameterSuppliersFromTypedData(anyNullIsNull(false, suppliers));
     }
 
     @Override

@@ -5,7 +5,7 @@
 <titleabbrev>Pause follower</titleabbrev>
 ++++
 
-Pauses a follower index.
+Pauses a <<xpack-ccr,{ccr}>> follower index.
 
 [[ccr-post-pause-follow-request]]
 ==== {api-request-title}

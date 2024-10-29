@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.search;
@@ -45,6 +46,7 @@ import java.util.Map;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.search.RandomSearchRequestGenerator.randomSearchRequest;
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -469,52 +471,6 @@ public class MultiSearchRequestTests extends ESTestCase {
         );
     }
 
-    public void testEmptyFirstLine1() throws Exception {
-        MultiSearchRequest request = parseMultiSearchRequestFromString("""
-
-
-            { "query": {"match_all": {}}}
-            {}
-            { "query": {"match_all": {}}}
-
-            { "query": {"match_all": {}}}
-            {}
-            { "query": {"match_all": {}}}
-            """, RestApiVersion.V_7);
-        assertThat(request.requests().size(), equalTo(4));
-        for (SearchRequest searchRequest : request.requests()) {
-            assertThat(searchRequest.indices().length, equalTo(0));
-            assertThat(searchRequest.source().query(), instanceOf(MatchAllQueryBuilder.class));
-        }
-        assertCriticalWarnings(
-            "support for empty first line before any action metadata in msearch API is deprecated and will be removed "
-                + "in the next major version"
-        );
-    }
-
-    public void testEmptyFirstLine2() throws Exception {
-        MultiSearchRequest request = parseMultiSearchRequestFromString("""
-
-            {}
-            { "query": {"match_all": {}}}
-
-            { "query": {"match_all": {}}}
-            {}
-            { "query": {"match_all": {}}}
-
-            { "query": {"match_all": {}}}
-            """, RestApiVersion.V_7);
-        assertThat(request.requests().size(), equalTo(4));
-        for (SearchRequest searchRequest : request.requests()) {
-            assertThat(searchRequest.indices().length, equalTo(0));
-            assertThat(searchRequest.source().query(), instanceOf(MatchAllQueryBuilder.class));
-        }
-        assertCriticalWarnings(
-            "support for empty first line before any action metadata in msearch API is deprecated and will be removed "
-                + "in the next major version"
-        );
-    }
-
     public void testTaskDescription() {
         MultiSearchRequest request = new MultiSearchRequest();
         request.add(new SearchRequest().preference("abc"));
@@ -582,11 +538,12 @@ public class MultiSearchRequestTests extends ESTestCase {
                 """, null);
             fail("should have caught second line; extra closing brackets");
         } catch (XContentParseException e) {
-            assertEquals(
-                "[1:31] Unexpected close marker '}': expected ']' (for root starting at "
-                    + "[Source: (byte[])\"{ \"query\": {\"match_all\": {}}}}}}different error message\"; line: 1, column: 0])\n "
-                    + "at [Source: (byte[])\"{ \"query\": {\"match_all\": {}}}}}}different error message\"; line: 1, column: 31]",
-                e.getMessage()
+            assertThat(
+                e.getMessage(),
+                containsString(
+                    "Unexpected close marker '}': expected ']' (for root starting at "
+                        + "[Source: (byte[])\"{ \"query\": {\"match_all\": {}}}}}}different error message\""
+                )
             );
         }
     }

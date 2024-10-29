@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.action.search;
 
@@ -83,15 +84,20 @@ final class DfsQueryPhase extends SearchPhase {
 
         for (final DfsSearchResult dfsResult : searchResults) {
             final SearchShardTarget shardTarget = dfsResult.getSearchShardTarget();
-            Transport.Connection connection = context.getConnection(shardTarget.getClusterAlias(), shardTarget.getNodeId());
-            ShardSearchRequest shardRequest = rewriteShardSearchRequest(dfsResult.getShardSearchRequest());
+            final int shardIndex = dfsResult.getShardIndex();
             QuerySearchRequest querySearchRequest = new QuerySearchRequest(
-                context.getOriginalIndices(dfsResult.getShardIndex()),
+                context.getOriginalIndices(shardIndex),
                 dfsResult.getContextId(),
-                shardRequest,
+                rewriteShardSearchRequest(dfsResult.getShardSearchRequest()),
                 dfs
             );
-            final int shardIndex = dfsResult.getShardIndex();
+            final Transport.Connection connection;
+            try {
+                connection = context.getConnection(shardTarget.getClusterAlias(), shardTarget.getNodeId());
+            } catch (Exception e) {
+                shardFailure(e, querySearchRequest, shardIndex, shardTarget, counter);
+                return;
+            }
             searchTransportService.sendExecuteQuery(
                 connection,
                 querySearchRequest,
@@ -111,10 +117,7 @@ final class DfsQueryPhase extends SearchPhase {
                     @Override
                     public void onFailure(Exception exception) {
                         try {
-                            context.getLogger()
-                                .debug(() -> "[" + querySearchRequest.contextId() + "] Failed to execute query phase", exception);
-                            progressListener.notifyQueryFailure(shardIndex, shardTarget, exception);
-                            counter.onFailure(shardIndex, shardTarget, exception);
+                            shardFailure(exception, querySearchRequest, shardIndex, shardTarget, counter);
                         } finally {
                             if (context.isPartOfPointInTime(querySearchRequest.contextId()) == false) {
                                 // the query might not have been executed at all (for example because thread pool rejected
@@ -131,6 +134,18 @@ final class DfsQueryPhase extends SearchPhase {
                 }
             );
         }
+    }
+
+    private void shardFailure(
+        Exception exception,
+        QuerySearchRequest querySearchRequest,
+        int shardIndex,
+        SearchShardTarget shardTarget,
+        CountedCollector<SearchPhaseResult> counter
+    ) {
+        context.getLogger().debug(() -> "[" + querySearchRequest.contextId() + "] Failed to execute query phase", exception);
+        progressListener.notifyQueryFailure(shardIndex, shardTarget, exception);
+        counter.onFailure(shardIndex, shardTarget, exception);
     }
 
     // package private for testing
@@ -155,7 +170,8 @@ final class DfsQueryPhase extends SearchPhase {
             QueryBuilder query = new KnnScoreDocQueryBuilder(
                 scoreDocs.toArray(Lucene.EMPTY_SCORE_DOCS),
                 source.knnSearch().get(i).getField(),
-                source.knnSearch().get(i).getQueryVector()
+                source.knnSearch().get(i).getQueryVector(),
+                source.knnSearch().get(i).getSimilarity()
             ).boost(source.knnSearch().get(i).boost()).queryName(source.knnSearch().get(i).queryName());
             if (nestedPath != null) {
                 query = new NestedQueryBuilder(nestedPath, query, ScoreMode.Max).innerHit(source.knnSearch().get(i).innerHit());

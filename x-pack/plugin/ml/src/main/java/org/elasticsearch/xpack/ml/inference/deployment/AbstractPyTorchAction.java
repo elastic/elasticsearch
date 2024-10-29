@@ -65,12 +65,18 @@ abstract class AbstractPyTorchAction<T> extends AbstractInitializableRunnable {
     }
 
     void onTimeout() {
+        onTimeout(new ElasticsearchStatusException("timeout [{}] waiting for inference result", RestStatus.REQUEST_TIMEOUT, timeout));
+    }
+
+    void onCancel() {
+        onTimeout(new ElasticsearchStatusException("inference task cancelled", RestStatus.BAD_REQUEST));
+    }
+
+    void onTimeout(Exception e) {
         if (notified.compareAndSet(false, true)) {
             processContext.getTimeoutCount().incrementAndGet();
             processContext.getResultProcessor().ignoreResponseWithoutNotifying(String.valueOf(requestId));
-            listener.onFailure(
-                new ElasticsearchStatusException("timeout [{}] waiting for inference result", RestStatus.REQUEST_TIMEOUT, timeout)
-            );
+            listener.onFailure(e);
             return;
         }
         getLogger().debug("[{}] request [{}] received timeout after [{}] but listener already alerted", deploymentId, requestId, timeout);

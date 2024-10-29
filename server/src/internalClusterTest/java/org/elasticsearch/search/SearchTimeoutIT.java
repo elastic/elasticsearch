@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search;
@@ -63,7 +64,7 @@ public class SearchTimeoutIT extends ESIntegTestCase {
         assertEquals(0, searchResponse.getFailedShards());
         assertThat(searchResponse.getSuccessfulShards(), greaterThan(0));
         assertEquals(searchResponse.getSuccessfulShards(), searchResponse.getTotalShards());
-        assertThat(searchResponse.getHits().getTotalHits().value, greaterThan(0L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), greaterThan(0L));
         assertThat(searchResponse.getHits().getHits().length, greaterThan(0));
     }
 
@@ -80,7 +81,7 @@ public class SearchTimeoutIT extends ESIntegTestCase {
         assertEquals(0, searchResponse.getFailedShards());
         assertThat(searchResponse.getSuccessfulShards(), greaterThan(0));
         assertEquals(searchResponse.getSuccessfulShards(), searchResponse.getTotalShards());
-        assertThat(searchResponse.getHits().getTotalHits().value, greaterThan(0L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), greaterThan(0L));
         assertEquals(searchResponse.getHits().getHits().length, 0);
         StringTerms terms = searchResponse.getAggregations().get("terms");
         assertEquals(1, terms.getBuckets().size());

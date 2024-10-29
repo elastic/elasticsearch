@@ -11,6 +11,7 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -43,6 +44,7 @@ public class ToLongTests extends AbstractScalarFunctionTestCase {
 
         // datetimes
         TestCaseSupplier.forUnaryDatetime(suppliers, read, DataType.LONG, Instant::toEpochMilli, List.of());
+        TestCaseSupplier.forUnaryDateNanos(suppliers, read, DataType.LONG, DateUtils::toLong, List.of());
         // random strings that don't look like a long
         TestCaseSupplier.forUnaryStrings(
             suppliers,
@@ -230,7 +232,7 @@ public class ToLongTests extends AbstractScalarFunctionTestCase {
         return parameterSuppliersFromTypedDataWithDefaultChecks(
             true,
             suppliers,
-            (v, p) -> "boolean or counter_integer or counter_long or datetime or numeric or string"
+            (v, p) -> "boolean or counter_integer or counter_long or date_nanos or datetime or numeric or string"
         );
     }
 

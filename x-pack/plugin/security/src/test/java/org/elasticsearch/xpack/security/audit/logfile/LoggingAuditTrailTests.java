@@ -567,7 +567,15 @@ public class LoggingAuditTrailTests extends ESTestCase {
             randomFrom((RoleDescriptor.ApplicationResourcePrivileges[]) null, new RoleDescriptor.ApplicationResourcePrivileges[0]),
             new ConfigurableClusterPrivilege[] {
                 new ConfigurableClusterPrivileges.WriteProfileDataPrivileges(new LinkedHashSet<>(Arrays.asList("", "\""))),
-                new ConfigurableClusterPrivileges.ManageApplicationPrivileges(Set.of("\"")) },
+                new ConfigurableClusterPrivileges.ManageApplicationPrivileges(Set.of("\"")),
+                new ConfigurableClusterPrivileges.ManageRolesPrivilege(
+                    List.of(
+                        new ConfigurableClusterPrivileges.ManageRolesPrivilege.ManageRolesIndexPermissionGroup(
+                            new String[] { "test*" },
+                            new String[] { "read", "write" }
+                        )
+                    )
+                ) },
             new String[] { "\"[a]/" },
             Map.of(),
             Map.of()
@@ -2636,7 +2644,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         checkedFields.put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
         checkedFields.put(LoggingAuditTrail.URL_PATH_FIELD_NAME, "_uri");
         if (includeRequestBody && Strings.hasLength(request.content())) {
-            checkedFields.put(LoggingAuditTrail.REQUEST_BODY_FIELD_NAME, request.getHttpRequest().content().utf8ToString());
+            checkedFields.put(LoggingAuditTrail.REQUEST_BODY_FIELD_NAME, request.getHttpRequest().body().asFull().bytes().utf8ToString());
         }
         if (params.isEmpty() == false) {
             checkedFields.put(LoggingAuditTrail.URL_QUERY_FIELD_NAME, "foo=bar&evac=true");

@@ -100,7 +100,7 @@ class ValuesBytesRefAggregator {
             }
             BytesRef scratch = new BytesRef();
             if (values.size() == 1) {
-                return blockFactory.newConstantBytesRefBlockWith(values.get(0, scratch), 1);
+                return blockFactory.newConstantBytesRefBlockWith(BytesRef.deepCopyOf(values.get(0, scratch)), 1);
             }
             try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder((int) values.size())) {
                 builder.beginPositionEntry();

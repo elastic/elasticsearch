@@ -11,6 +11,7 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -37,6 +38,13 @@ public class ToDatetimeTests extends AbstractScalarFunctionTestCase {
         final List<TestCaseSupplier> suppliers = new ArrayList<>();
 
         TestCaseSupplier.forUnaryDatetime(suppliers, read, DataType.DATETIME, Instant::toEpochMilli, emptyList());
+        TestCaseSupplier.forUnaryDateNanos(
+            suppliers,
+            "ToDatetimeFromDateNanosEvaluator[field=" + read + "]",
+            DataType.DATETIME,
+            i -> DateUtils.toMilliSeconds(DateUtils.toLong(i)),
+            emptyList()
+        );
 
         TestCaseSupplier.forUnaryInt(
             suppliers,
@@ -126,9 +134,9 @@ public class ToDatetimeTests extends AbstractScalarFunctionTestCase {
             "ToDatetimeFromStringEvaluator[field=" + read + "]",
             List.of(
                 new TestCaseSupplier.TypedDataSupplier(
-                    "<date string before 0001-01-01T00:00:00.000Z>",
-                    // millis before "0001-01-01T00:00:00.000Z"
-                    () -> new BytesRef(randomDateString(Long.MIN_VALUE, -62135596800001L)),
+                    "<date string before -9999-12-31T23:59:59.999Z>",
+                    // millis before "-9999-12-31T23:59:59.999Z"
+                    () -> new BytesRef(randomDateString(Long.MIN_VALUE, -377736739200000L)),
                     DataType.KEYWORD
                 )
             ),
@@ -146,8 +154,8 @@ public class ToDatetimeTests extends AbstractScalarFunctionTestCase {
             "ToDatetimeFromStringEvaluator[field=" + read + "]",
             List.of(
                 new TestCaseSupplier.TypedDataSupplier(
-                    "<date string before 0001-01-01T00:00:00.000Z>",
-                    // millis before "0001-01-01T00:00:00.000Z"
+                    "<date string after 9999-12-31T23:59:59.999Z>",
+                    // millis after "9999-12-31T23:59:59.999Z"
                     () -> new BytesRef(randomDateString(253402300800000L, Long.MAX_VALUE)),
                     DataType.KEYWORD
                 )
@@ -162,7 +170,7 @@ public class ToDatetimeTests extends AbstractScalarFunctionTestCase {
             )
         );
 
-        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers, (v, p) -> "datetime or numeric or string");
+        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers, (v, p) -> "date_nanos or datetime or numeric or string");
     }
 
     private static String randomDateString(long from, long to) {

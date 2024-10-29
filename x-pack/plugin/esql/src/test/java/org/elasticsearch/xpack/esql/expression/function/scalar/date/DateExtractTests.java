@@ -20,7 +20,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractConfigurationFunctionTestCase;
-import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.time.Instant;
 import java.time.ZonedDateTime;
@@ -130,7 +130,7 @@ public class DateExtractTests extends AbstractConfigurationFunctionTestCase {
     }
 
     @Override
-    protected Expression buildWithConfiguration(Source source, List<Expression> args, EsqlConfiguration configuration) {
+    protected Expression buildWithConfiguration(Source source, List<Expression> args, Configuration configuration) {
         return new DateExtract(source, args.get(0), args.get(1), configuration);
     }
 }

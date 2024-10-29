@@ -1,0 +1,5 @@
+pr: 112123
+summary: SLM interval schedule followup - add back `getFieldName` style getters
+area: ILM+SLM
+type: enhancement
+issues: []

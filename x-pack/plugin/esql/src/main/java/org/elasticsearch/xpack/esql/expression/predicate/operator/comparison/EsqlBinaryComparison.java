@@ -22,16 +22,15 @@ import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cast;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
 
 import java.io.IOException;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.commonType;
 
 public abstract class EsqlBinaryComparison extends BinaryComparison implements EvaluatorMapper {
     public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
@@ -168,11 +167,9 @@ public abstract class EsqlBinaryComparison extends BinaryComparison implements E
     }
 
     @Override
-    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(
-        Function<Expression, EvalOperator.ExpressionEvaluator.Factory> toEvaluator
-    ) {
+    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         // Our type is always boolean, so figure out the evaluator type from the inputs
-        DataType commonType = EsqlDataTypeRegistry.INSTANCE.commonType(left().dataType(), right().dataType());
+        DataType commonType = commonType(left().dataType(), right().dataType());
         EvalOperator.ExpressionEvaluator.Factory lhs;
         EvalOperator.ExpressionEvaluator.Factory rhs;
 

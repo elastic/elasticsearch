@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plan.logical;
 
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -28,6 +29,16 @@ public class Explain extends LeafPlan {
     public Explain(Source source, LogicalPlan query) {
         super(source);
         this.query = query;
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) {
+        throw new UnsupportedOperationException("not serialized");
+    }
+
+    @Override
+    public String getWriteableName() {
+        throw new UnsupportedOperationException("not serialized");
     }
 
     // TODO: implement again
@@ -56,6 +67,11 @@ public class Explain extends LeafPlan {
             new ReferenceAttribute(Source.EMPTY, "plan", DataType.KEYWORD),
             new ReferenceAttribute(Source.EMPTY, "type", DataType.KEYWORD)
         );
+    }
+
+    @Override
+    public String commandName() {
+        return "EXPLAIN";
     }
 
     @Override

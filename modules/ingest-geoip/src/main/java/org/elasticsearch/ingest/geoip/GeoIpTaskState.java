@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest.geoip;
@@ -40,11 +41,10 @@ import static org.elasticsearch.persistent.PersistentTasksCustomMetadata.getTask
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
-class GeoIpTaskState implements PersistentTaskState, VersionedNamedWriteable {
+public class GeoIpTaskState implements PersistentTaskState, VersionedNamedWriteable {
 
     private static boolean includeSha256(TransportVersion version) {
-        return version.isPatchFrom(TransportVersions.ENTERPRISE_GEOIP_DOWNLOADER_BACKPORT_8_15)
-            || version.onOrAfter(TransportVersions.ENTERPRISE_GEOIP_DOWNLOADER);
+        return version.isPatchFrom(TransportVersions.V_8_15_0) || version.onOrAfter(TransportVersions.ENTERPRISE_GEOIP_DOWNLOADER);
     }
 
     private static final ParseField DATABASES = new ParseField("databases");
@@ -149,7 +149,7 @@ class GeoIpTaskState implements PersistentTaskState, VersionedNamedWriteable {
         });
     }
 
-    record Metadata(long lastUpdate, int firstChunk, int lastChunk, String md5, long lastCheck, @Nullable String sha256)
+    public record Metadata(long lastUpdate, int firstChunk, int lastChunk, String md5, long lastCheck, @Nullable String sha256)
         implements
             ToXContentObject {
 
@@ -197,7 +197,7 @@ class GeoIpTaskState implements PersistentTaskState, VersionedNamedWriteable {
             }
         }
 
-        Metadata {
+        public Metadata {
             Objects.requireNonNull(md5);
         }
 

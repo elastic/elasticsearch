@@ -4,7 +4,7 @@
 <titleabbrev>Modify data streams</titleabbrev>
 ++++
 
-Performs one or more data stream modification actions in a single atomic
+Performs one or more <<data-streams,data stream>> modification actions in a single atomic
 operation.
 
 [source,console]

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster;
@@ -240,9 +241,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
     }
 
     private boolean assertEventIngestedIsUnknownInMixedClusters(Metadata metadata, CompatibilityVersions compatibilityVersions) {
-        if (compatibilityVersions.transportVersion().before(TransportVersions.EVENT_INGESTED_RANGE_IN_CLUSTER_STATE)
-            && metadata != null
-            && metadata.indices() != null) {
+        if (compatibilityVersions.transportVersion().before(TransportVersions.V_8_15_0) && metadata != null && metadata.indices() != null) {
             for (IndexMetadata indexMetadata : metadata.indices().values()) {
                 assert indexMetadata.getEventIngestedRange() == IndexLongFieldRange.UNKNOWN
                     : "event.ingested range should be UNKNOWN but is "
@@ -758,10 +757,8 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
 
             // customs
             metrics.contains(Metric.CUSTOMS)
-                ? Iterators.flatMap(
-                    customs.entrySet().iterator(),
-                    cursor -> ChunkedToXContentHelper.wrapWithObject(cursor.getKey(), cursor.getValue().toXContentChunked(outerParams))
-                )
+                ? ChunkedToXContent.builder(outerParams)
+                    .forEach(customs.entrySet().iterator(), (b, e) -> b.xContentObject(e.getKey(), e.getValue()))
                 : Collections.emptyIterator()
         );
     }
@@ -984,7 +981,9 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
                 routingTable,
                 nodes,
                 compatibilityVersions,
-                new ClusterFeatures(nodeFeatures),
+                previous != null && getNodeFeatures(previous.clusterFeatures).equals(nodeFeatures)
+                    ? previous.clusterFeatures
+                    : new ClusterFeatures(nodeFeatures),
                 blocks,
                 customs.build(),
                 fromDiff,
@@ -1081,7 +1080,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         routingTable.writeTo(out);
         nodes.writeTo(out);
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            out.writeMap(compatibilityVersions, (streamOutput, versions) -> versions.writeTo(streamOutput));
+            out.writeMap(compatibilityVersions, StreamOutput::writeWriteable);
         }
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             clusterFeatures.writeTo(out);

@@ -1,15 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.features;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -27,6 +30,16 @@ import static org.elasticsearch.features.FeatureService.CLUSTER_FEATURES_ADDED_V
  * features for the consumption of {@link FeatureService}
  */
 public class FeatureData {
+
+    private static final Logger Log = LogManager.getLogger(FeatureData.class);
+    private static final boolean INCLUDE_TEST_FEATURES = System.getProperty("tests.testfeatures.enabled", "").equals("true");
+
+    static {
+        if (INCLUDE_TEST_FEATURES) {
+            Log.warn("WARNING: Test features are enabled. This should ONLY be used in automated tests.");
+        }
+    }
+
     private final NavigableMap<Version, Set<String>> historicalFeatures;
     private final Map<String, NodeFeature> nodeFeatures;
 
@@ -42,7 +55,11 @@ public class FeatureData {
         NavigableMap<Version, Set<String>> historicalFeatures = new TreeMap<>(Map.of(Version.V_EMPTY, Set.of()));
         Map<String, NodeFeature> nodeFeatures = new HashMap<>();
         for (FeatureSpecification spec : specs) {
-            var specFeatures = spec.getFeatures();
+            Set<NodeFeature> specFeatures = spec.getFeatures();
+            if (INCLUDE_TEST_FEATURES) {
+                specFeatures = new HashSet<>(specFeatures);
+                specFeatures.addAll(spec.getTestFeatures());
+            }
 
             for (var hfe : spec.getHistoricalFeatures().entrySet()) {
                 FeatureSpecification existing = allFeatures.putIfAbsent(hfe.getKey().id(), spec);

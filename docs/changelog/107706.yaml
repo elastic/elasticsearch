@@ -1,5 +1,0 @@
-pr: 107706
-summary: Add rate limiting support for the Inference API
-area: Machine Learning
-type: enhancement
-issues: []

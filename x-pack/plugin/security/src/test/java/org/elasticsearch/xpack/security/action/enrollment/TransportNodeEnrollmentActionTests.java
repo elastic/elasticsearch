@@ -113,7 +113,7 @@ public class TransportNodeEnrollmentActionTests extends ESTestCase {
                     null,
                     null,
                     null,
-                    new TransportInfo(new BoundTransportAddress(new TransportAddress[] { n.getAddress() }, n.getAddress()), null, false),
+                    new TransportInfo(new BoundTransportAddress(new TransportAddress[] { n.getAddress() }, n.getAddress()), null),
                     null,
                     null,
                     null,

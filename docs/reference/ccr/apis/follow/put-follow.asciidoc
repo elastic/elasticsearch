@@ -5,7 +5,7 @@
 <titleabbrev>Create follower</titleabbrev>
 ++++
 
-Creates a follower index.
+Creates a <<xpack-ccr,{ccr}>> follower index.
 
 [[ccr-put-follow-request]]
 ==== {api-request-title}

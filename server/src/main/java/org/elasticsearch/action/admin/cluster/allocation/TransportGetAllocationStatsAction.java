@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.allocation;
@@ -25,12 +26,12 @@ import org.elasticsearch.cluster.routing.allocation.AllocationStatsService;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationStats;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.FeatureService;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -108,6 +109,7 @@ public class TransportGetAllocationStatsAction extends TransportMasterNodeReadAc
 
         private final EnumSet<Metric> metrics;
 
+        @SuppressWarnings("this-escape")
         public Request(TimeValue masterNodeTimeout, TaskId parentTaskId, EnumSet<Metric> metrics) {
             super(masterNodeTimeout);
             setParentTask(parentTaskId);
@@ -154,7 +156,7 @@ public class TransportGetAllocationStatsAction extends TransportMasterNodeReadAc
         public Response(StreamInput in) throws IOException {
             super(in);
             this.nodeAllocationStats = in.readImmutableMap(StreamInput::readString, NodeAllocationStats::new);
-            if (in.getTransportVersion().onOrAfter(TransportVersions.WATERMARK_THRESHOLDS_STATS)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
                 this.diskThresholdSettings = in.readOptionalWriteable(DiskThresholdSettings::readFrom);
             } else {
                 this.diskThresholdSettings = null;
@@ -164,7 +166,7 @@ public class TransportGetAllocationStatsAction extends TransportMasterNodeReadAc
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeMap(nodeAllocationStats, StreamOutput::writeString, StreamOutput::writeWriteable);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.WATERMARK_THRESHOLDS_STATS)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
                 out.writeOptionalWriteable(diskThresholdSettings);
             } else {
                 assert diskThresholdSettings == null;

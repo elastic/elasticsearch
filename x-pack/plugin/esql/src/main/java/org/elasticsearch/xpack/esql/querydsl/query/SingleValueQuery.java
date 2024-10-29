@@ -16,6 +16,8 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
@@ -24,14 +26,12 @@ import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
+import org.elasticsearch.xpack.esql.core.tree.Location;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.expression.function.Warnings;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
 import java.util.Objects;
-
-import static org.elasticsearch.xpack.esql.core.util.SourceUtils.readSource;
-import static org.elasticsearch.xpack.esql.core.util.SourceUtils.writeSource;
 
 /**
  * Lucene query that wraps another query and only selects documents that match
@@ -107,11 +107,20 @@ public class SingleValueQuery extends Query {
             super(in);
             this.next = in.readNamedWriteable(QueryBuilder.class);
             this.field = in.readString();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-                this.source = readSource(in);
+            if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_SINGLE_VALUE_QUERY_SOURCE)) {
+                if (in instanceof PlanStreamInput psi) {
+                    this.source = Source.readFrom(psi);
+                } else {
+                    /*
+                     * For things like CanMatchNodeRequest we serialize without the Source. But we
+                     * don't use it, so that's ok.
+                     */
+                    this.source = Source.readEmpty(in);
+                }
+            } else if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
+                this.source = readOldSource(in);
             } else {
                 this.source = Source.EMPTY;
-
             }
         }
 
@@ -119,8 +128,10 @@ public class SingleValueQuery extends Query {
         protected void doWriteTo(StreamOutput out) throws IOException {
             out.writeNamedWriteable(next);
             out.writeString(field);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-                writeSource(out, source);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_SINGLE_VALUE_QUERY_SOURCE)) {
+                source.writeTo(out);
+            } else if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
+                writeOldSource(out, source);
             }
         }
 
@@ -163,7 +174,12 @@ public class SingleValueQuery extends Query {
             }
             SingleValueMatchQuery singleValueQuery = new SingleValueMatchQuery(
                 context.getForField(ft, MappedFieldType.FielddataOperation.SEARCH),
-                new Warnings(source)
+                Warnings.createWarnings(
+                    DriverContext.WarningsMode.COLLECT,
+                    source.source().getLineNumber(),
+                    source.source().getColumnNumber(),
+                    source.text()
+                )
             );
             org.apache.lucene.search.Query rewrite = singleValueQuery.rewrite(context.searcher());
             if (rewrite instanceof MatchAllDocsQuery) {
@@ -199,4 +215,24 @@ public class SingleValueQuery extends Query {
         }
     }
 
+    /**
+     * Write a {@link Source} including the text in it.
+     */
+    static void writeOldSource(StreamOutput out, Source source) throws IOException {
+        out.writeInt(source.source().getLineNumber());
+        out.writeInt(source.source().getColumnNumber());
+        out.writeString(source.text());
+    }
+
+    /**
+     * Read a {@link Source} including the text in it.
+     */
+    static Source readOldSource(StreamInput in) throws IOException {
+        int line = in.readInt();
+        int column = in.readInt();
+        int charPositionInLine = column - 1;
+
+        String text = in.readString();
+        return new Source(new Location(line, charPositionInLine), text);
+    }
 }

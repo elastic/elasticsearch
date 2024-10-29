@@ -1,15 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.retriever;
 
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -18,6 +20,8 @@ import org.elasticsearch.index.query.RandomQueryBuilder;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.rank.RankDoc;
+import org.elasticsearch.search.retriever.rankdoc.RankDocsQueryBuilder;
 import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.usage.SearchUsage;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -70,7 +74,7 @@ public class KnnRetrieverBuilderParsingTests extends AbstractXContentTestCase<Kn
 
     @Override
     protected KnnRetrieverBuilder doParseInstance(XContentParser parser) throws IOException {
-        return KnnRetrieverBuilder.fromXContent(
+        return (KnnRetrieverBuilder) RetrieverBuilder.parseTopLevelRetrieverBuilder(
             parser,
             new RetrieverParserContext(
                 new SearchUsage(),
@@ -98,6 +102,32 @@ public class KnnRetrieverBuilderParsingTests extends AbstractXContentTestCase<Kn
                         equalTo(knnRetriever.preFilterQueryBuilders.get(j))
                     )
                 );
+            }
+        }
+    }
+
+    public void testIsCompound() {
+        KnnRetrieverBuilder knnRetriever = createRandomKnnRetrieverBuilder();
+        assertFalse(knnRetriever.isCompound());
+    }
+
+    public void testTopDocsQuery() {
+        KnnRetrieverBuilder knnRetriever = createRandomKnnRetrieverBuilder();
+        knnRetriever.rankDocs = new RankDoc[] {
+            new RankDoc(0, randomFloat(), 0),
+            new RankDoc(10, randomFloat(), 0),
+            new RankDoc(20, randomFloat(), 1),
+            new RankDoc(25, randomFloat(), 1), };
+        final int preFilters = knnRetriever.preFilterQueryBuilders.size();
+        QueryBuilder topDocsQuery = knnRetriever.topDocsQuery();
+        assertNotNull(topDocsQuery);
+        assertThat(topDocsQuery, anyOf(instanceOf(RankDocsQueryBuilder.class), instanceOf(BoolQueryBuilder.class)));
+        if (topDocsQuery instanceof BoolQueryBuilder bq) {
+            assertThat(bq.must().size(), equalTo(1));
+            assertThat(bq.must().get(0), instanceOf(RankDocsQueryBuilder.class));
+            assertThat(bq.filter().size(), equalTo(preFilters));
+            for (int i = 0; i < preFilters; i++) {
+                assertThat(bq.filter().get(i), instanceOf(knnRetriever.preFilterQueryBuilders.get(i).getClass()));
             }
         }
     }

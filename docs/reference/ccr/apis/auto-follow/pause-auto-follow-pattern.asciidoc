@@ -5,7 +5,7 @@
 <titleabbrev>Pause auto-follow pattern</titleabbrev>
 ++++
 
-Pauses an auto-follow pattern.
+Pauses a {ccr} <<ccr-auto-follow,auto-follow pattern>>.
 
 [[ccr-pause-auto-follow-pattern-request]]
 ==== {api-request-title}

@@ -65,7 +65,7 @@ public class MvSumTests extends AbstractMultivalueFunctionTestCase {
             data.add(asLongUnsigned(UNSIGNED_LONG_MAX));
             return data;
         }));
-        return parameterSuppliersFromTypedData(cases);
+        return parameterSuppliersFromTypedData(anyNullIsNull(false, cases));
     }
 
     private static TestCaseSupplier arithmeticExceptionCase(DataType dataType, Supplier<Object> dataSupplier) {
@@ -86,10 +86,5 @@ public class MvSumTests extends AbstractMultivalueFunctionTestCase {
     @Override
     protected Expression build(Source source, Expression field) {
         return new MvSum(source, field);
-    }
-
-    @Override
-    protected DataType[] supportedTypes() {
-        return representableNumerics();
     }
 }

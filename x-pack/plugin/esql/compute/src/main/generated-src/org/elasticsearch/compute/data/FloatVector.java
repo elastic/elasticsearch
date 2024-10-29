@@ -30,6 +30,9 @@ public sealed interface FloatVector extends Vector permits ConstantFloatVector, 
     FloatVector filter(int... positions);
 
     @Override
+    FloatBlock keepMask(BooleanVector mask);
+
+    @Override
     ReleasableIterator<? extends FloatBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize);
 
     /**

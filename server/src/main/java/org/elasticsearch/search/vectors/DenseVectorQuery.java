@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.vectors;
@@ -18,6 +19,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.VectorScorer;
 import org.apache.lucene.search.Weight;
 
@@ -69,12 +71,12 @@ public abstract class DenseVectorQuery extends Query {
         }
 
         @Override
-        public Scorer scorer(LeafReaderContext leafReaderContext) throws IOException {
-            VectorScorer vectorScorer = vectorScorer(leafReaderContext);
+        public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
+            VectorScorer vectorScorer = vectorScorer(context);
             if (vectorScorer == null) {
                 return null;
             }
-            return new DenseVectorScorer(this, vectorScorer);
+            return new DefaultScorerSupplier(new DenseVectorScorer(vectorScorer, boost));
         }
 
         @Override
@@ -177,11 +179,10 @@ public abstract class DenseVectorQuery extends Query {
         private final DocIdSetIterator iterator;
         private final float boost;
 
-        DenseVectorScorer(DenseVectorWeight weight, VectorScorer vectorScorer) {
-            super(weight);
+        DenseVectorScorer(VectorScorer vectorScorer, float boost) {
             this.vectorScorer = vectorScorer;
             this.iterator = vectorScorer.iterator();
-            this.boost = weight.boost;
+            this.boost = boost;
         }
 
         @Override

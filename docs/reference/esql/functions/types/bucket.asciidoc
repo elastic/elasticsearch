@@ -5,9 +5,17 @@
 [%header.monospaced.styled,format=dsv,separator=|]
 |===
 field | buckets | from | to | result
-datetime | date_period | | | datetime
-datetime | integer | datetime | datetime | datetime
-datetime | time_duration | | | datetime
+date | date_period | | | date
+date | integer | date | date | date
+date | integer | date | keyword | date
+date | integer | date | text | date
+date | integer | keyword | date | date
+date | integer | keyword | keyword | date
+date | integer | keyword | text | date
+date | integer | text | date | date
+date | integer | text | keyword | date
+date | integer | text | text | date
+date | time_duration | | | date
 double | double | | | double
 double | integer | double | double | double
 double | integer | double | integer | double
@@ -18,6 +26,8 @@ double | integer | integer | long | double
 double | integer | long | double | double
 double | integer | long | integer | double
 double | integer | long | long | double
+double | integer | | | double
+double | long | | | double
 integer | double | | | double
 integer | integer | double | double | double
 integer | integer | double | integer | double
@@ -28,6 +38,8 @@ integer | integer | integer | long | double
 integer | integer | long | double | double
 integer | integer | long | integer | double
 integer | integer | long | long | double
+integer | integer | | | double
+integer | long | | | double
 long | double | | | double
 long | integer | double | double | double
 long | integer | double | integer | double
@@ -38,4 +50,6 @@ long | integer | integer | long | double
 long | integer | long | double | double
 long | integer | long | integer | double
 long | integer | long | long | double
+long | integer | | | double
+long | long | | | double
 |===

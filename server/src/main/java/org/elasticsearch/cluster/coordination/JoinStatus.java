@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.coordination;
@@ -24,7 +25,7 @@ public record JoinStatus(DiscoveryNode remoteNode, long term, String message, Ti
             new DiscoveryNode(in),
             in.readLong(),
             in.readString(),
-            in.getTransportVersion().onOrAfter(TransportVersions.JOIN_STATUS_AGE_SERIALIZATION)
+            in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)
                 ? in.readTimeValue()
                 : new TimeValue(in.readLong(), TimeUnit.valueOf(in.readString()))
         );
@@ -35,7 +36,7 @@ public record JoinStatus(DiscoveryNode remoteNode, long term, String message, Ti
         remoteNode.writeTo(out);
         out.writeLong(term);
         out.writeString(message);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.JOIN_STATUS_AGE_SERIALIZATION)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
             out.writeTimeValue(age);
         } else {
             out.writeLong(age.duration());

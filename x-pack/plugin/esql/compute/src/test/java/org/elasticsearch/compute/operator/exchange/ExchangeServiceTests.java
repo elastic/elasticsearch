@@ -91,7 +91,7 @@ public class ExchangeServiceTests extends ESTestCase {
         for (int i = 0; i < pages.length; i++) {
             pages[i] = new Page(blockFactory.newConstantIntBlockWith(i, 2));
         }
-        ExchangeSinkHandler sinkExchanger = new ExchangeSinkHandler(blockFactory, 2, threadPool::relativeTimeInMillis);
+        ExchangeSinkHandler sinkExchanger = new ExchangeSinkHandler(blockFactory, 2, threadPool.relativeTimeInMillisSupplier());
         ExchangeSink sink1 = sinkExchanger.createExchangeSink();
         ExchangeSink sink2 = sinkExchanger.createExchangeSink();
         ExchangeSourceHandler sourceExchanger = new ExchangeSourceHandler(3, threadPool.executor(ESQL_TEST_EXECUTOR));
@@ -99,40 +99,40 @@ public class ExchangeServiceTests extends ESTestCase {
         sourceExchanger.addCompletionListener(sourceCompletion);
         ExchangeSource source = sourceExchanger.createExchangeSource();
         sourceExchanger.addRemoteSink(sinkExchanger::fetchPageAsync, 1);
-        SubscribableListener<Void> waitForReading = source.waitForReading();
+        SubscribableListener<Void> waitForReading = source.waitForReading().listener();
         assertFalse(waitForReading.isDone());
         assertNull(source.pollPage());
-        assertTrue(sink1.waitForWriting().isDone());
+        assertTrue(sink1.waitForWriting().listener().isDone());
         randomFrom(sink1, sink2).addPage(pages[0]);
         randomFrom(sink1, sink2).addPage(pages[1]);
         // source and sink buffers can store 5 pages
         for (Page p : List.of(pages[2], pages[3], pages[4])) {
             ExchangeSink sink = randomFrom(sink1, sink2);
-            assertBusy(() -> assertTrue(sink.waitForWriting().isDone()));
+            assertBusy(() -> assertTrue(sink.waitForWriting().listener().isDone()));
             sink.addPage(p);
         }
         // sink buffer is full
-        assertFalse(randomFrom(sink1, sink2).waitForWriting().isDone());
-        assertBusy(() -> assertTrue(source.waitForReading().isDone()));
+        assertFalse(randomFrom(sink1, sink2).waitForWriting().listener().isDone());
+        assertBusy(() -> assertTrue(source.waitForReading().listener().isDone()));
         assertEquals(pages[0], source.pollPage());
-        assertBusy(() -> assertTrue(source.waitForReading().isDone()));
+        assertBusy(() -> assertTrue(source.waitForReading().listener().isDone()));
         assertEquals(pages[1], source.pollPage());
         // sink can write again
-        assertBusy(() -> assertTrue(randomFrom(sink1, sink2).waitForWriting().isDone()));
+        assertBusy(() -> assertTrue(randomFrom(sink1, sink2).waitForWriting().listener().isDone()));
         randomFrom(sink1, sink2).addPage(pages[5]);
-        assertBusy(() -> assertTrue(randomFrom(sink1, sink2).waitForWriting().isDone()));
+        assertBusy(() -> assertTrue(randomFrom(sink1, sink2).waitForWriting().listener().isDone()));
         randomFrom(sink1, sink2).addPage(pages[6]);
         // sink buffer is full
-        assertFalse(randomFrom(sink1, sink2).waitForWriting().isDone());
+        assertFalse(randomFrom(sink1, sink2).waitForWriting().listener().isDone());
         sink1.finish();
         assertTrue(sink1.isFinished());
         for (int i = 0; i < 5; i++) {
-            assertBusy(() -> assertTrue(source.waitForReading().isDone()));
+            assertBusy(() -> assertTrue(source.waitForReading().listener().isDone()));
             assertEquals(pages[2 + i], source.pollPage());
         }
         // source buffer is empty
-        assertFalse(source.waitForReading().isDone());
-        assertBusy(() -> assertTrue(sink2.waitForWriting().isDone()));
+        assertFalse(source.waitForReading().listener().isDone());
+        assertBusy(() -> assertTrue(sink2.waitForWriting().listener().isDone()));
         sink2.finish();
         assertTrue(sink2.isFinished());
         assertTrue(source.isFinished());
@@ -334,7 +334,7 @@ public class ExchangeServiceTests extends ESTestCase {
             if (sinkHandlers.isEmpty() == false && randomBoolean()) {
                 sinkHandler = randomFrom(sinkHandlers);
             } else {
-                sinkHandler = new ExchangeSinkHandler(blockFactory, randomExchangeBuffer(), threadPool::relativeTimeInMillis);
+                sinkHandler = new ExchangeSinkHandler(blockFactory, randomExchangeBuffer(), threadPool.relativeTimeInMillisSupplier());
                 sourceExchanger.addRemoteSink(sinkHandler::fetchPageAsync, randomIntBetween(1, 3));
                 sinkHandlers.add(sinkHandler);
             }
@@ -352,17 +352,17 @@ public class ExchangeServiceTests extends ESTestCase {
         IntBlock block2 = blockFactory.newConstantIntBlockWith(1, 2);
         Page p1 = new Page(block1);
         Page p2 = new Page(block2);
-        ExchangeSinkHandler sinkExchanger = new ExchangeSinkHandler(blockFactory, 2, threadPool::relativeTimeInMillis);
+        ExchangeSinkHandler sinkExchanger = new ExchangeSinkHandler(blockFactory, 2, threadPool.relativeTimeInMillisSupplier());
         ExchangeSink sink = sinkExchanger.createExchangeSink();
         sink.addPage(p1);
         sink.addPage(p2);
-        assertFalse(sink.waitForWriting().isDone());
+        assertFalse(sink.waitForWriting().listener().isDone());
         PlainActionFuture<ExchangeResponse> future = new PlainActionFuture<>();
         sinkExchanger.fetchPageAsync(true, future);
         ExchangeResponse resp = future.actionGet();
         assertTrue(resp.finished());
         assertNull(resp.takePage());
-        assertTrue(sink.waitForWriting().isDone());
+        assertTrue(sink.waitForWriting().listener().isDone());
         assertTrue(sink.isFinished());
     }
 
@@ -441,7 +441,7 @@ public class ExchangeServiceTests extends ESTestCase {
             PlainActionFuture<Void> sourceCompletionFuture = new PlainActionFuture<>();
             sourceHandler.addCompletionListener(sourceCompletionFuture);
             ExchangeSinkHandler sinkHandler = exchange1.createSinkHandler(exchangeId, randomIntBetween(1, 128));
-            Transport.Connection connection = node0.getConnection(node1.getLocalDiscoNode());
+            Transport.Connection connection = node0.getConnection(node1.getLocalNode());
             sourceHandler.addRemoteSink(exchange0.newRemoteSink(task, exchangeId, node0, connection), randomIntBetween(1, 5));
             Exception err = expectThrows(
                 Exception.class,

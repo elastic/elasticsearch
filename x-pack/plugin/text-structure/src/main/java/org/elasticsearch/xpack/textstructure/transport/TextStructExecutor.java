@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.textstructure.transport;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.common.CheckedSupplier;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.concurrent.ExecutorService;

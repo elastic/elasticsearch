@@ -261,9 +261,11 @@ multiple deployments may share the same bucket.
 
 `chunk_size`::
 
-    (<<byte-units,byte value>>) Big files can be broken down into chunks during snapshotting if needed.
-    Specify the chunk size as a value and unit, for example:
-    `1TB`, `1GB`, `10MB`. Defaults to the maximum size of a blob in the S3 which is `5TB`.
+    (<<byte-units,byte value>>) The maximum size of object that {es} will write to the repository
+    when creating a snapshot. Files which are larger than `chunk_size` will be chunked into several
+    smaller objects. {es} may also split a file across multiple objects to satisfy other constraints
+    such as the `max_multipart_parts` limit. Defaults to `5TB` which is the
+    https://docs.aws.amazon.com/AmazonS3/latest/userguide/qfacts.html[maximum size of an object in AWS S3].
 
 `compress`::
 
@@ -292,6 +294,13 @@ include::repository-shared-settings.asciidoc[]
     size allowed by S3. Defaults to `100mb` or `5%` of JVM heap, whichever is
     smaller.
 
+`max_multipart_parts` ::
+
+    (integer) The maximum number of parts that {es} will write during a multipart upload of a single object. Files which are larger than
+    `buffer_size × max_multipart_parts` will be chunked into several smaller objects. {es} may also split a file across multiple objects to
+    satisfy other constraints such as the `chunk_size` limit. Defaults to `10000` which is the
+    https://docs.aws.amazon.com/AmazonS3/latest/userguide/qfacts.html[maximum number of parts in a multipart upload in AWS S3].
+
 `canned_acl`::
 
     The S3 repository supports all
@@ -311,11 +320,33 @@ include::repository-shared-settings.asciidoc[]
 
 `delete_objects_max_size`::
 
-    (<<number,numeric>>) Sets the maxmimum batch size, betewen 1 and 1000, used
-    for `DeleteObjects` requests. Defaults to 1000 which is the maximum number
-    supported by the
-    https://docs.aws.amazon.com/AmazonS3/latest/API/API_DeleteObjects.html[AWS
-    DeleteObjects API].
+    (integer) Sets the maxmimum batch size, betewen 1 and 1000, used for `DeleteObjects` requests. Defaults to 1000 which is the maximum
+    number supported by the https://docs.aws.amazon.com/AmazonS3/latest/API/API_DeleteObjects.html[AWS DeleteObjects API].
+
+`max_multipart_upload_cleanup_size`::
+
+    (integer) Sets the maximum number of possibly-dangling multipart uploads to clean up in each batch of snapshot deletions. Defaults to
+    `1000` which is the maximum number supported by the https://docs.aws.amazon.com/AmazonS3/latest/API/API_ListMultipartUploads.html[AWS
+    ListMultipartUploads API]. If set to `0`, {es} will not attempt to clean up dangling multipart uploads.
+
+`throttled_delete_retry.delay_increment`::
+
+    (<<time-units,time value>>) This value is used as the delay before the first retry and the amount the delay is incremented by on each subsequent retry. Default is 50ms, minimum is 0ms.
+
+`throttled_delete_retry.maximum_delay`::
+
+    (<<time-units,time value>>) This is the upper bound on how long the delays between retries will grow to. Default is 5s, minimum is 0ms.
+
+`throttled_delete_retry.maximum_number_of_retries`::
+
+    (integer) Sets the number times to retry a throttled snapshot deletion. Defaults to `10`, minimum value is `0` which
+    will disable retries altogether. Note that if retries are enabled in the Azure client, each of these retries
+    comprises that many client-level retries.
+
+`get_register_retry_delay`
+
+    (<<time-units,time value>>) Sets the time to wait before trying again if an attempt to read a
+    <<repository-s3-linearizable-registers,linearizable register>> fails. Defaults to `5s`.
 
 NOTE: The option of defining client settings in the repository settings as
 documented below is considered deprecated, and will be removed in a future
@@ -369,7 +400,7 @@ If you use a Glacier storage class, or another unsupported storage class, or
 object expiry, then you may permanently lose access to your repository
 contents.
 
-You may use the `intellligent_tiering` storage class to automatically manage
+You may use the `intelligent_tiering` storage class to automatically manage
 the class of objects, but you must not enable the optional Archive Access or
 Deep Archive Access tiers. If you use these tiers then you may permanently lose
 access to your repository contents.
@@ -491,33 +522,6 @@ IMPORTANT: The symlink must be created on all data and master eligible nodes and
 by the `elasticsearch` user. By default, {es} runs as user `elasticsearch` using uid:gid `1000:0`.
 
 If the symlink exists, it will be used by default by all S3 repositories that don't have explicit `client` credentials.
-
-==== Cleaning up multi-part uploads
-
-{es} uses S3's multi-part upload process to upload larger blobs to the
-repository. The multi-part upload process works by dividing each blob into
-smaller parts, uploading each part independently, and then completing the
-upload in a separate step. This reduces the amount of data that {es} must
-re-send if an upload fails: {es} only needs to re-send the part that failed
-rather than starting from the beginning of the whole blob. The storage for each
-part is charged independently starting from the time at which the part was
-uploaded.
-
-If a multi-part upload cannot be completed then it must be aborted in order to
-delete any parts that were successfully uploaded, preventing further storage
-charges from accumulating. {es} will automatically abort a multi-part upload on
-failure, but sometimes the abort request itself fails. For example, if the
-repository becomes inaccessible or the instance on which {es} is running is
-terminated abruptly then {es} cannot complete or abort any ongoing uploads.
-
-You must make sure that failed uploads are eventually aborted to avoid
-unnecessary storage costs. You can use the
-https://docs.aws.amazon.com/AmazonS3/latest/API/API_ListMultipartUploads.html[List
-multipart uploads API] to list the ongoing uploads and look for any which are
-unusually long-running, or you can
-https://docs.aws.amazon.com/AmazonS3/latest/userguide/mpu-abort-incomplete-mpu-lifecycle-config.html[configure
-a bucket lifecycle policy] to automatically abort incomplete uploads once they
-reach a certain age.
 
 [[repository-s3-aws-vpc]]
 ==== AWS VPC bandwidth settings

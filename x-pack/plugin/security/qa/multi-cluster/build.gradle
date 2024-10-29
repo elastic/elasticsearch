@@ -23,6 +23,8 @@ dependencies {
   // esql with enrich
   clusterModules project(':x-pack:plugin:esql')
   clusterModules project(':x-pack:plugin:enrich')
+  clusterModules project(':x-pack:plugin:autoscaling')
+  clusterModules project(':x-pack:plugin:ml')
   clusterModules(project(":modules:ingest-common"))
 }
 

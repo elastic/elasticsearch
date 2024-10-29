@@ -62,8 +62,8 @@ public class CanMatchDataTierCoordinatorRewriteIT extends ESIntegTestCase {
 
         ensureRed(warmIndex);
 
-        BoolQueryBuilder boolQueryBuilder =
-            QueryBuilders.boolQuery().must(QueryBuilders.termQuery(CoordinatorRewriteContext.TIER_FIELD_NAME, "data_hot"));
+        BoolQueryBuilder boolQueryBuilder = QueryBuilders.boolQuery()
+            .must(QueryBuilders.termQuery(CoordinatorRewriteContext.TIER_FIELD_NAME, "data_hot"));
 
         final SearchRequest searchRequest = new SearchRequest();
         // we set the pre filter shard size to 1 automatically for mounted indices however,
@@ -83,15 +83,17 @@ public class CanMatchDataTierCoordinatorRewriteIT extends ESIntegTestCase {
     }
 
     public String startHotOnlyNode() {
-        Settings.Builder nodeSettings =
-            Settings.builder().putList("node.roles", Arrays.asList("master", "data_hot", "ingest")).put("node.attr.box", "hot");
+        Settings.Builder nodeSettings = Settings.builder()
+            .putList("node.roles", Arrays.asList("master", "data_hot", "ingest"))
+            .put("node.attr.box", "hot");
 
         return internalCluster().startNode(nodeSettings.build());
     }
 
     public String startWarmOnlyNode() {
-        Settings.Builder nodeSettings =
-            Settings.builder().putList("node.roles", Arrays.asList("master", "data_warm", "ingest")).put("node.attr.box", "warm");
+        Settings.Builder nodeSettings = Settings.builder()
+            .putList("node.roles", Arrays.asList("master", "data_warm", "ingest"))
+            .put("node.attr.box", "warm");
 
         return internalCluster().startNode(nodeSettings.build());
     }

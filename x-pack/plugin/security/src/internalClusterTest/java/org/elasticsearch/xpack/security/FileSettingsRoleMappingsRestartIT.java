@@ -176,10 +176,7 @@ public class FileSettingsRoleMappingsRestartIT extends SecurityIntegTestCase {
         );
 
         // now remove the role mappings via the same settings file
-        cleanupClusterState(masterNode);
-
-        // no role mappings
-        assertRoleMappingsInClusterState();
+        cleanupClusterStateAndAssertNoMappings(masterNode);
 
         // and restart the master to confirm the role mappings are all gone
         logger.info("--> restart master again");
@@ -257,7 +254,7 @@ public class FileSettingsRoleMappingsRestartIT extends SecurityIntegTestCase {
             TimeUnit.SECONDS
         );
 
-        cleanupClusterState(masterNode);
+        cleanupClusterStateAndAssertNoMappings(masterNode);
     }
 
     private void assertRoleMappingsInClusterStateWithAwait(
@@ -286,14 +283,18 @@ public class FileSettingsRoleMappingsRestartIT extends SecurityIntegTestCase {
         );
     }
 
-    private void cleanupClusterState(String masterNode) throws Exception {
-        // now remove the role mappings via the same settings file
+    private void cleanupClusterStateAndAssertNoMappings(String masterNode) throws Exception {
         var savedClusterState = setupClusterStateListenerForCleanup(masterNode);
         awaitFileSettingsWatcher();
         logger.info("--> remove the role mappings with an empty settings file");
         writeJSONFile(masterNode, emptyJSON, logger, versionCounter);
         boolean awaitSuccessful = savedClusterState.v1().await(20, TimeUnit.SECONDS);
         assertTrue(awaitSuccessful);
+        // ensure cluster-state update got propagated to expected version
+        var clusterState = clusterAdmin().state(
+            new ClusterStateRequest(TEST_REQUEST_TIMEOUT).waitForMetadataVersion(savedClusterState.v2().get())
+        ).actionGet();
+        assertRoleMappingsInClusterState(clusterState.getState());
     }
 
     private void assertRoleMappingReservedMetadata(ClusterState clusterState, String... names) {

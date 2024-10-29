@@ -2007,10 +2007,12 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
             Objects.requireNonNull(alias);
             Objects.requireNonNull(index);
 
-            Set<Index> indices = new HashSet<>(aliasedIndices.getOrDefault(alias, Set.of()));
-            if (indices.add(index) == false) {
+            Set<Index> indices = aliasedIndices.getOrDefault(alias, Set.of());
+            if (indices.contains(index)) {
                 return this; // indices already contained this index
             }
+            indices = new HashSet<>(indices);
+            indices.add(index);
             aliasedIndices.put(alias, Collections.unmodifiableSet(indices));
             return this;
         }

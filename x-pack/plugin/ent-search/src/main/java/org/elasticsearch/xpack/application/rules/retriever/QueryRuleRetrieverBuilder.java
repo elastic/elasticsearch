@@ -141,7 +141,7 @@ public final class QueryRuleRetrieverBuilder extends CompoundRetrieverBuilder<Qu
             return;
         }
 
-        if (sortBuilders.getFirst() instanceof ScoreSortBuilder == false) {
+        if (sortBuilders.get(0) instanceof ScoreSortBuilder == false) {
             throw new IllegalArgumentException("[" + NAME + "] retriever only supports sort by score, got: " + sortBuilders);
         }
     }
@@ -152,7 +152,7 @@ public final class QueryRuleRetrieverBuilder extends CompoundRetrieverBuilder<Qu
         builder.startObject(MATCH_CRITERIA_FIELD.getPreferredName());
         builder.mapContents(matchCriteria);
         builder.endObject();
-        builder.field(RETRIEVER_FIELD.getPreferredName(), innerRetrievers.getFirst().retriever());
+        builder.field(RETRIEVER_FIELD.getPreferredName(), innerRetrievers.get(0).retriever());
         // We need to explicitly include this here as it's not propagated by the wrapper
         builder.field(RANK_WINDOW_SIZE_FIELD.getPreferredName(), rankWindowSize);
     }
@@ -165,7 +165,7 @@ public final class QueryRuleRetrieverBuilder extends CompoundRetrieverBuilder<Qu
     @Override
     protected RankDoc[] combineInnerRetrieverResults(List<ScoreDoc[]> rankResults) {
         assert rankResults.size() == 1;
-        ScoreDoc[] scoreDocs = rankResults.getFirst();
+        ScoreDoc[] scoreDocs = rankResults.get(0);
         RankDoc[] rankDocs = new RuleQueryRankDoc[scoreDocs.length];
         for (int i = 0; i < scoreDocs.length; i++) {
             ScoreDoc scoreDoc = scoreDocs[i];

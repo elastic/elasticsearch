@@ -26,9 +26,7 @@ import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
-import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.ingest.IngestDocument;
@@ -87,17 +85,6 @@ public class IngestFailureStoreMetricsIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return List.of(DataStreamsPlugin.class, CustomIngestTestPlugin.class, TestTelemetryPlugin.class, MapperExtrasPlugin.class);
-    }
-
-    @Override
-    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-        return Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal, otherSettings))
-            .put(IndexingPressure.SPLIT_BULK_LOW_WATERMARK.getKey(), "512B")
-            .put(IndexingPressure.SPLIT_BULK_LOW_WATERMARK_SIZE.getKey(), "2048B")
-            .put(IndexingPressure.SPLIT_BULK_HIGH_WATERMARK.getKey(), "2KB")
-            .put(IndexingPressure.SPLIT_BULK_HIGH_WATERMARK_SIZE.getKey(), "1024B")
-            .build();
     }
 
     public void testNoPipelineNoFailures() throws IOException {

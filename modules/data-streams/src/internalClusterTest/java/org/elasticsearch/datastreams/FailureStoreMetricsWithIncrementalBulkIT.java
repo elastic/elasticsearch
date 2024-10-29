@@ -31,6 +31,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
@@ -46,7 +47,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -60,17 +60,18 @@ import static org.hamcrest.Matchers.instanceOf;
 
 public class FailureStoreMetricsWithIncrementalBulkIT extends ESIntegTestCase {
 
-    private final String dataStream = "data-stream-incremental".toLowerCase(Locale.ROOT);
-    private final String template = "template-incremental";
     private static final List<String> METRICS = List.of(
         FailureStoreMetrics.METRIC_TOTAL,
         FailureStoreMetrics.METRIC_FAILURE_STORE,
         FailureStoreMetrics.METRIC_REJECTED
     );
 
+    private String dataStream = "data-stream-incremental";
+    private String template = "template-incremental";
+
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(DataStreamsPlugin.class, TestTelemetryPlugin.class);
+        return List.of(DataStreamsPlugin.class, TestTelemetryPlugin.class, MapperExtrasPlugin.class);
     }
 
     @Override
@@ -152,18 +153,20 @@ public class FailureStoreMetricsWithIncrementalBulkIT extends ESIntegTestCase {
 
         assertBusy(() -> assertTrue(nextRequested.get()));
 
+        System.out.println("Hits = " + hits.get());
         PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
         handler.lastItems(List.of(indexRequest(dataStream)), refCounted::decRef, future);
 
         BulkResponse bulkResponse = safeGet(future);
+        System.out.println("total bulk items = " + bulkResponse.getItems().length);
         assertTrue(bulkResponse.hasFailures());
 
-        System.out.println("Hits = " + hits.get());
         for (int i = 0; i < hits.get(); ++i) {
+            System.out.println("i = " + i);
+            if (bulkResponse.getItems()[i].isFailed()) System.out.println(bulkResponse.getItems()[i].toString());
             assertFalse(bulkResponse.getItems()[i].isFailed());
         }
 
-        System.out.println("total bulk items = " + bulkResponse.getItems().length);
         for (int i = (int) hits.get(); i < bulkResponse.getItems().length; ++i) {
             BulkItemResponse item = bulkResponse.getItems()[i];
             assertTrue(item.isFailed());
@@ -172,8 +175,9 @@ public class FailureStoreMetricsWithIncrementalBulkIT extends ESIntegTestCase {
         measurements = collectTelemetry();
         assertMeasurements(measurements.get(FailureStoreMetrics.METRIC_TOTAL), bulkResponse.getItems().length, dataStream);
         assertEquals(bulkResponse.getItems().length - hits.get(), measurements.get(FailureStoreMetrics.METRIC_FAILURE_STORE).size());
-        assertEquals(0, measurements.get(FailureStoreMetrics.METRIC_REJECTED).size());
+        assertEquals(bulkResponse.getItems().length - hits.get(), measurements.get(FailureStoreMetrics.METRIC_REJECTED).size());
     }
+
     private void createDataStream() {
         final var createDataStreamRequest = new CreateDataStreamAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, dataStream);
         assertAcked(client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).actionGet());
@@ -229,9 +233,8 @@ public class FailureStoreMetricsWithIncrementalBulkIT extends ESIntegTestCase {
     private static IndexRequest indexRequest(String dataStream) {
         String time = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(System.currentTimeMillis());
         String value = "1";
-        IndexRequest indexRequest =
-            new IndexRequest(dataStream).opType(DocWriteRequest.OpType.CREATE)
-                .source(Strings.format("{\"%s\":\"%s\", \"count\": %s}", DEFAULT_TIMESTAMP_FIELD, time, value), XContentType.JSON);
+        IndexRequest indexRequest = new IndexRequest(dataStream).opType(DocWriteRequest.OpType.CREATE)
+            .source(Strings.format("{\"%s\":\"%s\", \"count\": %s}", DEFAULT_TIMESTAMP_FIELD, time, value), XContentType.JSON);
         return indexRequest;
     }
 

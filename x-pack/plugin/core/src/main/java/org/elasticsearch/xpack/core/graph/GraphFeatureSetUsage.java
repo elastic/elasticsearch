@@ -9,12 +9,12 @@ package org.elasticsearch.xpack.core.graph;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.xpack.core.XPackFeatureSet;
+import org.elasticsearch.xpack.core.XPackFeatureUsage;
 import org.elasticsearch.xpack.core.XPackField;
 
 import java.io.IOException;
 
-public class GraphFeatureSetUsage extends XPackFeatureSet.Usage {
+public class GraphFeatureSetUsage extends XPackFeatureUsage {
 
     public GraphFeatureSetUsage(StreamInput input) throws IOException {
         super(input);

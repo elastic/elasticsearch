@@ -30,7 +30,6 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.features.NodeFeature;
-import org.elasticsearch.index.query.QueryStringQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.script.Script;
@@ -101,21 +100,25 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
 
         if (evaluationSpecification.hasStoredCorpus()) {
 
-            loadRequestsFromStoredCorpus(evaluationSpecification.getStoredCorpus(), new ActionListener<>() {
-                @Override
-                public void onResponse(List<RatedRequest> ratedRequests) {
-                    if (ratedRequests.isEmpty()) {
-                        listener.onFailure(new IllegalArgumentException("No rated requests found in stored corpus"));
-                        return;
+            loadRequestsFromStoredCorpus(
+                evaluationSpecification.getStoredCorpus(),
+                evaluationSpecification.getTemplates().keySet().iterator().next(),
+                new ActionListener<>() {
+                    @Override
+                    public void onResponse(List<RatedRequest> ratedRequests) {
+                        if (ratedRequests.isEmpty()) {
+                            listener.onFailure(new IllegalArgumentException("No rated requests found in stored corpus"));
+                            return;
+                        }
+                        processRatedRequests(request, evaluationSpecification, List.copyOf(ratedRequests), listener);
                     }
-                    processRatedRequests(request, evaluationSpecification, List.copyOf(ratedRequests), listener);
-                }
 
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onFailure(e);
+                    @Override
+                    public void onFailure(Exception e) {
+                        listener.onFailure(e);
+                    }
                 }
-            });
+            );
         } else {
             processRatedRequests(request, evaluationSpecification, evaluationSpecification.getRatedRequests(), listener);
         }
@@ -193,7 +196,7 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
         );
     }
 
-    private void loadRequestsFromStoredCorpus(String storedCorpusId, ActionListener<List<RatedRequest>> actionListener) {
+    private void loadRequestsFromStoredCorpus(String storedCorpusId, String templateId, ActionListener<List<RatedRequest>> actionListener) {
         // load the stored corpus from the index
         client.get(new GetRequest("search_relevance_dataset", storedCorpusId), new ActionListener<>() {
             @Override
@@ -234,10 +237,7 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
                             RatedDocument ratedDocument = new RatedDocument(index, documentId, score);
                             ratedDocuments.add(ratedDocument);
 
-                            // TODO remove placeholder here
-                            SearchSourceBuilder query = new SearchSourceBuilder().query(new QueryStringQueryBuilder(queryString));
-
-                            ratedRequests.add(new RatedRequest(queryId, ratedDocuments, query));
+                            ratedRequests.add(new RatedRequest(queryId, ratedDocuments, Map.of("query_string", queryString), templateId));
                         }
                         actionListener.onResponse(ratedRequests);
                     }

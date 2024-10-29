@@ -116,7 +116,7 @@ public class SystemIndexMappingUpgradeIT extends ESRestTestCase {
         return (Map<String, Object>) (objectMap.get(field));
     }
 
-    public void testGrowShrinkUpgradeUpdatesSystemIndexMapping() throws IOException {
+    public void testGrowShrinkUpgradeUpdatesSystemIndexMapping() throws Exception {
 
         // Upgrade node 0 and 1 to the current version, leave node 2 to the BwC version
         logger.info("Upgrading node 0 to version {}", Version.CURRENT);
@@ -148,16 +148,18 @@ public class SystemIndexMappingUpgradeIT extends ESRestTestCase {
         testRestCluster = String.join(",", upgradedNodes);
         initClient();
 
-        var newNodesVersions = entityAsMap(client().performRequest(new Request("GET", "/_cluster/state")));
-        assertThat(
-            newNodesVersions,
-            allOf(
-                hasKey("nodes_versions"),
-                transformedMatch(
-                    x -> fieldAsObjectList(x, "nodes_versions"),
-                    everyItem(transformedMatch(item -> fieldAsObject(item, "mappings_versions"), not(anEmptyMap())))
+        assertBusy(() -> {
+            var newNodesVersions = entityAsMap(client().performRequest(new Request("GET", "/_cluster/state")));
+            assertThat(
+                newNodesVersions,
+                allOf(
+                    hasKey("nodes_versions"),
+                    transformedMatch(
+                        x -> fieldAsObjectList(x, "nodes_versions"),
+                        everyItem(transformedMatch(item -> fieldAsObject(item, "mappings_versions"), not(anEmptyMap())))
+                    )
                 )
-            )
-        );
+            );
+        });
     }
 }

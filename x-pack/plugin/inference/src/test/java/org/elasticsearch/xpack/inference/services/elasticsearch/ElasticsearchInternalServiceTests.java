@@ -69,6 +69,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
@@ -1274,40 +1275,32 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
     public void testChunkingLargeDocument() throws InterruptedException {
         assumeTrue("Only if 'inference_chunking_settings' feature flag is enabled", ChunkingSettingsFeatureFlag.isEnabled());
 
-        int wordsPerChunk = 10;
         int numBatches = randomIntBetween(3, 6);
-        int numChunks = randomIntBetween(
-            ((numBatches - 1) * ElasticsearchInternalService.EMBEDDING_MAX_BATCH_SIZE) + 1,
-            numBatches * ElasticsearchInternalService.EMBEDDING_MAX_BATCH_SIZE
-        );
-
-        // build a doc with enough words to make numChunks of chunks
-        int numWords = numChunks * wordsPerChunk;
-        var input = "word ".repeat(numWords);
 
         // how many response objects to return in each batch
         int[] numResponsesPerBatch = new int[numBatches];
         for (int i = 0; i < numBatches - 1; i++) {
             numResponsesPerBatch[i] = ElasticsearchInternalService.EMBEDDING_MAX_BATCH_SIZE;
         }
-        numResponsesPerBatch[numBatches - 1] = numChunks % ElasticsearchInternalService.EMBEDDING_MAX_BATCH_SIZE;
-        if (numResponsesPerBatch[numBatches - 1] == 0) {
-            numResponsesPerBatch[numBatches - 1] = ElasticsearchInternalService.EMBEDDING_MAX_BATCH_SIZE;
-        }
+        numResponsesPerBatch[numBatches - 1] = randomIntBetween(1, ElasticsearchInternalService.EMBEDDING_MAX_BATCH_SIZE);
+        int numChunks = Arrays.stream(numResponsesPerBatch).sum();
 
-        var batchIndex = new AtomicInteger();
+        // build a doc with enough words to make numChunks of chunks
+        int wordsPerChunk = 10;
+        int numWords = numChunks * wordsPerChunk;
+        var input = "word ".repeat(numWords);
+
         Client client = mock(Client.class);
         when(client.threadPool()).thenReturn(threadPool);
 
         // mock the inference response
         doAnswer(invocationOnMock -> {
+            var request = (InferModelAction.Request) invocationOnMock.getArguments()[1];
             var listener = (ActionListener<InferModelAction.Response>) invocationOnMock.getArguments()[2];
-
             var mlTrainedModelResults = new ArrayList<InferenceResults>();
-            for (int i = 0; i < numResponsesPerBatch[batchIndex.get()]; i++) {
+            for (int i = 0; i < request.numberOfDocuments(); i++) {
                 mlTrainedModelResults.add(MlTextEmbeddingResultsTests.createRandomResults());
             }
-            batchIndex.incrementAndGet();
             var response = new InferModelAction.Response(mlTrainedModelResults, "foo", true);
             listener.onResponse(response);
             return null;

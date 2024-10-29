@@ -18,7 +18,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-import static org.elasticsearch.TransportVersions.SECURITY_ROLE_MAPPINGS_IN_CLUSTER_STATE;
+import static org.elasticsearch.TransportVersions.V_8_15_0;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -28,7 +28,7 @@ public class SecurityIndexRoleMappingCleanupIT extends AbstractUpgradeTestCase {
     public void testCleanupDuplicateMappings() throws Exception {
         if (CLUSTER_TYPE == ClusterType.OLD) {
             // If we're in a state where the same operator-defined role mappings can exist both in cluster state and the native store
-            // (SECURITY_ROLE_MAPPINGS_IN_CLUSTER_STATE transport added to security.role_mapping_cleanup feature added), create a state
+            // (V_8_15_0 transport added to security.role_mapping_cleanup feature added), create a state
             // where the native store will need to be cleaned up
             assumeTrue(
                 "Cleanup only needed before security.role_mapping_cleanup feature available in cluster",
@@ -36,7 +36,7 @@ public class SecurityIndexRoleMappingCleanupIT extends AbstractUpgradeTestCase {
             );
             assumeTrue(
                 "If role mappings are in cluster state but cleanup has not been performed yet, create duplicated role mappings",
-                minimumTransportVersion().after(SECURITY_ROLE_MAPPINGS_IN_CLUSTER_STATE)
+                minimumTransportVersion().onOrAfter(V_8_15_0)
             );
             // Since the old cluster has role mappings in cluster state, but doesn't check duplicates, create duplicates
             createNativeRoleMapping("operator_role_mapping_1", Map.of("meta", "test"));

@@ -1254,7 +1254,7 @@ index param - nested object with stored array:
 ---
 index param - flattened fields:
   - requires:
-      cluster_features: ["mapper.synthetic_source_keep"]
+      cluster_features: ["mapper.synthetic_source_keep", "mapper.bwc_workaround_9_0"]
       reason: requires keeping array source
 
   - do:

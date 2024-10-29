@@ -26,6 +26,7 @@ import org.gradle.jvm.toolchain.JvmVendorSpec;
 
 import java.util.Collection;
 import java.util.stream.Collectors;
+
 import javax.inject.Inject;
 
 public abstract class ResolveAllDependencies extends DefaultTask {
@@ -48,20 +49,16 @@ public abstract class ResolveAllDependencies extends DefaultTask {
 
     @InputFiles
     public FileCollection getResolvedArtifacts() {
-        return objectFactory.fileCollection()
-            .from(configs.stream()
-                .filter(ResolveAllDependencies::canBeResolved)
-                .map(c -> {
-                    // Make a copy of the configuration, omitting file collection dependencies to avoid building project artifacts
-                    Configuration copy = c.copyRecursive(d -> d instanceof FileCollectionDependency == false);
-                    copy.setCanBeConsumed(false);
-                    return copy;
-                })
-                // Include only module dependencies, ignoring things like project dependencies so we don't unnecessarily build stuff
-                .map(c -> c.getIncoming().artifactView(v -> v.lenient(true).componentFilter(i -> i instanceof ModuleComponentIdentifier)))
-                .map(artifactView -> providerFactory.provider(artifactView::getFiles))
-                .collect(Collectors.toList())
-            );
+        return objectFactory.fileCollection().from(configs.stream().filter(ResolveAllDependencies::canBeResolved).map(c -> {
+            // Make a copy of the configuration, omitting file collection dependencies to avoid building project artifacts
+            Configuration copy = c.copyRecursive(d -> d instanceof FileCollectionDependency == false);
+            copy.setCanBeConsumed(false);
+            return copy;
+        })
+            // Include only module dependencies, ignoring things like project dependencies so we don't unnecessarily build stuff
+            .map(c -> c.getIncoming().artifactView(v -> v.lenient(true).componentFilter(i -> i instanceof ModuleComponentIdentifier)))
+            .map(artifactView -> providerFactory.provider(artifactView::getFiles))
+            .collect(Collectors.toList()));
     }
 
     @TaskAction

@@ -35,6 +35,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
@@ -981,14 +982,7 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
         int numIters = randomIntBetween(10, 50);
         int numSegmentTasks = randomIntBetween(50, 100);
         AtomicInteger completedTasks = new AtomicInteger(0);
-        ThreadPoolExecutor executor = new ThreadPoolExecutor(
-            executorPoolSize,
-            executorPoolSize,
-            0L,
-            TimeUnit.MILLISECONDS,
-            new LinkedBlockingQueue<>()
-        );
-        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.AbortPolicy());
+        ThreadPoolExecutor executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(executorPoolSize);
         try {
             doTestSearchConcurrency(executor, numIters, numSegmentTasks, completedTasks);
         } finally {
@@ -999,6 +993,7 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
         assertEquals(numIters, executor.getCompletedTaskCount());
     }
 
+    @SuppressForbidden(reason = "need to provide queue to ThreadPoolExecutor")
     public void testNoSearchConcurrencyWhenQueueing() throws IOException, ExecutionException, InterruptedException {
         // with multiple threads, but constant queueing, the max number of slices will always be 1, hence we won't provide the
         // executor to the searcher
@@ -1030,6 +1025,7 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
         assertEquals(numIters, executor.getCompletedTaskCount());
     }
 
+    @SuppressForbidden(reason = "need to provide queue to ThreadPoolExecutor")
     public void testSearchConcurrencyDoesNotCreateMoreTasksThanThreads() throws Exception {
         // with multiple threads, but not enough queueing to disable parallelism, we will provide the executor to the searcher
         int executorPoolSize = randomIntBetween(2, 5);
@@ -1050,14 +1046,12 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
             }
         };
         ThreadPoolExecutor executor = new ThreadPoolExecutor(executorPoolSize, executorPoolSize, 0L, TimeUnit.MILLISECONDS, queue);
-
         try {
             doTestSearchConcurrency(executor, numIters, numSegmentTasks, completedTasks);
             terminating.set(true);
         } finally {
             terminate(executor);
         }
-
         // make sure that we do parallelize execution: each operation will use at minimum as many tasks as threads available
         assertThat(executor.getCompletedTaskCount(), greaterThanOrEqualTo((long) numIters * executorPoolSize));
         // while we parallelize we also limit the number of tasks that each searcher submits

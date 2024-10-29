@@ -1,0 +1,5 @@
+pr: 115715
+summary: Avoid `catch (Throwable t)` in `AmazonBedrockStreamingChatProcessor`
+area: Machine Learning
+type: bug
+issues: []

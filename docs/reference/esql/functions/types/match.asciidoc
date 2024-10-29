@@ -4,13 +4,9 @@
 
 [%header.monospaced.styled,format=dsv,separator=|]
 |===
-field | query | boost | fuzziness | result
-keyword | keyword | double | integer | boolean
-keyword | keyword | double | keyword | boolean
-keyword | keyword | double | | boolean
-keyword | keyword | integer | | boolean
-keyword | keyword | | | boolean
-keyword | text | | | boolean
-text | keyword | | | boolean
-text | text | | | boolean
+field | query | result
+keyword | keyword | boolean
+keyword | text | boolean
+text | keyword | boolean
+text | text | boolean
 |===

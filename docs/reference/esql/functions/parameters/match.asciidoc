@@ -7,9 +7,3 @@ Field that the query will target.
 
 `query`::
 Text you wish to find in the provided field.
-
-`boost`::
-Boost value for the query.
-
-`fuzziness`::
-Query fuzziness

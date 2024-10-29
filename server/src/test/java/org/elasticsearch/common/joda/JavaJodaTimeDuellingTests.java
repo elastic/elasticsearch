@@ -43,8 +43,7 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
     public static void checkJvmProperties() {
         String localeProviders = System.getProperty("java.locale.providers", "");
         boolean runtimeJdk8 = JavaVersion.current().getVersion().get(0) == 8;
-        assert (runtimeJdk8 && localeProviders.equals("SPI,JRE"))
-            || (false == runtimeJdk8 && localeProviders.contains("SPI"))
+        assert (runtimeJdk8 && localeProviders.equals("SPI,JRE")) || (false == runtimeJdk8 && localeProviders.contains("SPI"))
             : "`-Djava.locale.providers` needs to be set";
         assumeFalse(
             "won't work in jdk8 because SPI mechanism is not looking at classpath - needs ISOCalendarDataProvider in jre's ext/libs",

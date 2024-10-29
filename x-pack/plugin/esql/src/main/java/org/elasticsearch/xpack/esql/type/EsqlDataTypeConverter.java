@@ -366,10 +366,10 @@ public class EsqlDataTypeConverter {
             }
         }
         if (isString(left) && isString(right)) {
-            if (left == TEXT || right == TEXT) {
-                return TEXT;
-            }
             if (left == SEMANTIC_TEXT || right == SEMANTIC_TEXT) {
+                return KEYWORD;
+            }
+            if (left == TEXT || right == TEXT) {
                 return TEXT;
             }
             return right;

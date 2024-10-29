@@ -198,7 +198,7 @@ FROM semantic_text METADATA _id
 | SORT _id
 ;
 
-_id:keyword | result:semantic_text
+_id:keyword | result:keyword
 1           | 1.2.3
 2           | 9.0.0
 3           | be excellent to each other
@@ -213,7 +213,7 @@ FROM semantic_text METADATA _id
 | SORT _id
 ;
 
-_id:keyword | result:semantic_text
+_id:keyword | result:keyword
 1           | live long and prosper
 2           | all we have to decide is what to do with the time that is given to us
 3           | null
@@ -228,7 +228,7 @@ FROM semantic_text METADATA _id
 | SORT _id
 ;
 
-_id:keyword | result:semantic_text
+_id:keyword | result:keyword
 1           | 1.2.3
 2           | 9.0.0
 3           | null
@@ -511,7 +511,7 @@ FROM semantic_text
 | KEEP result
 ;
 
-result:semantic_text
+result:keyword
 all we have to decide is what to do with the time that is given to us
 be excellent to each other
 live long and prosper
@@ -569,7 +569,7 @@ FROM semantic_text
 | SORT result
 ;
 
-result:semantic_text
+result:keyword
 all we have to decide is what to do with the time that is given to us
 be excellent to each other
 live long and prosper
@@ -644,7 +644,7 @@ FROM semantic_text METADATA _id
 | SORT _id
 ;
 
-_id:keyword | result:semantic_text
+_id:keyword | result:keyword
 1           | point(4297.11 -1475.53)
 2           | point(7580.93 2272.77)
 3           | null
@@ -659,7 +659,7 @@ FROM semantic_text METADATA _id
 | SORT _id
 ; 
 
-_id:keyword | result:semantic_text
+_id:keyword | result:keyword
 1           | LIVE LONG AND PROSPER
 2           | ALL WE HAVE TO DECIDE IS WHAT TO DO WITH THE TIME THAT IS GIVEN TO US
 3           | BE EXCELLENT TO EACH OTHER
@@ -674,7 +674,7 @@ FROM semantic_text
 | KEEP result
 ;
 
-result:semantic_text
+result:keyword
 all we have to decide is what to do with the time that is given to us
 be excellent to each other
 live long and prosper
@@ -689,7 +689,7 @@ FROM semantic_text METADATA _id
 | SORT _id
 ;
 
-_id: keyword | result:semantic_text
+_id: keyword | result:keyword
 1            | ["Hello there!", "This is a random value", "for testing purposes", "2147483648"] 
 2            | ["nice to meet you", "bye bye!", "123"]
 3            | null
@@ -734,7 +734,7 @@ FROM semantic_text METADATA _id
 | SORT _id
 ;
 
-_id: keyword | result:semantic_text
+_id: keyword | result:keyword
 1            | ["Hello there!", "This is a random value", "for testing purposes"]
 2            | ["nice to meet you", "bye bye!"]
 3            | null
@@ -749,7 +749,7 @@ FROM semantic_text METADATA _id
 | SORT _id
 ;
 
-_id: keyword | result:semantic_text
+_id: keyword | result:keyword
 1            | Hello there!
 2            | nice to meet you
 3            | null
@@ -764,7 +764,7 @@ FROM semantic_text METADATA _id
 | SORT _id
 ;
 
-_id: keyword | result:semantic_text
+_id: keyword | result:keyword
 1            | for testing purposes
 2            | bye bye!
 3            | null
@@ -779,7 +779,7 @@ FROM semantic_text METADATA _id
 | SORT _id
 ;
 
-_id: keyword | result:semantic_text
+_id: keyword | result:keyword
 1            | for testing purposes
 2            | nice to meet you
 3            | null
@@ -794,7 +794,7 @@ FROM semantic_text METADATA _id
 | SORT _id
 ;
 
-_id: keyword | result:semantic_text
+_id: keyword | result:keyword
 1            | Hello there!
 2            | bye bye!
 3            | null
@@ -809,7 +809,7 @@ FROM semantic_text METADATA _id
 | SORT _id
 ;
 
-_id: keyword | result:semantic_text
+_id: keyword | result:keyword
 1            | ["This is a random value", "for testing purposes"]
 2            | bye bye!
 3            | null
@@ -824,7 +824,7 @@ FROM semantic_text METADATA _id
 | SORT _id
 ;
 
-_id: keyword | result:semantic_text
+_id: keyword | result:keyword
 1            | ["Hello there!", "This is a random value", "for testing purposes"]
 2            | ["bye bye!", "nice to meet you"]
 3            | null

@@ -100,7 +100,7 @@ public class ConcatTests extends AbstractScalarFunctionTestCase {
 
     private static void add(List<TestCaseSupplier> suppliers, String name, int length, Supplier<String> valueSupplier) {
         Map<Integer, List<List<DataType>>> permutations = new HashMap<Integer, List<List<DataType>>>();
-        List<DataType> supportedDataTypes = List.of(DataType.KEYWORD, DataType.TEXT, DataType.SEMANTIC_TEXT);
+        List<DataType> supportedDataTypes = DataType.stringTypes().stream().toList();
         permutations.put(0, List.of(List.of(DataType.KEYWORD), List.of(DataType.TEXT)));
         for (int v = 0; v < length - 1; v++) {
             List<List<DataType>> current = permutations.get(v);

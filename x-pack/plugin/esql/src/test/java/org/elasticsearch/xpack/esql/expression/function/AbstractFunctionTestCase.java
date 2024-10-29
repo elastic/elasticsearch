@@ -241,8 +241,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                                 .mapToObj(
                                     i -> i == finalNullPosition
                                         ? (oc.getData().get(i).isMultiRow()
-                                        ? TestCaseSupplier.TypedData.MULTI_ROW_NULL
-                                        : TestCaseSupplier.TypedData.NULL)
+                                            ? TestCaseSupplier.TypedData.MULTI_ROW_NULL
+                                            : TestCaseSupplier.TypedData.NULL)
                                         : oc.getData().get(i)
                                 )
                                 .toList();

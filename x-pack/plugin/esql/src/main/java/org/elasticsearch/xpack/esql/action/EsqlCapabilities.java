@@ -411,7 +411,12 @@ public class EsqlCapabilities {
         /**
          * Support for semantic_text field mapping
          */
-        SEMANTIC_TEXT_TYPE(EsqlCorePlugin.SEMANTIC_TEXT_FEATURE_FLAG);
+        SEMANTIC_TEXT_TYPE(EsqlCorePlugin.SEMANTIC_TEXT_FEATURE_FLAG),
+
+        /**
+         * Support implicit casting from string literal to DATE_PERIOD or TIME_DURATION.
+         */
+        IMPLICIT_CASTING_STRING_LITERAL_TO_TEMPORAL_AMOUNT;
 
         private final boolean enabled;
 

@@ -1286,3 +1286,262 @@ ROW a = GREATEST(TO_DATETIME("1957-05-23T00:00:00Z"), TO_DATETIME("1958-02-19T00
 a:datetime
 1958-02-19T00:00:00
 ;
+
+evalDateTruncMonthInString
+required_capability: implicit_casting_string_literal_to_temporal_amount
+
+FROM employees
+| SORT hire_date
+| EVAL x = date_trunc("1 month", hire_date)
+| KEEP emp_no, hire_date, x
+| LIMIT 5;
+
+emp_no:integer | hire_date:date                | x:date
+10009          | 1985-02-18T00:00:00.000Z      | 1985-02-01T00:00:00.000Z
+10048          | 1985-02-24T00:00:00.000Z      | 1985-02-01T00:00:00.000Z
+10098          | 1985-05-13T00:00:00.000Z      | 1985-05-01T00:00:00.000Z
+10076          | 1985-07-09T00:00:00.000Z      | 1985-07-01T00:00:00.000Z
+10061          | 1985-09-17T00:00:00.000Z      | 1985-09-01T00:00:00.000Z
+;
+
+evalDateTruncHourInString
+required_capability: implicit_casting_string_literal_to_temporal_amount
+
+FROM employees
+| SORT hire_date
+| EVAL x = date_trunc("240 hours", hire_date)
+| KEEP emp_no, hire_date, x
+| LIMIT 5;
+
+emp_no:integer | hire_date:date                | x:date
+10009          | 1985-02-18T00:00:00.000Z      | 1985-02-11T00:00:00.000Z
+10048          | 1985-02-24T00:00:00.000Z      | 1985-02-21T00:00:00.000Z
+10098          | 1985-05-13T00:00:00.000Z      | 1985-05-12T00:00:00.000Z
+10076          | 1985-07-09T00:00:00.000Z      | 1985-07-01T00:00:00.000Z
+10061          | 1985-09-17T00:00:00.000Z      | 1985-09-09T00:00:00.000Z
+;
+
+evalDateTruncDayInString
+required_capability: implicit_casting_string_literal_to_temporal_amount
+
+FROM sample_data
+| SORT @timestamp ASC
+| EVAL t = DATE_TRUNC("1 day", @timestamp)
+| KEEP t;
+
+t:date
+2023-10-23T00:00:00
+2023-10-23T00:00:00
+2023-10-23T00:00:00
+2023-10-23T00:00:00
+2023-10-23T00:00:00
+2023-10-23T00:00:00
+2023-10-23T00:00:00
+;
+
+evalDateTruncMinuteInString
+required_capability: implicit_casting_string_literal_to_temporal_amount
+
+FROM sample_data
+| SORT @timestamp ASC
+| EVAL t = DATE_TRUNC("1 minute", @timestamp)
+| KEEP t;
+
+t:date
+2023-10-23T12:15:00
+2023-10-23T12:27:00
+2023-10-23T13:33:00
+2023-10-23T13:51:00
+2023-10-23T13:52:00
+2023-10-23T13:53:00
+2023-10-23T13:55:00
+;
+
+evalDateTruncDayInStringNull
+required_capability: implicit_casting_string_literal_to_temporal_amount
+
+FROM employees
+| WHERE emp_no == 10040
+| EVAL x = date_trunc("1 day", birth_date)
+| KEEP emp_no, birth_date, x;
+
+emp_no:integer | birth_date:date               | x:date
+10040          | null                          | null
+;
+
+evalDateTruncYearInString
+required_capability: implicit_casting_string_literal_to_temporal_amount
+
+ROW a = 1
+| EVAL year_hired = DATE_TRUNC("1 year", "1991-06-26T00:00:00.000Z")
+;
+
+a:integer | year_hired:date
+1         | 1991-01-01T00:00:00.000Z
+;
+
+implicitCastingToDatePeriodPlusDate
+required_capability: implicit_casting_string_literal_to_temporal_amount
+
+ROW x = "2024-01-01"::datetime
+| EVAL y = x + "3 DAYS",
+       z = x - "3 days",
+       u = "3 DAYS" + x,
+       v = - "3 DAYS" + x
+;
+
+x:datetime |y:datetime |z:datetime |u:datetime |v:datetime
+2024-01-01 |2024-01-04 |2023-12-29 |2024-01-04 |2023-12-29
+;
+
+implicitCastingToDatePeriodPlusDateInString
+required_capability: implicit_casting_string_literal_to_temporal_amount
+
+ROW x = "2024-01-01"::datetime
+| EVAL y = "2024-01-01" + "3 DAYS",
+       z = "2024-01-01" - "3 days",
+       u = "3 DAYS" + "2024-01-01",
+       v = - "3 days" + "2024-01-01"
+;
+
+x:datetime |y:datetime |z:datetime |u:datetime |v:datetime
+2024-01-01 |2024-01-04 |2023-12-29 |2024-01-04 |2023-12-29
+;
+
+implicitCastingToTimeDurationPlusDate
+required_capability: implicit_casting_string_literal_to_temporal_amount
+
+ROW x = "2024-01-01"::datetime
+| EVAL y = x + "3 hours",
+       z = x - "3 hours",
+       u = "3 hours" + x,
+       v = - "3 hours" + x
+;
+
+x:datetime |y:datetime               |z:datetime               |u:datetime               |v:datetime
+2024-01-01 |2024-01-01T03:00:00.000Z |2023-12-31T21:00:00.000Z |2024-01-01T03:00:00.000Z |2023-12-31T21:00:00.000Z
+;
+
+implicitCastingToTimeDurationPlusDateInString
+required_capability: implicit_casting_string_literal_to_temporal_amount
+
+ROW x = "2024-01-01"::datetime
+| EVAL y = "2024-01-01" + "3 hours",
+       z = "2024-01-01" - "3 hours",
+       u = "3 hours" + "2024-01-01",
+       v = - "3 hours" + "2024-01-01"
+;
+
+x:datetime |y:datetime               |z:datetime               |u:datetime               |v:datetime
+2024-01-01 |2024-01-01T03:00:00.000Z |2023-12-31T21:00:00.000Z |2024-01-01T03:00:00.000Z |2023-12-31T21:00:00.000Z
+;
+
+implicitCastingToDatePeriodFromIndex
+required_capability: implicit_casting_string_literal_to_temporal_amount
+
+FROM employees
+| WHERE emp_no == 10001
+| EVAL x = birth_date + "3 days",
+       y = "3 days" + birth_date,
+       z = birth_date - "3 days",
+       u = - "3 days" + birth_date
+| KEEP birth_date, x, y, z, u;
+
+birth_date:datetime  |x:datetime           |y:datetime           |z:datetime           |u:datetime
+1953-09-02T00:00:00Z |1953-09-05T00:00:00Z |1953-09-05T00:00:00Z |1953-08-30T00:00:00Z |1953-08-30T00:00:00Z
+;
+
+implicitCastingToTimeDurationFromIndex
+required_capability: implicit_casting_string_literal_to_temporal_amount
+
+FROM employees
+| WHERE emp_no == 10001
+| EVAL x = birth_date + "3 hours",
+       y = "3 hours" + birth_date,
+       z = birth_date - "3 hours",
+       u = - "3 hours" + birth_date
+| KEEP birth_date, x, y, z, u;
+
+birth_date:datetime  |x:datetime           |y:datetime           |z:datetime           |u:datetime
+1953-09-02T00:00:00Z |1953-09-02T03:00:00Z |1953-09-02T03:00:00Z |1953-09-01T21:00:00Z |1953-09-01T21:00:00Z
+;
+
+
+implicitCastingArithmeticOperationAddTemporalAmountInString
+required_capability: implicit_casting_string_literal_to_temporal_amount
+
+FROM employees
+| EVAL a = "1 day" + "2024-01-01", 
+       b = "1 year" + "2024-04-01" + "1 month", 
+       c = "2024-01-01" + "3600 seconds",
+       d = "2024-04-01" + ("1 year" + "1 day")
+| KEEP a, b, c, d
+| LIMIT 1
+;
+
+a:datetime | b:datetime | c:datetime               | d:datetime
+2024-01-02 | 2025-05-01 | 2024-01-01T01:00:00.000Z | 2025-04-02
+;
+
+implicitCastingArithmeticOperationSubTemporalAmountInString
+required_capability: implicit_casting_string_literal_to_temporal_amount
+
+FROM employees
+| EVAL a = "2024-01-01" - "1 day",
+       b = "2024-04-01" - "1 month",
+       c = "2024-01-01" - "3600 seconds",
+       d = "2024-04-01" - ("1 year" + "1 day")
+| KEEP a, b, c, d
+| LIMIT 1
+;
+
+a:datetime | b:datetime | c:datetime               | d:datetime
+2023-12-31 | 2024-03-01 | 2023-12-31T23:00:00.000Z | 2023-03-31
+;
+
+implicitCastingArithmeticOperationAddSubTemporalAmountInString
+required_capability: implicit_casting_string_literal_to_temporal_amount
+
+FROM employees
+| EVAL a = "1 month" + "2024-01-01" - "1 day", 
+       b = - "1 year" + "2024-04-01" + "1 month",
+       c = "1 hour" + "2024-01-01" - "3600 seconds", 
+       d = "2024-04-01" - ("1 year" + "1 day"),
+       e = "2024-01-01" + ("4 years" + "3 months") + "2 weeks" + "1 day",
+       f = "4 years" + ("3 months" + "2 weeks") + "1 day" + "2024-01-01",
+       g =  "2024-01-01" + (-("4 years" + "3 months" + "2 weeks" + "1 day")),
+       h = "2024-01-01" - "4 years" - "3 months" - "2 weeks" - "1 day",
+       i = - "4 years" - "3 months" - "2 weeks" - "1 day" + "2024-01-01",
+       j = "2024-01-01" - (- "4 years" - "3 months" - "2 weeks" - "1 day"),
+       k = "2024-01-01" + "1 hour" + "1 minute" + "1 second" + "1 milliseconds"
+| KEEP a, b, c, d, e, f, g, h, i, j, k
+| LIMIT 1
+;
+
+a:datetime |b:datetime |c:datetime |d:datetime |e:datetime |f:datetime |g:datetime |h:datetime |i:datetime |j:datetime |k:datetime
+2024-01-31 |2023-05-01 |2024-01-01 |2023-03-31 |2028-04-16 |2028-04-16 |2019-09-16 |2019-09-16 |2019-09-16 |2028-04-16 |2024-01-01T01:01:01.001Z
+;
+
+implicitCastingTemporalAmountInStringWithNulls
+required_capability: implicit_casting_string_literal_to_temporal_amount
+
+FROM employees
+| EVAL a = to_dt(null) - "1 day", b = null + "1 day", c = "2024-01-01" + null + "1 day"
+| KEEP a, b, c
+| LIMIT 1;
+
+a:datetime |b:null |c:null
+null       |null   |null
+;
+
+filteringWithTemporalAmountInString
+required_capability: implicit_casting_string_literal_to_temporal_amount
+
+FROM employees
+| SORT emp_no
+| WHERE birth_date < "2024-01-01" - 70 years
+| STATS cnt = count(*);
+
+cnt:long
+19
+;

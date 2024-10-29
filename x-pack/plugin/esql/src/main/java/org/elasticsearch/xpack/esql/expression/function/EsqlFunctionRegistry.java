@@ -157,6 +157,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_SHAPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_SHAPE;
@@ -165,9 +166,11 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.TIME_DURATION;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
 import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isTemporalAmount;
 
 public class EsqlFunctionRegistry {
 
@@ -178,6 +181,8 @@ public class EsqlFunctionRegistry {
     static {
         List<DataType> typePriorityList = Arrays.asList(
             DATETIME,
+            DATE_PERIOD,
+            TIME_DURATION,
             DOUBLE,
             LONG,
             INTEGER,
@@ -472,7 +477,12 @@ public class EsqlFunctionRegistry {
     public static DataType getTargetType(String[] names) {
         List<DataType> types = new ArrayList<>();
         for (String name : names) {
-            types.add(DataType.fromEs(name));
+            DataType type = DataType.fromTypeName(name);
+            if (isTemporalAmount(type)) {
+                types.add(type);
+            } else {
+                types.add(DataType.fromEs(name));
+            }
         }
         if (types.contains(KEYWORD) || types.contains(TEXT)) {
             return UNSUPPORTED;
@@ -560,7 +570,26 @@ public class EsqlFunctionRegistry {
     }
 
     public List<DataType> getDataTypeForStringLiteralConversion(Class<? extends Function> clazz) {
-        return dataTypesForStringLiteralConversion.get(clazz);
+        if (dataTypesForStringLiteralConversion.containsKey(clazz)) {
+            return dataTypesForStringLiteralConversion.get(clazz);
+        } else {
+            Constructor<?> constructor = constructorFor(clazz);
+            if (constructor == null) {
+                return null;
+            }
+            var params = constructor.getParameters();
+            List<DataType> targetDataTypes = new ArrayList<>(params.length - 1);
+            for (int i = 1; i < params.length; i++) { // skipping 1st argument, the source
+                if (Configuration.class.isAssignableFrom(params[i].getType()) == false) {
+                    Param paramInfo = params[i].getAnnotation(Param.class);
+                    if (paramInfo != null) {
+                        DataType targetDataType = EsqlFunctionRegistry.getTargetType(paramInfo.type());
+                        targetDataTypes.add(targetDataType);
+                    }
+                }
+            }
+            return targetDataTypes.size() == params.length - 1 ? targetDataTypes : null;
+        }
     }
 
     private static class SnapshotFunctionRegistry extends EsqlFunctionRegistry {

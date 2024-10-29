@@ -277,23 +277,7 @@ public class EsqlDataTypeConverter {
         }
         StringBuilder value = new StringBuilder();
         StringBuilder qualifier = new StringBuilder();
-        StringBuilder nextBuffer = value;
-        boolean lastWasSpace = false;
-        for (char c : str.trim().toCharArray()) {
-            if (c == ' ') {
-                if (lastWasSpace == false) {
-                    nextBuffer = nextBuffer == value ? qualifier : null;
-                }
-                lastWasSpace = true;
-                continue;
-            }
-            if (nextBuffer == null) {
-                throw new ParsingException(Source.EMPTY, errorMessage, val, expectedType);
-            }
-            nextBuffer.append(c);
-            lastWasSpace = false;
-        }
-
+        parseTemporalAmount(str, value, qualifier, errorMessage, expectedType);
         if ((value.isEmpty() || qualifier.isEmpty()) == false) {
             try {
                 TemporalAmount result = parseTemporalAmount(Integer.parseInt(value.toString()), qualifier.toString(), Source.EMPTY);
@@ -312,6 +296,31 @@ public class EsqlDataTypeConverter {
             }
         }
         throw new ParsingException(Source.EMPTY, errorMessage, val, expectedType);
+    }
+
+    public static void parseTemporalAmount(
+        String temporalAmount,
+        StringBuilder value,
+        StringBuilder qualifier,
+        String errorMessage,
+        DataType expectedType
+    ) {
+        StringBuilder nextBuffer = value;
+        boolean lastWasSpace = false;
+        for (char c : temporalAmount.trim().toCharArray()) {
+            if (c == ' ') {
+                if (lastWasSpace == false) {
+                    nextBuffer = nextBuffer == value ? qualifier : null;
+                }
+                lastWasSpace = true;
+                continue;
+            }
+            if (nextBuffer == null) {
+                throw new ParsingException(Source.EMPTY, errorMessage, temporalAmount, expectedType);
+            }
+            nextBuffer.append(c);
+            lastWasSpace = false;
+        }
     }
 
     /**

@@ -423,6 +423,35 @@ setup:
   - match: {values.0: ["2024-08-06T00:00:00.000Z","2024-08-03T00:00:00.000Z","2024-08-06T03:00:00.000Z"]}
 
 ---
+"Test Interval as String in Input Params":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ implicit_casting_string_literal_to_temporal_amount ]
+      reason: "interval in parameters"
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'row x = ?n1::datetime | eval y = x - ?n2, z = ?n1 + ?n3'
+          params: [{"n1" : "2024-08-06"}, {"n2" : "3 days"}, {"n3" : "3 hours"}]
+
+  - length: {columns: 3}
+  - match: {columns.0.name: "x"}
+  - match: {columns.0.type: "date"}
+  - match: {columns.1.name: "y"}
+  - match: {columns.1.type: "date"}
+  - match: {columns.2.name: "z"}
+  - match: {columns.2.type: "date"}
+  - length: {values: 1}
+  - match: {values.0: ["2024-08-06T00:00:00.000Z","2024-08-03T00:00:00.000Z","2024-08-06T03:00:00.000Z"]}
+
+---
 "Test Named Input Params For Field Names":
   - requires:
       test_runner_features: [ capabilities ]

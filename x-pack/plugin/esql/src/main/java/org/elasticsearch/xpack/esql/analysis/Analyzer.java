@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.common.logging.HeaderWarning;
-import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
@@ -31,7 +30,6 @@ import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedStar;
-import org.elasticsearch.xpack.esql.core.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.esql.core.expression.predicate.BinaryOperator;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -47,8 +45,11 @@ import org.elasticsearch.xpack.esql.expression.NamedExpressions;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
+import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
@@ -58,8 +59,10 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToUnsigne
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.DateTimeArithmeticOperation;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Neg;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.TableIdentifier;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -85,6 +88,8 @@ import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.stats.FeatureMetric;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
+import java.lang.reflect.Constructor;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.BitSet;
@@ -106,6 +111,7 @@ import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.GEO_MATCH_TYPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.FLOAT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
@@ -114,10 +120,14 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.TIME_DURATION;
 import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isDateTime;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isTemporalAmount;
 import static org.elasticsearch.xpack.esql.stats.FeatureMetric.LIMIT;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.parseTemporalAmount;
 
 /**
  * This class is part of the planner. Resolves references (such as variable and index names) and performs implicit casting.
@@ -141,9 +151,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         );
         var resolution = new Batch<>(
             "Resolution",
+            // Move ImplicitCasting before ResolveRefs. Because a reference(UnresolvedAttribute) can be created for a Bucket in Aggregate,
+            // resolving this reference, before implicit casting may cause this reference to have customMessage=true, it prevents another
+            // attempt to resolve this reference.
+            new ImplicitCasting(),
             new ResolveRefs(),
-            new ResolveUnionTypes(),  // Must be after ResolveRefs, so union types can be found
-            new ImplicitCasting()
+            new ResolveUnionTypes()  // Must be after ResolveRefs, so union types can be found
         );
         var finish = new Batch<>("Finish Analysis", Limiter.ONCE, new AddImplicitLimit(), new UnionTypesCleanup());
         rules = List.of(init, resolution, finish);
@@ -581,9 +594,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         private static Attribute maybeResolveAttribute(UnresolvedAttribute ua, List<Attribute> childrenOutput, Logger logger) {
-            if (ua.customMessage()) {
-                return ua;
-            }
+            // if (ua.customMessage()) {
+            // return ua;
+            // }
             return resolveAttribute(ua, childrenOutput, logger);
         }
 
@@ -970,15 +983,18 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     private static class ImplicitCasting extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
         @Override
         public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
-            return plan.transformExpressionsUp(ScalarFunction.class, e -> ImplicitCasting.cast(e, context.functionRegistry()));
+            return plan.transformExpressionsUp(
+                org.elasticsearch.xpack.esql.core.expression.function.Function.class,
+                e -> ImplicitCasting.cast(e, context.functionRegistry())
+            );
         }
 
-        private static Expression cast(ScalarFunction f, EsqlFunctionRegistry registry) {
+        private static Expression cast(org.elasticsearch.xpack.esql.core.expression.function.Function f, EsqlFunctionRegistry registry) {
             if (f instanceof In in) {
                 return processIn(in);
             }
-            if (f instanceof EsqlScalarFunction esf) {
-                return processScalarFunction(esf, registry);
+            if (f instanceof EsqlScalarFunction || f instanceof GroupingFunction) { // exclude AggregateFunction until it is needed
+                return processFunction(f, registry);
             }
             if (f instanceof EsqlArithmeticOperation || f instanceof BinaryComparison) {
                 return processBinaryOperator((BinaryOperator) f);
@@ -986,7 +1002,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return f;
         }
 
-        private static Expression processScalarFunction(EsqlScalarFunction f, EsqlFunctionRegistry registry) {
+        private static Expression processFunction(
+            org.elasticsearch.xpack.esql.core.expression.function.Function f,
+            EsqlFunctionRegistry registry
+        ) {
             List<Expression> args = f.arguments();
             List<DataType> targetDataTypes = registry.getDataTypeForStringLiteralConversion(f.getClass());
             if (targetDataTypes == null || targetDataTypes.isEmpty()) {
@@ -1009,9 +1028,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                             }
                             if (targetDataType != DataType.NULL && targetDataType != DataType.UNSUPPORTED) {
                                 Expression e = castStringLiteral(arg, targetDataType);
-                                childrenChanged = true;
-                                newChildren.add(e);
-                                continue;
+                                if (e != arg) {
+                                    childrenChanged = true;
+                                    newChildren.add(e);
+                                    continue;
+                                }
                             }
                         }
                     } else if (dataType.isNumeric() && canCastMixedNumericTypes(f) && castNumericArgs) {
@@ -1038,32 +1059,17 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
             List<Expression> newChildren = new ArrayList<>(2);
             boolean childrenChanged = false;
-            DataType targetDataType = DataType.NULL;
-            Expression from = Literal.NULL;
+            String errorMessage = "Cannot convert string [{}] to any of [" + DATETIME + ", " + DATE_PERIOD + ", " + TIME_DURATION + "]";
 
-            if (left.dataType() == KEYWORD && left.foldable() && (left instanceof EsqlScalarFunction == false)) {
-                if (supportsStringImplicitCasting(right.dataType())) {
-                    targetDataType = right.dataType();
-                    from = left;
-                } else if (supportsImplicitTemporalCasting(right, o)) {
-                    targetDataType = DATETIME;
-                    from = left;
+            if (isStringLiteral(left) && isStringLiteral(right) && o instanceof DateTimeArithmeticOperation) {
+                childrenChanged = castBothSidesOfDateTimeArithmeticOperation(left, right, newChildren, errorMessage);
+            } else {
+                if (isStringLiteral(left)) {
+                    childrenChanged = castOneSideOfBinaryOperator(left, right, o, newChildren, true);
                 }
-            }
-            if (right.dataType() == KEYWORD && right.foldable() && (right instanceof EsqlScalarFunction == false)) {
-                if (supportsStringImplicitCasting(left.dataType())) {
-                    targetDataType = left.dataType();
-                    from = right;
-                } else if (supportsImplicitTemporalCasting(left, o)) {
-                    targetDataType = DATETIME;
-                    from = right;
+                if (isStringLiteral(right)) {
+                    childrenChanged = castOneSideOfBinaryOperator(right, left, o, newChildren, false);
                 }
-            }
-            if (from != Literal.NULL) {
-                Expression e = castStringLiteral(from, targetDataType);
-                newChildren.add(from == left ? e : left);
-                newChildren.add(from == right ? e : right);
-                childrenChanged = true;
             }
             return childrenChanged ? o.replaceChildren(newChildren) : o;
         }
@@ -1093,7 +1099,130 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return childrenChanged ? in.replaceChildren(newChildren) : in;
         }
 
-        private static boolean canCastMixedNumericTypes(EsqlScalarFunction f) {
+        private static List<DataType> getTargetDataTypesForUnregisteredEsqlScalarFunctions(
+            org.elasticsearch.xpack.esql.core.expression.function.Function f
+        ) {
+            Class<?> clazz = null;
+            Constructor<?> ctor = null;
+            if (f instanceof Neg) {
+                clazz = Neg.class;
+            }
+            if (clazz != null) {
+                for (Constructor<?> c : clazz.getConstructors()) {
+                    FunctionInfo functionInfo = c.getAnnotation(FunctionInfo.class);
+                    if (functionInfo != null) {
+                        ctor = c;
+                        break;
+                    }
+                }
+            }
+            if (ctor != null) {
+                var params = ctor.getParameters();
+                List<DataType> targetDataTypes = new ArrayList<>(params.length - 1);
+                for (int i = 1; i < params.length; i++) { // skipping 1st argument, the source
+                    if (Configuration.class.isAssignableFrom(params[i].getType()) == false) {
+                        Param paramInfo = params[i].getAnnotation(Param.class);
+                        if (paramInfo != null) {
+                            DataType targetDataType = EsqlFunctionRegistry.getTargetType(paramInfo.type());
+                            targetDataTypes.add(targetDataType);
+                        }
+                    }
+                }
+                return targetDataTypes.size() == params.length - 1 ? targetDataTypes : null;
+            }
+            return null;
+        }
+
+        private static boolean isStringLiteral(Expression e) {
+            return e.dataType() == KEYWORD && e.foldable() && e instanceof Literal;
+        }
+
+        private static boolean castBothSidesOfDateTimeArithmeticOperation(
+            Expression left,
+            Expression right,
+            List<Expression> newChildren,
+            String errorMessage
+        ) {
+            boolean childrenChanged = false;
+            // Deal with both sides are string literals in Add or Sub. DateTime +/- Temporal, Temporal +/- Temporal are valid combinations
+            Expression newLeft = castStringLiteral(left, DATE_PERIOD);
+            if (newLeft instanceof Literal nl && isTemporalAmount(nl.dataType())) { // left is DateTime
+                childrenChanged = castOneSideOfDateTimeArithmeticOperation(newLeft, right, newChildren, errorMessage);
+            } else { // left is not DateTime, try casting left to Temporal
+                newLeft = castStringLiteral(left, DATETIME);
+                if (newLeft instanceof Literal nl && isDateTime(nl.dataType())) {
+                    childrenChanged = castOneSideOfDateTimeArithmeticOperation(newLeft, right, newChildren, errorMessage);
+                } else if (newLeft instanceof UnresolvedAttribute ua) {
+                    childrenChanged = castOneSideOfDateTimeArithmeticOperation(
+                        ua.withUnresolvedMessage(format(errorMessage, left.fold())),
+                        right,
+                        newChildren,
+                        errorMessage
+                    );
+                }
+            }
+            return childrenChanged;
+        }
+
+        private static boolean castOneSideOfDateTimeArithmeticOperation(
+            Expression left,
+            Expression right,
+            List<Expression> newChildren,
+            String errorMessage
+        ) {
+            boolean childrenChanged = false;
+            Expression newRight = castStringLiteral(right, DATE_PERIOD); // correct data type will be assigned according to qualifier
+            if (newRight instanceof Literal nr && isTemporalAmount(nr.dataType())) {
+                childrenChanged = addNewChildren(newChildren, left, newRight);
+            } else {
+                // rhs is not a temporal amount, try casting it to datetime
+                newRight = castStringLiteral(right, DATETIME);
+                if (newRight instanceof Literal nr && nr.dataType() == DATETIME) {
+                    childrenChanged = addNewChildren(newChildren, left, newRight);
+                } else if (newRight instanceof UnresolvedAttribute ua) {
+                    childrenChanged = addNewChildren(newChildren, left, ua.withUnresolvedMessage(format(errorMessage, right.fold())));
+                }
+            }
+            return childrenChanged;
+        }
+
+        private static boolean castOneSideOfBinaryOperator(
+            Expression from,
+            Expression to,
+            BinaryOperator<?, ?, ?, ?> o,
+            List<Expression> newChildren,
+            boolean keepChildrenSequence
+        ) {
+            boolean childrenChanged = false;
+            DataType toType = to.dataType();
+            DataType targetDataType = NULL;
+            Expression result = from;
+            if (supportsStringImplicitCasting(toType)) {
+                targetDataType = toType;
+                result = castStringLiteral(from, targetDataType);
+            }
+            if (o instanceof DateTimeArithmeticOperation && (result instanceof UnresolvedAttribute || result == from)) {
+                if (toType == DATETIME) {
+                    targetDataType = DATE_PERIOD; // The value will be converted to either DATE_PERIOD or TIME_DURATION automatically
+                } else if (isTemporalAmount(toType)) {
+                    targetDataType = DATETIME;
+                }
+                result = castStringLiteral(from, targetDataType);
+            }
+            if (result != from) {
+                // keep the sequence of the children the same as in the original expression
+                childrenChanged = keepChildrenSequence ? addNewChildren(newChildren, result, to) : addNewChildren(newChildren, to, result);
+            }
+            return childrenChanged;
+        }
+
+        private static boolean addNewChildren(List<Expression> newChildren, Expression leftChild, Expression rightChild) {
+            newChildren.add(leftChild);
+            newChildren.add(rightChild);
+            return true;
+        }
+
+        private static boolean canCastMixedNumericTypes(org.elasticsearch.xpack.esql.core.expression.function.Function f) {
             return f instanceof Coalesce;
         }
 
@@ -1132,25 +1261,37 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return childrenChanged ? f.replaceChildren(newChildren) : f;
         }
 
-        private static boolean supportsImplicitTemporalCasting(Expression e, BinaryOperator<?, ?, ?, ?> o) {
-            return isTemporalAmount(e.dataType()) && (o instanceof DateTimeArithmeticOperation);
-        }
-
         private static boolean supportsStringImplicitCasting(DataType type) {
-            return type == DATETIME || type == IP || type == VERSION || type == BOOLEAN;
+            return type == DATETIME || type == IP || type == VERSION || type == BOOLEAN || isTemporalAmount(type);
         }
 
         public static Expression castStringLiteral(Expression from, DataType target) {
             assert from.foldable();
             try {
-                Object to = EsqlDataTypeConverter.convert(from.fold(), target);
+                Object to;
+                if (isTemporalAmount(target)) {
+                    // The string literal can be either Date_Period or Time_Duration, extract its qualifier to decide the exact data type
+                    StringBuilder value = new StringBuilder();
+                    StringBuilder qualifier = new StringBuilder();
+                    String errorMessage = "Cannot parse [{}] to {}";
+                    parseTemporalAmount(from.fold().toString().strip(), value, qualifier, errorMessage, target);
+                    if ((value.isEmpty() || qualifier.isEmpty()) == false) {
+                        to = parseTemporalAmount(Integer.parseInt(value.toString()), qualifier.toString(), Source.EMPTY);
+                        target = to instanceof Duration ? TIME_DURATION : DATE_PERIOD;
+                    } else {
+                        // string literal is not a valid temporal format, let later process handle it
+                        return from;
+                    }
+                } else {
+                    to = EsqlDataTypeConverter.convert(from.fold(), target);
+                }
                 return new Literal(from.source(), to, target);
             } catch (Exception e) {
-                String message = LoggerMessageFormat.format(
+                String message = format(
                     "Cannot convert string [{}] to [{}], error [{}]",
                     from.fold(),
-                    target,
-                    e.getMessage()
+                    isTemporalAmount(target) ? DATE_PERIOD + " or " + TIME_DURATION : target,
+                    (e instanceof ParsingException pe) ? pe.getErrorMessage() : e.getMessage()
                 );
                 return new UnresolvedAttribute(from.source(), String.valueOf(from.fold()), message);
             }

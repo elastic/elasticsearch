@@ -807,6 +807,13 @@ public class VerifierTests extends ESTestCase {
                     + "\")]",
                 error("row to_timeduration(\"1 " + unit + "\") - now() ")
             );
+            assertEquals(
+                "1:5: [-] arguments are in unsupported order: cannot subtract a [DATETIME] value [now()] "
+                    + "from a [TIME_DURATION] amount [\"1 "
+                    + unit
+                    + "\"]",
+                error("row \"1 " + unit + "\" - now() ")
+            );
         }
         for (var unit : DATE_PERIODS) {
             assertEquals(
@@ -843,6 +850,13 @@ public class VerifierTests extends ESTestCase {
                     + unit
                     + "\")]",
                 error("row to_dateperiod(\"1 " + unit + "\") - now() ")
+            );
+            assertEquals(
+                "1:5: [-] arguments are in unsupported order: cannot subtract a [DATETIME] value [now()] "
+                    + "from a [DATE_PERIOD] amount [\"1 "
+                    + unit
+                    + "\"]",
+                error("row \"1 " + unit + "\" - now() ")
             );
         }
     }
@@ -1467,6 +1481,11 @@ public class VerifierTests extends ESTestCase {
         );
 
         assertEquals(
+            "1:39: EVAL does not support type [date_period] as the return data type of expression " + "[\"3 months\" + \"5 days\"]",
+            error("row x = \"2024-01-01\"::datetime | eval y = \"3 months\" + \"5 days\"")
+        );
+
+        assertEquals(
             "1:39: EVAL does not support type [time_duration] as the return data type of expression [3 hours + 5 minutes]",
             error("row x = \"2024-01-01\"::datetime | eval y = 3 hours + 5 minutes")
         );
@@ -1475,6 +1494,11 @@ public class VerifierTests extends ESTestCase {
             "1:39: EVAL does not support type [time_duration] as the return data type of expression "
                 + "[\"3 hours\"::time_duration + \"5 minutes\"::time_duration]",
             error("row x = \"2024-01-01\"::datetime | eval y = \"3 hours\"::time_duration + \"5 minutes\"::time_duration")
+        );
+
+        assertEquals(
+            "1:39: EVAL does not support type [time_duration] as the return data type of expression " + "[\"3 hours\" + \"5 minutes\"]",
+            error("row x = \"2024-01-01\"::datetime | eval y = \"3 hours\" + \"5 minutes\"")
         );
 
         // where
@@ -1538,6 +1562,50 @@ public class VerifierTests extends ESTestCase {
         assertEquals(
             "1:59: argument of [to_timeduration(x)] must be [time_duration or string], found value [x] type [ip]",
             error("from types  | EVAL x = \"2024-09-08\"::ip, y = birth_date - to_timeduration(x)")
+        );
+    }
+
+    public void testIntervalAsString() {
+        // DateTrunc
+        assertEquals(
+            "1:35: Cannot convert string [1 minu] to [DATE_PERIOD or TIME_DURATION], error [Unexpected time interval qualifier: 'minu']",
+            error("from types  | EVAL x = date_trunc(\"1 minu\", \"1991-06-26T00:00:00.000Z\")")
+        );
+        assertEquals(
+            "1:35: Cannot convert string [1 dy] to [DATE_PERIOD or TIME_DURATION], error [Unexpected time interval qualifier: 'dy']",
+            error("from types  | EVAL x = date_trunc(\"1 dy\", \"1991-06-26T00:00:00.000Z\")")
+        );
+
+        // Bucket
+        assertEquals(
+            "1:52: Cannot convert string [1 yar] to [DATE_PERIOD or TIME_DURATION], error [Unexpected time interval qualifier: 'yar']",
+            error("from test | stats max(emp_no) by bucket(hire_date, \"1 yar\")")
+        );
+        assertEquals(
+            "1:52: Cannot convert string [1 hur] to [DATE_PERIOD or TIME_DURATION], error [Unexpected time interval qualifier: 'hur']",
+            error("from test | stats max(emp_no) by bucket(hire_date, \"1 hur\")")
+        );
+        assertEquals(
+            "1:58: Cannot convert string [1 mu] to [DATE_PERIOD or TIME_DURATION], error [Unexpected time interval qualifier: 'mu']",
+            error("from test | stats max = max(emp_no) by bucket(hire_date, \"1 mu\") | sort max ")
+        );
+
+        // Add, Subtract, Neg
+        assertEquals(
+            "1:22: Cannot convert string [1 dy] to any of [DATETIME, DATE_PERIOD, TIME_DURATION]",
+            error("from test | eval x = \"1 dy\" + \"2024-01-01\" - \"1 yare\"")
+        );
+        assertEquals(
+            "1:37: Cannot convert string [1 dy] to any of [DATETIME, DATE_PERIOD, TIME_DURATION]",
+            error("from test | eval x = \"2024-01-01\" + \"1 dy\" - \"1 yare\"")
+        );
+        assertEquals(
+            "1:37: Cannot convert string [1 dy] to any of [DATETIME, DATE_PERIOD, TIME_DURATION]",
+            error("from test | eval x = \"2024-01-01\" - \"1 dy\" + \"1 yare\"")
+        );
+        assertEquals(
+            "1:24: Cannot convert string [1 dy] to [DATE_PERIOD or TIME_DURATION], error [Unexpected time interval qualifier: 'dy']",
+            error("from test | eval x = - \"1 dy\" + \"2024-01-01\" + \"1 yare\"")
         );
     }
 

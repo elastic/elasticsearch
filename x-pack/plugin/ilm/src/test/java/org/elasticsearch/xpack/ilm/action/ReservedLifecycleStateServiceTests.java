@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.ilm.action;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.repositories.reservedstate.ReservedRepositoryAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterModule;
@@ -22,6 +21,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.env.BuildVersion;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.reservedstate.TransformState;
 import org.elasticsearch.reservedstate.action.ReservedClusterSettingsAction;
@@ -418,7 +418,7 @@ public class ReservedLifecycleStateServiceTests extends ESTestCase {
                     )
                 )
             ),
-            new ReservedStateVersion(123L, Version.CURRENT)
+            new ReservedStateVersion(123L, BuildVersion.current())
         );
 
         controller.process("operator", pack, randomFrom(ReservedStateVersionCheck.values()), x::set);

@@ -34,7 +34,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.netty4.Netty4Plugin;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
-import org.elasticsearch.xpack.core.XPackFeatureSet;
+import org.elasticsearch.xpack.core.XPackFeatureUsage;
 import org.elasticsearch.xpack.core.action.TransportXPackUsageAction;
 import org.elasticsearch.xpack.core.action.XPackUsageAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
@@ -168,7 +168,7 @@ public class XPackUsageRestCancellationIT extends ESIntegTestCase {
         ) throws Exception {
             blockingXPackUsageActionExecuting.countDown();
             blockActionLatch.await();
-            listener.onResponse(new XPackUsageFeatureResponse(new XPackFeatureSet.Usage("test", false, false) {
+            listener.onResponse(new XPackUsageFeatureResponse(new XPackFeatureUsage("test", false, false) {
                 @Override
                 public TransportVersion getMinimalSupportedVersion() {
                     return TransportVersion.current();

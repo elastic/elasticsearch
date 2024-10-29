@@ -1219,6 +1219,13 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
         }
     }
 
+    public void testSupportsStreaming() throws IOException {
+        try (var service = new GoogleAiStudioService(mock(), createWithEmptySettings(mock()))) {
+            assertTrue(service.canStream(TaskType.COMPLETION));
+            assertTrue(service.canStream(TaskType.ANY));
+        }
+    }
+
     public static Map<String, Object> buildExpectationCompletions(List<String> completions) {
         return Map.of(
             ChatCompletionResults.COMPLETION,

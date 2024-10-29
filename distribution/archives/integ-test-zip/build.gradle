@@ -35,13 +35,3 @@ publishing {
     }
   }
 }
-
-// do not expose runtimeElements and apiElements to avoid using them in variant resolution
-configurations {
-  runtimeElements {
-    canBeConsumed = false
-  }
-  apiElements {
-    canBeConsumed = false
-  }
-}

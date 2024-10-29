@@ -175,7 +175,7 @@ public class FileSettingsRoleMappingsRestartIT extends SecurityIntegTestCase {
             )
         );
 
-        // now remove the role mappings via the same settings file
+        // now remove the role mappings via an empty settings file
         cleanupClusterStateAndAssertNoMappings(masterNode);
 
         // and restart the master to confirm the role mappings are all gone

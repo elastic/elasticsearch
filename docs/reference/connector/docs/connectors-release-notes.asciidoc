@@ -4,7 +4,13 @@
 <titleabbrev>Release notes</titleabbrev>
 ++++
 
-[INFO]
+[NOTE]
 ====
-Prior to version 8.16.0, the connector release notes were published as part of the https://www.elastic.co/guide/en/enterprise-search/current/changelog.html[Enterprise Search documentation].
+Prior to version *8.16.0*, the connector release notes were published as part of the {enterprise-search-ref}/changelog.html[Enterprise Search documentation].
 ====
+
+Release notes:
+
+* <<es-connectors-release-notes-8-16-0>>
+
+include::release-notes/connectors-release-notes-8.16.0.asciidoc[]

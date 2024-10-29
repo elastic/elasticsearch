@@ -366,7 +366,7 @@ public class EnrichPolicyResolver {
 
         /**
          * Use this constructor when the remote cluster is unavailable to indicate inability to do the enrich policy lookup
-         * @param connectionError
+         * @param connectionError Exception received when trying to connect to a remote cluster
          */
         LookupResponse(Exception connectionError) {
             this.policies = Collections.emptyMap();

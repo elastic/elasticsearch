@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.esql.session;
 
 /**
  * Sentinel exception indicating that logical planning could not find any clusters to search
- * when, for a remote-nly cross-cluster search, all clusters have been marked as SKIPPED.
- * Intended for use only on the querying coordinating for ES|QL logical planning.
+ * when, for a remote-only cross-cluster search, all clusters have been marked as SKIPPED.
+ * Intended for use only on the querying coordinating during ES|QL logical planning.
  */
 public class NoClustersToSearchException extends RuntimeException {}

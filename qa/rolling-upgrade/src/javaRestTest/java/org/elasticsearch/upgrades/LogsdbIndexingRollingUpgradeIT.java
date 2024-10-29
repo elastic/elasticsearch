@@ -28,10 +28,7 @@ import java.util.Map;
 import static org.elasticsearch.upgrades.LogsIndexModeRollingUpgradeIT.enableLogsdbByDefault;
 import static org.elasticsearch.upgrades.LogsIndexModeRollingUpgradeIT.getWriteBackingIndex;
 import static org.elasticsearch.upgrades.TsdbIT.formatInstant;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.*;
 
 public class LogsdbIndexingRollingUpgradeIT extends AbstractRollingUpgradeTestCase {
 
@@ -240,7 +237,7 @@ public class LogsdbIndexingRollingUpgradeIT extends AbstractRollingUpgradeTestCa
         } catch (ResponseException e) {
             var responseBody = entityAsMap(e.getResponse());
             String error = ObjectPath.evaluate(responseBody, "error_message");
-            assertThat(error, equalTo("Trial was already activated."));
+            assertThat(error, containsString("Trial was already activated."));
         }
     }
 

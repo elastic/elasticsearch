@@ -75,6 +75,11 @@ public class EsqlCapabilities {
         FN_SUBSTRING_EMPTY_NULL,
 
         /**
+         * All functions that take TEXT should never emit TEXT, only KEYWORD. #114334
+         */
+        FUNCTIONS_NEVER_EMIT_TEXT,
+
+        /**
          * Support for the {@code INLINESTATS} syntax.
          */
         INLINESTATS(EsqlPlugin.INLINESTATS_FEATURE_FLAG),
@@ -309,6 +314,16 @@ public class EsqlCapabilities {
         TO_DATE_NANOS(EsqlCorePlugin.DATE_NANOS_FEATURE_FLAG),
 
         /**
+         * Support Least and Greatest functions on Date Nanos type
+         */
+        LEAST_GREATEST_FOR_DATENANOS(EsqlCorePlugin.DATE_NANOS_FEATURE_FLAG),
+
+        /**
+         * support aggregations on date nanos
+         */
+        DATE_NANOS_AGGREGATIONS(EsqlCorePlugin.DATE_NANOS_FEATURE_FLAG),
+
+        /**
          * Support for datetime in least and greatest functions
          */
         LEAST_GREATEST_FOR_DATES,
@@ -380,11 +395,6 @@ public class EsqlCapabilities {
         DATE_DIFF_YEAR_CALENDARIAL,
 
         /**
-         * Support named parameters for field names.
-         */
-        NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES(Build.current().isSnapshot()),
-
-        /**
          * Fix sorting not allowed on _source and counters.
          */
         SORTING_ON_SOURCE_AND_COUNTERS_FORBIDDEN,
@@ -393,6 +403,11 @@ public class EsqlCapabilities {
          * Allow filter per individual aggregation.
          */
         PER_AGG_FILTERING,
+
+        /**
+         * Fix {@link #PER_AGG_FILTERING} grouped by ordinals.
+         */
+        PER_AGG_FILTERING_ORDS,
 
         /**
          * Fix for https://github.com/elastic/elasticsearch/issues/114714
@@ -406,7 +421,27 @@ public class EsqlCapabilities {
         /**
          * Support for semantic_text field mapping
          */
-        SEMANTIC_TEXT_TYPE(EsqlCorePlugin.SEMANTIC_TEXT_FEATURE_FLAG);
+        SEMANTIC_TEXT_TYPE(EsqlCorePlugin.SEMANTIC_TEXT_FEATURE_FLAG),
+        /**
+         * Fix for an optimization that caused wrong results
+         * https://github.com/elastic/elasticsearch/issues/115281
+         */
+        FIX_FILTER_PUSHDOWN_PAST_STATS,
+
+        /**
+         * This enables 60_usage.yml "Basic ESQL usage....snapshot" version test. See also the next capability.
+         */
+        SNAPSHOT_TEST_FOR_TELEMETRY(Build.current().isSnapshot()),
+
+        /**
+         * This enables 60_usage.yml "Basic ESQL usage....non-snapshot" version test. See also the previous capability.
+         */
+        NON_SNAPSHOT_TEST_FOR_TELEMETRY(Build.current().isSnapshot() == false),
+
+        /**
+         * Support simplified syntax for named parameters for field and function names.
+         */
+        NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES_SIMPLIFIED_SYNTAX(Build.current().isSnapshot());
 
         private final boolean enabled;
 

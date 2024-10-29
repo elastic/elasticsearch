@@ -104,6 +104,16 @@ public abstract class DocumentParserContext {
         }
     }
 
+    /**
+     * Defines the scope parser is currently in.
+     * This is used for synthetic source related logic during parsing.
+     */
+    private enum Scope {
+        SINGLETON,
+        ARRAY,
+        NESTED
+    }
+
     private final MappingLookup mappingLookup;
     private final MappingParserContext mappingParserContext;
     private final SourceToParse sourceToParse;
@@ -112,7 +122,7 @@ public abstract class DocumentParserContext {
     private final List<IgnoredSourceFieldMapper.NameValue> ignoredFieldValues;
     private final List<IgnoredSourceFieldMapper.NameValue> ignoredFieldsMissingValues;
     private boolean inArrayScopeEnabled;
-    private boolean inArrayScope;
+    private Scope currentScope;
 
     private final Map<String, List<Mapper>> dynamicMappers;
     private final DynamicMapperSize dynamicMappersSize;
@@ -145,7 +155,7 @@ public abstract class DocumentParserContext {
         List<IgnoredSourceFieldMapper.NameValue> ignoredFieldValues,
         List<IgnoredSourceFieldMapper.NameValue> ignoredFieldsWithNoSource,
         boolean inArrayScopeEnabled,
-        boolean inArrayScope,
+        Scope currentScope,
         Map<String, List<Mapper>> dynamicMappers,
         Map<String, ObjectMapper> dynamicObjectMappers,
         Map<String, List<RuntimeField>> dynamicRuntimeFields,
@@ -167,7 +177,7 @@ public abstract class DocumentParserContext {
         this.ignoredFieldValues = ignoredFieldValues;
         this.ignoredFieldsMissingValues = ignoredFieldsWithNoSource;
         this.inArrayScopeEnabled = inArrayScopeEnabled;
-        this.inArrayScope = inArrayScope;
+        this.currentScope = currentScope;
         this.dynamicMappers = dynamicMappers;
         this.dynamicObjectMappers = dynamicObjectMappers;
         this.dynamicRuntimeFields = dynamicRuntimeFields;
@@ -192,7 +202,7 @@ public abstract class DocumentParserContext {
             in.ignoredFieldValues,
             in.ignoredFieldsMissingValues,
             in.inArrayScopeEnabled,
-            in.inArrayScope,
+            in.currentScope,
             in.dynamicMappers,
             in.dynamicObjectMappers,
             in.dynamicRuntimeFields,
@@ -224,7 +234,7 @@ public abstract class DocumentParserContext {
             new ArrayList<>(),
             new ArrayList<>(),
             mappingParserContext.getIndexSettings().isSyntheticSourceSecondDocParsingPassEnabled(),
-            false,
+            Scope.SINGLETON,
             new HashMap<>(),
             new HashMap<>(),
             new HashMap<>(),
@@ -335,7 +345,7 @@ public abstract class DocumentParserContext {
     public final DocumentParserContext addIgnoredFieldFromContext(IgnoredSourceFieldMapper.NameValue ignoredFieldWithNoSource)
         throws IOException {
         if (canAddIgnoredField()) {
-            if (inArrayScope) {
+            if (currentScope == Scope.ARRAY) {
                 // The field is an array within an array, store all sub-array elements.
                 ignoredFieldsMissingValues.add(ignoredFieldWithNoSource);
                 return cloneWithRecordedSource();
@@ -379,10 +389,10 @@ public abstract class DocumentParserContext {
         if (canAddIgnoredField()
             && mapper instanceof ObjectMapper
             && mapper instanceof NestedObjectMapper == false
-            && inArrayScope == false
+            && currentScope != Scope.ARRAY
             && inArrayScopeEnabled) {
             DocumentParserContext subcontext = switchParser(parser());
-            subcontext.inArrayScope = true;
+            subcontext.currentScope = Scope.ARRAY;
             return subcontext;
         }
         return this;
@@ -673,6 +683,10 @@ public abstract class DocumentParserContext {
         return false;
     }
 
+    public boolean inNestedScope() {
+        return currentScope == Scope.NESTED;
+    }
+
     public final DocumentParserContext createChildContext(ObjectMapper parent) {
         return new Wrapper(parent, this);
     }
@@ -716,10 +730,11 @@ public abstract class DocumentParserContext {
                 return document;
             }
         };
-        // Disable tracking array scopes for ignored source, as it would be added to the parent doc.
-        // Nested documents are added to preserve object structure within arrays of objects, so the use
-        // of ignored source for arrays inside them should be mostly redundant.
-        cloned.inArrayScope = false;
+
+        cloned.currentScope = Scope.NESTED;
+        // Disable using second parsing pass since it currently can not determine which parts
+        // of source belong to which nested document.
+        // See #115261.
         cloned.inArrayScopeEnabled = false;
         return cloned;
     }

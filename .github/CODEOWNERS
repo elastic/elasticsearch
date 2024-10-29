@@ -39,7 +39,6 @@ gradle @elastic/es-delivery
 build-conventions @elastic/es-delivery
 build-tools @elastic/es-delivery
 build-tools-internal @elastic/es-delivery
-*.gradle @elastic/es-delivery
 .buildkite @elastic/es-delivery
 .ci @elastic/es-delivery
 .idea @elastic/es-delivery

@@ -99,8 +99,10 @@ import static org.elasticsearch.xpack.esql.SerializationTestUtils.assertSerializ
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 /**
@@ -239,8 +241,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                                 .mapToObj(
                                     i -> i == finalNullPosition
                                         ? (oc.getData().get(i).isMultiRow()
-                                            ? TestCaseSupplier.TypedData.MULTI_ROW_NULL
-                                            : TestCaseSupplier.TypedData.NULL)
+                                        ? TestCaseSupplier.TypedData.MULTI_ROW_NULL
+                                        : TestCaseSupplier.TypedData.NULL)
                                         : oc.getData().get(i)
                                 )
                                 .toList();
@@ -719,23 +721,22 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         }
         for (Map.Entry<List<DataType>, DataType> entry : signatures().entrySet()) {
             List<DataType> types = entry.getKey();
-            DataType returnType = entry.getValue();
             for (int i = 0; i < args.size() && i < types.size(); i++) {
                 typesFromSignature.get(i).add(types.get(i).esNameIfPossible());
             }
-            if (DataType.UNDER_CONSTRUCTION.containsKey(returnType) == false) {
-                returnFromSignature.add(returnType.esNameIfPossible());
+            if (DataType.UNDER_CONSTRUCTION.containsKey(entry.getValue()) == false) {
+                returnFromSignature.add(entry.getValue().esNameIfPossible());
             }
         }
 
         for (int i = 0; i < args.size(); i++) {
             EsqlFunctionRegistry.ArgSignature arg = args.get(i);
             Set<String> annotationTypes = Arrays.stream(arg.type())
-                .filter(DataType.UNDER_CONSTRUCTION::containsKey)
+                .filter(t -> DataType.UNDER_CONSTRUCTION.containsKey(DataType.fromNameOrAlias(t)) == false)
                 .collect(Collectors.toCollection(TreeSet::new));
             Set<String> signatureTypes = typesFromSignature.get(i)
                 .stream()
-                .filter(DataType.UNDER_CONSTRUCTION::containsKey)
+                .filter(t -> DataType.UNDER_CONSTRUCTION.containsKey(DataType.fromNameOrAlias(t)) == false)
                 .collect(Collectors.toCollection(TreeSet::new));
             if (signatureTypes.isEmpty()) {
                 log.info("{}: skipping", arg.name());
@@ -749,15 +750,38 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             );
         }
 
-        Set<String> underConstructionTypes = DataType.UNDER_CONSTRUCTION.keySet()
-            .stream()
-            .map(dataType -> dataType.esNameIfPossible())
-            .collect(Collectors.toCollection(TreeSet::new));
-
         Set<String> returnTypes = Arrays.stream(description.returnType())
-            .filter(typeName -> underConstructionTypes.contains(typeName) == false)
+            .filter(t -> DataType.UNDER_CONSTRUCTION.containsKey(DataType.fromNameOrAlias(t)) == false)
             .collect(Collectors.toCollection(TreeSet::new));
         assertEquals(returnFromSignature, returnTypes);
+    }
+
+    /**
+     * Asserts the result of a test case matches the expected result and warnings.
+     * <p>
+     * The {@code result} parameter should be an object as returned by {@link #toJavaObjectUnsignedLongAware}.
+     * </p>
+     */
+    @SuppressWarnings("unchecked")
+    protected final void assertTestCaseResultAndWarnings(Object result) {
+        if (result instanceof Iterable<?>) {
+            var collectionResult = (Iterable<Object>) result;
+            assertThat(collectionResult, not(hasItem(Double.NaN)));
+            assertThat(collectionResult, not(hasItem(Double.POSITIVE_INFINITY)));
+            assertThat(collectionResult, not(hasItem(Double.NEGATIVE_INFINITY)));
+        }
+
+        assert testCase.getMatcher().matches(Double.NaN) == false;
+        assertThat(result, not(equalTo(Double.NaN)));
+        assert testCase.getMatcher().matches(Double.POSITIVE_INFINITY) == false;
+        assertThat(result, not(equalTo(Double.POSITIVE_INFINITY)));
+        assert testCase.getMatcher().matches(Double.NEGATIVE_INFINITY) == false;
+        assertThat(result, not(equalTo(Double.NEGATIVE_INFINITY)));
+        assertThat(result, testCase.getMatcher());
+
+        if (testCase.getExpectedWarnings() != null) {
+            assertWarnings(testCase.getExpectedWarnings());
+        }
     }
 
     protected final void assertTypeResolutionFailure(Expression expression) {

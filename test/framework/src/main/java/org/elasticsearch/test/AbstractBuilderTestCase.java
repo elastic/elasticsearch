@@ -342,6 +342,15 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
         return serviceHolder.createCoordinatorContext(dateFieldType, min, max);
     }
 
+    protected static CoordinatorRewriteContext createCoordinatorRewriteContext(
+        DateFieldMapper.DateFieldType dateFieldType,
+        long min,
+        long max,
+        String tier
+    ) {
+        return serviceHolder.createCoordinatorContext(dateFieldType, min, max, tier);
+    }
+
     protected static DataRewriteContext dataRewriteContext() {
         return serviceHolder.createDataContext();
     }
@@ -625,13 +634,17 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
         }
 
         CoordinatorRewriteContext createCoordinatorContext(DateFieldMapper.DateFieldType dateFieldType, long min, long max) {
+            return createCoordinatorContext(dateFieldType, min, max, "");
+        }
+
+        CoordinatorRewriteContext createCoordinatorContext(DateFieldMapper.DateFieldType dateFieldType, long min, long max, String tier) {
             DateFieldRangeInfo timestampFieldInfo = new DateFieldRangeInfo(
                 dateFieldType,
                 IndexLongFieldRange.NO_SHARDS.extendWithShardRange(0, 1, ShardLongFieldRange.of(min, max)),
                 dateFieldType,
                 IndexLongFieldRange.NO_SHARDS.extendWithShardRange(0, 1, ShardLongFieldRange.of(min, max))
             );
-            return new CoordinatorRewriteContext(parserConfiguration, this.client, () -> nowInMillis, timestampFieldInfo);
+            return new CoordinatorRewriteContext(parserConfiguration, this.client, () -> nowInMillis, timestampFieldInfo, tier);
         }
 
         DataRewriteContext createDataContext() {

@@ -71,7 +71,11 @@ public class Netty4HttpRequestBodyStream implements HttpBody.Stream {
             if (buf == null) {
                 channel.read();
             } else {
-                send();
+                try {
+                    send();
+                } catch (Exception e) {
+                    channel.pipeline().fireExceptionCaught(e);
+                }
             }
         });
     }

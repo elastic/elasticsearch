@@ -37,6 +37,7 @@ tasks.named('test').configure {
   jvmArgumentProviders.add(new CommandLineArgumentProvider() {
     @Override
     Iterable<String> asArguments() {
+      // Add this like we add the native library
       return ["-javaagent:${tasks.jar.archiveFile.get()}", "-Des.entitlement.bridgeJar=${configurations.entitlementBridge.singleFile}", "-Des.entitlement.runtimeJar=${configurations.entitlementRuntime.singleFile}"]
     }
   })

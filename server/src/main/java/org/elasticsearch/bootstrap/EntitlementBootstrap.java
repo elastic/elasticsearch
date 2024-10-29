@@ -19,16 +19,30 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 
-final class EntitlementBootstrap {
+public final class EntitlementBootstrap {
+    private static volatile AgentParameters agentParameters = null;
+
+    public AgentParameters agentParameters() {
+        return agentParameters;
+    }
+
+    public record AgentParameters(
+        String bridgeLibrary,
+        String runtimeLibrary
+    ) {}
 
     @SuppressForbidden(reason = "VirtualMachine.loadAgent is the only way to attach the agent dynamically")
     static void configure() {
+        LibraryLocations libs = findEntitlementLibraries();
         logger.debug("Loading agent");
+        agentParameters = new AgentParameters(libs.bridge(), libs.runtime());
         try {
             VirtualMachine vm = VirtualMachine.attach(Long.toString(ProcessHandle.current().pid()));
             try {
-                vm.loadAgent(agentJar());
+                vm.loadAgent(libs.agent());
             } finally {
                 vm.detach();
             }
@@ -37,12 +51,36 @@ final class EntitlementBootstrap {
         }
     }
 
-    private static String agentJar() {
-        String result = System.getProperty("es.entitlement.agentJar");
-        if (result == null) {
-            throw new IllegalStateException("Must set es.entitlement.agentJar property");
+    private record LibraryLocations(String agent, String bridge, String runtime) { }
+
+    private static LibraryLocations findEntitlementLibraries() {
+        logger.debug("Finding entitlement libraries");
+        return new LibraryLocations(
+            findEntitlementJar("agent"),
+            findEntitlementJar("bridge"),
+            findEntitlementJar("runtime"));
+    }
+
+    private static String findEntitlementJar(String libraryName) {
+        String propertyName = "es.entitlement." +  libraryName + "Jar";
+        String propertyValue = System.getProperty(propertyName);
+        if (propertyValue != null) {
+            return propertyValue;
         }
-        return result;
+
+        Path dir = Path.of("lib", "tools", "entitlement-" + libraryName);
+        if (dir.toFile().exists() == false) {
+            throw new IllegalStateException("Directory for entitlement jar does not exist: " + dir);
+        }
+        try (var s = Files.list(dir)) {
+            var candidates = s.limit(2).toList();
+            if (candidates.size() != 1) {
+                throw new IllegalStateException("Expected one jar in " + dir + "; found " + candidates.size());
+            }
+            return candidates.get(0).toString();
+        } catch (IOException e) {
+            throw new IllegalStateException("Failed to list entitlement jars in: " + dir, e);
+        }
     }
 
     private static final Logger logger = LogManager.getLogger(EntitlementBootstrap.class);

@@ -94,16 +94,17 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.RunnableFuture;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.function.ToLongFunction;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThan;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -974,8 +975,9 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
         assertEquals(-1, DefaultSearchContext.getFieldCardinality("field", indexService, null));
     }
 
-    public void testDoNotCreateMoreTasksThanAvailableThreads() throws IOException, ExecutionException, InterruptedException {
-        int executorPoolSize = randomIntBetween(2, 5);
+    public void testSingleThreadNoSearchConcurrency() throws IOException, ExecutionException, InterruptedException {
+        // with a single thread in the pool the max number of slices will always be 1, hence we won't provide the executor to the searcher
+        int executorPoolSize = 1;
         int numIters = randomIntBetween(10, 50);
         int numSegmentTasks = randomIntBetween(50, 100);
         AtomicInteger completedTasks = new AtomicInteger(0);
@@ -987,11 +989,90 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
             new LinkedBlockingQueue<>()
         );
         executor.setRejectedExecutionHandler(new ThreadPoolExecutor.AbortPolicy());
+        try {
+            doTestSearchConcurrency(executor, numIters, numSegmentTasks, completedTasks);
+        } finally {
+            terminate(executor);
+        }
+        // Tasks are still created, but the internal executor is a direct one hence there is no parallelism in practice
+        assertEquals((long) numIters * numSegmentTasks + numIters, completedTasks.get());
+        assertEquals(numIters, executor.getCompletedTaskCount());
+    }
+
+    public void testNoSearchConcurrencyWhenQueueing() throws IOException, ExecutionException, InterruptedException {
+        // with multiple threads, but constant queueing, the max number of slices will always be 1, hence we won't provide the
+        // executor to the searcher
+        int executorPoolSize = randomIntBetween(2, 5);
+        int numIters = randomIntBetween(10, 50);
+        int numSegmentTasks = randomIntBetween(50, 100);
+        AtomicInteger completedTasks = new AtomicInteger(0);
+        final AtomicBoolean terminating = new AtomicBoolean(false);
+        LinkedBlockingQueue<Runnable> queue = new LinkedBlockingQueue<>() {
+            @Override
+            public int size() {
+                // for the purpose of this test we pretend that we always have more items in the queue than threads, but we need to revert
+                // to normal behaviour to ensure graceful shutdown
+                if (terminating.get()) {
+                    return super.size();
+                }
+                return randomIntBetween(executorPoolSize + 1, Integer.MAX_VALUE);
+            }
+        };
+        ThreadPoolExecutor executor = new ThreadPoolExecutor(executorPoolSize, executorPoolSize, 0L, TimeUnit.MILLISECONDS, queue);
+        try {
+            doTestSearchConcurrency(executor, numIters, numSegmentTasks, completedTasks);
+            terminating.set(true);
+        } finally {
+            terminate(executor);
+        }
+        // Tasks are still created, but the internal executor is a direct one hence there is no parallelism in practice
+        assertEquals((long) numIters * numSegmentTasks + numIters, completedTasks.get());
+        assertEquals(numIters, executor.getCompletedTaskCount());
+    }
+
+    public void testSearchConcurrencyDoesNotCreateMoreTasksThanThreads() throws Exception {
+        // with multiple threads, but not enough queueing to disable parallelism, we will provide the executor to the searcher
+        int executorPoolSize = randomIntBetween(2, 5);
+        int numIters = randomIntBetween(10, 50);
+        int numSegmentTasks = randomIntBetween(50, 100);
+        AtomicInteger completedTasks = new AtomicInteger(0);
+        final AtomicBoolean terminating = new AtomicBoolean(false);
+        LinkedBlockingQueue<Runnable> queue = new LinkedBlockingQueue<>() {
+            @Override
+            public int size() {
+                int size = super.size();
+                // for the purpose of this test we pretend that we only ever have as many items in the queue as number of threads, but we
+                // need to revert to normal behaviour to ensure graceful shutdown
+                if (size <= executorPoolSize || terminating.get()) {
+                    return size;
+                }
+                return randomIntBetween(0, executorPoolSize);
+            }
+        };
+        ThreadPoolExecutor executor = new ThreadPoolExecutor(executorPoolSize, executorPoolSize, 0L, TimeUnit.MILLISECONDS, queue);
+
+        try {
+            doTestSearchConcurrency(executor, numIters, numSegmentTasks, completedTasks);
+            terminating.set(true);
+        } finally {
+            terminate(executor);
+        }
+
+        // make sure that we do parallelize execution: each operation will use at minimum as many tasks as threads available
+        assertThat(executor.getCompletedTaskCount(), greaterThanOrEqualTo((long) numIters * executorPoolSize));
+        // while we parallelize we also limit the number of tasks that each searcher submits
+        assertThat(executor.getCompletedTaskCount(), lessThan((long) numIters * numSegmentTasks));
+        // *2 is just a wild guess to account for tasks that get executed while we are still submitting
+        assertThat(executor.getCompletedTaskCount(), lessThan((long) numIters * executorPoolSize * 2));
+    }
+
+    private void doTestSearchConcurrency(ThreadPoolExecutor executor, int numIters, int numSegmentTasks, AtomicInteger completedTasks)
+        throws IOException, ExecutionException, InterruptedException {
         DefaultSearchContext[] contexts = new DefaultSearchContext[numIters];
-        List<Future<?>> futures = new ArrayList<>(numIters);
         for (int i = 0; i < numIters; i++) {
             contexts[i] = createDefaultSearchContext(executor, randomFrom(SearchService.ResultsType.DFS, SearchService.ResultsType.QUERY));
         }
+        List<Future<?>> futures = new ArrayList<>(numIters);
         try {
             for (int i = 0; i < numIters; i++) {
                 // simulate multiple concurrent search operations that parallelize each their execution across many segment level tasks
@@ -1012,6 +1093,8 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
                     }
                     try {
                         searchContext.searcher().getTaskExecutor().invokeAll(tasks);
+                        // TODO additional calls to invokeAll
+
                         // invokeAll is blocking, hence at this point we are done executing all the sub-tasks, but the queue may
                         // still be filled up with no-op leftover tasks
                         assertEquals(numSegmentTasks, segmentTasksCompleted.get());
@@ -1028,18 +1111,12 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
             for (Future<?> future : futures) {
                 future.get();
             }
-            assertEquals((long) numIters * numSegmentTasks + numIters, completedTasks.get());
         } finally {
-            terminate(executor);
             for (DefaultSearchContext searchContext : contexts) {
                 searchContext.indexShard().getThreadPool().shutdown();
                 searchContext.close();
             }
         }
-        // make sure that we do parallelize execution across segments
-        assertThat(executor.getCompletedTaskCount(), greaterThan((long) numIters));
-        // while not creating too many segment level tasks
-        assertThat(executor.getCompletedTaskCount(), lessThanOrEqualTo((long) numIters * executorPoolSize + numIters));
     }
 
     private DefaultSearchContext createDefaultSearchContext(Executor executor, SearchService.ResultsType resultsType) throws IOException {

@@ -240,14 +240,16 @@ final class DefaultSearchContext extends SearchContext {
             // they contribute to the queue size until they are removed from it.
             AtomicInteger segmentLevelTasks = new AtomicInteger(0);
             return command -> {
-                if (segmentLevelTasks.get() > tpe.getMaximumPoolSize()) {
-                    command.run();
-                    return;
-                }
                 if (segmentLevelTasks.incrementAndGet() > tpe.getMaximumPoolSize()) {
                     command.run();
                 } else {
-                    executor.execute(command);
+                    executor.execute(() -> {
+                        try {
+                            command.run();
+                        } finally {
+                            segmentLevelTasks.decrementAndGet();
+                        }
+                    });
                 }
             };
         }
@@ -315,6 +317,8 @@ final class DefaultSearchContext extends SearchContext {
         boolean enableQueryPhaseParallelCollection,
         ToLongFunction<String> fieldCardinality
     ) {
+        // Note: although this method refers to parallel collection, it affects any kind of parallelism, including query rewrite,
+        // given that if 1 is the returned value, no executor is provided to the searcher.
         return executor instanceof ThreadPoolExecutor tpe
             && tpe.getQueue().size() <= tpe.getMaximumPoolSize()
             && isParallelCollectionSupportedForResults(resultsType, request.source(), fieldCardinality, enableQueryPhaseParallelCollection)

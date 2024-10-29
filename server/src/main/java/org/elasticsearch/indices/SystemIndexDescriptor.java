@@ -286,8 +286,8 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
         Objects.requireNonNull(priorSystemIndexDescriptors, "priorSystemIndexDescriptors must not be null");
         if (priorSystemIndexDescriptors.isEmpty() == false) {
             // the rules for prior system index descriptors
-            // 1. No values with the same minimum node version
-            // 2. All prior system index descriptors must have a minimumNodeVersion before this one
+            // 1. No values with the same minimum mappings version
+            // 2. All prior system index descriptors must have a lower mappings version
             // 3. Prior system index descriptors may not have other prior system index descriptors
             // to avoid multiple branches that need followed
             // 4. Must have same indexPattern, primaryIndex, and alias
@@ -506,7 +506,7 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
     }
 
     /**
-     * Gets a standardized message when the node contains a data or master node whose version is less
+     * Gets a standardized message when the node contains a data or master node whose mappings version is less
      * than that of the minimum supported version of this descriptor and its prior descriptors.
      *
      * @param cause the action being attempted that triggered the check. Used in the error message.
@@ -527,10 +527,10 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
 
     /**
      * Finds the descriptor that can be used within this cluster, by comparing the supplied minimum
-     * node version to this descriptor's minimum version and the prior descriptors minimum version.
+     * mappings version to this descriptor's minimum version and the prior descriptors minimum version.
      *
-     * @param version the lower node version in the cluster
-     * @return <code>null</code> if the lowest node version is lower than the minimum version in this descriptor,
+     * @param version the lower mappings version in the cluster
+     * @return <code>null</code> if the lowest mappings version is lower than the minimum version in this descriptor,
      * or the appropriate descriptor if the supplied version is acceptable.
      */
     public SystemIndexDescriptor getDescriptorCompatibleWith(MappingsVersion version) {
@@ -546,8 +546,7 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
     }
 
     /**
-     * @return The names of thread pools that should be used for operations on this
-     *    system index.
+     * @return The names of thread pools that should be used for operations on this system index.
      */
     public ExecutorNames getThreadPoolNames() {
         return this.executorNames;

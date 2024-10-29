@@ -1,5 +1,8 @@
 [[three-availability-zones]]
-=== Three availability zones
+=== Self-managed hot-frozen three availability zone architecture for time series data
+++++
+<titleabbrev>Architecture: Self-managed - one region</titleabbrev>
+++++
 
 This article outlines a scalable and highly available architecture for Elasticsearch using three availability zones. The architecture encompasses all essential components of the Elastic Stack and serves as a foundational blueprint to ensure your deployment is resilient and ready to handle any desired workload. While this overview includes high-level representations of data flow, detailed implementation will be covered in subsequent documentation.
 

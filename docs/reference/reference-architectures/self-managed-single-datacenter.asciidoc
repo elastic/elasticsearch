@@ -1,5 +1,8 @@
 [[self-managed-single-datacenter]]
-=== Self managed - single datacenter
+=== Self-managed hot-frozen multi-region architecture for time series data
+++++
+<titleabbrev>Architecture: Self-managed - multi-region</titleabbrev>
+++++
 
 This architecture is designed to ensure high availability during normal operations and node maintenance. It reduces cost by leveraging the frozen tier as soon as it makes sense from an ingest and most frequently read documents perspective. It significantly reduces the likelihood of hot-spotting due to the sharding strategy. Additionally it eliminates network and disk overhead caused by rebalancing attempts that would occur during maintenance due to setting forced awareness. For more information on elements of this architecture, see https://www.elastic.co/guide/en/elasticsearch/reference/current/high-availability-cluster-design-large-clusters.html#high-availability-cluster-design-two-zones[Resilience in larger clusters - Two-zone clusters]. 
 

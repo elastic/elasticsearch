@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-.ci/scripts/run-gradle.sh buildCloudDockerEssImage
+.ci/scripts/run-gradle.sh buildCloudEssDockerImage
 
 ES_VERSION=$(grep 'elasticsearch' build-tools-internal/version.properties | awk '{print $3}')
 DOCKER_TAG="docker.elastic.co/elasticsearch-ci/elasticsearch-cloud-ess:${ES_VERSION}-${BUILDKITE_COMMIT:0:7}"

@@ -46,6 +46,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceLookupWithJoi
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceOrderByExpressionWithEval;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceRegexMatch;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStatsAggExpressionWithEval;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStatsFilteredAggWithEval;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStatsNestedExpressionWithEval;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceTrivialTypeConversions;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SetAsOptimized;
@@ -169,6 +170,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new CombineBinaryComparisons(),
             new CombineDisjunctions(),
             new SimplifyComparisonsArithmetics(DataType::areCompatible),
+            new ReplaceStatsFilteredAggWithEval(),
             // prune/elimination
             new PruneFilters(),
             new PruneColumns(),

@@ -115,16 +115,22 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
         private DistributionDescriptor distributionDescriptor;
 
         public Node(Path baseWorkingDir, DistributionResolver distributionResolver, LocalNodeSpec spec) {
-            this(baseWorkingDir, distributionResolver, spec, false);
+            this(baseWorkingDir, distributionResolver, spec, null, false);
         }
 
-        public Node(Path baseWorkingDir, DistributionResolver distributionResolver, LocalNodeSpec spec, boolean usesSecureSecretsFile) {
+        public Node(
+            Path baseWorkingDir,
+            DistributionResolver distributionResolver,
+            LocalNodeSpec spec,
+            String suffix,
+            boolean usesSecureSecretsFile
+        ) {
             this.usesSecureSecretsFile = usesSecureSecretsFile;
             this.objectMapper = new ObjectMapper();
             this.baseWorkingDir = baseWorkingDir;
             this.distributionResolver = distributionResolver;
             this.spec = spec;
-            this.name = spec.getName();
+            this.name = suffix == null ? spec.getName() : spec.getName() + "-" + suffix;
             this.workingDir = baseWorkingDir.resolve(name != null ? name : UUID.randomUUID().toString());
             this.repoDir = baseWorkingDir.resolve("repo");
             this.dataDir = workingDir.resolve("data");

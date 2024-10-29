@@ -38,9 +38,14 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
 /**
- * BWC test which ensures that users and API keys with defined {@code remote_indices} privileges can be used to query legacy remote clusters
+ * BWC test which ensures that users and API keys with defined {@code remote_indices}/{@code remote_cluster} privileges can be used
+ * to query legacy remote clusters when using RCS 1.0. We send the request the to an older fulfilling cluster using RCS 1.0 with a user/role
+ * and API key where the {@code remote_indices}/{@code remote_cluster} are defined in the newer query cluster.
+ * All RCS 2.0 config should be effectively ignored when using RCS 1 for CCS. We send to an elder fulfil cluster to help ensure that
+ * newly introduced RCS 2.0 artifacts are forward compatible from the perspective of the old cluster. For example, a new privilege
+ * sent to an old cluster should be ignored.
  */
-public class RemoteClusterSecurityBwcRestIT extends AbstractRemoteClusterSecurityTestCase {
+public class RemoteClusterSecurityBWCToRCS1ClusterRestIT extends AbstractRemoteClusterSecurityTestCase {
 
     private static final Version OLD_CLUSTER_VERSION = Version.fromString(System.getProperty("tests.old_cluster_version"));
 
@@ -51,6 +56,8 @@ public class RemoteClusterSecurityBwcRestIT extends AbstractRemoteClusterSecurit
             .name("fulfilling-cluster")
             .apply(commonClusterConfig)
             .setting("xpack.ml.enabled", "false")
+          //  .setting("logger.org.elasticsearch.xpack.core", "trace") //useful for human debugging
+          //  .setting("logger.org.elasticsearch.xpack.security", "trace") //useful for human debugging
             .build();
 
         queryCluster = ElasticsearchCluster.local()
@@ -166,7 +173,7 @@ public class RemoteClusterSecurityBwcRestIT extends AbstractRemoteClusterSecurit
                       ],
                       "remote_cluster": [
                         {
-                          "privileges": ["monitor_enrich"],
+                          "privileges": ["monitor_enrich", "monitor_stats"],
                           "clusters": ["*"]
                         }
                       ]

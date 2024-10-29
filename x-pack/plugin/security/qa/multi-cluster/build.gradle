@@ -31,13 +31,14 @@ dependencies {
 tasks.named("javaRestTest") {
   enabled = true
   // This is tested explicitly in bwc test tasks.
-  exclude '**/RemoteClusterSecurityBwcRestIT.class'
+  exclude '**/RemoteClusterSecurityBWCToRCS1ClusterRestIT.class'
 }
 
-BuildParams.bwcVersions.withWireCompatible(v -> v.before(BuildParams.isSnapshotBuild() ? '8.8.0' : '8.9.1')) { bwcVersion, baseName ->
+//TODO: not sure if this works or not... can't run tests atm due to the issue with GH
+BuildParams.bwcVersions.withWireCompatible() { bwcVersion, baseName ->
   tasks.register(bwcTaskName(bwcVersion), StandaloneRestIntegTestTask) {
     usesBwcDistribution(bwcVersion)
     systemProperty("tests.old_cluster_version", bwcVersion)
-    include '**/RemoteClusterSecurityBwcRestIT.class'
+    include '**/RemoteClusterSecurityBWCToRCS1ClusterRestIT.class'
   }
 }

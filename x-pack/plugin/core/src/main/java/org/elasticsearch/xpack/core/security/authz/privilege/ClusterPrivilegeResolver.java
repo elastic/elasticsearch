@@ -507,7 +507,7 @@ public class ClusterPrivilegeResolver {
             + Strings.collectionToCommaDelimitedString(VALUES.keySet())
             + "] or a pattern over one of the available "
             + "cluster actions";
-        logger.debug(errorMessage);
+        logger.warn(errorMessage);
         throw new IllegalArgumentException(errorMessage);
 
     }

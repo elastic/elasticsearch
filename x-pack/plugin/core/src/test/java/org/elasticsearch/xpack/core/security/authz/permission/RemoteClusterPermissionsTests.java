@@ -197,6 +197,17 @@ public class RemoteClusterPermissionsTests extends AbstractXContentSerializingTe
             .validate(); // no error
     }
 
+    public void testToMap(){
+        RemoteClusterPermissions remoteClusterPermissions = new RemoteClusterPermissions();
+        List<RemoteClusterPermissionGroup> groups = generateRandomGroups(randomBoolean());
+        for (int i = 0; i < groups.size(); i++) {
+            remoteClusterPermissions.addGroup(groups.get(i));
+        }
+        List<Map<String, List<String>>> asAsMap = remoteClusterPermissions.toMap();
+        RemoteClusterPermissions remoteClusterPermissionsAsMap = new RemoteClusterPermissions(asAsMap);
+        assertEquals(remoteClusterPermissions, remoteClusterPermissionsAsMap);
+    }
+
     private List<RemoteClusterPermissionGroup> generateRandomGroups(boolean fuzzyCluster) {
         clean();
         List<RemoteClusterPermissionGroup> groups = new ArrayList<>();

@@ -16,6 +16,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Locale;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -101,6 +102,19 @@ public class RemoteClusterPermissionGroupTests extends AbstractXContentSerializi
 
         IllegalArgumentException e2 = expectThrows(IllegalArgumentException.class, invalidPermission);
         assertEquals("remote_cluster privileges must contain valid non-empty, non-null values", e2.getMessage());
+    }
+
+    public void testToMap(){
+        String[] privileges = generateRandomStringArray(5, 5, false, false);
+        String[] clusters = generateRandomStringArray(5, 5, false, false);
+        RemoteClusterPermissionGroup remoteClusterPermissionGroup = new RemoteClusterPermissionGroup(privileges, clusters);
+        assertEquals(
+            Map.of(
+                "privileges", Arrays.asList(privileges),
+                "clusters", Arrays.asList(clusters)
+            ),
+            remoteClusterPermissionGroup.toMap()
+        );
     }
 
     @Override

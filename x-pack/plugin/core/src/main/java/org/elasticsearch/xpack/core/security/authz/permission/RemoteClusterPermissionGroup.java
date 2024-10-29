@@ -18,6 +18,11 @@ import org.elasticsearch.xpack.core.security.support.StringMatcher;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
+
+import static org.elasticsearch.xpack.core.security.authz.RoleDescriptor.Fields.CLUSTERS;
+import static org.elasticsearch.xpack.core.security.authz.RoleDescriptor.Fields.PRIVILEGES;
 
 /**
  * Represents a group of permissions for a remote cluster. For example:
@@ -38,6 +43,15 @@ public class RemoteClusterPermissionGroup implements NamedWriteable, ToXContentO
     public RemoteClusterPermissionGroup(StreamInput in) throws IOException {
         clusterPrivileges = in.readStringArray();
         remoteClusterAliases = in.readStringArray();
+        remoteClusterAliasMatcher = StringMatcher.of(remoteClusterAliases);
+    }
+
+
+    public RemoteClusterPermissionGroup(Map<String, List<String>> remoteClusterGroup)  {
+        assert remoteClusterGroup.get(PRIVILEGES.getPreferredName()) != null : "privileges must be non-null";
+        assert remoteClusterGroup.get(CLUSTERS.getPreferredName()) != null : "clusters must be non-null";
+        clusterPrivileges =  remoteClusterGroup.get(PRIVILEGES.getPreferredName()).toArray(new String[0]);
+        remoteClusterAliases =  remoteClusterGroup.get(CLUSTERS.getPreferredName()).toArray(new String[0]);
         remoteClusterAliasMatcher = StringMatcher.of(remoteClusterAliases);
     }
 
@@ -86,11 +100,17 @@ public class RemoteClusterPermissionGroup implements NamedWriteable, ToXContentO
         return Arrays.copyOf(remoteClusterAliases, remoteClusterAliases.length);
     }
 
+
+    public Map<String, List<String>> toMap() {
+        return Map.of(PRIVILEGES.getPreferredName(), Arrays.asList(clusterPrivileges),
+            CLUSTERS.getPreferredName(), Arrays.asList(remoteClusterAliases));
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.array(RoleDescriptor.Fields.PRIVILEGES.getPreferredName(), clusterPrivileges);
-        builder.array(RoleDescriptor.Fields.CLUSTERS.getPreferredName(), remoteClusterAliases);
+        builder.array(PRIVILEGES.getPreferredName(), clusterPrivileges);
+        builder.array(CLUSTERS.getPreferredName(), remoteClusterAliases);
         builder.endObject();
         return builder;
     }

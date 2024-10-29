@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.InternalUser;
 import org.elasticsearch.xpack.core.security.user.InternalUsers;
@@ -43,10 +44,12 @@ import org.elasticsearch.xpack.core.security.user.User;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -1296,6 +1299,7 @@ public final class Authentication implements ToXContentObject {
         TransportVersion streamVersion,
         Authentication authentication
     ) {
+        System.out.println("***************  maybeRewriteMetadataForApiKeyRoleDescriptors  ***************");
         Map<String, Object> metadata = authentication.getAuthenticatingSubject().getMetadata();
         // If authentication user is an API key or a token created by an API key,
         // regardless whether it has run-as, the metadata must contain API key role descriptors
@@ -1321,6 +1325,7 @@ public final class Authentication implements ToXContentObject {
                 );
             }
 
+            // removes the entire remote_cluster field from the role descriptors
             if (authentication.getEffectiveSubject().getTransportVersion().onOrAfter(ROLE_REMOTE_CLUSTER_PRIVS)
                 && streamVersion.before(ROLE_REMOTE_CLUSTER_PRIVS)) {
                 metadata = new HashMap<>(metadata);
@@ -1336,6 +1341,28 @@ public final class Authentication implements ToXContentObject {
                         (BytesReference) metadata.get(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY)
                     )
                 );
+            }
+
+            // the current cluster understands remote_cluster field in role descriptors, so check each permission and remove as needed
+            if (authentication.getEffectiveSubject().getTransportVersion().onOrAfter(ROLE_REMOTE_CLUSTER_PRIVS)){
+
+
+                RemoteClusterPermissions.getSupportedRemoteClusterPermissions();
+
+                metadata = new HashMap<>(metadata);
+                metadata.put(
+                    AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY,
+                    maybeRemoveRemoteClusterPrivilegesFromRoleDescriptors(
+                        (BytesReference) metadata.get(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY), streamVersion
+                    )
+                );
+                metadata.put(
+                    AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY,
+                    maybeRemoveRemoteClusterPrivilegesFromRoleDescriptors(
+                        (BytesReference) metadata.get(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY), streamVersion
+                    )
+                );
+
             }
 
             if (authentication.getEffectiveSubject().getTransportVersion().onOrAfter(VERSION_API_KEY_ROLES_AS_BYTES)
@@ -1443,6 +1470,70 @@ public final class Authentication implements ToXContentObject {
         });
 
         if (removedAtLeastOne.get()) {
+            return convertRoleDescriptorsMapToBytes(roleDescriptorsMap);
+        } else {
+            // No need to serialize if we did not remove anything.
+            return roleDescriptorsBytes;
+        }
+    }
+
+    /**
+     * Before we send the role descriptors to the remote cluster, we need to remove the remote cluster privileges that the other cluster
+     * will not understand.
+     * @param roleDescriptorsBytes The role descriptors to be sent to the remote cluster, represented as bytes.
+     * @return The role descriptors with the privileges that unsupported by version removed, represented as bytes.
+     */
+    @SuppressWarnings("unchecked")
+    static BytesReference maybeRemoveRemoteClusterPrivilegesFromRoleDescriptors(
+        BytesReference roleDescriptorsBytes,
+        TransportVersion outboundVersion
+    ) {
+        if (roleDescriptorsBytes == null || roleDescriptorsBytes.length() == 0) {
+            return roleDescriptorsBytes;
+        }
+
+        final Map<String, Object> roleDescriptorsMap = convertRoleDescriptorsBytesToMap(roleDescriptorsBytes);
+        final AtomicBoolean modified = new AtomicBoolean(false);
+        System.out.println("****************************** ");
+        System.out.println("roleDescriptorsMap: " + roleDescriptorsMap);
+        roleDescriptorsMap.forEach((key, value) -> {
+            if (value instanceof Map) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> roleDescriptor = (Map<String, Object>) value;
+                roleDescriptor.forEach((innerKey, innerValue) -> {
+
+                    // remote_cluster=[{privileges=[monitor_enrich, monitor_stats]
+                    if ("remote_cluster".equals(innerKey)) { // todo: use constant
+                         assert innerValue instanceof List;
+                        RemoteClusterPermissions discoveredRemoteClusterPermission
+                            = new RemoteClusterPermissions((List<Map<String, List<String>>>) innerValue);
+
+
+                        RemoteClusterPermissions mutated =  discoveredRemoteClusterPermission.removeUnsupportedPrivileges(outboundVersion);
+                        System.out.println("********* mutated: " + mutated);
+                        if(mutated.equals(discoveredRemoteClusterPermission) == false) {
+                            System.out.println("********* modified: " + true);
+                            modified.set(true);
+                        }
+
+
+                    }
+                });
+
+
+            }
+        });
+        Iterator<Map.Entry<String, Object>> it = roleDescriptorsMap.entrySet().iterator();
+        Map.Entry<String, Object> next = it.next();
+        System.out.println("******** next: " + next);
+
+
+        if (modified.get()) {
+//            Iterator<Map.Entry<String, Object>> it = roleDescriptorsMap.entrySet().iterator();
+//            Map.Entry<String, Object> next = it.next();
+//            System.out.println("******** next: " + next
+
+
             return convertRoleDescriptorsMapToBytes(roleDescriptorsMap);
         } else {
             // No need to serialize if we did not remove anything.

@@ -737,7 +737,7 @@ public class SecurityIndexManager implements ClusterStateListener {
         }
     }
 
-    public boolean isCreatedOnLatestMigrationVersion() {
+    public boolean isCreatedOnLatestVersion() {
         return state.createdOnLatestVersion;
     }
 

@@ -160,6 +160,7 @@ public abstract class AbstractUpgradeTestCase extends ESRestTestCase {
                 "metadata.indices"
             );
             assertNotNull(indices);
+            assertTrue(indices.containsKey(".security-7"));
             // JsonMapView doesn't support . prefixed indices (splits on .)
             @SuppressWarnings("unchecked")
             String responseVersion = new XContentTestUtils.JsonMapView((Map<String, Object>) indices.get(".security-7")).get(

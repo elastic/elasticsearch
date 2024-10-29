@@ -30,7 +30,6 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.features.NodeFeature;
-import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryStringQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.injection.guice.Inject;
@@ -196,70 +195,49 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
 
     private void loadRequestsFromStoredCorpus(String storedCorpusId, ActionListener<List<RatedRequest>> actionListener) {
         // load the stored corpus from the index
-        client.get(new GetRequest("search_relevance_datasets", storedCorpusId), new ActionListener<>() {
+        client.get(new GetRequest("search_relevance_dataset", storedCorpusId), new ActionListener<>() {
             @Override
             public void onResponse(GetResponse response) {
                 if (response.isExists() == false) {
                     actionListener.onFailure(new IllegalArgumentException("Stored corpus not found"));
                     return;
                 }
+                @SuppressWarnings("unchecked")
                 StoredCorpus corpus = new StoredCorpus(
                     response.getId(),
-                    response.getSourceAsMap().get("name").toString(),
-                    response.getSourceAsMap().get("description").toString(),
-                    response.getSourceAsMap().get("index").toString()
+                    (String) response.getSourceAsMap().get("name"),
+                    (String) response.getSourceAsMap().get("description"),
+                    response.getSourceAsMap().get("indices") instanceof List
+                        ? (List<String>) response.getSourceAsMap().get("indices")
+                        : List.of((String) response.getSourceAsMap().get("indices"))
                 );
 
-                // Now that we have the corpus, identify the queries to run
-                SearchRequest queryRequest = new SearchRequestBuilder(client).setIndices("search_relevance_queries")
+                // Now that we have the corpus, identify the queries and qrels
+                SearchRequest queryRequest = new SearchRequestBuilder(client).setIndices("search_relevance_evaluation_corpora")
                     .setSource(new SearchSourceBuilder().query(new TermQueryBuilder("dataset_id", corpus.getId())))
-                    .setSize(10000)
+                    .setSize(250) // Arbitrary number, but dbpedia has at most 164 judgments per query
                     .request();
                 client.search(queryRequest, new ActionListener<>() {
                     @Override
                     public void onResponse(SearchResponse response) {
                         List<RatedRequest> ratedRequests = new ArrayList<>();
+                        List<RatedDocument> ratedDocuments = new ArrayList<>();
+
                         for (SearchHit hit : response.getHits().getHits()) {
-                            String queryId = hit.getId();
                             Map<String, Object> source = hit.getSourceAsMap();
-                            String queryText = (String) source.get("text");
+                            String queryId = (String) source.get("query_id");
+                            String queryString = (String) source.get("query_string");
+                            String index = (String) source.get("index");
+                            String documentId = (String) source.get("document_id");
+                            Integer score = (Integer) source.get("score");
 
-                            // Finally, we want the qrels as well
-                            SearchRequest qrelsRequest = new SearchRequestBuilder(client).setIndices("search_relevance_qrels")
-                                .setSource(
-                                    new SearchSourceBuilder().query(
-                                        new BoolQueryBuilder().must(new TermQueryBuilder("dataset_id", corpus.getId()))
-                                            .must(new TermQueryBuilder("query_id", queryId))
-                                    )
-                                )
-                                .setSize(10000)
-                                .request();
-                            client.search(qrelsRequest, new ActionListener<>() {
-                                @Override
-                                public void onResponse(SearchResponse searchResponse) {
-                                    List<RatedDocument> ratedDocuments = new ArrayList<>();
-                                    for (SearchHit qrelHit : searchResponse.getHits().getHits()) {
+                            RatedDocument ratedDocument = new RatedDocument(index, documentId, score);
+                            ratedDocuments.add(ratedDocument);
 
-                                        Map<String, Object> qrelsSource = qrelHit.getSourceAsMap();
-                                        String queryId = (String) qrelsSource.get("query_id");
-                                        String corpusId = (String) qrelsSource.get("corpus_id");
-                                        int score = (int) Float.parseFloat(qrelsSource.get("score").toString());
+                            // TODO remove placeholder here
+                            SearchSourceBuilder query = new SearchSourceBuilder().query(new QueryStringQueryBuilder(queryString));
 
-                                        RatedDocument ratedDocument = new RatedDocument(corpus.getIndex(), corpusId, score);
-                                        ratedDocuments.add(ratedDocument);
-
-                                        // TODO remove placeholder here
-                                        SearchSourceBuilder query = new SearchSourceBuilder().query(new QueryStringQueryBuilder(queryText));
-                                        ratedRequests.add(new RatedRequest(queryId, ratedDocuments, query));
-
-                                    }
-                                }
-
-                                @Override
-                                public void onFailure(Exception e) {
-                                    actionListener.onFailure(e);
-                                }
-                            });
+                            ratedRequests.add(new RatedRequest(queryId, ratedDocuments, query));
                         }
                         actionListener.onResponse(ratedRequests);
                     }
@@ -268,6 +246,7 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
                     public void onFailure(Exception e) {
                         actionListener.onFailure(e);
                     }
+
                 });
 
             }

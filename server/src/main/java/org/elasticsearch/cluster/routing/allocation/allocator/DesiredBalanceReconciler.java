@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceMetrics.AllocationStats;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -138,9 +139,11 @@ public class DesiredBalanceReconciler {
                 moveShards();
                 // 3. move any other shards that are desired elsewhere
                 logger.trace("Reconciler#balance");
-                balance();
+                var allocationStats = balance();
 
                 logger.debug("Reconciliation is complete");
+
+                desiredBalanceMetrics.updateMetrics(allocationStats, desiredBalance.weightsPerNode());
             }
         }
 
@@ -464,9 +467,9 @@ public class DesiredBalanceReconciler {
             }
         }
 
-        private void balance() {
+        private AllocationStats balance() {
             if (allocation.deciders().canRebalance(allocation).type() != Decision.Type.YES) {
-                return;
+                return DesiredBalanceMetrics.EMPTY_ALLOCATION_STATS;
             }
 
             int unassignedShards = routingNodes.unassigned().size() + routingNodes.unassigned().ignored().size();
@@ -532,9 +535,9 @@ public class DesiredBalanceReconciler {
                 }
             }
 
-            desiredBalanceMetrics.updateMetrics(unassignedShards, totalAllocations, undesiredAllocationsExcludingShuttingDownNodes);
-
             maybeLogUndesiredAllocationsWarning(totalAllocations, undesiredAllocationsExcludingShuttingDownNodes, routingNodes.size());
+
+            return new AllocationStats(unassignedShards, totalAllocations, undesiredAllocationsExcludingShuttingDownNodes);
         }
 
         private void maybeLogUndesiredAllocationsWarning(int totalAllocations, int undesiredAllocations, int nodeCount) {

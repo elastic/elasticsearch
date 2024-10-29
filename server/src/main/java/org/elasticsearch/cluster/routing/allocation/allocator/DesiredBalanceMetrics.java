@@ -9,39 +9,57 @@
 
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.telemetry.metric.DoubleWithAttributes;
 import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 
 public class DesiredBalanceMetrics {
+
+    public record AllocationStats(long unassignedShards, long totalAllocations, long undesiredAllocationsExcludingShuttingDownNodes) {}
+
+    public record NodeWeightStats(int shardCount, double diskUsageInBytes, double writeLoad, float nodeWeight) {}
 
     public static final DesiredBalanceMetrics NOOP = new DesiredBalanceMetrics(MeterRegistry.NOOP);
     public static final String UNASSIGNED_SHARDS_METRIC_NAME = "es.allocator.desired_balance.shards.unassigned.current";
     public static final String TOTAL_SHARDS_METRIC_NAME = "es.allocator.desired_balance.shards.current";
     public static final String UNDESIRED_ALLOCATION_COUNT_METRIC_NAME = "es.allocator.desired_balance.allocations.undesired.current";
     public static final String UNDESIRED_ALLOCATION_RATIO_METRIC_NAME = "es.allocator.desired_balance.allocations.undesired.ratio";
+    public static final String NODE_BALANCE_WEIGHT_STATS_METRIC_NAME = "es.allocator.desired_balance.allocations.node_weight.current";
+    public static final AllocationStats EMPTY_ALLOCATION_STATS = new AllocationStats(-1, -1, -1);
 
     private volatile boolean nodeIsMaster = false;
-
     /**
      * Number of unassigned shards during last reconciliation
      */
     private volatile long unassignedShards;
+
     /**
      * Total number of assigned shards during last reconciliation
      */
     private volatile long totalAllocations;
+
     /**
      * Number of assigned shards during last reconciliation that are not allocated on desired node and need to be moved
      */
     private volatile long undesiredAllocations;
 
-    public void updateMetrics(long unassignedShards, long totalAllocations, long undesiredAllocations) {
-        this.unassignedShards = unassignedShards;
-        this.totalAllocations = totalAllocations;
-        this.undesiredAllocations = undesiredAllocations;
+    private final AtomicReference<Map<DiscoveryNode, NodeWeightStats>> weightStatsPerNodeRef = new AtomicReference<>(Map.of());
+
+    public void updateMetrics(AllocationStats allocationStats, Map<DiscoveryNode, NodeWeightStats> weightStatsPerNode) {
+        assert allocationStats != null : "allocation stats cannot be null";
+        assert weightStatsPerNode != null : "node balance weight stats cannot be null";
+        if (allocationStats != EMPTY_ALLOCATION_STATS) {
+            this.unassignedShards = allocationStats.unassignedShards;
+            this.totalAllocations = allocationStats.totalAllocations;
+            this.undesiredAllocations = allocationStats.undesiredAllocationsExcludingShuttingDownNodes;
+        }
+        weightStatsPerNodeRef.set(weightStatsPerNode);
     }
 
     public DesiredBalanceMetrics(MeterRegistry meterRegistry) {
@@ -64,6 +82,12 @@ public class DesiredBalanceMetrics {
             "1",
             this::getUndesiredAllocationsRatioMetrics
         );
+        meterRegistry.registerDoublesGauge(
+            NODE_BALANCE_WEIGHT_STATS_METRIC_NAME,
+            "Weight of nodes in the computed desired balance",
+            "unit",
+            this::getNodeWeightStats
+        );
     }
 
     public void setNodeIsMaster(boolean nodeIsMaster) {
@@ -84,6 +108,35 @@ public class DesiredBalanceMetrics {
 
     private List<LongWithAttributes> getUnassignedShardsMetrics() {
         return getIfPublishing(unassignedShards);
+    }
+
+    private List<DoubleWithAttributes> getNodeWeightStats() {
+        if (nodeIsMaster == false) {
+            return List.of();
+        }
+        var stats = weightStatsPerNodeRef.get();
+        List<DoubleWithAttributes> doubles = new ArrayList<>(stats.size());
+        for (var node : stats.keySet()) {
+            var stat = stats.get(node);
+            doubles.add(
+                new DoubleWithAttributes(
+                    stat.nodeWeight(),
+                    Map.of(
+                        "node_id",
+                        node.getId(),
+                        "node_name",
+                        node.getName(),
+                        "shard_count",
+                        stat.shardCount(),
+                        "disk_usage_in_bytes",
+                        stat.diskUsageInBytes(),
+                        "write_load",
+                        stat.writeLoad()
+                    )
+                )
+            );
+        }
+        return doubles;
     }
 
     private List<LongWithAttributes> getTotalAllocationsMetrics() {
@@ -114,5 +167,6 @@ public class DesiredBalanceMetrics {
         unassignedShards = 0;
         totalAllocations = 0;
         undesiredAllocations = 0;
+        weightStatsPerNodeRef.set(Map.of());
     }
 }

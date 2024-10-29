@@ -808,6 +808,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
                     unassignedIterator.next();
                     unassignedIterator.initialize(dataNodeId, null, 0L, allocation.changes());
                 }
+                allocation.routingNodes().setBalanceWeightStatsPerNode(Map.of());
             }
 
             @Override

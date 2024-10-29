@@ -9,10 +9,13 @@
 
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
+import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceMetrics.AllocationStats;
 import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
+
+import java.util.Map;
 
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -24,7 +27,7 @@ public class DesiredBalanceMetricsTests extends ESTestCase {
         long unassignedShards = randomNonNegativeLong();
         long totalAllocations = randomNonNegativeLong();
         long undesiredAllocations = randomNonNegativeLong();
-        metrics.updateMetrics(unassignedShards, totalAllocations, undesiredAllocations);
+        metrics.updateMetrics(new AllocationStats(unassignedShards, totalAllocations, undesiredAllocations), Map.of());
         assertEquals(totalAllocations, metrics.totalAllocations());
         assertEquals(unassignedShards, metrics.unassignedShards());
         assertEquals(undesiredAllocations, metrics.undesiredAllocations());
@@ -41,7 +44,7 @@ public class DesiredBalanceMetricsTests extends ESTestCase {
         long unassignedShards = randomNonNegativeLong();
         long totalAllocations = randomLongBetween(100, 10000000);
         long undesiredAllocations = randomLongBetween(0, totalAllocations);
-        metrics.updateMetrics(unassignedShards, totalAllocations, undesiredAllocations);
+        metrics.updateMetrics(new AllocationStats(unassignedShards, totalAllocations, undesiredAllocations), Map.of());
 
         // Collect when not master
         meterRegistry.getRecorder().collect();
@@ -101,7 +104,7 @@ public class DesiredBalanceMetricsTests extends ESTestCase {
         RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
         DesiredBalanceMetrics metrics = new DesiredBalanceMetrics(meterRegistry);
         long unassignedShards = randomNonNegativeLong();
-        metrics.updateMetrics(unassignedShards, 0, 0);
+        metrics.updateMetrics(new AllocationStats(unassignedShards, 0, 0), Map.of());
 
         metrics.setNodeIsMaster(true);
         meterRegistry.getRecorder().collect();

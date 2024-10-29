@@ -39,6 +39,7 @@ emp_no:integer | l:integer
 ;
 
 bitLength
+required_capability: fn_bit_length
 row a = "hello", b = "" | eval y = bit_length(a) + bit_length(b);
 
 a:keyword | b:keyword | y:integer
@@ -46,6 +47,7 @@ hello | | 40
 ;
 
 bitLengthWithNonAsciiChars
+required_capability: fn_bit_length
 row a = "¡", b = "❗️" | eval y = bit_length(a) | eval z = bit_length(b);
 
 a:keyword | b:keyword | y:integer | z:integer
@@ -53,6 +55,7 @@ a:keyword | b:keyword | y:integer | z:integer
 ;
 
 foldBitLength
+required_capability: fn_bit_length
 row a = 1 | eval b = bit_length("hello");
 
 a:integer | b:integer
@@ -60,6 +63,7 @@ a:integer | b:integer
 ;
 
 bitLengthAndSourceQuoting
+required_capability: fn_bit_length
 required_capability: double_quotes_source_enclosing
 from "employees" | sort emp_no | limit 3 | eval l = bit_length(first_name) | keep emp_no, l;
 
@@ -70,6 +74,7 @@ emp_no:integer | l:integer
 ;
 
 bitLengthInsideOtherFunction
+required_capability: fn_bit_length
 required_capability: fn_greatest
 row a = "abc", b = "de" | eval g = greatest(bit_length(a), bit_length(b), bit_length("fghi"));
 
@@ -78,6 +83,7 @@ abc | de | 32
 ;
 
 bitLengthNull
+required_capability: fn_bit_length
 row a = "abc" | eval l = bit_length(null);
 
 a:string | l:integer

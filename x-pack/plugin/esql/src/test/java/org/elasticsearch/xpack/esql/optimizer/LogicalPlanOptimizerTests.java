@@ -710,18 +710,18 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
     /*
      * Project[[count(salary) + 3 where false{r}#3]]
-     * \_Eval[[3[LONG] AS count(salary) + 3 where false]]
+     * \_Eval[[3[LONG] AS count_distinct(salary) + 3 where false]]
      *   \_Limit[1000[INTEGER]]
      *     \_EsRelation[test][_meta_field{f}#10, emp_no{f}#4, first_name{f}#5, ge..]
      */
-    public void testReplaceStatsFilteredAggWithEvalCountInExpression() {
+    public void testReplaceStatsFilteredAggWithEvalCountDistinctInExpression() {
         var plan = plan("""
             from test
-            | stats count(salary) + 3 where false
+            | stats count_distinct(salary) + 3 where false
             """);
 
         var project = as(plan, Project.class);
-        assertThat(Expressions.names(project.projections()), contains("count(salary) + 3 where false"));
+        assertThat(Expressions.names(project.projections()), contains("count_distinct(salary) + 3 where false"));
         var eval = as(project.child(), Eval.class);
         assertThat(eval.fields().size(), is(1));
         var alias = as(eval.fields().getFirst(), Alias.class);

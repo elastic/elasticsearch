@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.CountDistinct;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -25,7 +26,7 @@ import java.util.List;
  * <pre>
  *     ... | STATS x = someAgg(y) WHERE FALSE {BY z} | ...
  *     =>
- *     ... | STATS x = someAgg(y) {BY z} > | EVAL x = null | KEEP x{, z} | ...
+ *     ... | STATS x = someAgg(y) {BY z} > | EVAL x = NULL | KEEP x{, z} | ...
  * </pre>
  */
 public class ReplaceStatsFilteredAggWithEval extends OptimizerRules.OptimizerRule<Aggregate> {
@@ -40,7 +41,9 @@ public class ReplaceStatsFilteredAggWithEval extends OptimizerRules.OptimizerRul
                 && aggFunction.hasFilter()
                 && aggFunction.filter() instanceof Literal literal
                 && literal.fold().equals(false)) {
-                Alias newAlias = alias.replaceChild(Literal.of(aggFunction, aggFunction instanceof Count ? 0L : null));
+
+                Object value = aggFunction instanceof Count || aggFunction instanceof CountDistinct ? 0L : null;
+                Alias newAlias = alias.replaceChild(Literal.of(aggFunction, value));
                 newEvals.add(newAlias);
                 newProjections.add(newAlias.toAttribute());
             } else {

@@ -10,11 +10,32 @@ import org.elasticsearch.gradle.internal.precommit.CheckForbiddenApisTask
 
 apply plugin: 'elasticsearch.build'
 
+configurations {
+  entitlementAgent
+  entitlementBridge
+  entitlementRuntime
+}
+
 dependencies {
   compileOnly project(":server")
   compileOnly project(":libs:elasticsearch-cli")
 
   testImplementation project(":test:framework")
+
+  // For locating the entitlement jars
+  entitlementAgent project(":distribution:tools:entitlement-agent")
+  entitlementBridge project(":distribution:tools:entitlement-bridge")
+  entitlementRuntime project(":distribution:tools:entitlement-runtime")
+}
+
+tasks.named('jar').configure {
+  manifest {
+    attributes(
+      'ES-Entitlement-Agent': "${configurations.entitlementAgent.singleFile}"
+      , 'ES-Entitlement-Bridge': "${configurations.entitlementBridge.singleFile}"
+      , 'ES-Entitlement-Runtime': "${configurations.entitlementRuntime.singleFile}"
+    )
+  }
 }
 
 tasks.named("test").configure {

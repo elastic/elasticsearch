@@ -16,6 +16,7 @@ import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -733,17 +734,20 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             assertThat(phase.totalHits().relation, equalTo(TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO));
 
             SearchShardTarget searchShardTarget = new SearchShardTarget("node3", shardIt.shardId(), null);
+            final PlainActionFuture<Void> f = new PlainActionFuture<>();
             SearchActionListener<SearchPhaseResult> listener = new SearchActionListener<SearchPhaseResult>(searchShardTarget, 0) {
                 @Override
-                public void onFailure(Exception e) {}
+                public void onFailure(Exception e) {
+                    f.onFailure(e);
+                }
 
                 @Override
-                protected void innerOnResponse(SearchPhaseResult response) {}
+                protected void innerOnResponse(SearchPhaseResult response) {
+                    fail("should not be called");
+                }
             };
-            Exception e = expectThrows(
-                VersionMismatchException.class,
-                () -> action.executePhaseOnShard(shardIt, searchShardTarget, listener)
-            );
+            action.executePhaseOnShard(shardIt, searchShardTarget, listener);
+            Exception e = expectThrows(VersionMismatchException.class, f::actionGet);
             assertThat(e.getMessage(), equalTo("One of the shards is incompatible with the required minimum version [" + minVersion + "]"));
         }
     }

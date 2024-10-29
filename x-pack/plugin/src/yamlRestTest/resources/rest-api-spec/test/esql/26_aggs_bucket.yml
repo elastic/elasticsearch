@@ -238,7 +238,7 @@
 ---
 "Datetime interval as string":
   - requires:
-      test_runner_features: [ capabilities ]
+      test_runner_features: [allowed_warnings_regex, capabilities]
       capabilities:
         - method: POST
           path: /_query

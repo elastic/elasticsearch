@@ -236,9 +236,6 @@ tests:
 - class: org.elasticsearch.xpack.inference.DefaultEndPointsIT
   method: testInferDeploysDefaultE5
   issue: https://github.com/elastic/elasticsearch/issues/115361
-- class: org.elasticsearch.reservedstate.service.FileSettingsServiceTests
-  method: testProcessFileChanges
-  issue: https://github.com/elastic/elasticsearch/issues/115280
 - class: org.elasticsearch.xpack.security.FileSettingsRoleMappingsRestartIT
   method: testFileSettingsReprocessedOnRestartWithoutVersionChange
   issue: https://github.com/elastic/elasticsearch/issues/115450

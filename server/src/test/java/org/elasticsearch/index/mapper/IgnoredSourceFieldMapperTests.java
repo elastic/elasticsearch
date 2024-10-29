@@ -2078,7 +2078,7 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
     public void testRegularObjectWithFlatFields() throws IOException {
         DocumentMapper documentMapper = createMapperService(syntheticSourceMapping(b -> {
             b.startObject("top").field("type", "object").field("synthetic_source_keep", "all");
-            b.startObject("file").field("type", "object").endObject();
+            b.startObject("properties").startObject("file").field("type", "object").endObject().endObject();
             b.endObject();
         })).documentMapper();
 
@@ -2116,7 +2116,7 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
             b.startObject("properties");
             {
                 b.startObject("inner").field("type", "object").field("synthetic_source_keep", "all");
-                b.startObject("file").field("type", "object").endObject();
+                b.startObject("properties").startObject("file").field("type", "object").endObject().endObject();
                 b.endObject();
             }
             b.endObject();

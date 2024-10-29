@@ -15,7 +15,6 @@ import io.netty.channel.Channel;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.handler.codec.http.HttpContent;
 import io.netty.handler.codec.http.LastHttpContent;
-import io.netty.util.concurrent.Future;
 
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.http.HttpBody;
@@ -67,17 +66,16 @@ public class Netty4HttpRequestBodyStream implements HttpBody.Stream {
     public void next() {
         assert closing == false : "cannot request next chunk on closing stream";
         assert handler != null : "handler must be set before requesting next chunk";
-        final Future<?> future = channel.eventLoop().submit(() -> {
+        channel.eventLoop().submit(() -> {
             requested = true;
             if (buf == null) {
                 channel.read();
             } else {
-                send();
-            }
-        });
-        future.addListener(f -> {
-            if (f.isSuccess() == false) {
-                channel.eventLoop().submit(() -> channel.pipeline().fireExceptionCaught(f.cause()));
+                try {
+                    send();
+                } catch (Exception e) {
+                    channel.pipeline().fireExceptionCaught(e);
+                }
             }
         });
     }

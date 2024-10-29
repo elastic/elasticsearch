@@ -37,6 +37,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, autoManageMasterNodes = false)
 public class FileSettingsRoleMappingsRestartIT extends SecurityIntegTestCase {
 
+    private static final int MAX_WAIT_TIME_SECONDS = 20;
     private final AtomicLong versionCounter = new AtomicLong(1);
 
     @Before
@@ -118,7 +119,7 @@ public class FileSettingsRoleMappingsRestartIT extends SecurityIntegTestCase {
         writeJSONFile(masterNode, testJSONOnlyRoleMappings, logger, versionCounter);
 
         assertRoleMappingsInClusterStateWithAwait(
-            savedClusterState,
+            new LatchWithClusterStateVersion(savedClusterState),
             new ExpressionRoleMapping(
                 "everyone_kibana_alone",
                 new FieldExpression("username", List.of(new FieldExpression.FieldValue("*"))),
@@ -198,7 +199,7 @@ public class FileSettingsRoleMappingsRestartIT extends SecurityIntegTestCase {
         writeJSONFile(masterNode, testJSONOnlyRoleMappings, logger, versionCounter);
 
         assertRoleMappingsInClusterStateWithAwait(
-            savedClusterState,
+            new LatchWithClusterStateVersion(savedClusterState),
             new ExpressionRoleMapping(
                 "everyone_kibana_alone",
                 new FieldExpression("username", List.of(new FieldExpression.FieldValue("*"))),
@@ -250,7 +251,7 @@ public class FileSettingsRoleMappingsRestartIT extends SecurityIntegTestCase {
                     true
                 )
             ),
-            20,
+            MAX_WAIT_TIME_SECONDS,
             TimeUnit.SECONDS
         );
 
@@ -258,13 +259,13 @@ public class FileSettingsRoleMappingsRestartIT extends SecurityIntegTestCase {
     }
 
     private void assertRoleMappingsInClusterStateWithAwait(
-        Tuple<CountDownLatch, AtomicLong> savedClusterState,
+        LatchWithClusterStateVersion latchWithClusterStateVersion,
         ExpressionRoleMapping... expectedRoleMappings
     ) throws InterruptedException {
-        boolean awaitSuccessful = savedClusterState.v1().await(20, TimeUnit.SECONDS);
+        boolean awaitSuccessful = latchWithClusterStateVersion.latch().await(MAX_WAIT_TIME_SECONDS, TimeUnit.SECONDS);
         assertTrue(awaitSuccessful);
         var clusterState = clusterAdmin().state(
-            new ClusterStateRequest(TEST_REQUEST_TIMEOUT).waitForMetadataVersion(savedClusterState.v2().get())
+            new ClusterStateRequest(TEST_REQUEST_TIMEOUT).waitForMetadataVersion(latchWithClusterStateVersion.version().get())
         ).actionGet().getState();
         assertRoleMappingsInClusterState(clusterState, expectedRoleMappings);
     }
@@ -288,7 +289,7 @@ public class FileSettingsRoleMappingsRestartIT extends SecurityIntegTestCase {
         awaitFileSettingsWatcher();
         logger.info("--> remove the role mappings with an empty settings file");
         writeJSONFile(masterNode, emptyJSON, logger, versionCounter);
-        boolean awaitSuccessful = savedClusterState.v1().await(20, TimeUnit.SECONDS);
+        boolean awaitSuccessful = savedClusterState.v1().await(MAX_WAIT_TIME_SECONDS, TimeUnit.SECONDS);
         assertTrue(awaitSuccessful);
         // ensure cluster-state update got propagated to expected version
         var clusterState = clusterAdmin().state(
@@ -313,5 +314,11 @@ public class FileSettingsRoleMappingsRestartIT extends SecurityIntegTestCase {
         final String masterNode = internalCluster().getMasterName();
         FileSettingsService masterFileSettingsService = internalCluster().getInstance(FileSettingsService.class, masterNode);
         assertBusy(() -> assertTrue(masterFileSettingsService.watching()));
+    }
+
+    private record LatchWithClusterStateVersion(CountDownLatch latch, AtomicLong version) {
+        LatchWithClusterStateVersion(Tuple<CountDownLatch, AtomicLong> tuple) {
+            this(tuple.v1(), tuple.v2());
+        }
     }
 }

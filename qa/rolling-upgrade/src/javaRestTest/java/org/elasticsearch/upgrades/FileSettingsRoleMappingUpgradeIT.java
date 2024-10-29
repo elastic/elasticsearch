@@ -87,7 +87,7 @@ public class FileSettingsRoleMappingUpgradeIT extends ParameterizedRollingUpgrad
     public void checkVersions() {
         assumeTrue(
             "Only relevant when upgrading from a version before role mappings were stored in cluster state",
-            oldClusterHasFeature("gte_v8.4.0") && oldClusterHasFeature("gte_v8.15.0") == false
+            oldClusterHasFeature("gte_v8.6.0") && oldClusterHasFeature("gte_v8.15.0") == false
         );
     }
 

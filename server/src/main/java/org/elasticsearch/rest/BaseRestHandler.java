@@ -210,6 +210,15 @@ public abstract class BaseRestHandler implements RestHandler {
     }
 
     public interface RequestBodyChunkConsumer extends RestChannelConsumer {
+
+        /**
+         * Handle one chunk of the request body. The handler <b>must</b> close the chunk once it is no longer
+         * needed to avoid leaking.
+         *
+         * @param channel The rest channel associated to the request
+         * @param chunk The chunk of request body that is ready for processing
+         * @param isLast Whether the chunk is the last one of the request
+         */
         void handleChunk(RestChannel channel, ReleasableBytesReference chunk, boolean isLast);
 
         /**

@@ -12,6 +12,7 @@ import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.xpack.application.analytics.AnalyticsTemplateRegistry;
 import org.elasticsearch.xpack.application.connector.ConnectorTemplateRegistry;
+import org.elasticsearch.xpack.application.rules.retriever.QueryRuleRetrieverBuilder;
 
 import java.util.Map;
 import java.util.Set;
@@ -22,7 +23,7 @@ public class EnterpriseSearchFeatures implements FeatureSpecification {
 
     @Override
     public Set<NodeFeature> getFeatures() {
-        return Set.of(QUERY_RULES_TEST_API);
+        return Set.of(QUERY_RULES_TEST_API, QueryRuleRetrieverBuilder.QUERY_RULE_RETRIEVERS_SUPPORTED);
     }
 
     @Override

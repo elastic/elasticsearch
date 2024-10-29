@@ -80,6 +80,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
@@ -108,6 +109,7 @@ import org.elasticsearch.health.node.tracker.HealthTracker;
 import org.elasticsearch.health.node.tracker.RepositoriesHealthTracker;
 import org.elasticsearch.health.stats.HealthApiStats;
 import org.elasticsearch.http.HttpServerTransport;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.index.IndexingPressure;
@@ -283,7 +285,7 @@ class NodeConstruction {
 
             ScriptService scriptService = constructor.createScriptService(settingsModule, threadPool, serviceProvider);
 
-            constructor.createUpdateHelper(documentParsingProvider, scriptService);
+            constructor.createUpdateHelper(scriptService);
 
             constructor.construct(
                 threadPool,
@@ -641,10 +643,10 @@ class NodeConstruction {
         return dataStreamGlobalRetentionSettings;
     }
 
-    private UpdateHelper createUpdateHelper(DocumentParsingProvider documentParsingProvider, ScriptService scriptService) {
-        UpdateHelper updateHelper = new UpdateHelper(scriptService, documentParsingProvider);
+    private UpdateHelper createUpdateHelper(ScriptService scriptService) {
+        UpdateHelper updateHelper = new UpdateHelper(scriptService);
 
-        modules.add(b -> { b.bind(UpdateHelper.class).toInstance(new UpdateHelper(scriptService, documentParsingProvider)); });
+        modules.add(b -> b.bind(UpdateHelper.class).toInstance(updateHelper));
         return updateHelper;
     }
 
@@ -699,7 +701,6 @@ class NodeConstruction {
             pluginsService.filterPlugins(IngestPlugin.class).toList(),
             client,
             IngestService.createGrokThreadWatchdog(environment, threadPool),
-            documentParsingProvider,
             failureStoreMetrics
         );
 
@@ -820,7 +821,10 @@ class NodeConstruction {
 
         final var parameters = new IndexSettingProvider.Parameters(indicesService::createIndexMapperServiceForValidation);
         IndexSettingProviders indexSettingProviders = new IndexSettingProviders(
-            pluginsService.flatMap(p -> p.getAdditionalIndexSettingProviders(parameters)).collect(Collectors.toSet())
+            Sets.union(
+                builtinIndexSettingProviders(),
+                pluginsService.flatMap(p -> p.getAdditionalIndexSettingProviders(parameters)).collect(Collectors.toSet())
+            )
         );
 
         final ShardLimitValidator shardLimitValidator = new ShardLimitValidator(settings, clusterService);
@@ -1099,6 +1103,8 @@ class NodeConstruction {
             telemetryProvider.getTracer()
         );
 
+        final ShutdownPrepareService shutdownPrepareService = new ShutdownPrepareService(settings, httpServerTransport, terminationHandler);
+
         modules.add(
             loadPersistentTasksService(
                 settingsModule,
@@ -1200,6 +1206,7 @@ class NodeConstruction {
             b.bind(CompatibilityVersions.class).toInstance(compatibilityVersions);
             b.bind(DataStreamAutoShardingService.class).toInstance(dataStreamAutoShardingService);
             b.bind(FailureStoreMetrics.class).toInstance(failureStoreMetrics);
+            b.bind(ShutdownPrepareService.class).toInstance(shutdownPrepareService);
         });
 
         if (ReadinessService.enabled(environment)) {
@@ -1653,4 +1660,7 @@ class NodeConstruction {
         };
     }
 
+    private Set<IndexSettingProvider> builtinIndexSettingProviders() {
+        return Set.of(new IndexMode.IndexModeSettingsProvider());
+    }
 }

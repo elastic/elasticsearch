@@ -221,8 +221,11 @@ public final class XContentDataHelper {
     private static Tuple<XContentParserConfiguration, XContentBuilder> cloneSubContextParserConfiguration(DocumentParserContext context)
         throws IOException {
         XContentParser parser = context.parser();
+        var oldValue = context.path().isWithinLeafObject();
+        context.path().setWithinLeafObject(true);
         XContentBuilder builder = XContentBuilder.builder(parser.contentType().xContent());
         builder.copyCurrentStructure(parser);
+        context.path().setWithinLeafObject(oldValue);
 
         XContentParserConfiguration configuration = XContentParserConfiguration.EMPTY.withRegistry(parser.getXContentRegistry())
             .withDeprecationHandler(parser.getDeprecationHandler())

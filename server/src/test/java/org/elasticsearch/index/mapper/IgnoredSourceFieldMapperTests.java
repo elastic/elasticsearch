@@ -2075,6 +2075,144 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
             {"top":[{"file.name":"A","file.line":10},{"file.name":"B","file.line":20}]}""", syntheticSourceWithArray);
     }
 
+    public void testRegularObjectWithFlatFields() throws IOException {
+        DocumentMapper documentMapper = createMapperService(syntheticSourceMapping(b -> {
+            b.startObject("top").field("type", "object").field("synthetic_source_keep", "all");
+            b.startObject("file").field("type", "object").endObject();
+            b.endObject();
+        })).documentMapper();
+
+        CheckedConsumer<XContentBuilder, IOException> document = b -> {
+            b.startObject("top");
+            b.field("file.name", "A");
+            b.field("file.line", 10);
+            b.endObject();
+        };
+
+        var syntheticSource = syntheticSource(documentMapper, document);
+        assertEquals("{\"top\":{\"file.name\":\"A\",\"file.line\":10}}", syntheticSource);
+
+        CheckedConsumer<XContentBuilder, IOException> documentWithArray = b -> {
+            b.startArray("top");
+            b.startObject();
+            b.field("file.name", "A");
+            b.field("file.line", 10);
+            b.endObject();
+            b.startObject();
+            b.field("file.name", "B");
+            b.field("file.line", 20);
+            b.endObject();
+            b.endArray();
+        };
+
+        var syntheticSourceWithArray = syntheticSource(documentMapper, documentWithArray);
+        assertEquals("""
+            {"top":[{"file.name":"A","file.line":10},{"file.name":"B","file.line":20}]}""", syntheticSourceWithArray);
+    }
+
+    public void testRegularObjectWithFlatFieldsInsideAnArray() throws IOException {
+        DocumentMapper documentMapper = createMapperService(syntheticSourceMapping(b -> {
+            b.startObject("top");
+            b.startObject("properties");
+            {
+                b.startObject("inner").field("type", "object").field("synthetic_source_keep", "all");
+                b.startObject("file").field("type", "object").endObject();
+                b.endObject();
+            }
+            b.endObject();
+            b.endObject();
+        })).documentMapper();
+
+        CheckedConsumer<XContentBuilder, IOException> document = b -> {
+            b.startArray("top");
+            b.startObject();
+            {
+                b.startObject("inner");
+                b.field("file.name", "A");
+                b.field("file.line", 10);
+                b.endObject();
+            }
+            b.endObject();
+            b.endArray();
+        };
+
+        var syntheticSource = syntheticSource(documentMapper, document);
+        assertEquals("{\"top\":{\"inner\":{\"file.name\":\"A\",\"file.line\":10}}}", syntheticSource);
+
+        CheckedConsumer<XContentBuilder, IOException> documentWithArray = b -> {
+            b.startArray("top");
+            b.startObject();
+            {
+                b.startObject("inner");
+                b.field("file.name", "A");
+                b.field("file.line", 10);
+                b.endObject();
+            }
+            b.endObject();
+            b.startObject();
+            {
+                b.startObject("inner");
+                b.field("file.name", "B");
+                b.field("file.line", 20);
+                b.endObject();
+            }
+            b.endObject();
+            b.endArray();
+        };
+
+        var syntheticSourceWithArray = syntheticSource(documentMapper, documentWithArray);
+        assertEquals("""
+            {"top":{"inner":[{"file.name":"A","file.line":10},{"file.name":"B","file.line":20}]}}""", syntheticSourceWithArray);
+    }
+
+    public void testIgnoredDynamicObjectWithFlatFields() throws IOException {
+        var syntheticSource = getSyntheticSourceWithFieldLimit(b -> {
+            b.startObject("top");
+            b.field("file.name", "A");
+            b.field("file.line", 10);
+            b.endObject();
+        });
+        assertEquals("{\"top\":{\"file.name\":\"A\",\"file.line\":10}}", syntheticSource);
+
+        var syntheticSourceWithArray = getSyntheticSourceWithFieldLimit(b -> {
+            b.startArray("top");
+            b.startObject();
+            b.field("file.name", "A");
+            b.field("file.line", 10);
+            b.endObject();
+            b.startObject();
+            b.field("file.name", "B");
+            b.field("file.line", 20);
+            b.endObject();
+            b.endArray();
+        });
+        assertEquals("""
+            {"top":[{"file.name":"A","file.line":10},{"file.name":"B","file.line":20}]}""", syntheticSourceWithArray);
+    }
+
+    public void testStoredArrayWithFlatFields() throws IOException {
+        DocumentMapper documentMapper = createMapperServiceWithStoredArraySource(syntheticSourceMapping(b -> {
+            b.startObject("outer").startObject("properties");
+            {
+                b.startObject("inner").startObject("properties");
+                {
+                    b.startObject("a").field("type", "object").endObject();
+                }
+                b.endObject().endObject();
+            }
+            b.endObject().endObject();
+        })).documentMapper();
+        var syntheticSource = syntheticSource(documentMapper, b -> {
+            b.startObject("outer").startArray("inner");
+            {
+                b.startObject().field("a.b", "a.b").field("a.c", "a.c").endObject();
+            }
+            b.endArray().endObject();
+        });
+        assertEquals("""
+            {"outer":{"inner":[{"a.b":"a.b","a.c":"a.c"}]}}""", syntheticSource);
+    }
+
     protected void validateRoundTripReader(String syntheticSource, DirectoryReader reader, DirectoryReader roundTripReader)
         throws IOException {
         // We exclude ignored source field since in some cases it contains an exact copy of a part of document source.

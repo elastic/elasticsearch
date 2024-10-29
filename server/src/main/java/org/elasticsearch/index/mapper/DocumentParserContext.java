@@ -531,7 +531,7 @@ public abstract class DocumentParserContext {
                                 IgnoredSourceFieldMapper.NameValue.fromContext(
                                     this,
                                     mapper.fullPath(),
-                                    XContentDataHelper.encodeToken(parser())
+                                    encodeFlattenedToken()
                                 )
                             );
                         } catch (IOException e) {

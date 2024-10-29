@@ -1,13 +1,9 @@
 [[self-managed-single-datacenter]]
 === Self managed - single datacenter
 
-This architecture ensures high availability during normal operations and node maintenance. 
+This architecture is designed to ensure high availability during normal operations and node maintenance. It reduces cost by leveraging the frozen tier as soon as it makes sense from an ingest and most frequently read documents perspective. It significantly reduces the likelihood of hot-spotting due to the sharding strategy. Additionally it eliminates network and disk overhead caused by rebalancing attempts that would occur during maintenance due to setting forced awareness. For more information on elements of this architecture, see https://www.elastic.co/guide/en/elasticsearch/reference/current/high-availability-cluster-design-large-clusters.html#high-availability-cluster-design-two-zones[Resilience in larger clusters - Two-zone clusters]. 
 
 TIP: This architecture includes all the necessary components of the Elastic Stack and is not intended for sizing workloads, but rather as a basis to ensure the architecture you deploy is foundationally ready to handle any desired workload with resiliency. 
-
-Key design elements include the number and location of master nodes, data nodes, zone awareness, and shard allocation strategy. For more details, see https://www.elastic.co/guide/en/elasticsearch/reference/current/high-availability-cluster-design-large-clusters.html#high-availability-cluster-design-two-zones[Resilience in larger clusters - Two-zone clusters]. 
-
-While this architecture does include a representation of a data flow, this is being provided for contextual understanding and may differ from implementation to implementation.  The critical portion of the design is the number and location of master nodes, the location of data nodes, zone awareness and the shard allocation strategy.  For additional information see this https://www.elastic.co/guide/en/elasticsearch/reference/current/high-availability-cluster-design-large-clusters.html#high-availability-cluster-design-two-zones[reference].
 
 [discrete]
 [[single-datacenter-use-case]]
@@ -15,12 +11,12 @@ While this architecture does include a representation of a data flow, this is be
 
 This architecture is intended for organizations that need to do the following:
 
-* Store data that is written once and not updated (e.g. logs, metrics or even an accounting ledger where balance updates are done via additional offsetting entries)
-* Be resilient to hardware failures
-* Ensure availability during operational maintenance of any given (zone i.e. POD in the diagram)
-* Maintain a single copy of the data during maintenance
-* Leverage a Frozen Data tier as part of the https://www.elastic.co/guide/en/elasticsearch/reference/current/ilm-index-lifecycle.html[Information Lifecycle]
-* Leverage a https://www.elastic.co/guide/en/elasticsearch/reference/current/snapshots-register-repository.html[Snapshot Repository] for additional recovery options 
+* Store data that is written once and not updated including logs. metrics or even accounting ledger where balance updates are done via additional offsetting entries.
+* Be resilient to hardware failures.
+* Ensure availability during operational maintenance of any given pod.
+* Maintain a single copy of the data during maintenance.
+* Leverage a Frozen Data tier as part of the https://www.elastic.co/guide/en/elasticsearch/reference/current/ilm-index-lifecycle.html[Information Lifecycle].
+* Leverage a https://www.elastic.co/guide/en/elasticsearch/reference/current/snapshots-register-repository.html[Snapshot Repository] for additional recovery options.
 
 [discrete]
 [[single-datacenter-architecture]]

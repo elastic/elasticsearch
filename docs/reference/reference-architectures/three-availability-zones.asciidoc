@@ -3,6 +3,8 @@
 
 This article outlines a scalable and highly available architecture for Elasticsearch using three availability zones. The architecture encompasses all essential components of the Elastic Stack and serves as a foundational blueprint to ensure your deployment is resilient and ready to handle any desired workload. While this overview includes high-level representations of data flow, detailed implementation will be covered in subsequent documentation.
 
+TIP: This architecture includes all the necessary components of the Elastic Stack and is not intended for sizing workloads, but rather as a basis to ensure the architecture you deploy is foundationally ready to handle any desired workload with resiliency. 
+
 [discrete]
 [[three-availability-zones-use-case]]
 ==== Use case

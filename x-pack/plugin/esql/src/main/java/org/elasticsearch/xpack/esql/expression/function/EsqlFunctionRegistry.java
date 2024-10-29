@@ -478,7 +478,7 @@ public class EsqlFunctionRegistry {
         List<DataType> types = new ArrayList<>();
         for (String name : names) {
             DataType type = DataType.fromTypeName(name);
-            if (isTemporalAmount(type)) {
+            if (isTemporalAmount(type)) { // DATE_PERIOD and TIME_DURATION are not ES types
                 types.add(type);
             } else {
                 types.add(DataType.fromEs(name));
@@ -572,7 +572,7 @@ public class EsqlFunctionRegistry {
     public List<DataType> getDataTypeForStringLiteralConversion(Class<? extends Function> clazz) {
         if (dataTypesForStringLiteralConversion.containsKey(clazz)) {
             return dataTypesForStringLiteralConversion.get(clazz);
-        } else {
+        } else { // for unregistered EsqlScalarFunction, like Neg
             Constructor<?> constructor = constructorFor(clazz);
             if (constructor == null) {
                 return null;

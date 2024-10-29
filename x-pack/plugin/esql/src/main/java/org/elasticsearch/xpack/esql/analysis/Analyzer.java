@@ -45,8 +45,6 @@ import org.elasticsearch.xpack.esql.expression.NamedExpressions;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
-import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
-import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
@@ -59,7 +57,6 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToUnsigne
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.DateTimeArithmeticOperation;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Neg;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
@@ -88,7 +85,6 @@ import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.stats.FeatureMetric;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
-import java.lang.reflect.Constructor;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -594,9 +590,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         private static Attribute maybeResolveAttribute(UnresolvedAttribute ua, List<Attribute> childrenOutput, Logger logger) {
-            // if (ua.customMessage()) {
-            // return ua;
-            // }
+            if (ua.customMessage()) {
+                return ua;
+            }
             return resolveAttribute(ua, childrenOutput, logger);
         }
 
@@ -1097,40 +1093,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
             newChildren.add(left);
             return childrenChanged ? in.replaceChildren(newChildren) : in;
-        }
-
-        private static List<DataType> getTargetDataTypesForUnregisteredEsqlScalarFunctions(
-            org.elasticsearch.xpack.esql.core.expression.function.Function f
-        ) {
-            Class<?> clazz = null;
-            Constructor<?> ctor = null;
-            if (f instanceof Neg) {
-                clazz = Neg.class;
-            }
-            if (clazz != null) {
-                for (Constructor<?> c : clazz.getConstructors()) {
-                    FunctionInfo functionInfo = c.getAnnotation(FunctionInfo.class);
-                    if (functionInfo != null) {
-                        ctor = c;
-                        break;
-                    }
-                }
-            }
-            if (ctor != null) {
-                var params = ctor.getParameters();
-                List<DataType> targetDataTypes = new ArrayList<>(params.length - 1);
-                for (int i = 1; i < params.length; i++) { // skipping 1st argument, the source
-                    if (Configuration.class.isAssignableFrom(params[i].getType()) == false) {
-                        Param paramInfo = params[i].getAnnotation(Param.class);
-                        if (paramInfo != null) {
-                            DataType targetDataType = EsqlFunctionRegistry.getTargetType(paramInfo.type());
-                            targetDataTypes.add(targetDataType);
-                        }
-                    }
-                }
-                return targetDataTypes.size() == params.length - 1 ? targetDataTypes : null;
-            }
-            return null;
         }
 
         private static boolean isStringLiteral(Expression e) {

@@ -42,15 +42,17 @@ public class RankFeaturePhase extends SearchPhase {
     final SearchPhaseResults<SearchPhaseResult> rankPhaseResults;
     private final AggregatedDfs aggregatedDfs;
     private final SearchProgressListener progressListener;
-    private final Client client;
+    private final RankFeaturePhaseRankCoordinatorContext rankFeaturePhaseRankCoordinatorContext;
 
     RankFeaturePhase(
         SearchPhaseResults<SearchPhaseResult> queryPhaseResults,
         AggregatedDfs aggregatedDfs,
         SearchPhaseContext context,
-        Client client
+        RankFeaturePhaseRankCoordinatorContext rankFeaturePhaseRankCoordinatorContext
     ) {
         super("rank-feature");
+        assert rankFeaturePhaseRankCoordinatorContext != null;
+        this.rankFeaturePhaseRankCoordinatorContext = rankFeaturePhaseRankCoordinatorContext;
         if (context.getNumShards() != queryPhaseResults.getNumShards()) {
             throw new IllegalStateException(
                 "number of shards must match the length of the query results but doesn't:"
@@ -65,17 +67,10 @@ public class RankFeaturePhase extends SearchPhase {
         this.rankPhaseResults = new ArraySearchPhaseResults<>(context.getNumShards());
         context.addReleasable(rankPhaseResults);
         this.progressListener = context.getTask().getProgressListener();
-        this.client = client;
     }
 
     @Override
     public void run() {
-        RankFeaturePhaseRankCoordinatorContext rankFeaturePhaseRankCoordinatorContext = coordinatorContext(context.getRequest().source());
-        if (rankFeaturePhaseRankCoordinatorContext == null) {
-            moveToNextPhase(queryPhaseResults, null);
-            return;
-        }
-
         context.execute(new AbstractRunnable() {
             @Override
             protected void doRun() throws Exception {
@@ -122,7 +117,7 @@ public class RankFeaturePhase extends SearchPhase {
         }
     }
 
-    private RankFeaturePhaseRankCoordinatorContext coordinatorContext(SearchSourceBuilder source) {
+    static RankFeaturePhaseRankCoordinatorContext coordinatorContext(SearchSourceBuilder source, Client client) {
         return source == null || source.rankBuilder() == null
             ? null
             : source.rankBuilder().buildRankFeaturePhaseCoordinatorContext(source.size(), source.from(), client);
@@ -175,7 +170,6 @@ public class RankFeaturePhase extends SearchPhase {
         RankFeaturePhaseRankCoordinatorContext rankFeaturePhaseRankCoordinatorContext,
         SearchPhaseController.ReducedQueryPhase reducedQueryPhase
     ) {
-        assert rankFeaturePhaseRankCoordinatorContext != null;
         ThreadedActionListener<RankFeatureDoc[]> rankResultListener = new ThreadedActionListener<>(context, new ActionListener<>() {
             @Override
             public void onResponse(RankFeatureDoc[] docsWithUpdatedScores) {

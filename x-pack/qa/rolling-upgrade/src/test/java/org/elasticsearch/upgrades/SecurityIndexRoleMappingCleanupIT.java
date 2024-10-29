@@ -19,6 +19,7 @@ import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.TransportVersions.V_8_15_0;
+import static org.elasticsearch.TransportVersions.V_8_6_0;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -26,6 +27,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 public class SecurityIndexRoleMappingCleanupIT extends AbstractUpgradeTestCase {
 
     public void testCleanupDuplicateMappings() throws Exception {
+        assumeTrue("Must have transport version higher than: " + V_8_6_0, minimumTransportVersion().onOrAfter(V_8_6_0));
         if (CLUSTER_TYPE == ClusterType.OLD) {
             // If we're in a state where the same operator-defined role mappings can exist both in cluster state and the native store
             // (V_8_15_0 transport added to security.role_mapping_cleanup feature added), create a state

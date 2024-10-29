@@ -122,13 +122,17 @@ public final class BlobCacheIndexInput extends BlobCacheBufferedIndexInput {
     protected void readInternal(ByteBuffer b) throws IOException {
         try {
             doReadInternal(b);
-        } catch (IOException | RuntimeException e) {
+        } catch (Exception e) {
             if (ExceptionsHelper.unwrap(e, FileNotFoundException.class, NoSuchFileException.class) != null) {
                 logger.warn(() -> this + " did not find file", e); // includes the file name of the BlobCacheIndexInput
             }
-            throw e;
-        } catch (Exception e) {
-            throw new IOException(e);
+            if (e instanceof IOException ioe) {
+                throw ioe;
+            } else if (e instanceof RuntimeException re) {
+                throw re;
+            } else {
+                throw new IOException(e);
+            }
         }
     }
 

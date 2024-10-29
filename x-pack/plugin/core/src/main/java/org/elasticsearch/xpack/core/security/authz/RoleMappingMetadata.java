@@ -192,6 +192,14 @@ public final class RoleMappingMetadata extends AbstractNamedDiffable<Metadata.Cu
     }
 
     /**
+     * Check if any of the role mappings have a fallback name
+     * @return true if any role mappings have the fallback name
+     */
+    public boolean hasAnyMappingWithFallbackName() {
+        return roleMappings.stream().anyMatch(RoleMappingMetadata::hasFallbackName);
+    }
+
+    /**
      * Parse a role mapping from XContent, restoring the name from a reserved metadata field.
      * Used to parse a role mapping annotated with its name in metadata via @see {@link #copyWithNameInMetadata(ExpressionRoleMapping)}.
      */

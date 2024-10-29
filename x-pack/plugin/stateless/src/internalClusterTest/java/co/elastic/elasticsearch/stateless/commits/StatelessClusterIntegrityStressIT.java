@@ -328,8 +328,22 @@ public class StatelessClusterIntegrityStressIT extends AbstractStatelessIntegTes
             logger.info("--> end of test");
         }
 
+        Releasable acquirePermitForCluster() {
+            try (var localReleasable = new TransferableReleasables()) {
+                if (clusterPermit.tryAcquire()) {
+                    localReleasable.add(clusterPermit::release);
+                    return localReleasable.transfer();
+                }
+            }
+            return null;
+        }
+
         NamedReleasable acquirePermitsForClusterAndIndexingNode() {
             return acquirePermitsForClusterAndNode(this::nonMasterIndexingNodes);
+        }
+
+        NamedReleasable acquirePermitsForClusterAndSearchNode() {
+            return acquirePermitsForClusterAndNode(this::searchNodes);
         }
 
         NamedReleasable acquirePermitForIndexingNode() {
@@ -636,7 +650,11 @@ public class StatelessClusterIntegrityStressIT extends AbstractStatelessIntegTes
                 if (between(1, 1000) > shardMovementChance) {
                     return;
                 }
-                final Releasable clusterReleasable = () -> {};
+                // TODO: We should not need lock the entire cluster for relocation
+                final Releasable clusterReleasable = acquirePermitForCluster();
+                if (clusterReleasable == null) {
+                    return;
+                }
                 try (clusterReleasable) {
                     final TrackedIndex trackedIndex = randomFrom(indices.values());
                     final int shardId = between(0, trackedIndex.numberOfShards - 1);
@@ -676,9 +694,10 @@ public class StatelessClusterIntegrityStressIT extends AbstractStatelessIntegTes
                     return;
                 }
                 final boolean searchShard = randomBoolean() && randomBoolean(); // more likely to fail indexing shard
+                // TODO: we should not need to lock the entire cluster for failing shard
                 final Supplier<NamedReleasable> permitSupplier = searchShard
-                    ? this::acquirePermitForSearchNode
-                    : this::acquirePermitForIndexingNode;
+                    ? this::acquirePermitsForClusterAndSearchNode
+                    : this::acquirePermitsForClusterAndIndexingNode;
                 try (var namedReleasable = permitSupplier.get()) {
                     if (namedReleasable == NamedReleasable.EMPTY) {
                         return;
@@ -731,11 +750,12 @@ public class StatelessClusterIntegrityStressIT extends AbstractStatelessIntegTes
                 if (between(1, 1000) > nodeMovementChance) {
                     return;
                 }
+                // TODO: Restarting the search node while a search is ongoing can leak resources
                 // See also https://github.com/elastic/elasticsearch/issues/115056
                 final boolean restartIndexingNode = true || randomBoolean();
                 Supplier<NamedReleasable> permitSupplier = restartIndexingNode
-                    ? this::acquirePermitForIndexingNode
-                    : this::acquirePermitForSearchNode;
+                    ? this::acquirePermitsForClusterAndIndexingNode
+                    : this::acquirePermitsForClusterAndSearchNode;
                 try (var namedReleasable = permitSupplier.get()) {
                     if (namedReleasable == NamedReleasable.EMPTY) {
                         return;

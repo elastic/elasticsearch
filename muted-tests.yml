@@ -330,8 +330,6 @@ tests:
 - class: org.elasticsearch.xpack.rank.rrf.RRFRankClientYamlTestSuiteIT
   method: test {yaml=rrf/800_rrf_with_text_similarity_reranker_retriever/explain using rrf retriever and text-similarity}
   issue: https://github.com/elastic/elasticsearch/issues/114757
-- class: org.elasticsearch.license.LicensingTests
-  issue: https://github.com/elastic/elasticsearch/issues/114865
 - class: org.elasticsearch.xpack.security.authc.ldap.GroupMappingIT
   issue: https://github.com/elastic/elasticsearch/issues/115221
 - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT

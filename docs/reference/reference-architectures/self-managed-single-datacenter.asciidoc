@@ -1,24 +1,26 @@
 [[self-managed-single-datacenter]]
 === Self Managed - Single Datacenter
 
-This architecture ensures high availability during normal operations and node maintenance. It includes all necessary Elastic Stack components but is not intended for workload sizing. Use this pattern as a foundation and extend it to meet your specific needs. While it represents data flow for context, implementations may vary. Key design elements include the number and location of master nodes, data nodes, zone awareness, and shard allocation strategy. For more details, see https://www.elastic.co/guide/en/elasticsearch/reference/current/high-availability-cluster-design-large-clusters.html#high-availability-cluster-design-two-zones[Resilience in larger clusters - Two-zone clusters]. This design does not cover cross-region (geographically diverse) disaster recovery.
+This architecture ensures high availability during normal operations and node maintenance. 
+
+TIP: This architecture includes all the necessary components of the Elastic Stack and is not intended for sizing workloads, but rather as a basis to ensure the architecture you deploy is foundationally ready to handle any desired workload with resiliency. 
+
+Key design elements include the number and location of master nodes, data nodes, zone awareness, and shard allocation strategy. For more details, see https://www.elastic.co/guide/en/elasticsearch/reference/current/high-availability-cluster-design-large-clusters.html#high-availability-cluster-design-two-zones[Resilience in larger clusters - Two-zone clusters]. 
 
 While this architecture does include a representation of a data flow, this is being provided for contextual understanding and may differ from implementation to implementation.  The critical portion of the design is the number and location of master nodes, the location of data nodes, zone awareness and the shard allocation strategy.  For additional information see this https://www.elastic.co/guide/en/elasticsearch/reference/current/high-availability-cluster-design-large-clusters.html#high-availability-cluster-design-two-zones[reference].
-This design does not address cross region (i.e. geographically diverse) disaster recovery.  
-
 
 [discrete]
 [[single-datacenter-use-case]]
-==== Use Case
+==== Use case
 
-This architecture is intended for organizations that need to:
+This architecture is intended for organizations that need to do the following:
 
 * Store data that is written once and not updated (e.g. logs, metrics or even an accounting ledger where balance updates are done via additional offsetting entries)
 * Be resilient to hardware failures
 * Ensure availability during operational maintenance of any given (zone i.e. POD in the diagram)
 * Maintain a single copy of the data during maintenance
-* Leverage a Frozen Data tier as part of the Information Lifecycle
-* Leverage a Snapshot Repository for additional recovery options 
+* Leverage a Frozen Data tier as part of the https://www.elastic.co/guide/en/elasticsearch/reference/current/ilm-index-lifecycle.html[Information Lifecycle]
+* Leverage a https://www.elastic.co/guide/en/elasticsearch/reference/current/snapshots-register-repository.html[Snapshot Repository] for additional recovery options 
 
 [discrete]
 [[single-datacenter-architecture]]
@@ -28,13 +30,13 @@ image::images/single-datacenter.png["A self hosted single datacenter deployment"
 
 [discrete]
 [[single-datacenter-considerations]]
-==== Important Considerations
+==== Important considerations
 
 The following list are important conderations for this architecture:
 
 * **Operate**
 
-** Maintenance will be done only on one POD at a time.
+** Maintenance will be done only on one pod at a time.
 
 ** A yellow cluster state is acceptable during maintenance.  (This will be due to replica shards being unassigned.)
 
@@ -57,11 +59,17 @@ The following list are important conderations for this architecture:
 * **Forced Awareness:**  This should be set in In order to prevent Elastic from trying to create replica shards when a given POD is down for maintenance.
 
 * https://www.elastic.co/guide/en/elasticsearch/reference/8.16/snapshots-take-snapshot.html#automate-snapshots-slm[SLM (Snapshot Lifecycle Management): Considerations]
-* **Limitations of this architecture**
-** No region resilience
-** Only a single copy of (some of … i.e. the most recently written data that is not yet part of a snapshot) data exists during maintenance windows - (Note:  This could be addressed by adding data nodes to POD 3 and setting the sharding strategy to 1 Primary and 2 Replicas)
-** Assumes write once (no updating of documents)
-* **Benefits of this architecture**
+
+[discrete]
+[[single-datacenter-limitations]]
+==== Limitations of this architecture
+** This design does not address cross region disaster recovery.
+** Only a single copy of the most recently written data that is not yet part of a snapshot data exists during maintenance windows. This can be addressed by adding data nodes to pod 3 and setting the sharding strategy to 1 Primary and 2 Replicas.
+** This design assumes the data is read only and not updated.
+
+[discrete]
+[[single-datacenter-benefits]]
+==== Benefits of this architecture**
 ** Reduces cost by leveraging the Frozen tier as soon as that makes sense from an ingest and most frequently read documents perspective
 ** Significantly reduces the likelihood of hot-spotting due to the sharding strategy
 ** Eliminates network and disk overhead caused by rebalancing attempts that would occur during maintenance due to setting forced awareness.

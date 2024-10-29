@@ -5,9 +5,9 @@ This article outlines a scalable and highly available architecture for Elasticse
 
 [discrete]
 [[three-availability-zones-use-case]]
-==== Use Case
+==== Use case
 
-This architecture is intended for organizations that need to: 
+This architecture is intended for organizations that need to do the following: 
 
 * Be resilient to hardware failures
 * Ensure availability during operational maintenance of any given availability zone 
@@ -24,7 +24,7 @@ image::images/three-availability-zone.png["A three-availability-zones time-serie
 
 [discrete]
 [[three-availability-zones-considerations]]
-==== Important Considerations
+==== Important considerations
 
 The following list are important conderations for this architecture:
 
@@ -38,11 +38,20 @@ The following list are important conderations for this architecture:
 ** Set up a repository for the frozen tier.
 
 * https://www.elastic.co/guide/en/elasticsearch/reference/8.16/snapshots-take-snapshot.html#automate-snapshots-slm[SLM (Snapshot Lifecycle Management): Considerations]
-* **Limitations of this architecture**
+
+[discrete]
+[[three-zone-limitations]]
+==== Limitations of this architecture
+
 ** No region resilience
 ** Only a single copy of (some of … i.e. the most recently written data that is not yet part of a snapshot) data exists during maintenance windows - (Note:  This could be addressed by adding data nodes to POD 3 and setting the sharding strategy to 1 Primary and 2 Replicas)
 ** Assumes write once (no updating of documents)
-* **Benefits of this architecture**
+
+
+[discrete]
+[[three-zone-benefits]]
+==== Benefits of this architecture
+
 ** Reduces cost by leveraging the Frozen tier as soon as that makes sense from an ingest and most frequently read documents perspective
 ** Significantly reduces the likelihood of hot-spotting due to the sharding strategy
 ** Eliminates network and disk overhead caused by rebalancing attempts that would occur during maintenance due to setting forced awareness.

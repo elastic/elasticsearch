@@ -7,13 +7,13 @@ This architecture is ideal for observability use cases. The architecture include
 
 [discrete]
 [[cloud-hot-use-case]]
-==== Use Case
+==== Use case
 
-This architecture is intended for organizations that need to:
+This architecture is intended for organizations that need to do the following:
 
-* Monitor the performance and health of their applications in real-time, including the creation and tracking of SLOs (Service Level Objectives).
+* Monitor the performance and health of their applications in real time, including the creation and tracking of SLOs (Service Level Objectives).
 * Provide insights and alerts to ensure optimal performance and quick issue resolution for applications.
-* Apply Machine Learning and Artificial Intelligence to assist SREs and Application Teams in dealing with the large amount of data in this type of use case.
+* Apply machine learning and artificial intelligence to assist engineers and application teams in dealing with the large amount of data in this type of use case.
 
 
 [discrete]
@@ -24,27 +24,18 @@ image::images/elastic-cloud-architecture.png["An Elastic Cloud Architecture"]
 
 [discrete]
 [[cloud-hot-frozen-considerations]]
-==== Important Considerations
+==== Important considerations
 
 The following list are important conderations for this architecture:
 
-* **Time Series Data Updates:**
-** Typically, time series use cases are append only and there is rarely a need to update documents once they have been ingested into Elasticsearch. The frozen tier is read-only so once data rolls over to the frozen tier documents can no longer be updated.  If there is a need to update documents for some part of the data lifecycle, that will require either a larger hot tier or the introduction of a warm tier to cover the time period needed for document updates.
-* **Multi-AZ Frozen Tier:**
-** When using the frozen tier for storing data for regulatory purposes (e.g. one or more years), we typically recommend a single availability zone. However, since this architecture relies on the frozen tier for most of the search capabilities, we recommend at least two availability zones to ensure that there will be data nodes available in the event of an AZ failure.
-
-* **Architecture Variant - adding a Cold Tier**
-** The hot-frozen architecture works well for most time-series use cases.   However, when there is a need for more frequent, low-latency searches, introducing a cold tier may be required.   Some common examples include detection rule lookback for security use cases or complex custom dashboards.  The ILM policy for the example Hot-Frozen architecture above could be modified from 1 day  in hot, 89 in frozen to 1 day in hot, 7 days in cold, and 82 days in frozen.   Cold nodes fully mount a searchable snapshot for primary shards; replica shards are not needed for reliability. In the event of a failure, cold tier nodes can recover data from the underlying snapshot instead.  See https://www.elastic.co/guide/en/elasticsearch/reference/current/data-tiers.html[Data tiers] for more details on Elasticsearch data tiers. Note: our Data tiers docs may be slightly at odds with the concept of hot/frozen or hot/cold/frozen.   Should they be updated?
-* **Limitations of this architecture**
-** This architecture is a high-availability Elasticsearch architecture. It is not intended as a Disaster Recovery architecture since it is deployed across Availability Zones in a single cloud region. This architecture can be enhanced for Disaster Recovery by adding a second deployment in another cloud region. Details on Disaster Recovery for Elasticsearch can be found https://www.elastic.co/guide/en/elasticsearch/reference/current/xpack-ccr.html#ccr-disaster-recovery[here].
+[discrete]
+[[cloud-architecture-limitations]]
+==== Limitations of this architecture
+* This architecture is a high-availability Elasticsearch architecture. It is not intended as a Disaster Recovery architecture since it is deployed across Availability Zones in a single cloud region. This architecture can be enhanced for Disaster Recovery by adding a second deployment in another cloud region. Details on Disaster Recovery for Elasticsearch can be found https://www.elastic.co/guide/en/elasticsearch/reference/current/xpack-ccr.html#ccr-disaster-recovery[here].
 
 [discrete]
 [[cloud-hot-frozen-resources]]
 ==== Resources and references
 
-* <<shard-size-best-practices,Size your shards>>
 * https://www.elastic.co/guide/en/cloud/current/ec-getting-started.html[Elastic Cloud (Elasticsearch Service)]
 * https://www.elastic.co/guide/en/cloud/current/ec-prepare-production.html[Elastic Cloud - Preparing a deployment for production]
-* https://www.elastic.co/guide/en/elasticsearch/reference/current/index.html[Elasticsearch Documentation]
-* https://www.elastic.co/guide/en/kibana/current/index.html[Kibana Documentation]
-* https://www.elastic.co/guide/en/elasticsearch/reference/current/size-your-shards.html[Size your shards]

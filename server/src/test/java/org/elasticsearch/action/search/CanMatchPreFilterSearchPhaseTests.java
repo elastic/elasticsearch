@@ -32,6 +32,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.CoordinatorRewriteContext;
 import org.elasticsearch.index.query.CoordinatorRewriteContextProvider;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -541,7 +542,8 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             (index) -> null
         );
 
-        BoolQueryBuilder boolQueryBuilder = QueryBuilders.boolQuery().filter(QueryBuilders.termQuery("_tier", "data_hot"));
+        BoolQueryBuilder boolQueryBuilder = QueryBuilders.boolQuery()
+            .filter(QueryBuilders.termQuery(CoordinatorRewriteContext.TIER_FIELD_NAME, "data_hot"));
 
         assignShardsAndExecuteCanMatchPhase(
             List.of(dataStream),

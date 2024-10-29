@@ -14,7 +14,6 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.NamedMatches;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -218,9 +217,7 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
      */
     static Object maybeConvertToBytesRef(Object obj) {
         if (obj instanceof String v) {
-            byte[] b = new byte[UnicodeUtil.calcUTF16toUTF8Length(v, 0, v.length())];
-            UnicodeUtil.UTF16toUTF8(v, 0, v.length(), b);
-            return BytesRefs.checkIndexableLength(new BytesRef(b, 0, b.length));
+            return BytesRefs.checkIndexableLength(BytesRefs.toExactSizedBytesRef(v));
         } else if (obj instanceof CharBuffer v) {
             return BytesRefs.checkIndexableLength(new BytesRef(v));
         } else if (obj instanceof BigInteger v) {

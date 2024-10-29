@@ -78,7 +78,9 @@ public class DataStreamsActionUtilTests extends ESTestCase {
 
         var query = new String[] { "foo*", "baz*" };
         var indexNameExpressionResolver = mock(IndexNameExpressionResolver.class);
-        when(indexNameExpressionResolver.dataStreamNames(any(), any(), eq(query))).thenReturn(List.of("fooDs", "foo2Ds", "bazDs"));
+        when(indexNameExpressionResolver.dataStreamNames(any(ClusterState.class), any(), eq(query))).thenReturn(
+            List.of("fooDs", "foo2Ds", "bazDs")
+        );
 
         var resolved = DataStreamsActionUtil.resolveConcreteIndexNames(
             indexNameExpressionResolver,

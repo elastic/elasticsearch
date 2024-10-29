@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.routing.OperationRouting;
@@ -272,7 +273,7 @@ public class TransportMultiTermVectorsActionTests extends ESTestCase {
         }
 
         @Override
-        public Index concreteSingleIndex(ClusterState state, IndicesRequest request) {
+        public Index concreteSingleIndex(ProjectMetadata project, IndicesRequest request) {
             return new Index("index1", randomBase64UUID());
         }
     }

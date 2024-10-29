@@ -13,7 +13,6 @@ import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasA
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -199,11 +198,7 @@ public class AliasResolveRoutingIT extends ESIntegTestCase {
         );
 
         assertThat(
-            IndexNameExpressionResolver.resolveSearchRoutingAllIndices(
-                state.metadata(),
-                TestProjectResolvers.singleProjectOnly(),
-                "0,1,2,tw , ltw , lw"
-            ),
+            IndexNameExpressionResolver.resolveSearchRoutingAllIndices(state.metadata().getProject(), "0,1,2,tw , ltw , lw"),
             equalTo(
                 newMap(
                     "test1",

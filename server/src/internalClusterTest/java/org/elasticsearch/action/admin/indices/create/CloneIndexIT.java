@@ -12,6 +12,7 @@ import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.query.TermsQueryBuilder;
@@ -147,12 +148,12 @@ public class CloneIndexIT extends ESIntegTestCase {
             .setMapping("@timestamp", "type=date", "host.name", "type=keyword")
             .get();
         updateIndexSettings(Settings.builder().put("index.blocks.write", true), "source");
-        IllegalArgumentException error = expectThrows(IllegalArgumentException.class, () -> {
+        ValidationException error = expectThrows(ValidationException.class, () -> {
             indicesAdmin().prepareResizeIndex("source", "target")
                 .setResizeType(ResizeType.CLONE)
                 .setSettings(Settings.builder().putList("index.sort.field", List.of("@timestamp")).build())
                 .get();
         });
-        assertThat(error.getMessage(), containsString("can't change setting [index.sort.field] during resize"));
+        assertThat(error.getMessage(), containsString("can't override index sort when resizing an index"));
     }
 }

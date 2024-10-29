@@ -411,12 +411,12 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                         // everything in the directory but in that case we might want to be a little more thoughtful about
                         // the exact exception triggered here. Corrupt indices might be recoverable without a full transfer, for
                         // example.
-                        logger.info("cleanup before peer recovery failed on shard [{}]; exception: [{}]", indexShard.shardId(), e);
+                        logger.info(() -> format("cleanup before peer recovery failed on shard [{}]", indexShard.shardId()), e);
                         try {
                             recoveryTarget.cleanTempFiles();
                         } catch (IOException ie) {
                             // log and ignore. Recovery gets another chance to clean up after file transfer.
-                            logger.warn("temporary file cleanup failed on shard [{}]; exception: [{}]", indexShard.shardId(), ie);
+                            logger.warn(() -> format("temporary file cleanup failed on shard [{}]", indexShard.shardId()), ie);
                         }
                     } finally {
                         store.decRef();

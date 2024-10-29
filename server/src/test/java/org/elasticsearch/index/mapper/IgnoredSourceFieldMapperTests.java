@@ -2077,9 +2077,7 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
 
     public void testRegularObjectWithFlatFields() throws IOException {
         DocumentMapper documentMapper = createMapperService(syntheticSourceMapping(b -> {
-            b.startObject("top").field("type", "object").field("synthetic_source_keep", "all");
-            b.startObject("properties").startObject("file").field("type", "object").endObject().endObject();
-            b.endObject();
+            b.startObject("top").field("type", "object").field("synthetic_source_keep", "all").endObject();
         })).documentMapper();
 
         CheckedConsumer<XContentBuilder, IOException> document = b -> {
@@ -2115,9 +2113,7 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
             b.startObject("top");
             b.startObject("properties");
             {
-                b.startObject("inner").field("type", "object").field("synthetic_source_keep", "all");
-                b.startObject("properties").startObject("file").field("type", "object").endObject().endObject();
-                b.endObject();
+                b.startObject("inner").field("type", "object").field("synthetic_source_keep", "all").endObject();
             }
             b.endObject();
             b.endObject();
@@ -2194,11 +2190,7 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
         DocumentMapper documentMapper = createMapperServiceWithStoredArraySource(syntheticSourceMapping(b -> {
             b.startObject("outer").startObject("properties");
             {
-                b.startObject("inner").startObject("properties");
-                {
-                    b.startObject("a").field("type", "object").endObject();
-                }
-                b.endObject().endObject();
+                b.startObject("inner").field("type", "object").endObject();
             }
             b.endObject().endObject();
         })).documentMapper();

@@ -1,6 +1,6 @@
 object with unmapped fields:
   - requires:
-      cluster_features: ["mapper.track_ignored_source"]
+      cluster_features: ["mapper.track_ignored_source", "mapper.bwc_workaround_9_0"]
       reason: requires tracking ignored source
 
   - do:
@@ -41,13 +41,13 @@ object with unmapped fields:
   - match: { hits.hits.0._source.some_string: AaAa }
   - match: { hits.hits.0._source.some_int: 1000 }
   - match: { hits.hits.0._source.some_double: 123.456789 }
-  - match: { hits.hits.0._source.a.very.deeply.nested.field: AAAA }
+  - match: { hits.hits.0._source.a: { very.deeply.nested.field: AAAA } }
   - match: { hits.hits.0._source.some_bool: true }
   - match: { hits.hits.1._source.name: bbbb }
   - match: { hits.hits.1._source.some_string: BbBb }
   - match: { hits.hits.1._source.some_int: 2000 }
   - match: { hits.hits.1._source.some_double: 321.987654 }
-  - match: { hits.hits.1._source.a.very.deeply.nested.field: BBBB }
+  - match: { hits.hits.1._source.a: { very.deeply.nested.field: BBBB } }
 
 
 ---
@@ -100,7 +100,7 @@ unmapped arrays:
 ---
 nested object with unmapped fields:
   - requires:
-      cluster_features: ["mapper.track_ignored_source"]
+      cluster_features: ["mapper.track_ignored_source", "mapper.bwc_workaround_9_0"]
       reason: requires tracking ignored source
 
   - do:
@@ -143,16 +143,16 @@ nested object with unmapped fields:
   - match: { hits.total.value: 2 }
   - match: { hits.hits.0._source.path.to.name: aaaa }
   - match: { hits.hits.0._source.path.to.surname: AaAa }
-  - match: { hits.hits.0._source.path.some.other.name: AaAaAa }
+  - match: { hits.hits.0._source.path.some.other\.name: AaAaAa }
   - match: { hits.hits.1._source.path.to.name: bbbb }
   - match: { hits.hits.1._source.path.to.surname: BbBb }
-  - match: { hits.hits.1._source.path.some.other.name: BbBbBb }
+  - match: { hits.hits.1._source.path.some.other\.name: BbBbBb }
 
 
 ---
 empty object with unmapped fields:
   - requires:
-      cluster_features: ["mapper.track_ignored_source"]
+      cluster_features: ["mapper.track_ignored_source", "mapper.bwc_workaround_9_0"]
       reason: requires tracking ignored source
 
   - do:
@@ -191,7 +191,7 @@ empty object with unmapped fields:
 
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._source.path.to.surname: AaAa }
-  - match: { hits.hits.0._source.path.some.other.name: AaAaAa }
+  - match: { hits.hits.0._source.path.some.other\.name: AaAaAa }
 
 
 ---
@@ -434,7 +434,7 @@ mixed disabled and enabled objects:
 ---
 object with dynamic override:
   - requires:
-      cluster_features: ["mapper.ignored_source.dont_expand_dots"]
+      cluster_features: ["mapper.ignored_source.dont_expand_dots", "mapper.bwc_workaround_9_0"]
       reason: requires tracking ignored source
 
   - do:
@@ -475,7 +475,7 @@ object with dynamic override:
   - match: { hits.hits.0._source.path_no.to: { a.very.deeply.nested.field: A } }
   - match: { hits.hits.0._source.path_runtime.name: bar }
   - match: { hits.hits.0._source.path_runtime.some_int: 20 }
-  - match: { hits.hits.0._source.path_runtime.to.a.very.deeply.nested.field: B }
+  - match: { hits.hits.0._source.path_runtime.to: { a.very.deeply.nested.field: B } }
 
 
 ---

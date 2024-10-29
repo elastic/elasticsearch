@@ -593,6 +593,13 @@ public class AnthropicServiceTests extends ESTestCase {
             .hasErrorContaining("blah");
     }
 
+    public void testSupportsStreaming() throws IOException {
+        try (var service = new AnthropicService(mock(), createWithEmptySettings(mock()))) {
+            assertTrue(service.canStream(TaskType.COMPLETION));
+            assertTrue(service.canStream(TaskType.ANY));
+        }
+    }
+
     private AnthropicService createServiceWithMockSender() {
         return new AnthropicService(mock(HttpRequestSender.Factory.class), createWithEmptySettings(threadPool));
     }

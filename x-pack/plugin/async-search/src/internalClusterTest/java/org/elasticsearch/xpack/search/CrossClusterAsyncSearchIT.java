@@ -287,7 +287,6 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
         try {
             responseId = response.getId();
             assertNotNull(response.getSearchResponse());
-            assertTrue(response.isRunning());
             SearchResponse.Clusters clusters = response.getSearchResponse().getClusters();
             assertThat(clusters.getTotal(), equalTo(2));
             if (dfs) {

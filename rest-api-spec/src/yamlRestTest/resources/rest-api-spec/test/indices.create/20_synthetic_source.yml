@@ -152,7 +152,7 @@ nested object with unmapped fields:
 ---
 empty object with unmapped fields:
   - requires:
-      cluster_features: ["mapper.track_ignored_source"]
+      cluster_features: ["mapper.track_ignored_source", "mapper.bwc_workaround_9_0"]
       reason: requires tracking ignored source
 
   - do:
@@ -434,7 +434,7 @@ mixed disabled and enabled objects:
 ---
 object with dynamic override:
   - requires:
-      cluster_features: ["mapper.ignored_source.dont_expand_dots"]
+      cluster_features: ["mapper.ignored_source.dont_expand_dots", "mapper.bwc_workaround_9_0"]
       reason: requires tracking ignored source
 
   - do:

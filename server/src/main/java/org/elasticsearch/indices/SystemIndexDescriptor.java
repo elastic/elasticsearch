@@ -565,9 +565,9 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
             ? getMappingsVersion()
             : priorSystemIndexDescriptors.get(priorSystemIndexDescriptors.size() - 1).mappingsVersion;
         return Strings.format(
-            "[%s] failed - requested creation of system index [%s] with version [%s], while this cluster minimum supported version is " +
-                "[%s]. For the cluster to support version [%s], ensure that the system index descriptor for [%s] includes a prior " +
-                "definition for that version.",
+            "[%s] failed - requested creation of system index [%s] with version [%s], while this cluster minimum supported version is "
+                + "[%s]. For the cluster to support version [%s], ensure that the system index descriptor for [%s] includes a prior "
+                + "definition for that version.",
             cause,
             this.getPrimaryIndex(),
             requiredMinimumMappingVersion,

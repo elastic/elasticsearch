@@ -112,6 +112,7 @@ public class AbstractQueryBuilderTests extends ESTestCase {
         }
         BytesRef bytesRef = (BytesRef) AbstractQueryBuilder.maybeConvertToBytesRef(termBuilder.toString());
         assertEquals(correctSize, bytesRef.bytes.length);
+        assertEquals(correctSize, bytesRef.length);
     }
 
 }

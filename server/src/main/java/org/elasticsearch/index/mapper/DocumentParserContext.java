@@ -518,11 +518,7 @@ public abstract class DocumentParserContext {
                     if (canAddIgnoredField()) {
                         try {
                             addIgnoredField(
-                                IgnoredSourceFieldMapper.NameValue.fromContext(
-                                    this,
-                                    mapper.fullPath(),
-                                    XContentDataHelper.encodeToken(parser())
-                                )
+                                IgnoredSourceFieldMapper.NameValue.fromContext(this, mapper.fullPath(), encodeFlattenedToken())
                             );
                         } catch (IOException e) {
                             throw new IllegalArgumentException("failed to parse field [" + mapper.fullPath() + " ]", e);

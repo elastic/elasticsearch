@@ -204,6 +204,29 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
         return new Tuple<>(savedClusterState, metadataVersion);
     }
 
+    // Wait for any file metadata
+    public static Tuple<CountDownLatch, AtomicLong> setupClusterStateListener(String node) {
+        ClusterService clusterService = internalCluster().clusterService(node);
+        CountDownLatch savedClusterState = new CountDownLatch(1);
+        AtomicLong metadataVersion = new AtomicLong(-1);
+        clusterService.addListener(new ClusterStateListener() {
+            @Override
+            public void clusterChanged(ClusterChangedEvent event) {
+                ReservedStateMetadata reservedState = event.state().metadata().reservedStateMetadata().get(FileSettingsService.NAMESPACE);
+                if (reservedState != null) {
+                    ReservedStateHandlerMetadata handlerMetadata = reservedState.handlers().get(ReservedRoleMappingAction.NAME);
+                    if (handlerMetadata != null) {
+                        clusterService.removeListener(this);
+                        metadataVersion.set(event.state().metadata().version());
+                        savedClusterState.countDown();
+                    }
+                }
+            }
+        });
+
+        return new Tuple<>(savedClusterState, metadataVersion);
+    }
+
     public static Tuple<CountDownLatch, AtomicLong> setupClusterStateListenerForCleanup(String node) {
         ClusterService clusterService = internalCluster().clusterService(node);
         CountDownLatch savedClusterState = new CountDownLatch(1);

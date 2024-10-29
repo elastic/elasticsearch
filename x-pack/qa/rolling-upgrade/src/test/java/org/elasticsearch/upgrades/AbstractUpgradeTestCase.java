@@ -9,11 +9,13 @@ package org.elasticsearch.upgrades;
 import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Booleans;
+import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.test.SecuritySettingsSourceField;
 import org.junit.Before;
@@ -21,6 +23,7 @@ import org.junit.Before;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 public abstract class AbstractUpgradeTestCase extends ESRestTestCase {
@@ -147,6 +150,24 @@ public abstract class AbstractUpgradeTestCase extends ESRestTestCase {
             if (missingTemplates.isEmpty() == false) {
                 fail("Some expected templates are missing: " + missingTemplates + ". The templates that exist are: " + templates + "");
             }
+        });
+    }
+
+    protected static void waitForSecurityMigrationCompletion(RestClient adminClient, int version) throws Exception {
+        final Request request = new Request("GET", "_cluster/state/metadata/.security-7");
+        assertBusy(() -> {
+            Map<String, Object> indices = new XContentTestUtils.JsonMapView(entityAsMap(adminClient.performRequest(request))).get(
+                "metadata.indices"
+            );
+            assertNotNull(indices);
+            assertTrue(indices.containsKey(".security-7"));
+            // JsonMapView doesn't support . prefixed indices (splits on .)
+            @SuppressWarnings("unchecked")
+            String responseVersion = new XContentTestUtils.JsonMapView((Map<String, Object>) indices.get(".security-7")).get(
+                "migration_version.version"
+            );
+            assertNotNull(responseVersion);
+            assertTrue(Integer.parseInt(responseVersion) >= version);
         });
     }
 }

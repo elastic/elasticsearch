@@ -103,12 +103,39 @@ POST /restaurants/_bulk?refresh
 {"region": "Austria", "year": "2020", "vector": [10, 22, 79]}
 {"index":{}}
 {"region": "France", "year": "2020", "vector": [10, 22, 80]}
+
+PUT /movies
+
+PUT _query_rules/my-ruleset
+{
+    "rules": [
+        {
+            "rule_id": "my-rule1",
+            "type": "pinned",
+            "criteria": [
+                {
+                    "type": "exact",
+                    "metadata": "query_string",
+                    "values": [ "pugs" ]
+                }
+            ],
+            "actions": {
+                "ids": [
+                    "id1"
+                ]
+            }
+        }
+    ]
+}
+
 ----
 // TESTSETUP
 
 [source,console]
 --------------------------------------------------
 DELETE /restaurants
+
+DELETE /movies
 --------------------------------------------------
 // TEARDOWN
 ////
@@ -570,12 +597,12 @@ It runs the query defined by the `retriever` and applies the rules from `my-rule
 
 [source,console]
 ----
-GET my-index/_search
+GET movies/_search
 {
   "retriever": {
     "rule": {
       "match_criteria": {
-        "query_string": "pugs"
+        "query_string": "harry potter"
       },
       "ruleset_ids": [
         "my-ruleset"
@@ -584,7 +611,7 @@ GET my-index/_search
         "standard": {
           "query": {
             "query_string": {
-              "query": "pugs"
+              "query": "harry potter"
             }
           }
         }
@@ -609,12 +636,12 @@ Nesting a `rule` retriever as a sub-retriever under a reranker such as `rrf` or 
 
 [source,console]
 ----
-GET my-index/_search
+GET movies/_search
 {
   "retriever": {
     "rule": {
       "match_criteria": {
-        "query_string": "pugs"
+        "query_string": "harry potter"
       },
       "ruleset_ids": [
         "my-ruleset"
@@ -626,7 +653,7 @@ GET my-index/_search
               "standard": {
                 "query": {
                   "query_string": {
-                    "query": "beagles"
+                    "query": "sorcerer's stone"
                   }
                 }
               }
@@ -635,7 +662,7 @@ GET my-index/_search
               "standard": {
                 "query": {
                   "query_string": {
-                    "query": "chihuahuas"
+                    "query": "chamber of secrets"
                   }
                 }
               }

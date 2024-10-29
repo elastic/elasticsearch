@@ -20,9 +20,6 @@ tests:
 - class: "org.elasticsearch.xpack.searchablesnapshots.FrozenSearchableSnapshotsIntegTests"
   issue: "https://github.com/elastic/elasticsearch/issues/110408"
   method: "testCreateAndRestorePartialSearchableSnapshot"
-- class: org.elasticsearch.xpack.security.authz.store.NativePrivilegeStoreCacheTests
-  method: testPopulationOfCacheWhenLoadingPrivilegesForAllApplications
-  issue: https://github.com/elastic/elasticsearch/issues/110789
 - class: org.elasticsearch.nativeaccess.VectorSystemPropertyTests
   method: testSystemPropertyDisabled
   issue: https://github.com/elastic/elasticsearch/issues/110949
@@ -227,8 +224,6 @@ tests:
 - class: org.elasticsearch.xpack.remotecluster.RemoteClusterSecurityWithApmTracingRestIT
   method: testTracingCrossCluster
   issue: https://github.com/elastic/elasticsearch/issues/112731
-- class: org.elasticsearch.license.LicensingTests
-  issue: https://github.com/elastic/elasticsearch/issues/114865
 - class: org.elasticsearch.packaging.test.EnrollmentProcessTests
   method: test20DockerAutoFormCluster
   issue: https://github.com/elastic/elasticsearch/issues/114885
@@ -241,18 +236,12 @@ tests:
 - class: org.elasticsearch.xpack.inference.DefaultEndPointsIT
   method: testInferDeploysDefaultE5
   issue: https://github.com/elastic/elasticsearch/issues/115361
-- class: org.elasticsearch.reservedstate.service.FileSettingsServiceTests
-  method: testProcessFileChanges
-  issue: https://github.com/elastic/elasticsearch/issues/115280
 - class: org.elasticsearch.xpack.security.FileSettingsRoleMappingsRestartIT
   method: testFileSettingsReprocessedOnRestartWithoutVersionChange
   issue: https://github.com/elastic/elasticsearch/issues/115450
 - class: org.elasticsearch.xpack.restart.MLModelDeploymentFullClusterRestartIT
   method: testDeploymentSurvivesRestart {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/115528
-- class: org.elasticsearch.test.apmintegration.MetricsApmIT
-  method: testApmIntegration
-  issue: https://github.com/elastic/elasticsearch/issues/115415
 - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
   method: test {yaml=reference/esql/esql-across-clusters/line_197}
   issue: https://github.com/elastic/elasticsearch/issues/115575
@@ -286,6 +275,18 @@ tests:
 - class: org.elasticsearch.xpack.spatial.search.GeoGridAggAndQueryConsistencyIT
   method: testGeoShapeGeoHex
   issue: https://github.com/elastic/elasticsearch/issues/115705
+- class: org.elasticsearch.xpack.core.ml.calendars.ScheduledEventTests
+  method: testBuild_SucceedsWithDefaultSkipResultAndSkipModelUpdatesValues
+  issue: https://github.com/elastic/elasticsearch/issues/115476
+- class: org.elasticsearch.xpack.test.rest.XPackRestIT
+  method: test {p0=transform/transforms_start_stop/Verify start transform reuses destination index}
+  issue: https://github.com/elastic/elasticsearch/issues/115808
+- class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
+  method: test {yaml=reference/watcher/example-watches/example-watch-clusterstatus/line_137}
+  issue: https://github.com/elastic/elasticsearch/issues/115809
+- class: org.elasticsearch.search.StressSearchServiceReaperIT
+  method: testStressReaper
+  issue: https://github.com/elastic/elasticsearch/issues/115816
 
 # Examples:
 #

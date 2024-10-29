@@ -119,7 +119,7 @@ public class FileSettingsRoleMappingsRestartIT extends SecurityIntegTestCase {
         writeJSONFile(masterNode, testJSONOnlyRoleMappings, logger, versionCounter);
 
         assertRoleMappingsInClusterStateWithAwait(
-            new LatchWithClusterStateVersion(savedClusterState),
+            savedClusterState,
             new ExpressionRoleMapping(
                 "everyone_kibana_alone",
                 new FieldExpression("username", List.of(new FieldExpression.FieldValue("*"))),
@@ -199,7 +199,7 @@ public class FileSettingsRoleMappingsRestartIT extends SecurityIntegTestCase {
         writeJSONFile(masterNode, testJSONOnlyRoleMappings, logger, versionCounter);
 
         assertRoleMappingsInClusterStateWithAwait(
-            new LatchWithClusterStateVersion(savedClusterState),
+            savedClusterState,
             new ExpressionRoleMapping(
                 "everyone_kibana_alone",
                 new FieldExpression("username", List.of(new FieldExpression.FieldValue("*"))),
@@ -259,13 +259,13 @@ public class FileSettingsRoleMappingsRestartIT extends SecurityIntegTestCase {
     }
 
     private void assertRoleMappingsInClusterStateWithAwait(
-        LatchWithClusterStateVersion latchWithClusterStateVersion,
+        Tuple<CountDownLatch, AtomicLong> latchWithClusterStateVersion,
         ExpressionRoleMapping... expectedRoleMappings
     ) throws InterruptedException {
-        boolean awaitSuccessful = latchWithClusterStateVersion.latch().await(MAX_WAIT_TIME_SECONDS, TimeUnit.SECONDS);
+        boolean awaitSuccessful = latchWithClusterStateVersion.v1().await(MAX_WAIT_TIME_SECONDS, TimeUnit.SECONDS);
         assertTrue(awaitSuccessful);
         var clusterState = clusterAdmin().state(
-            new ClusterStateRequest(TEST_REQUEST_TIMEOUT).waitForMetadataVersion(latchWithClusterStateVersion.version().get())
+            new ClusterStateRequest(TEST_REQUEST_TIMEOUT).waitForMetadataVersion(latchWithClusterStateVersion.v2().get())
         ).actionGet().getState();
         assertRoleMappingsInClusterState(clusterState, expectedRoleMappings);
     }
@@ -314,11 +314,5 @@ public class FileSettingsRoleMappingsRestartIT extends SecurityIntegTestCase {
         final String masterNode = internalCluster().getMasterName();
         FileSettingsService masterFileSettingsService = internalCluster().getInstance(FileSettingsService.class, masterNode);
         assertBusy(() -> assertTrue(masterFileSettingsService.watching()));
-    }
-
-    private record LatchWithClusterStateVersion(CountDownLatch latch, AtomicLong version) {
-        LatchWithClusterStateVersion(Tuple<CountDownLatch, AtomicLong> tuple) {
-            this(tuple.v1(), tuple.v2());
-        }
     }
 }

@@ -57,4 +57,8 @@ public interface XContentParserConfiguration {
         Set<String> excludeStrings,
         boolean filtersMatchFieldNamesWithDots
     );
+
+    XContentInputDecorator inputDecorator();
+
+    XContentParserConfiguration withInputDecorator(XContentInputDecorator inputDecorator);
 }

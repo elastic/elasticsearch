@@ -80,17 +80,24 @@ public final class DocumentParser {
         final RootDocumentParserContext context;
         final XContentType xContentType = source.getXContentType();
 
+        var offsetTracker = new ByteTrackingXContentInputDecorator();
+        System.out.println(offsetTracker.getReadOffset());
+        XContentParserConfiguration adjustedConfiguration = parserConfiguration.withInputDecorator(offsetTracker);
+
         XContentMeteringParserDecorator meteringParserDecorator = source.getMeteringParserDecorator();
         try (
             XContentParser parser = meteringParserDecorator.decorate(
-                XContentHelper.createParser(parserConfiguration, source.source(), xContentType)
+                XContentHelper.createParser(adjustedConfiguration, source.source(), xContentType)
             )
         ) {
             context = new RootDocumentParserContext(mappingLookup, mappingParserContext, source, parser);
             validateStart(context.parser());
+            System.out.println(offsetTracker.getReadOffset());
             MetadataFieldMapper[] metadataFieldsMappers = mappingLookup.getMapping().getSortedMetadataMappers();
             internalParseDocument(metadataFieldsMappers, context);
+            System.out.println(offsetTracker.getReadOffset());
             validateEnd(context.parser());
+            System.out.println(offsetTracker.getReadOffset());
         } catch (XContentParseException e) {
             throw new DocumentParsingException(e.getLocation(), e.getMessage(), e);
         } catch (IOException e) {

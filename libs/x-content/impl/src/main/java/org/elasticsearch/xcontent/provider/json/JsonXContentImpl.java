@@ -21,6 +21,7 @@ import org.elasticsearch.xcontent.XContentGenerator;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.provider.JacksonInputDecoratorAdapter;
 import org.elasticsearch.xcontent.provider.XContentImplUtils;
 
 import java.io.IOException;
@@ -89,21 +90,25 @@ public class JsonXContentImpl implements XContent {
 
     @Override
     public XContentParser createParser(XContentParserConfiguration config, String content) throws IOException {
-        return new JsonXContentParser(config, jsonFactory.createParser(content));
+        return new JsonXContentParser(config, factoryWithConfig(config).createParser(content));
     }
 
     @Override
     public XContentParser createParser(XContentParserConfiguration config, InputStream is) throws IOException {
-        return new JsonXContentParser(config, jsonFactory.createParser(is));
+        return new JsonXContentParser(config, factoryWithConfig(config).createParser(is));
     }
 
     @Override
     public XContentParser createParser(XContentParserConfiguration config, byte[] data, int offset, int length) throws IOException {
-        return new JsonXContentParser(config, jsonFactory.createParser(data, offset, length));
+        return new JsonXContentParser(config, factoryWithConfig(config).createParser(data, offset, length));
     }
 
     @Override
     public XContentParser createParser(XContentParserConfiguration config, Reader reader) throws IOException {
-        return new JsonXContentParser(config, jsonFactory.createParser(reader));
+        return new JsonXContentParser(config, factoryWithConfig(config).createParser(reader));
+    }
+
+    private static JsonFactory factoryWithConfig(XContentParserConfiguration config) {
+        return config.inputDecorator() != null ? jsonFactory.rebuild().inputDecorator(new JacksonInputDecoratorAdapter(config.inputDecorator())).build() : jsonFactory;
     }
 }

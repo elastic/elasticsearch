@@ -1,8 +1,13 @@
 [[reference-architecture-general-guidance]]
 == General architecture guidance
 
-This page provides prescriptive guidance on key concepts to take into account when building out an Elastic Architecture. This includes components, sharding strategy, hardware recommendations, and index lifecycle.
+This guide contains prescriptive guidance on key concepts to take into account when building out an Elastic Architecture. This includes the following topics:
 
+* <<arch-index-strategy>>
+* <<arch-sharding-strategy>>
+* <<arch-cluster-topology>>
+
+[[arch-index-strategy]]
 === Index strategy
 Use index lifecycle management with index templates for consistent index level settings, please see, https://www.elastic.co/guide/en/elasticsearch/reference/current/set-up-lifecycle-policy.html[Configure a lifecycle policy] for more detail.
 
@@ -30,7 +35,7 @@ The most important foundational step to maintaining performance as you scale is 
 ** Shard distribution should be enforced using the https://www.elastic.co/guide/en/elasticsearch/reference/current/size-your-shards.html#avoid-node-hotspots[‘total shards per node’] index level setting. 
 * **Shard allocation awareness:** To prevent both a primary and a replica from being copied to the same zone, or in this case the same pod, you can use https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-cluster.html#shard-allocation-awareness[shard allocation awareness] and define a simple attribute in the elaticsearch.yaml file on a per-node basis to make Elasticsearch aware of the physical topology and route shards appropriately. In deployment models with multiple availability zones, AZ's would be used in place of pod location.
 
-[[cluster-topology]]
+[[arch-cluster-topology]]
 === Cluster topology
 
 Each component serves a specific function within the Elasticsearch cluster, contributing to its overall performance and reliability. Understanding these node types is crucial for designing, managing, and optimizing your Elasticsearch deployment.

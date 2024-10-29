@@ -1504,6 +1504,13 @@ public class AzureOpenAiServiceTests extends ESTestCase {
             .hasErrorContaining("You didn't provide an API key...");
     }
 
+    public void testSupportsStreaming() throws IOException {
+        try (var service = new AzureOpenAiService(mock(), createWithEmptySettings(mock()))) {
+            assertTrue(service.canStream(TaskType.COMPLETION));
+            assertTrue(service.canStream(TaskType.ANY));
+        }
+    }
+
     private AzureOpenAiService createAzureOpenAiService() {
         return new AzureOpenAiService(mock(HttpRequestSender.Factory.class), createWithEmptySettings(threadPool));
     }

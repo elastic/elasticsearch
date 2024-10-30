@@ -30,7 +30,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.network.HandlingTimeTracker;
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.discovery.DiscoveryStats;
 import org.elasticsearch.http.HttpStats;
@@ -92,6 +92,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.function.ToIntFunction;
 import java.util.stream.IntStream;
 
 import static java.util.Collections.emptySet;
@@ -476,54 +477,56 @@ public class NodeStatsTests extends ESTestCase {
     }
 
     public void testChunking() {
-        assertChunkCount(
-            createNodeStats(),
-            randomFrom(ToXContent.EMPTY_PARAMS, new ToXContent.MapParams(Map.of("level", "node"))),
-            nodeStats -> expectedChunks(nodeStats, NodeStatsLevel.NODE)
-        );
-        assertChunkCount(
-            createNodeStats(),
-            new ToXContent.MapParams(Map.of("level", "indices")),
-            nodeStats -> expectedChunks(nodeStats, NodeStatsLevel.INDICES)
-        );
-        assertChunkCount(
-            createNodeStats(),
-            new ToXContent.MapParams(Map.of("level", "shards")),
-            nodeStats -> expectedChunks(nodeStats, NodeStatsLevel.SHARDS)
-        );
+        assertChunkCount(createNodeStats(), ToXContent.EMPTY_PARAMS, nodeStats -> expectedChunks(nodeStats, ToXContent.EMPTY_PARAMS));
+        for (NodeStatsLevel l : NodeStatsLevel.values()) {
+            ToXContent.Params p = new ToXContent.MapParams(Map.of("level", l.getLevel()));
+            assertChunkCount(createNodeStats(), p, nodeStats -> expectedChunks(nodeStats, p));
+        }
     }
 
-    private static int expectedChunks(NodeStats nodeStats, NodeStatsLevel level) {
-        return 7 // number of static chunks, see NodeStats#toXContentChunked
-            + expectedChunks(nodeStats.getHttp()) //
-            + expectedChunks(nodeStats.getIndices(), level) //
-            + expectedChunks(nodeStats.getTransport()) //
-            + expectedChunks(nodeStats.getIngestStats()) //
-            + expectedChunks(nodeStats.getThreadPool()) //
-            + expectedChunks(nodeStats.getScriptStats()) //
-            + expectedChunks(nodeStats.getScriptCacheStats());
+    private static int expectedChunks(NodeStats nodeStats, ToXContent.Params params) {
+        return 3 // number of static chunks, see NodeStats#toXContentChunked
+            + assertExpectedChunks(nodeStats.getIndices(), i -> expectedChunks(i, NodeStatsLevel.of(params, NodeStatsLevel.NODE)), params)
+            + assertExpectedChunks(nodeStats.getThreadPool(), NodeStatsTests::expectedChunks, params) // <br/>
+            + chunkIfPresent(nodeStats.getFs()) // <br/>
+            + assertExpectedChunks(nodeStats.getTransport(), NodeStatsTests::expectedChunks, params) // <br/>
+            + assertExpectedChunks(nodeStats.getHttp(), NodeStatsTests::expectedChunks, params) // <br/>
+            + chunkIfPresent(nodeStats.getBreaker()) // <br/>
+            + assertExpectedChunks(nodeStats.getScriptStats(), NodeStatsTests::expectedChunks, params) // <br/>
+            + chunkIfPresent(nodeStats.getDiscoveryStats()) // <br/>
+            + assertExpectedChunks(nodeStats.getIngestStats(), NodeStatsTests::expectedChunks, params) // <br/>
+            + chunkIfPresent(nodeStats.getAdaptiveSelectionStats()) // <br/>
+            + assertExpectedChunks(nodeStats.getScriptCacheStats(), NodeStatsTests::expectedChunks, params);
+    }
+
+    private static int chunkIfPresent(ToXContent xcontent) {
+        return xcontent == null ? 0 : 1;
+    }
+
+    private static <T extends ChunkedToXContent> int assertExpectedChunks(T obj, ToIntFunction<T> getChunks, ToXContent.Params params) {
+        if (obj == null) return 0;
+        int chunks = getChunks.applyAsInt(obj);
+        assertChunkCount(obj, params, t -> chunks);
+        return chunks;
     }
 
     private static int expectedChunks(ScriptCacheStats scriptCacheStats) {
-        if (scriptCacheStats == null) return 0;
-
-        var chunks = 4;
-        if (scriptCacheStats.general() != null) {
-            chunks += 3;
-        } else {
-            chunks += 2;
-            chunks += scriptCacheStats.context().size() * 6;
+        var chunks = 3; // start, end, SUM
+        if (scriptCacheStats.general() == null) {
+            chunks += 2 + scriptCacheStats.context().size() * 4;
         }
 
         return chunks;
     }
 
     private static int expectedChunks(ScriptStats scriptStats) {
-        return scriptStats == null ? 0 : 8 + scriptStats.contextStats().size();
+        return 7 + (scriptStats.compilationsHistory() != null && scriptStats.compilationsHistory().areTimingsEmpty() == false ? 1 : 0)
+            + (scriptStats.cacheEvictionsHistory() != null && scriptStats.cacheEvictionsHistory().areTimingsEmpty() == false ? 1 : 0)
+            + scriptStats.contextStats().size();
     }
 
     private static int expectedChunks(ThreadPoolStats threadPool) {
-        return threadPool == null ? 0 : 2 + threadPool.stats().stream().mapToInt(s -> {
+        return 2 + threadPool.stats().stream().mapToInt(s -> {
             var chunks = 0;
             chunks += s.threads() == -1 ? 0 : 1;
             chunks += s.queue() == -1 ? 0 : 1;
@@ -535,25 +538,23 @@ public class NodeStatsTests extends ESTestCase {
         }).sum();
     }
 
-    private static int expectedChunks(@Nullable IngestStats ingestStats) {
-        return ingestStats == null
-            ? 0
-            : 2 + ingestStats.pipelineStats()
-                .stream()
-                .mapToInt(pipelineStats -> 2 + ingestStats.processorStats().getOrDefault(pipelineStats.pipelineId(), List.of()).size())
-                .sum();
+    private static int expectedChunks(IngestStats ingestStats) {
+        return 2 + ingestStats.pipelineStats()
+            .stream()
+            .mapToInt(pipelineStats -> 2 + ingestStats.processorStats().getOrDefault(pipelineStats.pipelineId(), List.of()).size())
+            .sum();
     }
 
-    private static int expectedChunks(@Nullable HttpStats httpStats) {
-        return httpStats == null ? 0 : 3 + httpStats.getClientStats().size() + httpStats.httpRouteStats().size();
+    private static int expectedChunks(HttpStats httpStats) {
+        return 3 + httpStats.getClientStats().size() + httpStats.httpRouteStats().size();
     }
 
-    private static int expectedChunks(@Nullable TransportStats transportStats) {
-        return transportStats == null ? 0 : 3; // only one transport action
+    private static int expectedChunks(TransportStats transportStats) {
+        return 3; // only one transport action
     }
 
-    private static int expectedChunks(@Nullable NodeIndicesStats nodeIndicesStats, NodeStatsLevel level) {
-        return nodeIndicesStats == null ? 0 : switch (level) {
+    private static int expectedChunks(NodeIndicesStats nodeIndicesStats, NodeStatsLevel level) {
+        return switch (level) {
             case NODE -> 2;
             case INDICES -> 5; // only one index
             case SHARDS -> 9; // only one shard

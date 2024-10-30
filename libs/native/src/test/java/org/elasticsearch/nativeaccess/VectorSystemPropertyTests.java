@@ -33,6 +33,9 @@ public class VectorSystemPropertyTests extends LuceneTestCase {
 
     @BeforeClass
     public static void setup() throws Exception {
+        // just skip on Windows since it's error-prone to fork and exec
+        assumeTrue("runs only on non-Windows, for now", Constants.WINDOWS == false);
+
         var classBytes = InMemoryJavaCompiler.compile("p.Test", TEST_SOURCE);
         Map<String, byte[]> jarEntries = new HashMap<>();
         jarEntries.put("p/Test.class", classBytes);

@@ -134,7 +134,9 @@ public class TruncatedRecoveryIT extends ESIntegTestCase {
                                 throw new RuntimeException("Caused some truncated files for fun and profit");
                             }
                         } else if (action.equals(PeerRecoveryTargetService.Actions.FILES_INFO)) {
-                            // verify on the second recovery attempt that the garbage has been removed before we fetch files again
+                            // verify there are no garbage files present at the FILES_INFO stage of recovery. This precedes FILES_CHUNKS
+                            // and so will run before garbage has been introduced on the first attempt, and before post-transfer cleanup
+                            // has been performed on the second.
                             var shardId = ((RecoveryFilesInfoRequest) request).shardId();
                             var shardPath = unluckyIndices.indexService(shardId.getIndex())
                                 .getShard(shardId.getId())

@@ -72,7 +72,7 @@ public class LogsdbIndexingRollingUpgradeIT extends AbstractRollingUpgradeTestCa
     }
 
     public void testIndexing() throws Exception {
-        assumeTrue("Logsdb is tech preview since 8.15.0", getOldClusterTestVersion().onOrAfter("8.15.0"));
+        assumeTrue("relies on cluster.logsdb.enabled being dynamic", getOldClusterTestVersion().onOrAfter("8.16.0"));
         String dataStreamName = "logs-bwc-test";
         if (isOldCluster()) {
             startTrial();

@@ -1425,7 +1425,6 @@ public class AzureOpenAiServiceTests extends ESTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/114385")
     public void testInfer_StreamRequest() throws Exception {
         String responseJson = """
             data: {\
@@ -1484,7 +1483,6 @@ public class AzureOpenAiServiceTests extends ESTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/114385")
     public void testInfer_StreamRequest_ErrorResponse() throws Exception {
         String responseJson = """
             {
@@ -1504,6 +1502,13 @@ public class AzureOpenAiServiceTests extends ESTestCase {
             .hasNoEvents()
             .hasErrorWithStatusCode(401)
             .hasErrorContaining("You didn't provide an API key...");
+    }
+
+    public void testSupportsStreaming() throws IOException {
+        try (var service = new AzureOpenAiService(mock(), createWithEmptySettings(mock()))) {
+            assertTrue(service.canStream(TaskType.COMPLETION));
+            assertTrue(service.canStream(TaskType.ANY));
+        }
     }
 
     private AzureOpenAiService createAzureOpenAiService() {

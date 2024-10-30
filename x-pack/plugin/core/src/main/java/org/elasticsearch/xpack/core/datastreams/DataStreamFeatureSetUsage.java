@@ -15,13 +15,13 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.XPackFeatureSet;
+import org.elasticsearch.xpack.core.XPackFeatureUsage;
 import org.elasticsearch.xpack.core.XPackField;
 
 import java.io.IOException;
 import java.util.Objects;
 
-public class DataStreamFeatureSetUsage extends XPackFeatureSet.Usage {
+public class DataStreamFeatureSetUsage extends XPackFeatureUsage {
     private final DataStreamStats streamStats;
 
     public DataStreamFeatureSetUsage(StreamInput input) throws IOException {
@@ -91,8 +91,8 @@ public class DataStreamFeatureSetUsage extends XPackFeatureSet.Usage {
             this(
                 in.readVLong(),
                 in.readVLong(),
-                in.getTransportVersion().onOrAfter(TransportVersions.FAILURE_STORE_TELEMETRY) ? in.readVLong() : 0,
-                in.getTransportVersion().onOrAfter(TransportVersions.FAILURE_STORE_TELEMETRY) ? in.readVLong() : 0
+                in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0) ? in.readVLong() : 0,
+                in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0) ? in.readVLong() : 0
             );
         }
 
@@ -100,7 +100,7 @@ public class DataStreamFeatureSetUsage extends XPackFeatureSet.Usage {
         public void writeTo(StreamOutput out) throws IOException {
             out.writeVLong(this.totalDataStreamCount);
             out.writeVLong(this.indicesBehindDataStream);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.FAILURE_STORE_TELEMETRY)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
                 out.writeVLong(this.failureStoreEnabledDataStreamCount);
                 out.writeVLong(this.failureStoreIndicesCount);
             }

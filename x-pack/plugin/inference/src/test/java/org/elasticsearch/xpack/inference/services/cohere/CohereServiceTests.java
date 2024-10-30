@@ -1635,7 +1635,6 @@ public class CohereServiceTests extends ESTestCase {
         assertEquals(SimilarityMeasure.DOT_PRODUCT, CohereService.defaultSimilarity());
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/114385")
     public void testInfer_StreamRequest() throws Exception {
         String responseJson = """
             {"event_type":"text-generation", "text":"hello"}
@@ -1669,7 +1668,6 @@ public class CohereServiceTests extends ESTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/114385")
     public void testInfer_StreamRequest_ErrorResponse() throws Exception {
         String responseJson = """
             { "event_type":"stream-end", "finish_reason":"ERROR", "response":{ "text": "how dare you" } }
@@ -1683,6 +1681,13 @@ public class CohereServiceTests extends ESTestCase {
             .hasNoEvents()
             .hasErrorWithStatusCode(500)
             .hasErrorContaining("how dare you");
+    }
+
+    public void testSupportsStreaming() throws IOException {
+        try (var service = new CohereService(mock(), createWithEmptySettings(mock()))) {
+            assertTrue(service.canStream(TaskType.COMPLETION));
+            assertTrue(service.canStream(TaskType.ANY));
+        }
     }
 
     private Map<String, Object> getRequestConfigMap(

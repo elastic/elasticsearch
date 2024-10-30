@@ -9,11 +9,11 @@ package org.elasticsearch.xpack.esql.session;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverProfile;
@@ -24,7 +24,6 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
@@ -46,6 +45,7 @@ import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.index.MappingException;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
@@ -72,12 +72,10 @@ import org.elasticsearch.xpack.esql.stats.PlanningMetrics;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 import java.util.function.BiFunction;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -151,9 +149,12 @@ public class EsqlSession {
         analyzedPlan(
             parse(request.query(), request.params()),
             executionInfo,
-            listener.delegateFailureAndWrap(
-                (next, analyzedPlan) -> executeOptimizedPlan(request, executionInfo, planRunner, optimizedPlan(analyzedPlan), next)
-            )
+            new CcsUtils.CssPartialErrorsActionListener(executionInfo, listener) {
+                @Override
+                public void onResponse(LogicalPlan analyzedPlan) {
+                    executeOptimizedPlan(request, executionInfo, planRunner, optimizedPlan(analyzedPlan), listener);
+                }
+            }
         );
     }
 
@@ -169,6 +170,8 @@ public class EsqlSession {
         ActionListener<Result> listener
     ) {
         PhysicalPlan physicalPlan = logicalPlanToPhysicalPlan(optimizedPlan, request);
+        // TODO: this could be snuck into the underlying listener
+        CcsUtils.updateExecutionInfoAtEndOfPlanning(executionInfo);
         // execute any potential subplans
         executeSubPlans(physicalPlan, planRunner, executionInfo, request, listener);
     }
@@ -300,18 +303,30 @@ public class EsqlSession {
                 .stream()
                 .map(ResolvedEnrichPolicy::matchField)
                 .collect(Collectors.toSet());
-            preAnalyzeIndices(parsed, executionInfo, l.delegateFailureAndWrap((ll, indexResolution) -> {
+            Map<String, Exception> unavailableClusters = enrichResolution.getUnavailableClusters();
+            preAnalyzeIndices(parsed, executionInfo, unavailableClusters, l.delegateFailureAndWrap((ll, indexResolution) -> {
+                // TODO in follow-PR (for skip_unavailble handling of missing concrete indexes) add some tests for invalid index
+                // resolution to updateExecutionInfo
                 if (indexResolution.isValid()) {
-                    updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, indexResolution);
-                    updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.getUnavailableClusters());
-                    updateTookTimeForRemoteClusters(executionInfo);
+                    CcsUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, indexResolution);
+                    CcsUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.getUnavailableClusters());
+                    if (executionInfo.isCrossClusterSearch()
+                        && executionInfo.getClusterStateCount(EsqlExecutionInfo.Cluster.Status.RUNNING) == 0) {
+                        // for a CCS, if all clusters have been marked as SKIPPED, nothing to search so send a sentinel
+                        // Exception to let the LogicalPlanActionListener decide how to proceed
+                        ll.onFailure(new NoClustersToSearchException());
+                        return;
+                    }
+
                     Set<String> newClusters = enrichPolicyResolver.groupIndicesPerCluster(
                         indexResolution.get().concreteIndices().toArray(String[]::new)
                     ).keySet();
                     // If new clusters appear when resolving the main indices, we need to resolve the enrich policies again
                     // or exclude main concrete indices. Since this is rare, it's simpler to resolve the enrich policies again.
                     // TODO: add a test for this
-                    if (targetClusters.containsAll(newClusters) == false) {
+                    if (targetClusters.containsAll(newClusters) == false
+                        // do not bother with a re-resolution if only remotes were requested and all were offline
+                        && executionInfo.getClusterStateCount(EsqlExecutionInfo.Cluster.Status.RUNNING) > 0) {
                         enrichPolicyResolver.resolvePolicies(
                             newClusters,
                             unresolvedPolicies,
@@ -325,71 +340,10 @@ public class EsqlSession {
         }));
     }
 
-    // visible for testing
-    static void updateExecutionInfoWithUnavailableClusters(EsqlExecutionInfo executionInfo, Set<String> unavailableClusters) {
-        for (String clusterAlias : unavailableClusters) {
-            executionInfo.swapCluster(
-                clusterAlias,
-                (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setStatus(EsqlExecutionInfo.Cluster.Status.SKIPPED).build()
-            );
-            // TODO: follow-on PR will set SKIPPED status when skip_unavailable=true and throw an exception when skip_un=false
-        }
-    }
-
-    // visible for testing
-    static void updateExecutionInfoWithClustersWithNoMatchingIndices(EsqlExecutionInfo executionInfo, IndexResolution indexResolution) {
-        Set<String> clustersWithResolvedIndices = new HashSet<>();
-        // determine missing clusters
-        for (String indexName : indexResolution.get().indexNameWithModes().keySet()) {
-            clustersWithResolvedIndices.add(RemoteClusterAware.parseClusterAlias(indexName));
-        }
-        Set<String> clustersRequested = executionInfo.clusterAliases();
-        Set<String> clustersWithNoMatchingIndices = Sets.difference(clustersRequested, clustersWithResolvedIndices);
-        clustersWithNoMatchingIndices.removeAll(indexResolution.getUnavailableClusters());
-        /*
-         * These are clusters in the original request that are not present in the field-caps response. They were
-         * specified with an index or indices that do not exist, so the search on that cluster is done.
-         * Mark it as SKIPPED with 0 shards searched and took=0.
-         */
-        for (String c : clustersWithNoMatchingIndices) {
-            executionInfo.swapCluster(
-                c,
-                (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setStatus(EsqlExecutionInfo.Cluster.Status.SKIPPED)
-                    .setTook(new TimeValue(0))
-                    .setTotalShards(0)
-                    .setSuccessfulShards(0)
-                    .setSkippedShards(0)
-                    .setFailedShards(0)
-                    .build()
-            );
-        }
-    }
-
-    private void updateTookTimeForRemoteClusters(EsqlExecutionInfo executionInfo) {
-        if (executionInfo.isCrossClusterSearch()) {
-            for (String clusterAlias : executionInfo.clusterAliases()) {
-                if (clusterAlias.equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY) == false) {
-                    executionInfo.swapCluster(clusterAlias, (k, v) -> {
-                        if (v.getTook() == null && v.getStatus() != EsqlExecutionInfo.Cluster.Status.SKIPPED) {
-                            // set took time in case we are finished with the remote cluster (e.g., FROM foo | LIMIT 0).
-                            // this will be overwritten later if ES|QL operations happen on the remote cluster (the typical scenario)
-                            TimeValue took = new TimeValue(
-                                System.nanoTime() - configuration.getQueryStartTimeNanos(),
-                                TimeUnit.NANOSECONDS
-                            );
-                            return new EsqlExecutionInfo.Cluster.Builder(v).setTook(took).build();
-                        } else {
-                            return v;
-                        }
-                    });
-                }
-            }
-        }
-    }
-
     private void preAnalyzeIndices(
         LogicalPlan parsed,
         EsqlExecutionInfo executionInfo,
+        Map<String, Exception> unavailableClusters,  // known to be unavailable from the enrich policy API call
         ActionListener<IndexResolution> listener,
         Set<String> enrichPolicyMatchFields
     ) {
@@ -409,10 +363,34 @@ public class EsqlSession {
                 String indexExpr = Strings.arrayToCommaDelimitedString(entry.getValue().indices());
                 executionInfo.swapCluster(clusterAlias, (k, v) -> {
                     assert v == null : "No cluster for " + clusterAlias + " should have been added to ExecutionInfo yet";
-                    return new EsqlExecutionInfo.Cluster(clusterAlias, indexExpr, executionInfo.isSkipUnavailable(clusterAlias));
+                    if (unavailableClusters.containsKey(k)) {
+                        return new EsqlExecutionInfo.Cluster(
+                            clusterAlias,
+                            indexExpr,
+                            executionInfo.isSkipUnavailable(clusterAlias),
+                            EsqlExecutionInfo.Cluster.Status.SKIPPED,
+                            0,
+                            0,
+                            0,
+                            0,
+                            List.of(new ShardSearchFailure(unavailableClusters.get(k))),
+                            new TimeValue(0)
+                        );
+                    } else {
+                        return new EsqlExecutionInfo.Cluster(clusterAlias, indexExpr, executionInfo.isSkipUnavailable(clusterAlias));
+                    }
                 });
             }
-            indexResolver.resolveAsMergedMapping(table.index(), fieldNames, listener);
+            // if the preceding call to the enrich policy API found unavailable clusters, recreate the index expression to search
+            // based only on available clusters (which could now be an empty list)
+            String indexExpressionToResolve = CcsUtils.createIndexExpressionFromAvailableClusters(executionInfo);
+            if (indexExpressionToResolve.isEmpty()) {
+                // if this was a pure remote CCS request (no local indices) and all remotes are offline, return an empty IndexResolution
+                listener.onResponse(IndexResolution.valid(new EsIndex(table.index(), Map.of(), Map.of())));
+            } else {
+                // call the EsqlResolveFieldsAction (field-caps) to resolve indices and get field types
+                indexResolver.resolveAsMergedMapping(indexExpressionToResolve, fieldNames, listener);
+            }
         } else {
             try {
                 // occurs when dealing with local relations (row a = 1)

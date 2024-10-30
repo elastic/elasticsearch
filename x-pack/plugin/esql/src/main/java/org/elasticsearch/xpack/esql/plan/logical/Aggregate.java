@@ -11,6 +11,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -40,7 +41,7 @@ public class Aggregate extends UnaryPlan {
         METRICS;
 
         static void writeType(StreamOutput out, AggregateType type) throws IOException {
-            if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_ADD_AGGREGATE_TYPE)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
                 out.writeString(type.name());
             } else if (type != STANDARD) {
                 throw new IllegalStateException("cluster is not ready to support aggregate type [" + type + "]");
@@ -48,7 +49,7 @@ public class Aggregate extends UnaryPlan {
         }
 
         static AggregateType readType(StreamInput in) throws IOException {
-            if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_ADD_AGGREGATE_TYPE)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
                 return AggregateType.valueOf(in.readString());
             } else {
                 return STANDARD;
@@ -160,7 +161,13 @@ public class Aggregate extends UnaryPlan {
     }
 
     public static AttributeSet computeReferences(List<? extends NamedExpression> aggregates, List<? extends Expression> groupings) {
-        return Expressions.references(groupings).combine(Expressions.references(aggregates));
+        AttributeSet result = Expressions.references(groupings).combine(Expressions.references(aggregates));
+        for (Expression grouping : groupings) {
+            if (grouping instanceof Alias) {
+                result.remove(((Alias) grouping).toAttribute());
+            }
+        }
+        return result;
     }
 
     @Override

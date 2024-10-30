@@ -70,7 +70,7 @@ public class TrainTestSplitterFactory {
                     regression.getDependentVariable(),
                     regression.getTrainingPercent(),
                     regression.getRandomizeSeed(),
-                    searchResponse.getHits().getTotalHits().value
+                    searchResponse.getHits().getTotalHits().value()
                 );
             } finally {
                 searchResponse.decRef();

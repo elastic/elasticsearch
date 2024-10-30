@@ -13,6 +13,6 @@ esplugin {
 }
 
 dependencies {
-  implementation project(':libs:elasticsearch-native')
+  implementation project(':libs:native')
 }
 

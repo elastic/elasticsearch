@@ -171,14 +171,44 @@ FROM kibana_sample_data_logs
 [[esql-kibana-time-filter]]
 === Time filtering
 
-To display data within a specified time range, use the
-{kibana-ref}/set-time-filter.html[time filter]. The time filter is only enabled
-when the indices you're querying have a field called `@timestamp`.
+To display data within a specified time range, you can use the standard time filter, 
+custom time parameters, or a WHERE command.
 
-If your indices do not have a timestamp field called `@timestamp`, you can limit
-the time range using the <<esql-where>> command and the <<esql-now>> function.
+[discrete]
+==== Standard time filter
+The standard {kibana-ref}/set-time-filter.html[time filter] is enabled
+when the indices you're querying have a field named `@timestamp`.
+
+[discrete]
+==== Custom time parameters
+If your indices do not have a field named `@timestamp`, you can use
+the `?_tstart` and `?_tend` parameters to specify a time range. These parameters 
+work with any timestamp field and automatically sync with the {kibana-ref}/set-time-filter.html[time filter].
+
+[source,esql]
+----
+FROM my_index
+| WHERE custom_timestamp >= ?_tstart AND custom_timestamp < ?_tend
+----
+
+You can also use the `?_tstart` and `?_tend` parameters with the <<esql-bucket>> function 
+to create auto-incrementing time buckets in {esql} <<esql-kibana-visualizations,visualizations>>. 
+For example:
+
+[source,esql]
+----
+FROM kibana_sample_data_logs
+| STATS average_bytes = AVG(bytes) BY BUCKET(@timestamp, 50, ?_tstart, ?_tend)
+----
+
+This example uses `50` buckets, which is the maximum number of buckets.
+
+[discrete]
+==== WHERE command
+You can also limit the time range using the <<esql-where>> command and the <<esql-now>> function.
 For example, if the timestamp field is called `timestamp`, to query the last 15
 minutes of data:
+
 [source,esql]
 ----
 FROM kibana_sample_data_logs

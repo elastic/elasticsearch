@@ -1304,6 +1304,13 @@ public class AmazonBedrockServiceTests extends ESTestCase {
         }
     }
 
+    public void testSupportsStreaming() throws IOException {
+        try (var service = new AmazonBedrockService(mock(), mock(), createWithEmptySettings(mock()))) {
+            assertTrue(service.canStream(TaskType.COMPLETION));
+            assertTrue(service.canStream(TaskType.ANY));
+        }
+    }
+
     public void testChunkedInfer_CallsInfer_ConvertsFloatResponse_ForEmbeddings() throws IOException {
         var model = AmazonBedrockEmbeddingsModelTests.createModel(
             "id",

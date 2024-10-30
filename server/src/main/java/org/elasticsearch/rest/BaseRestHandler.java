@@ -125,6 +125,7 @@ public abstract class BaseRestHandler implements RestHandler {
             if (request.isStreamedContent()) {
                 assert action instanceof RequestBodyChunkConsumer;
                 var chunkConsumer = (RequestBodyChunkConsumer) action;
+
                 request.contentStream().setHandler(new HttpBody.ChunkHandler() {
                     @Override
                     public void onNext(ReleasableBytesReference chunk, boolean isLast) {

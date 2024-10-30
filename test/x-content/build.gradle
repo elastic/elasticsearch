@@ -12,7 +12,7 @@ apply plugin: 'elasticsearch.publish'
 
 dependencies {
   api project(":test:framework")
-  api project(":libs:elasticsearch-x-content")
+  api project(":libs:x-content")
 
   // json schema validation dependencies
   implementation "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"

@@ -251,18 +251,12 @@ tests:
 - class: org.elasticsearch.oldrepos.OldRepositoryAccessIT
   method: testOldRepoAccess
   issue: https://github.com/elastic/elasticsearch/issues/115631
-- class: org.elasticsearch.index.get.GetResultTests
-  method: testToAndFromXContent
-  issue: https://github.com/elastic/elasticsearch/issues/115688
 - class: org.elasticsearch.action.update.UpdateResponseTests
   method: testToAndFromXContent
   issue: https://github.com/elastic/elasticsearch/issues/115689
 - class: org.elasticsearch.xpack.shutdown.NodeShutdownIT
   method: testStalledShardMigrationProperlyDetected
   issue: https://github.com/elastic/elasticsearch/issues/115697
-- class: org.elasticsearch.index.get.GetResultTests
-  method: testToAndFromXContentEmbedded
-  issue: https://github.com/elastic/elasticsearch/issues/115657
 - class: org.elasticsearch.xpack.spatial.search.GeoGridAggAndQueryConsistencyIT
   method: testGeoShapeGeoHash
   issue: https://github.com/elastic/elasticsearch/issues/115664

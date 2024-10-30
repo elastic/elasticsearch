@@ -229,7 +229,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
             b.field(SKIPPED_FIELD.getPreferredName(), getClusterStateCount(Cluster.Status.SKIPPED));
             b.field(PARTIAL_FIELD.getPreferredName(), getClusterStateCount(Cluster.Status.PARTIAL));
             b.field(FAILED_FIELD.getPreferredName(), getClusterStateCount(Cluster.Status.FAILED));
-            // each clusterinfo defines its own field object name
+            // each Cluster object defines its own field object name
             b.xContentObject("details", clusterInfo.values().iterator());
         });
     }
@@ -352,11 +352,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
             this.successfulShards = successfulShards;
             this.skippedShards = skippedShards;
             this.failedShards = failedShards;
-            if (failures == null) {
-                this.failures = List.of();
-            } else {
-                this.failures = failures;
-            }
+            this.failures = failures == null ? Collections.emptyList() : failures;
             this.took = took;
         }
 
@@ -373,7 +369,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
             if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_CCS_EXEC_INFO_WITH_FAILURES)) {
                 this.failures = Collections.unmodifiableList(in.readCollectionAsList(ShardSearchFailure::readShardSearchFailure));
             } else {
-                this.failures = List.of();
+                this.failures = Collections.emptyList();
             }
         }
 
@@ -475,7 +471,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             String name = clusterAlias;
-            if (clusterAlias.equals("")) {
+            if (clusterAlias.equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY)) {
                 name = LOCAL_CLUSTER_NAME_REPRESENTATION;
             }
             builder.startObject(name);

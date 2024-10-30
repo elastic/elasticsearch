@@ -80,6 +80,81 @@ GET my-index-000001/_search
 }
 -------------------------------------
 
+[discrete]
+[[scripting-term-statistics]]
+=== Accessing term statistics of a document within a script
+
+Scripts used in a <<query-dsl-script-score-query,`script_score`>> query have access to the `_termStats` variable which provides statistical information about the terms in the child query.
+
+In the following example, `_termStats` is used within a <<query-dsl-script-score-query,`script_score`>> query to retrieve the average term frequency for the terms `quick`, `brown`, and `fox` in the `text` field:
+
+[source,console]
+-------------------------------------
+PUT my-index-000001/_doc/1?refresh
+{
+  "text": "quick brown fox"
+}
+
+PUT my-index-000001/_doc/2?refresh
+{
+  "text": "quick fox"
+}
+
+GET my-index-000001/_search
+{
+  "query": { <1>
+    "function_score": {
+      "query": {
+        "match": {
+          "text": "quick brown fox"
+        }
+      },
+      "script_score": {
+        "script": {
+          "source": "_termStats.termFreq().getAverage()" <2>
+        }
+      }
+    }
+  }
+}
+-------------------------------------
+
+<1> Child query used to infer the field and the terms considered in term statistics.
+
+<2> The script calculates the average document frequency for the terms in the query using `_termStats`.
+
+`_termStats` provides access to the following functions for working with term statistics:
+
+- `uniqueTermsCount`: Returns the total number of unique terms in the query. This value is the same across all documents.
+- `matchedTermsCount`: Returns the count of query terms that matched within the current document.
+- `docFreq`: Provides document frequency statistics for the terms in the query, indicating how many documents contain each term. This value is consistent across all documents.
+- `totalTermFreq`: Provides the total frequency of terms across all documents, representing how often each term appears in the entire corpus. This value is consistent across all documents.
+- `termFreq`: Returns the frequency of query terms within the current document, showing how often each term appears in that document.
+
+[NOTE]
+.Functions returning aggregated statistics
+===================================================
+
+The `docFreq`, `termFreq` and `totalTermFreq` functions return objects that represent statistics across all terms of the child query.
+
+Statistics provides support for the following methods:
+
+`getAverage()`: Returns the average value of the metric.
+`getMin()`: Returns the minimum value of the metric.
+`getMax()`: Returns the maximum value of the metric.
+`getSum()`: Returns the sum of the metric values.
+`getCount()`: Returns the count of terms included in the metric calculation.
+
+===================================================
+
+
+[NOTE]
+.Painless language required
+===================================================
+
+The `_termStats` variable is only available when using the <<modules-scripting-painless, Painless>> scripting language.
+
+===================================================
 
 [discrete]
 [[modules-scripting-doc-vals]]

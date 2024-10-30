@@ -35,11 +35,14 @@ public class EntitlementAgent {
         // Add the entitlement libraries to the classpath.
         // We can't actually reference the classes here for real before this, because they won't resolve.
         addJarToBootstrapClassLoader(inst, parameters.bridgeLibrary());
-        addJarToSystemClassLoader(inst, parameters.instrumentationLibrary());
         addJarToSystemClassLoader(inst, parameters.runtimeLibrary());
+        addJarToSystemClassLoader(inst, parameters.instrumentationLibrary());
 
         // Ensure the checks are available and ready before we start adding instrumentation that will try to use them
         EntitlementProvider.checks();
+
+        System.out.println("*** PATDOYLE *** InstrumentationService module " + InstrumentationService.class.getModule() + "; layer " + InstrumentationService.class.getModule().getLayer());
+        System.out.println("*** PATDOYLE *** EntitlementChecks module " + EntitlementChecks.class.getModule() + "; layer " + EntitlementChecks.class.getModule().getLayer());
 
         InstrumentationService instrumentationService = (new ProviderLocator<>(
             "entitlement-instrumentation",

@@ -27,30 +27,6 @@ dependencies {
   testImplementation project(":distribution:tools:entitlement-bridge")
 }
 
-tasks.named('test').configure {
-  systemProperty "tests.security.manager", "false"
-  dependsOn('jar')
-
-  // Register an argument provider to avoid eager resolution of configurations
-  jvmArgumentProviders.add(new CommandLineArgumentProvider() {
-    @Override
-    Iterable<String> asArguments() {
-      // Add this like we add the native library
-      return [
-        "-javaagent:${tasks.jar.archiveFile.get()}",
-        "-Des.entitlement.bridgeJar=${configurations.entitlementBridge.singleFile}",
-        "-Des.entitlement.instrumentationJar=${configurations.entitlementInstrumentation.singleFile}",
-        "-Des.entitlement.runtimeJar=${configurations.entitlementRuntime.singleFile}"
-      ]
-    }
-  })
-
-
-  // The Elasticsearch build plugin automatically adds all compileOnly deps as testImplementation.
-  // We must not add the bridge this way because it is also on the boot classpath, and that would lead to jar hell.
-  classpath -= files(configurations.entitlementBridge)
-}
-
 tasks.named('jar').configure {
   manifest {
     attributes(

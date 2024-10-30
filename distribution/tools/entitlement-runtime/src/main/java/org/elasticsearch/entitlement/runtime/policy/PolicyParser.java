@@ -24,8 +24,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.entitlement.runtime.policy.PolicyParserException.newPolicyParserException;
-
 /**
  * A parser to parse policy files for entitlements.
  */

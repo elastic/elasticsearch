@@ -37,11 +37,11 @@ import org.elasticsearch.xpack.security.operator.OperatorPrivileges;
 import org.elasticsearch.xpack.security.profile.ProfileService;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.xpack.core.XPackSettings.API_KEY_SERVICE_ENABLED_SETTING;
 import static org.elasticsearch.xpack.core.XPackSettings.FIPS_MODE_ENABLED;
@@ -214,7 +214,7 @@ public class SecurityUsageTransportAction extends XPackUsageFeatureTransportActi
         map.put("enabled", XPackSettings.AUDIT_ENABLED.get(settings));
         if (XPackSettings.AUDIT_ENABLED.get(settings)) {
             // the only available output type is "logfile", but the optputs=<list> is to keep compatibility with previous reporting format
-            map.put("outputs", Arrays.asList(LoggingAuditTrail.NAME));
+            map.put("outputs", singletonList(LoggingAuditTrail.NAME));
         }
         return map;
     }

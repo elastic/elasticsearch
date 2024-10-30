@@ -44,9 +44,7 @@ public class SequenceLongBlockSourceOperator extends AbstractBlockSourceOperator
     @Override
     protected Page createPage(int positionOffset, int length) {
         final long[] array = new long[length];
-        for (int i = 0; i < length; i++) {
-            array[i] = values[positionOffset + i];
-        }
+        System.arraycopy(values, positionOffset, array, 0, length);
         currentPosition += length;
         return new Page(blockFactory.newLongArrayVector(array, array.length).asBlock());
     }

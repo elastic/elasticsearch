@@ -21,6 +21,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
+import static java.util.Collections.singletonList;
+
 /**
  * A component to store slack credentials.
  */
@@ -69,7 +71,7 @@ public class SlackService extends NotificationService<SlackAccount> {
     }
 
     private static List<Setting<?>> getSecureSettings() {
-        return Arrays.asList(SETTING_URL_SECURE);
+        return singletonList(SETTING_URL_SECURE);
     }
 
     public static List<Setting<?>> getSettings() {

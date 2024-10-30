@@ -24,10 +24,11 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason;
 import org.elasticsearch.plugins.Plugin;
 
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+
+import static java.util.Collections.singletonList;
 
 /**
  * This is a testing plugin that registers a generic
@@ -53,7 +54,7 @@ public final class MockIndexEventListener {
 
         @Override
         public List<Setting<?>> getSettings() {
-            return Arrays.asList(INDEX_FAIL);
+            return singletonList(INDEX_FAIL);
         }
 
         @Override

@@ -169,7 +169,7 @@ public abstract class RemoteClusterAware {
                 excludeFailed.add(exclude);
             }
         }
-        if (excludeFailed.size() > 0) {
+        if (excludeFailed.isEmpty() == false) {
             String warning = Strings.format(
                 "Attempt to exclude cluster%s %s failed as %s not included in the list of clusters to be included: %s. Input: [%s]",
                 excludeFailed.size() == 1 ? "" : "s",

@@ -600,15 +600,9 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
 
         private String generateInvalidQueryInferenceResultsMessage(StringBuilder baseMessageBuilder) {
             if (searchInferenceId != null && searchInferenceId.equals(inferenceId) == false) {
-                baseMessageBuilder.append(
-                    " Is the search inference endpoint ["
-                        + searchInferenceId
-                        + "] compatible with the inference endpoint ["
-                        + inferenceId
-                        + "]?"
-                );
+                baseMessageBuilder.append(" Is the search inference endpoint [").append(searchInferenceId).append("] compatible with the inference endpoint [").append(inferenceId).append("]?");
             } else {
-                baseMessageBuilder.append(" Has the configuration for inference endpoint [" + inferenceId + "] changed?");
+                baseMessageBuilder.append(" Has the configuration for inference endpoint [").append(inferenceId).append("] changed?");
             }
 
             return baseMessageBuilder.toString();

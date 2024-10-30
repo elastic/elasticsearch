@@ -32,6 +32,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.function.BiFunction;
 
+import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNumeric;
@@ -67,7 +68,7 @@ public class Round extends EsqlScalarFunction implements OptionalArgument {
             description = "The number of decimal places to round to. Defaults to 0. If `null`, the function returns `null`."
         ) Expression decimals
     ) {
-        super(source, decimals != null ? Arrays.asList(field, decimals) : Arrays.asList(field));
+        super(source, decimals != null ? Arrays.asList(field, decimals) : singletonList(field));
         this.field = field;
         this.decimals = decimals;
     }

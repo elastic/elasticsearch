@@ -157,9 +157,9 @@ public final class QueryParserHelper {
         if (numberOfFields > limit) {
             StringBuilder errorMsg = new StringBuilder("field expansion ");
             if (inputPattern != null) {
-                errorMsg.append("for [" + inputPattern + "] ");
+                errorMsg.append("for [").append(inputPattern).append("] ");
             }
-            errorMsg.append("matches too many fields, limit: " + limit + ", got: " + numberOfFields);
+            errorMsg.append("matches too many fields, limit: ").append(limit).append(", got: ").append(numberOfFields);
             throw new IllegalArgumentException(errorMsg.toString());
         }
     }

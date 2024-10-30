@@ -162,21 +162,15 @@ public abstract class ThirdPartyAuditTask extends DefaultTask {
         if (missingClassExcludes == null) {
             missingClassExcludes = new TreeSet<>();
         }
-        for (String each : classesOrPackages) {
-            missingClassExcludes.add(each);
-        }
+        Collections.addAll(missingClassExcludes, classesOrPackages);
     }
 
     public void ignoreViolations(String... violatingClasses) {
-        for (String each : violatingClasses) {
-            violationsExcludes.add(each);
-        }
+        violationsExcludes.addAll(Arrays.asList(violatingClasses));
     }
 
     public void ignoreJarHellWithJDK(String... classes) {
-        for (String each : classes) {
-            jdkJarHellExcludes.add(each);
-        }
+        jdkJarHellExcludes.addAll(Arrays.asList(classes));
     }
 
     @Input

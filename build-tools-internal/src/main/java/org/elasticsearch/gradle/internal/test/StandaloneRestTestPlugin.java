@@ -25,8 +25,9 @@ import org.gradle.api.tasks.testing.Test;
 import org.gradle.plugins.ide.eclipse.model.EclipseModel;
 import org.gradle.plugins.ide.idea.model.IdeaModel;
 
-import java.util.Arrays;
 import java.util.Map;
+
+import static java.util.Collections.singletonList;
 
 /**
  * Configures the build to compile tests against Elasticsearch's test framework
@@ -65,10 +66,10 @@ public class StandaloneRestTestPlugin implements Plugin<Project> {
         RestTestUtil.setupJavaRestTestDependenciesDefaults(project, testSourceSet);
 
         EclipseModel eclipse = project.getExtensions().getByType(EclipseModel.class);
-        eclipse.getClasspath().setSourceSets(Arrays.asList(testSourceSet));
+        eclipse.getClasspath().setSourceSets(singletonList(testSourceSet));
         eclipse.getClasspath()
             .setPlusConfigurations(
-                Arrays.asList(project.getConfigurations().getByName(JavaPlugin.TEST_RUNTIME_CLASSPATH_CONFIGURATION_NAME))
+                singletonList(project.getConfigurations().getByName(JavaPlugin.TEST_RUNTIME_CLASSPATH_CONFIGURATION_NAME))
             );
 
         IdeaModel idea = project.getExtensions().getByType(IdeaModel.class);
@@ -77,7 +78,7 @@ public class StandaloneRestTestPlugin implements Plugin<Project> {
             .getScopes()
             .put(
                 "TEST",
-                Map.of("plus", Arrays.asList(project.getConfigurations().getByName(JavaPlugin.TEST_RUNTIME_CLASSPATH_CONFIGURATION_NAME)))
+                Map.of("plus", singletonList(project.getConfigurations().getByName(JavaPlugin.TEST_RUNTIME_CLASSPATH_CONFIGURATION_NAME)))
             );
         InternalPrecommitTasks.create(project, false);
     }

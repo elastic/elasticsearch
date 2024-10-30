@@ -492,13 +492,13 @@ public abstract class RestTestsFromDocSnippetTask extends DocSnippetTask {
                 List<String> foundButNotListed = new ArrayList<>(unconvertedCandidates);
                 Collections.sort(foundButNotListed);
                 foundButNotListed = foundButNotListed.stream().map(f -> "    " + f).collect(Collectors.toList());
-                if (false == "".equals(message)) {
+                if (false == message.isEmpty()) {
                     message += "\n";
                 }
                 message += "Unexpected unconverted snippets:\n";
                 message += foundButNotListed.stream().collect(Collectors.joining("\n"));
             }
-            if (false == "".equals(message)) {
+            if (false == message.isEmpty()) {
                 throw new InvalidUserDataException(message);
             }
         }

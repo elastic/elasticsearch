@@ -14,8 +14,6 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.enrich.CommonEnrichRestTestCase;
 import org.elasticsearch.test.rest.ESRestTestCase;
 
-import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
-
 public class EnrichSecurityFailureIT extends ESRestTestCase {
 
     @Override

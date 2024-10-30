@@ -37,7 +37,7 @@ public class ServerQueryCliCommand extends AbstractServerCliCommand {
                     terminal.flush();
                     return true;
                 }
-                if (false == cliSession.cfg().getFetchSeparator().equals("")) {
+                if (false == cliSession.cfg().getFetchSeparator().isEmpty()) {
                     terminal.println(cliSession.cfg().getFetchSeparator());
                 }
                 response = cliSession.getClient().nextPage(response.cursor());

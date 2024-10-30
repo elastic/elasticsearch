@@ -162,10 +162,10 @@ public final class Scripts {
                     if (fieldVars.contains(fieldName) == false) {
                         fieldVars.add(fieldName);
                     }
-                    newTemplate.append("X" + fieldVars.indexOf(fieldName));
+                    newTemplate.append("X").append(fieldVars.indexOf(fieldName));
                 } else {
                     fieldVars.add(fieldName);
-                    newTemplate.append("X" + (fieldVars.size() - 1));
+                    newTemplate.append("X").append(fieldVars.size() - 1);
                 }
                 // increase the params position
                 index++;

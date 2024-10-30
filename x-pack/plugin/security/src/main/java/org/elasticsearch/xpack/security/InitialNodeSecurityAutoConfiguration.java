@@ -237,20 +237,13 @@ public class InitialNodeSecurityAutoConfiguration {
         builder.append(System.lineSeparator());
         builder.append(horizontalBorderLine.repeat(horizontalBorderLength));
         builder.append(System.lineSeparator());
-        builder.append(successBullet + " Elasticsearch security features have been automatically configured!");
+        builder.append(successBullet).append(" Elasticsearch security features have been automatically configured!");
         builder.append(System.lineSeparator());
-        builder.append(successBullet + " Authentication is enabled and cluster connections are encrypted.");
+        builder.append(successBullet).append(" Authentication is enabled and cluster connections are encrypted.");
         builder.append(System.lineSeparator());
         builder.append(System.lineSeparator());
         if (elasticPassword == null) {
-            builder.append(
-                errorBullet
-                    + " Unable to auto-generate the password for the "
-                    + boldOnANSI
-                    + "elastic"
-                    + boldOffANSI
-                    + " built-in superuser."
-            );
+            builder.append(errorBullet).append(" Unable to auto-generate the password for the ").append(boldOnANSI).append("elastic").append(boldOffANSI).append(" built-in superuser.");
         } else if (false == Strings.isEmpty(elasticPassword)) {
             builder.append(
                 infoBullet

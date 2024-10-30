@@ -32,12 +32,13 @@ import org.elasticsearch.xpack.frozen.action.TransportFreezeIndexAction;
 import org.elasticsearch.xpack.frozen.rest.action.RestFreezeIndexAction;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+
+import static java.util.Collections.singletonList;
 
 public class FrozenIndices extends Plugin implements ActionPlugin, EnginePlugin {
 
@@ -52,7 +53,7 @@ public class FrozenIndices extends Plugin implements ActionPlugin, EnginePlugin 
 
     @Override
     public List<Setting<?>> getSettings() {
-        return Arrays.asList(FrozenEngine.INDEX_FROZEN);
+        return singletonList(FrozenEngine.INDEX_FROZEN);
     }
 
     @Override

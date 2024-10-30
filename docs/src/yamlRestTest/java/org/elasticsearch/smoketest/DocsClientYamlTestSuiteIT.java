@@ -153,7 +153,7 @@ public class DocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         if (false == "".equals(templates)) {
             for (String template : templates.split("\n")) {
                 if (isXPackTemplate(template)) continue;
-                if ("".equals(template)) {
+                if (template.isEmpty()) {
                     throw new IllegalStateException("empty template in templates list:\n" + templates);
                 }
                 throw new RuntimeException("Template " + template + " not cleared after test");

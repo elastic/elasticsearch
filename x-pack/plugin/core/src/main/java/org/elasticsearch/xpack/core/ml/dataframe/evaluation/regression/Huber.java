@@ -29,13 +29,13 @@ import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationParameters
 
 import java.io.IOException;
 import java.text.MessageFormat;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
 
+import static java.util.Collections.singletonList;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.MlEvaluationNamedXContentProvider.registeredMetricName;
 
@@ -112,7 +112,7 @@ public class Huber implements EvaluationMetric {
         String actualField = fields.getActualField();
         String predictedField = fields.getPredictedField();
         return Tuple.tuple(
-            Arrays.asList(AggregationBuilders.avg(AGG_NAME).script(new Script(buildScript(actualField, predictedField, delta * delta)))),
+            singletonList(AggregationBuilders.avg(AGG_NAME).script(new Script(buildScript(actualField, predictedField, delta * delta)))),
             Collections.emptyList()
         );
     }

@@ -149,13 +149,13 @@ public class DependenciesInfoTask extends ConventionTask {
 
             final String url = createURL(dep.getGroup(), dep.getName(), dep.getVersion());
             final String dependencyName = DependencyLicensesTask.getDependencyName(getMappings(), dep.getName());
-            getLogger().info("mapped dependency " + dep.getGroup() + ":" + dep.getName() + " to " + dependencyName + " for license info");
+            getLogger().info("mapped dependency {}:{} to {} for license info", dep.getGroup(), dep.getName(), dependencyName);
 
             final String licenseType = getLicenseType(dep.getGroup(), dependencyName);
-            output.append(dep.getGroup() + ":" + dep.getName() + "," + dep.getVersion() + "," + url + "," + licenseType + "\n");
+            output.append(dep.getGroup()).append(":").append(dep.getName()).append(",").append(dep.getVersion()).append(",").append(url).append(",").append(licenseType).append("\n");
         }
 
-        Files.write(outputFile.toPath(), output.toString().getBytes("UTF-8"), StandardOpenOption.CREATE);
+        Files.writeString(outputFile.toPath(), output.toString(), StandardOpenOption.CREATE);
     }
 
     @Input

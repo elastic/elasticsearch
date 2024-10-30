@@ -27,6 +27,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 
+import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNumeric;
@@ -60,7 +61,7 @@ public class Log extends EsqlScalarFunction implements OptionalArgument {
             description = "Numeric expression. If `null`, the function returns `null`."
         ) Expression value
     ) {
-        super(source, value != null ? Arrays.asList(base, value) : Arrays.asList(base));
+        super(source, value != null ? Arrays.asList(base, value) : singletonList(base));
         this.value = value != null ? value : base;
         this.base = value != null ? base : null;
     }

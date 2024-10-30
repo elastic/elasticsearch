@@ -86,11 +86,11 @@ public class ContextApiSpecGenerator {
     @SuppressForbidden(reason = "resolve jdk src directory with environment")
     private static JavaClassFilesystemResolver getJdkSrc() {
         String jdksrc = System.getProperty("jdksrc");
-        if (jdksrc == null || "".equals(jdksrc)) {
+        if (jdksrc == null || jdksrc.isEmpty()) {
             return null;
         }
         String packageSourcesString = System.getProperty("packageSources");
-        if (packageSourcesString == null || "".equals(packageSourcesString)) {
+        if (packageSourcesString == null || packageSourcesString.isEmpty()) {
             return new JavaClassFilesystemResolver(PathUtils.get(jdksrc));
         }
         HashMap<String, Path> packageSources = new HashMap<>();

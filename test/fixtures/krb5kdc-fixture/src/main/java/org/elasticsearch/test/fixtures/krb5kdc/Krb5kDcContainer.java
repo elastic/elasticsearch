@@ -26,6 +26,7 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 public final class Krb5kDcContainer extends DockerEnvironmentAwareTestContainer {
@@ -80,9 +81,7 @@ public final class Krb5kDcContainer extends DockerEnvironmentAwareTestContainer 
         withCreateContainerCmdModifier(cmd -> {
             // Add previously exposed ports and UDP port
             List<ExposedPort> exposedPorts = new ArrayList<>();
-            for (ExposedPort p : cmd.getExposedPorts()) {
-                exposedPorts.add(p);
-            }
+            Collections.addAll(exposedPorts, cmd.getExposedPorts());
             exposedPorts.add(ExposedPort.udp(88));
             cmd.withExposedPorts(exposedPorts);
 

@@ -11,15 +11,15 @@ import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
+import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.ml.job.process.normalizer.Normalizable.ChildType.BUCKET_INFLUENCER;
 
 public class BucketNormalizable extends Normalizable {
 
-    private static final List<ChildType> CHILD_TYPES = Arrays.asList(BUCKET_INFLUENCER);
+    private static final List<ChildType> CHILD_TYPES = singletonList(BUCKET_INFLUENCER);
 
     private final Bucket bucket;
 

@@ -11,11 +11,8 @@ package org.elasticsearch.xpack.kql.parser;
 import org.antlr.v4.runtime.atn.*;
 import org.antlr.v4.runtime.dfa.DFA;
 import org.antlr.v4.runtime.*;
-import org.antlr.v4.runtime.misc.*;
 import org.antlr.v4.runtime.tree.*;
 import java.util.List;
-import java.util.Iterator;
-import java.util.ArrayList;
 
 @SuppressWarnings({"all", "warnings", "unchecked", "unused", "cast", "CheckReturnValue"})
 class KqlBaseParser extends Parser {
@@ -25,18 +22,18 @@ class KqlBaseParser extends Parser {
     protected static final PredictionContextCache _sharedContextCache =
         new PredictionContextCache();
     public static final int
-        DEFAULT_SKIP=1, AND=2, OR=3, NOT=4, COLON=5, OP_LESS=6, OP_LESS_EQ=7, 
-        OP_MORE=8, OP_MORE_EQ=9, LEFT_PARENTHESIS=10, RIGHT_PARENTHESIS=11, LEFT_CURLY_BRACKET=12, 
+        DEFAULT_SKIP=1, AND=2, OR=3, NOT=4, COLON=5, OP_LESS=6, OP_LESS_EQ=7,
+        OP_MORE=8, OP_MORE_EQ=9, LEFT_PARENTHESIS=10, RIGHT_PARENTHESIS=11, LEFT_CURLY_BRACKET=12,
         RIGHT_CURLY_BRACKET=13, UNQUOTED_LITERAL=14, QUOTED_STRING=15, WILDCARD=16;
     public static final int
-        RULE_topLevelQuery = 0, RULE_query = 1, RULE_simpleQuery = 2, RULE_nestedQuery = 3, 
-        RULE_matchAllQuery = 4, RULE_parenthesizedQuery = 5, RULE_rangeQuery = 6, 
-        RULE_rangeQueryValue = 7, RULE_existsQuery = 8, RULE_fieldQuery = 9, RULE_fieldLessQuery = 10, 
+        RULE_topLevelQuery = 0, RULE_query = 1, RULE_simpleQuery = 2, RULE_nestedQuery = 3,
+        RULE_matchAllQuery = 4, RULE_parenthesizedQuery = 5, RULE_rangeQuery = 6,
+        RULE_rangeQueryValue = 7, RULE_existsQuery = 8, RULE_fieldQuery = 9, RULE_fieldLessQuery = 10,
         RULE_fieldQueryValue = 11, RULE_fieldName = 12;
     private static String[] makeRuleNames() {
         return new String[] {
-            "topLevelQuery", "query", "simpleQuery", "nestedQuery", "matchAllQuery", 
-            "parenthesizedQuery", "rangeQuery", "rangeQueryValue", "existsQuery", 
+            "topLevelQuery", "query", "simpleQuery", "nestedQuery", "matchAllQuery",
+            "parenthesizedQuery", "rangeQuery", "rangeQueryValue", "existsQuery",
             "fieldQuery", "fieldLessQuery", "fieldQueryValue", "fieldName"
         };
     }
@@ -44,15 +41,15 @@ class KqlBaseParser extends Parser {
 
     private static String[] makeLiteralNames() {
         return new String[] {
-            null, null, "'and'", "'or'", "'not'", "':'", "'<'", "'<='", "'>'", "'>='", 
+            null, null, "'and'", "'or'", "'not'", "':'", "'<'", "'<='", "'>'", "'>='",
             "'('", "')'", "'{'", "'}'"
         };
     }
     private static final String[] _LITERAL_NAMES = makeLiteralNames();
     private static String[] makeSymbolicNames() {
         return new String[] {
-            null, "DEFAULT_SKIP", "AND", "OR", "NOT", "COLON", "OP_LESS", "OP_LESS_EQ", 
-            "OP_MORE", "OP_MORE_EQ", "LEFT_PARENTHESIS", "RIGHT_PARENTHESIS", "LEFT_CURLY_BRACKET", 
+            null, "DEFAULT_SKIP", "AND", "OR", "NOT", "COLON", "OP_LESS", "OP_LESS_EQ",
+            "OP_MORE", "OP_MORE_EQ", "LEFT_PARENTHESIS", "RIGHT_PARENTHESIS", "LEFT_CURLY_BRACKET",
             "RIGHT_CURLY_BRACKET", "UNQUOTED_LITERAL", "QUOTED_STRING", "WILDCARD"
         };
     }
@@ -170,7 +167,7 @@ class KqlBaseParser extends Parser {
             super(parent, invokingState);
         }
         @Override public int getRuleIndex() { return RULE_query; }
-     
+
         public QueryContext() { }
         public void copyFrom(QueryContext ctx) {
             super.copyFrom(ctx);
@@ -314,7 +311,7 @@ class KqlBaseParser extends Parser {
                     setState(39);
                     query(3);
                     }
-                    } 
+                    }
                 }
                 setState(44);
                 _errHandler.sync(this);
@@ -723,7 +720,7 @@ class KqlBaseParser extends Parser {
             case WILDCARD:
                 enterOuterAlt(_localctx, 1);
                 {
-                setState(75); 
+                setState(75);
                 _errHandler.sync(this);
                 _alt = 1;
                 do {
@@ -747,7 +744,7 @@ class KqlBaseParser extends Parser {
                     default:
                         throw new NoViableAltException(this);
                     }
-                    setState(77); 
+                    setState(77);
                     _errHandler.sync(this);
                     _alt = getInterpreter().adaptivePredict(_input,5,_ctx);
                 } while ( _alt!=2 && _alt!=org.antlr.v4.runtime.atn.ATN.INVALID_ALT_NUMBER );
@@ -1036,7 +1033,7 @@ class KqlBaseParser extends Parser {
                     }
                 }
 
-                setState(109); 
+                setState(109);
                 _errHandler.sync(this);
                 _alt = 1;
                 do {
@@ -1060,7 +1057,7 @@ class KqlBaseParser extends Parser {
                     default:
                         throw new NoViableAltException(this);
                     }
-                    setState(111); 
+                    setState(111);
                     _errHandler.sync(this);
                     _alt = getInterpreter().adaptivePredict(_input,10,_ctx);
                 } while ( _alt!=2 && _alt!=org.antlr.v4.runtime.atn.ATN.INVALID_ALT_NUMBER );
@@ -1069,7 +1066,7 @@ class KqlBaseParser extends Parser {
             case 2:
                 enterOuterAlt(_localctx, 2);
                 {
-                setState(114); 
+                setState(114);
                 _errHandler.sync(this);
                 _alt = 1;
                 do {
@@ -1093,7 +1090,7 @@ class KqlBaseParser extends Parser {
                     default:
                         throw new NoViableAltException(this);
                     }
-                    setState(116); 
+                    setState(116);
                     _errHandler.sync(this);
                     _alt = getInterpreter().adaptivePredict(_input,11,_ctx);
                 } while ( _alt!=2 && _alt!=org.antlr.v4.runtime.atn.ATN.INVALID_ALT_NUMBER );
@@ -1191,7 +1188,7 @@ class KqlBaseParser extends Parser {
             case UNQUOTED_LITERAL:
                 enterOuterAlt(_localctx, 1);
                 {
-                setState(126); 
+                setState(126);
                 _errHandler.sync(this);
                 _la = _input.LA(1);
                 do {
@@ -1201,7 +1198,7 @@ class KqlBaseParser extends Parser {
                     ((FieldNameContext)_localctx).value = match(UNQUOTED_LITERAL);
                     }
                     }
-                    setState(128); 
+                    setState(128);
                     _errHandler.sync(this);
                     _la = _input.LA(1);
                 } while ( _la==UNQUOTED_LITERAL );

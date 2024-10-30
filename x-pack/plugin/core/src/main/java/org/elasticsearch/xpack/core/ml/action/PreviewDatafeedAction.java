@@ -172,7 +172,7 @@ public class PreviewDatafeedAction extends ActionType<PreviewDatafeedAction.Resp
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            if (datafeedId.equals("") == false) {
+            if (datafeedId.isEmpty() == false) {
                 builder.field(DatafeedConfig.ID.getPreferredName(), datafeedId);
             }
             if (datafeedConfig != null) {

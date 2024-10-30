@@ -40,8 +40,9 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.util.ReflectionUtils;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
+
+import static java.util.Collections.singletonList;
 
 class Mapper extends RuleExecutor<PhysicalPlan> {
 
@@ -53,7 +54,7 @@ class Mapper extends RuleExecutor<PhysicalPlan> {
     protected Iterable<RuleExecutor.Batch<PhysicalPlan>> batches() {
         var conversion = new Batch<>("Mapping", new SimpleExecMapper());
 
-        return Arrays.asList(conversion);
+        return singletonList(conversion);
     }
 
     private static PhysicalPlan planLater(LogicalPlan plan) {

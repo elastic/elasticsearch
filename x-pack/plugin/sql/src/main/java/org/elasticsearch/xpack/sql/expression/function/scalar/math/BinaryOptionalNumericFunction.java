@@ -23,6 +23,7 @@ import java.util.Locale;
 import java.util.Objects;
 
 import static java.lang.String.format;
+import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isInteger;
@@ -34,7 +35,7 @@ public abstract class BinaryOptionalNumericFunction extends ScalarFunction {
     private final Expression left, right;
 
     public BinaryOptionalNumericFunction(Source source, Expression left, Expression right) {
-        super(source, right != null ? Arrays.asList(left, right) : Arrays.asList(left));
+        super(source, right != null ? Arrays.asList(left, right) : singletonList(left));
         this.left = left;
         this.right = right;
     }

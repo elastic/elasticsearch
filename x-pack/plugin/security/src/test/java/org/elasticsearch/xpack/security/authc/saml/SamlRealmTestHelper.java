@@ -21,6 +21,7 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collections;
 
+import static java.util.Collections.singletonList;
 import static org.mockito.Mockito.mock;
 
 public class SamlRealmTestHelper {
@@ -46,7 +47,7 @@ public class SamlRealmTestHelper {
             SP_ACS_URL,
             SP_LOGOUT_URL,
             new SigningConfiguration(Collections.singleton("*"), credential),
-            Arrays.asList(credential),
+            singletonList(credential),
             Collections.emptyList()
         );
         return new SamlRealm(

@@ -13,6 +13,7 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 
 import static java.util.Collections.emptyList;
+import static java.util.Collections.singletonList;
 import static java.util.Collections.unmodifiableList;
 
 /**
@@ -82,7 +83,7 @@ public abstract class NodeInfo<T extends Node<?>> {
         return new NodeInfo<T>(n) {
             @Override
             protected List<Object> innerProperties() {
-                return Arrays.asList(p1);
+                return singletonList(p1);
             }
 
             protected T innerTransform(Function<Object, Object> rule) {

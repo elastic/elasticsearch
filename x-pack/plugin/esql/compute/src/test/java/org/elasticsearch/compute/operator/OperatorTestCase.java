@@ -42,7 +42,6 @@ import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.in;
 
 /**
  * Base tests for {@link Operator}s that are not {@link SourceOperator} or {@link SinkOperator}.

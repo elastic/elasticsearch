@@ -10,7 +10,6 @@
 package org.elasticsearch.benchmark.compute.operator;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.util.*;
 import org.elasticsearch.compute.data.*;
 import org.openjdk.jmh.annotations.*;
 

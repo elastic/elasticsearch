@@ -12,6 +12,7 @@ package org.elasticsearch.plugin.scanner;
 import org.elasticsearch.core.PathUtils;
 import org.objectweb.asm.ClassReader;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
@@ -112,8 +113,8 @@ public class ClassReaders {
     }
 
     public static List<ClassReader> ofClassPath(String classpath) {
-        if (classpath != null && classpath.equals("") == false) {// todo when do we set cp to "" ?
-            var classpathSeparator = System.getProperty("path.separator");
+        if (classpath != null && classpath.isEmpty() == false) {// todo when do we set cp to "" ?
+            var classpathSeparator = File.pathSeparator;
 
             String[] pathelements = classpath.split(classpathSeparator);
             return ofPaths(Arrays.stream(pathelements).map(Paths::get));

@@ -11,8 +11,9 @@ import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
 
-import java.util.Arrays;
 import java.util.List;
+
+import static java.util.Collections.singletonList;
 
 /**
  * Utility class to build {@link SearchHit} in tests
@@ -26,7 +27,7 @@ public class SearchHitBuilder {
     }
 
     public SearchHitBuilder addField(String name, Object value) {
-        return addField(name, Arrays.asList(value));
+        return addField(name, singletonList(value));
     }
 
     public SearchHitBuilder addField(String name, List<Object> values) {

@@ -27,9 +27,9 @@ import org.elasticsearch.xpack.watcher.trigger.TriggerEngine;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleRegistry;
 
 import java.time.Clock;
-import java.util.Arrays;
 
 import static java.util.Collections.emptyMap;
+import static java.util.Collections.singletonList;
 import static org.elasticsearch.discovery.SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
 import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.indexAction;
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.httpInput;
@@ -61,7 +61,7 @@ public class WatcherExecutorServiceBenchmark {
     private static ScheduleTriggerEngineMock scheduler;
 
     protected static void start() throws Exception {
-        Node node = new MockNode(Settings.builder().put(SETTINGS).put("node.data", false).build(), Arrays.asList(BenchmarkWatcher.class));
+        Node node = new MockNode(Settings.builder().put(SETTINGS).put("node.data", false).build(), singletonList(BenchmarkWatcher.class));
         client = node.client();
         client.admin().cluster().prepareHealth(TimeValue.THIRTY_SECONDS, "*").setWaitForGreenStatus().get();
         Thread.sleep(5000);

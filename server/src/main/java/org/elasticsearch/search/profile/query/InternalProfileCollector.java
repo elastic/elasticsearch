@@ -58,7 +58,7 @@ public class InternalProfileCollector extends ProfilerCollector implements TwoPh
         // MultiCollector which wraps multiple BucketCollectors is generated
         // via an anonymous class, so this corrects the lack of a name by
         // asking the enclosingClass
-        if (s.equals("")) {
+        if (s.isEmpty()) {
             s = c.getClass().getEnclosingClass().getSimpleName();
         }
 

@@ -22,7 +22,6 @@ import org.gradle.api.tasks.util.PatternFilterable;
 
 import javax.annotation.Nullable;
 import java.io.File;
-import java.util.Collection;
 import java.util.Optional;
 import java.util.function.Supplier;
 

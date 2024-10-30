@@ -49,6 +49,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 
+import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
@@ -87,7 +88,7 @@ public class MvSort extends EsqlScalarFunction implements OptionalArgument, Vali
             optional = true
         ) Expression order
     ) {
-        super(source, order == null ? Arrays.asList(field) : Arrays.asList(field, order));
+        super(source, order == null ? singletonList(field) : Arrays.asList(field, order));
         this.field = field;
         this.order = order;
     }

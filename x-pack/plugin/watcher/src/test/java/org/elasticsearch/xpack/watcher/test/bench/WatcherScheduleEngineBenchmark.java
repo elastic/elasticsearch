@@ -50,6 +50,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static java.util.Collections.emptyMap;
+import static java.util.Collections.singletonList;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.percentiles;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
@@ -160,7 +161,7 @@ public class WatcherScheduleEngineBenchmark {
                 .put("xpack.watcher.trigger.schedule.engine", engine)
                 .put("node.data", false)
                 .build();
-            try (Node node = new MockNode(settings, Arrays.asList(LocalStateWatcher.class))) {
+            try (Node node = new MockNode(settings, singletonList(LocalStateWatcher.class))) {
                 final Client client = node.client();
                 client.admin().cluster().prepareHealth(TimeValue.THIRTY_SECONDS).setWaitForNodes("2").get();
                 client.admin().indices().prepareDelete(HistoryStoreField.DATA_STREAM + "*").get();

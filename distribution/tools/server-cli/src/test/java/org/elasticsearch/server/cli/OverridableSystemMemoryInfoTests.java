@@ -14,7 +14,6 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.List;
 
 import static org.hamcrest.Matchers.is;
-import static org.junit.Assert.assertThat;
 import static org.junit.Assert.fail;
 
 public class OverridableSystemMemoryInfoTests extends ESTestCase {

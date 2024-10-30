@@ -72,6 +72,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
+import static java.util.Collections.singletonList;
 import static org.apache.lucene.tests.util.LuceneTestCase.expectThrows;
 import static org.apache.lucene.tests.util.LuceneTestCase.expectThrowsAnyOf;
 import static org.elasticsearch.test.LambdaMatchers.transformedArrayItemsMatch;
@@ -420,7 +421,7 @@ public class ElasticsearchAssertions {
                 responseConsumer.accept(responses.size(), scrollResponse);
             }
         } finally {
-            ClearScrollResponse clearResponse = client.prepareClearScroll().setScrollIds(Arrays.asList(scrollResponse.getScrollId())).get();
+            ClearScrollResponse clearResponse = client.prepareClearScroll().setScrollIds(singletonList(scrollResponse.getScrollId())).get();
             responses.forEach(SearchResponse::decRef);
             assertThat(clearResponse.isSucceeded(), Matchers.equalTo(true));
         }

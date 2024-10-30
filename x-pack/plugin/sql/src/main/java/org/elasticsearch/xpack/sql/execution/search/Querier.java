@@ -219,7 +219,7 @@ public class Querier {
         }
         StringBuilder aggsNames = new StringBuilder();
         for (int i = 0; i < aggs.size(); i++) {
-            aggsNames.append(aggs.get(i).getName() + (i + 1 == aggs.size() ? "" : ", "));
+            aggsNames.append(aggs.get(i).getName()).append(i + 1 == aggs.size() ? "" : ", ");
         }
 
         var totalHits = response.getHits().getTotalHits();

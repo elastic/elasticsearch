@@ -27,11 +27,12 @@ import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry.Entry;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+
+import static java.util.Collections.singletonList;
 
 public class RankEvalPlugin extends Plugin implements ActionPlugin {
 
@@ -39,7 +40,7 @@ public class RankEvalPlugin extends Plugin implements ActionPlugin {
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        return Arrays.asList(new ActionHandler<>(ACTION, TransportRankEvalAction.class));
+        return singletonList(new ActionHandler<>(ACTION, TransportRankEvalAction.class));
     }
 
     @Override

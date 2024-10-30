@@ -19,11 +19,11 @@ import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
-import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 
 import static java.lang.String.format;
+import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.eql.expression.function.scalar.string.LengthFunctionProcessor.doProcess;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isStringAndExact;
@@ -38,7 +38,7 @@ public class Length extends ScalarFunction {
     private final Expression input;
 
     public Length(Source source, Expression input) {
-        super(source, Arrays.asList(input));
+        super(source, singletonList(input));
         this.input = input;
     }
 

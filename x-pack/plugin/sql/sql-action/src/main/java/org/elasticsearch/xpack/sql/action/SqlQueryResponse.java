@@ -245,7 +245,7 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
                 builder.endArray();
             }
 
-            if (cursor.equals("") == false) {
+            if (cursor.isEmpty() == false) {
                 builder.field(CURSOR.getPreferredName(), cursor);
             }
         }

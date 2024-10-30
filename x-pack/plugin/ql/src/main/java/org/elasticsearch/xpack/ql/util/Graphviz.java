@@ -72,13 +72,13 @@ public abstract class Graphviz {
              * otherwise be used for labeling but it consumes too much space)
              * used for alignment */
             indent(sb, CLUSTER_INDENT);
-            sb.append("c" + clusterId);
+            sb.append("c").append(clusterId);
             sb.append("[style=invis]\n");
             // add edge to the first node in the cluster
             indent(sb, CLUSTER_INDENT);
-            sb.append("node" + (nodeCounter.get() + 1));
+            sb.append("node").append(nodeCounter.get() + 1);
             sb.append(" -> ");
-            sb.append("c" + clusterId);
+            sb.append("c").append(clusterId);
             sb.append(" [style=invis];\n");
 
             handleNode(sb, entry.getValue(), nodeCounter, CLUSTER_INDENT, drawSubTrees);
@@ -91,9 +91,9 @@ public abstract class Graphviz {
             // connect cluster only if there are at least two
             if (clusterId > 1) {
                 indent(clusterEdges, INDENT);
-                clusterEdges.append("node" + clusterNodeStart);
+                clusterEdges.append("node").append(clusterNodeStart);
                 clusterEdges.append(" -> ");
-                clusterEdges.append("node" + clusterNodeStop);
+                clusterEdges.append("node").append(clusterNodeStop);
                 clusterEdges.append("[ltail=cluster");
                 clusterEdges.append(clusterId - 1);
                 clusterEdges.append(" lhead=cluster");
@@ -113,7 +113,7 @@ public abstract class Graphviz {
         indent(sb, INDENT);
         sb.append("{ rank=same");
         for (int i = 1; i <= clusterId; i++) {
-            sb.append(" c" + i);
+            sb.append(" c").append(i);
         }
         sb.append(" };\n}");
 
@@ -251,7 +251,7 @@ public abstract class Graphviz {
             int currId = ++counter;
             drawNode(sb, child, prefix + currId);
             if (prevId > -1) {
-                sb.append(prefix + prevId + " -> " + prefix + currId + " [style=invis];\n");
+                sb.append(prefix).append(prevId).append(" -> ").append(prefix).append(currId).append(" [style=invis];\n");
             }
             prevId = currId;
         }
@@ -259,7 +259,7 @@ public abstract class Graphviz {
 
         // now draw connections to the parent
         for (int i = saveId; i < counter; i++) {
-            sb.append(prefix + (i + 1) + " -> " + nodeName + ";\n");
+            sb.append(prefix).append(i + 1).append(" -> ").append(nodeName).append(";\n");
         }
 
         // draw the child
@@ -271,9 +271,9 @@ public abstract class Graphviz {
 
     private static void drawNode(StringBuilder sb, Node<?> node, String nodeName) {
         if (node.children().isEmpty()) {
-            sb.append(nodeName + " [label=\"" + node.toString() + "\"];\n");
+            sb.append(nodeName).append(" [label=\"").append(node).append("\"];\n");
         } else {
-            sb.append(nodeName + " [label=\"" + node.nodeName() + "\"];\n");
+            sb.append(nodeName).append(" [label=\"").append(node.nodeName()).append("\"];\n");
         }
     }
 

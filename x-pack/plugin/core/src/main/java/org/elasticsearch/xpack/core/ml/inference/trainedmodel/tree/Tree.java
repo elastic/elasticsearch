@@ -36,6 +36,8 @@ import java.util.Queue;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static java.util.Collections.singletonList;
+
 public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedModel, Accountable {
 
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(Tree.class);
@@ -387,7 +389,7 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
          * @return this
          */
         public Tree.Builder addLeaf(int nodeIndex, double value) {
-            return addLeaf(nodeIndex, Arrays.asList(value));
+            return addLeaf(nodeIndex, singletonList(value));
         }
 
         public Tree.Builder addLeaf(int nodeIndex, List<Double> value) {

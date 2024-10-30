@@ -564,6 +564,7 @@ final class Lucene54DocValuesConsumer extends DocValuesConsumer implements Close
         for (int i = 1; i < suffixDeltas.length; i++) {
             if (suffixDeltas[i] > 254) {
                 twoByte = true;
+                break;
             }
         }
         if (twoByte) {

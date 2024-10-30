@@ -291,7 +291,7 @@ public final class CsvTestUtils {
                         )
                     );
                 }
-                mvValue.append("," + entry.substring(0, entry.length() - 1));
+                mvValue.append(",").append(entry, 0, entry.length() - 1);
                 mvCompressedEntries.add(mvValue.toString());
                 mvValue = null;
                 previousMvValue = null;
@@ -307,7 +307,7 @@ public final class CsvTestUtils {
                             )
                         );
                     }
-                    mvValue.append("," + entry);
+                    mvValue.append(",").append(entry);
                 } else {
                     mvCompressedEntries.add(entry);// regular comma separated value
                 }

@@ -1695,6 +1695,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                     assert entry.freq == i;
                     if (entry == e) {
                         found = true;
+                        break;
                     }
                 }
                 for (LFUCacheEntry entry = freqs[i]; entry != null && entry.prev != freqs[i]; entry = entry.prev) {
@@ -1704,6 +1705,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                     assert entry.freq == i;
                     if (entry == e) {
                         found = true;
+                        break;
                     }
                 }
             }

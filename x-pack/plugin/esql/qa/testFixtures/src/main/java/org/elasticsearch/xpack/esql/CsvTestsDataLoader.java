@@ -477,8 +477,8 @@ public class CsvTestsDataLoader {
                             }
                         }
                         String idPart = idField != null ? "\", \"_id\": \"" + idField : "";
-                        builder.append("{\"index\": {\"_index\":\"" + indexName + idPart + "\"}}\n");
-                        builder.append("{" + row + "}\n");
+                        builder.append("{\"index\": {\"_index\":\"").append(indexName).append(idPart).append("\"}}\n");
+                        builder.append("{").append(row).append("}\n");
                     }
                 }
                 lineNumber++;

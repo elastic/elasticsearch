@@ -11,14 +11,15 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.plugins.spi.NamedXContentProvider;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
-import java.util.Arrays;
 import java.util.List;
+
+import static java.util.Collections.singletonList;
 
 public final class CorrelationNamedContentProvider implements NamedXContentProvider {
 
     @Override
     public List<NamedXContentRegistry.Entry> getNamedXContentParsers() {
-        return Arrays.asList(
+        return singletonList(
             new NamedXContentRegistry.Entry(
                 CorrelationFunction.class,
                 CountCorrelationFunction.NAME,
@@ -28,7 +29,7 @@ public final class CorrelationNamedContentProvider implements NamedXContentProvi
     }
 
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        return Arrays.asList(
+        return singletonList(
             new NamedWriteableRegistry.Entry(
                 CorrelationFunction.class,
                 CountCorrelationFunction.NAME.getPreferredName(),

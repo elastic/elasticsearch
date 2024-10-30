@@ -388,7 +388,7 @@ public class PainlessInfoJson {
             builder.field(PainlessContextFieldInfo.DECLARING.getPreferredName(), declaring);
             builder.field(PainlessContextFieldInfo.NAME.getPreferredName(), name);
             builder.field(PainlessContextFieldInfo.TYPE.getPreferredName(), type);
-            if (javadoc != null && "".equals(javadoc) == false) {
+            if (javadoc != null && javadoc.isEmpty() == false) {
                 builder.field(JAVADOC.getPreferredName(), javadoc);
             }
             builder.endObject();

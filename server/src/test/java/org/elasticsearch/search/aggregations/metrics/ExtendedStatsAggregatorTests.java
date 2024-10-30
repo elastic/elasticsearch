@@ -27,7 +27,6 @@ import java.util.Map;
 import java.util.function.Consumer;
 
 import static java.util.Collections.singleton;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.stats;
 
 public class ExtendedStatsAggregatorTests extends AggregatorTestCase {
     private static final double TOLERANCE = 1e-5;

@@ -67,9 +67,9 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
+import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNumeric;
 
 public abstract class UnaryScalarFunction extends EsqlScalarFunction {
@@ -130,7 +130,7 @@ public abstract class UnaryScalarFunction extends EsqlScalarFunction {
     protected final Expression field;
 
     public UnaryScalarFunction(Source source, Expression field) {
-        super(source, Arrays.asList(field));
+        super(source, singletonList(field));
         this.field = field;
     }
 

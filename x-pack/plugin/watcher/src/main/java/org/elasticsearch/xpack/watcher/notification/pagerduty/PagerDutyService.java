@@ -19,6 +19,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
+import static java.util.Collections.singletonList;
+
 /**
  * A component to store pagerduty credentials.
  */
@@ -65,7 +67,7 @@ public class PagerDutyService extends NotificationService<PagerDutyAccount> {
     }
 
     private static List<Setting<?>> getSecureSettings() {
-        return Arrays.asList(SETTING_SECURE_SERVICE_API_KEY);
+        return singletonList(SETTING_SECURE_SERVICE_API_KEY);
     }
 
     public static List<Setting<?>> getSettings() {

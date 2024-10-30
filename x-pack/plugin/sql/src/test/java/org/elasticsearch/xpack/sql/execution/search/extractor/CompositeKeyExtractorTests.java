@@ -27,7 +27,6 @@ import static java.util.Collections.singletonMap;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
 import static org.elasticsearch.xpack.ql.type.DataTypes.NULL;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
-import static org.elasticsearch.xpack.ql.util.NumericUtils.UNSIGNED_LONG_MAX;
 import static org.elasticsearch.xpack.sql.util.DateUtils.UTC;
 
 public class CompositeKeyExtractorTests extends AbstractSqlWireSerializingTestCase<CompositeKeyExtractor> {

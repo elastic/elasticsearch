@@ -18,7 +18,7 @@ import org.elasticsearch.xpack.esql.rule.RuleExecutor;
 import java.util.Collection;
 import java.util.List;
 
-import static java.util.Arrays.asList;
+import static java.util.Collections.singletonList;
 
 /**
  * This class is part of the planner. Performs global (coordinator) optimization of the physical plan. Local (data-node) optimizations
@@ -47,7 +47,7 @@ public class PhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPla
 
     static List<RuleExecutor.Batch<PhysicalPlan>> initializeRules(boolean isOptimizedForEsSource) {
         var boundary = new Batch<>("Plan Boundary", Limiter.ONCE, new ProjectAwayColumns());
-        return asList(boundary);
+        return singletonList(boundary);
     }
 
     @Override

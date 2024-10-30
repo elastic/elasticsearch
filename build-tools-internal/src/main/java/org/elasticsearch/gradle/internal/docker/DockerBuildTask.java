@@ -44,6 +44,8 @@ import java.util.stream.Collectors;
 
 import javax.inject.Inject;
 
+import static java.util.Collections.singletonList;
+
 /**
  * This task wraps up the details of building a Docker image, including adding a pull
  * mechanism that can retry, and emitting the image SHA as a task output.
@@ -136,7 +138,7 @@ public abstract class DockerBuildTask extends DefaultTask {
     public abstract SetProperty<String> getPlatforms();
 
     public void setPlatform(String platform) {
-        getPlatforms().set(Arrays.asList(platform));
+        getPlatforms().set(singletonList(platform));
     }
 
     @Input

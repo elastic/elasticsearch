@@ -278,12 +278,12 @@ public class Extent {
     @Override
     public String toString() {
         StringBuilder builder = new StringBuilder("[");
-        builder.append("top = " + top + ", ");
-        builder.append("bottom = " + bottom + ", ");
-        builder.append("negLeft = " + negLeft + ", ");
-        builder.append("negRight = " + negRight + ", ");
-        builder.append("posLeft = " + posLeft + ", ");
-        builder.append("posRight = " + posRight + "]");
+        builder.append("top = ").append(top).append(", ");
+        builder.append("bottom = ").append(bottom).append(", ");
+        builder.append("negLeft = ").append(negLeft).append(", ");
+        builder.append("negRight = ").append(negRight).append(", ");
+        builder.append("posLeft = ").append(posLeft).append(", ");
+        builder.append("posRight = ").append(posRight).append("]");
         return builder.toString();
     }
 }

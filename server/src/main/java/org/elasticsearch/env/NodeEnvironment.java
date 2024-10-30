@@ -91,6 +91,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static java.util.Collections.singletonList;
 import static org.elasticsearch.core.Strings.format;
 
 /**
@@ -373,7 +374,7 @@ public final class NodeEnvironment implements Closeable {
                 if (nodeLockIds.isEmpty() == false) {
                     upgradeNeeded = true;
 
-                    if (nodeLockIds.equals(Arrays.asList(0)) == false) {
+                    if (nodeLockIds.equals(singletonList(0)) == false) {
                         throw new IllegalStateException(
                             "data path "
                                 + nodesFolderPath

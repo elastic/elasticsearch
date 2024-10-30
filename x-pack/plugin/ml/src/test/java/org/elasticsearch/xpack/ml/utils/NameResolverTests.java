@@ -131,9 +131,7 @@ public class NameResolverTests extends ESTestCase {
 
     private static SortedSet<String> newSortedSet(String... names) {
         SortedSet<String> result = new TreeSet<>();
-        for (String name : names) {
-            result.add(name);
-        }
+        Collections.addAll(result, names);
         return result;
     }
 

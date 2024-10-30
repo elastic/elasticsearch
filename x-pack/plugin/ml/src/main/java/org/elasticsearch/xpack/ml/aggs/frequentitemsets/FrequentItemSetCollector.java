@@ -135,7 +135,7 @@ public final class FrequentItemSetCollector {
                 if (addComma) {
                     sb.append(", ");
                 }
-                sb.append("\"" + item.getKey() + "\": {");
+                sb.append("\"").append(item.getKey()).append("\": {");
                 sb.append(Strings.collectionToDelimitedString(item.getValue(), ", "));
                 sb.append("}");
                 addComma = true;

@@ -44,7 +44,7 @@ public class CIDR {
      * @return whether the IP is in the object's range or not.
      */
     public boolean contains(String addressToCheck) {
-        if (addressToCheck == null || "".equals(addressToCheck)) {
+        if (addressToCheck == null || addressToCheck.isEmpty()) {
             return false;
         }
 

@@ -289,9 +289,7 @@ public class EnsembleInferenceModel implements InferenceModel {
             if (model instanceof EnsembleInferenceModel ensembleInferenceModel) {
                 referencedFeatures.addAll(ensembleInferenceModel.subModelFeatures());
             } else {
-                for (String featureName : model.getFeatureNames()) {
-                    referencedFeatures.add(featureName);
-                }
+                referencedFeatures.addAll(Arrays.asList(model.getFeatureNames()));
             }
         }
         return referencedFeatures;

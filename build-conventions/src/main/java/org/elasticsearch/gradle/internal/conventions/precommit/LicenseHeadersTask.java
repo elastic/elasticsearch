@@ -58,6 +58,8 @@ import javax.xml.XMLConstants;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
 
+import static java.util.Collections.singletonList;
+
 /**
  * Checks files for license headers..
  */
@@ -66,7 +68,7 @@ public abstract class LicenseHeadersTask extends DefaultTask {
 
     private final RegularFileProperty reportFile;
 
-    private static List<License> conventionalLicenses = Arrays.asList(
+    private static List<License> conventionalLicenses = singletonList(
         // Triple AGPL, SSPLv1 and Elastic
         new License(
             "TRIPLE",

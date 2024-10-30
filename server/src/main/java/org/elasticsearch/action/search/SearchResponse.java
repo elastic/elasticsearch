@@ -1027,7 +1027,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             String name = clusterAlias;
-            if (clusterAlias.equals("")) {
+            if (clusterAlias.isEmpty()) {
                 name = LOCAL_CLUSTER_NAME_REPRESENTATION;
             }
             builder.startObject(name);

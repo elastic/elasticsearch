@@ -21,7 +21,7 @@ import org.gradle.api.artifacts.repositories.IvyArtifactRepository;
 import org.gradle.api.artifacts.type.ArtifactTypeDefinition;
 import org.gradle.api.attributes.Attribute;
 
-import java.util.Arrays;
+import static java.util.Collections.singletonList;
 
 /**
  * @deprecated We wanna get rid from this and custom jdk downloads via this plugin and
@@ -66,7 +66,7 @@ public class JdkDownloadPlugin implements Plugin<Project> {
                 .attribute(jdkAttribute, true);
             transformSpec.parameters(parameters -> {
                 parameters.setTrimmedPrefixPattern(JDK_TRIMMED_PREFIX);
-                parameters.setKeepStructureFor(Arrays.asList(ZULU_LINUX_AARCH_PATTERN));
+                parameters.setKeepStructureFor(singletonList(ZULU_LINUX_AARCH_PATTERN));
             });
         });
 

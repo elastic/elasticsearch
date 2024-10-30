@@ -12,16 +12,17 @@ import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 
-import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
+
+import static java.util.Collections.singletonList;
 
 public class LengthFunctionPipe extends Pipe {
 
     private final Pipe input;
 
     public LengthFunctionPipe(Source source, Expression expression, Pipe input) {
-        super(source, expression, Arrays.asList(input));
+        super(source, expression, singletonList(input));
         this.input = input;
     }
 

@@ -250,6 +250,7 @@ public class GetTermVectorsTests extends ESSingleNodeTestCase {
             for (String token : tokens) {
                 if (token.contains(delimiter)) {
                     isTokenOrWhitespace = true;
+                    break;
                 }
             }
             if (Character.isWhitespace(delimiter.charAt(0))) {

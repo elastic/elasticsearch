@@ -338,7 +338,7 @@ public class SecuritySettingsSource extends NodeConfigurationSource {
         List<String> trustedCertificates,
         boolean hostnameVerificationEnabled
     ) {
-        if (prefix.equals("")) {
+        if (prefix.isEmpty()) {
             prefix = "xpack.security.transport.";
         }
         builder.put(prefix + "ssl.verification_mode", hostnameVerificationEnabled ? "full" : "certificate");

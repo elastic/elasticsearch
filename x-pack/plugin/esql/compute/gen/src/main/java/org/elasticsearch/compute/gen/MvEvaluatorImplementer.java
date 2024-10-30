@@ -98,7 +98,7 @@ public class MvEvaluatorImplementer {
             this.finishFunction = FinishFunction.from(declarationType, finishMethodName, workType, fieldType);
             this.resultType = this.finishFunction == null ? this.workType : this.finishFunction.resultType;
         } else {
-            if (finishMethodName.equals("") == false) {
+            if (finishMethodName.isEmpty() == false) {
                 throw new IllegalArgumentException("finish function is only supported for pairwise processing");
             }
             this.workType = null;
@@ -420,7 +420,7 @@ public class MvEvaluatorImplementer {
      */
     private static class FinishFunction {
         static FinishFunction from(TypeElement declarationType, String name, TypeName workType, TypeName fieldType) {
-            if (name.equals("")) {
+            if (name.isEmpty()) {
                 if (workType != null && false == workType.equals(fieldType)) {
                     throw new IllegalArgumentException(
                         "the [finish] enum value is required because the first and second arguments differ in type"
@@ -483,7 +483,7 @@ public class MvEvaluatorImplementer {
      */
     private static class SingleValueFunction {
         static SingleValueFunction from(TypeElement declarationType, String name, TypeName resultType, TypeName fieldType) {
-            if (name.equals("")) {
+            if (name.isEmpty()) {
                 return null;
             }
             ExecutableElement fn = findMethod(
@@ -515,7 +515,7 @@ public class MvEvaluatorImplementer {
      */
     private class AscendingFunction {
         static AscendingFunction from(MvEvaluatorImplementer impl, TypeElement declarationType, TypeName workType, String name) {
-            if (name.equals("")) {
+            if (name.isEmpty()) {
                 return null;
             }
 

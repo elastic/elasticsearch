@@ -204,7 +204,7 @@ public abstract class NoticeTask extends DefaultTask {
 
     public static void appendText(String text, final String name, final String type, StringBuilder output) {
         output.append("================================================================================\n");
-        output.append(name + " " + type + "\n");
+        output.append(name).append(" ").append(type).append("\n");
         output.append("================================================================================\n");
         output.append(text);
         output.append("\n\n");

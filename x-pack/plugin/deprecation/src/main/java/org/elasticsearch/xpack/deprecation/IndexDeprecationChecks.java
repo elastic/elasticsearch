@@ -246,7 +246,7 @@ public class IndexDeprecationChecks {
         for (String pattern : patterns) {
             LegacyFormatNames format = LegacyFormatNames.forName(pattern);
             if (format != null && format.isCamelCase(pattern)) {
-                sb.append("[" + pattern + "] to [" + format.getSnakeCaseName() + "]. ");
+                sb.append("[").append(pattern).append("] to [").append(format.getSnakeCaseName()).append("]. ");
             }
         }
         sb.deleteCharAt(sb.length() - 1);

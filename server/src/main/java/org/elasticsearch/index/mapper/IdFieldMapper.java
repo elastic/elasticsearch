@@ -19,11 +19,12 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+
+import static java.util.Collections.singletonList;
 
 /**
  * A mapper for the _id field.
@@ -110,7 +111,7 @@ public abstract class IdFieldMapper extends MetadataFieldMapper {
 
         @Override
         public Query termQuery(Object value, SearchExecutionContext context) {
-            return termsQuery(Arrays.asList(value), context);
+            return termsQuery(singletonList(value), context);
         }
 
         @Override

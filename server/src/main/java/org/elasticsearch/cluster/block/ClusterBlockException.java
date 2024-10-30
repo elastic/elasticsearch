@@ -84,7 +84,7 @@ public class ClusterBlockException extends ElasticsearchException {
         Function<ClusterBlock, String> blockDescription = block -> block.status() + "/" + block.id() + "/" + block.description();
         StringBuilder sb = new StringBuilder();
         for (Map.Entry<String, Set<ClusterBlock>> entry : indexLevelBlocks.entrySet()) {
-            sb.append("index [" + entry.getKey() + "] blocked by: [");
+            sb.append("index [").append(entry.getKey()).append("] blocked by: [");
             sb.append(entry.getValue().stream().map(blockDescription).collect(Collectors.joining(", ")));
             sb.append("];");
         }

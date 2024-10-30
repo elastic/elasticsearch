@@ -373,7 +373,7 @@ class LinearProgrammingPlanSolver {
         StringBuilder msg = new StringBuilder();
         for (int i = 0; i < nodes.size(); i++) {
             Node n = nodes.get(i);
-            msg.append(n + " ->");
+            msg.append(n).append(" ->");
             for (Deployment d : deployments) {
                 if (threadValues.get(Tuple.tuple(d, n)) > 0) {
                     msg.append(" ");

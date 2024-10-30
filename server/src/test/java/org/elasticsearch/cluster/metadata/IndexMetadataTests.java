@@ -60,7 +60,6 @@ import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SNAPSHOT_P
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
-import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 

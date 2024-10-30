@@ -126,7 +126,7 @@ public class InvalidMappedField extends EsField {
                 errorMessage.append(e.getValue());
             } else {
                 errorMessage.append(e.getValue().stream().sorted().limit(3).collect(Collectors.toList()));
-                errorMessage.append(" and [" + (e.getValue().size() - 3) + "] other ");
+                errorMessage.append(" and [").append(e.getValue().size() - 3).append("] other ");
                 errorMessage.append(e.getValue().size() == 4 ? "index" : "indices");
             }
         }

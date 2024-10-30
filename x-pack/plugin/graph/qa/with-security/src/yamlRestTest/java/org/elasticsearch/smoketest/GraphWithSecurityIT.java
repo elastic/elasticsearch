@@ -19,8 +19,6 @@ import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 import org.junit.ClassRule;
 
-import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
-
 public class GraphWithSecurityIT extends ESClientYamlSuiteTestCase {
 
     private static final String TEST_ADMIN_USERNAME = "test_admin";

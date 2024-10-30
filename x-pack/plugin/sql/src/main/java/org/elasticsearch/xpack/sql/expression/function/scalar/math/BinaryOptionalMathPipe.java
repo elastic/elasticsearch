@@ -18,13 +18,15 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
+import static java.util.Collections.singletonList;
+
 public class BinaryOptionalMathPipe extends Pipe {
 
     private final Pipe left, right;
     private final BinaryOptionalMathOperation operation;
 
     public BinaryOptionalMathPipe(Source source, Expression expression, Pipe left, Pipe right, BinaryOptionalMathOperation operation) {
-        super(source, expression, right == null ? Arrays.asList(left) : Arrays.asList(left, right));
+        super(source, expression, right == null ? singletonList(left) : Arrays.asList(left, right));
         this.left = left;
         this.right = right;
         this.operation = operation;

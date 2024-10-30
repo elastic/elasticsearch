@@ -32,6 +32,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
@@ -341,7 +342,7 @@ public class LifecyclePolicyTests extends AbstractXContentSerializingTestCase<Li
 
         lifecycleName = randomAlphaOfLengthBetween(1, 20);
         Map<String, Phase> phases = new LinkedHashMap<>();
-        LifecycleAction firstAction = new MockAction(Arrays.asList(mockStep));
+        LifecycleAction firstAction = new MockAction(singletonList(mockStep));
         Map<String, LifecycleAction> actions = Collections.singletonMap(MockAction.NAME, firstAction);
         Phase firstPhase = new Phase("test", TimeValue.ZERO, actions);
         phases.put(firstPhase.getName(), firstPhase);
@@ -377,7 +378,7 @@ public class LifecyclePolicyTests extends AbstractXContentSerializingTestCase<Li
         lifecycleName = randomAlphaOfLengthBetween(1, 20);
         Map<String, Phase> phases = new LinkedHashMap<>();
         LifecycleAction firstAction = new MockAction(Arrays.asList(firstActionStep, firstActionAnotherStep));
-        LifecycleAction secondAction = new MockAction(Arrays.asList(secondActionStep));
+        LifecycleAction secondAction = new MockAction(singletonList(secondActionStep));
         Map<String, LifecycleAction> firstActions = Collections.singletonMap(MockAction.NAME, firstAction);
         Map<String, LifecycleAction> secondActions = Collections.singletonMap(MockAction.NAME, secondAction);
         Phase firstPhase = new Phase("first_phase", TimeValue.ZERO, firstActions);

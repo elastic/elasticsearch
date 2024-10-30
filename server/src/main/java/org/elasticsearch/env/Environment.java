@@ -195,7 +195,7 @@ public class Environment {
     public URL resolveRepoURL(URL url) {
         try {
             if ("file".equalsIgnoreCase(url.getProtocol())) {
-                if (url.getHost() == null || "".equals(url.getHost())) {
+                if (url.getHost() == null || url.getHost().isEmpty()) {
                     // only local file urls are supported
                     Path path = PathUtils.get(repoFiles, url.toURI());
                     if (path == null) {

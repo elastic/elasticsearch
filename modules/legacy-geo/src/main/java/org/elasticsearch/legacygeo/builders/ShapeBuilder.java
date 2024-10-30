@@ -411,9 +411,9 @@ public abstract class ShapeBuilder<T extends Shape, G extends org.elasticsearch.
 
     private static String coordinateToWKT(final Coordinate coordinate) {
         final StringBuilder sb = new StringBuilder();
-        sb.append(coordinate.x + GeoWKTParser.SPACE + coordinate.y);
+        sb.append(coordinate.x).append(GeoWKTParser.SPACE).append(coordinate.y);
         if (Double.isNaN(coordinate.z) == false) {
-            sb.append(GeoWKTParser.SPACE + coordinate.z);
+            sb.append(GeoWKTParser.SPACE).append(coordinate.z);
         }
         return sb.toString();
     }

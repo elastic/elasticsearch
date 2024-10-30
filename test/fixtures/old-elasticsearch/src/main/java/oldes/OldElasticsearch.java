@@ -77,9 +77,7 @@ public class OldElasticsearch {
         List<String> configOptions = new ArrayList<>();
         configOptions.addAll(Arrays.asList("http.port: 0", "transport.tcp.port: 0", "network.host: 127.0.0.1"));
         if (args.length > 3) {
-            for (int i = 3; i < args.length; i++) {
-                configOptions.add(args[i]);
-            }
+            configOptions.addAll(Arrays.asList(args).subList(3, args.length));
         }
 
         Files.write(config, configOptions, StandardCharsets.UTF_8);

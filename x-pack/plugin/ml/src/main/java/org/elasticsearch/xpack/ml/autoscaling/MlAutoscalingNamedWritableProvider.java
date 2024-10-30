@@ -10,15 +10,16 @@ package org.elasticsearch.xpack.ml.autoscaling;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderResult;
 
-import java.util.Arrays;
 import java.util.List;
+
+import static java.util.Collections.singletonList;
 
 public final class MlAutoscalingNamedWritableProvider {
 
     private MlAutoscalingNamedWritableProvider() {}
 
     public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        return Arrays.asList(
+        return singletonList(
             new NamedWriteableRegistry.Entry(AutoscalingDeciderResult.Reason.class, MlScalingReason.NAME, MlScalingReason::new)
         );
     }

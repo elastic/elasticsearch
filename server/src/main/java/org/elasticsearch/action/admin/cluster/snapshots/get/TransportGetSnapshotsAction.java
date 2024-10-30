@@ -739,7 +739,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
 
         @Override
         public boolean test(String policy) {
-            if (policy.equals("")) {
+            if (policy.isEmpty()) {
                 // empty string means that snapshot was not created by an SLM policy
                 return matchWithoutPolicy;
             }

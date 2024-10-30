@@ -75,6 +75,8 @@ import java.util.stream.Collectors;
 
 import javax.inject.Inject;
 
+import static java.util.Collections.singletonList;
+
 /**
  * A task to transform REST tests for use in REST API compatibility before they are executed.
  */
@@ -445,7 +447,7 @@ public abstract class RestCompatTestTransformTask extends DefaultTask {
      * @testName the test name to add a allowedWarningRegex
      */
     public void addAllowedWarningRegexForTest(String allowedWarningsRegex, String testName) {
-        getTransformations().add(new InjectAllowedWarnings(true, Arrays.asList(allowedWarningsRegex), testName));
+        getTransformations().add(new InjectAllowedWarnings(true, singletonList(allowedWarningsRegex), testName));
     }
 
     @OutputDirectory

@@ -37,6 +37,7 @@ import javax.mail.MessagingException;
 import javax.mail.internet.InternetAddress;
 import javax.net.ssl.SSLSocketFactory;
 
+import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.core.watcher.WatcherField.EMAIL_NOTIFICATION_SSL_PREFIX;
 
 /**
@@ -324,7 +325,7 @@ public class EmailService extends NotificationService<Account> {
     }
 
     private static List<Setting<?>> getSecureSettings() {
-        return Arrays.asList(SETTING_SECURE_PASSWORD);
+        return singletonList(SETTING_SECURE_PASSWORD);
     }
 
     public static List<Setting<?>> getSettings() {

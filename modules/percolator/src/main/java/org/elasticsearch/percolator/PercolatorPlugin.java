@@ -36,7 +36,7 @@ public class PercolatorPlugin extends Plugin implements MapperPlugin, SearchPlug
 
     @Override
     public List<Setting<?>> getSettings() {
-        return Arrays.asList(PercolatorFieldMapper.INDEX_MAP_UNMAPPED_FIELDS_AS_TEXT_SETTING);
+        return singletonList(PercolatorFieldMapper.INDEX_MAP_UNMAPPED_FIELDS_AS_TEXT_SETTING);
     }
 
     @Override

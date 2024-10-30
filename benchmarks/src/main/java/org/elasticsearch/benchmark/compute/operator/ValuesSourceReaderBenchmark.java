@@ -370,8 +370,9 @@ public class ValuesSourceReaderBenchmark {
         boolean foundStoredFieldLoader = false;
         ValuesSourceReaderOperator.Status status = (ValuesSourceReaderOperator.Status) op.status();
         for (Map.Entry<String, Integer> e : status.readersBuilt().entrySet()) {
-            if (e.getKey().indexOf("stored_fields") >= 0) {
+            if (e.getKey().contains("stored_fields")) {
                 foundStoredFieldLoader = true;
+                break;
             }
         }
         if (name.indexOf("stored") >= 0) {

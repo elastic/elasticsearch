@@ -35,8 +35,9 @@ import org.elasticsearch.xpack.sql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.sql.plan.physical.UnplannedExec;
 import org.elasticsearch.xpack.sql.querydsl.container.QueryContainer;
 
-import java.util.Arrays;
 import java.util.List;
+
+import static java.util.Collections.singletonList;
 
 class Mapper extends RuleExecutor<PhysicalPlan> {
 
@@ -48,7 +49,7 @@ class Mapper extends RuleExecutor<PhysicalPlan> {
     protected Iterable<RuleExecutor.Batch<PhysicalPlan>> batches() {
         var conversion = new Batch<>("Mapping", new JoinMapper(), new SimpleExecMapper());
 
-        return Arrays.asList(conversion);
+        return singletonList(conversion);
     }
 
     private static PhysicalPlan planLater(LogicalPlan plan) {

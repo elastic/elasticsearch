@@ -124,7 +124,7 @@ public final class GrokProcessor extends AbstractProcessor {
                 } else {
                     valueWrap = "(?:" + patterns.get(i) + ")";
                 }
-                if (combinedPattern.equals("")) {
+                if (combinedPattern.isEmpty()) {
                     combinedPattern = valueWrap;
                 } else {
                     combinedPattern = combinedPattern + "|" + valueWrap;

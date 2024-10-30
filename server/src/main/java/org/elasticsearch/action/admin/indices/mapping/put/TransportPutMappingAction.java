@@ -41,6 +41,8 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
+import static java.util.Collections.singletonList;
+
 /**
  * Put mapping action.
  */
@@ -115,7 +117,7 @@ public class TransportPutMappingAction extends AcknowledgedTransportMasterNodeAc
 
             performMappingUpdate(concreteIndices, request, listener, metadataMappingService, false);
         } catch (IndexNotFoundException ex) {
-            logger.debug(() -> "failed to put mappings on indices [" + Arrays.asList(request.indices() + "]"), ex);
+            logger.debug(() -> "failed to put mappings on indices [" + singletonList(request.indices() + "]"), ex);
             throw ex;
         }
     }

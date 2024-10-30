@@ -14,9 +14,9 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.ml.job.persistence.JobDataCountsPersister;
 
-import java.util.Arrays;
 import java.util.Date;
 
+import static java.util.Collections.singletonList;
 import static org.mockito.Mockito.mock;
 
 /**
@@ -53,10 +53,10 @@ class DummyDataCountsReporter extends DataCountsReporter {
     }
 
     private static Job createJob() {
-        AnalysisConfig.Builder acBuilder = new AnalysisConfig.Builder(Arrays.asList(new Detector.Builder("metric", "field").build()));
+        AnalysisConfig.Builder acBuilder = new AnalysisConfig.Builder(singletonList(new Detector.Builder("metric", "field").build()));
         acBuilder.setBucketSpan(TimeValue.timeValueSeconds(300));
         acBuilder.setLatency(TimeValue.ZERO);
-        acBuilder.setDetectors(Arrays.asList(new Detector.Builder("metric", "field").build()));
+        acBuilder.setDetectors(singletonList(new Detector.Builder("metric", "field").build()));
 
         Job.Builder builder = new Job.Builder("dummy_job_id");
         builder.setDataDescription(new DataDescription.Builder());

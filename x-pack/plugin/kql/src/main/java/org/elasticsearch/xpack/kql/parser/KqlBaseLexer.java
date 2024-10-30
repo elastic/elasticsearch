@@ -8,14 +8,9 @@ package org.elasticsearch.xpack.kql.parser;
  * 2.0.
  */
 
-import org.antlr.v4.runtime.Lexer;
-import org.antlr.v4.runtime.CharStream;
-import org.antlr.v4.runtime.Token;
-import org.antlr.v4.runtime.TokenStream;
 import org.antlr.v4.runtime.*;
 import org.antlr.v4.runtime.atn.*;
 import org.antlr.v4.runtime.dfa.DFA;
-import org.antlr.v4.runtime.misc.*;
 
 @SuppressWarnings({"all", "warnings", "unchecked", "unused", "cast", "CheckReturnValue", "this-escape"})
 class KqlBaseLexer extends Lexer {
@@ -25,8 +20,8 @@ class KqlBaseLexer extends Lexer {
     protected static final PredictionContextCache _sharedContextCache =
         new PredictionContextCache();
     public static final int
-        DEFAULT_SKIP=1, AND=2, OR=3, NOT=4, COLON=5, OP_LESS=6, OP_LESS_EQ=7, 
-        OP_MORE=8, OP_MORE_EQ=9, LEFT_PARENTHESIS=10, RIGHT_PARENTHESIS=11, LEFT_CURLY_BRACKET=12, 
+        DEFAULT_SKIP=1, AND=2, OR=3, NOT=4, COLON=5, OP_LESS=6, OP_LESS_EQ=7,
+        OP_MORE=8, OP_MORE_EQ=9, LEFT_PARENTHESIS=10, RIGHT_PARENTHESIS=11, LEFT_CURLY_BRACKET=12,
         RIGHT_CURLY_BRACKET=13, UNQUOTED_LITERAL=14, QUOTED_STRING=15, WILDCARD=16;
     public static String[] channelNames = {
         "DEFAULT_TOKEN_CHANNEL", "HIDDEN"
@@ -38,12 +33,12 @@ class KqlBaseLexer extends Lexer {
 
     private static String[] makeRuleNames() {
         return new String[] {
-            "DEFAULT_SKIP", "AND", "OR", "NOT", "COLON", "OP_LESS", "OP_LESS_EQ", 
-            "OP_MORE", "OP_MORE_EQ", "LEFT_PARENTHESIS", "RIGHT_PARENTHESIS", "LEFT_CURLY_BRACKET", 
-            "RIGHT_CURLY_BRACKET", "UNQUOTED_LITERAL", "QUOTED_STRING", "WILDCARD", 
-            "WILDCARD_CHAR", "UNQUOTED_LITERAL_CHAR", "UNQUOTED_LITERAL_BASE_CHAR", 
-            "QUOTED_CHAR", "WHITESPACE", "ESCAPED_WHITESPACE", "NON_SPECIAL_CHAR", 
-            "ESCAPED_SPECIAL_CHAR", "ESCAPED_QUOTE", "ESCAPE_UNICODE_SEQUENCE", "UNICODE_SEQUENCE", 
+            "DEFAULT_SKIP", "AND", "OR", "NOT", "COLON", "OP_LESS", "OP_LESS_EQ",
+            "OP_MORE", "OP_MORE_EQ", "LEFT_PARENTHESIS", "RIGHT_PARENTHESIS", "LEFT_CURLY_BRACKET",
+            "RIGHT_CURLY_BRACKET", "UNQUOTED_LITERAL", "QUOTED_STRING", "WILDCARD",
+            "WILDCARD_CHAR", "UNQUOTED_LITERAL_CHAR", "UNQUOTED_LITERAL_BASE_CHAR",
+            "QUOTED_CHAR", "WHITESPACE", "ESCAPED_WHITESPACE", "NON_SPECIAL_CHAR",
+            "ESCAPED_SPECIAL_CHAR", "ESCAPED_QUOTE", "ESCAPE_UNICODE_SEQUENCE", "UNICODE_SEQUENCE",
             "HEX_DIGIT"
         };
     }
@@ -51,15 +46,15 @@ class KqlBaseLexer extends Lexer {
 
     private static String[] makeLiteralNames() {
         return new String[] {
-            null, null, "'and'", "'or'", "'not'", "':'", "'<'", "'<='", "'>'", "'>='", 
+            null, null, "'and'", "'or'", "'not'", "':'", "'<'", "'<='", "'>'", "'>='",
             "'('", "')'", "'{'", "'}'"
         };
     }
     private static final String[] _LITERAL_NAMES = makeLiteralNames();
     private static String[] makeSymbolicNames() {
         return new String[] {
-            null, "DEFAULT_SKIP", "AND", "OR", "NOT", "COLON", "OP_LESS", "OP_LESS_EQ", 
-            "OP_MORE", "OP_MORE_EQ", "LEFT_PARENTHESIS", "RIGHT_PARENTHESIS", "LEFT_CURLY_BRACKET", 
+            null, "DEFAULT_SKIP", "AND", "OR", "NOT", "COLON", "OP_LESS", "OP_LESS_EQ",
+            "OP_MORE", "OP_MORE_EQ", "LEFT_PARENTHESIS", "RIGHT_PARENTHESIS", "LEFT_CURLY_BRACKET",
             "RIGHT_CURLY_BRACKET", "UNQUOTED_LITERAL", "QUOTED_STRING", "WILDCARD"
         };
     }

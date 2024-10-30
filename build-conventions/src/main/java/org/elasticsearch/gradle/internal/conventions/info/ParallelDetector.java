@@ -9,15 +9,12 @@
 
 package org.elasticsearch.gradle.internal.conventions.info;
 
-import org.gradle.api.Action;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 import org.gradle.api.Project;
 import org.gradle.api.provider.ProviderFactory;
-import org.gradle.process.ExecSpec;
 
 import java.io.BufferedReader;
-import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;

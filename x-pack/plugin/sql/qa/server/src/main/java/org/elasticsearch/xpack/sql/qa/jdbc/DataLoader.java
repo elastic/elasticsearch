@@ -237,7 +237,7 @@ public class DataLoader {
                         if (titles.get(f).equals("gender")) {
                             bulk.append(",\"extra_gender\":\"Female\"");
                         } else if (titles.get(f).equals("salary")) {
-                            bulk.append(",\"salary_ul\":" + fields.get(f));
+                            bulk.append(",\"salary_ul\":").append(fields.get(f));
                         }
                     }
                 }
@@ -251,7 +251,7 @@ public class DataLoader {
             }
             // append the wildcard field
             if (extraFields && setWildcardName) {
-                bulk.append(",\"wildcard_name\":\"" + wildcard_name + "\"");
+                bulk.append(",\"wildcard_name\":\"").append(wildcard_name).append("\"");
             }
 
             // append department
@@ -260,10 +260,10 @@ public class DataLoader {
                 bulk.append(", \"dep\" : [");
                 for (List<String> dp : list) {
                     bulk.append("{");
-                    bulk.append("\"dep_id\":\"" + dp.get(0) + "\",");
-                    bulk.append("\"dep_name\":\"" + dp.get(1) + "\",");
-                    bulk.append("\"from_date\":\"" + dp.get(2) + "\",");
-                    bulk.append("\"to_date\":\"" + dp.get(3) + "\"");
+                    bulk.append("\"dep_id\":\"").append(dp.get(0)).append("\",");
+                    bulk.append("\"dep_name\":\"").append(dp.get(1)).append("\",");
+                    bulk.append("\"from_date\":\"").append(dp.get(2)).append("\",");
+                    bulk.append("\"to_date\":\"").append(dp.get(3)).append("\"");
                     bulk.append("},");
                 }
                 // remove last ,

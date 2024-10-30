@@ -525,7 +525,7 @@ public class FunctionScoreQuery extends Query {
         StringBuilder sb = new StringBuilder();
         sb.append("function score (").append(subQuery.toString(field)).append(", functions: [");
         for (ScoreFunction function : functions) {
-            sb.append("{" + (function == null ? "" : function.toString()) + "}");
+            sb.append("{").append(function == null ? "" : function.toString()).append("}");
         }
         sb.append("])");
         return sb.toString();

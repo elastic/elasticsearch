@@ -34,7 +34,7 @@ public class BitLengthTests extends AbstractScalarFunctionTestCase {
     public static Iterable<Object[]> parameters() {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
 
-        for (DataType stringType : new DataType[] { DataType.KEYWORD, DataType.TEXT }) {
+        for (DataType stringType : DataType.stringTypes()) {
             for (var supplier : TestCaseSupplier.stringCases(stringType)) {
                 suppliers.add(makeSupplier(supplier));
             }

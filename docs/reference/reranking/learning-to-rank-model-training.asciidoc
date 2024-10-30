@@ -83,7 +83,7 @@ feature_extractors=[
 ===================================================
 
 It is very common for an LTR model to leverage raw term statistics as features.
-To extract these information, you can use the {ref}/modules-scripting-fields.html#scripting-term-statistics[term statistics feature] provided as part of the  <<query-dsl-script-score-query,`script_score`>> query.
+To extract this information, you can use the {ref}/modules-scripting-fields.html#scripting-term-statistics[term statistics feature] provided as part of the  <<query-dsl-script-score-query,`script_score`>> query.
 
 ===================================================
 

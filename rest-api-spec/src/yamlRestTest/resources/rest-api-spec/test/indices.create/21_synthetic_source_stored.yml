@@ -1246,3 +1246,52 @@ index param - nested object with stored array:
   - match: { hits.hits.1._source.nested.0.b.1.c: 300 }
   - match: { hits.hits.1._source.nested.1.b.0.c: 40 }
   - match: { hits.hits.1._source.nested.1.b.1.c: 400 }
+
+
+---
+index param - flattened fields:
+  - requires:
+      cluster_features: ["mapper.synthetic_source_keep"]
+      reason: requires keeping array source
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              mapping:
+                synthetic_source_keep: arrays
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              name:
+                type: keyword
+              outer:
+                properties:
+                  inner:
+                    type: object
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "create": { } }'
+          - '{ "name": "A", "outer": { "inner": [ { "a.b": "AA", "a.c": "AAA" } ] } }'
+          - '{ "create": { } }'
+          - '{ "name": "B", "outer": { "inner": [ { "a.x.y.z": "BB", "a.z.y.x": "BBB" } ] } }'
+
+
+  - match: { errors: false }
+
+  - do:
+      search:
+        index: test
+        sort: name
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._source.name: A }
+  - match: { hits.hits.0._source.outer.inner: [{ a.b: AA, a.c: AAA }] }
+  - match: { hits.hits.1._source.name: B }
+  - match: { hits.hits.1._source.outer.inner: [{ a.x.y.z: BB, a.z.y.x: BBB }] }

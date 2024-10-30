@@ -195,8 +195,6 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test022InstallPluginsFromLocalArchive
   issue: https://github.com/elastic/elasticsearch/issues/111063
-- class: org.elasticsearch.gradle.internal.PublishPluginFuncTest
-  issue: https://github.com/elastic/elasticsearch/issues/114492
 - class: org.elasticsearch.xpack.inference.DefaultElserIT
   method: testInferCreatesDefaultElser
   issue: https://github.com/elastic/elasticsearch/issues/114503
@@ -275,6 +273,18 @@ tests:
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=ml/inference_crud/Test delete given model referenced by pipeline}
   issue: https://github.com/elastic/elasticsearch/issues/115970
+- class: org.elasticsearch.monitor.jvm.JvmStatsTests
+  method: testJvmStats
+  issue: https://github.com/elastic/elasticsearch/issues/115711
+- class: org.elasticsearch.repositories.s3.S3ServiceTests
+  method: testRetryOn403RetryPolicy
+  issue: https://github.com/elastic/elasticsearch/issues/115986
+- class: org.elasticsearch.search.slice.SearchSliceIT
+  method: testPointInTime
+  issue: https://github.com/elastic/elasticsearch/issues/115988
+- class: org.elasticsearch.action.search.PointInTimeIT
+  method: testPITTiebreak
+  issue: https://github.com/elastic/elasticsearch/issues/115810
 
 # Examples:
 #

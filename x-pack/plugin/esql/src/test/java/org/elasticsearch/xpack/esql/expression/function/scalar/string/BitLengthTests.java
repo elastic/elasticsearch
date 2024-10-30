@@ -40,7 +40,7 @@ public class BitLengthTests extends AbstractScalarFunctionTestCase {
             }
         }
 
-        return parameterSuppliersFromTypedData(suppliers);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers, (v, p) -> "string");
     }
 
     @Override

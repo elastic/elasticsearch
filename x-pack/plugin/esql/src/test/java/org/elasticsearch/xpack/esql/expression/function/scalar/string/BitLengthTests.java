@@ -11,6 +11,7 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -31,52 +32,30 @@ public class BitLengthTests extends AbstractScalarFunctionTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        List<TestCaseSupplier> cases = new ArrayList<>();
-        cases.addAll(List.of(new TestCaseSupplier("bitLength basic test", List.of(DataType.KEYWORD), () -> {
-            BytesRef value = new BytesRef(randomAlphaOfLength(between(0, 10000)));
-            return new TestCaseSupplier.TestCase(
-                List.of(new TestCaseSupplier.TypedData(value, DataType.KEYWORD, "str")),
-                "BitLengthEvaluator[val=Attribute[channel=0]]",
-                DataType.INTEGER,
-                equalTo(value.length * 8)
-            );
-        })));
-        cases.addAll(makeTestCases("empty string", () -> "", 0));
-        cases.addAll(makeTestCases("single ascii character", () -> "a", 8));
-        cases.addAll(makeTestCases("ascii string", () -> "clump", 40));
-        cases.addAll(makeTestCases("3 bytes", () -> "☕", 24));
-        cases.addAll(makeTestCases("6 bytes", () -> "❗️", 48));
-        cases.addAll(makeTestCases("100 random alpha", () -> randomAlphaOfLength(100), 800));
-        return parameterSuppliersFromTypedDataWithDefaultChecks(true, cases, (v, p) -> "string");
-    }
+        List<TestCaseSupplier> suppliers = new ArrayList<>();
 
-    private static List<TestCaseSupplier> makeTestCases(String title, Supplier<String> text, int expectedLength) {
-        return List.of(
-            new TestCaseSupplier(
-                title + " with keyword",
-                List.of(DataType.KEYWORD),
-                () -> new TestCaseSupplier.TestCase(
-                    List.of(new TestCaseSupplier.TypedData(new BytesRef(text.get()), DataType.KEYWORD, "str")),
-                    "BitLengthEvaluator[val=Attribute[channel=0]]",
-                    DataType.INTEGER,
-                    equalTo(expectedLength)
-                )
-            ),
-            new TestCaseSupplier(
-                title + " with text",
-                List.of(DataType.TEXT),
-                () -> new TestCaseSupplier.TestCase(
-                    List.of(new TestCaseSupplier.TypedData(new BytesRef(text.get()), DataType.TEXT, "str")),
-                    "BitLengthEvaluator[val=Attribute[channel=0]]",
-                    DataType.INTEGER,
-                    equalTo(expectedLength)
-                )
-            )
-        );
+        for (DataType stringType : new DataType[] { DataType.KEYWORD, DataType.TEXT }) {
+            for (var supplier : TestCaseSupplier.stringCases(stringType)) {
+                suppliers.add(makeSupplier(supplier));
+            }
+        }
+
+        return parameterSuppliersFromTypedData(suppliers);
     }
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
         return new BitLength(source, args.get(0));
+    }
+
+    private static TestCaseSupplier makeSupplier(TestCaseSupplier.TypedDataSupplier fieldSupplier) {
+        return new TestCaseSupplier(fieldSupplier.name(), List.of(fieldSupplier.type()), () -> {
+            var fieldTypedData = fieldSupplier.get();
+            String evaluatorToString = "BitLengthEvaluator[val=Attribute[channel=0]]";
+            BytesRef value = BytesRefs.toBytesRef(fieldTypedData.data());
+            var expectedValue = value.length * Byte.SIZE;
+
+            return new TestCaseSupplier.TestCase(List.of(fieldTypedData), evaluatorToString, DataType.INTEGER, equalTo(expectedValue));
+        });
     }
 }

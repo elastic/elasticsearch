@@ -25,38 +25,27 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-public final class EnrichLookupOperator extends AsyncOperator {
-    private final EnrichLookupService enrichLookupService;
-    private final String sessionId;
-    private final CancellableTask parentTask;
-    private final int inputChannel;
-    private final DataType inputDataType;
-    private final String enrichIndex;
-    private final String matchType;
-    private final String matchField;
-    private final List<NamedExpression> enrichFields;
-    private long totalTerms = 0L;
-
+// TODO rename package
+public final class LookupFromIndexOperator extends AsyncOperator {
     public record Factory(
         String sessionId,
         CancellableTask parentTask,
         int maxOutstandingRequests,
         int inputChannel,
-        EnrichLookupService enrichLookupService,
+        LookupFromIndexService lookupService,
         DataType inputDataType,
-        String enrichIndex,
-        String matchType,
+        String lookupIndex,
         String matchField,
-        List<NamedExpression> enrichFields
+        List<NamedExpression> loadFields
     ) implements OperatorFactory {
         @Override
         public String describe() {
-            return "EnrichOperator[index="
-                + enrichIndex
+            return "LookupOperator[index="
+                + lookupIndex
                 + " match_field="
                 + matchField
-                + " enrich_fields="
-                + enrichFields
+                + " load_fields="
+                + loadFields
                 + " inputChannel="
                 + inputChannel
                 + "]";
@@ -64,73 +53,79 @@ public final class EnrichLookupOperator extends AsyncOperator {
 
         @Override
         public Operator get(DriverContext driverContext) {
-            return new EnrichLookupOperator(
+            return new LookupFromIndexOperator(
                 sessionId,
                 driverContext,
                 parentTask,
                 maxOutstandingRequests,
                 inputChannel,
-                enrichLookupService,
+                lookupService,
                 inputDataType,
-                enrichIndex,
-                matchType,
+                lookupIndex,
                 matchField,
-                enrichFields
+                loadFields
             );
         }
     }
 
-    public EnrichLookupOperator(
+    private final LookupFromIndexService lookupService;
+    private final String sessionId;
+    private final CancellableTask parentTask;
+    private final int inputChannel;
+    private final DataType inputDataType;
+    private final String lookupIndex;
+    private final String matchField;
+    private final List<NamedExpression> loadFields;
+    private long totalTerms = 0L;
+
+    public LookupFromIndexOperator(
         String sessionId,
         DriverContext driverContext,
         CancellableTask parentTask,
         int maxOutstandingRequests,
         int inputChannel,
-        EnrichLookupService enrichLookupService,
+        LookupFromIndexService lookupService,
         DataType inputDataType,
-        String enrichIndex,
-        String matchType,
+        String lookupIndex,
         String matchField,
-        List<NamedExpression> enrichFields
+        List<NamedExpression> loadFields
     ) {
         super(driverContext, maxOutstandingRequests);
         this.sessionId = sessionId;
         this.parentTask = parentTask;
         this.inputChannel = inputChannel;
-        this.enrichLookupService = enrichLookupService;
+        this.lookupService = lookupService;
         this.inputDataType = inputDataType;
-        this.enrichIndex = enrichIndex;
-        this.matchType = matchType;
+        this.lookupIndex = lookupIndex;
         this.matchField = matchField;
-        this.enrichFields = enrichFields;
+        this.loadFields = loadFields;
     }
 
     @Override
     protected void performAsync(Page inputPage, ActionListener<Page> listener) {
         final Block inputBlock = inputPage.getBlock(inputChannel);
         totalTerms += inputBlock.getTotalValueCount();
-        EnrichLookupService.Request request = new EnrichLookupService.Request(
+        LookupFromIndexService.Request request = new LookupFromIndexService.Request(
             sessionId,
-            enrichIndex,
+            lookupIndex,
             inputDataType,
-            matchType,
             matchField,
             new Page(inputBlock),
-            enrichFields
+            loadFields
         );
-        enrichLookupService.lookupAsync(request, parentTask, listener.map(inputPage::appendPage));
+        lookupService.lookupAsync(request, parentTask, listener.map(inputPage::appendPage));
     }
 
     @Override
     public String toString() {
-        return "EnrichOperator[index="
-            + enrichIndex
+        return "LookupOperator[index="
+            + lookupIndex
             + " input_type="
             + inputDataType
             + " match_field="
             + matchField
-            + " enrich_fields="
-            + enrichFields
+            + " load_fields="
+            + loadFields
             + " inputChannel="
             + inputChannel
             + "]";
@@ -144,13 +139,13 @@ public final class EnrichLookupOperator extends AsyncOperator {
 
     @Override
     protected Operator.Status status(long receivedPages, long completedPages, long totalTimeInMillis) {
-        return new EnrichLookupOperator.Status(receivedPages, completedPages, totalTimeInMillis, totalTerms);
+        return new LookupFromIndexOperator.Status(receivedPages, completedPages, totalTimeInMillis, totalTerms);
     }
 
     public static class Status extends AsyncOperator.Status {
         public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
             Operator.Status.class,
-            "enrich",
+            "lookup",
             Status::new
         );
 

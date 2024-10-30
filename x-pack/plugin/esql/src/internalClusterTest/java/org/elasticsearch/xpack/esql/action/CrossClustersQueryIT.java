@@ -25,6 +25,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.AbstractMultiClustersTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.XContentTestUtils;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
@@ -246,7 +247,8 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
 
             EsqlExecutionInfo.Cluster localCluster = executionInfo.getCluster(LOCAL_CLUSTER);
             assertThat(localCluster.getIndexExpression(), equalTo("no_such_index"));
-            assertThat(localCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SKIPPED));
+            // TODO: a follow on PR will change this to throw an Exception when the local cluster requests a concrete index that is missing
+            assertThat(localCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
             assertThat(localCluster.getTook().millis(), greaterThanOrEqualTo(0L));
             assertThat(localCluster.getTook().millis(), lessThanOrEqualTo(overallTookMillis));
             assertThat(localCluster.getTotalShards(), equalTo(0));
@@ -499,7 +501,7 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
 
             EsqlExecutionInfo.Cluster localCluster = executionInfo.getCluster(LOCAL_CLUSTER);
             assertThat(localCluster.getIndexExpression(), equalTo("nomatch*"));
-            assertThat(localCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SKIPPED));
+            assertThat(localCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
             assertThat(localCluster.getTook().millis(), greaterThanOrEqualTo(0L));
             assertThat(localCluster.getTook().millis(), lessThanOrEqualTo(overallTookMillis));
             assertThat(remoteCluster.getTotalShards(), equalTo(0));
@@ -803,6 +805,14 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
         clusterInfo.put("local.index", localIndex);
         clusterInfo.put("remote.num_shards", numShardsRemote);
         clusterInfo.put("remote.index", remoteIndex);
+
+        String skipUnavailableKey = Strings.format("cluster.remote.%s.skip_unavailable", REMOTE_CLUSTER);
+        Setting<?> skipUnavailableSetting = cluster(REMOTE_CLUSTER).clusterService().getClusterSettings().get(skipUnavailableKey);
+        boolean skipUnavailable = (boolean) cluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY).clusterService()
+            .getClusterSettings()
+            .get(skipUnavailableSetting);
+        clusterInfo.put("remote.skip_unavailable", skipUnavailable);
+
         return clusterInfo;
     }
 

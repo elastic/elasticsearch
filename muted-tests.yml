@@ -83,8 +83,6 @@ tests:
 - class: org.elasticsearch.xpack.ml.integration.MlJobIT
   method: testDeleteJobAfterMissingIndex
   issue: https://github.com/elastic/elasticsearch/issues/112088
-- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
-  issue: https://github.com/elastic/elasticsearch/issues/112147
 - class: org.elasticsearch.smoketest.WatcherYamlRestIT
   method: test {p0=watcher/usage/10_basic/Test watcher usage stats output}
   issue: https://github.com/elastic/elasticsearch/issues/112189
@@ -227,9 +225,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
   method: test {categorize.Categorize}
   issue: https://github.com/elastic/elasticsearch/issues/113428
-- class: org.elasticsearch.xpack.inference.InferenceCrudIT
-  method: testSupportedStream
-  issue: https://github.com/elastic/elasticsearch/issues/113430
 - class: org.elasticsearch.xpack.ml.integration.MlJobIT
   method: testOutOfOrderData
   issue: https://github.com/elastic/elasticsearch/issues/113477
@@ -263,9 +258,6 @@ tests:
 - class: org.elasticsearch.xpack.ml.integration.MlJobIT
   method: testGetJobs_GivenSingleJob
   issue: https://github.com/elastic/elasticsearch/issues/113655
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {p0=range/20_synthetic_source/Date range}
-  issue: https://github.com/elastic/elasticsearch/issues/113874
 - class: org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDateNanosTests
   issue: https://github.com/elastic/elasticsearch/issues/113661
 - class: org.elasticsearch.xpack.inference.InferenceRestIT
@@ -297,15 +289,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {categorize.Categorize SYNC}
   issue: https://github.com/elastic/elasticsearch/issues/113722
-- class: org.elasticsearch.action.search.SearchQueryThenFetchAsyncActionTests
-  method: testMinimumVersionSameAsNewVersion
-  issue: https://github.com/elastic/elasticsearch/issues/114593
 - class: org.elasticsearch.xpack.security.support.SecurityIndexManagerIntegTests
   method: testOnIndexAvailableForSearchIndexAlreadyAvailable
   issue: https://github.com/elastic/elasticsearch/issues/114608
-- class: org.elasticsearch.action.search.SearchQueryThenFetchAsyncActionTests
-  method: testMinimumVersionShardDuringPhaseExecution
-  issue: https://github.com/elastic/elasticsearch/issues/114611
 - class: org.elasticsearch.kibana.KibanaThreadPoolIT
   method: testBlockedThreadPoolsRejectUserRequests
   issue: https://github.com/elastic/elasticsearch/issues/113939
@@ -321,9 +307,6 @@ tests:
 - class: org.elasticsearch.xpack.inference.TextEmbeddingCrudIT
   method: testPutE5Small_withPlatformAgnosticVariant
   issue: https://github.com/elastic/elasticsearch/issues/113983
-- class: org.elasticsearch.ingest.geoip.DatabaseNodeServiceIT
-  method: testGzippedDatabase
-  issue: https://github.com/elastic/elasticsearch/issues/113752
 - class: org.elasticsearch.datastreams.LazyRolloverDuringDisruptionIT
   method: testRolloverIsExecutedOnce
   issue: https://github.com/elastic/elasticsearch/issues/112634
@@ -333,13 +316,9 @@ tests:
 - class: org.elasticsearch.xpack.remotecluster.RemoteClusterSecurityWithApmTracingRestIT
   method: testTracingCrossCluster
   issue: https://github.com/elastic/elasticsearch/issues/112731
-- class: org.elasticsearch.license.LicensingTests
-  issue: https://github.com/elastic/elasticsearch/issues/114865
 - class: org.elasticsearch.xpack.inference.TextEmbeddingCrudIT
   method: testPutE5Small_withPlatformSpecificVariant
   issue: https://github.com/elastic/elasticsearch/issues/113950
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
-  issue: https://github.com/elastic/elasticsearch/issues/115315
 - class: org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT
   method: test {p0=mixed_cluster/80_transform_jobs_crud/Test GET, start, and stop old cluster batch transforms}
   issue: https://github.com/elastic/elasticsearch/issues/115319
@@ -349,20 +328,6 @@ tests:
 - class: org.elasticsearch.xpack.security.operator.OperatorPrivilegesIT
   method: testEveryActionIsEitherOperatorOnlyOrNonOperator
   issue: https://github.com/elastic/elasticsearch/issues/102992
-- class: org.elasticsearch.bootstrap.SpawnerNoBootstrapTests
-  issue: https://github.com/elastic/elasticsearch/issues/114555
-- class: org.elasticsearch.xpack.watcher.trigger.schedule.engine.TickerScheduleEngineTests
-  method: testAddWithNoLastCheckedTimeButHasActivationTimeExecutesBeforeInitialInterval
-  issue: https://github.com/elastic/elasticsearch/issues/115339
-- class: org.elasticsearch.xpack.watcher.trigger.schedule.engine.TickerScheduleEngineTests
-  method: testAddWithLastCheckedTimeExecutesBeforeInitialInterval
-  issue: https://github.com/elastic/elasticsearch/issues/115356
-- class: org.elasticsearch.xpack.watcher.trigger.schedule.engine.TickerScheduleEngineTests
-  method: testWatchWithLastCheckedTimeExecutesBeforeInitialInterval
-  issue: https://github.com/elastic/elasticsearch/issues/115354
-- class: org.elasticsearch.xpack.watcher.trigger.schedule.engine.TickerScheduleEngineTests
-  method: testWatchWithNoLastCheckedTimeButHasActivationTimeExecutesBeforeInitialInterval
-  issue: https://github.com/elastic/elasticsearch/issues/115368
 - class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
   method: test {p0=search.vectors/42_knn_search_int4_flat/Vector similarity with filter only}
   issue: https://github.com/elastic/elasticsearch/issues/115475
@@ -372,6 +337,24 @@ tests:
 - class: org.elasticsearch.reservedstate.service.FileSettingsServiceTests
   method: testProcessFileChanges
   issue: https://github.com/elastic/elasticsearch/issues/115280
+- class: org.elasticsearch.monitor.jvm.JvmStatsTests
+  method: testJvmStats
+  issue: https://github.com/elastic/elasticsearch/issues/115711
+- class: org.elasticsearch.xpack.inference.DefaultEndPointsIT
+  method: testInferDeploysDefaultE5
+  issue: https://github.com/elastic/elasticsearch/issues/115361
+- class: org.elasticsearch.xpack.inference.InferenceCrudIT
+  method: testSupportedStream
+  issue: https://github.com/elastic/elasticsearch/issues/113430
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=indices.create/20_synthetic_source/object with unmapped fields}
+  issue: https://github.com/elastic/elasticsearch/issues/115910
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=indices.create/20_synthetic_source/empty object with unmapped fields}
+  issue: https://github.com/elastic/elasticsearch/issues/115911
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=indices.create/20_synthetic_source/nested object with unmapped fields}
+  issue: https://github.com/elastic/elasticsearch/issues/115912
 
 # Examples:
 #

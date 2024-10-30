@@ -258,6 +258,11 @@ public final class EsqlTestUtils {
         public boolean hasDocValues(String field) {
             return exists(field);
         }
+
+        @Override
+        public boolean hasIdenticalDelegate(String field) {
+            return exists(field);
+        }
     }
 
     public static final TestSearchStats TEST_SEARCH_STATS = new TestSearchStats();

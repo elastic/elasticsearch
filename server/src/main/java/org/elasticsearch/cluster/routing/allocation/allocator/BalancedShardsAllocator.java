@@ -56,6 +56,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BiFunction;
+import java.util.function.Supplier;
 import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Type.REPLACE;
@@ -122,6 +123,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
     private volatile float threshold;
 
     private final WriteLoadForecaster writeLoadForecaster;
+    private Supplier<Map<DiscoveryNode, DesiredBalanceMetrics.NodeWeightStats>> nodeWeightStatsSupplier = () -> Map.of();
 
     public BalancedShardsAllocator() {
         this(Settings.EMPTY);
@@ -188,24 +190,12 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         balancer.moveShards();
         balancer.balance();
 
-        collectAndRecordNodeWeightStats(balancer, weightFunction, allocation);
+        nodeWeightStatsSupplier = new BalancedShardsAllocatorNodeWeightStats(balancer, weightFunction)::get;
     }
 
-    private void collectAndRecordNodeWeightStats(Balancer balancer, WeightFunction weightFunction, RoutingAllocation allocation) {
-        Map<DiscoveryNode, DesiredBalanceMetrics.NodeWeightStats> nodeLevelWeights = new HashMap<>();
-        for (var entry : balancer.nodes.entrySet()) {
-            var node = entry.getValue();
-            nodeLevelWeights.put(
-                node.routingNode.node(),
-                new DesiredBalanceMetrics.NodeWeightStats(
-                    node.numShards(),
-                    node.diskUsageInBytes(),
-                    node.writeLoad(),
-                    weightFunction.nodeWeight(balancer, node)
-                )
-            );
-        }
-        allocation.routingNodes().setBalanceWeightStatsPerNode(nodeLevelWeights);
+    @Override
+    public Map<DiscoveryNode, DesiredBalanceMetrics.NodeWeightStats> getNodeWeightStats() {
+        return nodeWeightStatsSupplier.get();
     }
 
     @Override
@@ -1490,6 +1480,25 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
         public float delta() {
             return weights[weights.length - 1] - weights[0];
+        }
+    }
+
+    record BalancedShardsAllocatorNodeWeightStats(Balancer balancer, WeightFunction weightFunction) {
+        public Map<DiscoveryNode, DesiredBalanceMetrics.NodeWeightStats> get() {
+            Map<DiscoveryNode, DesiredBalanceMetrics.NodeWeightStats> nodeLevelWeights = new HashMap<>();
+            for (var entry : balancer.nodes.entrySet()) {
+                var node = entry.getValue();
+                nodeLevelWeights.put(
+                    node.routingNode.node(),
+                    new DesiredBalanceMetrics.NodeWeightStats(
+                        node.numShards(),
+                        node.diskUsageInBytes(),
+                        node.writeLoad(),
+                        weightFunction.nodeWeight(balancer, node)
+                    )
+                );
+            }
+            return nodeLevelWeights;
         }
     }
 }

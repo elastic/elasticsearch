@@ -368,7 +368,7 @@ public class DesiredBalanceComputer {
         }
 
         long lastConvergedIndex = hasChanges ? previousDesiredBalance.lastConvergedIndex() : desiredBalanceInput.index();
-        return new DesiredBalance(lastConvergedIndex, assignments, routingNodes.getBalanceWeightStatsPerNode());
+        return new DesiredBalance(lastConvergedIndex, assignments, delegateAllocator.getNodeWeightStats());
     }
 
     private static Map<ShardId, ShardAssignment> collectShardAssignments(RoutingNodes routingNodes) {

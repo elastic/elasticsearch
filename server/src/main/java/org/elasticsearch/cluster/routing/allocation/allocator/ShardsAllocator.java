@@ -10,6 +10,7 @@
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocateUnassignedDecision;
 import org.elasticsearch.cluster.routing.allocation.MoveDecision;
@@ -17,6 +18,8 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.RoutingExplanations;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
+
+import java.util.Map;
 
 /**
  * <p>
@@ -86,4 +89,11 @@ public interface ShardsAllocator {
      * the cluster explain API, then this method should throw a {@code UnsupportedOperationException}.
      */
     ShardAllocationDecision decideShardAllocation(ShardRouting shard, RoutingAllocation allocation);
+
+    /**
+     * returns the node weights calculated and used for balancing the shards in the cluster.
+     */
+    default Map<DiscoveryNode, DesiredBalanceMetrics.NodeWeightStats> getNodeWeightStats() {
+        return Map.of();
+    }
 }

@@ -7,19 +7,13 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-import org.elasticsearch.jdk.ModuleQualifiedExportsService;
+import org.elasticsearch.entitlement.instrumentation.InstrumentationService;
 
-module org.elasticsearch.base {
-    requires static jsr305;
-    requires org.elasticsearch.logging;
+module org.elasticsearch.entitlement.agent {
+    requires java.instrument;
+    requires org.elasticsearch.base; // for @SuppressForbidden
 
-    exports org.elasticsearch.core;
-    exports org.elasticsearch.jdk;
-    exports org.elasticsearch.core.internal.provider
-        to
-            org.elasticsearch.xcontent,
-            org.elasticsearch.nativeaccess,
-            org.elasticsearch.entitlement.agent;
+    exports org.elasticsearch.entitlement.instrumentation to org.elasticsearch.entitlement.agent.impl;
 
-    uses ModuleQualifiedExportsService;
+    uses InstrumentationService;
 }

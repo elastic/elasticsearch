@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.MultiSearchResponse.Item;
@@ -32,6 +33,7 @@ import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.TemplateScript;
@@ -42,6 +44,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -49,6 +52,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Predicate;
 
@@ -189,9 +193,10 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
             msearchRequest,
             new RankEvalActionListener(
                 listener,
-                metric,
+                evaluationSpecification,
                 ratedRequestsInSearch.toArray(new RatedRequest[ratedRequestsInSearch.size()]),
-                errors
+                errors,
+                client
             )
         );
     }
@@ -217,7 +222,7 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
 
                 // Now that we have the corpus, identify the queries and qrels
                 SearchRequest queryRequest = new SearchRequestBuilder(client).setIndices("search_relevance_evaluation_corpora")
-                    .setSource(new SearchSourceBuilder().query(new TermQueryBuilder("dataset_id", corpus.getId())))
+                    .setSource(new SearchSourceBuilder().query(new TermQueryBuilder("dataset_id", corpus.id())))
                     .setSize(250) // Arbitrary number, but dbpedia has at most 164 judgments per query
                     .request();
                 client.search(queryRequest, new ActionListener<>() {
@@ -261,20 +266,22 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
     static class RankEvalActionListener extends DelegatingActionListener<MultiSearchResponse, RankEvalResponse> {
 
         private final RatedRequest[] specifications;
-
         private final Map<String, Exception> errors;
-        private final EvaluationMetric metric;
+        private final RankEvalSpec rankEvalSpec;
+        private final Client client;
 
         RankEvalActionListener(
             ActionListener<RankEvalResponse> listener,
-            EvaluationMetric metric,
+            RankEvalSpec rankEvalSpec,
             RatedRequest[] specifications,
-            Map<String, Exception> errors
+            Map<String, Exception> errors,
+            Client client
         ) {
             super(listener);
-            this.metric = metric;
+            this.rankEvalSpec = rankEvalSpec;
             this.errors = errors;
             this.specifications = specifications;
+            this.client = client;
         }
 
         @Override
@@ -285,14 +292,43 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
                 RatedRequest specification = specifications[responsePosition];
                 if (response.isFailure() == false) {
                     SearchHit[] hits = response.getResponse().getHits().getHits();
-                    EvalQueryQuality queryQuality = this.metric.evaluate(specification.getId(), hits, specification.getRatedDocs());
+                    EvalQueryQuality queryQuality = this.rankEvalSpec.getMetric()
+                        .evaluate(specification.getId(), hits, specification.getRatedDocs());
                     responseDetails.put(specification.getId(), queryQuality);
                 } else {
                     errors.put(specification.getId(), response.getFailure());
                 }
                 responsePosition++;
             }
-            delegate.onResponse(new RankEvalResponse(this.metric.combine(responseDetails.values()), responseDetails, this.errors));
+
+            // Record history here
+            String runId = UUID.randomUUID().toString(); // TODO return this in the response too
+            double metricScore = this.rankEvalSpec.getMetric().combine(responseDetails.values());
+
+            HistoricalRankEvalRun.Metric historicalMetric = new HistoricalRankEvalRun.Metric(
+                this.rankEvalSpec.getMetric().getWriteableName(),
+                this.rankEvalSpec.getMetric().forcedSearchSize().orElse(10) // Default
+            );
+
+            HistoricalRankEvalRun historicalRun = new HistoricalRankEvalRun(
+                runId,
+                this.rankEvalSpec.getStoredCorpus(),
+                this.rankEvalSpec.getTemplates().keySet().iterator().next(),
+                historicalMetric,
+                metricScore,
+                List.of() /* TODO query results */
+            );
+
+            try {
+                IndexRequest indexRequest = new IndexRequest("search_relevance_historical_runs").id(runId)
+                    .source(historicalRun.toXContent(JsonXContent.contentBuilder(), null));
+                client.index(indexRequest).actionGet(); // Probably don't want this in production code
+            } catch (Exception e) {
+                // Never fail the actual rank eval response
+                LogManager.getLogger(TransportRankEvalAction.class).error("Failed to store historical run", e);
+            }
+
+            delegate.onResponse(new RankEvalResponse(metricScore, responseDetails, this.errors));
         }
     }
 }

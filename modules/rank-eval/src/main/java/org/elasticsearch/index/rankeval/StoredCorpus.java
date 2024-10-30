@@ -11,32 +11,4 @@ package org.elasticsearch.index.rankeval;
 
 import java.util.List;
 
-public class StoredCorpus {
-    private final String id;
-    private final String name;
-    private final String description;
-    private final List<String> indices;
-
-    public StoredCorpus(String id, String name, String description, List<String> indices) {
-        this.id = id;
-        this.name = name;
-        this.description = description;
-        this.indices = indices;
-    }
-
-    public String getId() {
-        return id;
-    }
-
-    public String getName() {
-        return name;
-    }
-
-    public String getDescription() {
-        return description;
-    }
-
-    public List<String> getIndices() {
-        return indices;
-    }
-}
+public record StoredCorpus(String id, String name, String description, List<String> indices) {}

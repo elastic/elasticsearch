@@ -100,9 +100,6 @@ tests:
 - class: org.elasticsearch.xpack.sql.qa.single_node.JdbcSqlSpecIT
   method: test {case-functions.testUcaseInline3}
   issue: https://github.com/elastic/elasticsearch/issues/112643
-- class: org.elasticsearch.script.StatsSummaryTests
-  method: testEqualsAndHashCode
-  issue: https://github.com/elastic/elasticsearch/issues/112439
 - class: org.elasticsearch.repositories.blobstore.testkit.analyze.HdfsRepositoryAnalysisRestIT
   issue: https://github.com/elastic/elasticsearch/issues/112889
 - class: org.elasticsearch.xpack.sql.qa.security.JdbcSqlSpecIT

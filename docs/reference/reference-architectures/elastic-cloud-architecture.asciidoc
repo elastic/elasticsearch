@@ -29,6 +29,121 @@ This architecture is intended for organizations that need to do the following:
 image::images/elastic-cloud-architecture.png["An Elastic Cloud Architecture"]
 
 [discrete]
+[[cloud-hot-frozen-configuration]]
+=== Example configuration
+
+Based on recommendations, here is a sample configuration for an ingest rate of 1TB/day with an ILM policy of 1 day in the hot tier and 89 days in the frozen tier for a total of 90 days of searchable data.
+
+[discrete]
+[[cloud-hot-frozen-aws]]
+==== AWS
+
+* Hot tier: 120G RAM (2 60G RAM node x 3 pods x 2 availability zones)
+* Frozen tier: 120G RAM (1 60G RAM node x 3 pods x 2 availability zones)
+* Machine learning: 128G RAM (1 64G node x 3 pods x 2 availability zones)
+* Master nodes: 24G RAM (8G node x 3 pods x 2 availability zones) 
+* Kibana: 16G RAM (16G node x 3 pods x 2 availability zones)
+
+[discrete]
+[[cloud-hot-frozen-azure]]
+==== Azure
+
+* Hot tier: 120G RAM (2 60G RAM node x 3 pods x 2 availability zones)
+* Frozen tier: 120G RAM (1 60G RAM node x 3 pods x 2 availability zones)
+* Machine learning: 128G RAM (1 64G node x 3 pods x 2 availability zones)
+* Master nodes: 24G RAM (8G node x 3 pods x 2 availability zones) 
+* Kibana: 16G RAM (16G node x 3 pods x 2 availability zones)
+
+[discrete]
+[[cloud-hot-frozen-gcp]]
+==== GCP
+
+* Hot tier: 120G RAM (2 60G RAM node x 3 pods x 2 availability zones)
+* Frozen tier: 120G RAM (1 60G RAM node x 3 pods x 2 availability zones)
+* Machine learning: 128G RAM (1 64G node x 3 pods x 2 availability zones)
+* Master nodes: 24G RAM (8G node x 3 pods x 2 availability zones) 
+* Kibana: 16G RAM (16G node x 3 pods x 2 availability zones)
+
+[discrete]
+[[cloud-hot-frozen-recommended-instance-types]]
+==== Recommended instance types per cloud provider
+
+The following table shows our specific recommendations for nodes in this architecture leveraging the hardware configuration in he previous section.
+
+[cols="10, 30, 30, 30"]
+|===
+| *Type* | *AWS Instance/Type* | *Azure Instance/Type* | *GCP Instance/Type*
+|image:images/hot.png["An Elastic Cloud Architecture"] | aws.es.datahot.c6gd
+c6gd |azure.es.datahot.fsv2
+f32sv2|gcp.es.datahot.n2.68x32x45
+
+
+N2
+|image:images/frozen.png["An Elastic Cloud Architecture"]
+| aws.es.datafrozen.i3en
+
+
+i3en
+|
+azure.es.datafrozen.edsv4
+
+
+e8dsv4
+|
+gcp.es.datafrozen.n2.68x10x95
+
+
+N2
+|image:images/machine-learning.png["An Elastic Cloud Architecture"]
+| aws.es.ml.m6gd
+
+
+m6gd
+|
+azure.es.ml.fsv2
+
+
+f32sv2
+|
+gcp.es.ml.n2.68x32x45
+
+
+N2
+|image:images/master.png["An Elastic Cloud Architecture"]
+| aws.es.master.c6gd
+
+
+c6gd
+|
+azure.es.master.fsv2
+
+
+f32sv2
+|
+gcp.es.master.n2.68x32x45
+
+
+N2
+|image:images/kibana.png["An Elastic Cloud Architecture"]
+| aws.kibana.c6gd
+
+
+c6gd
+|
+azure.kibana.fsv2
+
+
+f32sv2
+|
+gcp.kibana.n2.68x32x45
+
+
+N2|
+|===
+
+For more details on these instance types, see our documentation on Elastic Cloud hardware for https://www.elastic.co/guide/en/cloud/current/ec-default-aws-configurations.html[AWS], https://www.elastic.co/guide/en/cloud/current/ec-default-azure-configurations.html[Azure], and https://www.elastic.co/guide/en/cloud/current/ec-default-gcp-configurations.html[GCP].
+
+[discrete]
 [[cloud-hot-frozen-considerations]]
 === Important considerations
 
@@ -45,6 +160,3 @@ The following list are important conderations for this architecture:
 [discrete]
 [[cloud-hot-frozen-resources]]
 === Resources and references
-
-* https://www.elastic.co/guide/en/cloud/current/ec-getting-started.html[Elastic Cloud (Elasticsearch Service)]
-* https://www.elastic.co/guide/en/cloud/current/ec-prepare-production.html[Elastic Cloud - Preparing a deployment for production]

@@ -20,18 +20,27 @@ TIP: This architecture includes all the necessary components of the Elastic Stac
 
 This architecture is intended for organizations that need to do the following:
 
-* Store data that is written once and not updated including logs. metrics or even accounting ledger where balance updates are done via additional offsetting entries.
+* Store data that is written once and not updated including logs, metrics or even accounting ledger where balance updates are done via additional offsetting entries.
 * Be resilient to hardware failures.
 * Ensure availability during operational maintenance of any given pod.
-* Maintain a single copy of the data during maintenance.
-* Leverage a Frozen Data tier as part of the https://www.elastic.co/guide/en/elasticsearch/reference/current/ilm-index-lifecycle.html[Information Lifecycle].
-* Leverage a https://www.elastic.co/guide/en/elasticsearch/reference/current/snapshots-register-repository.html[Snapshot Repository] for additional recovery options.
 
 [discrete]
 [[single-datacenter-architecture]]
 === Architecture
 
 image::images/single-datacenter.png["A self hosted single datacenter deployment"]
+
+[discrete]
+[[single-datacenter-configuration]]
+=== Example configuration
+
+Based on recommendations, here is a sample configuration for an ingest rate of 1TB/day with an ILM policy of 1 day in the hot tier and 89 days in the frozen tier for a total of 90 days of searchable data.
+
+* Hot tier: 120G RAM (2 60G RAM node x 2 pods)
+* Frozen tier: 120G RAM (1 60G RAM node x 2 pods)
+* Machine learning: 128G RAM (1 64G node x 2 pods)
+* Master nodes: 24G RAM (8G node x 3 pods) - The master node in pod 3 is for voting only
+* Kibana: 16G RAM (16G node x 2 availability zone)
 
 [discrete]
 [[single-datacenter-considerations]]
@@ -43,29 +52,9 @@ The following list are important conderations for this architecture:
 
 * Machine learning nodes in this architecture are optional. If you choose to use machine learning nodes, deploy one per pod.
 
-* **Operate**
+* Maintenance should only be done only on one pod at a time.
 
-** Maintenance will be done only on one pod at a time.
-
-** A yellow cluster state is acceptable during maintenance.  (This will be due to replica shards being unassigned.)
-
-* **Sample Initial Settings / Configuration:
-
-** 3 Master Nodes (1 that is voting only) - Note: an odd number of initial master nodes is required.
-
-** 4 Hot Data Nodes; 2 Frozen Nodes
-
-** 1 Primary; 1 Replica
-
-** Index - total_shards_per_node = 1 (assuming there will be always more nodes than shards needed).  This will prevent hot-spotting.  This should; however,  be relaxed to total_shards_per_node = 2 if the number of nodes and required number of shards are equal or close to equal due to the shard allocation processes being opportunistic. (i.e. if overly aggressive, shards could be placed in a way to create a situation where a shard could not be allocated - and create a yellow cluster state)
-
-** Set up a repository for the frozen tier.
-
-** Set up a  snapshot repository.
-
-* **Forced Awareness:**  This should be set in In order to prevent Elastic from trying to create replica shards when a given POD is down for maintenance.
-
-* https://www.elastic.co/guide/en/elasticsearch/reference/8.16/snapshots-take-snapshot.html#automate-snapshots-slm[SLM (Snapshot Lifecycle Management): Considerations]
+* A yellow cluster state is acceptable during maintenance. * A yellow cluster state is acceptable during maintenance. This is due to the replica shards being unassigned.
 
 [discrete]
 [[single-datacenter-limitations]]
@@ -76,8 +65,5 @@ The following list are important conderations for this architecture:
 
 [discrete]
 [[single-datacenter-resources]]
-=== Resources and references
 
-* <<shard-size-best-practices,Size your shards>>
-* https://www.elastic.co/guide/en/elasticsearch/reference/current/index.html[Elasticsearch Documentation]
-* https://www.elastic.co/guide/en/kibana/current/index.html[Kibana Documentation]
+=== Resources and references

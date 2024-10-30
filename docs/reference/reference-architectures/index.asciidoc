@@ -33,11 +33,11 @@ a|
 
 | <<multi-region-two-datacenter-architecture>>
 
-A scalable and highly available architecture for Elasticsearch using two datacenters in separate geographical regions
+A scalable and highly available architecture for Elasticsearch using two datacenters in separate geographical regions. Having an Elasticsearch cluster in another separate geographical region helps with network latency. Requests will be better served to a cluster that is geographically closer to you.
 
 a| 
-* Monitor the performance and health of their applications in real-time
-* Provide insights and alerts to ensure optimal performance and quick issue resolution.
+* Allows you multiple options to scale effectively
+* This is cost-effective if you have many small clusters to accomodate
 
 
 | <<self-managed-single-datacenter>>
@@ -45,16 +45,15 @@ a|
 An architecture is designed to satisfy high availability requirements under normal processing as well as including high availability and resiliency during node maintenance or re-paving activities.
 
 a| 
-* When you only have one datacenter available
-* TBD.
+* When you only have one datacenter available.
+* When you are just getting started and there is no requirement for data resiliency in your project.
 
 | <<three-availability-zones>>
 
-Need a short description here...
+The three zone architecture is used for rolling upgrades and failure domains locally because non-disruptive upgrades and other plans or unplanned outages are more sustainable with 33% of the resources off-line and 66% available
 
 a| 
-* TBD
-* TBD
+* When you need an architecture that is resilient to unplanned outages
 |
 |===
 

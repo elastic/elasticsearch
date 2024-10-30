@@ -4,7 +4,7 @@
 <titleabbrev>Architecture: Self-managed - two datacenter</titleabbrev>
 ++++
 
-This article defines a scalable and highly available architecture for Elasticsearch using two datacenters in separate geographical regions. 
+This article defines a scalable and highly available architecture for Elasticsearch using two datacenters in separate geographical regions. Having an Elasticsearch cluster in another separate geographical region helps with network latency. Requests will be better served to a cluster that is geographically closer to you.
 
 TIP: This architecture includes all the necessary components of the Elastic Stack and is not intended for sizing workloads, but rather as a basis to ensure the architecture you deploy is foundationally ready to handle any desired workload with resiliency. 
 
@@ -24,10 +24,25 @@ This architecture is intended for organizations that need to do the following:
 image::images/multi-region-two-datacenter.png["A multi-region time-series architecture across two datacenters"]
 
 [discrete]
+[[multi-region-configuration]]
+=== Example configuration
+
+Based on recommendations, here is a sample configuration for an ingest rate of 1TB/day with an ILM policy of 1 day in the hot tier and 89 days in the frozen tier for a total of 90 days of searchable data.
+
+* Hot tier: 120G RAM (2 60G RAM node x 3 pods x 2 availability zones)
+* Frozen tier: 120G RAM (1 60G RAM node x 3 pods x 2 availability zones)
+* Machine learning: 128G RAM (1 64G node x 3 pods x 2 availability zones)
+* Master nodes: 24G RAM (8G node x 3 pods x 2 availability zones) 
+* Kibana: 16G RAM (16G node x 3 pods x 2 availability zones)
+
+[discrete]
 [[multi-region-considerations]]
 === Important considerations
 
 The following list are important conderations for this architecture:
+
+* Hot nodes contain both primary and replica shards. https://www.elastic.co/guide/en/elasticsearch/reference/8.15/modules-cluster.html#shard-allocation-awareness[Shard allocation awareness] should be configured to ensure primary and replica shards do not end up in the same pod.
+* Machine learning nodes are optional but highly recommended for large scale time series use cases since the amount of data quickly becomes too difficult to analyze without applying techniques such as machine learning based anomaly detection.
 
 [discrete]
 [[multi-region-limitations]]
@@ -37,8 +52,4 @@ The following list are important conderations for this architecture:
 [discrete]
 [[multi-region-resources]]
 === Resources and references
-
-* <<shard-size-best-practices,Size your shards>>
-* https://www.elastic.co/guide/en/elasticsearch/reference/current/index.html[Elasticsearch Documentation]
-* https://www.elastic.co/guide/en/kibana/current/index.html[Kibana Documentation]
 

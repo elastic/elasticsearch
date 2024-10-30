@@ -1,7 +1,7 @@
 [[three-availability-zones]]
 == Self-managed hot-frozen three availability zone architecture for time series data
 ++++
-<titleabbrev>Architecture: Self-managed - one region</titleabbrev>
+<titleabbrev>Architecture: Self-managed - three availability zone</titleabbrev>
 ++++
 
 This article outlines a scalable and highly available architecture for Elasticsearch using three availability zones. The architecture encompasses all essential components of the Elastic Stack and serves as a foundational blueprint to ensure your deployment is resilient and ready to handle any desired workload. While this overview includes high-level representations of data flow, detailed implementation will be covered in subsequent documentation.
@@ -14,12 +14,8 @@ TIP: This architecture includes all the necessary components of the Elastic Stac
 
 This architecture is intended for organizations that need to do the following: 
 
-* Be resilient to hardware failures
+* Be resilient to unplanned outages
 * Ensure availability during operational maintenance of any given availability zone 
-* Maintain a single copy of the data during maintenance
-* Leverage a Frozen Data tier as part of the Information Lifecycle
-* Leverage a Snapshot Repository for additional recovery options 
-* Be used for data that is written once and not updated (e.g. logs, metrics or even an accounting ledger where balance updates are done via additional offsetting entries)
 
 [discrete]
 [[three-availability-zones-architecture]]
@@ -28,45 +24,38 @@ This architecture is intended for organizations that need to do the following:
 image::images/three-availability-zone.png["A three-availability-zones time-series architecture"]
 
 [discrete]
+[[three-availability-zones-configuration]]
+=== Example configuration
+
+Based on recommendations, here is a sample configuration for an ingest rate of 1TB/day with an ILM policy of 1 day in the hot tier and 89 days in the frozen tier for a total of 90 days of searchable data.
+
+* Hot tier: 120G RAM (2 60G RAM node x 3 availability zones)
+* Frozen tier: 120G RAM (1 60G RAM node x 3 availability zones)
+* Machine learning: 128G RAM (1 64G node x 3 availability zones)
+* Master nodes: 24G RAM (8G node x 3 availability zones)
+* Kibana: 16G RAM (16G node x 3 availability zone)
+
+[discrete]
 [[three-availability-zones-considerations]]
 === Important considerations
 
 The following list are important conderations for this architecture:
 
 * If you require more than one copy of the most recently written data to be available, you can add data nodes to pod 3 and set the https://www.elastic.co/guide/en/elasticsearch/reference/current/size-your-shards.html#create-a-sharding-strategy[sharding strategy] to 1 primary and 2 replicas.
-* Maintenance will be done only on one POD at a time.
-* A yellow cluster state is acceptable during maintenance.  (This will be due to replica shards being unassigned.)
-* Sample Initial Settings / Configuration:
-** 3 Master Nodes  6 Hot Data Nodes; 3 Frozen Nodes
-** 1 Primary; 1 Replica
-** Machine Learning Nodes - Optional (1 per POD-1, 2, 3 )
-** Index - total_shards_per_node = 1 (assuming there will be always more nodes than shards needed).  This will prevent hot-spotting.  This should; however,  be relaxed to total_shards_per_node = 2 if the number of nodes and required number of shards are equal or close to equal due to the shard allocation processes being opportunistic. (i.e. if overly aggressive, shards could be placed in a way to create a situation where a shard could not be allocated - and create a yellow cluster state)
-** Set up a repository for the frozen tier.
-
-* https://www.elastic.co/guide/en/elasticsearch/reference/8.16/snapshots-take-snapshot.html#automate-snapshots-slm[SLM (Snapshot Lifecycle Management): Considerations]
+* Maintenance should be done only on one pod at a time.
+* A yellow cluster state is acceptable during maintenance. This is due to the replica shards being unassigned.
 
 [discrete]
 [[three-zone-limitations]]
 === Limitations of this architecture
-
-** No region resilience
-** Only a single copy of the most recently written data that is not yet part of a snapshot data exists during maintenance windows.
-** This design assumes the data is written once and not updated.
-
-
-[discrete]
-[[three-zone-benefits]]
-=== Benefits of this architecture
-
-** Reduces cost by leveraging the Frozen tier as soon as that makes sense from an ingest and most frequently read documents perspective
-** Significantly reduces the likelihood of hot-spotting due to the sharding strategy
-** Eliminates network and disk overhead caused by rebalancing attempts that would occur during maintenance due to setting forced awareness.
+* No region resilience
+* Only a single copy of the most recently written data that is not yet part of a snapshot data exists during maintenance windows.
+* This design assumes the data is written once and not updated.
 
 [discrete]
 [[three-availability-zones-resources]]
+
 === Resources and references
 
-* <<shard-size-best-practices,Size your shards>>
-* https://www.elastic.co/guide/en/elasticsearch/reference/current/index.html[Elasticsearch Documentation]
-* https://www.elastic.co/guide/en/kibana/current/index.html[Kibana Documentation]
+
 

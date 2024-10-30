@@ -134,7 +134,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         settings -> {
             boolean isLogsDBIndexMode = IndexSettings.MODE.get(settings) == IndexMode.LOGSDB;
             boolean isNewIndexVersion = IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings)
-                .onOrAfter(IndexVersions.LOGSDB_DEFAULT_IGNORE_DYNAMIC_BEYOND_LIMIT);
+                .onOrAfter(IndexVersions.LOGSDB_DEFAULT_IGNORE_DYNAMIC_BEYOND_LIMIT_BACKPORT);
             return String.valueOf(isLogsDBIndexMode && isNewIndexVersion);
         },
         Property.Dynamic,

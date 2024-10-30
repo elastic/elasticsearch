@@ -10,6 +10,7 @@
 package org.elasticsearch.nativeaccess;
 
 import org.apache.lucene.tests.util.LuceneTestCase;
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.PrivilegedOperations;
 import org.elasticsearch.test.compiler.InMemoryJavaCompiler;

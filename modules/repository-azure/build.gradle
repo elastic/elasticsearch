@@ -63,8 +63,12 @@ dependencies {
   api "com.github.stephenc.jcip:jcip-annotations:1.0-1"
   api "com.nimbusds:content-type:2.3"
   api "com.nimbusds:lang-tag:1.7"
-  api "com.nimbusds:nimbus-jose-jwt:9.37.3"
-  api "com.nimbusds:oauth2-oidc-sdk:11.9.1"
+  api("com.nimbusds:nimbus-jose-jwt:9.37.3"){
+    exclude group: 'com.google.crypto.tink', module: 'tink' // it's an optional dependency to which we don't rely on
+  }
+  api("com.nimbusds:oauth2-oidc-sdk:11.9.1"){
+    exclude group: 'com.google.crypto.tink', module: 'tink' // it's an optional dependency to which we don't rely on
+  }
   api "jakarta.activation:jakarta.activation-api:1.2.1"
   api "jakarta.xml.bind:jakarta.xml.bind-api:2.3.3"
   api "net.java.dev.jna:jna-platform:${versions.jna}" // Maven says 5.14.0 but this aligns with the Elasticsearch-wide version
@@ -74,8 +78,6 @@ dependencies {
   api "org.codehaus.woodstox:stax2-api:4.2.2"
   api "org.ow2.asm:asm:9.3"
 
-  runtimeOnly "com.google.crypto.tink:tink:1.14.0"
-  runtimeOnly "com.google.protobuf:protobuf-java:4.27.0"
   runtimeOnly "com.google.code.gson:gson:2.11.0"
   runtimeOnly "org.cryptomator:siv-mode:1.5.2"
 

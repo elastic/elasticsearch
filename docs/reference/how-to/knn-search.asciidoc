@@ -72,14 +72,13 @@ least enough RAM to hold the vector data and index structures. To check the
 size of the vector data, you can use the <<indices-disk-usage>> API.
 
 Here are estimates for different element types and quantization levels:
-+
 --
-`element_type: float`: `num_vectors * num_dimensions * 4`
-`element_type: float` with `quantization: int8`: `num_vectors * (num_dimensions + 4)`
-`element_type: float` with `quantization: int4`: `num_vectors * (num_dimensions/2 + 4)`
-`element_type: float` with `quantization: bbq`: `num_vectors * (num_dimensions/8 + 12)`
-`element_type: byte`: `num_vectors * num_dimensions`
-`element_type: bit`: `num_vectors * (num_dimensions/8)`
+- `element_type: float`: `num_vectors * num_dimensions * 4`
+- `element_type: float` with `quantization: int8`: `num_vectors * (num_dimensions + 4)`
+- `element_type: float` with `quantization: int4`: `num_vectors * (num_dimensions/2 + 4)`
+- `element_type: float` with `quantization: bbq`: `num_vectors * (num_dimensions/8 + 12)`
+- `element_type: byte`: `num_vectors * num_dimensions`
+- `element_type: bit`: `num_vectors * (num_dimensions/8)`
 --
 
 If utilizing HNSW, the graph must also be in memory, to estimate the required bytes use `num_vectors * 4 * HNSW.m`. The

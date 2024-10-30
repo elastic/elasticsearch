@@ -15,17 +15,17 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
-import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.GlobalRoutingTable;
+import org.elasticsearch.cluster.routing.GlobalRoutingTableTestHelper;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.RoutingNodes;
-import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
@@ -44,6 +44,7 @@ import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.test.client.NoOpNodeClient;
 import org.elasticsearch.xpack.searchablesnapshots.action.cache.TransportSearchableSnapshotCacheStoresAction;
 import org.elasticsearch.xpack.searchablesnapshots.cache.shared.FrozenCacheInfoService;
+import org.junit.Before;
 
 import java.util.Collections;
 import java.util.List;
@@ -56,10 +57,17 @@ import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SNAPSHOT_PARTIAL_SETTING;
-import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.hasSize;
 
 public class SearchableSnapshotAllocatorTests extends ESAllocationTestCase {
+
+    private static ProjectId projectId;
+
+    @Before
+    public void setupProjectId() {
+        projectId = randomBoolean() ? Metadata.DEFAULT_PROJECT_ID : new ProjectId(randomUUID());
+    }
 
     public void testAllocateToNodeWithLargestCache() {
         final ShardId shardId = new ShardId("test", "_na_", 0);
@@ -67,10 +75,12 @@ public class SearchableSnapshotAllocatorTests extends ESAllocationTestCase {
         final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue();
 
         final Metadata metadata = buildSingleShardIndexMetadata(shardId);
-        final RoutingTable.Builder routingTableBuilder = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
-        routingTableBuilder.addAsRestore(metadata.getProject().index(shardId.getIndex()), randomSnapshotSource(shardId));
+        final GlobalRoutingTable routingTable = GlobalRoutingTableTestHelper.buildRoutingTable(
+            metadata,
+            (builder, index) -> builder.addAsRestore(index, randomSnapshotSource(shardId))
+        );
 
-        final ClusterState state = buildClusterState(nodes, metadata, routingTableBuilder);
+        final ClusterState state = buildClusterState(nodes, metadata, routingTable);
         final long shardSize = randomNonNegativeLong();
 
         final AtomicInteger reroutesTriggered = new AtomicInteger(0);
@@ -128,6 +138,7 @@ public class SearchableSnapshotAllocatorTests extends ESAllocationTestCase {
             assertTrue(allocation.routingNodesChanged());
             final long bestCacheSize = existingCacheSizes.values().stream().mapToLong(l -> l).max().orElseThrow();
 
+            assertThat(allocation.routingNodes().assignedShards(shardId), hasSize(1));
             final ShardRouting primaryRouting = allocation.routingNodes().assignedShards(shardId).get(0);
             final String primaryNodeId = primaryRouting.currentNodeId();
             final DiscoveryNode primaryNode = state.nodes().get(primaryNodeId);
@@ -141,16 +152,12 @@ public class SearchableSnapshotAllocatorTests extends ESAllocationTestCase {
         final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue();
 
         final Metadata metadata = buildSingleShardIndexMetadata(shardId);
-        final RoutingTable.Builder routingTableBuilder = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
+        final GlobalRoutingTable routingTable = GlobalRoutingTableTestHelper.buildRoutingTable(
+            metadata,
+            (builder, index) -> builder.addAsRestore(index, randomSnapshotSource(shardId))
+        );
 
-        assertThat(metadata.projects(), aMapWithSize(1));
-        var entry = metadata.projects().entrySet().iterator().next();
-        final ProjectMetadata projectMetadata = entry.getValue();
-        final ProjectId projectId = entry.getKey();
-
-        routingTableBuilder.addAsRestore(projectMetadata.index(shardId.getIndex()), randomSnapshotSource(shardId));
-
-        final ClusterState state = buildClusterState(nodes, metadata, routingTableBuilder);
+        final ClusterState state = buildClusterState(nodes, metadata, routingTable);
         final RoutingAllocation allocation = buildAllocation(
             deterministicTaskQueue,
             state,
@@ -184,16 +191,12 @@ public class SearchableSnapshotAllocatorTests extends ESAllocationTestCase {
         final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue();
 
         final Metadata metadata = buildSingleShardIndexMetadata(shardId, builder -> builder.put(SNAPSHOT_PARTIAL_SETTING.getKey(), true));
-        final RoutingTable.Builder routingTableBuilder = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
+        final GlobalRoutingTable routingTable = GlobalRoutingTableTestHelper.buildRoutingTable(
+            metadata,
+            (builder, index) -> builder.addAsRestore(index, randomSnapshotSource(shardId))
+        );
 
-        assertThat(metadata.projects(), aMapWithSize(1));
-        var entry = metadata.projects().entrySet().iterator().next();
-        final ProjectMetadata projectMetadata = entry.getValue();
-        final ProjectId projectId = entry.getKey();
-
-        routingTableBuilder.addAsRestore(projectMetadata.index(shardId.getIndex()), randomSnapshotSource(shardId));
-
-        final ClusterState state = buildClusterState(nodes, metadata, routingTableBuilder);
+        final ClusterState state = buildClusterState(nodes, metadata, routingTable);
         final RoutingAllocation allocation = buildAllocation(
             deterministicTaskQueue,
             state,
@@ -225,7 +228,19 @@ public class SearchableSnapshotAllocatorTests extends ESAllocationTestCase {
     }
 
     private static Metadata buildSingleShardIndexMetadata(ShardId shardId, UnaryOperator<Settings.Builder> extraSettings) {
-        return Metadata.builder()
+        final int extraProjects = randomIntBetween(0, 3);
+        final Metadata.Builder builder = Metadata.builder();
+        builder.put(buildSingleShardIndexProject(shardId, extraSettings));
+
+        for (int i = 0; i < extraProjects; i++) {
+            builder.put(ProjectMetadata.builder(new ProjectId("project-" + i)).build());
+        }
+
+        return builder.build();
+    }
+
+    private static ProjectMetadata buildSingleShardIndexProject(ShardId shardId, UnaryOperator<Settings.Builder> extraSettings) {
+        return ProjectMetadata.builder(projectId)
             .put(
                 IndexMetadata.builder(shardId.getIndexName())
                     .settings(
@@ -243,16 +258,12 @@ public class SearchableSnapshotAllocatorTests extends ESAllocationTestCase {
             .build();
     }
 
-    private ClusterState buildClusterState(List<DiscoveryNode> nodes, Metadata metadata, RoutingTable.Builder routingTableBuilder) {
+    private ClusterState buildClusterState(List<DiscoveryNode> nodes, Metadata metadata, GlobalRoutingTable routingTable) {
         final DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder();
         for (DiscoveryNode node : nodes) {
             nodesBuilder.add(node);
         }
-        return ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(metadata)
-            .routingTable(routingTableBuilder.build())
-            .nodes(nodesBuilder)
-            .build();
+        return ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(routingTable).nodes(nodesBuilder).build();
     }
 
     private static RoutingAllocation buildAllocation(

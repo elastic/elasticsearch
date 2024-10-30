@@ -130,8 +130,8 @@ public class IgnoredSourceFieldMapperConfigurationTests extends MapperServiceTes
         for (var entry : customSettings.entrySet()) {
             settings.put(entry.getKey(), entry.getValue());
         }
-
-        return createMapperService(settings.build(), syntheticSourceMapping(mapping));
+        settings.put(SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.SYNTHETIC);
+        return createMapperService(settings.build(), mapping(mapping));
     }
 
     protected void validateRoundTripReader(String syntheticSource, DirectoryReader reader, DirectoryReader roundTripReader)

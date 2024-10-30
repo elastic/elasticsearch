@@ -102,17 +102,15 @@ PUT my-index-000001/_doc/2?refresh
 
 GET my-index-000001/_search
 {
-  "query": { <1>
-    "function_score": {
-      "query": {
+  "query": {
+    "script_score": {
+      "query": { <1>
         "match": {
           "text": "quick brown fox"
         }
       },
-      "script_score": {
-        "script": {
-          "source": "_termStats.termFreq().getAverage()" <2>
-        }
+      "script": {
+        "source": "_termStats.termFreq().getAverage()" <2>
       }
     }
   }

@@ -115,7 +115,6 @@ import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.junit.BeforeClass;
-import org.junit.Ignore;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -4458,7 +4457,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
      *     \_StubRelation[[_meta_field{f}#1800, emp_no{f}#1794, first_name{f}#1795, gender{f}#1796, job{f}#1801, job.raw{f}#1802, langua
      * ges{f}#1797, last_name{f}#1798, long_noidx{f}#1803, salary{f}#1799, emp_no % 2{r}#1793]]
      */
-    @Ignore("Needs updating to join plan per above")
+    @AwaitsFix(bugUrl = "Needs updating to join plan per above")
     public void testInlinestatsNestedExpressionsInGroups() {
         var query = """
             FROM test
@@ -4470,7 +4469,6 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             return;
         }
         var plan = optimizedPlan(query);
-        System.out.println(plan);
         var limit = as(plan, Limit.class);
         var inline = as(limit.child(), InlineJoin.class);
         var agg = as(inline.left(), Aggregate.class);

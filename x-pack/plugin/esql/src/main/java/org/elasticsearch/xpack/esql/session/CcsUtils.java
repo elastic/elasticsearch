@@ -18,7 +18,6 @@ import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
-import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -28,12 +27,10 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 
 class CcsUtils {
 
-    private CcsUtils() {
-    }
+    private CcsUtils() {}
 
     /**
      * ActionListener that receives LogicalPlan or error from logical planning.
@@ -44,10 +41,7 @@ class CcsUtils {
         private final EsqlExecutionInfo executionInfo;
         private final ActionListener<Result> listener;
 
-        CssPartialErrorsActionListener(
-            EsqlExecutionInfo executionInfo,
-            ActionListener<Result> listener
-        ) {
+        CssPartialErrorsActionListener(EsqlExecutionInfo executionInfo, ActionListener<Result> listener) {
             this.executionInfo = executionInfo;
             this.listener = listener;
         }

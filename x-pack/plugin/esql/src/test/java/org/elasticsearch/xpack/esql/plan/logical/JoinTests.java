@@ -53,7 +53,7 @@ public class JoinTests extends ESTestCase {
         Join join = new Join(Source.EMPTY, left, right, joinConfig);
 
         // matchfields are a subset of the left and right fields, so they don't contribute to the size of the references set.
-        //assertEquals(2 * numMatchFields, join.references().size());
+        // assertEquals(2 * numMatchFields, join.references().size());
 
         AttributeSet refs = join.references();
         assertTrue(refs.containsAll(matchFields));

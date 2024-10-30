@@ -224,7 +224,7 @@ public class EsqlSessionTests extends ESTestCase {
             );
             IndexResolution indexResolution = IndexResolution.valid(esIndex, Map.of());
 
-            EsqlSession.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, indexResolution);
+            CcsUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, indexResolution);
 
             EsqlExecutionInfo.Cluster localCluster = executionInfo.getCluster(localClusterAlias);
             assertThat(localCluster.getIndexExpression(), equalTo("logs*"));
@@ -262,7 +262,7 @@ public class EsqlSessionTests extends ESTestCase {
             );
             IndexResolution indexResolution = IndexResolution.valid(esIndex, Map.of());
 
-            EsqlSession.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, indexResolution);
+            CcsUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, indexResolution);
 
             EsqlExecutionInfo.Cluster localCluster = executionInfo.getCluster(localClusterAlias);
             assertThat(localCluster.getIndexExpression(), equalTo("logs*"));
@@ -298,7 +298,7 @@ public class EsqlSessionTests extends ESTestCase {
             var failure = new FieldCapabilitiesFailure(new String[] { "logs-a" }, new NoSeedNodeLeftException("unable to connect"));
             IndexResolution indexResolution = IndexResolution.valid(esIndex, Map.of(remote1Alias, failure));
 
-            EsqlSession.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, indexResolution);
+            CcsUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, indexResolution);
 
             EsqlExecutionInfo.Cluster localCluster = executionInfo.getCluster(localClusterAlias);
             assertThat(localCluster.getIndexExpression(), equalTo("logs*"));
@@ -336,7 +336,7 @@ public class EsqlSessionTests extends ESTestCase {
 
             var failure = new FieldCapabilitiesFailure(new String[] { "logs-a" }, new NoSeedNodeLeftException("unable to connect"));
             IndexResolution indexResolution = IndexResolution.valid(esIndex, Map.of(remote1Alias, failure));
-            EsqlSession.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, indexResolution);
+            CcsUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, indexResolution);
         }
     }
 

@@ -36,7 +36,6 @@ import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
 
 import java.util.List;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * <p>This class is part of the planner</p>
@@ -80,7 +79,7 @@ public class Mapper {
         // TODO - this is hard to follow and needs reworking
         // https://github.com/elastic/elasticsearch/issues/115897
         //
-        if(unary instanceof Enrich enrich && enrich.mode() == Enrich.Mode.REMOTE) {
+        if (unary instanceof Enrich enrich && enrich.mode() == Enrich.Mode.REMOTE) {
             // When we have remote enrich, we want to put it under FragmentExec, so it would be executed remotely.
             // We're only going to do it on the coordinator node.
             // The way we're going to do it is as follows:
@@ -92,7 +91,7 @@ public class Mapper {
             // 5. So we should be keeping: LimitExec, ExchangeExec, OrderExec, TopNExec (actually OrderExec probably can't happen anyway).
             Holder<Boolean> hasFragment = new Holder<>(false);
 
-            var childTransformed = mappedChild.transformUp(f-> {
+            var childTransformed = mappedChild.transformUp(f -> {
                 // Once we reached FragmentExec, we stuff our Enrich under it
                 if (f instanceof FragmentExec) {
                     hasFragment.set(true);

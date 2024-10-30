@@ -278,6 +278,9 @@ tests:
 - class: org.elasticsearch.monitor.jvm.JvmStatsTests
   method: testJvmStats
   issue: https://github.com/elastic/elasticsearch/issues/115711
+- class: org.elasticsearch.repositories.s3.S3ServiceTests
+  method: testRetryOn403RetryPolicy
+  issue: https://github.com/elastic/elasticsearch/issues/115986
 
 # Examples:
 #

@@ -17,6 +17,7 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.rest.ObjectPath;
+import org.elasticsearch.test.rest.RestTestLegacyFeatures;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -28,7 +29,11 @@ import java.util.Map;
 import static org.elasticsearch.upgrades.LogsIndexModeRollingUpgradeIT.enableLogsdbByDefault;
 import static org.elasticsearch.upgrades.LogsIndexModeRollingUpgradeIT.getWriteBackingIndex;
 import static org.elasticsearch.upgrades.TsdbIT.formatInstant;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class LogsdbIndexingRollingUpgradeIT extends AbstractRollingUpgradeTestCase {
 
@@ -68,6 +73,10 @@ public class LogsdbIndexingRollingUpgradeIT extends AbstractRollingUpgradeTestCa
     }
 
     public void testIndexing() throws Exception {
+        assumeTrue(
+            "test relies on logsdb being available",
+            oldClusterHasFeature(RestTestLegacyFeatures.LOGSDB_TECH_PREVIEW)
+        );
         String dataStreamName = "logs-bwc-test";
         if (isOldCluster()) {
             startTrial();

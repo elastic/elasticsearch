@@ -14,6 +14,7 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.test.rest.ObjectPath;
+import org.elasticsearch.test.rest.RestTestLegacyFeatures;
 
 import java.time.Instant;
 import java.util.Locale;
@@ -42,6 +43,7 @@ public class TsdbIndexingRollingUpgradeIT extends AbstractRollingUpgradeTestCase
     }
 
     public void testIndexing() throws Exception {
+        assumeTrue("test relies in es|ql", oldClusterHasFeature(RestTestLegacyFeatures.ES_QL_GA));
         String dataStreamName = "k9s";
         if (isOldCluster()) {
             startTrial();

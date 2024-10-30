@@ -7,27 +7,24 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 apply plugin: 'elasticsearch.build'
-apply plugin: 'elasticsearch.embedded-providers'
-
-embeddedProviders {
-  impl 'entitlement-agent', project(':distribution:tools:entitlement-agent:impl')
-}
 
 configurations {
   entitlementBridge
+  entitlementInstrumentation
   entitlementRuntime
 }
 
 dependencies {
   entitlementBridge project(":distribution:tools:entitlement-bridge")
+  entitlementInstrumentation project(":distribution:tools:entitlement-instrumentation")
   entitlementRuntime project(":distribution:tools:entitlement-runtime")
   compileOnly project(":libs:elasticsearch-core")
   compileOnly project(":server") // Let's goooooo
   compileOnly project(":distribution:tools:entitlement-bridge")
+  compileOnly project(":distribution:tools:entitlement-instrumentation")
   compileOnly project(":distribution:tools:entitlement-runtime")
   testImplementation project(":test:framework")
   testImplementation project(":distribution:tools:entitlement-bridge")
-  testImplementation project(":distribution:tools:entitlement-agent:impl")
 }
 
 tasks.named('test').configure {
@@ -39,7 +36,12 @@ tasks.named('test').configure {
     @Override
     Iterable<String> asArguments() {
       // Add this like we add the native library
-      return ["-javaagent:${tasks.jar.archiveFile.get()}", "-Des.entitlement.bridgeJar=${configurations.entitlementBridge.singleFile}", "-Des.entitlement.runtimeJar=${configurations.entitlementRuntime.singleFile}"]
+      return [
+        "-javaagent:${tasks.jar.archiveFile.get()}",
+        "-Des.entitlement.bridgeJar=${configurations.entitlementBridge.singleFile}",
+        "-Des.entitlement.instrumentationJar=${configurations.entitlementInstrumentation.singleFile}",
+        "-Des.entitlement.runtimeJar=${configurations.entitlementRuntime.singleFile}"
+      ]
     }
   })
 

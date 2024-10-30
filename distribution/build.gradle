@@ -262,7 +262,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
    *             Properties to expand when copying packaging files             *
    *****************************************************************************/
   configurations {
-    ['libs', 'libsVersionChecker', 'libsCliLauncher', 'libsServerCli', 'libsWindowsServiceCli', 'libsPluginCli', 'libsKeystoreCli', 'libsSecurityCli', 'libsGeoIpCli', 'libsAnsiConsole', 'libsNative', 'libsEntitlementAgent', 'libsEntitlementBridge', 'libsEntitlementRuntime'].each {
+    ['libs', 'libsVersionChecker', 'libsCliLauncher', 'libsServerCli', 'libsWindowsServiceCli', 'libsPluginCli', 'libsKeystoreCli', 'libsSecurityCli', 'libsGeoIpCli', 'libsAnsiConsole', 'libsNative', 'libsEntitlementAgent', 'libsEntitlementBridge', 'libsEntitlementInstrumentation', 'libsEntitlementRuntime'].each {
       create(it) {
         canBeConsumed = false
         canBeResolved = true
@@ -294,6 +294,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
     libsNative project(':libs:elasticsearch-native:elasticsearch-native-libraries')
     libsEntitlementAgent project(':distribution:tools:entitlement-agent')
     libsEntitlementBridge project(':distribution:tools:entitlement-bridge')
+    libsEntitlementInstrumentation project(':distribution:tools:entitlement-instrumentation')
     libsEntitlementRuntime project(':distribution:tools:entitlement-runtime')
   }
 
@@ -338,6 +339,9 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
         }
         into('tools/entitlement-bridge') {
           from(configurations.libsEntitlementBridge)
+        }
+        into('tools/entitlement-instrumentation') {
+          from(configurations.libsEntitlementInstrumentation)
         }
         into('tools/entitlement-runtime') {
           from(configurations.libsEntitlementRuntime)

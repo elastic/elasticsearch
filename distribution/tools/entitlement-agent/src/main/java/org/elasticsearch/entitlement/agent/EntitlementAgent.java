@@ -35,16 +35,24 @@ public class EntitlementAgent {
         // Add the entitlement libraries to the classpath.
         // We can't actually reference the classes here for real before this, because they won't resolve.
         addJarToBootstrapClassLoader(inst, parameters.bridgeLibrary());
+        addJarToSystemClassLoader(inst, parameters.instrumentationLibrary());
         addJarToSystemClassLoader(inst, parameters.runtimeLibrary());
 
         // Ensure the checks are available and ready before we start adding instrumentation that will try to use them
         EntitlementProvider.checks();
 
+        InstrumentationService instrumentationService = (new ProviderLocator<>(
+            "entitlement-instrumentation",
+            InstrumentationService.class,
+            "org.elasticsearch.entitlement.instrumentation.impl",
+            Set.of("org.objectweb.nonexistent.asm")
+        )).get();
+
         Method targetMethod = System.class.getMethod("exit", int.class);
         Method instrumentationMethod = EntitlementChecks.class.getMethod("checkSystemExit", Class.class, int.class);
-        Map<MethodKey, Method> methodMap = Map.of(INSTRUMENTER_FACTORY.methodKeyForTarget(targetMethod), instrumentationMethod);
+        Map<MethodKey, Method> methodMap = Map.of(instrumentationService.methodKeyForTarget(targetMethod), instrumentationMethod);
 
-        inst.addTransformer(new Transformer(INSTRUMENTER_FACTORY.newInstrumenter("", methodMap), Set.of(internalName(System.class))), true);
+        inst.addTransformer(new Transformer(instrumentationService.newInstrumenter("", methodMap), Set.of(internalName(System.class))), true);
         inst.retransformClasses(System.class);
     }
 
@@ -61,13 +69,6 @@ public class EntitlementAgent {
     private static String internalName(Class<?> c) {
         return c.getName().replace('.', '/');
     }
-
-    private static final InstrumentationService INSTRUMENTER_FACTORY = (new ProviderLocator<>(
-        "entitlement-agent",
-        InstrumentationService.class,
-        "org.elasticsearch.entitlement.agent.impl",
-        Set.of("org.objectweb.nonexistent.asm")
-    )).get();
 
     // private static final Logger LOGGER = LogManager.getLogger(EntitlementAgent.class);
 }

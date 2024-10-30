@@ -33,10 +33,12 @@ public final class EntitlementBootstrap {
 
     public record AgentParameters(
         String bridgeLibrary,
+        String instrumentationLibrary,
         String runtimeLibrary
     ) {
         public AgentParameters {
             requireNonNull(bridgeLibrary);
+            requireNonNull(instrumentationLibrary);
             requireNonNull(runtimeLibrary);
         }
     }
@@ -45,7 +47,7 @@ public final class EntitlementBootstrap {
     static void configure() {
         LibraryLocations libs = findEntitlementLibraries();
         logger.debug("Loading agent");
-        agentParameters = new AgentParameters(libs.bridge(), libs.runtime());
+        agentParameters = new AgentParameters(libs.bridge(), libs.instrumentation(), libs.runtime());
         try {
             VirtualMachine vm = VirtualMachine.attach(Long.toString(ProcessHandle.current().pid()));
             try {
@@ -58,13 +60,14 @@ public final class EntitlementBootstrap {
         }
     }
 
-    private record LibraryLocations(String agent, String bridge, String runtime) { }
+    private record LibraryLocations(String agent, String bridge, String instrumentation, String runtime) { }
 
     private static LibraryLocations findEntitlementLibraries() {
         logger.debug("Finding entitlement libraries");
         return new LibraryLocations(
             findEntitlementJar("agent"),
             findEntitlementJar("bridge"),
+            findEntitlementJar("instrumentation"),
             findEntitlementJar("runtime"));
     }
 

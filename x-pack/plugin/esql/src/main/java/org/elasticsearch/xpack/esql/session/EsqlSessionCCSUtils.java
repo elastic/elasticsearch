@@ -51,29 +51,6 @@ public class EsqlSessionCCSUtils {
         }
     }
 
-//    static String createIndexExpressionFromAvailableClusters(EsqlExecutionInfo executionInfo) {
-//        StringBuilder sb = new StringBuilder();
-//        for (String clusterAlias : executionInfo.clusterAliases()) {
-//            EsqlExecutionInfo.Cluster cluster = executionInfo.getCluster(clusterAlias);
-//            if (cluster.getStatus() != EsqlExecutionInfo.Cluster.Status.SKIPPED) {
-//                if (cluster.getClusterAlias().equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY)) {
-//                    sb.append(executionInfo.getCluster(clusterAlias).getIndexExpression()).append(',');
-//                } else {
-//                    String indexExpression = executionInfo.getCluster(clusterAlias).getIndexExpression();
-//                    for (String index : indexExpression.split(",'")) {
-//                        sb.append(clusterAlias).append(':').append(index).append(',');
-//                    }
-//                }
-//            }
-//        }
-//
-//        if (sb.length() > 0) {
-//            return sb.substring(0, sb.length() - 1);
-//        } else {
-//            return "";
-//        }
-//    }
-
     static void updateExecutionInfoWithUnavailableClusters(EsqlExecutionInfo execInfo, Map<String, FieldCapabilitiesFailure> unavailable) {
         for (Map.Entry<String, FieldCapabilitiesFailure> entry : unavailable.entrySet()) {
             String clusterAlias = entry.getKey();

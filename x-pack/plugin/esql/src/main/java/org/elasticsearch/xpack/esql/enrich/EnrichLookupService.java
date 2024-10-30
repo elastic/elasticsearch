@@ -69,6 +69,7 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
             request.matchType,
             request.matchField,
             request.inputPage,
+            null,
             request.extractFields
         );
     }
@@ -113,9 +114,10 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
             String matchType,
             String matchField,
             Page inputPage,
+            Page toRelease,
             List<NamedExpression> extractFields
         ) {
-            super(sessionId, shardId, inputDataType, inputPage, extractFields);
+            super(sessionId, shardId, inputDataType, inputPage, toRelease, extractFields);
             this.matchType = matchType;
             this.matchField = matchField;
         }
@@ -141,6 +143,7 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
                 inputDataType,
                 matchType,
                 matchField,
+                inputPage,
                 inputPage,
                 extractFields
             );

@@ -449,12 +449,19 @@ abstract class AbstractLookupService<R extends AbstractLookupService.Request, T 
         final Page toRelease;
         final RefCounted refs = AbstractRefCounted.of(this::releasePage);
 
-        TransportRequest(String sessionId, ShardId shardId, DataType inputDataType, Page inputPage, List<NamedExpression> extractFields) {
+        TransportRequest(
+            String sessionId,
+            ShardId shardId,
+            DataType inputDataType,
+            Page inputPage,
+            Page toRelease,
+            List<NamedExpression> extractFields
+        ) {
             this.sessionId = sessionId;
             this.shardId = shardId;
             this.inputDataType = inputDataType;
             this.inputPage = inputPage;
-            this.toRelease = null;
+            this.toRelease = toRelease;
             this.extractFields = extractFields;
         }
 

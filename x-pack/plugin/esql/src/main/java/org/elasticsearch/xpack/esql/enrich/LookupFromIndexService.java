@@ -65,6 +65,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             shardId,
             request.inputDataType,
             request.inputPage,
+            null,
             request.extractFields,
             request.matchField
         );
@@ -100,10 +101,11 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             ShardId shardId,
             DataType inputDataType,
             Page inputPage,
+            Page toRelease,
             List<NamedExpression> extractFields,
             String matchField
         ) {
-            super(sessionId, shardId, inputDataType, inputPage, extractFields);
+            super(sessionId, shardId, inputDataType, inputPage, toRelease, extractFields);
             this.matchField = matchField;
         }
 
@@ -119,7 +121,15 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             PlanStreamInput planIn = new PlanStreamInput(in, in.namedWriteableRegistry(), null);
             List<NamedExpression> extractFields = planIn.readNamedWriteableCollectionAsList(NamedExpression.class);
             String matchField = in.readString();
-            TransportRequest result = new TransportRequest(sessionId, shardId, inputDataType, inputPage, extractFields, matchField);
+            TransportRequest result = new TransportRequest(
+                sessionId,
+                shardId,
+                inputDataType,
+                inputPage,
+                inputPage,
+                extractFields,
+                matchField
+            );
             result.setParentTask(parentTaskId);
             return result;
         }

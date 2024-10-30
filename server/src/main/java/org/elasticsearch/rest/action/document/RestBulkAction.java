@@ -173,8 +173,7 @@ public class RestBulkAction extends BaseRestHandler {
             this.defaultListExecutedPipelines = request.paramAsBoolean("list_executed_pipelines", false);
             this.defaultRequireAlias = request.paramAsBoolean(DocWriteRequest.REQUIRE_ALIAS, false);
             this.defaultRequireDataStream = request.paramAsBoolean(DocWriteRequest.REQUIRE_DATA_STREAM, false);
-            // TODO: Fix type deprecation logging
-            this.parser = new BulkRequestParser(false, request.getRestApiVersion());
+            this.parser = new BulkRequestParser(true, request.getRestApiVersion());
             this.handlerSupplier = handlerSupplier;
         }
 

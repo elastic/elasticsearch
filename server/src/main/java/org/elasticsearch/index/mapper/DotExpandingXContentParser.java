@@ -34,6 +34,10 @@ import java.util.function.Supplier;
  */
 class DotExpandingXContentParser extends FilterXContentParserWrapper {
 
+    static boolean isInstance(XContentParser parser) {
+        return parser instanceof WrappingParser;
+    }
+
     private static final class WrappingParser extends FilterXContentParser {
 
         private final ContentPath contentPath;

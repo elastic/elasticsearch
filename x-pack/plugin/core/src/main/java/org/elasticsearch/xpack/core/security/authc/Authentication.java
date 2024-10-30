@@ -25,9 +25,11 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.security.action.profile.Profile;
 import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo.RoleDescriptorsBytes;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig.RealmIdentifier;
@@ -79,6 +81,7 @@ import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.CR
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.FALLBACK_REALM_NAME;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.FALLBACK_REALM_TYPE;
 import static org.elasticsearch.xpack.core.security.authc.RealmDomain.REALM_DOMAIN_PARSER;
+import static org.elasticsearch.xpack.core.security.authz.RoleDescriptor.Fields.REMOTE_CLUSTER;
 import static org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions.ROLE_REMOTE_CLUSTER_PRIVS;
 
 /**
@@ -1343,6 +1346,7 @@ public final class Authentication implements ToXContentObject {
                 );
             }
 
+            //TODO: this needs to be in the else so we don't add back the remote_cluster field
             // the current cluster understands remote_cluster field in role descriptors, so check each permission and remove as needed
             if (authentication.getEffectiveSubject().getTransportVersion().onOrAfter(ROLE_REMOTE_CLUSTER_PRIVS)){
 
@@ -1444,7 +1448,7 @@ public final class Authentication implements ToXContentObject {
     }
 
     static BytesReference maybeRemoveRemoteClusterFromRoleDescriptors(BytesReference roleDescriptorsBytes) {
-        return maybeRemoveTopLevelFromRoleDescriptors(roleDescriptorsBytes, RoleDescriptor.Fields.REMOTE_CLUSTER.getPreferredName());
+        return maybeRemoveTopLevelFromRoleDescriptors(roleDescriptorsBytes, REMOTE_CLUSTER.getPreferredName());
     }
 
     static BytesReference maybeRemoveRemoteIndicesFromRoleDescriptors(BytesReference roleDescriptorsBytes) {
@@ -1493,50 +1497,34 @@ public final class Authentication implements ToXContentObject {
         }
 
         final Map<String, Object> roleDescriptorsMap = convertRoleDescriptorsBytesToMap(roleDescriptorsBytes);
+        final Map<String, Object> roleDescriptorsMapMutated = new HashMap<>(roleDescriptorsMap);
         final AtomicBoolean modified = new AtomicBoolean(false);
-        System.out.println("****************************** ");
-        System.out.println("roleDescriptorsMap: " + roleDescriptorsMap);
         roleDescriptorsMap.forEach((key, value) -> {
             if (value instanceof Map) {
-                @SuppressWarnings("unchecked")
                 Map<String, Object> roleDescriptor = (Map<String, Object>) value;
                 roleDescriptor.forEach((innerKey, innerValue) -> {
-
-                    // remote_cluster=[{privileges=[monitor_enrich, monitor_stats]
-                    if ("remote_cluster".equals(innerKey)) { // todo: use constant
-                         assert innerValue instanceof List;
-                        RemoteClusterPermissions discoveredRemoteClusterPermission
-                            = new RemoteClusterPermissions((List<Map<String, List<String>>>) innerValue);
-
-
-                        RemoteClusterPermissions mutated =  discoveredRemoteClusterPermission.removeUnsupportedPrivileges(outboundVersion);
-                        System.out.println("********* mutated: " + mutated);
-                        if(mutated.equals(discoveredRemoteClusterPermission) == false) {
-                            System.out.println("********* modified: " + true);
+                    // example: remote_cluster=[{privileges=[monitor_enrich, monitor_stats]
+                    if (REMOTE_CLUSTER.getPreferredName().equals(innerKey)) {
+                        assert innerValue instanceof List;
+                        RemoteClusterPermissions discoveredRemoteClusterPermission = new RemoteClusterPermissions(
+                            (List<Map<String, List<String>>>) innerValue
+                        );
+                        RemoteClusterPermissions mutated = discoveredRemoteClusterPermission.removeUnsupportedPrivileges(outboundVersion);
+                        if (mutated.equals(discoveredRemoteClusterPermission) == false) {
+                            // swap out the old value with the new value
                             modified.set(true);
+                            Map<String, Object> remoteClusterMap = ((Map<String, Object>) roleDescriptorsMapMutated.get(key));
+                            remoteClusterMap.put(innerKey, mutated.toMap());
                         }
-
-
                     }
                 });
-
-
             }
         });
-        Iterator<Map.Entry<String, Object>> it = roleDescriptorsMap.entrySet().iterator();
-        Map.Entry<String, Object> next = it.next();
-        System.out.println("******** next: " + next);
-
 
         if (modified.get()) {
-//            Iterator<Map.Entry<String, Object>> it = roleDescriptorsMap.entrySet().iterator();
-//            Map.Entry<String, Object> next = it.next();
-//            System.out.println("******** next: " + next
-
-
-            return convertRoleDescriptorsMapToBytes(roleDescriptorsMap);
+            return convertRoleDescriptorsMapToBytes(roleDescriptorsMapMutated);
         } else {
-            // No need to serialize if we did not remove anything.
+            // No need to serialize if we did not change anything.
             return roleDescriptorsBytes;
         }
     }

@@ -5,18 +5,12 @@ tests:
 - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
   method: test {yaml=reference/esql/esql-async-query-api/line_17}
   issue: https://github.com/elastic/elasticsearch/issues/109260
-- class: "org.elasticsearch.analysis.common.CommonAnalysisClientYamlTestSuiteIT"
-  issue: "https://github.com/elastic/elasticsearch/issues/109318"
-  method: "test {yaml=analysis-common/50_char_filters/pattern_replace error handling (too complex pattern)}"
 - class: "org.elasticsearch.xpack.ml.integration.ClassificationHousePricingIT"
   issue: "https://github.com/elastic/elasticsearch/issues/101598"
   method: "testFeatureImportanceValues"
 - class: "org.elasticsearch.client.RestClientSingleHostIntegTests"
   issue: "https://github.com/elastic/elasticsearch/issues/102717"
   method: "testRequestResetAndAbort"
-- class: "org.elasticsearch.xpack.deprecation.DeprecationHttpIT"
-  issue: "https://github.com/elastic/elasticsearch/issues/108628"
-  method: "testDeprecatedSettingsReturnWarnings"
 - class: "org.elasticsearch.xpack.searchablesnapshots.FrozenSearchableSnapshotsIntegTests"
   issue: "https://github.com/elastic/elasticsearch/issues/110408"
   method: "testCreateAndRestorePartialSearchableSnapshot"
@@ -25,9 +19,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/110949
 - class: org.elasticsearch.multi_node.GlobalCheckpointSyncActionIT
   issue: https://github.com/elastic/elasticsearch/issues/111124
-- class: org.elasticsearch.packaging.test.DockerTests
-  method: test021InstallPlugin
-  issue: https://github.com/elastic/elasticsearch/issues/110343
 - class: org.elasticsearch.xpack.security.authc.oidc.OpenIdConnectAuthIT
   method: testAuthenticateWithImplicitFlow
   issue: https://github.com/elastic/elasticsearch/issues/111191
@@ -50,15 +41,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/111448
 - class: org.elasticsearch.search.SearchServiceTests
   issue: https://github.com/elastic/elasticsearch/issues/111529
-- class: org.elasticsearch.upgrades.FullClusterRestartIT
-  method: testSnapshotRestore {cluster=OLD}
-  issue: https://github.com/elastic/elasticsearch/issues/111777
-- class: org.elasticsearch.xpack.restart.CoreFullClusterRestartIT
-  method: testSnapshotRestore {cluster=OLD}
-  issue: https://github.com/elastic/elasticsearch/issues/111775
-- class: org.elasticsearch.upgrades.FullClusterRestartIT
-  method: testSnapshotRestore {cluster=UPGRADED}
-  issue: https://github.com/elastic/elasticsearch/issues/111798
 - class: org.elasticsearch.xpack.restart.CoreFullClusterRestartIT
   method: testSnapshotRestore {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/111799
@@ -79,15 +61,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/112424
 - class: org.elasticsearch.ingest.geoip.IngestGeoIpClientYamlTestSuiteIT
   issue: https://github.com/elastic/elasticsearch/issues/111497
-- class: org.elasticsearch.xpack.security.authc.kerberos.SimpleKdcLdapServerTests
-  method: testClientServiceMutualAuthentication
-  issue: https://github.com/elastic/elasticsearch/issues/112529
-- class: org.elasticsearch.search.basic.SearchWhileRelocatingIT
-  method: testSearchAndRelocateConcurrentlyRandomReplicas
-  issue: https://github.com/elastic/elasticsearch/issues/112515
-- class: org.elasticsearch.xpack.esql.EsqlAsyncSecurityIT
-  method: testIndexPatternErrorMessageComparison_ESQL_SearchDSL
-  issue: https://github.com/elastic/elasticsearch/issues/112630
 - class: org.elasticsearch.packaging.test.PackagesSecurityAutoConfigurationTests
   method: test20SecurityNotAutoConfiguredOnReInstallation
   issue: https://github.com/elastic/elasticsearch/issues/112635
@@ -103,8 +76,6 @@ tests:
 - class: org.elasticsearch.xpack.sql.qa.single_node.JdbcSqlSpecIT
   method: test {case-functions.testUcaseInline3}
   issue: https://github.com/elastic/elasticsearch/issues/112643
-- class: org.elasticsearch.repositories.blobstore.testkit.analyze.HdfsRepositoryAnalysisRestIT
-  issue: https://github.com/elastic/elasticsearch/issues/112889
 - class: org.elasticsearch.xpack.sql.qa.security.JdbcSqlSpecIT
   method: test {case-functions.testUcaseInline1}
   issue: https://github.com/elastic/elasticsearch/issues/112641
@@ -123,12 +94,6 @@ tests:
 - class: org.elasticsearch.packaging.test.WindowsServiceTests
   method: test33JavaChanged
   issue: https://github.com/elastic/elasticsearch/issues/113177
-- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
-  method: test {categorize.Categorize SYNC}
-  issue: https://github.com/elastic/elasticsearch/issues/113054
-- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
-  method: test {categorize.Categorize ASYNC}
-  issue: https://github.com/elastic/elasticsearch/issues/113055
 - class: org.elasticsearch.smoketest.MlWithSecurityIT
   method: test {yaml=ml/sparse_vector_search/Test sparse_vector search with query vector and pruning config}
   issue: https://github.com/elastic/elasticsearch/issues/108997

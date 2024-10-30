@@ -441,15 +441,10 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
 
     public void testThresholdLimit() {
         final var badValue = (float) randomDoubleBetween(0.0, Math.nextDown(1.0f), true);
-        assertEquals(
-            1.0f,
-            new BalancedShardsAllocator(Settings.builder().put(BalancedShardsAllocator.THRESHOLD_SETTING.getKey(), badValue).build())
-                .getThreshold(),
-            0.0f
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> new BalancedShardsAllocator(Settings.builder().put(BalancedShardsAllocator.THRESHOLD_SETTING.getKey(), badValue).build())
         );
-        assertCriticalWarnings("ignoring value [" + badValue + """
-            ] for [cluster.routing.allocation.balance.threshold] since it is smaller than 1.0; setting \
-            [cluster.routing.allocation.balance.threshold] to a value smaller than 1.0 will be forbidden in a future release""");
 
         final var goodValue = (float) randomDoubleBetween(1.0, 10.0, true);
         assertEquals(

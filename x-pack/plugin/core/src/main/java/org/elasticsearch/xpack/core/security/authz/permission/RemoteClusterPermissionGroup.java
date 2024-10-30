@@ -13,7 +13,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.support.StringMatcher;
 
 import java.io.IOException;
@@ -46,12 +45,11 @@ public class RemoteClusterPermissionGroup implements NamedWriteable, ToXContentO
         remoteClusterAliasMatcher = StringMatcher.of(remoteClusterAliases);
     }
 
-
-    public RemoteClusterPermissionGroup(Map<String, List<String>> remoteClusterGroup)  {
+    public RemoteClusterPermissionGroup(Map<String, List<String>> remoteClusterGroup) {
         assert remoteClusterGroup.get(PRIVILEGES.getPreferredName()) != null : "privileges must be non-null";
         assert remoteClusterGroup.get(CLUSTERS.getPreferredName()) != null : "clusters must be non-null";
-        clusterPrivileges =  remoteClusterGroup.get(PRIVILEGES.getPreferredName()).toArray(new String[0]);
-        remoteClusterAliases =  remoteClusterGroup.get(CLUSTERS.getPreferredName()).toArray(new String[0]);
+        clusterPrivileges = remoteClusterGroup.get(PRIVILEGES.getPreferredName()).toArray(new String[0]);
+        remoteClusterAliases = remoteClusterGroup.get(CLUSTERS.getPreferredName()).toArray(new String[0]);
         remoteClusterAliasMatcher = StringMatcher.of(remoteClusterAliases);
     }
 
@@ -67,10 +65,14 @@ public class RemoteClusterPermissionGroup implements NamedWriteable, ToXContentO
             throw new IllegalArgumentException("remote cluster groups must not be null or empty");
         }
         if (Arrays.stream(clusterPrivileges).anyMatch(s -> Strings.hasText(s) == false)) {
-            throw new IllegalArgumentException("remote_cluster privileges must contain valid non-empty, non-null values");
+            throw new IllegalArgumentException(
+                "remote_cluster privileges must contain valid non-empty, non-null values " + Arrays.toString(clusterPrivileges)
+            );
         }
         if (Arrays.stream(remoteClusterAliases).anyMatch(s -> Strings.hasText(s) == false)) {
-            throw new IllegalArgumentException("remote_cluster clusters aliases must contain valid non-empty, non-null values");
+            throw new IllegalArgumentException(
+                "remote_cluster clusters aliases must contain valid non-empty, non-null values " + Arrays.toString(remoteClusterAliases)
+            );
         }
 
         this.clusterPrivileges = clusterPrivileges;
@@ -100,10 +102,17 @@ public class RemoteClusterPermissionGroup implements NamedWriteable, ToXContentO
         return Arrays.copyOf(remoteClusterAliases, remoteClusterAliases.length);
     }
 
-
+    /**
+     * Converts the group to a map representation.
+     * @return A map representation of the group.
+     */
     public Map<String, List<String>> toMap() {
-        return Map.of(PRIVILEGES.getPreferredName(), Arrays.asList(clusterPrivileges),
-            CLUSTERS.getPreferredName(), Arrays.asList(remoteClusterAliases));
+        return Map.of(
+            PRIVILEGES.getPreferredName(),
+            Arrays.asList(clusterPrivileges),
+            CLUSTERS.getPreferredName(),
+            Arrays.asList(remoteClusterAliases)
+        );
     }
 
     @Override

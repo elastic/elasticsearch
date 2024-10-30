@@ -197,7 +197,7 @@ public class RemoteClusterPermissionsTests extends AbstractXContentSerializingTe
             .validate(); // no error
     }
 
-    public void testToMap(){
+    public void testToMap() {
         RemoteClusterPermissions remoteClusterPermissions = new RemoteClusterPermissions();
         List<RemoteClusterPermissionGroup> groups = generateRandomGroups(randomBoolean());
         for (int i = 0; i < groups.size(); i++) {

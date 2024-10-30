@@ -36,7 +36,6 @@ public class RoleReferenceIntersection {
         return roleReferences;
     }
 
-
     public void buildRole(BiConsumer<RoleReference, ActionListener<Role>> singleRoleBuilder, ActionListener<Role> roleActionListener) {
         final GroupedActionListener<Role> roleGroupedActionListener = new GroupedActionListener<>(
             roleReferences.size(),

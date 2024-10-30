@@ -56,8 +56,8 @@ public class RemoteClusterSecurityBWCToRCS1ClusterRestIT extends AbstractRemoteC
             .name("fulfilling-cluster")
             .apply(commonClusterConfig)
             .setting("xpack.ml.enabled", "false")
-          //  .setting("logger.org.elasticsearch.xpack.core", "trace") //useful for human debugging
-          //  .setting("logger.org.elasticsearch.xpack.security", "trace") //useful for human debugging
+            // .setting("logger.org.elasticsearch.xpack.core", "trace") //useful for human debugging
+            // .setting("logger.org.elasticsearch.xpack.security", "trace") //useful for human debugging
             .build();
 
         queryCluster = ElasticsearchCluster.local()

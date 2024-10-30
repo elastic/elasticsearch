@@ -104,15 +104,12 @@ public class RemoteClusterPermissionGroupTests extends AbstractXContentSerializi
         assertEquals("remote_cluster privileges must contain valid non-empty, non-null values", e2.getMessage());
     }
 
-    public void testToMap(){
+    public void testToMap() {
         String[] privileges = generateRandomStringArray(5, 5, false, false);
         String[] clusters = generateRandomStringArray(5, 5, false, false);
         RemoteClusterPermissionGroup remoteClusterPermissionGroup = new RemoteClusterPermissionGroup(privileges, clusters);
         assertEquals(
-            Map.of(
-                "privileges", Arrays.asList(privileges),
-                "clusters", Arrays.asList(clusters)
-            ),
+            Map.of("privileges", Arrays.asList(privileges), "clusters", Arrays.asList(clusters)),
             remoteClusterPermissionGroup.toMap()
         );
     }

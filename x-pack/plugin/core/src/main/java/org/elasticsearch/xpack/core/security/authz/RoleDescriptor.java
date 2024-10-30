@@ -839,8 +839,9 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
                         Arrays.stream(privileges).map(s -> s.toLowerCase(Locale.ROOT)).collect(Collectors.toSet())
                     )) {
                         final String message = String.format(
-                            "failed to parse remote_cluster for role [%s]. " +
-                                "[%s] are the only values allowed for [%s] within [remote_cluster]",
+                            Locale.ROOT,
+                            "failed to parse remote_cluster for role [%s]. "
+                                + "[%s] are the only values allowed for [%s] within [remote_cluster]",
                             roleName,
                             RemoteClusterPermissions.getSupportedRemoteClusterPermissions(),
                             currentFieldName
@@ -852,6 +853,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
                     clusters = readStringArray(roleName, parser, false);
                 } else {
                     final String message = String.format(
+                        Locale.ROOT,
                         "failed to parse remote_cluster for role [%s]. unexpected field [%s]",
                         roleName,
                         currentFieldName

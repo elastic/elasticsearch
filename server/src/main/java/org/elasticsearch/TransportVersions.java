@@ -185,9 +185,7 @@ public class TransportVersions {
     public static final TransportVersion INDEX_REQUEST_REMOVE_METERING = def(8_780_00_0);
     public static final TransportVersion CPU_STAT_STRING_PARSING = def(8_781_00_0);
 
-
-
-    //FIXME: before merging this PR, make sure to update the transport version correctly
+    // FIXME: before merging this PR, make sure to update the transport version correctly
     public static final TransportVersion ROLE_MONITOR_STATS = def(8_882_00_0);
 
     /*

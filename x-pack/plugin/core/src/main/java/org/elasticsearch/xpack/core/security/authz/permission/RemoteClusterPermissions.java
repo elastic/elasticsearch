@@ -36,9 +36,10 @@ import static org.elasticsearch.TransportVersions.ROLE_MONITOR_STATS;
 
 /**
  * Represents the set of permissions for remote clusters. This is intended to be the model for both the {@link RoleDescriptor}
- * and {@link Role}. This model is not intended to be sent to a remote cluster, but can be (wire) serialized within a single cluster
- * as well as the Xcontent serialization for the REST API and persistence of the role in the security index. The privileges modeled here
- * will be converted to the appropriate cluster privileges when sent to a remote cluster.
+ * and {@link Role}. This model is not intended to support RCS 2.0 where these remote cluster permissions are converted to local cluster
+ * permissions {@link #privilegeNames(String, TransportVersion)} ) before sent to the remote cluster. This model also supports RCS 1.0 where
+ * these permissions are sent to the remote API keys {@link #toMap()}. In both cases the outbound transport version will be used to
+ * remove permissions that are not available to elder remote clusters.
  * For example, on the local/querying cluster this model represents the following:
  * <code>
  * "remote_cluster" : [
@@ -52,15 +53,18 @@ import static org.elasticsearch.TransportVersions.ROLE_MONITOR_STATS;
  *         }
  *     ]
  * </code>
- * when sent to the remote cluster "clusterA", the privileges will be converted to the appropriate cluster privileges. For example:
+ * (RCS 2.0) when sent to the remote cluster "clusterA", the privileges will be converted to the appropriate cluster privileges.
+ * For example:
  * <code>
  *   "cluster": ["foo"]
  * </code>
- * and when sent to the remote cluster "clusterB", the privileges will be converted to the appropriate cluster privileges. For example:
+ * and (RCS 2.0) when sent to the remote cluster "clusterB", the privileges will be converted to the appropriate cluster privileges.
+ * For example:
  * <code>
  *   "cluster": ["bar"]
  * </code>
- * If the remote cluster does not support the privilege, as determined by the remote cluster version, the privilege will be not be sent.
+ * (RCS 1.0 and RCS 2.0) If the remote cluster does not support the privilege, as determined by the remote cluster version,
+ * the privilege will be not be sent. Upstream code performs the removal, but this class owns the business logic for how to remove.
  */
 public class RemoteClusterPermissions implements NamedWriteable, ToXContentObject {
 
@@ -88,7 +92,7 @@ public class RemoteClusterPermissions implements NamedWriteable, ToXContentObjec
         remoteClusterPermissionGroups = in.readNamedWriteableCollectionAsList(RemoteClusterPermissionGroup.class);
     }
 
-    public RemoteClusterPermissions(List<Map<String, List<String>>> remoteClusters){
+    public RemoteClusterPermissions(List<Map<String, List<String>>> remoteClusters) {
         remoteClusterPermissionGroups = new ArrayList<>();
         for (Map<String, List<String>> remoteCluster : remoteClusters) {
             RemoteClusterPermissionGroup remoteClusterPermissionGroup = new RemoteClusterPermissionGroup(remoteCluster);
@@ -109,27 +113,69 @@ public class RemoteClusterPermissions implements NamedWriteable, ToXContentObjec
         return this;
     }
 
+    /**
+     * Will remove any unsupported privileges for the provided outbound version. This method will not modify the current instance.
+     * This is useful for RCS 1.0 and API keys to help ensure that we don't send unsupported privileges to the remote cluster.
+     * @param outboundVersion The version by which to remove unsupported privileges, this is typically the version of the remote cluster
+     * @return a new instance of RemoteClusterPermissions with the unsupported privileges removed
+     */
     public RemoteClusterPermissions removeUnsupportedPrivileges(TransportVersion outboundVersion) {
-        System.out.println("************ [DEBUG] RemoteClusterPermissions.removeUnsupportedPrivileges");
+
         RemoteClusterPermissions copyForOutBoundVersion = new RemoteClusterPermissions();
+
+        // TODO: centralize this and put in a poor mans cache
+        // find all the privileges that are allowed for the remote cluster version
+        Set<String> allowedPermissionsPerVersion = allowedRemoteClusterPermissions.entrySet()
+            .stream()
+            .filter((entry) -> entry.getKey().onOrBefore(outboundVersion))
+            .map(Map.Entry::getValue)
+            .flatMap(Set::stream)
+            .map(s -> s.toLowerCase(Locale.ROOT))
+            .collect(Collectors.toSet());
+
         for (RemoteClusterPermissionGroup group : remoteClusterPermissionGroups) {
-            //TODO: actually implement this method, this is a hack to make the test pass for now
-            if(outboundVersion.onOrBefore(ROLE_MONITOR_STATS)){
-                Set<String> a = new HashSet<>(Arrays.asList(group.clusterPrivileges()));
-                a.remove("monitor_stats");
-                copyForOutBoundVersion.addGroup(
-                    new RemoteClusterPermissionGroup(a.toArray(new String[0]), group.remoteClusterAliases())
+            String[] privileges = group.clusterPrivileges();
+            List<String> privilegesMutated = new ArrayList<>(privileges.length);
+            for (String privilege : privileges) {
+                if (allowedPermissionsPerVersion.contains(privilege.toLowerCase(Locale.ROOT))) {
+                    privilegesMutated.add(privilege);
+                }
+            }
+            if (privilegesMutated.isEmpty() == false) {
+                RemoteClusterPermissionGroup mutatedGroup = new RemoteClusterPermissionGroup(
+                    privilegesMutated.toArray(new String[0]),
+                    group.remoteClusterAliases()
                 );
-            }else{
-                copyForOutBoundVersion.addGroup(group);
+                copyForOutBoundVersion.addGroup(mutatedGroup);
+                if (logger.isDebugEnabled()) {
+                    if (group.equals(mutatedGroup) == false) {
+                        logger.debug(
+                            "Removed unsupported remote cluster permissions {} for remote cluster [{}]. "
+                                + "Due to the remote cluster version, only the following permissions are allowed: {}",
+                            privilegesMutated,
+                            group.remoteClusterAliases(),
+                            allowedPermissionsPerVersion
+                        );
+                    }
+                }
+            } else {
+                if (logger.isDebugEnabled()) {
+                    logger.debug(
+                        "Removed all remote cluster permissions for remote cluster [{}]. "
+                            + "Due to the remote cluster version, only the following permissions are allowed: {}",
+                        group.remoteClusterAliases(),
+                        allowedPermissionsPerVersion
+                    );
+                }
             }
         }
         return copyForOutBoundVersion;
     }
 
     /**
-     * Gets the privilege names for the remote cluster. This method will collapse all groups to single String[] all lowercase
-     * and will only return the appropriate privileges for the provided remote cluster version.
+     * Gets all the privilege names for the remote cluster. This method will collapse all groups to single String[] all lowercase
+     * and will only return the appropriate privileges for the provided remote cluster version. This is useful for RCS 2.0 to ensure
+     * that we properly convert all the remote_cluster -> cluster privileges per remote cluster.
      */
     public String[] privilegeNames(final String remoteClusterAlias, TransportVersion remoteClusterVersion) {
 
@@ -168,6 +214,10 @@ public class RemoteClusterPermissions implements NamedWriteable, ToXContentObjec
         return allowedPrivileges.stream().sorted().toArray(String[]::new);
     }
 
+    /**
+     * Converts this object to it's {@link Map} representation.
+     * @return a list of maps representing the remote cluster permissions
+     */
     public List<Map<String, List<String>>> toMap() {
         return remoteClusterPermissionGroups.stream().map(RemoteClusterPermissionGroup::toMap).toList();
     }
@@ -255,6 +305,5 @@ public class RemoteClusterPermissions implements NamedWriteable, ToXContentObjec
     public String getWriteableName() {
         return NAME;
     }
-
 
 }

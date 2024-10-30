@@ -25,11 +25,9 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.security.action.profile.Profile;
 import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo.RoleDescriptorsBytes;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig.RealmIdentifier;
@@ -46,12 +44,10 @@ import org.elasticsearch.xpack.core.security.user.User;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -239,8 +235,8 @@ public final class Authentication implements ToXContentObject {
                     + "]"
             );
         }
-
         final Map<String, Object> newMetadata = maybeRewriteMetadata(olderVersion, this);
+
         final Authentication newAuthentication;
         if (isRunAs()) {
             // The lookup user for run-as currently doesn't have authentication metadata associated with them because
@@ -278,12 +274,23 @@ public final class Authentication implements ToXContentObject {
     }
 
     private static Map<String, Object> maybeRewriteMetadata(TransportVersion olderVersion, Authentication authentication) {
-        if (authentication.isAuthenticatedAsApiKey()) {
-            return maybeRewriteMetadataForApiKeyRoleDescriptors(olderVersion, authentication);
-        } else if (authentication.isCrossClusterAccess()) {
-            return maybeRewriteMetadataForCrossClusterAccessAuthentication(olderVersion, authentication);
-        } else {
-            return authentication.getAuthenticatingSubject().getMetadata();
+        try {
+            if (authentication.isAuthenticatedAsApiKey()) {
+                return maybeRewriteMetadataForApiKeyRoleDescriptors(olderVersion, authentication);
+            } else if (authentication.isCrossClusterAccess()) {
+                return maybeRewriteMetadataForCrossClusterAccessAuthentication(olderVersion, authentication);
+            } else {
+                return authentication.getAuthenticatingSubject().getMetadata();
+            }
+        } catch (Exception e) {
+            // CCS workflows may swallow the exception message making this difficult to troubleshoot, so we explicitly log and re-throw
+            // here. It may result in duplicate logs, so we only log the message at warn level.
+            if (logger.isDebugEnabled()) {
+                logger.debug("Un-expected exception thrown while rewriting metadata. This is likely a bug.", e);
+            } else {
+                logger.warn("Un-expected exception thrown while rewriting metadata. This is likely a bug [" + e.getMessage() + "]");
+            }
+            throw e;
         }
     }
 
@@ -1302,7 +1309,6 @@ public final class Authentication implements ToXContentObject {
         TransportVersion streamVersion,
         Authentication authentication
     ) {
-        System.out.println("***************  maybeRewriteMetadataForApiKeyRoleDescriptors  ***************");
         Map<String, Object> metadata = authentication.getAuthenticatingSubject().getMetadata();
         // If authentication user is an API key or a token created by an API key,
         // regardless whether it has run-as, the metadata must contain API key role descriptors
@@ -1344,29 +1350,23 @@ public final class Authentication implements ToXContentObject {
                         (BytesReference) metadata.get(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY)
                     )
                 );
-            }
-
-            //TODO: this needs to be in the else so we don't add back the remote_cluster field
-            // the current cluster understands remote_cluster field in role descriptors, so check each permission and remove as needed
-            if (authentication.getEffectiveSubject().getTransportVersion().onOrAfter(ROLE_REMOTE_CLUSTER_PRIVS)){
-
-
-                RemoteClusterPermissions.getSupportedRemoteClusterPermissions();
-
+            } else if (streamVersion.onOrAfter(ROLE_REMOTE_CLUSTER_PRIVS)) {
+                // the remote cluster understands remote_cluster field in role descriptors, so check each permission and remove as needed
                 metadata = new HashMap<>(metadata);
                 metadata.put(
                     AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY,
                     maybeRemoveRemoteClusterPrivilegesFromRoleDescriptors(
-                        (BytesReference) metadata.get(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY), streamVersion
+                        (BytesReference) metadata.get(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY),
+                        streamVersion
                     )
                 );
                 metadata.put(
                     AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY,
                     maybeRemoveRemoteClusterPrivilegesFromRoleDescriptors(
-                        (BytesReference) metadata.get(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY), streamVersion
+                        (BytesReference) metadata.get(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY),
+                        streamVersion
                     )
                 );
-
             }
 
             if (authentication.getEffectiveSubject().getTransportVersion().onOrAfter(VERSION_API_KEY_ROLES_AS_BYTES)
@@ -1495,7 +1495,6 @@ public final class Authentication implements ToXContentObject {
         if (roleDescriptorsBytes == null || roleDescriptorsBytes.length() == 0) {
             return roleDescriptorsBytes;
         }
-
         final Map<String, Object> roleDescriptorsMap = convertRoleDescriptorsBytesToMap(roleDescriptorsBytes);
         final Map<String, Object> roleDescriptorsMapMutated = new HashMap<>(roleDescriptorsMap);
         final AtomicBoolean modified = new AtomicBoolean(false);

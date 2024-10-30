@@ -64,10 +64,10 @@ dependencies {
   api "com.nimbusds:content-type:2.3"
   api "com.nimbusds:lang-tag:1.7"
   api("com.nimbusds:nimbus-jose-jwt:9.37.3"){
-    exclude group: 'com.google.crypto.tink', module: 'tink' // it's an optional dependency to which we don't rely on
+    exclude group: 'com.google.crypto.tink', module: 'tink' // it's an optional dependency on which we don't rely
   }
   api("com.nimbusds:oauth2-oidc-sdk:11.9.1"){
-    exclude group: 'com.google.crypto.tink', module: 'tink' // it's an optional dependency to which we don't rely on
+    exclude group: 'com.google.crypto.tink', module: 'tink' // it's an optional dependency on which we don't rely
   }
   api "jakarta.activation:jakarta.activation-api:1.2.1"
   api "jakarta.xml.bind:jakarta.xml.bind-api:2.3.3"

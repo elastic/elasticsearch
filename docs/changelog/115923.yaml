@@ -1,0 +1,12 @@
+pr: 115923
+summary: Apply more strict parsing of actions in bulk API
+area: Indices APIs
+type: breaking
+issues: []
+breaking:
+  title: Apply more strict parsing of actions in bulk API
+  area: Indices APIs
+  details: Please describe the details of this change for the release notes. You can
+    use asciidoc.
+  impact: Please describe the impact of this change to users
+  notable: false

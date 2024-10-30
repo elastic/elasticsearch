@@ -346,6 +346,15 @@ tests:
 - class: org.elasticsearch.xpack.inference.InferenceCrudIT
   method: testSupportedStream
   issue: https://github.com/elastic/elasticsearch/issues/113430
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=indices.create/20_synthetic_source/object with unmapped fields}
+  issue: https://github.com/elastic/elasticsearch/issues/115910
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=indices.create/20_synthetic_source/empty object with unmapped fields}
+  issue: https://github.com/elastic/elasticsearch/issues/115911
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=indices.create/20_synthetic_source/nested object with unmapped fields}
+  issue: https://github.com/elastic/elasticsearch/issues/115912
 
 # Examples:
 #

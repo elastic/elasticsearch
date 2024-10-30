@@ -19,6 +19,7 @@ import java.util.List;
  * @param runId  GUID */
 public record HistoricalRankEvalRun(
     String runId,
+    long dateRun,
     String storedCorpus,
     String templateId,
     org.elasticsearch.index.rankeval.HistoricalRankEvalRun.Metric metric,
@@ -30,6 +31,7 @@ public record HistoricalRankEvalRun(
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field("run_id", runId);
+        builder.field("date_run", dateRun);
         builder.field("stored_corpus", storedCorpus);
         builder.field("template_id", templateId);
         builder.startObject("metric");

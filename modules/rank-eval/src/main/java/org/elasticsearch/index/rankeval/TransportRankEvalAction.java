@@ -47,6 +47,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -331,6 +332,7 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
 
             HistoricalRankEvalRun historicalRun = new HistoricalRankEvalRun(
                 runId,
+                Instant.now().toEpochMilli(),
                 this.rankEvalSpec.getStoredCorpus(),
                 this.rankEvalSpec.getTemplates().keySet().iterator().next(),
                 historicalMetric,

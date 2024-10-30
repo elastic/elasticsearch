@@ -10,5 +10,7 @@ breaking:
     Previously, the following classes of malformed input were deprecated but not rejected in the action lines of the a
     bulk request: missing closing brace; additional keys after the action (which were ignored); additional data after
     the closing brace (which was ignored). They will now be considered errors and rejected.
-  impact: Users must provide well-formed input when using the bulk API
+  impact: >-
+    Users must provide well-formed input when using the bulk API. (They can request REST API compatibility with v8 to
+    get the previous behaviour back as an interim measure.)
   notable: false

@@ -588,7 +588,7 @@ public class AllocationService {
         reroute(allocation, routingAllocation -> shardsAllocator.allocate(routingAllocation, ActionListener.noop()));
         return buildResultAndLogHealthChange(clusterState, allocation, "reroute with reset failed counter");
     }
-    
+
     private static void disassociateDeadNodes(RoutingAllocation allocation) {
         for (Iterator<RoutingNode> it = allocation.routingNodes().mutableIterator(); it.hasNext();) {
             RoutingNode node = it.next();

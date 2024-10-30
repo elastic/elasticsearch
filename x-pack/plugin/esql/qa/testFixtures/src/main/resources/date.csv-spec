@@ -1526,12 +1526,12 @@ implicitCastingTemporalAmountInStringWithNulls
 required_capability: implicit_casting_string_literal_to_temporal_amount
 
 FROM employees
-| EVAL a = to_dt(null) - "1 day", b = null + "1 day", c = "2024-01-01" + null + "1 day"
+| EVAL a = to_dt(null) - "1 day", b = "2024-01-01" + null + "1 day", c = null + "1 day" + "2024-01-01"
 | KEEP a, b, c
 | LIMIT 1;
 
-a:datetime |b:null |c:null
-null       |null   |null
+a:datetime |b:datetime |c:datetime
+null       |null       |null
 ;
 
 filteringWithTemporalAmountInString

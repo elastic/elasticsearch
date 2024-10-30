@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.Converter;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -276,7 +277,7 @@ public class EsqlDataTypeConverter {
         }
         StringBuilder value = new StringBuilder();
         StringBuilder qualifier = new StringBuilder();
-        parseTemporalAmount(str, value, qualifier, errorMessage, expectedType);
+        parseTemporalAmount(str, value, qualifier, errorMessage, expectedType.toString());
         if ((value.isEmpty() || qualifier.isEmpty()) == false) {
             try {
                 TemporalAmount result = parseTemporalAmount(Integer.parseInt(value.toString()), qualifier.toString(), Source.EMPTY);
@@ -297,12 +298,35 @@ public class EsqlDataTypeConverter {
         throw new ParsingException(Source.EMPTY, errorMessage, val, expectedType);
     }
 
+    public static Literal parseTemporalAmount(Expression e) {
+        // The string literal can be either Date_Period or Time_Duration, derive the data type from its qualifier
+        if (e.fold() == null) {
+            return null;
+        }
+        String errorMessage = "Cannot parse [{}] to {}";
+        String expectedTypes = DATE_PERIOD + " or " + TIME_DURATION;
+        String str = e.fold().toString().strip();
+        StringBuilder value = new StringBuilder();
+        StringBuilder qualifier = new StringBuilder();
+        parseTemporalAmount(str, value, qualifier, errorMessage, expectedTypes);
+        if ((value.isEmpty() || qualifier.isEmpty()) == false) {
+            try {
+                TemporalAmount result = parseTemporalAmount(Integer.parseInt(value.toString()), qualifier.toString(), Source.EMPTY);
+                DataType target = result instanceof Duration ? TIME_DURATION : DATE_PERIOD;
+                return new Literal(e.source(), result, target);
+            } catch (NumberFormatException ex) {
+                throw new ParsingException(Source.EMPTY, errorMessage, str, expectedTypes);
+            }
+        }
+        return null;
+    }
+
     public static void parseTemporalAmount(
         String temporalAmount,
         StringBuilder value,
         StringBuilder qualifier,
         String errorMessage,
-        DataType expectedType
+        String expectedType
     ) {
         StringBuilder nextBuffer = value;
         boolean lastWasSpace = false;

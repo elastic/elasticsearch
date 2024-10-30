@@ -4,6 +4,7 @@
 // 2.0.
 package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
+import java.lang.ArithmeticException;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
@@ -12,7 +13,6 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.IntBlock;
-import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
@@ -47,7 +47,7 @@ public final class BitLengthEvaluator implements EvalOperator.ExpressionEvaluato
       if (valVector == null) {
         return eval(page.getPositionCount(), valBlock);
       }
-      return eval(page.getPositionCount(), valVector).asBlock();
+      return eval(page.getPositionCount(), valVector);
     }
   }
 
@@ -66,17 +66,27 @@ public final class BitLengthEvaluator implements EvalOperator.ExpressionEvaluato
           result.appendNull();
           continue position;
         }
-        result.appendInt(BitLength.process(valBlock.getBytesRef(valBlock.getFirstValueIndex(p), valScratch)));
+        try {
+          result.appendInt(BitLength.process(valBlock.getBytesRef(valBlock.getFirstValueIndex(p), valScratch)));
+        } catch (ArithmeticException e) {
+          warnings().registerException(e);
+          result.appendNull();
+        }
       }
       return result.build();
     }
   }
 
-  public IntVector eval(int positionCount, BytesRefVector valVector) {
-    try(IntVector.FixedBuilder result = driverContext.blockFactory().newIntVectorFixedBuilder(positionCount)) {
+  public IntBlock eval(int positionCount, BytesRefVector valVector) {
+    try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
       BytesRef valScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendInt(p, BitLength.process(valVector.getBytesRef(p, valScratch)));
+        try {
+          result.appendInt(BitLength.process(valVector.getBytesRef(p, valScratch)));
+        } catch (ArithmeticException e) {
+          warnings().registerException(e);
+          result.appendNull();
+        }
       }
       return result.build();
     }

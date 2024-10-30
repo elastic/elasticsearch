@@ -82,9 +82,9 @@ public class BitLength extends UnaryScalarFunction {
         return isString(field(), sourceText(), DEFAULT);
     }
 
-    @Evaluator
+    @Evaluator(warnExceptions = { ArithmeticException.class })
     static int process(BytesRef val) {
-        return val.length * Byte.SIZE;
+        return Math.multiplyExact(val.length, Byte.SIZE);
     }
 
     @Override

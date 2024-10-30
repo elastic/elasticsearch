@@ -41,6 +41,7 @@ import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.StringFieldType;
+import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.injection.guice.Inject;
@@ -163,7 +164,9 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
                 if (analyzer == null) {
                     throw new IllegalArgumentException("failed to find global analyzer [" + request.analyzer() + "]");
                 }
-                return analyzer;
+                return analyzer instanceof NamedAnalyzer
+                       ? new NamedAnalyzer((NamedAnalyzer)analyzer, TextFieldMapper.Defaults.POSITION_INCREMENT_GAP)
+                       : analyzer;
             } else {
                 Analyzer analyzer = indexService.getIndexAnalyzers().get(request.analyzer());
                 if (analyzer == null) {

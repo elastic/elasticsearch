@@ -249,6 +249,38 @@ public class TransportAnalyzeActionTests extends ESTestCase {
         assertEquals("<ALPHANUM>", tokens.get(3).getType());
     }
 
+    public void testMultiPhraseRequest() throws IOException {
+        AnalyzeAction.Request request = new AnalyzeAction.Request();
+        request.analyzer("standard");
+        request.text("first thing", "second try");
+        AnalyzeAction.Response analyze = TransportAnalyzeAction.analyze(request, registry, null, maxTokenCount);
+        List<AnalyzeAction.AnalyzeToken> tokens = analyze.getTokens();
+        assertEquals(4, tokens.size());
+        assertEquals("first", tokens.get(0).getTerm());
+        assertEquals(0, tokens.get(0).getStartOffset());
+        assertEquals(5, tokens.get(0).getEndOffset());
+        assertEquals(0, tokens.get(0).getPosition());
+        assertEquals("<ALPHANUM>", tokens.get(0).getType());
+
+        assertEquals("thing", tokens.get(1).getTerm());
+        assertEquals(6, tokens.get(1).getStartOffset());
+        assertEquals(11, tokens.get(1).getEndOffset());
+        assertEquals(1, tokens.get(1).getPosition());
+        assertEquals("<ALPHANUM>", tokens.get(1).getType());
+
+        assertEquals("second", tokens.get(2).getTerm());
+        assertEquals(12, tokens.get(2).getStartOffset());
+        assertEquals(18, tokens.get(2).getEndOffset());
+        assertEquals(102, tokens.get(2).getPosition());
+        assertEquals("<ALPHANUM>", tokens.get(2).getType());
+
+        assertEquals("try", tokens.get(3).getTerm());
+        assertEquals(19, tokens.get(3).getStartOffset());
+        assertEquals(22, tokens.get(3).getEndOffset());
+        assertEquals(103, tokens.get(3).getPosition());
+        assertEquals("<ALPHANUM>", tokens.get(3).getType());
+    }
+
     public void testWithIndexAnalyzers() throws IOException {
         AnalyzeAction.Request request = new AnalyzeAction.Request();
         request.text("the quick brown fox");

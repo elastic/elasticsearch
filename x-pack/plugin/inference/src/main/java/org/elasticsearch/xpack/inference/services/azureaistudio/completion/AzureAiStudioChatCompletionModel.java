@@ -7,10 +7,14 @@
 
 package org.elasticsearch.xpack.inference.services.azureaistudio.completion;
 
+import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
+import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.configuration.SettingsConfigurationDisplayType;
+import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.azureaistudio.AzureAiStudioActionVisitor;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
@@ -21,9 +25,12 @@ import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings
 
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioConstants.COMPLETIONS_URI_PATH;
+import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioConstants.USER_FIELD;
 
 public class AzureAiStudioChatCompletionModel extends AzureAiStudioModel {
 
@@ -101,5 +108,31 @@ public class AzureAiStudioChatCompletionModel extends AzureAiStudioModel {
     @Override
     public ExecutableAction accept(AzureAiStudioActionVisitor creator, Map<String, Object> taskSettings) {
         return creator.create(this, taskSettings);
+    }
+
+    public static class Configuration {
+        public static Map<String, SettingsConfiguration> get() {
+            return configuration.getOrCompute();
+        }
+
+        private static final LazyInitializable<Map<String, SettingsConfiguration>, RuntimeException> configuration =
+            new LazyInitializable<>(() -> {
+                var configurationMap = new HashMap<String, SettingsConfiguration>();
+
+                configurationMap.put(
+                    USER_FIELD,
+                    new SettingsConfiguration.Builder().setDisplay(SettingsConfigurationDisplayType.TEXTBOX)
+                        .setLabel("User")
+                        .setOrder(1)
+                        .setRequired(false)
+                        .setSensitive(false)
+                        .setTooltip("Specifies the user issuing the request.")
+                        .setType(SettingsConfigurationFieldType.STRING)
+                        .setValue("")
+                        .build()
+                );
+
+                return Collections.unmodifiableMap(configurationMap);
+            });
     }
 }

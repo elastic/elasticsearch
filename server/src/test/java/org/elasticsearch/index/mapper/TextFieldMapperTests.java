@@ -1249,7 +1249,7 @@ public class TextFieldMapperTests extends MapperTestCase {
     }
 
     public void testDocValuesLoadedFromStoredSynthetic() throws IOException {
-        MapperService mapper = createMapperService(syntheticSourceFieldMapping(b -> b.field("type", "text").field("store", true)));
+        MapperService mapper = createSytheticSourceMapperService(fieldMapping(b -> b.field("type", "text").field("store", true)));
         for (String input : new String[] {
             "foo",       // Won't be tokenized
             "foo bar",   // Will be tokenized. But script doc values still returns the whole field.
@@ -1259,7 +1259,7 @@ public class TextFieldMapperTests extends MapperTestCase {
     }
 
     public void testDocValuesLoadedFromSubKeywordSynthetic() throws IOException {
-        MapperService mapper = createMapperService(syntheticSourceFieldMapping(b -> {
+        MapperService mapper = createSytheticSourceMapperService(fieldMapping(b -> {
             b.field("type", "text");
             b.startObject("fields");
             {
@@ -1276,7 +1276,7 @@ public class TextFieldMapperTests extends MapperTestCase {
     }
 
     public void testDocValuesLoadedFromSubStoredKeywordSynthetic() throws IOException {
-        MapperService mapper = createMapperService(syntheticSourceFieldMapping(b -> {
+        MapperService mapper = createSytheticSourceMapperService(fieldMapping(b -> {
             b.field("type", "text");
             b.startObject("fields");
             {
@@ -1351,7 +1351,8 @@ public class TextFieldMapperTests extends MapperTestCase {
             }
             b.endObject();
         };
-        MapperService mapper = createMapperService(syntheticSource ? syntheticSourceMapping(buildFields) : mapping(buildFields));
+        XContentBuilder mapping = mapping(buildFields);
+        MapperService mapper = syntheticSource ? createSytheticSourceMapperService(mapping) : createMapperService(mapping);
         BlockReaderSupport blockReaderSupport = getSupportedReaders(mapper, "field.sub");
         var sourceLoader = mapper.mappingLookup().newSourceLoader(SourceFieldMetrics.NOOP);
         testBlockLoader(columnReader, example, blockReaderSupport, sourceLoader);

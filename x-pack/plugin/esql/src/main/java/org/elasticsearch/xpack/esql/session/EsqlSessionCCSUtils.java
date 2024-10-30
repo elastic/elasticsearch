@@ -13,6 +13,7 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
@@ -143,5 +144,65 @@ public class EsqlSessionCCSUtils {
             }
         }
         return unavailableRemotes;
+    }
+
+    /**
+     * Whether to return an empty result (HTTP status 200) for a CCS rather than a top level 4xx/5xx error.
+     *
+     * For cases where field-caps had no indices to search and the remotes were unavailable, we
+     * return an empty successful response (200) if all remotes are marked with skip_unavailable=true.
+     *
+     * Note: a follow-on PR will expand this logic to handle cases where no indices could be found to match
+     * on any of the requested clusters.
+     */
+    static boolean returnSuccessWithEmptyResult(EsqlExecutionInfo executionInfo, Exception e) {
+        if (executionInfo.isCrossClusterSearch() == false) {
+            return false;
+        }
+
+        if (e instanceof NoClustersToSearchException || ExceptionsHelper.isRemoteUnavailableException(e)) {
+            for (String clusterAlias : executionInfo.clusterAliases()) {
+                if (executionInfo.isSkipUnavailable(clusterAlias) == false
+                    && clusterAlias.equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY) == false) {
+                    return false;
+                }
+            }
+            return true;
+        }
+        return false;
+    }
+
+    // TODO: write tests for this and method above
+    static void updateExecutionInfoToReturnEmptyResult(EsqlExecutionInfo executionInfo, Exception e) {
+        executionInfo.markEndQuery();
+        Exception exceptionForResponse;
+        if (e instanceof ConnectTransportException) {
+            // when field-caps has no field info (since no clusters could be connected to or had matching indices)
+            // it just throws the first exception in its list, so this odd special handling is here is to avoid
+            // having one specific remote alias name in all failure lists in the metadata response
+            exceptionForResponse = new RemoteTransportException("connect_transport_exception - unable to connect to remote cluster", null);
+        } else {
+            exceptionForResponse = e;
+        }
+        for (String clusterAlias : executionInfo.clusterAliases()) {
+            executionInfo.swapCluster(clusterAlias, (k, v) -> {
+                EsqlExecutionInfo.Cluster.Builder builder = new EsqlExecutionInfo.Cluster.Builder(v).setTook(executionInfo.overallTook())
+                    .setTotalShards(0)
+                    .setSuccessfulShards(0)
+                    .setSkippedShards(0)
+                    .setFailedShards(0);
+                if (RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.equals(clusterAlias)) {
+                    // never mark local cluster as skipped
+                    builder.setStatus(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL);
+                } else {
+                    builder.setStatus(EsqlExecutionInfo.Cluster.Status.SKIPPED);
+                    // add this exception to the failures list only if there is no failure already recorded there
+                    if (v.getFailures() == null || v.getFailures().size() == 0) {
+                        builder.setFailures(List.of(new ShardSearchFailure(exceptionForResponse)));
+                    }
+                }
+                return builder.build();
+            });
+        }
     }
 }

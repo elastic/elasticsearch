@@ -75,11 +75,7 @@ public class BitLength extends UnaryScalarFunction {
 
     @Override
     protected TypeResolution resolveType() {
-        if (childrenResolved() == false) {
-            return new TypeResolution("Unresolved children");
-        }
-
-        return isString(field(), sourceText(), DEFAULT);
+        return childrenResolved() == false ? new TypeResolution("Unresolved children") : isString(field(), sourceText(), DEFAULT);
     }
 
     @Evaluator(warnExceptions = { ArithmeticException.class })

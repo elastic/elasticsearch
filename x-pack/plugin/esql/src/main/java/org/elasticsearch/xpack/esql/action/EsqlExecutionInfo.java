@@ -182,6 +182,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
         if (RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.equals(clusterAlias)) {
             return false;
         }
+        // TODO: should first check the skipUn status of each cluster if present in clusterInfo (simplifies testing)
         return skipUnavailablePredicate.test(clusterAlias);
     }
 

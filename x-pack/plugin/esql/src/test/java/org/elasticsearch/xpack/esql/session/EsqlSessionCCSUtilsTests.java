@@ -9,9 +9,11 @@ package org.elasticsearch.xpack.esql.session;
 
 import org.apache.lucene.index.CorruptIndexException;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.NoSeedNodeLeftException;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.transport.RemoteClusterAware;
@@ -29,6 +31,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Predicate;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -467,6 +470,113 @@ public class EsqlSessionCCSUtilsTests extends ESTestCase {
             List<FieldCapabilitiesFailure> failures = new ArrayList<>();
             Map<String, FieldCapabilitiesFailure> unavailableClusters = EsqlSessionCCSUtils.determineUnavailableRemoteClusters(failures);
             assertThat(unavailableClusters.keySet(), equalTo(Set.of()));
+        }
+    }
+
+    public void testReturnSuccessWithEmptyResult() {
+        String localClusterAlias = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
+        String remote1Alias = "remote1";
+        String remote2Alias = "remote2";
+        String remote3Alias = "remote3";
+        NoClustersToSearchException noClustersException = new NoClustersToSearchException();
+        Predicate<String> skipUnPredicate = s -> {
+            if (s.equals("remote2") || s.equals("remote3")) {
+                return true;
+            }
+            return false;
+        };
+
+        EsqlExecutionInfo.Cluster localCluster = new EsqlExecutionInfo.Cluster(localClusterAlias, "logs*", false);
+        EsqlExecutionInfo.Cluster remote1 = new EsqlExecutionInfo.Cluster(remote1Alias, "logs*", false);
+        EsqlExecutionInfo.Cluster remote2 = new EsqlExecutionInfo.Cluster(remote2Alias, "logs*", true);
+        EsqlExecutionInfo.Cluster remote3 = new EsqlExecutionInfo.Cluster(remote3Alias, "logs*", true);
+
+        // not a cross-cluster cluster search, so do not return empty result
+        {
+            EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(skipUnPredicate, randomBoolean());
+            executionInfo.swapCluster(localClusterAlias, (k, v) -> localCluster);
+            assertFalse(EsqlSessionCCSUtils.returnSuccessWithEmptyResult(executionInfo, noClustersException));
+        }
+
+        // local cluster is present, so do not return empty result
+        {
+            EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(skipUnPredicate, randomBoolean());
+            executionInfo.swapCluster(localClusterAlias, (k, v) -> localCluster);
+            executionInfo.swapCluster(remote1Alias, (k, v) -> remote1);
+            // TODO: this logic will be added in the follow-on PR that handles missing indices
+            // assertFalse(EsqlSessionCCSUtils.returnSuccessWithEmptyResult(executionInfo, noClustersException));
+        }
+
+        // remote-only, one cluster is skip_unavailable=false, so do not return empty result
+        {
+            EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(skipUnPredicate, randomBoolean());
+            executionInfo.swapCluster(remote1Alias, (k, v) -> remote1);
+            executionInfo.swapCluster(remote2Alias, (k, v) -> remote2);
+            assertFalse(EsqlSessionCCSUtils.returnSuccessWithEmptyResult(executionInfo, noClustersException));
+        }
+
+        // remote-only, all clusters are skip_unavailable=true, so should return empty result with
+        // NoSuchClustersException or "remote unavailable" type exception
+        {
+            EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(skipUnPredicate, randomBoolean());
+            executionInfo.swapCluster(remote2Alias, (k, v) -> remote2);
+            executionInfo.swapCluster(remote3Alias, (k, v) -> remote3);
+            Exception e = randomFrom(
+                new NoSuchRemoteClusterException("foo"),
+                noClustersException,
+                new NoSeedNodeLeftException("foo"),
+                new IllegalStateException("unknown host")
+            );
+            assertTrue(EsqlSessionCCSUtils.returnSuccessWithEmptyResult(executionInfo, e));
+        }
+
+        // remote-only, all clusters are skip_unavailable=true, but exception is not "remote unavailable" so return false
+        // Note: this functionality may change in follow-on PRs, so remove this test in that case
+        {
+            EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(skipUnPredicate, randomBoolean());
+            executionInfo.swapCluster(remote2Alias, (k, v) -> remote2);
+            executionInfo.swapCluster(remote3Alias, (k, v) -> remote3);
+            assertFalse(EsqlSessionCCSUtils.returnSuccessWithEmptyResult(executionInfo, new NullPointerException()));
+        }
+    }
+
+    public void testUpdateExecutionInfoToReturnEmptyResult() {
+        String localClusterAlias = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
+        String remote1Alias = "remote1";
+        String remote2Alias = "remote2";
+        String remote3Alias = "remote3";
+        ConnectTransportException transportEx = new ConnectTransportException(null, "foo");
+        Predicate<String> skipUnPredicate = s -> {
+            if (s.startsWith("remote")) {
+                return true;
+            }
+            return false;
+        };
+
+        EsqlExecutionInfo.Cluster localCluster = new EsqlExecutionInfo.Cluster(localClusterAlias, "logs*", false);
+        EsqlExecutionInfo.Cluster remote1 = new EsqlExecutionInfo.Cluster(remote1Alias, "logs*", true);
+        EsqlExecutionInfo.Cluster remote2 = new EsqlExecutionInfo.Cluster(remote2Alias, "logs*", true);
+        EsqlExecutionInfo.Cluster remote3 = new EsqlExecutionInfo.Cluster(remote3Alias, "logs*", true);
+
+        EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(skipUnPredicate, randomBoolean());
+        executionInfo.swapCluster(localCluster.getClusterAlias(), (k, v) -> localCluster);
+        executionInfo.swapCluster(remote1.getClusterAlias(), (k, v) -> remote1);
+        executionInfo.swapCluster(remote2.getClusterAlias(), (k, v) -> remote2);
+        executionInfo.swapCluster(remote3.getClusterAlias(), (k, v) -> remote3);
+
+        assertNull(executionInfo.overallTook());
+
+        EsqlSessionCCSUtils.updateExecutionInfoToReturnEmptyResult(executionInfo, transportEx);
+
+        assertNotNull(executionInfo.overallTook());
+        assertThat(executionInfo.getCluster(localClusterAlias).getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
+        assertThat(executionInfo.getCluster(localClusterAlias).getFailures().size(), equalTo(0));
+
+        for (String remoteAlias : Set.of(remote1Alias, remote2Alias, remote3Alias)) {
+            assertThat(executionInfo.getCluster(remoteAlias).getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SKIPPED));
+            List<ShardSearchFailure> remoteFailures = executionInfo.getCluster(remoteAlias).getFailures();
+            assertThat(remoteFailures.size(), equalTo(1));
+            assertThat(remoteFailures.get(0).reason(), containsString("unable to connect to remote cluster"));
         }
     }
 }

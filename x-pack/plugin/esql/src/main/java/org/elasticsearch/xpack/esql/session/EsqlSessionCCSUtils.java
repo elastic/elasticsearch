@@ -172,7 +172,6 @@ public class EsqlSessionCCSUtils {
         return false;
     }
 
-    // TODO: write tests for this and method above
     static void updateExecutionInfoToReturnEmptyResult(EsqlExecutionInfo executionInfo, Exception e) {
         executionInfo.markEndQuery();
         Exception exceptionForResponse;

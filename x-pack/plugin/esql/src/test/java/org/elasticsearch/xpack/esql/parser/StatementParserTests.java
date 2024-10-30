@@ -2290,7 +2290,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         }
     }
 
-    public void testMatchOperator() {
+    public void testMatchOperatorConstantQueryString() {
         var plan = statement("FROM test | WHERE field:\"value\"");
         var filter = as(plan, Filter.class);
         var match = (Match) filter.condition();
@@ -2301,5 +2301,27 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     public void testInvalidMatchOperator() {
         expectError("from test | WHERE field:", "line 1:25: mismatched input '<EOF>' expecting {QUOTED_STRING, ");
+        expectError(
+            "from test | WHERE field:CONCAT(\"hello\", \"world\")",
+            "line 1:25: mismatched input 'CONCAT' expecting {QUOTED_STRING, INTEGER_LITERAL, DECIMAL_LITERAL, "
+        );
+        expectError("from test | WHERE field:123::STRING", "line 1:28: mismatched input '::' expecting {<EOF>, '|', 'and', 'or'}");
+        expectError(
+            "from test | WHERE field:(true OR false)",
+            "line 1:25: extraneous input '(' expecting {QUOTED_STRING, INTEGER_LITERAL, DECIMAL_LITERAL, "
+        );
+        expectError(
+            "from test | WHERE field:another_field_or_value",
+            "line 1:25: mismatched input 'another_field_or_value' expecting {QUOTED_STRING, INTEGER_LITERAL, DECIMAL_LITERAL, "
+        );
+        expectError("from test | WHERE field:2+3", "line 1:26: mismatched input '+' expecting {<EOF>, '|', 'and', 'or'}");
+        expectError(
+            "from test | WHERE \"field\":\"value\"",
+            "line 1:26: mismatched input ':' expecting {<EOF>, '|', 'and', '::', 'or', '+', '-', '*', '/', '%'}"
+        );
+        expectError(
+            "from test | WHERE CONCAT(\"field\", 1):\"value\"",
+            "line 1:37: mismatched input ':' expecting {<EOF>, '|', 'and', '::', 'or', '+', '-', '*', '/', '%'}"
+        );
     }
 }

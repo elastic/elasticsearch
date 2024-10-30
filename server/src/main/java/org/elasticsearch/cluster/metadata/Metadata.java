@@ -2022,14 +2022,12 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
             Objects.requireNonNull(index);
 
             Set<Index> indices = aliasedIndices.get(alias);
-            if (indices == null || indices.isEmpty()) {
+            if (indices == null || indices.isEmpty() || indices.contains(index) == false) {
                 throw new IllegalStateException("Cannot remove non-existent alias [" + alias + "] for index [" + index.getName() + "]");
             }
 
             indices = new HashSet<>(indices);
-            if (indices.remove(index) == false) {
-                throw new IllegalStateException("Cannot remove non-existent alias [" + alias + "] for index [" + index.getName() + "]");
-            }
+            indices.remove(index);
 
             if (indices.isEmpty()) {
                 aliasedIndices.remove(alias); // for consistency, we don't store empty sets, so null it out

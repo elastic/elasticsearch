@@ -117,9 +117,6 @@ tests:
 - class: org.elasticsearch.xpack.sql.qa.security.JdbcSqlSpecIT
   method: test {case-functions.testSelectInsertWithLcaseAndLengthWithOrderBy}
   issue: https://github.com/elastic/elasticsearch/issues/112642
-- class: org.elasticsearch.action.admin.cluster.node.stats.NodeStatsTests
-  method: testChunking
-  issue: https://github.com/elastic/elasticsearch/issues/113139
 - class: org.elasticsearch.packaging.test.WindowsServiceTests
   method: test30StartStop
   issue: https://github.com/elastic/elasticsearch/issues/113160
@@ -150,9 +147,6 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=search/500_date_range/from, to, include_lower, include_upper deprecated}
   issue: https://github.com/elastic/elasticsearch/pull/113286
-- class: org.elasticsearch.xpack.esql.EsqlAsyncSecurityIT
-  method: testLimitedPrivilege
-  issue: https://github.com/elastic/elasticsearch/issues/113419
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
   method: test {categorize.Categorize}
   issue: https://github.com/elastic/elasticsearch/issues/113428
@@ -242,9 +236,6 @@ tests:
 - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
   method: test {yaml=reference/esql/esql-across-clusters/line_197}
   issue: https://github.com/elastic/elasticsearch/issues/115575
-- class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
-  method: test {yaml=cluster.stats/30_ccs_stats/cross-cluster search stats search}
-  issue: https://github.com/elastic/elasticsearch/issues/115600
 - class: org.elasticsearch.oldrepos.OldRepositoryAccessIT
   method: testOldRepoAccess
   issue: https://github.com/elastic/elasticsearch/issues/115631

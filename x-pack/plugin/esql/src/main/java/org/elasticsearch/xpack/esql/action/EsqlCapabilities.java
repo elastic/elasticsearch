@@ -51,11 +51,6 @@ public class EsqlCapabilities {
         FN_CBRT,
 
         /**
-         * Support for function {@code GREATEST}. Done in #98630.
-         */
-        FN_GREATEST,
-
-        /**
          * Support for function {@code HYPOT}.
          */
         FN_HYPOT,

@@ -64,7 +64,6 @@ a:integer | b:integer
 
 bitLengthAndSourceQuoting
 required_capability: fn_bit_length
-required_capability: double_quotes_source_enclosing
 from "employees" | sort emp_no | limit 3 | eval l = bit_length(first_name) | keep emp_no, l;
 
 emp_no:integer | l:integer
@@ -75,7 +74,6 @@ emp_no:integer | l:integer
 
 bitLengthInsideOtherFunction
 required_capability: fn_bit_length
-required_capability: fn_greatest
 row a = "abc", b = "de" | eval g = greatest(bit_length(a), bit_length(b), bit_length("fghi"));
 
 a:keyword | b:keyword | g:integer

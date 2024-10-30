@@ -113,7 +113,6 @@ public abstract class TransportWriteAction<
 
     @Override
     protected Releasable checkOperationLimits(Request request) {
-        System.out.println("Inside checkOperationLimits");
         return indexingPressure.markPrimaryOperationStarted(primaryOperationCount(request), primaryOperationSize(request), force(request));
     }
 
@@ -128,7 +127,6 @@ public abstract class TransportWriteAction<
 
     @Override
     protected Releasable checkPrimaryLimits(Request request, boolean rerouteWasLocal, boolean localRerouteInitiatedByNodeClient) {
-        System.out.println("Inside checkPrimaryLimits");
         if (rerouteWasLocal) {
             // If this primary request was received from a local reroute initiated by the node client, we
             // must mark a new primary operation local to the coordinating node.

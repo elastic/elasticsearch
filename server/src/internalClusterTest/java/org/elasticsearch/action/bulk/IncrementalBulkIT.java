@@ -380,19 +380,15 @@ public class IncrementalBulkIT extends ESIntegTestCase {
             refCounted.incRef();
             handler.addItems(List.of(indexRequest(index)), refCounted::decRef, () -> nextRequested.set(true));
             hits.incrementAndGet();
-            System.out.println("Hits = " + hits.get());
+
         }
 
         assertBusy(() -> assertTrue(nextRequested.get()));
-        System.out.println("Final Hits = " + hits.get());
-
         String node = findShard(resolveIndex(index), 0);
         String secondShardNode = findShard(resolveIndex(index), 1);
         IndexingPressure primaryPressure = internalCluster().getInstance(IndexingPressure.class, node);
         long memoryLimit = primaryPressure.stats().getMemoryLimit();
         long primaryRejections = primaryPressure.stats().getPrimaryRejections();
-        System.out.println("Primary rejections = " + primaryRejections);
-        System.out.println("Memory limit = " + memoryLimit);
         try (Releasable releasable = primaryPressure.markPrimaryOperationStarted(10, memoryLimit, false)) {
             while (primaryPressure.stats().getPrimaryRejections() == primaryRejections) {
                 while (nextRequested.get()) {
@@ -405,9 +401,7 @@ public class IncrementalBulkIT extends ESIntegTestCase {
                     handler.addItems(requests, refCounted::decRef, () -> nextRequested.set(true));
                 }
                 assertBusy(() -> assertTrue(nextRequested.get()));
-                System.out.println("Primary rejections = " + primaryPressure.stats().getPrimaryRejections());
             }
-            System.out.println("Primary rejections = " + primaryPressure.stats().getPrimaryRejections());
         }
 
         while (nextRequested.get()) {
@@ -423,12 +417,10 @@ public class IncrementalBulkIT extends ESIntegTestCase {
 
         BulkResponse bulkResponse = safeGet(future);
         assertTrue(bulkResponse.hasFailures());
-        System.out.println("Hits = " + hits.get());
         for (int i = 0; i < hits.get(); ++i) {
             assertFalse(bulkResponse.getItems()[i].isFailed());
         }
 
-        System.out.println("total bulk items = " + bulkResponse.getItems().length);
         boolean shardsOnDifferentNodes = node.equals(secondShardNode) == false;
         for (int i = (int) hits.get(); i < bulkResponse.getItems().length; ++i) {
             BulkItemResponse item = bulkResponse.getItems()[i];

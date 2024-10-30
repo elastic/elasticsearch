@@ -194,7 +194,6 @@ public class IndexingPressure {
         long combinedBytes = this.currentCombinedCoordinatingAndPrimaryBytes.addAndGet(bytes);
         long replicaWriteBytes = this.currentReplicaBytes.get();
         long totalBytes = combinedBytes + replicaWriteBytes;
-        System.out.println("markPrimaryOperationStarted totalbytes = " + totalBytes + " primaryLimit = " + primaryLimit);
         if (forceExecution == false && totalBytes > primaryLimit) {
             long bytesWithoutOperation = combinedBytes - bytes;
             long totalBytesWithoutOperation = totalBytes - bytes;

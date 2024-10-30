@@ -102,10 +102,8 @@ public class FailureStoreMetricsWithIncrementalBulkIT extends ESIntegTestCase {
             refCounted.incRef();
             handler.addItems(List.of(indexRequest(dataStream)), refCounted::decRef, () -> nextRequested.set(true));
             hits.incrementAndGet();
-            System.out.println("Hits = " + hits.get());
         }
         assertBusy(() -> assertTrue(nextRequested.get()));
-        System.out.println("Final Hits = " + hits.get());
         var measurements = collectTelemetry();
         assertMeasurements(measurements.get(FailureStoreMetrics.METRIC_TOTAL), (int) hits.get(), dataStream);
         assertEquals(0, measurements.get(FailureStoreMetrics.METRIC_FAILURE_STORE).size());
@@ -118,16 +116,12 @@ public class FailureStoreMetricsWithIncrementalBulkIT extends ESIntegTestCase {
         assertThat(getDataStreamResponse.getDataStreams().get(0).getDataStream().getName(), equalTo(dataStream));
         assertThat(getDataStreamResponse.getDataStreams().get(0).getDataStream().getIndices().size(), equalTo(1));
         String backingIndex = getDataStreamResponse.getDataStreams().get(0).getDataStream().getIndices().get(0).getName();
-        System.out.println("Backing index = " + backingIndex);
         assertThat(backingIndex, backingIndexEqualTo(dataStream, 1));
 
         String node = findShard(resolveIndex(backingIndex), 0);
-        System.out.println("Node = " + node);
         IndexingPressure primaryPressure = internalCluster().getInstance(IndexingPressure.class, node);
         long memoryLimit = primaryPressure.stats().getMemoryLimit();
         long primaryRejections = primaryPressure.stats().getPrimaryRejections();
-        System.out.println("Primary rejections = " + primaryRejections);
-        System.out.println("Memory limit = " + memoryLimit);
         try (Releasable releasable = primaryPressure.markPrimaryOperationStarted(10, memoryLimit, false)) {
             while (primaryPressure.stats().getPrimaryRejections() == primaryRejections) {
                 while (nextRequested.get()) {
@@ -140,9 +134,7 @@ public class FailureStoreMetricsWithIncrementalBulkIT extends ESIntegTestCase {
                     handler.addItems(requests, refCounted::decRef, () -> nextRequested.set(true));
                 }
                 assertBusy(() -> assertTrue(nextRequested.get()));
-                System.out.println("Primary rejections = " + primaryPressure.stats().getPrimaryRejections());
             }
-            System.out.println("Primary rejections = " + primaryPressure.stats().getPrimaryRejections());
         }
 
         while (nextRequested.get()) {
@@ -153,29 +145,43 @@ public class FailureStoreMetricsWithIncrementalBulkIT extends ESIntegTestCase {
 
         assertBusy(() -> assertTrue(nextRequested.get()));
 
-        System.out.println("Hits = " + hits.get());
         PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
         handler.lastItems(List.of(indexRequest(dataStream)), refCounted::decRef, future);
 
         BulkResponse bulkResponse = safeGet(future);
-        System.out.println("total bulk items = " + bulkResponse.getItems().length);
-        assertTrue(bulkResponse.hasFailures());
+
+        /* The datastream should have a failure store associated with it now */
+        getDataStreamRequest = new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] { "*" });
+        getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest).actionGet();
+        Index failureStoreIndex = getDataStreamResponse.getDataStreams().get(0).getDataStream().getFailureStoreWriteIndex();
+        String failureStoreIndexName = failureStoreIndex.getName();
+        String failure_node = findShard(resolveIndex(failureStoreIndexName), 0);
+        boolean shardsOnDifferentNodes = node.equals(failure_node) == false;
 
         for (int i = 0; i < hits.get(); ++i) {
-            System.out.println("i = " + i);
-            if (bulkResponse.getItems()[i].isFailed()) System.out.println(bulkResponse.getItems()[i].toString());
             assertFalse(bulkResponse.getItems()[i].isFailed());
+            assertTrue(bulkResponse.getItems()[i].getFailureStoreStatus().getLabel().equalsIgnoreCase("NOT_APPLICABLE_OR_UNKNOWN"));
         }
 
+        int docs_redirected_to_fs = 0;
+        int docs_in_fs = 0;
         for (int i = (int) hits.get(); i < bulkResponse.getItems().length; ++i) {
             BulkItemResponse item = bulkResponse.getItems()[i];
-            assertTrue(item.isFailed());
-            assertThat(item.getFailure().getCause().getCause(), instanceOf(EsRejectedExecutionException.class));
+            if (item.isFailed()) {
+                assertFalse(shardsOnDifferentNodes);
+                assertThat(item.getFailure().getCause().getCause(), instanceOf(EsRejectedExecutionException.class));
+                assertTrue(item.getFailureStoreStatus().getLabel().equalsIgnoreCase("FAILED"));
+                docs_redirected_to_fs++;
+            } else {
+                assertTrue(shardsOnDifferentNodes);
+                assertTrue(item.getFailureStoreStatus().getLabel().equalsIgnoreCase("USED"));
+                docs_in_fs++;
+            }
         }
         measurements = collectTelemetry();
         assertMeasurements(measurements.get(FailureStoreMetrics.METRIC_TOTAL), bulkResponse.getItems().length, dataStream);
         assertEquals(bulkResponse.getItems().length - hits.get(), measurements.get(FailureStoreMetrics.METRIC_FAILURE_STORE).size());
-        assertEquals(bulkResponse.getItems().length - hits.get(), measurements.get(FailureStoreMetrics.METRIC_REJECTED).size());
+        assertEquals(docs_redirected_to_fs, measurements.get(FailureStoreMetrics.METRIC_REJECTED).size());
     }
 
     private void createDataStream() {

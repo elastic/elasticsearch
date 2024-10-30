@@ -1,12 +1,11 @@
 pr: 115985
-summary: Remove long deprecated `ignore_case` from synonym filter
+summary: Remove deprecated `ignore_case` from synonym filter
 area: Analysis
 type: breaking
 issues: []
 breaking:
-  title: Remove long deprecated `ignore_case` from synonym filter
+  title: Remove deprecated `ignore_case` from synonym filter
   area: Analysis
-  details: Please describe the details of this change for the release notes. You can
-    use asciidoc.
-  impact: Please describe the impact of this change to users
+  details: For synonym filters `ignore_case` removed as a valid setting.
+  impact: Any custom analyzers providing `ignore_case` in a synonym filter should be updated to remove it
   notable: false

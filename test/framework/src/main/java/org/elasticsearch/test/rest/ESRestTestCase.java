@@ -1726,7 +1726,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         ensureHealth(restClient, "", requestConsumer);
     }
 
-    protected static void ensureHealth(RestClient restClient, String index, Consumer<Request> requestConsumer) throws IOException {
+    public static void ensureHealth(RestClient restClient, String index, Consumer<Request> requestConsumer) throws IOException {
         Request request = new Request("GET", "/_cluster/health" + (index.isBlank() ? "" : "/" + index));
         requestConsumer.accept(request);
         try {

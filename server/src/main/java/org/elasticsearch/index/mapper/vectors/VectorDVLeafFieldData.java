@@ -31,10 +31,7 @@ import org.elasticsearch.script.field.vectors.KnnDenseVectorDocValuesField;
 import org.elasticsearch.search.DocValueFormat;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.Arrays;
 
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 
@@ -93,41 +90,37 @@ final class VectorDVLeafFieldData implements LeafFieldData {
         int dims = elementType == ElementType.BIT ? this.dims / Byte.SIZE : this.dims;
         return switch (elementType) {
             case BYTE, BIT -> new FormattedDocValues() {
-                private List<Byte> values;
+                private byte[] vector = new byte[dims];
                 private ByteVectorValues byteVectorValues; // use when indexed
                 private KnnVectorValues.DocIndexIterator iterator; // use when indexed
                 private BinaryDocValues binary; // use when not indexed
+                {
+                    try {
+                        if (indexed) {
+                            byteVectorValues = reader.getByteVectorValues(field);
+                            iterator = (byteVectorValues == null) ? null : byteVectorValues.iterator();
+                        } else {
+                            binary = DocValues.getBinary(reader, field);
+                        }
+                    } catch (IOException e) {
+                        throw new IllegalStateException("Cannot load doc values", e);
+                    }
+
+                }
 
                 @Override
                 public boolean advanceExact(int docId) throws IOException {
                     if (indexed) {
-                        if (byteVectorValues == null) {
-                            this.byteVectorValues = reader.getByteVectorValues(field);
-                            this.iterator = byteVectorValues.iterator();
-                        }
-                        if (iterator.advance(docId) == NO_MORE_DOCS) {
+                        if (iteratorAdvanceExact(iterator, docId) == false) {
                             return false;
                         }
-                        values = new ArrayList<>(dims);
-                        for (byte b : byteVectorValues.vectorValue(iterator.index())) {
-                            values.add(b);
-                        }
+                        vector = byteVectorValues.vectorValue(iterator.index());
                     } else {
-                        if (binary == null) {
-                            binary = DocValues.getBinary(reader, field);
-                        }
-                        if (binary.advance(docId) == NO_MORE_DOCS) {
+                        if (binary == null || binary.advanceExact(docId) == false) {
                             return false;
                         }
                         BytesRef ref = binary.binaryValue();
-                        ByteBuffer byteBuffer = ByteBuffer.wrap(ref.bytes, ref.offset, ref.length);
-                        if (indexVersion.onOrAfter(DenseVectorFieldMapper.LITTLE_ENDIAN_FLOAT_STORED_INDEX_VERSION)) {
-                            byteBuffer.order(ByteOrder.LITTLE_ENDIAN);
-                        }
-                        values = new ArrayList<>(dims);
-                        for (int dim = 0; dim < dims; dim++) {
-                            values.add(byteBuffer.get());
-                        }
+                        System.arraycopy(ref.bytes, ref.offset, vector, 0, dims);
                     }
                     return true;
                 }
@@ -138,45 +131,45 @@ final class VectorDVLeafFieldData implements LeafFieldData {
                 }
 
                 public Object nextValue() {
-                    return values;
+                    Byte[] vectorValue = new Byte[dims];
+                    for (int i = 0; i < dims; i++) {
+                        vectorValue[i] = vector[i];
+                    }
+                    return vectorValue;
                 }
             };
             case FLOAT -> new FormattedDocValues() {
-                private List<Float> values;
+                float[] vector = new float[dims];
                 private FloatVectorValues floatVectorValues; // use when indexed
                 private KnnVectorValues.DocIndexIterator iterator; // use when indexed
                 private BinaryDocValues binary; // use when not indexed
+                {
+                    try {
+                        if (indexed) {
+                            floatVectorValues = reader.getFloatVectorValues(field);
+                            iterator = (floatVectorValues == null) ? null : floatVectorValues.iterator();
+                        } else {
+                            binary = DocValues.getBinary(reader, field);
+                        }
+                    } catch (IOException e) {
+                        throw new IllegalStateException("Cannot load doc values", e);
+                    }
+
+                }
 
                 @Override
                 public boolean advanceExact(int docId) throws IOException {
                     if (indexed) {
-                        if (floatVectorValues == null) {
-                            this.floatVectorValues = reader.getFloatVectorValues(field);
-                            this.iterator = floatVectorValues.iterator();
-                        }
-                        if (iterator.advance(docId) == NO_MORE_DOCS) {
+                        if (iteratorAdvanceExact(iterator, docId) == false) {
                             return false;
                         }
-                        values = new ArrayList<>(dims);
-                        for (float f : floatVectorValues.vectorValue(iterator.index())) {
-                            values.add(f);
-                        }
+                        vector = floatVectorValues.vectorValue(iterator.index());
                     } else {
-                        if (binary == null) {
-                            binary = DocValues.getBinary(reader, field);
-                        }
-                        if (binary.advance(docId) == NO_MORE_DOCS) {
+                        if (binary == null || binary.advanceExact(docId) == false) {
                             return false;
                         }
                         BytesRef ref = binary.binaryValue();
-                        ByteBuffer byteBuffer = ByteBuffer.wrap(ref.bytes, ref.offset, ref.length);
-                        if (indexVersion.onOrAfter(DenseVectorFieldMapper.LITTLE_ENDIAN_FLOAT_STORED_INDEX_VERSION)) {
-                            byteBuffer.order(ByteOrder.LITTLE_ENDIAN);
-                        }
-                        values = new ArrayList<>(dims);
-                        for (int dim = 0; dim < dims; dim++) {
-                            values.add(byteBuffer.getFloat());
-                        }
+                        VectorEncoderDecoder.decodeDenseVector(indexVersion, ref, vector);
                     }
                     return true;
                 }
@@ -188,9 +181,23 @@ final class VectorDVLeafFieldData implements LeafFieldData {
 
                 @Override
                 public Object nextValue() {
-                    return values;
+                    return Arrays.copyOf(vector, vector.length);
                 }
             };
         };
+    }
+
+    private static boolean iteratorAdvanceExact(KnnVectorValues.DocIndexIterator iterator, int docId) throws IOException {
+        if (iterator == null) return false;
+        int currentDoc = iterator.docID();
+        if (currentDoc == NO_MORE_DOCS || docId < currentDoc) {
+            return false;
+        } else if (docId > currentDoc) {
+            currentDoc = iterator.advance(docId);
+            if (currentDoc != docId) {
+                return false;
+            }
+        }
+        return true;
     }
 }

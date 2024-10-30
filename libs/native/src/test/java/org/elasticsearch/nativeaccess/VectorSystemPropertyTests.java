@@ -46,7 +46,7 @@ public class VectorSystemPropertyTests extends LuceneTestCase {
         var processBuilder = new ProcessBuilder(
             getJavaExecutable(),
             "-D" + ENABLE_JDK_VECTOR_LIBRARY + "=false",
-            "-Xms4m",
+            "-Xmx16m",
             "-cp",
             jarPath + File.pathSeparator + System.getProperty("java.class.path"),
             "-Des.nativelibs.path=" + System.getProperty("es.nativelibs.path"),

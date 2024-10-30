@@ -76,8 +76,8 @@ public class StatsSummaryTests extends ESTestCase {
         assertThat(stats1.hashCode(), equalTo(stats2.hashCode()));
 
         // Accumulators with different values are not equals
-        randomDoubles(randomIntBetween(0, 20)).forEach(stats1);
-        randomDoubles(randomIntBetween(0, 20)).forEach(stats2);
+        randomDoubles(randomIntBetween(1, 10)).forEach(stats1);
+        randomDoubles(randomIntBetween(11, 20)).forEach(stats2);
         assertThat(stats1, not(equalTo(stats2)));
         assertThat(stats1.hashCode(), not(equalTo(stats2.hashCode())));
     }

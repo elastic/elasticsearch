@@ -42,7 +42,7 @@ public class TsdbIndexingRollingUpgradeIT extends AbstractRollingUpgradeTestCase
     }
 
     public void testIndexing() throws Exception {
-        assumeTrue("test relies in es|ql", getOldClusterTestVersion().onOrAfter("8.14.0"));
+        assumeTrue("test relies on index.mapping.source.mode setting", getOldClusterTestVersion().onOrAfter("8.16.0"));
         String dataStreamName = "k9s";
         if (isOldCluster()) {
             startTrial();

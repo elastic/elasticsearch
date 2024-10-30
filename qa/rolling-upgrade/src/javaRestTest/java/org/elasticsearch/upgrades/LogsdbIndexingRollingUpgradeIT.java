@@ -72,7 +72,7 @@ public class LogsdbIndexingRollingUpgradeIT extends AbstractRollingUpgradeTestCa
     }
 
     public void testIndexing() throws Exception {
-        assumeTrue("relies on cluster.logsdb.enabled being dynamic", getOldClusterTestVersion().onOrAfter("8.16.0"));
+        assumeTrue("test relies on index.mapping.source.mode setting", getOldClusterTestVersion().onOrAfter("8.16.0"));
         String dataStreamName = "logs-bwc-test";
         if (isOldCluster()) {
             startTrial();

@@ -37,10 +37,10 @@ public class EntitlementsIT extends ESRestTestCase {
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.INTEG_TEST)
-        .module("test-entitlements")
+        .plugin("entitlement-qa")
+        .systemProperty("entitlement.enabled", "true")
         .setting("xpack.security.enabled", "false")
-        .jvmArg("-Dentitlements.test=true")
-        .jvmArg("-javaagent:${tasks.jar.archiveFile.get()}")
+        .jvmArg("-Dentitlement.test=true")
         .build();
 
     @Override
@@ -50,7 +50,7 @@ public class EntitlementsIT extends ESRestTestCase {
 
     public void testCheckSystemExit() throws Exception {
         final long pid = getElasticsearchPid();
-        assertJvmArgs(pid, containsString("-Dentitlements.test=true"));
+        assertJvmArgs(pid, containsString("-Dentitlement.test=true"));
 
         var exception = expectThrows(IOException.class, () -> client().performRequest(new Request("GET", "/_check_system_exit")));
         assertThat(exception.getMessage(), containsString("Not entitled"));

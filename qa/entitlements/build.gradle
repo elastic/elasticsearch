@@ -6,15 +6,14 @@
  * your election, the "Elastic License 2.0", the "GNU Affero General Public
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
-import org.elasticsearch.gradle.internal.info.BuildParams
 
+apply plugin: 'elasticsearch.base-internal-es-plugin'
 apply plugin: 'elasticsearch.internal-java-rest-test'
 // Necessary to use tests in Serverless
 apply plugin: 'elasticsearch.internal-test-artifact'
 
-group = 'org.elasticsearch.plugin'
-
 esplugin {
+  name 'entitlement-qa'
   description 'A test module that triggers entitlement checks'
   classname 'org.elasticsearch.test.entitlements.EntitlementsCheckPlugin'
 }
@@ -26,6 +25,7 @@ configurations {
 }
 
 dependencies {
+  clusterPlugins project(':qa:entitlements')
   agentJar(project(path: ":distribution:tools:entitlement-agent", configuration: 'entitlementAgentJar'))
   runtimeOnly(project(":distribution:tools:entitlement-runtime"))
   runtimeOnly(project(":distribution:tools:entitlement-agent"))
@@ -37,12 +37,17 @@ tasks.register('copyAgent', Copy) {
 }
 
 tasks.named('build') {
-  dependsOn(copyToLib)
+  dependsOn(copyAgent)
 }
 
 tasks.named('javaRestTest') {
   usesDefaultDistribution()
   systemProperty "tests.security.manager", "false"
   print(configurations.agentJar)
-  it.onlyIf("snapshot build") { BuildParams.isSnapshotBuild() }
 }
+
+tasks.named("javadoc").configure {
+  // There seems to be some problem generating javadoc on a QA project that has a module definition
+  enabled = false
+}
+

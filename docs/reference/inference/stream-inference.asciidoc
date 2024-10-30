@@ -1,0 +1,122 @@
+[role="xpack"]
+[[stream-inference-api]]
+=== Stream inference API
+
+Streams a chat completion response.
+
+IMPORTANT: The {infer} APIs enable you to use certain services, such as built-in {ml} models (ELSER, E5), models uploaded through Eland, Cohere, OpenAI, Azure, Google AI Studio, Google Vertex AI, Anthropic, Watsonx.ai, or Hugging Face.
+For built-in models and models uploaded through Eland, the {infer} APIs offer an alternative way to use and manage trained models.
+However, if you do not plan to use the {infer} APIs to use these models or if you want to use non-NLP models, use the <<ml-df-trained-models-apis>>.
+
+
+[discrete]
+[[stream-inference-api-request]]
+==== {api-request-title}
+
+`POST /_inference/<inference_id>/_stream`
+
+`POST /_inference/<task_type>/<inference_id>/_stream`
+
+
+[discrete]
+[[stream-inference-api-prereqs]]
+==== {api-prereq-title}
+
+* Requires the `monitor_inference` <<privileges-list-cluster,cluster privilege>>
+(the built-in `inference_admin` and `inference_user` roles grant this privilege)
+* You must use a client that supports streaming.
+
+
+[discrete]
+[[stream-inference-api-desc]]
+==== {api-description-title}
+
+The stream {infer} API enables real-time responses for completion tasks by delivering answers incrementally, reducing response times during computation.
+It only works with the `completion` task type.
+
+
+[discrete]
+[[stream-inference-api-path-params]]
+==== {api-path-parms-title}
+
+`<inference_id>`::
+(Required, string)
+The unique identifier of the {infer} endpoint.
+
+
+`<task_type>`::
+(Optional, string)
+The type of {infer} task that the model performs.
+
+
+[discrete]
+[[stream-inference-api-request-body]]
+==== {api-request-body-title}
+
+`input`::
+(Required, string or array of strings)
+The text on which you want to perform the {infer} task.
+`input` can be a single string or an array.
++
+--
+[NOTE]
+====
+Inference endpoints for the `completion` task type currently only support a
+single string as input.
+====
+--
+
+
+[discrete]
+[[stream-inference-api-example]]
+==== {api-examples-title}
+
+The following example performs a completion on the example question with streaming.
+
+
+[source,console]
+------------------------------------------------------------
+POST _inference/completion/openai-completion/_stream
+{
+  "input": "What is Elastic?"
+}
+------------------------------------------------------------
+// TEST[skip:TBD]
+
+
+The API returns the following response:
+
+
+[source,txt]
+------------------------------------------------------------
+event: message
+data: {
+  "completion":[{
+    "delta":"Elastic"
+  }]
+}
+
+event: message
+data: {
+  "completion":[{
+    "delta":" is"
+    },
+    {
+    "delta":" a"
+    }
+  ]
+}
+
+event: message
+data: {
+  "completion":[{
+    "delta":" software"
+  },
+  {
+    "delta":" company"
+  }]
+}
+
+(...)
+------------------------------------------------------------
+// NOTCONSOLE

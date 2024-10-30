@@ -19,6 +19,8 @@ import org.elasticsearch.core.IOUtils;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.util.Iterator;
 import java.util.List;
 
@@ -56,11 +58,14 @@ public class FsBlobStore implements BlobStore {
     public BlobContainer blobContainer(BlobPath path) {
         Path f = buildPath(path);
         if (readOnly == false) {
-            try {
-                Files.createDirectories(f);
-            } catch (IOException ex) {
-                throw new ElasticsearchException("failed to create blob container", ex);
-            }
+            AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
+                try {
+                    Files.createDirectories(f);
+                } catch (IOException ex) {
+                    throw new ElasticsearchException("failed to create blob container", ex);
+                }
+                return null;
+            });
         }
         return new FsBlobContainer(this, path, f);
     }

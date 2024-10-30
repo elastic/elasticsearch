@@ -53,7 +53,6 @@ public class MvFirst extends AbstractMultivalueFunction {
             "ip",
             "keyword",
             "long",
-            "text",
             "unsigned_long",
             "version" },
         description = """

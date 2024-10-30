@@ -1537,6 +1537,8 @@ setup:
   - not_exists: docs.0.doc.error
 
   - do:
+      allowed_warnings:
+        - "index [foo-1] matches multiple legacy templates [global, my-legacy-template], composable templates will only match a single template"
       indices.create:
         index: foo-1
   - match: { acknowledged: true }
@@ -1585,6 +1587,13 @@ setup:
   - requires:
       cluster_features: ["simulate.support.non.template.mapping"]
       reason: "ingest simulate support for indices with mappings that didn't come from templates added in 8.17"
+
+  # A global match-everything legacy template is added to the cluster sometimes (rarely). We have to get rid of this template if it exists
+  # because this test is making sure we get correct behavior when an index matches *no* template:
+  - do:
+      indices.delete_template:
+        name:   '*'
+        ignore: 404
 
   # First, make sure that validation fails before we create the index (since we are only defining to bar field but trying to index a value
   # for foo.

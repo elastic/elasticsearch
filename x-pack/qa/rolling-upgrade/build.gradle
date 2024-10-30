@@ -88,7 +88,14 @@ BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
     keystore 'xpack.watcher.encryption_key', file("${project.projectDir}/src/test/resources/system_key")
     setting 'xpack.watcher.encrypt_sensitive_data', 'true'
 
-    extraConfigFile 'operator/settings.json', file("${project.projectDir}/src/test/resources/operator_defined_role_mappings.json")
+    // file-based settings processing had a bug around applying role mappings on an unrecovered index
+    // this was fixed in 8.7.0 (https://github.com/elastic/elasticsearch/pull/92173). To avoid flakiness
+    // in the test, we only set a role mappings file for higher versions.
+    // TODO move this out into a separate test suite, since operator settings are not relevant for most BWC tests
+    // and have some side-effects
+    if (bwcVersion.onOrAfter('8.7.0')) {
+      extraConfigFile 'operator/settings.json', file("${project.projectDir}/src/test/resources/operator_defined_role_mappings.json")
+    }
 
     // Old versions of the code contain an invalid assertion that trips
     // during tests.  Versions 5.6.9 and 6.2.4 have been fixed by removing

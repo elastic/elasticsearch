@@ -9,17 +9,11 @@
 
 package org.elasticsearch.inference;
 
-import org.elasticsearch.common.util.LazyInitializable;
-
-import java.util.HashMap;
+import java.util.Collections;
 import java.util.Map;
 
 public class EmptySettingsConfiguration {
     public static Map<String, SettingsConfiguration> get() {
-        return configuration.getOrCompute();
+        return Collections.emptyMap();
     }
-
-    private static final LazyInitializable<Map<String, SettingsConfiguration>, RuntimeException> configuration = new LazyInitializable<>(
-        HashMap::new
-    );
 }

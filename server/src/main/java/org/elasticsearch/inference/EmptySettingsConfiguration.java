@@ -7,21 +7,13 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.gradle.internal.distribution;
+package org.elasticsearch.inference;
 
-import org.elasticsearch.gradle.ElasticsearchDistributionType;
+import java.util.Collections;
+import java.util.Map;
 
-public class DockerCloudElasticsearchDistributionType implements ElasticsearchDistributionType {
-
-    DockerCloudElasticsearchDistributionType() {}
-
-    @Override
-    public String getName() {
-        return "dockerCloud";
-    }
-
-    @Override
-    public boolean isDocker() {
-        return true;
+public class EmptySettingsConfiguration {
+    public static Map<String, SettingsConfiguration> get() {
+        return Collections.emptyMap();
     }
 }

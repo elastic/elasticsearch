@@ -49,7 +49,7 @@ public record HistoricalRankEvalRun(
         return builder;
     }
 
-    record QueryResult(String queryId, float metricScore) {}
+    record QueryResult(String queryId, double metricScore) {}
 
     // This does not return metric-specific details such as relevantRatingThreshold, normalize, ignoreUnlabeled.
     // We would probably want to keep this in a non-POC.

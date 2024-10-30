@@ -55,6 +55,7 @@ import java.util.Map.Entry;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.createParser;
 import static org.elasticsearch.index.rankeval.RatedRequest.validateEvaluatedQuery;
@@ -310,13 +311,18 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
                 this.rankEvalSpec.getMetric().forcedSearchSize().orElse(10) // Default
             );
 
+            List<HistoricalRankEvalRun.QueryResult> queryResults = responseDetails.entrySet()
+                .stream()
+                .map(query -> new HistoricalRankEvalRun.QueryResult(query.getKey(), query.getValue().metricScore()))
+                .collect(Collectors.toList());
+
             HistoricalRankEvalRun historicalRun = new HistoricalRankEvalRun(
                 runId,
                 this.rankEvalSpec.getStoredCorpus(),
                 this.rankEvalSpec.getTemplates().keySet().iterator().next(),
                 historicalMetric,
                 metricScore,
-                List.of() /* TODO query results */
+                queryResults
             );
 
             try {

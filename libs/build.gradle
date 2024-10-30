@@ -7,10 +7,42 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-configure(childProjects.values() - project('elasticsearch-log4j')) {
+configure(childProjects.values()) {
+
+  apply plugin: 'base'
+
   /*
-   * All subprojects are java projects using Elasticsearch's standard build
-   * tools.
+   * Although these libs are local to Elasticsearch, they can conflict with other similarly
+   * named libraries when downloaded into a single directory via maven. Here we set the
+   * name of all libs to begin with the "elasticsearch-" prefix. Additionally, subprojects
+   * of libs begin with their parents artifactId.
    */
-  apply plugin: 'elasticsearch.build'
+  def baseProject = project
+  def baseArtifactId = "elasticsearch-${it.name}"
+  base {
+    archivesName = baseArtifactId
+  }
+  subprojects {
+    apply plugin: 'base'
+
+    def subArtifactId = baseArtifactId
+    def currentProject = project
+    while (currentProject != baseProject) {
+      subArtifactId += "-${currentProject.name}"
+      currentProject = currentProject.parent
+    }
+    base {
+      archivesName = subArtifactId
+    }
+  }
+
+  // log4j is a hack, and not really a full elasticsearch built jar
+  if (project.name != 'log4j') {
+
+    /*
+     * All subprojects are java projects using Elasticsearch's standard build
+     * tools.
+     */
+    apply plugin: 'elasticsearch.build'
+  }
 }

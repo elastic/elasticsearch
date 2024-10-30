@@ -24,6 +24,7 @@ import org.elasticsearch.search.rank.context.RankFeaturePhaseRankCoordinatorCont
 import org.elasticsearch.search.rank.feature.RankFeatureDoc;
 import org.elasticsearch.search.rank.feature.RankFeatureResult;
 import org.elasticsearch.search.rank.feature.RankFeatureShardRequest;
+import org.elasticsearch.transport.Transport;
 
 import java.util.List;
 
@@ -131,9 +132,38 @@ public class RankFeaturePhase extends SearchPhase {
         final SearchShardTarget shardTarget = queryResult.queryResult().getSearchShardTarget();
         final ShardSearchContextId contextId = queryResult.queryResult().getContextId();
         final int shardIndex = queryResult.getShardIndex();
+        var listener = new SearchActionListener<RankFeatureResult>(shardTarget, shardIndex) {
+            @Override
+            protected void innerOnResponse(RankFeatureResult response) {
+                try {
+                    progressListener.notifyRankFeatureResult(shardIndex);
+                    rankRequestCounter.onResult(response);
+                } catch (Exception e) {
+                    context.onPhaseFailure(RankFeaturePhase.this, "", e);
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                try {
+                    logger.debug(() -> "[" + contextId + "] Failed to execute rank phase", e);
+                    progressListener.notifyRankFeatureFailure(shardIndex, shardTarget, e);
+                    rankRequestCounter.onFailure(shardIndex, shardTarget, e);
+                } finally {
+                    releaseIrrelevantSearchContext(queryResult, context);
+                }
+            }
+        };
+        final Transport.Connection connection;
+        try {
+            connection = context.getConnection(shardTarget.getClusterAlias(), shardTarget.getNodeId());
+        } catch (Exception e) {
+            listener.onFailure(e);
+            return;
+        }
         context.getSearchTransport()
             .sendExecuteRankFeature(
-                context.getConnection(shardTarget.getClusterAlias(), shardTarget.getNodeId()),
+                connection,
                 new RankFeatureShardRequest(
                     context.getOriginalIndices(queryResult.getShardIndex()),
                     queryResult.getContextId(),
@@ -141,28 +171,7 @@ public class RankFeaturePhase extends SearchPhase {
                     entry
                 ),
                 context.getTask(),
-                new SearchActionListener<>(shardTarget, shardIndex) {
-                    @Override
-                    protected void innerOnResponse(RankFeatureResult response) {
-                        try {
-                            progressListener.notifyRankFeatureResult(shardIndex);
-                            rankRequestCounter.onResult(response);
-                        } catch (Exception e) {
-                            context.onPhaseFailure(RankFeaturePhase.this, "", e);
-                        }
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        try {
-                            logger.debug(() -> "[" + contextId + "] Failed to execute rank phase", e);
-                            progressListener.notifyRankFeatureFailure(shardIndex, shardTarget, e);
-                            rankRequestCounter.onFailure(shardIndex, shardTarget, e);
-                        } finally {
-                            releaseIrrelevantSearchContext(queryResult, context);
-                        }
-                    }
-                }
+                listener
             );
     }
 

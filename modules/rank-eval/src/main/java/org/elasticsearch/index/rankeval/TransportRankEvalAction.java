@@ -48,6 +48,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -224,15 +225,16 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
                 // Now that we have the corpus, identify the queries and qrels
                 SearchRequest queryRequest = new SearchRequestBuilder(client).setIndices("search_relevance_evaluation_corpora")
                     .setSource(new SearchSourceBuilder().query(new TermQueryBuilder("dataset_id", corpus.id())))
-                    .setSize(250) // Arbitrary number, but dbpedia has at most 164 judgments per query
+                    .setSize(10000) // Ideally this cap should be the configured max result window, hard coding for now
                     .request();
                 client.search(queryRequest, new ActionListener<>() {
                     @Override
                     public void onResponse(SearchResponse response) {
                         List<RatedRequest> ratedRequests = new ArrayList<>();
-                        List<RatedDocument> ratedDocuments = new ArrayList<>();
+                        Map<String, List<RatedDocument>> queryIdToRatedDocumentMap = new HashMap<>();
+                        Map<String, String> queryIdToQueryStringMap = new HashMap<>();
 
-                        for (SearchHit hit : response.getHits().getHits()) {
+                        Arrays.stream(response.getHits().getHits()).forEach(hit -> {
                             Map<String, Object> source = hit.getSourceAsMap();
                             String queryId = (String) source.get("query_id");
                             String queryString = (String) source.get("query_string");
@@ -241,10 +243,21 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
                             Integer score = (Integer) source.get("score");
 
                             RatedDocument ratedDocument = new RatedDocument(index, documentId, score);
-                            ratedDocuments.add(ratedDocument);
+                            queryIdToRatedDocumentMap.computeIfAbsent(queryId, k -> new ArrayList<>()).add(ratedDocument);
+                            queryIdToQueryStringMap.put(queryId, queryString);
+                        });
 
-                            ratedRequests.add(new RatedRequest(queryId, ratedDocuments, Map.of("query_string", queryString), templateId));
-                        }
+                        queryIdToRatedDocumentMap.forEach((queryId, ratedDocuments) -> {
+                            ratedRequests.add(
+                                new RatedRequest(
+                                    queryId,
+                                    ratedDocuments,
+                                    Map.of("query_string", queryIdToQueryStringMap.get(queryId)),
+                                    templateId
+                                )
+                            );
+                        });
+
                         actionListener.onResponse(ratedRequests);
                     }
 

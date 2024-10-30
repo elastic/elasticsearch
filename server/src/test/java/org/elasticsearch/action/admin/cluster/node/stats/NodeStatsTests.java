@@ -488,24 +488,16 @@ public class NodeStatsTests extends ESTestCase {
     private static int expectedChunks(NodeStats nodeStats, ToXContent.Params params) {
         return 3 // number of static chunks, see NodeStats#toXContentChunked
             + assertExpectedChunks(nodeStats.getIndices(), i -> expectedChunks(i, NodeStatsLevel.of(params, NodeStatsLevel.NODE)), params)
-            + assertExpectedChunks(nodeStats.getThreadPool(), NodeStatsTests::expectedChunks, params) + chunkIfPresent(nodeStats.getFs())
-            + assertExpectedChunks(nodeStats.getTransport(), NodeStatsTests::expectedChunks, params) + assertExpectedChunks(
-                nodeStats.getHttp(),
-                NodeStatsTests::expectedChunks,
-                params
-            ) + chunkIfPresent(nodeStats.getBreaker()) + assertExpectedChunks(
-                nodeStats.getScriptStats(),
-                NodeStatsTests::expectedChunks,
-                params
-            ) + chunkIfPresent(nodeStats.getDiscoveryStats()) + assertExpectedChunks(
-                nodeStats.getIngestStats(),
-                NodeStatsTests::expectedChunks,
-                params
-            ) + chunkIfPresent(nodeStats.getAdaptiveSelectionStats()) + assertExpectedChunks(
-                nodeStats.getScriptCacheStats(),
-                NodeStatsTests::expectedChunks,
-                params
-            );
+            + assertExpectedChunks(nodeStats.getThreadPool(), NodeStatsTests::expectedChunks, params) // <br/>
+            + chunkIfPresent(nodeStats.getFs()) // <br/>
+            + assertExpectedChunks(nodeStats.getTransport(), NodeStatsTests::expectedChunks, params) // <br/>
+            + assertExpectedChunks(nodeStats.getHttp(), NodeStatsTests::expectedChunks, params) // <br/>
+            + chunkIfPresent(nodeStats.getBreaker()) // <br/>
+            + assertExpectedChunks(nodeStats.getScriptStats(), NodeStatsTests::expectedChunks, params) // <br/>
+            + chunkIfPresent(nodeStats.getDiscoveryStats()) // <br/>
+            + assertExpectedChunks(nodeStats.getIngestStats(), NodeStatsTests::expectedChunks, params) // <br/>
+            + chunkIfPresent(nodeStats.getAdaptiveSelectionStats()) // <br/>
+            + assertExpectedChunks(nodeStats.getScriptCacheStats(), NodeStatsTests::expectedChunks, params);
     }
 
     private static int chunkIfPresent(ToXContent xcontent) {

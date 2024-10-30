@@ -18,14 +18,13 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinType;
-import org.junit.Ignore;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
 public class JoinTests extends ESTestCase {
-    @Ignore("Test needs updating to the new JOIN planning")
+    @AwaitsFix(bugUrl = "Test needs updating to the new JOIN planning")
     public void testExpressionsAndReferences() {
         int numMatchFields = between(1, 10);
 

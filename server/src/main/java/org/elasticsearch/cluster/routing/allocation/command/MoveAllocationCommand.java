@@ -141,11 +141,21 @@ public class MoveAllocationCommand implements AllocationCommand {
                 if (explain) {
                     return new RerouteExplanation(
                         this,
-                        allocation.decision(Decision.NO, "move_allocation_command", "shard " + shardId + " has not been started")
+                        allocation.decision(
+                            Decision.NO,
+                            "move_allocation_command",
+                            "shard [" + index + "][" + shardId + "] has not been started"
+                        )
                     );
                 }
                 throw new IllegalArgumentException(
-                    "[move_allocation] can't move " + shardId + ", shard is not started (state = " + shardRouting.state() + "]"
+                    "[move_allocation] can't move ["
+                        + index
+                        + "]["
+                        + shardId
+                        + "], shard is not started (state = "
+                        + shardRouting.state()
+                        + "]"
                 );
             }
 
@@ -155,9 +165,11 @@ public class MoveAllocationCommand implements AllocationCommand {
                     return new RerouteExplanation(this, decision);
                 }
                 throw new IllegalArgumentException(
-                    "[move_allocation] can't move "
+                    "[move_allocation] can't move ["
+                        + index
+                        + "]["
                         + shardId
-                        + ", from "
+                        + "], from "
                         + fromDiscoNode
                         + ", to "
                         + toDiscoNode
@@ -182,10 +194,12 @@ public class MoveAllocationCommand implements AllocationCommand {
             if (explain) {
                 return new RerouteExplanation(
                     this,
-                    allocation.decision(Decision.NO, "move_allocation_command", "shard " + shardId + " not found")
+                    allocation.decision(Decision.NO, "move_allocation_command", "shard [" + index + "][" + shardId + "] not found")
                 );
             }
-            throw new IllegalArgumentException("[move_allocation] can't move " + shardId + ", failed to find it on node " + fromDiscoNode);
+            throw new IllegalArgumentException(
+                "[move_allocation] can't move [" + index + "][" + shardId + "], failed to find it on node " + fromDiscoNode
+            );
         }
         return new RerouteExplanation(this, decision);
     }

@@ -12,18 +12,26 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
 import org.elasticsearch.inference.ChunkingOptions;
 import org.elasticsearch.inference.ChunkingSettings;
+import org.elasticsearch.inference.EmptySettingsConfiguration;
+import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
+import org.elasticsearch.inference.SettingsConfiguration;
+import org.elasticsearch.inference.TaskSettingsConfiguration;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.configuration.SettingsConfigurationDisplayType;
+import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
+import org.elasticsearch.inference.configuration.SettingsConfigurationSelectOption;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.inference.chunking.EmbeddingRequestChunker;
@@ -40,11 +48,15 @@ import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.completion.AmazonBedrockChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.embeddings.AmazonBedrockEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.embeddings.AmazonBedrockEmbeddingsServiceSettings;
+import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.io.IOException;
+import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.parsePersistedConfigErrorMsg;
@@ -52,6 +64,9 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFrom
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
+import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.MODEL_FIELD;
+import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.PROVIDER_FIELD;
+import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.REGION_FIELD;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.TOP_K_FIELD;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockProviderCapabilities.chatCompletionProviderHasTopKParameter;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockProviderCapabilities.getEmbeddingsMaxBatchSize;
@@ -62,6 +77,8 @@ public class AmazonBedrockService extends SenderService {
     public static final String NAME = "amazonbedrock";
 
     private final Sender amazonBedrockSender;
+
+    private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.COMPLETION);
 
     public AmazonBedrockService(
         HttpRequestSender.Factory httpSenderFactory,
@@ -214,6 +231,16 @@ public class AmazonBedrockService extends SenderService {
         );
     }
 
+    @Override
+    public InferenceServiceConfiguration getConfiguration() {
+        return Configuration.get();
+    }
+
+    @Override
+    public EnumSet<TaskType> supportedTaskTypes() {
+        return supportedTaskTypes;
+    }
+
     private static AmazonBedrockModel createModel(
         String inferenceEntityId,
         TaskType taskType,
@@ -346,5 +373,75 @@ public class AmazonBedrockService extends SenderService {
     public void close() throws IOException {
         super.close();
         IOUtils.closeWhileHandlingException(amazonBedrockSender);
+    }
+
+    public static class Configuration {
+        public static InferenceServiceConfiguration get() {
+            return configuration.getOrCompute();
+        }
+
+        private static final LazyInitializable<InferenceServiceConfiguration, RuntimeException> configuration = new LazyInitializable<>(
+            () -> {
+                var configurationMap = new HashMap<String, SettingsConfiguration>();
+
+                configurationMap.put(
+                    PROVIDER_FIELD,
+                    new SettingsConfiguration.Builder().setDisplay(SettingsConfigurationDisplayType.DROPDOWN)
+                        .setLabel("Provider")
+                        .setOrder(3)
+                        .setRequired(true)
+                        .setSensitive(false)
+                        .setTooltip("The model provider for your deployment.")
+                        .setType(SettingsConfigurationFieldType.STRING)
+                        .setOptions(
+                            Stream.of("amazontitan", "anthropic", "ai21labs", "cohere", "meta", "mistral")
+                                .map(v -> new SettingsConfigurationSelectOption.Builder().setLabelAndValue(v).build())
+                                .toList()
+                        )
+                        .build()
+                );
+
+                configurationMap.put(
+                    MODEL_FIELD,
+                    new SettingsConfiguration.Builder().setDisplay(SettingsConfigurationDisplayType.TEXTBOX)
+                        .setLabel("Model")
+                        .setOrder(4)
+                        .setRequired(true)
+                        .setSensitive(false)
+                        .setTooltip("The base model ID or an ARN to a custom model based on a foundational model.")
+                        .setType(SettingsConfigurationFieldType.STRING)
+                        .build()
+                );
+
+                configurationMap.put(
+                    REGION_FIELD,
+                    new SettingsConfiguration.Builder().setDisplay(SettingsConfigurationDisplayType.TEXTBOX)
+                        .setLabel("Region")
+                        .setOrder(5)
+                        .setRequired(true)
+                        .setSensitive(false)
+                        .setTooltip("The region that your model or ARN is deployed in.")
+                        .setType(SettingsConfigurationFieldType.STRING)
+                        .build()
+                );
+
+                configurationMap.putAll(AmazonBedrockSecretSettings.Configuration.get());
+                configurationMap.putAll(
+                    RateLimitSettings.toSettingsConfigurationWithTooltip(
+                        "By default, the amazonbedrock service sets the number of requests allowed per minute to 240."
+                    )
+                );
+
+                return new InferenceServiceConfiguration.Builder().setProvider(NAME).setTaskTypes(supportedTaskTypes.stream().map(t -> {
+                    Map<String, SettingsConfiguration> taskSettingsConfig;
+                    switch (t) {
+                        case COMPLETION -> taskSettingsConfig = AmazonBedrockChatCompletionModel.Configuration.get();
+                        // TEXT_EMBEDDING task type has no task settings
+                        default -> taskSettingsConfig = EmptySettingsConfiguration.get();
+                    }
+                    return new TaskSettingsConfiguration.Builder().setTaskType(t).setConfiguration(taskSettingsConfig).build();
+                }).toList()).setConfiguration(configurationMap).build();
+            }
+        );
     }
 }

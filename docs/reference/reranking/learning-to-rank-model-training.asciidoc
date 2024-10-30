@@ -38,10 +38,20 @@ Feature extractors are defined using templated queries. https://eland.readthedoc
 from eland.ml.ltr import QueryFeatureExtractor
 
 feature_extractors=[
-    # We want to use the score of the match query for the title field as a feature:
+    # We want to use the BM25 score of the match query for the title field as a feature:
     QueryFeatureExtractor(
         feature_name="title_bm25",
         query={"match": {"title": "{{query}}"}}
+    ),
+    # We want to use the the number of matched terms in the title field as a feature:
+    QueryFeatureExtractor(
+        feature_name="title_matched_term_count",
+        query={
+            "script_score": {
+                "query": {"match": {"title": "{{query}}"}},
+                "script": {"source": "return _termStats.matchedTermsCount();"},
+            }
+        },
     ),
     # We can use a script_score query to get the value
     # of the field rating directly as a feature:
@@ -54,25 +64,28 @@ feature_extractors=[
             }
         },
     ),
-    # We can execute a script on the value of the query
-    # and use the return value as a feature:
-    QueryFeatureExtractor(
-        feature_name="query_length",
+    # We extract the number of terms in the query as feature.
+   QueryFeatureExtractor(
+        feature_name="query_term_count",
         query={
             "script_score": {
-                "query": {"match_all": {}},
-                "script": {
-                    "source": "return params['query'].splitOnToken(' ').length;",
-                    "params": {
-                        "query": "{{query}}",
-                    }
-                },
+                "query": {"match": {"title": "{{query}}"}},
+                "script": {"source": "return _termStats.uniqueTermsCount();"},
             }
         },
     ),
 ]
 ----
 // NOTCONSOLE
+
+[NOTE]
+.Tern statistics as features
+===================================================
+
+It is very common for an LTR model to leverage raw term statistics as features.
+To extract this information, you can use the {ref}/modules-scripting-fields.html#scripting-term-statistics[term statistics feature] provided as part of the  <<query-dsl-script-score-query,`script_score`>> query.
+
+===================================================
 
 Once the feature extractors have been defined, they are wrapped in an `eland.ml.ltr.LTRModelConfig` object for use in later training steps:
 

@@ -14,7 +14,12 @@ import java.util.Optional;
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 
 /**
- * Utility to access {@link ClusterState} only when it is "ready", where "ready" means initialized and recovered.
+ * Utility to access {@link ClusterState} only when it is "ready", where "ready" means that we received a first clusterChanged event
+ * with no global block of type {@code STATE_NOT_RECOVERED_BLOCK}
+ * This guarantees that:
+ * - the initial cluster state has been set (see
+ * {@link org.elasticsearch.cluster.service.ClusterApplierService#setInitialState(ClusterState)});
+ * - the initial recovery process has completed.
  */
 public class SafeClusterStateSupplier implements ClusterStateSupplier, ClusterStateListener {
     private volatile ClusterState currentClusterState;
@@ -31,7 +36,7 @@ public class SafeClusterStateSupplier implements ClusterStateSupplier, ClusterSt
     }
 
     @Override
-    public Optional<ClusterState> getClusterStateIfReady() {
+    public Optional<ClusterState> get() {
         return Optional.ofNullable(currentClusterState);
     }
 }

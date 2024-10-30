@@ -11,16 +11,15 @@ package org.elasticsearch.cluster;
 
 import java.util.Optional;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 /**
  * Utility to access {@link ClusterState} only when it is "ready", with a fallback if it's not. The definition of "ready" is left to the
  * class implementations.
  */
-public interface ClusterStateSupplier {
-    Optional<ClusterState> getClusterStateIfReady();
-
+public interface ClusterStateSupplier extends Supplier<Optional<ClusterState>> {
     default <T> T withCurrentClusterState(Function<ClusterState, T> clusterStateFunction, T fallbackIfNotReady) {
-        var x = getClusterStateIfReady();
+        var x = get();
         return x.map(clusterStateFunction).orElse(fallbackIfNotReady);
     }
 }

@@ -18,8 +18,8 @@ dependencies {
 }
 
 def supportedVersion = bwcVersion -> {
-  // ESQL requires its own resolve_fields API
-  return bwcVersion.onOrAfter(Version.fromString("8.16.0"));
+  // CCS in ES|QL available in 8.13
+  return bwcVersion.onOrAfter(Version.fromString("8.13.0"));
 }
 
 BuildParams.bwcVersions.withWireCompatible(supportedVersion) { bwcVersion, baseName ->

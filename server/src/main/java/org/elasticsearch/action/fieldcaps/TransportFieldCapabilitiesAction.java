@@ -22,6 +22,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.RefCountingRunnable;
+import org.elasticsearch.client.internal.RemoteClusterClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -113,23 +114,28 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
 
     @Override
     protected void doExecute(Task task, FieldCapabilitiesRequest request, final ActionListener<FieldCapabilitiesResponse> listener) {
-        executeRequest(task, request, REMOTE_TYPE, listener);
+        executeRequest(
+            task,
+            request,
+            (remoteClient, remoteRequest, remoteListener) -> remoteClient.execute(REMOTE_TYPE, remoteRequest, remoteListener),
+            listener
+        );
     }
 
     public void executeRequest(
         Task task,
         FieldCapabilitiesRequest request,
-        RemoteClusterActionType<FieldCapabilitiesResponse> remoteAction,
+        RemoteRequestExecutor remoteRequestExecutor,
         ActionListener<FieldCapabilitiesResponse> listener
     ) {
         // workaround for https://github.com/elastic/elasticsearch/issues/97916 - TODO remove this when we can
-        searchCoordinationExecutor.execute(ActionRunnable.wrap(listener, l -> doExecuteForked(task, request, remoteAction, l)));
+        searchCoordinationExecutor.execute(ActionRunnable.wrap(listener, l -> doExecuteForked(task, request, remoteRequestExecutor, l)));
     }
 
     private void doExecuteForked(
         Task task,
         FieldCapabilitiesRequest request,
-        RemoteClusterActionType<FieldCapabilitiesResponse> remoteAction,
+        RemoteRequestExecutor remoteRequestExecutor,
         ActionListener<FieldCapabilitiesResponse> listener
     ) {
         if (ccsCheckCompatibility) {
@@ -282,8 +288,8 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                         handleIndexFailure.accept(RemoteClusterAware.buildRemoteIndexName(clusterAlias, index), ex);
                     }
                 });
-                remoteClusterClient.execute(
-                    remoteAction,
+                remoteRequestExecutor.executeRemoteRequest(
+                    remoteClusterClient,
                     remoteRequest,
                     // The underlying transport service may call onFailure with a thread pool other than search_coordinator.
                     // This fork is a workaround to ensure that the merging of field-caps always occurs on the search_coordinator.
@@ -296,6 +302,14 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                 );
             }
         }
+    }
+
+    public interface RemoteRequestExecutor {
+        void executeRemoteRequest(
+            RemoteClusterClient remoteClient,
+            FieldCapabilitiesRequest remoteRequest,
+            ActionListener<FieldCapabilitiesResponse> remoteListener
+        );
     }
 
     private static void checkIndexBlocks(ClusterState clusterState, String[] concreteIndices) {

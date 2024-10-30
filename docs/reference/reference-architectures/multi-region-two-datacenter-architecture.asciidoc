@@ -6,7 +6,9 @@
 
 This article defines a scalable and highly available architecture for Elasticsearch using two datacenters in separate geographical regions. Having an Elasticsearch cluster in another separate geographical region helps with network latency. Requests will be better served to a cluster that is geographically closer to you.
 
-TIP: This architecture includes all the necessary components of the Elastic Stack and is not intended for sizing workloads, but rather as a basis to ensure the architecture you deploy is foundationally ready to handle any desired workload with resiliency. 
+TIP: This architecture includes all the necessary components of the Elastic Stack and is not intended for sizing workloads, but rather as a basis to ensure the architecture you deploy is built with sound recommendations. 
+
+The most important foundational step to any architecture is designing your deployment to be responsive to production workloads. For more information on planning for production, see https://www.elastic.co/guide/en/elasticsearch/reference/current/scalability.html[Get ready for production].
 
 [discrete]
 [[multi-region-use-case]]
@@ -27,7 +29,12 @@ image::images/multi-region-two-datacenter.png["A multi-region time-series archit
 [[multi-region-configuration]]
 === Example configuration
 
-Based on recommendations, here is a sample configuration for an ingest rate of 1TB/day with an ILM policy of 1 day in the hot tier and 89 days in the frozen tier for a total of 90 days of searchable data.
+The following is a sample configuration with the following specifications:
+
+* An ingest rate of 1TB/day
+* 1 day in the hot tier
+* 89 days in the frozen tier
+* A total of 90 days of searchable data
 
 * Hot tier: 120G RAM (2 60G RAM node x 3 pods x 2 availability zones)
 * Frozen tier: 120G RAM (1 60G RAM node x 3 pods x 2 availability zones)
@@ -39,10 +46,10 @@ Based on recommendations, here is a sample configuration for an ingest rate of 1
 [[multi-region-considerations]]
 === Important considerations
 
-The following list are important conderations for this architecture:
+The following are important considerations for this architecture:
 
 * Hot nodes contain both primary and replica shards. https://www.elastic.co/guide/en/elasticsearch/reference/8.15/modules-cluster.html#shard-allocation-awareness[Shard allocation awareness] should be configured to ensure primary and replica shards do not end up in the same pod.
-* Machine learning nodes are optional but highly recommended for large scale time series use cases since the amount of data quickly becomes too difficult to analyze without applying techniques such as machine learning based anomaly detection.
+* Machine learning nodes are optional, but highly recommended for large-scale time series use cases. The amount of data can quickly become overwhelming and difficult to analyze. Applying techniques like machine learning-based anomaly detection can help manage this data effectively.
 
 [discrete]
 [[multi-region-limitations]]

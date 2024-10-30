@@ -1,9 +1,9 @@
 [[reference-architectures]]
 = Reference architectures
 
-Elasticsearch reference architectures serve as blueprints for deploying, managing, and optimizing Elasticsearch clusters tailored to different use cases. Whether you're handling logs, metrics, or sophisticated search applications, these reference architectures ensure scalability, reliability, and efficient resource utilization. By leveraging these guidelines, organizations can confidently deploy Elasticsearch, minimizing risks and complexities.
+Elasticsearch reference architectures are blueprints for deploying, managing, and optimizing Elasticsearch clusters tailored to different use cases. Whether you're handling logs, metrics, or sophisticated search applications, these reference architectures ensure scalability, reliability, and efficient resource utilization. Use these guidelines to deploy Elasticsearch for your use case, with minimal risk and complexity.
 
-These architectures are designed by Solutions Architects to provide standardized, proven solutions that help users with best practices for deploying Elasticsearch. Some of the key areas of focus are listed below. 
+These architectures are designed by Elastic Solutions Architects to provide standardized, proven solutions that help users follow best practices when deploying Elasticsearch. Some of the key areas of focus are listed below. 
 
 * Infrastructure setup
 * Data ingestion
@@ -11,7 +11,7 @@ These architectures are designed by Solutions Architects to provide standardized
 * Search performance
 * High availability 
 
-TIP: These architectures are specific to running your deployment on-premises or cloud. If you are using Elastic serverless we take care of all of this for you. For all the deployment options, see https://www.elastic.co/guide/en/elasticsearch/reference/current/elasticsearch-intro-deploy.html[Run Elasticsearch].
+TIP: These architectures are specific to running your deployment on-premises or cloud. If you are using Elastic serverless your Elasticsearch clusters are autoscaled and fully managed by Elastic. For all the deployment options, see https://www.elastic.co/guide/en/elasticsearch/reference/current/elasticsearch-intro-deploy.html[Run Elasticsearch].
 
 These reference architectures are recommendations and should be adapted to fit your specific environment and needs. Each solution can vary based on the unique requirements and conditions of your deployment. In these architectures we discuss about how to deploy cluster components. For information about designing ingest architectures to feed content into your cluster, refer to https://www.elastic.co/guide/en/ingest/current/use-case-arch.html[Ingest architectures]
 
@@ -24,19 +24,22 @@ These reference architectures are recommendations and should be adapted to fit y
 | *Architecture* | *When to use*
 | <<elastic-cloud-architecture>>
 
-This architecture is a Hot-Frozen architecture that is optimized for time series datasets while keeping all of the data fully searchable. It leverages Elastic Cloud where we apply best practices and run your cluster on optimal cloud instance types that we have selected through extenstive testing. It maintains index structures that allow for fast search in cloud object stores. 
+This architecture is a Hot-Frozen architecture on the Elastic Cloud that is optimized for time series datasets while keeping all of the data fully searchable. It maintains index structures that allow for fast search in cloud object stores. 
 
 a| 
+* You want to use the best practices Elastic Cloud implements to run your cluster.
 * You want to leverage cloud provider hardware that have been extensively tested.
 * You need long retention periods with the ability to search indices in an object store cost-effectively.
-* Leverage cloud provider's highly available object stores for data integrity so you don't have to depend on your own.
+* Use cloud provider's highly available object stores for data integrity so you don't have to depend on your own.
+
 
 | <<multi-region-two-datacenter-architecture>>
 
-A scalable and highly available architecture for Elasticsearch using two datacenters in separate geographical regions. Having an Elasticsearch cluster in another separate geographical region helps with network latency. Requests will be better served to a cluster that is geographically closer to you.
+A scalable and highly available architecture for Elasticsearch using two datacenters in separate geographical regions. Requests will be better served to a cluster that is geographically closer to you.
 
 a| 
 * Allows you multiple options to scale effectively
+* You need a seperate geographical region to help with network latency
 * This is cost-effective if you have many small clusters to accomodate
 
 

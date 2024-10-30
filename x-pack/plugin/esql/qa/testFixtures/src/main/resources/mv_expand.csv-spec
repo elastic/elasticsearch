@@ -335,6 +335,15 @@ a:integer
 1
 ;
 
+// see https://github.com/elastic/elasticsearch/issues/102061
+sortMvExpandFromIndex
+required_capability: add_limit_inside_mv_expand
+from employees | sort emp_no | mv_expand emp_no | limit 1 | keep emp_no;
+
+emp_no:integer
+10001
+;
+
 
 // see https://github.com/elastic/elasticsearch/issues/102061
 limitSortMvExpand
@@ -384,4 +393,14 @@ required_capability: add_limit_inside_mv_expand
 row  a = 1, b = -15 | where b > 3   | mv_expand b;
 
 a:integer | b:integer
+;
+
+
+//see https://github.com/elastic/elasticsearch/issues/102084
+whereMvExpandOnIndex
+required_capability: add_limit_inside_mv_expand
+from employees | where emp_no == 10003  | mv_expand first_name | keep first_name;
+
+first_name:keyword
+Parto
 ;

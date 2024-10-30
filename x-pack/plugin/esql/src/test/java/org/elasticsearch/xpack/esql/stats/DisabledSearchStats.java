@@ -52,4 +52,19 @@ public class DisabledSearchStats extends SearchStats {
     public boolean isSingleValue(String field) {
         return false;
     }
+
+    @Override
+    public boolean isIndexed(String field) {
+        return true;
+    }
+
+    @Override
+    public boolean hasDocValues(String field) {
+        return true;
+    }
+
+    @Override
+    public boolean hasIdenticalDelegate(String field) {
+        return true;
+    }
 }

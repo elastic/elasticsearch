@@ -144,9 +144,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         );
         var resolution = new Batch<>(
             "Resolution",
-            // Move ImplicitCasting before ResolveRefs. Because a reference(UnresolvedAttribute) can be created for a Bucket in Aggregate,
-            // resolving this reference, before implicit casting may cause this reference to have customMessage=true, it prevents another
-            // attempt to resolve this reference.
+            /*
+             * Move ImplicitCasting before ResolveRefs. Because a ref is created for a Bucket in Aggregate's aggregates,
+             * resolving this ref before implicit casting may cause this ref to have customMessage=true, it prevents further
+             * attempts to resolve this reference.
+             */
             new ImplicitCasting(),
             new ResolveRefs(),
             new ResolveUnionTypes()  // Must be after ResolveRefs, so union types can be found
@@ -956,7 +958,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     }
 
     /**
-     * Cast string literals in ScalarFunction, EsqlArithmeticOperation, BinaryComparison and In to desired data types.
+     * Cast string literals in ScalarFunction, EsqlArithmeticOperation, BinaryComparison, In and GroupingFunction to desired data types.
      * For example, the string literals in the following expressions will be cast implicitly to the field data type on the left hand side.
      * date > "2024-08-21"
      * date in ("2024-08-21", "2024-08-22", "2024-08-23")

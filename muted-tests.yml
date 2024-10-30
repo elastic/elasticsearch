@@ -275,6 +275,9 @@ tests:
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=ml/inference_crud/Test delete given model referenced by pipeline}
   issue: https://github.com/elastic/elasticsearch/issues/115970
+- class: org.elasticsearch.monitor.jvm.JvmStatsTests
+  method: testJvmStats
+  issue: https://github.com/elastic/elasticsearch/issues/115711
 
 # Examples:
 #

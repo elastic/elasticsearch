@@ -1,0 +1,5 @@
+pr: 115930
+summary:  Inconsistency in the _analyzer api when the index is not included 
+area: Search
+type: bug
+issues: []

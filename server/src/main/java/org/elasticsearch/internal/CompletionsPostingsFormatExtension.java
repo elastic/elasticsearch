@@ -19,13 +19,10 @@ public interface CompletionsPostingsFormatExtension {
     /**
      * Returns the name of the  {@link CompletionPostingsFormat} that Elasticsearch should use. Should return null if the extension
      * is not enabled.
+     * <p>
+     * Note that the name must match a codec that is available on all nodes in the cluster, otherwise IndexCorruptionExceptions will occur.
+     * A feature can be used to protect against this scenario, or alternatively, the codec code can be rolled out prior to its usage by this
+     * extension.
      */
     String getFormatName();
-
-    /**
-     * Sets whether this extension is enabled. If the extension is not enabled, {@link #getFormatName()} should return null.
-     * <p>
-     * This allows all nodes to be upgraded to a version that supports the extension before it is enabled.
-     */
-    void setExtensionEnabled(boolean isExtensionEnabled);
 }

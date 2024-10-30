@@ -8,11 +8,15 @@
 package org.elasticsearch.xpack.kql.parser;
 
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 
 import java.util.List;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.isA;
 
 public class KqlParserFieldQueryTests extends AbstractKqlParserTestCase {
@@ -260,6 +264,26 @@ public class KqlParserFieldQueryTests extends AbstractKqlParserTestCase {
         assertWildcardQueryBuilder(parseKqlQuery(kqlFieldQuery(KEYWORD_FIELD_NAME, "AND fo*")), KEYWORD_FIELD_NAME, "AND fo*");
         assertWildcardQueryBuilder(parseKqlQuery(kqlFieldQuery(KEYWORD_FIELD_NAME, "OR fo*")), KEYWORD_FIELD_NAME, "OR fo*");
         assertWildcardQueryBuilder(parseKqlQuery(kqlFieldQuery(KEYWORD_FIELD_NAME, "NOT fo*")), KEYWORD_FIELD_NAME, "NOT fo*");
+    }
+
+    public void testFieldWildCardQueries() {
+        List<String> queries = List.of("foo", "foo bar", quoteString("foo"), "foo*");
+        List<String> mappedFieldName = mappedLeafFields();
+        for (String query : queries) {
+            String kqlQuery = kqlFieldQuery("mapped_*", query);
+            BoolQueryBuilder parsedQuery = asInstanceOf(BoolQueryBuilder.class, parseKqlQuery(kqlQuery));
+
+            assertThat(parsedQuery.mustNot(), empty());
+            assertThat(parsedQuery.must(), empty());
+            assertThat(parsedQuery.filter(), empty());
+            assertThat(parsedQuery.minimumShouldMatch(), equalTo("1"));
+            assertThat(parsedQuery.should(), hasSize(mappedFieldName.size()));
+
+            assertThat(
+                parsedQuery.should(),
+                containsInAnyOrder(mappedFieldName.stream().map(fieldName -> parseKqlQuery(kqlFieldQuery(fieldName, query))).toArray())
+            );
+        }
     }
 
     private static String kqlFieldQuery(String field, Object value) {

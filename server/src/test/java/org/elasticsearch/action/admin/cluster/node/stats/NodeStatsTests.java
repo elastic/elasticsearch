@@ -520,9 +520,7 @@ public class NodeStatsTests extends ESTestCase {
     }
 
     private static int expectedChunks(ScriptStats scriptStats) {
-        return 7 + (scriptStats.compilationsHistory() != null && scriptStats.compilationsHistory().areTimingsEmpty() == false ? 1 : 0)
-            + (scriptStats.cacheEvictionsHistory() != null && scriptStats.cacheEvictionsHistory().areTimingsEmpty() == false ? 1 : 0)
-            + scriptStats.contextStats().size();
+        return 8 + scriptStats.contextStats().size();
     }
 
     private static int expectedChunks(ThreadPoolStats threadPool) {

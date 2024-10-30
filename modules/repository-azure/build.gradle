@@ -255,14 +255,6 @@ tasks.named("thirdPartyAudit").configure {
     'javax.activation.MailcapCommandMap',
     'javax.activation.MimetypesFileTypeMap',
     'reactor.core.publisher.Traces$SharedSecretsCallSiteSupplierFactory$TracingException',
-
-    'com.google.protobuf.MessageSchema',
-    'com.google.protobuf.UnsafeUtil',
-    'com.google.protobuf.UnsafeUtil$1',
-    'com.google.protobuf.UnsafeUtil$Android32MemoryAccessor',
-    'com.google.protobuf.UnsafeUtil$Android64MemoryAccessor',
-    'com.google.protobuf.UnsafeUtil$JvmMemoryAccessor',
-    'com.google.protobuf.UnsafeUtil$MemoryAccessor',
   )
 }
 

@@ -41,7 +41,6 @@ public final class PipelineConfiguration implements SimpleDiffable<PipelineConfi
             contentBuilder.generator().copyCurrentStructure(parser);
             builder.setConfig(BytesReference.bytes(contentBuilder), contentBuilder.contentType());
         }, new ParseField("config"), ObjectParser.ValueType.OBJECT);
-
     }
 
     public static ContextParser<Void, PipelineConfiguration> getParser() {

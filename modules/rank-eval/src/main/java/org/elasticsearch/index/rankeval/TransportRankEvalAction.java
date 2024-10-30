@@ -303,7 +303,7 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
             }
 
             // Record history here
-            String runId = UUID.randomUUID().toString(); // TODO return this in the response too
+            String runId = UUID.randomUUID().toString();
             double metricScore = this.rankEvalSpec.getMetric().combine(responseDetails.values());
 
             HistoricalRankEvalRun.Metric historicalMetric = new HistoricalRankEvalRun.Metric(
@@ -334,7 +334,7 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
                 LogManager.getLogger(TransportRankEvalAction.class).error("Failed to store historical run", e);
             }
 
-            delegate.onResponse(new RankEvalResponse(metricScore, responseDetails, this.errors));
+            delegate.onResponse(new RankEvalResponse(runId, metricScore, responseDetails, this.errors));
         }
     }
 }

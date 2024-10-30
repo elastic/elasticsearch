@@ -10,6 +10,7 @@
 package org.elasticsearch.index.rankeval;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -30,6 +31,8 @@ import java.util.Map;
  **/
 public class RankEvalResponse extends ActionResponse implements ToXContentObject {
 
+    /** A GUID run ID used to pull history. */
+    private final String runId;
     /** The overall evaluation result. */
     private final double metricScore;
     /** details about individual ranking evaluation queries, keyed by their id */
@@ -37,7 +40,13 @@ public class RankEvalResponse extends ActionResponse implements ToXContentObject
     /** exceptions for specific ranking evaluation queries, keyed by their id */
     private final Map<String, Exception> failures;
 
-    public RankEvalResponse(double metricScore, Map<String, EvalQueryQuality> partialResults, Map<String, Exception> failures) {
+    public RankEvalResponse(
+        String runId,
+        double metricScore,
+        Map<String, EvalQueryQuality> partialResults,
+        Map<String, Exception> failures
+    ) {
+        this.runId = runId;
         this.metricScore = metricScore;
         this.details = new HashMap<>(partialResults);
         this.failures = new HashMap<>(failures);
@@ -58,6 +67,11 @@ public class RankEvalResponse extends ActionResponse implements ToXContentObject
         for (int i = 0; i < failuresSize; i++) {
             String queryId = in.readString();
             this.failures.put(queryId, in.readException());
+        }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.RANK_EVAL_STORED_CORPORA)) {
+            this.runId = in.readOptionalString();
+        } else {
+            this.runId = null;
         }
     }
 
@@ -83,11 +97,17 @@ public class RankEvalResponse extends ActionResponse implements ToXContentObject
         out.writeDouble(metricScore);
         out.writeMap(details, StreamOutput::writeWriteable);
         out.writeMap(failures, StreamOutput::writeException);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.RANK_EVAL_STORED_CORPORA)) {
+            out.writeOptionalString(runId);
+        }
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
+        if (runId != null) {
+            builder.field("run_id", runId);
+        }
         builder.field("metric_score", metricScore);
         builder.startObject("details");
         for (String key : details.keySet()) {

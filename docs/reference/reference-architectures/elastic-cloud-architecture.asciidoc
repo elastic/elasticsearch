@@ -6,8 +6,7 @@
 
 The Hot-Frozen Elasticsearch cluster architecture is cost optimized for large time-series datasets while keeping all of the data **fully searchable**. There is no need to "re-hydrate" archived data. In this architecture, the hot tier is primarily used for indexing and immediate searching (1-3 days) with a majority of the search being handled by the frozen tier. Since the data is moved to searchable snapshots in an object store, the cost of keeping all of the data searchable is dramatically reduced.
 
-
-TIP: This architecture includes all the necessary components of the Elastic Stack and is not intended for sizing workloads, but rather as a basis to ensure the architecture you deploy is built with sound recommendations. 
+TIP: This architecture includes all the essential components of the Elastic Stack. It's designed to ensure your deployment has a stable foundation, based on expert recommendations, but is not intended for sizing workloads.
 
 The most important foundational step to any architecture is designing your deployment to be responsive to production workloads. For more information on planning for production, see https://www.elastic.co/guide/en/elasticsearch/reference/current/scalability.html[Get ready for production].
 

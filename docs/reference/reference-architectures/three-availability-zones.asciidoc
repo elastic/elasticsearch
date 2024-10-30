@@ -6,7 +6,7 @@
 
 This article outlines a scalable and highly available architecture for Elasticsearch using three availability zones. 
 
-TIP: This architecture includes all the necessary components of the Elastic Stack and is not intended for sizing workloads, but rather as a basis to ensure the architecture you deploy is built with sound recommendations. 
+TIP: This architecture includes all the essential components of the Elastic Stack. It's designed to ensure your deployment has a stable foundation, based on expert recommendations, but is not intended for sizing workloads.
 
 The most important foundational step to any architecture is designing your deployment to be responsive to production workloads. For more information on planning for production, see https://www.elastic.co/guide/en/elasticsearch/reference/current/scalability.html[Get ready for production].
 

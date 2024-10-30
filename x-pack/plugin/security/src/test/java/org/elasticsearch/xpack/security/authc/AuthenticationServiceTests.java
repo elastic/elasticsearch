@@ -2518,6 +2518,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             null,
             null,
             null,
+            null,
             concreteSecurityIndexName,
             indexStatus,
             IndexMetadata.State.OPEN,

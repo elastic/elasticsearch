@@ -1,3 +1,7 @@
+//
+// TODO: re-enable the commented tests once the Join functionality stabilizes
+//
+
 maxOfInt-Ignore
 required_capability: inlinestats
 

@@ -65,7 +65,7 @@ public class InsertFieldExtraction extends Rule<PhysicalPlan, PhysicalPlan> {
 
             // add extractor
             if (missing.isEmpty() == false) {
-                // identify child (for binary nodes) that exports doc values and place the field extractor there
+                // identify child (for binary nodes) that exports _doc and place the field extractor there
                 List<PhysicalPlan> newChildren = new ArrayList<>(p.children().size());
                 boolean found = false;
                 for (PhysicalPlan child : p.children()) {

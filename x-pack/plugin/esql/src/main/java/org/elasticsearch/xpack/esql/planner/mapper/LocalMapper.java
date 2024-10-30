@@ -52,7 +52,7 @@ public class LocalMapper {
             return mapBinary(binary);
         }
 
-        return Common.unsupported(p);
+        return MapperUtils.unsupported(p);
     }
 
     private PhysicalPlan mapLeaf(LeafPlan leaf) {
@@ -60,7 +60,7 @@ public class LocalMapper {
             return new EsSourceExec(esRelation);
         }
 
-        return Common.mapLeaf(leaf);
+        return MapperUtils.mapLeaf(leaf);
     }
 
     private PhysicalPlan mapUnary(UnaryPlan unary) {
@@ -71,8 +71,8 @@ public class LocalMapper {
         //
 
         if (unary instanceof Aggregate aggregate) {
-            List<Attribute> intermediate = Common.intermediateAttributes(aggregate);
-            return Common.aggExec(aggregate, mappedChild, AggregatorMode.INITIAL, intermediate);
+            List<Attribute> intermediate = MapperUtils.intermediateAttributes(aggregate);
+            return MapperUtils.aggExec(aggregate, mappedChild, AggregatorMode.INITIAL, intermediate);
         }
 
         if (unary instanceof Limit limit) {
@@ -91,7 +91,7 @@ public class LocalMapper {
         // Pipeline operators
         //
 
-        return Common.mapUnary(unary, mappedChild);
+        return MapperUtils.mapUnary(unary, mappedChild);
     }
 
     private PhysicalPlan mapBinary(BinaryPlan binary) {
@@ -120,6 +120,6 @@ public class LocalMapper {
             );
         }
 
-        return Common.unsupported(binary);
+        return MapperUtils.unsupported(binary);
     }
 }

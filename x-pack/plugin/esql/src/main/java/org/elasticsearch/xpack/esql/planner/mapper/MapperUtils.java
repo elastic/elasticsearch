@@ -48,8 +48,8 @@ import java.util.List;
 /**
  * Class for sharing code across Mappers.
  */
-class Common {
-    private Common() {}
+class MapperUtils {
+    private MapperUtils() {}
 
     static PhysicalPlan mapLeaf(LeafPlan p) {
         if (p instanceof Row row) {

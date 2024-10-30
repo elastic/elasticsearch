@@ -61,7 +61,7 @@ public class Mapper {
             return mapBinary(binary);
         }
 
-        return Common.unsupported(p);
+        return MapperUtils.unsupported(p);
     }
 
     private PhysicalPlan mapLeaf(LeafPlan leaf) {
@@ -69,7 +69,7 @@ public class Mapper {
             return new FragmentExec(esRelation);
         }
 
-        return Common.mapLeaf(leaf);
+        return MapperUtils.mapLeaf(leaf);
     }
 
     private PhysicalPlan mapUnary(UnaryPlan unary) {
@@ -122,7 +122,7 @@ public class Mapper {
             // COORDINATOR enrich must not be included to the fragment as it has to be executed on the coordinating node
             if (unary instanceof Enrich enrich && enrich.mode() == Enrich.Mode.COORDINATOR) {
                 mappedChild = addExchangeForFragment(enrich.child(), mappedChild);
-                return Common.mapUnary(unary, mappedChild);
+                return MapperUtils.mapUnary(unary, mappedChild);
             }
             // in case of a fragment, push to it any current streaming operator
             if (isPipelineBreaker(unary) == false) {
@@ -134,7 +134,7 @@ public class Mapper {
         // Pipeline breakers
         //
         if (unary instanceof Aggregate aggregate) {
-            List<Attribute> intermediate = Common.intermediateAttributes(aggregate);
+            List<Attribute> intermediate = MapperUtils.intermediateAttributes(aggregate);
 
             // create both sides of the aggregate (for parallelism purposes), if no fragment is present
             // TODO: might be easier long term to end up with just one node and split if necessary instead of doing that always at this
@@ -147,11 +147,11 @@ public class Mapper {
             }
             // if no exchange was added (aggregation happening on the coordinator), create the initial agg
             else {
-                mappedChild = Common.aggExec(aggregate, mappedChild, AggregatorMode.INITIAL, intermediate);
+                mappedChild = MapperUtils.aggExec(aggregate, mappedChild, AggregatorMode.INITIAL, intermediate);
             }
 
             // always add the final/reduction agg
-            return Common.aggExec(aggregate, mappedChild, AggregatorMode.FINAL, intermediate);
+            return MapperUtils.aggExec(aggregate, mappedChild, AggregatorMode.FINAL, intermediate);
         }
 
         if (unary instanceof Limit limit) {
@@ -172,7 +172,7 @@ public class Mapper {
         //
         // Pipeline operators
         //
-        return Common.mapUnary(unary, mappedChild);
+        return MapperUtils.mapUnary(unary, mappedChild);
     }
 
     private PhysicalPlan mapBinary(BinaryPlan bp) {
@@ -204,7 +204,7 @@ public class Mapper {
             }
         }
 
-        return Common.unsupported(bp);
+        return MapperUtils.unsupported(bp);
     }
 
     public static boolean isPipelineBreaker(LogicalPlan p) {

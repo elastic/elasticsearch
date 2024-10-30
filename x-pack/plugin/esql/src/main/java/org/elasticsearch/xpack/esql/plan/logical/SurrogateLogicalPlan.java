@@ -8,7 +8,8 @@
 package org.elasticsearch.xpack.esql.plan.logical;
 
 /**
- * Interface signaling to the planner that the declaring plan.
+ * Interface signaling to the planner that the declaring plan should be replaced with the surrogate plan.
+ * This usually occurs for predefined commands that get "normalized" into a more generic form.
  * @see org.elasticsearch.xpack.esql.expression.SurrogateExpression
  */
 public interface SurrogateLogicalPlan {

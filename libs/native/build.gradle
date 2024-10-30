@@ -15,7 +15,7 @@ apply plugin: 'elasticsearch.mrjar'
 apply plugin: 'elasticsearch.embedded-providers'
 
 embeddedProviders {
-  impl 'native-access-jna', project(':libs:elasticsearch-native:jna')
+  impl 'native-access-jna', project(':libs:native:jna')
 }
 
 dependencies {

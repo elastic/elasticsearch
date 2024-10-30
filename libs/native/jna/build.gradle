@@ -14,12 +14,12 @@ base {
 }
 
 dependencies {
-  compileOnly project(':libs:elasticsearch-core')
-  compileOnly project(':libs:elasticsearch-native')
+  compileOnly project(':libs:core')
+  compileOnly project(':libs:native')
   implementation "net.java.dev.jna:jna:${versions.jna}"
 
   testImplementation(project(":test:framework")) {
-    exclude group: 'org.elasticsearch', module: 'elasticsearch-native'
+    exclude group: 'org.elasticsearch', module: 'native'
   }
 }
 

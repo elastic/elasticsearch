@@ -7,9 +7,10 @@ setup:
       indices.create:
         index:  test1
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               ver:
                 type: version
@@ -76,9 +77,10 @@ synthetic source with copy_to:
       indices.create:
         index: synthetic_source_test
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               ver:
                 type: version

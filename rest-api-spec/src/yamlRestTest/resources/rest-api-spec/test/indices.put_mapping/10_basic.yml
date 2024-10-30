@@ -155,9 +155,9 @@
       indices.create:
         index: test_index
         body:
-          mappings:
-            _source:
-              mode: synthetic
+          settings:
+            index:
+              mapping.source.mode: synthetic
 
   - do:
       catch: /Cannot update parameter \[mode\] from \[synthetic\] to \[stored\]/
@@ -177,9 +177,9 @@
       indices.create:
         index: test_index
         body:
-          mappings:
-            _source:
-              mode: stored
+          settings:
+            index:
+              mapping.source.mode: stored
 
   - do:
       indices.put_mapping:

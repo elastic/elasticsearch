@@ -285,9 +285,10 @@ synthetic_source:
       indices.create:
         index: synthetic_source_test
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               foo:
                 type: match_only_text
@@ -362,9 +363,10 @@ synthetic_source with copy_to:
       indices.create:
         index: synthetic_source_test
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               foo:
                 type: match_only_text

@@ -10,10 +10,9 @@ wildcard field type ignore_above:
           settings:
             index:
               mapping:
+                source.mode: synthetic
                 ignore_above: 10
           mappings:
-            _source:
-              mode: synthetic
             properties:
               a_wildcard:
                 type: wildcard

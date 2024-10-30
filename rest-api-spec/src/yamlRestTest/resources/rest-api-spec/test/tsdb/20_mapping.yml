@@ -473,8 +473,6 @@ stored source is supported:
                 start_time: 2021-04-28T00:00:00Z
                 end_time: 2021-04-29T00:00:00Z
           mappings:
-            _source:
-              mode: stored
             properties:
               "@timestamp":
                 type: date
@@ -511,8 +509,6 @@ disabled source is not supported:
                 start_time: 2021-04-28T00:00:00Z
                 end_time: 2021-04-29T00:00:00Z
           mappings:
-            _source:
-              mode: disabled
             properties:
               "@timestamp":
                 type: date

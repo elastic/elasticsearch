@@ -394,9 +394,10 @@
       indices.create:
         index: test
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               ml.tokens:
                 type: sparse_vector

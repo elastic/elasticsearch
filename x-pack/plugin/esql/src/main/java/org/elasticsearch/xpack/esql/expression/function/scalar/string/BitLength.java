@@ -84,7 +84,7 @@ public class BitLength extends UnaryScalarFunction {
 
     @Evaluator
     static int process(BytesRef val) {
-        return val.length * Byte.SIZE;
+        return val.length * 8;
     }
 
     @Override

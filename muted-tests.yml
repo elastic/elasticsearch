@@ -282,6 +282,9 @@ tests:
 - class: org.elasticsearch.search.slice.SearchSliceIT
   method: testPointInTime
   issue: https://github.com/elastic/elasticsearch/issues/115988
+- class: org.elasticsearch.action.search.PointInTimeIT
+  method: testPITTiebreak
+  issue: https://github.com/elastic/elasticsearch/issues/115810
 
 # Examples:
 #

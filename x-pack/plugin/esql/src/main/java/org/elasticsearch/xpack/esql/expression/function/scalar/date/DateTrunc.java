@@ -35,8 +35,9 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isDate;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
 
 public class DateTrunc extends EsqlScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -108,8 +109,9 @@ public class DateTrunc extends EsqlScalarFunction {
             return new TypeResolution("Unresolved children");
         }
 
+        String operationName = sourceText();
         return isType(interval, DataType::isTemporalAmount, sourceText(), FIRST, "dateperiod", "timeduration").and(
-            isDate(timestampField, sourceText(), SECOND)
+            isType(timestampField, dt -> dt == DATETIME || dt == DATE_NANOS, operationName, SECOND, "date_nanos or datetime")
         );
     }
 

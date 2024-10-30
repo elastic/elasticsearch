@@ -11,6 +11,7 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.common.Rounding;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -57,7 +58,7 @@ public class DateTruncTests extends AbstractScalarFunctionTestCase {
 
         return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers, (v, p) -> switch (p) {
             case 0 -> "dateperiod or timeduration";
-            case 1 -> "datetime";
+            case 1 -> "date_nanos or datetime";
             default -> null;
         });
     }
@@ -154,7 +155,19 @@ public class DateTruncTests extends AbstractScalarFunctionTestCase {
                 DataType.DATETIME,
                 equalTo(toMillis(expectedDate))
             )
-        ));
+        ),new TestCaseSupplier(
+                List.of(DataType.DATE_PERIOD, DataType.DATE_NANOS),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(period, DataType.DATE_PERIOD, "interval"),
+                        new TestCaseSupplier.TypedData(DateUtils.toNanoSeconds(value), DataType.DATE_NANOS, "date")
+                    ),
+                    "DateTruncEvaluator[date=Attribute[channel=1], interval=Attribute[channel=0]]",
+                    DataType.DATETIME,
+                    equalTo(toMillis(expectedDate))
+                )
+            )
+            );
     }
 
     private static List<TestCaseSupplier> ofDuration(Duration duration, long value, String expectedDate) {
@@ -169,7 +182,19 @@ public class DateTruncTests extends AbstractScalarFunctionTestCase {
                 DataType.DATETIME,
                 equalTo(toMillis(expectedDate))
             )
-        ));
+        ),new TestCaseSupplier(
+                List.of(DataType.TIME_DURATION, DataType.DATE_NANOS),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(duration, DataType.TIME_DURATION, "interval"),
+                        new TestCaseSupplier.TypedData(DateUtils.toNanoSeconds(value), DataType.DATE_NANOS, "date")
+                    ),
+                    "DateTruncEvaluator[date=Attribute[channel=1], interval=Attribute[channel=0]]",
+                    DataType.DATETIME,
+                    equalTo(toMillis(expectedDate))
+                )
+            )
+            );
     }
 
     private static TestCaseSupplier randomSecond() {

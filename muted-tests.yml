@@ -279,6 +279,9 @@ tests:
 - class: org.elasticsearch.repositories.s3.S3ServiceTests
   method: testRetryOn403RetryPolicy
   issue: https://github.com/elastic/elasticsearch/issues/115986
+- class: org.elasticsearch.search.slice.SearchSliceIT
+  method: testPointInTime
+  issue: https://github.com/elastic/elasticsearch/issues/115988
 
 # Examples:
 #

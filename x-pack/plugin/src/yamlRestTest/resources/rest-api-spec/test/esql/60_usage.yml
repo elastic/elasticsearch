@@ -30,7 +30,7 @@ setup:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [ snapshot_test_for_telemetry ]
+          capabilities: [ snapshot_test_for_telemetry, fn_bit_length ]
       reason: "Test that should only be executed on snapshot versions"
 
   - do: {xpack.usage: {}}
@@ -101,7 +101,7 @@ setup:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [ non_snapshot_test_for_telemetry ]
+          capabilities: [ non_snapshot_test_for_telemetry, fn_bit_length ]
       reason: "Test that should only be executed on release versions"
 
   - do: {xpack.usage: {}}

@@ -24,8 +24,6 @@ import java.util.stream.Collectors;
 
 import javax.inject.Inject;
 
-public abstract class ResolveAllDependencies extends DefaultTask {
-
 public class ResolveAllDependencies extends DefaultTask {
 
     private final ObjectFactory objectFactory;

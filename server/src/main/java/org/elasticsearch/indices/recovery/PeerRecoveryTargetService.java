@@ -413,10 +413,13 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                         // example.
                         logger.info(() -> format("cleanup before peer recovery failed on shard [{}]", indexShard.shardId()), e);
                         try {
+                            recoveryTarget.incRef();
                             recoveryTarget.cleanTempFiles();
                         } catch (IOException ie) {
                             // log and ignore. Recovery gets another chance to clean up after file transfer.
                             logger.warn(() -> format("temporary file cleanup failed on shard [{}]", indexShard.shardId()), ie);
+                        } finally {
+                            recoveryTarget.decRef();
                         }
                     } finally {
                         store.decRef();

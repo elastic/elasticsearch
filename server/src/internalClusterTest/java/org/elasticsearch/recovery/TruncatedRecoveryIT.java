@@ -133,7 +133,7 @@ public class TruncatedRecoveryIT extends ESIntegTestCase {
                                 latch.countDown();
                                 throw new RuntimeException("Caused some truncated files for fun and profit");
                             }
-                        } else if (action.equals(PeerRecoveryTargetService.Actions.FILES_INFO) && truncate.get() == false) {
+                        } else if (action.equals(PeerRecoveryTargetService.Actions.FILES_INFO)) {
                             // verify on the second recovery attempt that the garbage has been removed before we fetch files again
                             var shardId = ((RecoveryFilesInfoRequest) request).shardId();
                             var shardPath = unluckyIndices.indexService(shardId.getIndex())

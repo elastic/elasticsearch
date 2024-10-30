@@ -71,7 +71,11 @@ public class Netty4HttpRequestBodyStream implements HttpBody.Stream {
             if (buf == null) {
                 channel.read();
             } else {
-                send();
+                try {
+                    send();
+                } catch (Exception e) {
+                    channel.pipeline().fireExceptionCaught(e);
+                }
             }
         });
     }
@@ -86,10 +90,6 @@ public class Netty4HttpRequestBodyStream implements HttpBody.Stream {
             if (requested) {
                 send();
             }
-        }
-        if (hasLast) {
-            channel.config().setAutoRead(true);
-            channel.closeFuture().removeListener(closeListener);
         }
     }
 
@@ -133,6 +133,10 @@ public class Netty4HttpRequestBodyStream implements HttpBody.Stream {
             tracer.onNext(bytesRef, hasLast);
         }
         handler.onNext(bytesRef, hasLast);
+        if (hasLast) {
+            channel.config().setAutoRead(true);
+            channel.closeFuture().removeListener(closeListener);
+        }
     }
 
     @Override

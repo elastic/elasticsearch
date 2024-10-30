@@ -83,8 +83,6 @@ tests:
 - class: org.elasticsearch.xpack.ml.integration.MlJobIT
   method: testDeleteJobAfterMissingIndex
   issue: https://github.com/elastic/elasticsearch/issues/112088
-- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
-  issue: https://github.com/elastic/elasticsearch/issues/112147
 - class: org.elasticsearch.smoketest.WatcherYamlRestIT
   method: test {p0=watcher/usage/10_basic/Test watcher usage stats output}
   issue: https://github.com/elastic/elasticsearch/issues/112189
@@ -318,13 +316,9 @@ tests:
 - class: org.elasticsearch.xpack.remotecluster.RemoteClusterSecurityWithApmTracingRestIT
   method: testTracingCrossCluster
   issue: https://github.com/elastic/elasticsearch/issues/112731
-- class: org.elasticsearch.license.LicensingTests
-  issue: https://github.com/elastic/elasticsearch/issues/114865
 - class: org.elasticsearch.xpack.inference.TextEmbeddingCrudIT
   method: testPutE5Small_withPlatformSpecificVariant
   issue: https://github.com/elastic/elasticsearch/issues/113950
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
-  issue: https://github.com/elastic/elasticsearch/issues/115315
 - class: org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT
   method: test {p0=mixed_cluster/80_transform_jobs_crud/Test GET, start, and stop old cluster batch transforms}
   issue: https://github.com/elastic/elasticsearch/issues/115319
@@ -349,6 +343,9 @@ tests:
 - class: org.elasticsearch.xpack.inference.DefaultEndPointsIT
   method: testInferDeploysDefaultE5
   issue: https://github.com/elastic/elasticsearch/issues/115361
+- class: org.elasticsearch.xpack.inference.InferenceCrudIT
+  method: testSupportedStream
+  issue: https://github.com/elastic/elasticsearch/issues/113430
 
 # Examples:
 #

@@ -12,6 +12,7 @@ import software.amazon.awssdk.services.bedrockruntime.model.ConverseStreamOutput
 import software.amazon.awssdk.services.bedrockruntime.model.ConverseStreamResponseHandler;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.logging.LogManager;
@@ -89,6 +90,7 @@ class AmazonBedrockStreamingChatProcessor implements Flow.Processor<ConverseStre
 
     @Override
     public void onError(Throwable amazonBedrockRuntimeException) {
+        ExceptionsHelper.maybeDieOnAnotherThread(amazonBedrockRuntimeException);
         error.set(
             new ElasticsearchException(
                 Strings.format("AmazonBedrock StreamingChatProcessor failure: [%s]", amazonBedrockRuntimeException.getMessage()),
@@ -96,7 +98,7 @@ class AmazonBedrockStreamingChatProcessor implements Flow.Processor<ConverseStre
             )
         );
         if (isDone.compareAndSet(false, true) && checkAndResetDemand() && onErrorCalled.compareAndSet(false, true)) {
-            downstream.onError(error.get());
+            runOnUtilityThreadPool(() -> downstream.onError(amazonBedrockRuntimeException));
         }
     }
 

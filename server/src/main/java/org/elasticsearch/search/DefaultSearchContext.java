@@ -241,7 +241,11 @@ final class DefaultSearchContext extends SearchContext {
             AtomicInteger segmentLevelTasks = new AtomicInteger(0);
             return command -> {
                 if (segmentLevelTasks.incrementAndGet() > tpe.getMaximumPoolSize()) {
-                    command.run();
+                    try {
+                        command.run();
+                    } finally {
+                        segmentLevelTasks.decrementAndGet();
+                    }
                 } else {
                     executor.execute(() -> {
                         try {

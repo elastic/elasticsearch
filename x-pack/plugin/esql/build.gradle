@@ -26,8 +26,8 @@ dependencies {
   compileOnly project(xpackModule('ml'))
   implementation project('compute')
   implementation project('compute:ann')
-  implementation project(':libs:elasticsearch-dissect')
-  implementation project(':libs:elasticsearch-grok')
+  implementation project(':libs:dissect')
+  implementation project(':libs:grok')
   implementation project('arrow')
 
   // Also contains a dummy processor to allow compilation with unused annotations.

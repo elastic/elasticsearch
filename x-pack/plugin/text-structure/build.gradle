@@ -12,7 +12,7 @@ base {
 dependencies {
   compileOnly project(path: xpackModule('core'))
   testImplementation(testArtifact(project(xpackModule('core'))))
-  api project(':libs:elasticsearch-grok')
+  api project(':libs:grok')
   api "com.ibm.icu:icu4j:${versions.icu4j}"
   api "net.sf.supercsv:super-csv:${versions.supercsv}"
 }

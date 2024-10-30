@@ -161,7 +161,7 @@ if (providers.systemProperty('idea.active').getOrNull() == 'true') {
       ':server:generateModulesList',
       ':server:generatePluginsList',
       ':generateProviderImpls',
-      ':libs:elasticsearch-native:elasticsearch-native-libraries:extractLibs',
+      ':libs:native:native-libraries:extractLibs',
       ':x-pack:libs:es-opensaml-security-api:shadowJar'].collect { elasticsearchProject.right()?.task(it) ?: it })
   }
 

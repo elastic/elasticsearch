@@ -18,7 +18,7 @@ esplugin {
 }
 
 dependencies {
-  implementation project(path: ':libs:elasticsearch-logging')
+  implementation project(path: ':libs:logging')
   compileOnly project(":server")
   compileOnly project(path: xpackModule('core'))
   testImplementation(testArtifact(project(xpackModule('core'))))

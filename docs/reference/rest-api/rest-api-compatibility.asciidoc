@@ -36,9 +36,8 @@ the incompatibility, a message is written to the deprecation log with
 the category "compatible_api". Review the deprecation log to identify
 any gaps in usage and fully supported features.
 
-//TODO: figure out how to get the link below to work !
-//For information about specific breaking changes and the impact of requesting
-//compatibility mode. See xref:/docs/reference/migration/migrate_9_0/rest-api-changes.asciidoc[REST API changes] in the migration guide.
+For information about specific breaking changes and the impact of requesting
+compatibility mode. See <<migrate_rest_api_changes,REST API changes>>  in the migration guide.
 
 [discrete]
 [[request-rest-api-compatibility]]

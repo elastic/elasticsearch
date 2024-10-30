@@ -1,8 +1,6 @@
 include::migration_intro.asciidoc[]
 
-
 * <<migrating-9.0,Migrating to 9.0>>
-
 
 include::migrate_9_0.asciidoc[]
 

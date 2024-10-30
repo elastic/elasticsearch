@@ -8,10 +8,7 @@ This section summarizes the changes in each release.
 
 * <<release-notes-9.0.0>>
 
-
 --
 
-
 include::release-notes/9.0.0.asciidoc[]
-
 

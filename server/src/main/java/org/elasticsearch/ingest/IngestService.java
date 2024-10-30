@@ -806,7 +806,6 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                         );
 
                         executePipelines(pipelines, indexRequest, ingestDocument, resolveFailureStore, documentListener);
-                        indexRequest.setNormalisedBytesParsed(meteringParserDecorator.meteredDocumentSize().ingestedBytes());
                         assert actionRequest.index() != null;
 
                         i++;

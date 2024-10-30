@@ -30,7 +30,6 @@ public interface DocumentParsingEvent {
 
     record ObjectEnd(String name) {}
 
-
 }
 
 // Mappers - want to just keep parsing stuff as it is, meaning raw xcontentparser stuff
@@ -39,6 +38,7 @@ public interface DocumentParsingEvent {
 
 // copy_to wants to re-parse stuff when parsing another field
 
-// synthetic source wants to track all offsets, build a document structure, build paths to everything that goes to ignored source and then walk the document
+// synthetic source wants to track all offsets, build a document structure, build paths to everything that goes to ignored source and then
+// walk the document
 
 // Just do offset tracking and events specific to synthetic source and see what happens??

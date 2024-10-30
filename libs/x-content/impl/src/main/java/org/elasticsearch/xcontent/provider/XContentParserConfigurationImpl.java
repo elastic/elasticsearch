@@ -14,7 +14,6 @@ import com.fasterxml.jackson.core.filter.FilteringParserDelegate;
 
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.xcontent.DeprecationHandler;
-import org.elasticsearch.xcontent.XContentInputDecorator;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.provider.filtering.FilterPathBasedFilter;
@@ -30,8 +29,7 @@ public class XContentParserConfigurationImpl implements XContentParserConfigurat
         RestApiVersion.current(),
         null,
         null,
-        false,
-        null
+        false
     );
 
     final NamedXContentRegistry registry;
@@ -40,7 +38,6 @@ public class XContentParserConfigurationImpl implements XContentParserConfigurat
     final FilterPath[] includes;
     final FilterPath[] excludes;
     final boolean filtersMatchFieldNamesWithDots;
-    final XContentInputDecorator inputDecorator;
 
     private XContentParserConfigurationImpl(
         NamedXContentRegistry registry,
@@ -48,8 +45,7 @@ public class XContentParserConfigurationImpl implements XContentParserConfigurat
         RestApiVersion restApiVersion,
         FilterPath[] includes,
         FilterPath[] excludes,
-        boolean filtersMatchFieldNamesWithDots,
-        XContentInputDecorator inputDecorator
+        boolean filtersMatchFieldNamesWithDots
     ) {
         this.registry = registry;
         this.deprecationHandler = deprecationHandler;
@@ -57,7 +53,6 @@ public class XContentParserConfigurationImpl implements XContentParserConfigurat
         this.includes = includes;
         this.excludes = excludes;
         this.filtersMatchFieldNamesWithDots = filtersMatchFieldNamesWithDots;
-        this.inputDecorator = inputDecorator;
     }
 
     @Override
@@ -68,8 +63,7 @@ public class XContentParserConfigurationImpl implements XContentParserConfigurat
             restApiVersion,
             includes,
             excludes,
-            filtersMatchFieldNamesWithDots,
-            inputDecorator
+            filtersMatchFieldNamesWithDots
         );
     }
 
@@ -84,8 +78,7 @@ public class XContentParserConfigurationImpl implements XContentParserConfigurat
             restApiVersion,
             includes,
             excludes,
-            filtersMatchFieldNamesWithDots,
-            inputDecorator
+            filtersMatchFieldNamesWithDots
         );
     }
 
@@ -100,8 +93,7 @@ public class XContentParserConfigurationImpl implements XContentParserConfigurat
             restApiVersion,
             includes,
             excludes,
-            filtersMatchFieldNamesWithDots,
-            inputDecorator
+            filtersMatchFieldNamesWithDots
         );
     }
 
@@ -120,8 +112,7 @@ public class XContentParserConfigurationImpl implements XContentParserConfigurat
             restApiVersion,
             FilterPath.compile(includeStrings),
             FilterPath.compile(excludeStrings),
-            filtersMatchFieldNamesWithDots,
-            inputDecorator
+            filtersMatchFieldNamesWithDots
         );
     }
 
@@ -144,21 +135,5 @@ public class XContentParserConfigurationImpl implements XContentParserConfigurat
             );
         }
         return filtered;
-    }
-
-    public XContentInputDecorator inputDecorator() {
-        return inputDecorator;
-    }
-
-    public XContentParserConfiguration withInputDecorator(XContentInputDecorator inputDecorator) {
-        return new XContentParserConfigurationImpl(
-            registry,
-            deprecationHandler,
-            restApiVersion,
-            includes,
-            excludes,
-            filtersMatchFieldNamesWithDots,
-            inputDecorator
-        );
     }
 }

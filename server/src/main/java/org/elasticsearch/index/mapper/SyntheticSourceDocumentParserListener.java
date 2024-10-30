@@ -7,12 +7,11 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.xcontent;
+package org.elasticsearch.index.mapper;
 
-import java.io.InputStream;
+public class SyntheticSourceDocumentParserListener implements DocumentParserListener {
+    @Override
+    public void consume(Token token) {
 
-public interface XContentInputDecorator {
-    InputStream decorate(byte[] src, int offset, int length);
-
-    InputStream decorate(InputStream in);
+    }
 }

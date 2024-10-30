@@ -26,6 +26,7 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.Source;
+import org.elasticsearch.xcontent.FilterXContentParserWrapper;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentLocation;
 import org.elasticsearch.xcontent.XContentParseException;
@@ -60,9 +61,13 @@ public final class DocumentParser {
     private final XContentParserConfiguration parserConfiguration;
     private final MappingParserContext mappingParserContext;
 
+    private final List<DocumentParserListener> listeners;
+
     DocumentParser(XContentParserConfiguration parserConfiguration, MappingParserContext mappingParserContext) {
         this.mappingParserContext = mappingParserContext;
         this.parserConfiguration = parserConfiguration;
+
+        this.listeners = List.of(new SyntheticSourceDocumentParserListener());
     }
 
     /**
@@ -80,24 +85,25 @@ public final class DocumentParser {
         final RootDocumentParserContext context;
         final XContentType xContentType = source.getXContentType();
 
-        var offsetTracker = new ByteTrackingXContentInputDecorator();
-        System.out.println(offsetTracker.getReadOffset());
-        XContentParserConfiguration adjustedConfiguration = parserConfiguration.withInputDecorator(offsetTracker);
-
         XContentMeteringParserDecorator meteringParserDecorator = source.getMeteringParserDecorator();
         try (
             XContentParser parser = meteringParserDecorator.decorate(
-                XContentHelper.createParser(adjustedConfiguration, source.source(), xContentType)
+                // Also notify all listeners about tokens being parsed
+                new FilterXContentParserWrapper(XContentHelper.createParser(parserConfiguration, source.source(), xContentType)) {
+                    @Override
+                    public Token nextToken() throws IOException {
+                        var token = delegate().nextToken();
+
+                        return token;
+                    }
+                }
             )
         ) {
             context = new RootDocumentParserContext(mappingLookup, mappingParserContext, source, parser);
             validateStart(context.parser());
-            System.out.println(offsetTracker.getReadOffset());
             MetadataFieldMapper[] metadataFieldsMappers = mappingLookup.getMapping().getSortedMetadataMappers();
             internalParseDocument(metadataFieldsMappers, context);
-            System.out.println(offsetTracker.getReadOffset());
             validateEnd(context.parser());
-            System.out.println(offsetTracker.getReadOffset());
         } catch (XContentParseException e) {
             throw new DocumentParsingException(e.getLocation(), e.getMessage(), e);
         } catch (IOException e) {

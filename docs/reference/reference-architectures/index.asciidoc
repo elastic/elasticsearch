@@ -60,9 +60,9 @@ a|
 |
 |===
 
-include::multi-region-two-datacenter-architecture.asciidoc[]
-
 include::elastic-cloud-architecture.asciidoc[]
+
+include::multi-region-two-datacenter-architecture.asciidoc[]
 
 include::self-managed-single-datacenter.asciidoc[]
 

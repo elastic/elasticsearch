@@ -17,7 +17,6 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.rest.ObjectPath;
-import org.elasticsearch.test.rest.RestTestLegacyFeatures;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -74,8 +73,8 @@ public class LogsdbIndexingRollingUpgradeIT extends AbstractRollingUpgradeTestCa
 
     public void testIndexing() throws Exception {
         assumeTrue(
-            "test relies on logsdb being available",
-            oldClusterHasFeature(RestTestLegacyFeatures.LOGSDB_TECH_PREVIEW)
+            "Logsdb is tech preview since 8.15.0",
+            getOldClusterTestVersion().onOrAfter("8.15.0")
         );
         String dataStreamName = "logs-bwc-test";
         if (isOldCluster()) {

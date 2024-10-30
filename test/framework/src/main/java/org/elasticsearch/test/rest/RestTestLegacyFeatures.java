@@ -128,8 +128,6 @@ public class RestTestLegacyFeatures implements FeatureSpecification {
 
     public static final NodeFeature ES_QL_GA = new NodeFeature("esql.ga");
 
-    public static final NodeFeature LOGSDB_TECH_PREVIEW = new NodeFeature("logsdb.tech_preview");
-
     /*
      * Starting with 8.11, cluster state has minimum system index mappings versions (#99307) and the system index mappings upgrade service
      * started using them to determine when to update mappings for system indices. See https://github.com/elastic/elasticsearch/pull/99668
@@ -189,8 +187,7 @@ public class RestTestLegacyFeatures implements FeatureSpecification {
             entry(DISABLE_FIELD_NAMES_FIELD_REMOVED, Version.V_8_0_0),
             entry(ML_NLP_SUPPORTED, Version.V_8_0_0),
             entry(MAPPINGS_UPGRADE_SERVICE_USES_MAPPINGS_VERSION, Version.V_8_11_0),
-            entry(ES_QL_GA, Version.V_8_14_0),
-            entry(LOGSDB_TECH_PREVIEW, Version.V_8_15_0)
+            entry(ES_QL_GA, Version.V_8_14_0)
         );
     }
 }

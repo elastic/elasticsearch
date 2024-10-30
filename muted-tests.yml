@@ -120,9 +120,6 @@ tests:
 - class: org.elasticsearch.xpack.sql.qa.security.JdbcSqlSpecIT
   method: test {case-functions.testSelectInsertWithLcaseAndLengthWithOrderBy}
   issue: https://github.com/elastic/elasticsearch/issues/112642
-- class: org.elasticsearch.action.admin.cluster.node.stats.NodeStatsTests
-  method: testChunking
-  issue: https://github.com/elastic/elasticsearch/issues/113139
 - class: org.elasticsearch.packaging.test.WindowsServiceTests
   method: test30StartStop
   issue: https://github.com/elastic/elasticsearch/issues/113160

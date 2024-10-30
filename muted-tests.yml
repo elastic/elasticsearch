@@ -151,9 +151,6 @@ tests:
 - class: org.elasticsearch.xpack.ml.integration.MlJobIT
   method: testGetJob_GivenNoSuchJob
   issue: https://github.com/elastic/elasticsearch/issues/112730
-- class: org.elasticsearch.script.StatsSummaryTests
-  method: testEqualsAndHashCode
-  issue: https://github.com/elastic/elasticsearch/issues/112439
 - class: org.elasticsearch.xpack.ml.integration.MlJobIT
   method: testDeleteJobAfterMissingAliases
   issue: https://github.com/elastic/elasticsearch/issues/112823
@@ -346,6 +343,15 @@ tests:
 - class: org.elasticsearch.xpack.inference.InferenceCrudIT
   method: testSupportedStream
   issue: https://github.com/elastic/elasticsearch/issues/113430
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=indices.create/20_synthetic_source/object with unmapped fields}
+  issue: https://github.com/elastic/elasticsearch/issues/115910
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=indices.create/20_synthetic_source/empty object with unmapped fields}
+  issue: https://github.com/elastic/elasticsearch/issues/115911
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=indices.create/20_synthetic_source/nested object with unmapped fields}
+  issue: https://github.com/elastic/elasticsearch/issues/115912
 
 # Examples:
 #

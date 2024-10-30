@@ -9,9 +9,9 @@
 
 package org.elasticsearch.nativeaccess;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.ESTestCase.WithoutSecurityManager;
+import org.elasticsearch.test.PrivilegedOperations;
 import org.elasticsearch.test.compiler.InMemoryJavaCompiler;
 import org.elasticsearch.test.jar.JarUtils;
 import org.junit.BeforeClass;
@@ -27,8 +27,7 @@ import static org.elasticsearch.nativeaccess.PosixNativeAccess.ENABLE_JDK_VECTOR
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-@WithoutSecurityManager
-public class VectorSystemPropertyTests extends ESTestCase {
+public class VectorSystemPropertyTests extends LuceneTestCase {
 
     static Path jarPath;
 
@@ -44,7 +43,7 @@ public class VectorSystemPropertyTests extends ESTestCase {
 
     @SuppressForbidden(reason = "pathSeparator")
     public void testSystemPropertyDisabled() throws Exception {
-        var process = new ProcessBuilder(
+        var processBuilder = new ProcessBuilder(
             getJavaExecutable(),
             "-D" + ENABLE_JDK_VECTOR_LIBRARY + "=false",
             "-Xms4m",
@@ -52,7 +51,8 @@ public class VectorSystemPropertyTests extends ESTestCase {
             jarPath + File.pathSeparator + System.getProperty("java.class.path"),
             "-Des.nativelibs.path=" + System.getProperty("es.nativelibs.path"),
             "p.Test"
-        ).start();
+        );
+        var process = PrivilegedOperations.ProcessBuilderStart(processBuilder);
         String output = new String(process.getInputStream().readAllBytes(), UTF_8);
         String error = new String(process.getErrorStream().readAllBytes(), UTF_8);
         // System.out.println(output);

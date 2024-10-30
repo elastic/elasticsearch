@@ -16,6 +16,7 @@ import java.io.IOException;
 import java.net.URLClassLoader;
 import java.security.AccessControlContext;
 import java.security.AccessController;
+import java.security.AllPermission;
 import java.security.CodeSigner;
 import java.security.CodeSource;
 import java.security.DomainCombiner;
@@ -79,6 +80,19 @@ public final class PrivilegedOperations {
             new RuntimePermission("createClassLoader"),
             new RuntimePermission("closeClassLoader")
         );
+    }
+
+    public static Process ProcessBuilderStart(ProcessBuilder processBuilder) throws IOException {
+        try {
+            return AccessController.doPrivileged((PrivilegedExceptionAction<Process>) processBuilder::start, context, new AllPermission());
+        } catch (PrivilegedActionException pae) {
+            Exception e = pae.getException();
+            if (e instanceof IOException ioe) {
+                throw ioe;
+            } else {
+                throw new IOException(e);
+            }
+        }
     }
 
     @SuppressForbidden(reason = "need to create file permission")

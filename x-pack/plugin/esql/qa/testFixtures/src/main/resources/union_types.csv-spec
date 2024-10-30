@@ -1341,7 +1341,7 @@ multiIndexIndirectUseOfUnionTypesInMvExpand
 // make the csv tests work with multiple indices.
 required_capability: union_types
 FROM sample_data, sample_data_ts_long
-| EVAL foo = MV_APPEND(message, message)
+| EVAL foo = MV_APPEND(message, message, message)
 | SORT client_ip ASC
 | LIMIT 1
 | MV_EXPAND foo

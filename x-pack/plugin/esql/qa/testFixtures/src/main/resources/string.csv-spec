@@ -1486,7 +1486,7 @@ mvAppend
 required_capability: fn_mv_append
 
 ROW a = "a", b = ["b", "c"], n = null
-| EVAL aa = mv_append(a, a), bb = mv_append(b, b), ab = mv_append(a, b), abb = mv_append(mv_append(a, b), b), na = mv_append(n, a), an = mv_append(a, n)
+| EVAL aa = mv_append(a, a), bb = mv_append(b, b), ab = mv_append(a, b), abb = mv_append(a, b, b), na = mv_append(n, a), an = mv_append(a, n)
 ;
 
 a:keyword | b:keyword | n:null | aa:keyword | bb:keyword   | ab:keyword | abb:keyword    | na:keyword | an:keyword

@@ -540,12 +540,12 @@ FROM employees
        i = mv_append(salary_change.int, salary_change.int),
        i2 = mv_append(emp_no, salary_change.int),
        i3 = mv_append(emp_no, emp_no),  
-       s = mv_append(salary_change.keyword, salary_change.keyword)
+       s = mv_append(salary_change.keyword, salary_change.keyword, salary_change.keyword)
 | KEEP emp_no, salary_change, d, i, i2, i3, s
 | SORT emp_no;
 
 emp_no:integer | salary_change:double    | d:double                                       | i:integer              | i2:integer         | i3:integer     | s:keyword
-10008          | [-2.92,0.75,3.54,12.68] | [-2.92,0.75,3.54,12.68,-2.92,0.75,3.54,12.68]  | [-2,0,3,12,-2,0,3,12]  | [10008,-2,0,3,12]  | [10008, 10008] | [-2.92,0.75,12.68,3.54,-2.92,0.75,12.68,3.54]
+10008          | [-2.92,0.75,3.54,12.68] | [-2.92,0.75,3.54,12.68,-2.92,0.75,3.54,12.68]  | [-2,0,3,12,-2,0,3,12]  | [10008,-2,0,3,12]  | [10008, 10008] | [-2.92,0.75,12.68,3.54,-2.92,0.75,12.68,3.54,-2.92,0.75,12.68,3.54]
 10021          | null                    | null                                           | null                   | null               | [10021, 10021] | null
 ;
 

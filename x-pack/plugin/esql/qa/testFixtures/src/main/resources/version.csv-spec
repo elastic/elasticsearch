@@ -377,7 +377,7 @@ required_capability: fn_mv_append
 
 ROW a = to_version("1.2.0"), x1 = to_version("0.0.1"), x2 = to_version("1.0.0")
 | EVAL b = mv_append(x1, x2)
-| EVAL aa = mv_append(a, a), bb = mv_append(b, b), ab = mv_append(a, b), abb = mv_append(mv_append(a, b), b)
+| EVAL aa = mv_append(a, a), bb = mv_append(b, b), ab = mv_append(a, b), abb = mv_append(a, b, b)
 | KEEP a, b, aa, bb, ab, abb
 ;
 

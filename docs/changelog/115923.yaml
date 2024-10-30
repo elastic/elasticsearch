@@ -2,11 +2,13 @@ pr: 115923
 summary: Apply more strict parsing of actions in bulk API
 area: Indices APIs
 type: breaking
-issues: []
+issues: [ ]
 breaking:
   title: Apply more strict parsing of actions in bulk API
-  area: Indices APIs
-  details: Please describe the details of this change for the release notes. You can
-    use asciidoc.
-  impact: Please describe the impact of this change to users
+  area: REST API
+  details: >-
+    Previously, the following classes of malformed input were deprecated but not rejected in the action lines of the a
+    bulk request: missing closing brace; additional keys after the action (which were ignored); additional data after
+    the closing brace (which was ignored). They will now be considered errors and rejected.
+  impact: Users must provide well-formed input when using the bulk API
   notable: false

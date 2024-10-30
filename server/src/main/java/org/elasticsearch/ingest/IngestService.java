@@ -276,6 +276,22 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         resolvePipelinesAndUpdateIndexRequest(originalRequest, indexRequest, metadata, System.currentTimeMillis());
     }
 
+
+
+    private static boolean isRolloverOnWrite(Metadata metadata, final DocWriteRequest<?> request, IndexRequest indexRequest) {
+        var index = request != null ? request.index() : indexRequest.index();
+        DataStream dataStream = metadata.dataStreams().get(index);
+        if (dataStream == null) {
+            return false;
+        }
+        return dataStream.getBackingIndices().isRolloverOnWrite();
+
+
+
+//        // If there is no index abstraction, then the request is using a pattern of some sort, which data streams do not support
+//        IndexAbstraction ia = metadata.getIndicesLookup().get(docWriteRequest.index());
+//        return DataStream.resolveDataStream(ia, metadata);
+    }
     static void resolvePipelinesAndUpdateIndexRequest(
         final DocWriteRequest<?> originalRequest,
         final IndexRequest indexRequest,
@@ -290,9 +306,16 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
          * Here we look for the pipelines associated with the index if the index exists. If the index does not exist we fall back to using
          * templates to find the pipelines.
          */
-        final Pipelines pipelines = resolvePipelinesFromMetadata(originalRequest, indexRequest, metadata, epochMillis).or(
-            () -> resolvePipelinesFromIndexTemplates(indexRequest, metadata)
-        ).orElse(Pipelines.NO_PIPELINES_DEFINED);
+
+        final Pipelines pipelines;
+        if (isRolloverOnWrite(metadata, originalRequest, indexRequest)) {
+            pipelines = resolvePipelinesFromIndexTemplates(indexRequest, metadata)
+                .orElse(Pipelines.NO_PIPELINES_DEFINED);
+        } else {
+            pipelines = resolvePipelinesFromMetadata(originalRequest, indexRequest, metadata, epochMillis)
+                .or(() -> resolvePipelinesFromIndexTemplates(indexRequest, metadata))
+                .orElse(Pipelines.NO_PIPELINES_DEFINED);
+        }
 
         // The pipeline coming as part of the request always has priority over the resolved one from metadata or templates
         String requestPipeline = indexRequest.getPipeline();

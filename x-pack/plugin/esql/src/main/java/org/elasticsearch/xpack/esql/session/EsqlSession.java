@@ -261,7 +261,7 @@ public class EsqlSession {
         ActionListener<Result> listener
     ) {
         LogicalPlan firstPhase = Phased.extractFirstPhase(optimizedPlan);
-        updateExecutionInfoAtEndOfPlanning(executionInfo);
+        EsqlSessionCCSUtils.updateExecutionInfoAtEndOfPlanning(executionInfo);
         if (firstPhase == null) {
             runPhase.accept(logicalPlanToPhysicalPlan(optimizedPlan, request), listener);
         } else {
@@ -347,8 +347,8 @@ public class EsqlSession {
                 // TODO in follow-PR (for skip_unavailble handling of missing concrete indexes) add some tests for invalid index
                 // resolution to updateExecutionInfo
                 if (indexResolution.isValid()) {
-                    updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, indexResolution);
-                    updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.getUnavailableClusters());
+                    EsqlSessionCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, indexResolution);
+                    EsqlSessionCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.getUnavailableClusters());
                     if (executionInfo.isCrossClusterSearch()
                         && executionInfo.getClusterStateCount(EsqlExecutionInfo.Cluster.Status.RUNNING) == 0) {
                         // for a CCS, if all clusters have been marked as SKIPPED, nothing to search so send a sentinel
@@ -422,7 +422,7 @@ public class EsqlSession {
             }
             // if the preceding call to the enrich policy API found unavailable clusters, recreate the index expression to search
             // based only on available clusters (which could now be an empty list)
-            String indexExpressionToResolve = createIndexExpressionFromAvailableClusters(executionInfo);
+            String indexExpressionToResolve = EsqlSessionCCSUtils.createIndexExpressionFromAvailableClusters(executionInfo);
             if (indexExpressionToResolve.isEmpty()) {
                 // if this was a pure remote CCS request (no local indices) and all remotes are offline, return an empty IndexResolution
                 listener.onResponse(IndexResolution.valid(new EsIndex(table.index(), Map.of(), Map.of())));

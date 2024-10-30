@@ -424,7 +424,7 @@ abbrev:keyword | type:keyword |    city:keyword    | "COUNT(*)":long | region:te
            ACA |        major | Acapulco de Juárez |             385 | Acapulco de Juárez
 ;
 
-beforeAndAfterEnrich
+beforeAndAfterEnrich-Ignore
 required_capability: inlinestats
 required_capability: enrich_load
 

@@ -3,8 +3,7 @@
 //
 
 maxOfInt-Ignore
-required_capability: inlinestats
-
+required_capability: join_planning_v1
 // tag::max-languages[]
 FROM employees
 | KEEP emp_no, languages
@@ -26,7 +25,7 @@ emp_no:integer | languages:integer | max_lang:integer
 ;
 
 maxOfIntByKeyword
-required_capability: inlinestats
+required_capability: join_planning_v1
 
 FROM employees
 | KEEP emp_no, languages, gender
@@ -44,7 +43,7 @@ emp_no:integer | languages:integer | gender:keyword | max_lang:integer
 ;
 
 maxOfLongByKeyword
-required_capability: inlinestats
+required_capability: join_planning_v1
 
 FROM employees
 | KEEP emp_no, avg_worked_seconds, gender
@@ -59,7 +58,7 @@ emp_no:integer | avg_worked_seconds:long | gender:keyword | max_avg_worked_secon
 ;
 
 maxOfLong-Ignore
-required_capability: inlinestats
+required_capability: join_planning_v1
 
 FROM employees
 | KEEP emp_no, avg_worked_seconds, gender
@@ -72,7 +71,7 @@ emp_no:integer | avg_worked_seconds:long | gender:keyword | max_avg_worked_secon
 ;
 
 maxOfLongByCalculatedKeyword
-required_capability: inlinestats_v2
+required_capability: join_planning_v1
 
 // tag::longest-tenured-by-first[]
 FROM employees
@@ -95,7 +94,7 @@ emp_no:integer | avg_worked_seconds:long | last_name:keyword | SUBSTRING(last_na
 ;
 
 maxOfLongByCalculatedNamedKeyword
-required_capability: inlinestats_v2
+required_capability: join_planning_v1
 
 FROM employees
 | KEEP emp_no, avg_worked_seconds, last_name
@@ -114,7 +113,7 @@ emp_no:integer | avg_worked_seconds:long | last_name:keyword | l:keyword | max_a
 ;
 
 maxOfLongByCalculatedDroppedKeyword
-required_capability: inlinestats_v2
+required_capability: join_planning_v1
 
 FROM employees
 | INLINESTATS max_avg_worked_seconds = MAX(avg_worked_seconds) BY l = SUBSTRING(last_name, 0, 1)
@@ -133,7 +132,7 @@ emp_no:integer | avg_worked_seconds:long | last_name:keyword | max_avg_worked_se
 ;
 
 maxOfLongByEvaledKeyword
-required_capability: inlinestats
+required_capability: join_planning_v1
 
 FROM employees
 | EVAL l = SUBSTRING(last_name, 0, 1)
@@ -153,7 +152,7 @@ emp_no:integer | avg_worked_seconds:long | l:keyword | max_avg_worked_seconds:lo
 ;
 
 maxOfLongByInt
-required_capability: inlinestats
+required_capability: join_planning_v1
 
 FROM employees
 | KEEP emp_no, avg_worked_seconds, languages
@@ -171,7 +170,7 @@ emp_no:integer | avg_worked_seconds:long | languages:integer | max_avg_worked_se
 ;
 
 maxOfLongByIntDouble
-required_capability: inlinestats
+required_capability: join_planning_v1
 
 FROM employees
 | KEEP emp_no, avg_worked_seconds, languages, height
@@ -190,7 +189,7 @@ emp_no:integer | avg_worked_seconds:long | languages:integer | height:double | m
 
 
 two-Ignore
-required_capability: inlinestats
+required_capability: join_planning_v1
 
 FROM employees
 | KEEP emp_no, languages, avg_worked_seconds, gender
@@ -207,7 +206,7 @@ emp_no:integer | languages:integer | avg_worked_seconds:long | gender:keyword | 
 ;
 
 byMultivaluedSimple
-required_capability: inlinestats
+required_capability: join_planning_v1
 
 // tag::mv-group[]
 FROM airports
@@ -225,7 +224,7 @@ abbrev:keyword |  type:keyword   | scalerank:integer | min_scalerank:integer
 ;
 
 byMultivaluedMvExpand
-required_capability: inlinestats
+required_capability: join_planning_v1
 
 // tag::mv-expand[]
 FROM airports
@@ -245,7 +244,7 @@ abbrev:keyword | type:keyword | scalerank:integer | min_scalerank:integer
 ;
 
 byMvExpand
-required_capability: inlinestats
+required_capability: join_planning_v1
 
 // tag::extreme-airports[]
 FROM airports
@@ -274,7 +273,7 @@ FROM airports
 ;
 
 brokenwhy-Ignore
-required_capability: inlinestats
+required_capability: join_planning_v1
 
 FROM airports
 | INLINESTATS min_scalerank=MIN(scalerank) BY type
@@ -286,7 +285,7 @@ abbrev:keyword |  type:keyword   | scalerank:integer | min_scalerank:integer
 ;
 
 afterStats-Ignore
-required_capability: inlinestats
+required_capability: join_planning_v1
 
 FROM airports
 | STATS count=COUNT(*) BY country
@@ -309,7 +308,7 @@ count:long | country:keyword | avg:double
 ;
 
 afterWhere
-required_capability: inlinestats
+required_capability: join_planning_v1
 
 FROM airports
 | WHERE country != "United States"
@@ -327,7 +326,7 @@ abbrev:keyword | country:keyword | count:long
 ;
 
 afterLookup-Ignore
-required_capability: inlinestats
+required_capability: join_planning_v1
 
 FROM airports
 | RENAME scalerank AS int
@@ -348,8 +347,7 @@ abbrev:keyword | scalerank:keyword
 ;
 
 afterEnrich
-required_capability: inlinestats
-required_capability: enrich_load
+required_capability: join_planning_v1
 
 FROM airports
 | KEEP abbrev, city
@@ -369,7 +367,7 @@ abbrev:keyword | city:keyword |       region:text | "COUNT(*)":long
 ;
 
 beforeStats-Ignore
-required_capability: inlinestats
+required_capability: join_planning_v1
 
 FROM airports
 | EVAL lat = ST_Y(location)
@@ -382,7 +380,7 @@ northern:long | southern:long
 ;
 
 beforeKeepSort
-required_capability: inlinestats
+required_capability: join_planning_v1
 
 FROM employees
 | INLINESTATS max_salary = MAX(salary) by languages
@@ -397,7 +395,7 @@ emp_no:integer | languages:integer | max_salary:integer
 ;
 
 beforeKeepWhere
-required_capability: inlinestats
+required_capability: join_planning_v1
 
 FROM employees
 | INLINESTATS max_salary = MAX(salary) by languages
@@ -410,8 +408,7 @@ emp_no:integer | languages:integer | max_salary:integer
 ;
 
 beforeEnrich
-required_capability: inlinestats
-required_capability: enrich_load
+required_capability: join_planning_v1
 
 FROM airports
 | KEEP abbrev, type, city
@@ -429,8 +426,7 @@ abbrev:keyword | type:keyword |    city:keyword    | "COUNT(*)":long | region:te
 ;
 
 beforeAndAfterEnrich-Ignore
-required_capability: inlinestats
-required_capability: enrich_load
+required_capability: join_planning_v1
 
 FROM airports
 | KEEP abbrev, type, city
@@ -450,7 +446,7 @@ abbrev:keyword | type:keyword |    city:keyword    | "COUNT(*)":long | region:te
 
 
 shadowing-Ignore
-required_capability: inlinestats
+required_capability: join_planning_v1
 
 ROW left = "left", client_ip = "172.21.0.5", env = "env", right = "right"
 | INLINESTATS env=VALUES(right) BY client_ip
@@ -461,7 +457,7 @@ left         | 172.21.0.5        | right         | right
 ;
 
 shadowingMulti-Ignore
-required_capability: inlinestats
+required_capability: join_planning_v1
 
 ROW left = "left", airport = "Zurich Airport ZRH", city = "Zürich", middle = "middle", region = "North-East Switzerland", right = "right"
 | INLINESTATS airport=VALUES(left), region=VALUES(left), city_boundary=VALUES(left) BY city
@@ -472,7 +468,7 @@ left         | Zürich       | middle         | right         |            left 
 ;
 
 shadowingSelf-Ignore
-required_capability: inlinestats
+required_capability: join_planning_v1
 
 ROW city="Raleigh"
 | INLINESTATS city=COUNT(city)
@@ -483,7 +479,7 @@ city:long
 ;
 
 shadowingSelfBySelf-Ignore
-required_capability: inlinestats
+required_capability: join_planning_v1
 
 ROW city="Raleigh"
 | INLINESTATS city=COUNT(city) BY city
@@ -494,7 +490,7 @@ city:long
 ;
 
 shadowingInternal-Ignore
-required_capability: inlinestats
+required_capability: join_planning_v1
 
 ROW city = "Zürich"
 | INLINESTATS x=VALUES(city), x=VALUES(city)
@@ -505,7 +501,7 @@ Zürich       | Zürich
 ;
 
 byConstant-Ignore
-required_capability: inlinestats
+required_capability: join_planning_v1
 
 FROM employees
 | KEEP emp_no, languages
@@ -524,7 +520,7 @@ emp_no:integer | languages:integer | max_lang:integer | y:integer
 ;
 
 aggConstant
-required_capability: inlinestats
+required_capability: join_planning_v1
 
 FROM employees
 | KEEP emp_no
@@ -542,7 +538,7 @@ emp_no:integer | one:integer
 ;
 
 percentile-Ignore
-required_capability: inlinestats
+required_capability: join_planning_v1
 
 FROM employees
 | KEEP emp_no, salary
@@ -561,7 +557,7 @@ emp_no:integer | salary:integer | ninety_fifth_salary:double
 ;
 
 byTwoCalculated
-required_capability: inlinestats_v2
+required_capability: join_planning_v1
 
 FROM airports
 | WHERE abbrev IS NOT NULL
@@ -580,7 +576,7 @@ abbrev:keyword | scalerank:integer |             location:geo_point             
 ;
 
 byTwoCalculatedSecondOverwrites-Ignore
-required_capability: inlinestats_v2
+required_capability: join_planning_v1
 
 FROM airports
 | WHERE abbrev IS NOT NULL
@@ -599,7 +595,7 @@ abbrev:keyword | scalerank:integer |             location:geo_point             
 ;
 
 byTwoCalculatedSecondOverwritesReferencingFirst-Ignore
-required_capability: inlinestats_v2
+required_capability: join_planning_v1
 
 FROM airports
 | WHERE abbrev IS NOT NULL
@@ -620,7 +616,7 @@ abbrev:keyword | scalerank:integer |             location:geo_point             
 
 
 groupShadowsAgg-Ignore
-required_capability: inlinestats_v2
+required_capability: join_planning_v1
 
 FROM airports
 | WHERE abbrev IS NOT NULL
@@ -640,7 +636,7 @@ abbrev:keyword | scalerank:integer |             location:geo_point             
 ;
 
 groupShadowsField
-required_capability: inlinestats_v2
+required_capability: join_planning_v1
 
   FROM employees
 | KEEP emp_no, salary, hire_date

@@ -24,4 +24,3 @@ public interface ClusterStateSupplier {
         return x.map(clusterStateFunction).orElse(fallbackIfNotReady);
     }
 }
-

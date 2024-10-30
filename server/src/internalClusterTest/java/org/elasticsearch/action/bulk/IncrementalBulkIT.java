@@ -380,10 +380,10 @@ public class IncrementalBulkIT extends ESIntegTestCase {
             refCounted.incRef();
             handler.addItems(List.of(indexRequest(index)), refCounted::decRef, () -> nextRequested.set(true));
             hits.incrementAndGet();
-
         }
 
         assertBusy(() -> assertTrue(nextRequested.get()));
+        
         String node = findShard(resolveIndex(index), 0);
         String secondShardNode = findShard(resolveIndex(index), 1);
         IndexingPressure primaryPressure = internalCluster().getInstance(IndexingPressure.class, node);

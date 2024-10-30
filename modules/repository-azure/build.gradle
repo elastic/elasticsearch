@@ -177,13 +177,11 @@ tasks.named("thirdPartyAudit").configure {
     //    'org.slf4j.ext.EventData' - bring back when https://github.com/elastic/elasticsearch/issues/93714 is done
 
     // Optional dependency of tink
-    'com.google.api.client.http.HttpHeaders',
-    'com.google.api.client.http.HttpRequest',
-    'com.google.api.client.http.HttpRequestFactory',
-    'com.google.api.client.http.HttpResponse',
-    'com.google.api.client.http.HttpTransport',
-    'com.google.api.client.http.javanet.NetHttpTransport',
-    'com.google.api.client.http.javanet.NetHttpTransport$Builder',
+    'com.google.crypto.tink.subtle.Ed25519Sign',
+    'com.google.crypto.tink.subtle.Ed25519Sign$KeyPair',
+    'com.google.crypto.tink.subtle.Ed25519Verify',
+    'com.google.crypto.tink.subtle.X25519',
+    'com.google.crypto.tink.subtle.XChaCha20Poly1305',
 
     // Optional dependency of nimbus-jose-jwt and oauth2-oidc-sdk
     'org.bouncycastle.asn1.pkcs.PrivateKeyInfo',

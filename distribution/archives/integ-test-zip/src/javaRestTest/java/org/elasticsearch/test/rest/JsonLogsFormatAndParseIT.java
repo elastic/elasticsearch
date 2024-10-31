@@ -10,36 +10,36 @@
 package org.elasticsearch.test.rest;
 
 import org.elasticsearch.common.logging.JsonLogsIntegTestCase;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.LogType;
 import org.hamcrest.Matcher;
+import org.junit.ClassRule;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
+import java.io.InputStream;
 
 import static org.hamcrest.Matchers.is;
 
 public class JsonLogsFormatAndParseIT extends JsonLogsIntegTestCase {
+
+    private static final String NODE_NAME = "test-node-0";
+
+    @ClassRule
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
+        .withNode(localNodeSpecBuilder -> localNodeSpecBuilder.name(NODE_NAME))
+        .build();
+
     @Override
-    protected Matcher<String> nodeNameMatcher() {
-        return is("integTest-0");
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
     }
 
     @Override
-    protected BufferedReader openReader(Path logFile) {
-        assumeFalse(
-            "Skipping test because it is being run against an external cluster.",
-            logFile.getFileName().toString().equals("--external--")
-        );
-        return AccessController.doPrivileged((PrivilegedAction<BufferedReader>) () -> {
-            try {
-                return Files.newBufferedReader(logFile, StandardCharsets.UTF_8);
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
-        });
+    protected Matcher<String> nodeNameMatcher() {
+        return is(NODE_NAME);
+    }
+
+    @Override
+    protected InputStream openLogsStream() {
+        return cluster.getNodeLog(0, LogType.SERVER_JSON);
     }
 }

@@ -84,7 +84,7 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToIn
  */
 public class LogicalPlanBuilder extends ExpressionBuilder {
 
-    private int queryDepth = 0;
+    interface PlanFactory extends Function<LogicalPlan, LogicalPlan> {}
 
     /**
      * Maximum number of commands allowed per query
@@ -94,6 +94,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     public LogicalPlanBuilder(QueryParams params) {
         super(params);
     }
+
+    private int queryDepth = 0;
 
     protected LogicalPlan plan(ParseTree ctx) {
         LogicalPlan p = ParserUtils.typedParsing(this, ctx, LogicalPlan.class);
@@ -345,7 +347,10 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         List<NamedExpression> groupings = visitGrouping(ctx.grouping);
         aggregates.addAll(groupings);
         // TODO: add support for filters
-        return input -> new InlineStats(source(ctx), input, new ArrayList<>(groupings), aggregates);
+        return input -> new InlineStats(
+            source(ctx),
+            new Aggregate(source(ctx), input, Aggregate.AggregateType.STANDARD, new ArrayList<>(groupings), aggregates)
+        );
     }
 
     @Override
@@ -519,5 +524,4 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         return p -> new Lookup(source, p, tableName, matchFields, null /* localRelation will be resolved later*/);
     }
 
-    interface PlanFactory extends Function<LogicalPlan, LogicalPlan> {}
 }

@@ -133,47 +133,58 @@ public class KqlParserBooleanQueryTests extends AbstractKqlParserTestCase {
             // <QueryA> AND <QueryB> OR <QueryC> is equivalent to <QueryA> AND (<QueryB> OR <QueryC>)
             {
                 QueryBuilder parsedQuery = parseKqlQuery(Strings.format("%s AND %s OR %s", queryA, queryB, queryC));
-                assertThat(parsedQuery, equalTo(
-                    QueryBuilders.boolQuery()
-                        .must(parseKqlQuery(queryA))
-                        .must(QueryBuilders.boolQuery().minimumShouldMatch(1).should(parseKqlQuery(queryB)).should(parseKqlQuery(queryC)))
-                    ));
+                assertThat(
+                    parsedQuery,
+                    equalTo(
+                        QueryBuilders.boolQuery()
+                            .must(parseKqlQuery(queryA))
+                            .must(
+                                QueryBuilders.boolQuery().minimumShouldMatch(1).should(parseKqlQuery(queryB)).should(parseKqlQuery(queryC))
+                            )
+                    )
+                );
                 assertThat(parsedQuery, equalTo(parseKqlQuery(Strings.format("%s AND (%s OR %s)", queryA, queryB, queryC))));
             }
 
             // <QueryA> OR <QueryB> AND <QueryC> is equivalent to <QueryA> OR (<QueryB> AND <QueryC>)
             {
                 QueryBuilder parsedQuery = parseKqlQuery(Strings.format("%s OR %s AND %s", queryA, queryB, queryC));
-                assertThat(parsedQuery, equalTo(
-                    QueryBuilders.boolQuery()
-                        .minimumShouldMatch(1)
-                        .should(parseKqlQuery(queryA))
-                        .should(QueryBuilders.boolQuery().must(parseKqlQuery(queryB)).must(parseKqlQuery(queryC)))
-                ));
+                assertThat(
+                    parsedQuery,
+                    equalTo(
+                        QueryBuilders.boolQuery()
+                            .minimumShouldMatch(1)
+                            .should(parseKqlQuery(queryA))
+                            .should(QueryBuilders.boolQuery().must(parseKqlQuery(queryB)).must(parseKqlQuery(queryC)))
+                    )
+                );
                 assertThat(parsedQuery, equalTo(parseKqlQuery(Strings.format("%s OR (%s AND %s)", queryA, queryB, queryC))));
             }
-
 
             // <QueryA> AND <QueryB> is equivalent to (NOT <QueryA>) AND <QueryB>
             {
                 QueryBuilder parsedQuery = parseKqlQuery(Strings.format("NOT %s AND %s", queryA, queryB));
-                assertThat(parsedQuery, equalTo(
-                    QueryBuilders.boolQuery()
-                        .must(QueryBuilders.boolQuery().mustNot(parseKqlQuery(queryA)))
-                        .must(parseKqlQuery(queryB))
-                ));
+                assertThat(
+                    parsedQuery,
+                    equalTo(
+                        QueryBuilders.boolQuery().must(QueryBuilders.boolQuery().mustNot(parseKqlQuery(queryA))).must(parseKqlQuery(queryB))
+                    )
+                );
                 assertThat(parsedQuery, equalTo(parseKqlQuery(Strings.format("(NOT %s) AND %s", queryA, queryB))));
             }
 
             // <QueryA> OR <QueryB> is equivalent to (NOT <QueryA>) OR <QueryB>
             {
                 QueryBuilder parsedQuery = parseKqlQuery(Strings.format("NOT %s OR %s", queryA, queryB));
-                assertThat(parsedQuery, equalTo(
-                    QueryBuilders.boolQuery()
-                        .minimumShouldMatch(1)
-                        .should(QueryBuilders.boolQuery().mustNot(parseKqlQuery(queryA)))
-                        .should(parseKqlQuery(queryB))
-                ));
+                assertThat(
+                    parsedQuery,
+                    equalTo(
+                        QueryBuilders.boolQuery()
+                            .minimumShouldMatch(1)
+                            .should(QueryBuilders.boolQuery().mustNot(parseKqlQuery(queryA)))
+                            .should(parseKqlQuery(queryB))
+                    )
+                );
                 assertThat(parsedQuery, equalTo(parseKqlQuery(Strings.format("(NOT %s) OR %s", queryA, queryB))));
             }
         }

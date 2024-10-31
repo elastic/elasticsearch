@@ -288,6 +288,9 @@ tests:
 - class: org.elasticsearch.action.admin.HotThreadsIT
   method: testHotThreadsDontFail
   issue: https://github.com/elastic/elasticsearch/issues/115754
+- class: org.elasticsearch.search.functionscore.QueryRescorerIT
+  method: testScoring
+  issue: https://github.com/elastic/elasticsearch/issues/116050
 
 # Examples:
 #

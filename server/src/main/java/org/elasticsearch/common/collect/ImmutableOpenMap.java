@@ -28,8 +28,6 @@ import java.util.Spliterators;
 import java.util.function.BiConsumer;
 import java.util.function.BiPredicate;
 import java.util.function.Consumer;
-import java.util.function.Supplier;
-import java.util.function.UnaryOperator;
 
 /**
  * An immutable map implementation based on open hash map.
@@ -376,26 +374,6 @@ public final class ImmutableOpenMap<KType, VType> extends AbstractMap<KType, VTy
         public VType put(KType key, VType value) {
             maybeCloneMap();
             return mutableMap.put(key, value);
-        }
-
-        public VType putIfAbsent(KType key, Supplier<VType> value) {
-            maybeCloneMap();
-            VType present = mutableMap.get(key);
-            if (present == null) {
-                present = value.get();
-                mutableMap.put(key, present);
-            }
-            return present;
-        }
-
-        @SuppressWarnings("unchecked")
-        public void transformValues(UnaryOperator<VType> transformer) {
-            maybeCloneMap();
-            for (int i = 0; i < mutableMap.values.length; i++) {
-                if (mutableMap.values[i] != null) {
-                    mutableMap.values[i] = transformer.apply((VType) mutableMap.values[i]);
-                }
-            }
         }
 
         public VType get(KType key) {

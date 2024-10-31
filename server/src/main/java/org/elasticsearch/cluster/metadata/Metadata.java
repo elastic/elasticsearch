@@ -2323,10 +2323,17 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
                     }
                 }
                 for (var alias : indexMetadata.getAliases().keySet()) {
-                    aliasedIndicesBuilder.putIfAbsent(alias, HashSet::new).add(indexMetadata.getIndex());
+                    var indices = aliasedIndicesBuilder.get(alias);
+                    if (indices == null) {
+                        indices = new HashSet<>();
+                        aliasedIndicesBuilder.put(alias, indices);
+                    }
+                    indices.add(indexMetadata.getIndex());
                 }
             }
-            aliasedIndicesBuilder.transformValues(Collections::unmodifiableSet);
+            for (String alias : aliasedIndicesBuilder.keys()) {
+                aliasedIndicesBuilder.put(alias, Collections.unmodifiableSet(aliasedIndicesBuilder.get(alias)));
+            }
             var aliasedIndices = aliasedIndicesBuilder.build();
             for (var entry : aliasedIndices.entrySet()) {
                 List<IndexMetadata> aliasIndices = entry.getValue().stream().map(idx -> indicesMap.get(idx.getName())).toList();

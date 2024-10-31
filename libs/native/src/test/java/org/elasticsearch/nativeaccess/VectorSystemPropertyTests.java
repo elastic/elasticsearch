@@ -9,10 +9,10 @@
 
 package org.elasticsearch.nativeaccess;
 
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.test.PrivilegedOperations;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.ESTestCase.WithoutSecurityManager;
 import org.elasticsearch.test.compiler.InMemoryJavaCompiler;
 import org.elasticsearch.test.jar.JarUtils;
 import org.junit.BeforeClass;
@@ -28,14 +28,14 @@ import static org.elasticsearch.nativeaccess.PosixNativeAccess.ENABLE_JDK_VECTOR
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-public class VectorSystemPropertyTests extends LuceneTestCase {
+@WithoutSecurityManager
+public class VectorSystemPropertyTests extends ESTestCase {
 
     static Path jarPath;
 
     @BeforeClass
     public static void setup() throws Exception {
-        // just skip on Windows since it's error-prone to fork and exec
-        assumeTrue("runs only on non-Windows, for now", Constants.WINDOWS == false);
+        assumeTrue("native scorers are not on Windows", Constants.WINDOWS == false);
 
         var classBytes = InMemoryJavaCompiler.compile("p.Test", TEST_SOURCE);
         Map<String, byte[]> jarEntries = new HashMap<>();
@@ -47,16 +47,16 @@ public class VectorSystemPropertyTests extends LuceneTestCase {
 
     @SuppressForbidden(reason = "pathSeparator")
     public void testSystemPropertyDisabled() throws Exception {
-        var processBuilder = new ProcessBuilder(
+        var process = new ProcessBuilder(
             getJavaExecutable(),
             "-D" + ENABLE_JDK_VECTOR_LIBRARY + "=false",
+            "-Xms16m",
             "-Xmx16m",
             "-cp",
             jarPath + File.pathSeparator + System.getProperty("java.class.path"),
             "-Des.nativelibs.path=" + System.getProperty("es.nativelibs.path"),
             "p.Test"
-        );
-        var process = PrivilegedOperations.ProcessBuilderStart(processBuilder);
+        ).start();
         String output = new String(process.getInputStream().readAllBytes(), UTF_8);
         String error = new String(process.getErrorStream().readAllBytes(), UTF_8);
         // System.out.println(output);

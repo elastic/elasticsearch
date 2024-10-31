@@ -76,7 +76,7 @@ public class TemplateUtils {
         return template;
     }
 
-/**
+    /**
      * Replaces all occurrences of given variable with the value
      */
     public static String replaceVariable(String input, String variable, String value) {

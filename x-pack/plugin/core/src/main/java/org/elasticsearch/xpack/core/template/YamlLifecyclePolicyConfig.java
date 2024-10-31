@@ -20,11 +20,7 @@ import static org.elasticsearch.xpack.core.template.ResourceUtils.loadResource;
 public class YamlLifecyclePolicyConfig extends LifecyclePolicyConfig {
     private final Class<?> clazz;
 
-    public YamlLifecyclePolicyConfig(
-        String policyName,
-        String fileName,
-        Class<?> clazz
-    ) {
+    public YamlLifecyclePolicyConfig(String policyName, String fileName, Class<?> clazz) {
         super(policyName, fileName, Collections.emptyMap());
         this.clazz = clazz;
     }

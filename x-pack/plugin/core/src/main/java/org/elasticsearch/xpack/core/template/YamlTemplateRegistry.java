@@ -248,11 +248,9 @@ public abstract class YamlTemplateRegistry extends IndexTemplateRegistry {
     // IndexTemplateRegistry ensures that ILM lifecycle policies are not loaded
     // when in DSL only mode.
     private LifecyclePolicy loadLifecyclePolicy(String name) {
-        return new YamlLifecyclePolicyConfig(
-            name,
-            "/lifecycle-policies/" + name + ".yaml",
-        this.getClass()
-        ).load(LifecyclePolicyConfig.DEFAULT_X_CONTENT_REGISTRY);
+        return new YamlLifecyclePolicyConfig(name, "/lifecycle-policies/" + name + ".yaml", this.getClass()).load(
+            LifecyclePolicyConfig.DEFAULT_X_CONTENT_REGISTRY
+        );
     }
 
     @Override

@@ -123,16 +123,7 @@ public class RemoteClusterPermissions implements NamedWriteable, ToXContentObjec
 
         RemoteClusterPermissions copyForOutBoundVersion = new RemoteClusterPermissions();
 
-        // TODO: centralize this and put in a poor mans cache
-        // find all the privileges that are allowed for the remote cluster version
-        Set<String> allowedPermissionsPerVersion = allowedRemoteClusterPermissions.entrySet()
-            .stream()
-            .filter((entry) -> entry.getKey().onOrBefore(outboundVersion))
-            .map(Map.Entry::getValue)
-            .flatMap(Set::stream)
-            .map(s -> s.toLowerCase(Locale.ROOT))
-            .collect(Collectors.toSet());
-
+        Set<String> allowedPermissionsPerVersion = getAllowedPermissionsPerVersion(outboundVersion);
         for (RemoteClusterPermissionGroup group : remoteClusterPermissionGroups) {
             String[] privileges = group.clusterPrivileges();
             List<String> privilegesMutated = new ArrayList<>(privileges.length);
@@ -159,14 +150,12 @@ public class RemoteClusterPermissions implements NamedWriteable, ToXContentObjec
                     }
                 }
             } else {
-                if (logger.isDebugEnabled()) {
-                    logger.debug(
-                        "Removed all remote cluster permissions for remote cluster [{}]. "
-                            + "Due to the remote cluster version, only the following permissions are allowed: {}",
-                        group.remoteClusterAliases(),
-                        allowedPermissionsPerVersion
-                    );
-                }
+                logger.debug(
+                    "Removed all remote cluster permissions for remote cluster [{}]. "
+                        + "Due to the remote cluster version, only the following permissions are allowed: {}",
+                    group.remoteClusterAliases(),
+                    allowedPermissionsPerVersion
+                );
             }
         }
         return copyForOutBoundVersion;
@@ -188,13 +177,7 @@ public class RemoteClusterPermissions implements NamedWriteable, ToXContentObjec
             .collect(Collectors.toSet());
 
         // find all the privileges that are allowed for the remote cluster version
-        Set<String> allowedPermissionsPerVersion = allowedRemoteClusterPermissions.entrySet()
-            .stream()
-            .filter((entry) -> entry.getKey().onOrBefore(remoteClusterVersion))
-            .map(Map.Entry::getValue)
-            .flatMap(Set::stream)
-            .map(s -> s.toLowerCase(Locale.ROOT))
-            .collect(Collectors.toSet());
+        Set<String> allowedPermissionsPerVersion = getAllowedPermissionsPerVersion(remoteClusterVersion);
 
         // intersect the two sets to get the allowed privileges for the remote cluster version
         Set<String> allowedPrivileges = new HashSet<>(groupPrivileges);
@@ -268,6 +251,16 @@ public class RemoteClusterPermissions implements NamedWriteable, ToXContentObjec
 
     public List<RemoteClusterPermissionGroup> groups() {
         return Collections.unmodifiableList(remoteClusterPermissionGroups);
+    }
+
+    private Set<String> getAllowedPermissionsPerVersion(TransportVersion outboundVersion) {
+        return allowedRemoteClusterPermissions.entrySet()
+            .stream()
+            .filter((entry) -> entry.getKey().onOrBefore(outboundVersion))
+            .map(Map.Entry::getValue)
+            .flatMap(Set::stream)
+            .map(s -> s.toLowerCase(Locale.ROOT))
+            .collect(Collectors.toSet());
     }
 
     @Override

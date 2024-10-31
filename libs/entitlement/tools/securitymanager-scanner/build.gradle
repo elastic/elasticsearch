@@ -2,6 +2,17 @@ plugins {
   id 'application'
 }
 
+apply plugin: 'elasticsearch.build'
+apply plugin: 'elasticsearch.publish'
+
+tasks.named("dependencyLicenses").configure {
+  mapping from: /asm-.*/, to: 'asm'
+}
+
+tasks.named('run') {
+  modularity.inferModulePath = true
+}
+
 group = 'org.elasticsearch.entitlement.tools'
 
 ext {
@@ -9,28 +20,29 @@ ext {
 }
 
 application {
+  mainModule.set('elasticsearch.libs.entitlement.tools.securitymanager.scanner')
   mainClass.set(javaMainClass)
   applicationDefaultJvmArgs = [
-    '--add-exports', 'java.base/sun.security.util=ALL-UNNAMED',
-    '--add-opens', 'java.base/java.lang=ALL-UNNAMED',
-    '--add-opens', 'java.base/java.net=ALL-UNNAMED',
-    '--add-opens', 'java.base/java.net.spi=ALL-UNNAMED',
-    '--add-opens', 'java.base/java.util.concurrent=ALL-UNNAMED',
-    '--add-opens', 'java.base/javax.crypto=ALL-UNNAMED',
-    '--add-opens', 'java.base/javax.security.auth=ALL-UNNAMED',
-    '--add-opens', 'java.base/jdk.internal.logger=ALL-UNNAMED',
-    '--add-opens', 'java.base/sun.nio.ch=ALL-UNNAMED',
-    '--add-opens', 'jdk.management.jfr/jdk.management.jfr=ALL-UNNAMED',
-    '--add-opens', 'java.logging/java.util.logging=ALL-UNNAMED',
-    '--add-opens', 'java.logging/sun.util.logging.internal=ALL-UNNAMED',
-    '--add-opens', 'java.naming/javax.naming.ldap.spi=ALL-UNNAMED',
-    '--add-opens', 'java.rmi/sun.rmi.runtime=ALL-UNNAMED',
-    '--add-opens', 'jdk.dynalink/jdk.dynalink=ALL-UNNAMED',
-    '--add-opens', 'jdk.dynalink/jdk.dynalink.linker=ALL-UNNAMED',
-    '--add-opens', 'java.desktop/sun.awt=ALL-UNNAMED',
-    '--add-opens', 'java.sql.rowset/javax.sql.rowset.spi=ALL-UNNAMED',
-    '--add-opens', 'java.sql/java.sql=ALL-UNNAMED',
-    '--add-opens', 'java.xml.crypto/com.sun.org.apache.xml.internal.security.utils=ALL-UNNAMED'
+    '--add-exports', 'java.base/sun.security.util=elasticsearch.libs.entitlement.tools.securitymanager.scanner',
+    '--add-opens', 'java.base/java.lang=elasticsearch.libs.entitlement.tools.securitymanager.scanner',
+    '--add-opens', 'java.base/java.net=elasticsearch.libs.entitlement.tools.securitymanager.scanner',
+    '--add-opens', 'java.base/java.net.spi=elasticsearch.libs.entitlement.tools.securitymanager.scanner',
+    '--add-opens', 'java.base/java.util.concurrent=elasticsearch.libs.entitlement.tools.securitymanager.scanner',
+    '--add-opens', 'java.base/javax.crypto=elasticsearch.libs.entitlement.tools.securitymanager.scanner',
+    '--add-opens', 'java.base/javax.security.auth=elasticsearch.libs.entitlement.tools.securitymanager.scanner',
+    '--add-opens', 'java.base/jdk.internal.logger=elasticsearch.libs.entitlement.tools.securitymanager.scanner',
+    '--add-opens', 'java.base/sun.nio.ch=elasticsearch.libs.entitlement.tools.securitymanager.scanner',
+    '--add-opens', 'jdk.management.jfr/jdk.management.jfr=elasticsearch.libs.entitlement.tools.securitymanager.scanner',
+    '--add-opens', 'java.logging/java.util.logging=elasticsearch.libs.entitlement.tools.securitymanager.scanner',
+    '--add-opens', 'java.logging/sun.util.logging.internal=elasticsearch.libs.entitlement.tools.securitymanager.scanner',
+    '--add-opens', 'java.naming/javax.naming.ldap.spi=elasticsearch.libs.entitlement.tools.securitymanager.scanner',
+    '--add-opens', 'java.rmi/sun.rmi.runtime=elasticsearch.libs.entitlement.tools.securitymanager.scanner',
+    '--add-opens', 'jdk.dynalink/jdk.dynalink=elasticsearch.libs.entitlement.tools.securitymanager.scanner',
+    '--add-opens', 'jdk.dynalink/jdk.dynalink.linker=elasticsearch.libs.entitlement.tools.securitymanager.scanner',
+    '--add-opens', 'java.desktop/sun.awt=elasticsearch.libs.entitlement.tools.securitymanager.scanner',
+    '--add-opens', 'java.sql.rowset/javax.sql.rowset.spi=elasticsearch.libs.entitlement.tools.securitymanager.scanner',
+    '--add-opens', 'java.sql/java.sql=elasticsearch.libs.entitlement.tools.securitymanager.scanner',
+    '--add-opens', 'java.xml.crypto/com.sun.org.apache.xml.internal.security.utils=elasticsearch.libs.entitlement.tools.securitymanager.scanner'
   ]
 }
 
@@ -43,5 +55,7 @@ repositories {
 dependencies {
   implementation 'org.ow2.asm:asm:9.7'
   implementation 'org.ow2.asm:asm-util:9.7'
+  implementation 'org.ow2.asm:asm-tree:9.7'
+  implementation 'org.ow2.asm:asm-analysis:9.7'
   implementation(project(':libs:entitlement:tools:common'))
 }

@@ -14,9 +14,9 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
+import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.Stats;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -24,7 +24,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Replace nested expressions inside a {@link Stats} with synthetic eval.
+ * Replace nested expressions inside a {@link Aggregate} with synthetic eval.
  * {@code STATS SUM(a + 1) BY x % 2}
  * becomes
  * {@code EVAL `a + 1` = a + 1, `x % 2` = x % 2 | STATS SUM(`a+1`_ref) BY `x % 2`_ref}
@@ -33,17 +33,10 @@ import java.util.Map;
  * becomes
  * {@code EVAL `a + 1` = a + 1, `x % 2` = x % 2 | INLINESTATS SUM(`a+1`_ref) BY `x % 2`_ref}
  */
-public final class ReplaceStatsNestedExpressionWithEval extends OptimizerRules.OptimizerRule<LogicalPlan> {
+public final class ReplaceAggregateNestedExpressionWithEval extends OptimizerRules.OptimizerRule<Aggregate> {
 
     @Override
-    protected LogicalPlan rule(LogicalPlan p) {
-        if (p instanceof Stats stats) {
-            return rule(stats);
-        }
-        return p;
-    }
-
-    private LogicalPlan rule(Stats aggregate) {
+    protected LogicalPlan rule(Aggregate aggregate) {
         List<Alias> evals = new ArrayList<>();
         Map<String, Attribute> evalNames = new HashMap<>();
         Map<GroupingFunction, Attribute> groupingAttributes = new HashMap<>();

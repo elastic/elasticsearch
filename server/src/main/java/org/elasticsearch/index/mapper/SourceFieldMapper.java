@@ -440,8 +440,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
     }
 
     public static boolean isStored(IndexSettings indexSettings) {
-        Mode mode = INDEX_MAPPER_SOURCE_MODE_SETTING.get(indexSettings.getSettings());
-        return mode == Mode.STORED || mode == null;
+        return INDEX_MAPPER_SOURCE_MODE_SETTING.get(indexSettings.getSettings()) == Mode.STORED;
     }
 
     public boolean isDisabled() {

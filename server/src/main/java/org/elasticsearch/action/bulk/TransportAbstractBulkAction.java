@@ -233,14 +233,12 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
 
             IndexRequest indexRequest = getIndexWriteRequest(actionRequest);
             if (indexRequest != null) {
-                var pipelines = IngestService.resolvePipelinesAndUpdateIndexRequest(
-                    actionRequest,
-                    indexRequest,
-                    metadata,
-                    resolvedPipelineCache
-                );
-                if (pipelines != null) {
-                    resolvedPipelineCache.put(indexRequest.index(), pipelines);
+                if (indexRequest.isPipelineResolved() == false) {
+                    var pipeline = resolvedPipelineCache.computeIfAbsent(
+                        indexRequest.index(),
+                        (index) -> IngestService.resolveStoredPipelines(actionRequest, indexRequest, metadata, System.currentTimeMillis())
+                    );
+                    IngestService.setPipelineOnRequest(indexRequest, pipeline);
                 }
                 hasIndexRequestsWithPipelines |= IngestService.hasPipeline(indexRequest);
             }

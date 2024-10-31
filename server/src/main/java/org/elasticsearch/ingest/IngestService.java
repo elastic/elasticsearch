@@ -267,24 +267,28 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
      * @param originalRequest Original write request received.
      * @param indexRequest    The {@link org.elasticsearch.action.index.IndexRequest} object to update.
      * @param metadata        Cluster metadata from where the pipeline information could be derived.
-     * @param resolvedPipelineCache map from index name to resolved pipelines from previous requests in bulk request
      */
-    public static Pipelines resolvePipelinesAndUpdateIndexRequest(
+    public static void resolvePipelinesAndUpdateIndexRequest(
+        final DocWriteRequest<?> originalRequest,
+        final IndexRequest indexRequest,
+        final Metadata metadata
+    ) {
+        resolvePipelinesAndUpdateIndexRequest(originalRequest, indexRequest, metadata, System.currentTimeMillis());
+    }
+
+    static void resolvePipelinesAndUpdateIndexRequest(
         final DocWriteRequest<?> originalRequest,
         final IndexRequest indexRequest,
         final Metadata metadata,
-        final Map<String, Pipelines> resolvedPipelineCache
+        final long epochMillis
     ) {
-        return resolvePipelinesAndUpdateIndexRequest(
-            originalRequest,
-            indexRequest,
-            metadata,
-            System.currentTimeMillis(),
-            resolvedPipelineCache
-        );
+        if (indexRequest.isPipelineResolved() == false) {
+            var pipelines = resolveStoredPipelines(originalRequest, indexRequest, metadata, epochMillis);
+            setPipelineOnRequest(indexRequest, pipelines);
+        }
     }
 
-    private static boolean isRolloverOnWrite(Metadata metadata, final DocWriteRequest<?> request, IndexRequest indexRequest) {
+    private static boolean isRolloverOnWrite(Metadata metadata, IndexRequest indexRequest) {
         DataStream dataStream = metadata.dataStreams().get(indexRequest.index());
         if (dataStream == null) {
             return false;
@@ -292,47 +296,31 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         return dataStream.getBackingIndices().isRolloverOnWrite();
     }
 
-    static Pipelines resolvePipelinesAndUpdateIndexRequest(
+    public static Pipelines resolveStoredPipelines(
         final DocWriteRequest<?> originalRequest,
         final IndexRequest indexRequest,
         final Metadata metadata,
-        final long epochMillis,
-        final Map<String, Pipelines> resolvedPipelineCache
+        final long epochMillis
     ) {
-        if (indexRequest.isPipelineResolved()) {
-            return null;
-        }
-
-        /*
-         * Here we look for the pipelines associated with the index if the index exists. If the index does not exist we fall back to using
-         * templates to find the pipelines.
-         */
-
-        var cachedPipeline = resolvedPipelineCache.get(indexRequest.index());
-        final Pipelines pipelines;
-        if (cachedPipeline == null) {
-            if (isRolloverOnWrite(metadata, originalRequest, indexRequest)) {
-                pipelines = resolvePipelinesFromIndexTemplates(indexRequest, metadata).orElse(Pipelines.NO_PIPELINES_DEFINED);
-            } else {
-                pipelines = resolvePipelinesFromMetadata(originalRequest, indexRequest, metadata, epochMillis).or(
-                    () -> resolvePipelinesFromIndexTemplates(indexRequest, metadata)
-                ).orElse(Pipelines.NO_PIPELINES_DEFINED);
-            }
+        if (isRolloverOnWrite(metadata, indexRequest)) {
+            return resolvePipelinesFromIndexTemplates(indexRequest, metadata).orElse(Pipelines.NO_PIPELINES_DEFINED);
         } else {
-            pipelines = cachedPipeline;
+            return resolvePipelinesFromMetadata(originalRequest, indexRequest, metadata, epochMillis).or(
+                () -> resolvePipelinesFromIndexTemplates(indexRequest, metadata)
+            ).orElse(Pipelines.NO_PIPELINES_DEFINED);
         }
+    }
 
+    public static void setPipelineOnRequest(IndexRequest indexRequest, Pipelines resolvedPipelines) {
         // The pipeline coming as part of the request always has priority over the resolved one from metadata or templates
         String requestPipeline = indexRequest.getPipeline();
         if (requestPipeline != null) {
             indexRequest.setPipeline(requestPipeline);
         } else {
-            indexRequest.setPipeline(pipelines.defaultPipeline);
+            indexRequest.setPipeline(resolvedPipelines.defaultPipeline);
         }
-        indexRequest.setFinalPipeline(pipelines.finalPipeline);
+        indexRequest.setFinalPipeline(resolvedPipelines.finalPipeline);
         indexRequest.isPipelineResolved(true);
-
-        return pipelines;
     }
 
     public ClusterService getClusterService() {
@@ -1080,7 +1068,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                     // clear the current pipeline, then re-resolve the pipelines for this request
                     indexRequest.setPipeline(null);
                     indexRequest.isPipelineResolved(false);
-                    resolvePipelinesAndUpdateIndexRequest(null, indexRequest, state.metadata(), Map.of());
+                    resolvePipelinesAndUpdateIndexRequest(null, indexRequest, state.metadata());
                     newPipelines = getAndResetPipelines(indexRequest);
 
                     // for backwards compatibility, when a pipeline changes the target index for a document without using the reroute

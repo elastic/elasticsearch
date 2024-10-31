@@ -245,22 +245,33 @@ public class VerifierTests extends ESTestCase {
             error("from test* | where multi_typed is not null", analyzer)
         );
 
-        assertEquals(
-            "1:47: Cannot use field [unsupported] with unsupported type [flattened]",
-            error("from test* | eval x = now() + to_timeduration(unsupported)", analyzer)
-        );
-        assertEquals(
-            "1:45: argument of [to_dateperiod(multi_typed)] must be a constant, received [multi_typed]",
-            error("from test* | eval x = now() + to_dateperiod(multi_typed)", analyzer)
-        );
-        assertThat(
-            error("from test* | eval x = unsupported, y = now() + to_timeduration(x)", analyzer),
-            containsString("1:23: Cannot use field [unsupported] with unsupported type [flattened]")
-        );
-        assertThat(
-            error("from test* | eval x = multi_typed, y = now() + to_dateperiod(x)", analyzer),
-            containsString("1:48: argument of [to_dateperiod(x)] must be [date_period or string], found value [x] type [unsupported]")
-        );
+        for (String functionName : List.of("to_timeduration", "to_dateperiod")) {
+            String lineNumber = functionName.equalsIgnoreCase("to_timeduration") ? "47" : "45";
+            String errorType = functionName.equalsIgnoreCase("to_timeduration") ? "time_duration" : "date_period";
+            assertEquals(
+                "1:" + lineNumber + ": Cannot use field [unsupported] with unsupported type [flattened]",
+                error("from test* | eval x = now() + " + functionName + "(unsupported)", analyzer)
+            );
+            assertEquals(
+                "1:" + lineNumber + ": argument of [" + functionName + "(multi_typed)] must be a constant, received [multi_typed]",
+                error("from test* | eval x = now() + " + functionName + "(multi_typed)", analyzer)
+            );
+            assertThat(
+                error("from test* | eval x = unsupported, y = now() + " + functionName + "(x)", analyzer),
+                containsString("1:23: Cannot use field [unsupported] with unsupported type [flattened]")
+            );
+            assertThat(
+                error("from test* | eval x = multi_typed, y = now() + " + functionName + "(x)", analyzer),
+                containsString(
+                    "1:48: argument of ["
+                        + functionName
+                        + "(x)] must be ["
+                        + errorType
+                        + " or string], "
+                        + "found value [x] type [unsupported]"
+                )
+            );
+        }
     }
 
     public void testRoundFunctionInvalidInputs() {

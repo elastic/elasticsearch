@@ -1227,9 +1227,15 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             if (convert.field() instanceof FieldAttribute fa && fa.field() instanceof InvalidMappedField imf) {
                 HashMap<TypeResolutionKey, Expression> typeResolutions = new HashMap<>();
                 Set<DataType> supportedTypes = convert.supportedTypes();
-                if (convert instanceof FoldablesConvertFunction fcf && supportedTypes.isEmpty()) {
+                if (convert instanceof FoldablesConvertFunction fcf) {
                     // FoldablesConvertFunction does not accept fields as inputs, they only accept constants
-                    return resolveFoldablesConvertFunction(fcf);
+                    String unresolvedMessage = "argument of ["
+                        + fcf.sourceText()
+                        + "] must be a constant, received ["
+                        + Expressions.name(fa)
+                        + "]";
+                    Expression ua = new UnresolvedAttribute(fa.source(), fa.name(), unresolvedMessage);
+                    return fcf.replaceChildren(Collections.singletonList(ua));
                 }
                 imf.types().forEach(type -> {
                     if (supportedTypes.contains(type.widenSmallNumeric())) {
@@ -1247,25 +1253,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return convert.replaceChildren(Collections.singletonList(resolveConvertFunction(subConvert, unionFieldAttributes)));
             }
             return convert;
-        }
-
-        private static Expression resolveFoldablesConvertFunction(FoldablesConvertFunction fcf) {
-            if (fcf.field() instanceof FieldAttribute fa && fa.field() instanceof InvalidMappedField imf) {
-                String unresolvedMessage = "argument of ["
-                    + fcf.sourceText()
-                    + "] must be a constant, received ["
-                    + Expressions.name(fa)
-                    + "]";
-                String types = imf.getTypesToIndices().keySet().stream().collect(Collectors.joining(","));
-                Expression ua = new UnsupportedAttribute(
-                    fa.source(),
-                    fa.name(),
-                    new UnsupportedEsField(imf.getName(), types),
-                    unresolvedMessage
-                );
-                return fcf.replaceChildren(Collections.singletonList(ua));
-            }
-            return fcf;
         }
 
         private Expression createIfDoesNotAlreadyExist(

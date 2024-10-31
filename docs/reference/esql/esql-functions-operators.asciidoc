@@ -48,6 +48,12 @@ include::functions/ip-functions.asciidoc[tag=ip_list]
 include::functions/math-functions.asciidoc[tag=math_list]
 ====
 
+.*Search functions*
+[%collapsible]
+====
+include::functions/search-functions.asciidoc[tag=search_list]
+====
+
 .*Spatial functions*
 [%collapsible]
 ====

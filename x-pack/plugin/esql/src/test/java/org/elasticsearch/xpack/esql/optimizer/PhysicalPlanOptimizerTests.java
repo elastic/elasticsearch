@@ -4984,6 +4984,95 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     /**
+     * Tests that multiple sorts, including distance and a field, are pushed down to the source.
+     * <code>
+     * ProjectExec[[abbrev{f}#21, name{f}#22, location{f}#25, country{f}#26, city{f}#27, scalerank{f}#23, scale{r}#7]]
+     * \_TopNExec[[Order[distance{r}#4,ASC,LAST], Order[scalerank{f}#23,ASC,LAST], Order[scale{r}#7,DESC,FIRST]],5[INTEGER],0]
+     *   \_ExchangeExec[[abbrev{f}#21, name{f}#22, location{f}#25, country{f}#26, city{f}#27, scalerank{f}#23, scale{r}#7,
+     *       distance{r}#4],false]
+     *     \_ProjectExec[[abbrev{f}#21, name{f}#22, location{f}#25, country{f}#26, city{f}#27, scalerank{f}#23, scale{r}#7,
+     *         distance{r}#4]]
+     *       \_FieldExtractExec[abbrev{f}#21, name{f}#22, country{f}#26, city{f}#27][]
+     *         \_EvalExec[[
+     *             STDISTANCE(location{f}#25,[1 1 0 0 0 e1 7a 14 ae 47 21 29 40 a0 1a 2f dd 24 d6 4b 40][GEO_POINT]) AS distance,
+     *             10[INTEGER] - scalerank{f}#23 AS scale
+     *           ]]
+     *           \_FieldExtractExec[location{f}#25, scalerank{f}#23][]
+     *             \_EsQueryExec[airports], indexMode[standard], query[{
+     *               "bool":{
+     *                 "filter":[
+     *                   {"esql_single_value":{"field":"scalerank","next":{"range":{...}},"source":"scalerank &lt; 6@3:31"}},
+     *                   {"bool":{
+     *                     "must":[
+     *                       {"geo_shape":{"location":{"relation":"INTERSECTS","shape":{...}}}},
+     *                       {"geo_shape":{"location":{"relation":"DISJOINT","shape":{...}}}}
+     *                     ],"boost":1.0}}
+     *                 ],"boost":1.0}}][_doc{f}#39], limit[5], sort[[
+     *                   GeoDistanceSort[field=location{f}#25, direction=ASC, lat=55.673, lon=12.565],
+     *                   FieldSort[field=scalerank{f}#23, direction=ASC, nulls=LAST]
+     *                 ]] estimatedRowSize[253]
+     * </code>
+     */
+    public void testPushTopNDistanceAndPushableFieldWithCompoundFilterToSource() {
+        var optimized = optimizedPlan(physicalPlan("""
+            FROM airports
+            | EVAL distance = ST_DISTANCE(location, TO_GEOPOINT("POINT(12.565 55.673)")), scale = 10 - scalerank
+            | WHERE distance < 500000 AND scalerank < 6 AND distance > 10000
+            | SORT distance ASC, scalerank ASC, scale DESC
+            | LIMIT 5
+            | KEEP abbrev, name, location, country, city, scalerank, scale
+            """, airports));
+
+        var project = as(optimized, ProjectExec.class);
+        var topN = as(project.child(), TopNExec.class);
+        var exchange = asRemoteExchange(topN.child());
+
+        project = as(exchange.child(), ProjectExec.class);
+        assertThat(
+            names(project.projections()),
+            contains("abbrev", "name", "location", "country", "city", "scalerank", "scale", "distance")
+        );
+        var extract = as(project.child(), FieldExtractExec.class);
+        assertThat(names(extract.attributesToExtract()), contains("abbrev", "name", "country", "city"));
+        var evalExec = as(extract.child(), EvalExec.class);
+        var alias = as(evalExec.fields().get(0), Alias.class);
+        assertThat(alias.name(), is("distance"));
+        var stDistance = as(alias.child(), StDistance.class);
+        assertThat(stDistance.left().toString(), startsWith("location"));
+        extract = as(evalExec.child(), FieldExtractExec.class);
+        assertThat(names(extract.attributesToExtract()), contains("location", "scalerank"));
+        var source = source(extract.child());
+
+        // Assert that the TopN(distance) is pushed down as geo-sort(location)
+        assertThat(source.limit(), is(topN.limit()));
+        Set<String> orderSet = orderAsSet(topN.order().subList(0, 2));
+        Set<String> sortsSet = sortsAsSet(source.sorts(), Map.of("location", "distance"));
+        assertThat(orderSet, is(sortsSet));
+
+        // Fine-grained checks on the pushed down sort
+        assertThat(source.limit(), is(l(5)));
+        assertThat(source.sorts().size(), is(2));
+        EsQueryExec.Sort sort = source.sorts().get(0);
+        assertThat(sort.direction(), is(Order.OrderDirection.ASC));
+        assertThat(name(sort.field()), is("location"));
+        assertThat(sort.sortBuilder(), isA(GeoDistanceSortBuilder.class));
+        sort = source.sorts().get(1);
+        assertThat(sort.direction(), is(Order.OrderDirection.ASC));
+        assertThat(name(sort.field()), is("scalerank"));
+        assertThat(sort.sortBuilder(), isA(FieldSortBuilder.class));
+
+        // Fine-grained checks on the pushed down query
+        var bool = as(source.query(), BoolQueryBuilder.class);
+        var rangeQueryBuilders = bool.filter().stream().filter(p -> p instanceof SingleValueQuery.Builder).toList();
+        assertThat("Expected one range query builder", rangeQueryBuilders.size(), equalTo(1));
+        assertThat(((SingleValueQuery.Builder) rangeQueryBuilders.get(0)).field(), equalTo("scalerank"));
+        var filterBool = bool.filter().stream().filter(p -> p instanceof BoolQueryBuilder).toList();
+        var fb = as(filterBool.get(0), BoolQueryBuilder.class);
+        var shapeQueryBuilders = fb.must().stream().filter(p -> p instanceof SpatialRelatesQuery.ShapeQueryBuilder).toList();
+        assertShapeQueryRange(shapeQueryBuilders, 10000.0, 500000.0);
+    }
+
+    /**
      * This test shows that with an additional EVAL used in the filter, we can no longer push down the SORT distance.
      * TODO: This could be optimized in future work. Consider moving much of EnableSpatialDistancePushdown into logical planning.
      * <code>

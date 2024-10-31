@@ -390,8 +390,6 @@ public class EsqlFunctionRegistry {
                 def(MvZip.class, MvZip::new, "mv_zip"),
                 def(MvSum.class, MvSum::new, "mv_sum"),
                 def(Split.class, Split::new, "split") },
-            // Utils
-            new FunctionDefinition[] { def(Slow.class, Slow::new, "slow"), },
             // fulltext functions
             new FunctionDefinition[] { def(Match.class, Match::new, "match"), def(QueryString.class, QueryString::new, "qstr") } };
 
@@ -400,6 +398,7 @@ public class EsqlFunctionRegistry {
     private static FunctionDefinition[][] snapshotFunctions() {
         return new FunctionDefinition[][] {
             new FunctionDefinition[] {
+                def(Slow.class, Slow::new, "slow"),
                 def(Categorize.class, Categorize::new, "categorize"),
                 def(Rate.class, Rate::withUnresolvedTimestamp, "rate") } };
     }

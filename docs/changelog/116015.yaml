@@ -1,0 +1,6 @@
+pr: 116015
+summary: Handle empty percentile results
+area: Machine Learning
+type: bug
+issues:
+ - 116013

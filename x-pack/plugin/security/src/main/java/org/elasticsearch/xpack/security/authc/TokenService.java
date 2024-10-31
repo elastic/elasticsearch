@@ -9,9 +9,6 @@ package org.elasticsearch.xpack.security.authc;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefBuilder;
-import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ExceptionsHelper;
@@ -37,30 +34,19 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.BackoffPolicy;
-import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.cache.Cache;
-import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
-import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.Streams;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -77,13 +63,10 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackField;
-import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.ScrollHelper;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
-import org.elasticsearch.xpack.core.security.authc.KeyAndTimestamp;
-import org.elasticsearch.xpack.core.security.authc.TokenMetadata;
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authc.support.TokensInvalidationResult;
@@ -93,12 +76,8 @@ import org.elasticsearch.xpack.security.support.FeatureNotEnabledException.Featu
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
 import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.Closeable;
 import java.io.IOException;
-import java.io.OutputStream;
 import java.io.UncheckedIOException;
-import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
 import java.security.MessageDigest;
@@ -123,17 +102,12 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import javax.crypto.Cipher;
 import javax.crypto.CipherInputStream;
-import javax.crypto.CipherOutputStream;
-import javax.crypto.NoSuchPaddingException;
 import javax.crypto.SecretKey;
 import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.GCMParameterSpec;
@@ -143,7 +117,6 @@ import javax.crypto.spec.SecretKeySpec;
 import static org.elasticsearch.action.support.TransportActions.isShardNotAvailableException;
 import static org.elasticsearch.common.hash.MessageDigests.sha256;
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 import static org.elasticsearch.search.SearchService.DEFAULT_KEEPALIVE_SETTING;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -167,7 +140,6 @@ public class TokenService {
     static final int TOKENS_ENCRYPTION_KEY_ITERATIONS = 1024;
     private static final String KDF_ALGORITHM = "PBKDF2withHMACSHA512";
     static final int SALT_BYTES = 32;
-    private static final int KEY_BYTES = 64;
     static final int IV_BYTES = 12;
     private static final int VERSION_BYTES = 4;
     private static final String ENCRYPTION_CIPHER = "AES/GCM/NoPadding";
@@ -201,9 +173,7 @@ public class TokenService {
     // UUIDs are 16 bytes encoded base64 without padding, therefore the length is (16 / 3) * 4 + ((16 % 3) * 8 + 5) / 6 chars
     private static final int TOKEN_LENGTH = 22;
     private static final String TOKEN_DOC_ID_PREFIX = TOKEN_DOC_TYPE + "_";
-    static final int LEGACY_MINIMUM_BYTES = VERSION_BYTES + SALT_BYTES + IV_BYTES + 1;
     static final int MINIMUM_BYTES = VERSION_BYTES + TOKEN_LENGTH + 1;
-    static final int LEGACY_MINIMUM_BASE64_BYTES = Double.valueOf(Math.ceil((4 * LEGACY_MINIMUM_BYTES) / 3)).intValue();
     public static final int MINIMUM_BASE64_BYTES = Double.valueOf(Math.ceil((4 * MINIMUM_BYTES) / 3)).intValue();
     static final TransportVersion VERSION_HASHED_TOKENS = TransportVersions.V_7_2_0;
     static final TransportVersion VERSION_TOKENS_INDEX_INTRODUCED = TransportVersions.V_7_2_0;
@@ -227,9 +197,7 @@ public class TokenService {
     private final boolean enabled;
     private final XPackLicenseState licenseState;
     private final SecurityContext securityContext;
-    private volatile TokenKeys keyCache;
     private volatile long lastExpirationRunMs;
-    private final AtomicLong createdTimeStamps = new AtomicLong(-1);
 
     /**
      * Creates a new token service
@@ -247,7 +215,6 @@ public class TokenService {
     ) throws GeneralSecurityException {
         byte[] saltArr = new byte[SALT_BYTES];
         secureRandom.nextBytes(saltArr);
-        final SecureString tokenPassphrase = generateTokenKey();
         this.settings = settings;
         this.clock = clock.withZone(ZoneOffset.UTC);
         this.expirationDelay = TOKEN_EXPIRATION.get(settings);
@@ -260,15 +227,7 @@ public class TokenService {
         this.deleteInterval = DELETE_INTERVAL.get(settings);
         this.enabled = isTokenServiceEnabled(settings);
         this.expiredTokenRemover = new ExpiredTokenRemover(settings, client, this.securityMainIndex, securityTokensIndex);
-        ensureEncryptionCiphersSupported();
-        KeyAndCache keyAndCache = new KeyAndCache(
-            new KeyAndTimestamp(tokenPassphrase, createdTimeStamps.incrementAndGet()),
-            new BytesKey(saltArr)
-        );
-        keyCache = new TokenKeys(Collections.singletonMap(keyAndCache.getKeyHash(), keyAndCache), keyAndCache.getKeyHash());
         this.clusterService = clusterService;
-        initialize(clusterService);
-        getTokenMetadata();
     }
 
     /**
@@ -661,40 +620,10 @@ public class TokenService {
                 final String userTokenId = hashTokenString(accessToken);
                 getAndValidateUserToken(userTokenId, version, null, validateUserToken, listener);
             } else {
-                // The token was created in a < VERSION_ACCESS_TOKENS_UUIDS cluster so we need to decrypt it to get the tokenId
-                if (in.available() < LEGACY_MINIMUM_BYTES) {
-                    logger.debug("invalid token, smaller than [{}] bytes", LEGACY_MINIMUM_BYTES);
-                    listener.onResponse(null);
-                    return;
-                }
-                final BytesKey decodedSalt = new BytesKey(in.readByteArray());
-                final BytesKey passphraseHash = new BytesKey(in.readByteArray());
-                final byte[] iv = in.readByteArray();
-                final BytesStreamOutput out = new BytesStreamOutput();
-                Streams.copy(in, out);
-                final byte[] encryptedTokenId = BytesReference.toBytes(out.bytes());
-                final KeyAndCache keyAndCache = keyCache.get(passphraseHash);
-                if (keyAndCache != null) {
-                    getKeyAsync(decodedSalt, keyAndCache, ActionListener.wrap(decodeKey -> {
-                        if (decodeKey != null) {
-                            try {
-                                final Cipher cipher = getDecryptionCipher(iv, decodeKey, version, decodedSalt);
-                                final String tokenId = decryptTokenId(encryptedTokenId, cipher, version);
-                                getAndValidateUserToken(tokenId, version, null, validateUserToken, listener);
-                            } catch (IOException | GeneralSecurityException e) {
-                                // could happen with a token that is not ours
-                                logger.warn("invalid token", e);
-                                listener.onResponse(null);
-                            }
-                        } else {
-                            // could happen with a token that is not ours
-                            listener.onResponse(null);
-                        }
-                    }, listener::onFailure));
-                } else {
-                    logger.debug(() -> format("invalid key %s key: %s", passphraseHash, keyCache.cache.keySet()));
-                    listener.onResponse(null);
-                }
+                // The token was created in a < VERSION_ACCESS_TOKENS_UUIDS
+                // which can only mean that it's legacy token (which is no longer supported)
+                logger.debug("invalid legacy token");
+                listener.onResponse(null);
             }
         } catch (Exception e) {
             // could happen with a token that is not ours
@@ -2031,32 +1960,7 @@ public class TokenService {
             }
         } else {
             // we know that the minimum length is larger than the default of the ByteArrayOutputStream so set the size to this explicitly
-            try (
-                ByteArrayOutputStream os = new ByteArrayOutputStream(LEGACY_MINIMUM_BASE64_BYTES);
-                OutputStream base64 = Base64.getEncoder().wrap(os);
-                StreamOutput out = new OutputStreamStreamOutput(base64)
-            ) {
-                out.setTransportVersion(version);
-                KeyAndCache keyAndCache = keyCache.activeKeyCache;
-                TransportVersion.writeVersion(version, out);
-                out.writeByteArray(keyAndCache.getSalt().bytes);
-                out.writeByteArray(keyAndCache.getKeyHash().bytes);
-                final byte[] initializationVector = getRandomBytes(IV_BYTES);
-                out.writeByteArray(initializationVector);
-                try (
-                    CipherOutputStream encryptedOutput = new CipherOutputStream(
-                        out,
-                        getEncryptionCipher(initializationVector, keyAndCache, version)
-                    );
-                    StreamOutput encryptedStreamOutput = new OutputStreamStreamOutput(encryptedOutput)
-                ) {
-                    encryptedStreamOutput.setTransportVersion(version);
-                    encryptedStreamOutput.writeString(Strings.BASE_64_NO_PADDING_URL_ENCODER.encodeToString(accessTokenBytes));
-                    // StreamOutput needs to be closed explicitly because it wraps CipherOutputStream
-                    encryptedStreamOutput.close();
-                    return new String(os.toByteArray(), StandardCharsets.UTF_8);
-                }
-            }
+            throw new IllegalStateException("not expected to be called for versions before " + VERSION_ACCESS_TOKENS_AS_UUIDS);
         }
     }
 
@@ -2078,25 +1982,6 @@ public class TokenService {
         }
     }
 
-    private static void ensureEncryptionCiphersSupported() throws NoSuchPaddingException, NoSuchAlgorithmException {
-        Cipher.getInstance(ENCRYPTION_CIPHER);
-        SecretKeyFactory.getInstance(KDF_ALGORITHM);
-    }
-
-    // Package private for testing
-    Cipher getEncryptionCipher(byte[] iv, KeyAndCache keyAndCache, TransportVersion version) throws GeneralSecurityException {
-        Cipher cipher = Cipher.getInstance(ENCRYPTION_CIPHER);
-        BytesKey salt = keyAndCache.getSalt();
-        try {
-            cipher.init(Cipher.ENCRYPT_MODE, keyAndCache.getOrComputeKey(salt), new GCMParameterSpec(128, iv), secureRandom);
-        } catch (ExecutionException e) {
-            throw new ElasticsearchSecurityException("Failed to compute secret key for active salt", e);
-        }
-        cipher.updateAAD(ByteBuffer.allocate(4).putInt(version.id()).array());
-        cipher.updateAAD(salt.bytes);
-        return cipher;
-    }
-
     /**
      * Initialize the encryption cipher using the provided password to derive the encryption key.
      */
@@ -2108,20 +1993,6 @@ public class TokenService {
         return cipher;
     }
 
-    private void getKeyAsync(BytesKey decodedSalt, KeyAndCache keyAndCache, ActionListener<SecretKey> listener) {
-        final SecretKey decodeKey = keyAndCache.getKey(decodedSalt);
-        if (decodeKey != null) {
-            listener.onResponse(decodeKey);
-        } else {
-            /* As a measure of protected against DOS, we can pass requests requiring a key
-             * computation off to a single thread executor. For normal usage, the initial
-             * request(s) that require a key computation will be delayed and there will be
-             * some additional latency.
-             */
-            client.threadPool().executor(THREAD_POOL_NAME).submit(new KeyComputingRunnable(decodedSalt, keyAndCache, listener));
-        }
-    }
-
     private static String decryptTokenId(byte[] encryptedTokenId, Cipher cipher, TransportVersion version) throws IOException {
         try (
             ByteArrayInputStream bais = new ByteArrayInputStream(encryptedTokenId);
@@ -2131,14 +2002,6 @@ public class TokenService {
             decryptedInput.setTransportVersion(version);
             return decryptedInput.readString();
         }
-    }
-
-    private Cipher getDecryptionCipher(byte[] iv, SecretKey key, TransportVersion version, BytesKey salt) throws GeneralSecurityException {
-        Cipher cipher = Cipher.getInstance(ENCRYPTION_CIPHER);
-        cipher.init(Cipher.DECRYPT_MODE, key, new GCMParameterSpec(128, iv), secureRandom);
-        cipher.updateAAD(ByteBuffer.allocate(4).putInt(version.id()).array());
-        cipher.updateAAD(salt.bytes);
-        return cipher;
     }
 
     /**
@@ -2294,260 +2157,6 @@ public class TokenService {
 
         public Authentication getAuthentication() {
             return authentication;
-        }
-    }
-
-    private static class KeyComputingRunnable extends AbstractRunnable {
-
-        private final BytesKey decodedSalt;
-        private final KeyAndCache keyAndCache;
-        private final ActionListener<SecretKey> listener;
-
-        KeyComputingRunnable(BytesKey decodedSalt, KeyAndCache keyAndCache, ActionListener<SecretKey> listener) {
-            this.decodedSalt = decodedSalt;
-            this.keyAndCache = keyAndCache;
-            this.listener = listener;
-        }
-
-        @Override
-        protected void doRun() {
-            try {
-                final SecretKey computedKey = keyAndCache.getOrComputeKey(decodedSalt);
-                listener.onResponse(computedKey);
-            } catch (ExecutionException e) {
-                if (e.getCause() != null
-                    && (e.getCause() instanceof GeneralSecurityException
-                        || e.getCause() instanceof IOException
-                        || e.getCause() instanceof IllegalArgumentException)) {
-                    // this could happen if another realm supports the Bearer token so we should
-                    // see if another realm can use this token!
-                    logger.debug("unable to decode bearer token", e);
-                    listener.onResponse(null);
-                } else {
-                    listener.onFailure(e);
-                }
-            }
-        }
-
-        @Override
-        public void onFailure(Exception e) {
-            listener.onFailure(e);
-        }
-    }
-
-    /**
-     * Returns the current in-use metdata of this {@link TokenService}
-     */
-    public synchronized TokenMetadata getTokenMetadata() {
-        return newTokenMetadata(keyCache.currentTokenKeyHash, keyCache.cache.values());
-    }
-
-    private static TokenMetadata newTokenMetadata(BytesKey activeTokenKey, Iterable<KeyAndCache> iterable) {
-        List<KeyAndTimestamp> list = new ArrayList<>();
-        for (KeyAndCache v : iterable) {
-            list.add(v.keyAndTimestamp);
-        }
-        return new TokenMetadata(list, activeTokenKey.bytes);
-    }
-
-    /**
-     * Refreshes the current in-use metadata.
-     */
-    synchronized void refreshMetadata(TokenMetadata metadata) {
-        BytesKey currentUsedKeyHash = new BytesKey(metadata.getCurrentKeyHash());
-        byte[] saltArr = new byte[SALT_BYTES];
-        Map<BytesKey, KeyAndCache> map = Maps.newMapWithExpectedSize(metadata.getKeys().size());
-        long maxTimestamp = createdTimeStamps.get();
-        for (KeyAndTimestamp key : metadata.getKeys()) {
-            secureRandom.nextBytes(saltArr);
-            KeyAndCache keyAndCache = new KeyAndCache(key, new BytesKey(saltArr));
-            maxTimestamp = Math.max(keyAndCache.keyAndTimestamp.getTimestamp(), maxTimestamp);
-            if (keyCache.cache.containsKey(keyAndCache.getKeyHash()) == false) {
-                map.put(keyAndCache.getKeyHash(), keyAndCache);
-            } else {
-                map.put(keyAndCache.getKeyHash(), keyCache.get(keyAndCache.getKeyHash())); // maintain the cache we already have
-            }
-        }
-        if (map.containsKey(currentUsedKeyHash) == false) {
-            // this won't leak any secrets it's only exposing the current set of hashes
-            throw new IllegalStateException("Current key is not in the map: " + map.keySet() + " key: " + currentUsedKeyHash);
-        }
-        createdTimeStamps.set(maxTimestamp);
-        keyCache = new TokenKeys(Collections.unmodifiableMap(map), currentUsedKeyHash);
-        logger.debug(() -> format("refreshed keys current: %s, keys: %s", currentUsedKeyHash, keyCache.cache.keySet()));
-    }
-
-    private SecureString generateTokenKey() {
-        byte[] keyBytes = new byte[KEY_BYTES];
-        byte[] encode = new byte[0];
-        char[] ref = new char[0];
-        try {
-            secureRandom.nextBytes(keyBytes);
-            encode = Strings.BASE_64_NO_PADDING_URL_ENCODER.encode(keyBytes);
-            ref = new char[encode.length];
-            int len = UnicodeUtil.UTF8toUTF16(encode, 0, encode.length, ref);
-            return new SecureString(Arrays.copyOfRange(ref, 0, len));
-        } finally {
-            Arrays.fill(keyBytes, (byte) 0x00);
-            Arrays.fill(encode, (byte) 0x00);
-            Arrays.fill(ref, (char) 0x00);
-        }
-    }
-
-    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
-    private void submitUnbatchedTask(@SuppressWarnings("SameParameterValue") String source, ClusterStateUpdateTask task) {
-        clusterService.submitUnbatchedStateUpdateTask(source, task);
-    }
-
-    private void initialize(ClusterService clusterService) {
-        clusterService.addListener(event -> {
-            ClusterState state = event.state();
-            if (state.getBlocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK)) {
-                return;
-            }
-
-            if (state.nodes().isLocalNodeElectedMaster()) {
-                if (XPackPlugin.isReadyForXPackCustomMetadata(state)) {
-                    installTokenMetadata(state);
-                } else {
-                    logger.debug(
-                        "cannot add token metadata to cluster as the following nodes might not understand the metadata: {}",
-                        () -> XPackPlugin.nodesNotReadyForXPackCustomMetadata(state)
-                    );
-                }
-            }
-
-            TokenMetadata custom = event.state().custom(TokenMetadata.TYPE);
-            if (custom != null && custom.equals(getTokenMetadata()) == false) {
-                logger.info("refresh keys");
-                try {
-                    refreshMetadata(custom);
-                } catch (Exception e) {
-                    logger.warn("refreshing metadata failed", e);
-                }
-                logger.info("refreshed keys");
-            }
-        });
-    }
-
-    // to prevent too many cluster state update tasks to be queued for doing the same update
-    private final AtomicBoolean installTokenMetadataInProgress = new AtomicBoolean(false);
-
-    private void installTokenMetadata(ClusterState state) {
-        if (state.custom(TokenMetadata.TYPE) == null) {
-            if (installTokenMetadataInProgress.compareAndSet(false, true)) {
-                submitUnbatchedTask("install-token-metadata", new ClusterStateUpdateTask(Priority.URGENT) {
-                    @Override
-                    public ClusterState execute(ClusterState currentState) {
-                        XPackPlugin.checkReadyForXPackCustomMetadata(currentState);
-
-                        if (currentState.custom(TokenMetadata.TYPE) == null) {
-                            return ClusterState.builder(currentState).putCustom(TokenMetadata.TYPE, getTokenMetadata()).build();
-                        } else {
-                            return currentState;
-                        }
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        installTokenMetadataInProgress.set(false);
-                        logger.error("unable to install token metadata", e);
-                    }
-
-                    @Override
-                    public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-                        installTokenMetadataInProgress.set(false);
-                    }
-                });
-            }
-        }
-    }
-
-    /**
-     * Package private for testing
-     */
-    void clearActiveKeyCache() {
-        this.keyCache.activeKeyCache.keyCache.invalidateAll();
-    }
-
-    static final class KeyAndCache implements Closeable {
-        private final KeyAndTimestamp keyAndTimestamp;
-        private final Cache<BytesKey, SecretKey> keyCache;
-        private final BytesKey salt;
-        private final BytesKey keyHash;
-
-        private KeyAndCache(KeyAndTimestamp keyAndTimestamp, BytesKey salt) {
-            this.keyAndTimestamp = keyAndTimestamp;
-            keyCache = CacheBuilder.<BytesKey, SecretKey>builder()
-                .setExpireAfterAccess(TimeValue.timeValueMinutes(60L))
-                .setMaximumWeight(500L)
-                .build();
-            try {
-                SecretKey secretKey = computeSecretKey(keyAndTimestamp.getKey().getChars(), salt.bytes, TOKEN_SERVICE_KEY_ITERATIONS);
-                keyCache.put(salt, secretKey);
-            } catch (Exception e) {
-                throw new IllegalStateException(e);
-            }
-            this.salt = salt;
-            this.keyHash = calculateKeyHash(keyAndTimestamp.getKey());
-        }
-
-        private SecretKey getKey(BytesKey salt) {
-            return keyCache.get(salt);
-        }
-
-        public SecretKey getOrComputeKey(BytesKey decodedSalt) throws ExecutionException {
-            return keyCache.computeIfAbsent(decodedSalt, (salt) -> {
-                try (SecureString closeableChars = keyAndTimestamp.getKey().clone()) {
-                    return computeSecretKey(closeableChars.getChars(), salt.bytes, TOKEN_SERVICE_KEY_ITERATIONS);
-                }
-            });
-        }
-
-        @Override
-        public void close() {
-            keyAndTimestamp.getKey().close();
-        }
-
-        BytesKey getKeyHash() {
-            return keyHash;
-        }
-
-        private static BytesKey calculateKeyHash(SecureString key) {
-            MessageDigest messageDigest = sha256();
-            BytesRefBuilder b = new BytesRefBuilder();
-            try {
-                b.copyChars(key);
-                BytesRef bytesRef = b.toBytesRef();
-                try {
-                    messageDigest.update(bytesRef.bytes, bytesRef.offset, bytesRef.length);
-                    return new BytesKey(Arrays.copyOfRange(messageDigest.digest(), 0, 8));
-                } finally {
-                    Arrays.fill(bytesRef.bytes, (byte) 0x00);
-                }
-            } finally {
-                Arrays.fill(b.bytes(), (byte) 0x00);
-            }
-        }
-
-        BytesKey getSalt() {
-            return salt;
-        }
-    }
-
-    private static final class TokenKeys {
-        final Map<BytesKey, KeyAndCache> cache;
-        final BytesKey currentTokenKeyHash;
-        final KeyAndCache activeKeyCache;
-
-        private TokenKeys(Map<BytesKey, KeyAndCache> cache, BytesKey currentTokenKeyHash) {
-            this.cache = cache;
-            this.currentTokenKeyHash = currentTokenKeyHash;
-            this.activeKeyCache = cache.get(currentTokenKeyHash);
-        }
-
-        KeyAndCache get(BytesKey passphraseHash) {
-            return cache.get(passphraseHash);
         }
     }
 

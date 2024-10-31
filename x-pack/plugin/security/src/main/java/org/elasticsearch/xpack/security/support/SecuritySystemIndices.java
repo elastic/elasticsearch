@@ -143,7 +143,6 @@ public class SecuritySystemIndices {
                 .setSettings(getMainIndexSettings())
                 .setAliasName(SECURITY_MAIN_ALIAS)
                 .setIndexFormat(INTERNAL_MAIN_INDEX_FORMAT)
-                .setVersionMetaKey(SECURITY_VERSION_STRING)
                 .setOrigin(SECURITY_ORIGIN)
                 .setThreadPools(ExecutorNames.CRITICAL_SYSTEM_INDEX_THREAD_POOLS);
 
@@ -695,7 +694,6 @@ public class SecuritySystemIndices {
             .setSettings(getTokenIndexSettings())
             .setAliasName(SECURITY_TOKENS_ALIAS)
             .setIndexFormat(INTERNAL_TOKENS_INDEX_FORMAT)
-            .setVersionMetaKey(SECURITY_VERSION_STRING)
             .setOrigin(SECURITY_ORIGIN)
             .setThreadPools(ExecutorNames.CRITICAL_SYSTEM_INDEX_THREAD_POOLS)
             .build();
@@ -879,10 +877,8 @@ public class SecuritySystemIndices {
             .setSettings(getProfileIndexSettings(settings))
             .setAliasName(SECURITY_PROFILE_ALIAS)
             .setIndexFormat(INTERNAL_PROFILE_INDEX_FORMAT)
-            .setVersionMetaKey(SECURITY_VERSION_STRING)
             .setOrigin(SECURITY_PROFILE_ORIGIN) // new origin since 8.3
             .setThreadPools(ExecutorNames.CRITICAL_SYSTEM_INDEX_THREAD_POOLS)
-            .setMinimumNodeVersion(VERSION_SECURITY_PROFILE_ORIGIN)
             .setPriorSystemIndexDescriptors(
                 List.of(
                     SystemIndexDescriptor.builder()
@@ -893,7 +889,6 @@ public class SecuritySystemIndices {
                         .setSettings(getProfileIndexSettings(settings))
                         .setAliasName(SECURITY_PROFILE_ALIAS)
                         .setIndexFormat(INTERNAL_PROFILE_INDEX_FORMAT)
-                        .setVersionMetaKey(SECURITY_VERSION_STRING)
                         .setOrigin(SECURITY_ORIGIN)
                         .setThreadPools(ExecutorNames.CRITICAL_SYSTEM_INDEX_THREAD_POOLS)
                         .build()

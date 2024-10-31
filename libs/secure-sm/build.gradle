@@ -16,7 +16,7 @@ dependencies {
   testImplementation "org.hamcrest:hamcrest:${versions.hamcrest}"
 
   testImplementation(project(":test:framework")) {
-    exclude group: 'org.elasticsearch', module: 'elasticsearch-secure-sm'
+    exclude group: 'org.elasticsearch', module: 'secure-sm'
   }
 }
 

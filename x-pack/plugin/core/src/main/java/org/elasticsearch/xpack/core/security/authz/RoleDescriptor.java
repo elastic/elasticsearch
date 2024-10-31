@@ -841,7 +841,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
                         final String message = String.format(
                             Locale.ROOT,
                             "failed to parse remote_cluster for role [%s]. "
-                                + "[%s] are the only values allowed for [%s] within [remote_cluster]",
+                                + "%s are the only values allowed for [%s] within [remote_cluster]",
                             roleName,
                             RemoteClusterPermissions.getSupportedRemoteClusterPermissions(),
                             currentFieldName

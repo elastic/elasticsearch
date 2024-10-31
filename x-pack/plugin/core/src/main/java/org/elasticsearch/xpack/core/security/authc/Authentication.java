@@ -1350,24 +1350,28 @@ public final class Authentication implements ToXContentObject {
                         (BytesReference) metadata.get(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY)
                     )
                 );
-            } else if (streamVersion.onOrAfter(ROLE_REMOTE_CLUSTER_PRIVS)) {
-                // the remote cluster understands remote_cluster field in role descriptors, so check each permission and remove as needed
-                metadata = new HashMap<>(metadata);
-                metadata.put(
-                    AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY,
-                    maybeRemoveRemoteClusterPrivilegesFromRoleDescriptors(
-                        (BytesReference) metadata.get(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY),
-                        streamVersion
-                    )
-                );
-                metadata.put(
-                    AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY,
-                    maybeRemoveRemoteClusterPrivilegesFromRoleDescriptors(
-                        (BytesReference) metadata.get(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY),
-                        streamVersion
-                    )
-                );
-            }
+            } else if (authentication.getEffectiveSubject()
+                .getTransportVersion()
+                .onOrAfter(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY)
+                && streamVersion.onOrAfter(ROLE_REMOTE_CLUSTER_PRIVS)) {
+                    // the remote cluster understands remote_cluster field in role descriptors, so check each permission and remove as
+                    // needed
+                    metadata = new HashMap<>(metadata);
+                    metadata.put(
+                        AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY,
+                        maybeRemoveRemoteClusterPrivilegesFromRoleDescriptors(
+                            (BytesReference) metadata.get(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY),
+                            streamVersion
+                        )
+                    );
+                    metadata.put(
+                        AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY,
+                        maybeRemoveRemoteClusterPrivilegesFromRoleDescriptors(
+                            (BytesReference) metadata.get(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY),
+                            streamVersion
+                        )
+                    );
+                }
 
             if (authentication.getEffectiveSubject().getTransportVersion().onOrAfter(VERSION_API_KEY_ROLES_AS_BYTES)
                 && streamVersion.before(VERSION_API_KEY_ROLES_AS_BYTES)) {

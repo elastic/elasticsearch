@@ -136,9 +136,7 @@ public class TelemetryIT extends AbstractEsqlIntegTestCase {
                         | EVAL ip = to_ip(host), x = to_string(host), y = to_string(host)
                         | INLINESTATS max(id)
                         """,
-                    Build.current().isSnapshot()
-                        ? Map.ofEntries(Map.entry("FROM", 1), Map.entry("EVAL", 1), Map.entry("INLINESTATS", 1))
-                        : Collections.emptyMap(),
+                    Build.current().isSnapshot() ? Map.of("FROM", 1, "EVAL", 1, "INLINESTATS", 1, "STATS", 1) : Collections.emptyMap(),
                     Build.current().isSnapshot()
                         ? Map.ofEntries(Map.entry("MAX", 1), Map.entry("TO_IP", 1), Map.entry("TO_STRING", 2))
                         : Collections.emptyMap(),

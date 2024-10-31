@@ -7,16 +7,15 @@
 
 package org.elasticsearch.xpack.esql.session;
 
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
-import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
@@ -25,9 +24,6 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.transport.ConnectTransportException;
-import org.elasticsearch.transport.RemoteClusterAware;
-import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
@@ -62,24 +58,24 @@ import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.Phased;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
+import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
+import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
-import org.elasticsearch.xpack.esql.planner.Mapper;
+import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.stats.PlanningMetrics;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -90,6 +86,14 @@ import static org.elasticsearch.xpack.esql.core.util.StringUtils.WILDCARD;
 public class EsqlSession {
 
     private static final Logger LOGGER = LogManager.getLogger(EsqlSession.class);
+
+    /**
+     * Interface for running the underlying plan.
+     * Abstracts away the underlying execution engine.
+     */
+    public interface PlanRunner {
+        void run(PhysicalPlan plan, ActionListener<Result> listener);
+    }
 
     private final String sessionId;
     private final Configuration configuration;
@@ -140,163 +144,120 @@ public class EsqlSession {
     /**
      * Execute an ESQL request.
      */
-    public void execute(
-        EsqlQueryRequest request,
-        EsqlExecutionInfo executionInfo,
-        BiConsumer<PhysicalPlan, ActionListener<Result>> runPhase,
-        ActionListener<Result> listener
-    ) {
+    public void execute(EsqlQueryRequest request, EsqlExecutionInfo executionInfo, PlanRunner planRunner, ActionListener<Result> listener) {
         LOGGER.debug("ESQL query:\n{}", request.query());
         analyzedPlan(
             parse(request.query(), request.params()),
             executionInfo,
-            new LogicalPlanActionListener(request, executionInfo, runPhase, listener)
+            new CcsUtils.CssPartialErrorsActionListener(executionInfo, listener) {
+                @Override
+                public void onResponse(LogicalPlan analyzedPlan) {
+                    executeOptimizedPlan(request, executionInfo, planRunner, optimizedPlan(analyzedPlan), listener);
+                }
+            }
         );
     }
 
     /**
-     * ActionListener that receives LogicalPlan or error from logical planning.
-     * Any Exception sent to onFailure stops processing, but not all are fatal (return a 4xx or 5xx), so
-     * the onFailure handler determines whether to return an empty successful result or a 4xx/5xx error.
-     */
-    class LogicalPlanActionListener implements ActionListener<LogicalPlan> {
-        private final EsqlQueryRequest request;
-        private final EsqlExecutionInfo executionInfo;
-        private final BiConsumer<PhysicalPlan, ActionListener<Result>> runPhase;
-        private final ActionListener<Result> listener;
-
-        LogicalPlanActionListener(
-            EsqlQueryRequest request,
-            EsqlExecutionInfo executionInfo,
-            BiConsumer<PhysicalPlan, ActionListener<Result>> runPhase,
-            ActionListener<Result> listener
-        ) {
-            this.request = request;
-            this.executionInfo = executionInfo;
-            this.runPhase = runPhase;
-            this.listener = listener;
-        }
-
-        @Override
-        public void onResponse(LogicalPlan analyzedPlan) {
-            executeOptimizedPlan(request, executionInfo, runPhase, optimizedPlan(analyzedPlan), listener);
-        }
-
-        /**
-         * Whether to return an empty result (HTTP status 200) for a CCS rather than a top level 4xx/5xx error.
-         *
-         * For cases where field-caps had no indices to search and the remotes were unavailable, we
-         * return an empty successful response (200) if all remotes are marked with skip_unavailable=true.
-         *
-         * Note: a follow-on PR will expand this logic to handle cases where no indices could be found to match
-         * on any of the requested clusters.
-         */
-        private boolean returnSuccessWithEmptyResult(Exception e) {
-            if (executionInfo.isCrossClusterSearch() == false) {
-                return false;
-            }
-
-            if (e instanceof NoClustersToSearchException || ExceptionsHelper.isRemoteUnavailableException(e)) {
-                for (String clusterAlias : executionInfo.clusterAliases()) {
-                    if (executionInfo.isSkipUnavailable(clusterAlias) == false
-                        && clusterAlias.equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY) == false) {
-                        return false;
-                    }
-                }
-                return true;
-            }
-            return false;
-        }
-
-        @Override
-        public void onFailure(Exception e) {
-            if (returnSuccessWithEmptyResult(e)) {
-                executionInfo.markEndQuery();
-                Exception exceptionForResponse;
-                if (e instanceof ConnectTransportException) {
-                    // when field-caps has no field info (since no clusters could be connected to or had matching indices)
-                    // it just throws the first exception in its list, so this odd special handling is here is to avoid
-                    // having one specific remote alias name in all failure lists in the metadata response
-                    exceptionForResponse = new RemoteTransportException(
-                        "connect_transport_exception - unable to connect to remote cluster",
-                        null
-                    );
-                } else {
-                    exceptionForResponse = e;
-                }
-                for (String clusterAlias : executionInfo.clusterAliases()) {
-                    executionInfo.swapCluster(clusterAlias, (k, v) -> {
-                        EsqlExecutionInfo.Cluster.Builder builder = new EsqlExecutionInfo.Cluster.Builder(v).setTook(
-                            executionInfo.overallTook()
-                        ).setTotalShards(0).setSuccessfulShards(0).setSkippedShards(0).setFailedShards(0);
-                        if (RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.equals(clusterAlias)) {
-                            // never mark local cluster as skipped
-                            builder.setStatus(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL);
-                        } else {
-                            builder.setStatus(EsqlExecutionInfo.Cluster.Status.SKIPPED);
-                            // add this exception to the failures list only if there is no failure already recorded there
-                            if (v.getFailures() == null || v.getFailures().size() == 0) {
-                                builder.setFailures(List.of(new ShardSearchFailure(exceptionForResponse)));
-                            }
-                        }
-                        return builder.build();
-                    });
-                }
-                listener.onResponse(new Result(Analyzer.NO_FIELDS, Collections.emptyList(), Collections.emptyList(), executionInfo));
-            } else {
-                listener.onFailure(e);
-            }
-        }
-    }
-
-    /**
      * Execute an analyzed plan. Most code should prefer calling {@link #execute} but
-     * this is public for testing. See {@link Phased} for the sequence of operations.
+     * this is public for testing.
      */
     public void executeOptimizedPlan(
         EsqlQueryRequest request,
         EsqlExecutionInfo executionInfo,
-        BiConsumer<PhysicalPlan, ActionListener<Result>> runPhase,
+        PlanRunner planRunner,
         LogicalPlan optimizedPlan,
         ActionListener<Result> listener
     ) {
-        LogicalPlan firstPhase = Phased.extractFirstPhase(optimizedPlan);
-        updateExecutionInfoAtEndOfPlanning(executionInfo);
-        if (firstPhase == null) {
-            runPhase.accept(logicalPlanToPhysicalPlan(optimizedPlan, request), listener);
+        PhysicalPlan physicalPlan = logicalPlanToPhysicalPlan(optimizedPlan, request);
+        // TODO: this could be snuck into the underlying listener
+        CcsUtils.updateExecutionInfoAtEndOfPlanning(executionInfo);
+        // execute any potential subplans
+        executeSubPlans(physicalPlan, planRunner, executionInfo, request, listener);
+    }
+
+    private record PlanTuple(PhysicalPlan physical, LogicalPlan logical) {};
+
+    private void executeSubPlans(
+        PhysicalPlan physicalPlan,
+        PlanRunner runner,
+        EsqlExecutionInfo executionInfo,
+        EsqlQueryRequest request,
+        ActionListener<Result> listener
+    ) {
+        List<PlanTuple> subplans = new ArrayList<>();
+
+        // Currently the inlinestats are limited and supported as streaming operators, thus present inside the fragment as logical plans
+        // Below they get collected, translated into a separate, coordinator based plan and the results 'broadcasted' as a local relation
+        physicalPlan.forEachUp(FragmentExec.class, f -> {
+            f.fragment().forEachUp(InlineJoin.class, ij -> {
+                // extract the right side of the plan and replace its source
+                LogicalPlan subplan = InlineJoin.replaceStub(ij.left(), ij.right());
+                // mark the new root node as optimized
+                subplan.setOptimized();
+                PhysicalPlan subqueryPlan = logicalPlanToPhysicalPlan(subplan, request);
+                subplans.add(new PlanTuple(subqueryPlan, ij.right()));
+            });
+        });
+
+        Iterator<PlanTuple> iterator = subplans.iterator();
+
+        // TODO: merge into one method
+        if (subplans.size() > 0) {
+            // code-path to execute subplans
+            executeSubPlan(new ArrayList<>(), physicalPlan, iterator, executionInfo, runner, listener);
         } else {
-            executePhased(new ArrayList<>(), optimizedPlan, request, executionInfo, firstPhase, runPhase, listener);
+            // execute main plan
+            runner.run(physicalPlan, listener);
         }
     }
 
-    private void executePhased(
+    private void executeSubPlan(
         List<DriverProfile> profileAccumulator,
-        LogicalPlan mainPlan,
-        EsqlQueryRequest request,
+        PhysicalPlan plan,
+        Iterator<PlanTuple> subPlanIterator,
         EsqlExecutionInfo executionInfo,
-        LogicalPlan firstPhase,
-        BiConsumer<PhysicalPlan, ActionListener<Result>> runPhase,
+        PlanRunner runner,
         ActionListener<Result> listener
     ) {
-        PhysicalPlan physicalPlan = logicalPlanToPhysicalPlan(optimizedPlan(firstPhase), request);
-        runPhase.accept(physicalPlan, listener.delegateFailureAndWrap((next, result) -> {
+        PlanTuple tuple = subPlanIterator.next();
+
+        runner.run(tuple.physical, listener.delegateFailureAndWrap((next, result) -> {
             try {
                 profileAccumulator.addAll(result.profiles());
-                LogicalPlan newMainPlan = optimizedPlan(Phased.applyResultsFromFirstPhase(mainPlan, physicalPlan.output(), result.pages()));
-                LogicalPlan newFirstPhase = Phased.extractFirstPhase(newMainPlan);
-                if (newFirstPhase == null) {
-                    PhysicalPlan finalPhysicalPlan = logicalPlanToPhysicalPlan(newMainPlan, request);
-                    runPhase.accept(finalPhysicalPlan, next.delegateFailureAndWrap((finalListener, finalResult) -> {
+                LocalRelation resultWrapper = resultToPlan(tuple.logical, result);
+
+                // replace the original logical plan with the backing result
+                final PhysicalPlan newPlan = plan.transformUp(FragmentExec.class, f -> {
+                    LogicalPlan frag = f.fragment();
+                    return f.withFragment(
+                        frag.transformUp(
+                            InlineJoin.class,
+                            ij -> ij.right() == tuple.logical ? InlineJoin.inlineData(ij, resultWrapper) : ij
+                        )
+                    );
+                });
+                if (subPlanIterator.hasNext() == false) {
+                    runner.run(newPlan, next.delegateFailureAndWrap((finalListener, finalResult) -> {
                         profileAccumulator.addAll(finalResult.profiles());
                         finalListener.onResponse(new Result(finalResult.schema(), finalResult.pages(), profileAccumulator, executionInfo));
                     }));
                 } else {
-                    executePhased(profileAccumulator, newMainPlan, request, executionInfo, newFirstPhase, runPhase, next);
+                    // continue executing the subplans
+                    executeSubPlan(profileAccumulator, newPlan, subPlanIterator, executionInfo, runner, next);
                 }
             } finally {
                 Releasables.closeExpectNoException(Releasables.wrap(Iterators.map(result.pages().iterator(), p -> p::releaseBlocks)));
             }
         }));
+    }
+
+    private LocalRelation resultToPlan(LogicalPlan plan, Result result) {
+        List<Page> pages = result.pages();
+        List<Attribute> schema = result.schema();
+        // if (pages.size() > 1) {
+        Block[] blocks = SessionUtils.fromPages(schema, pages);
+        return new LocalRelation(plan.source(), schema, LocalSupplier.of(blocks));
     }
 
     private LogicalPlan parse(String query, QueryParams params) {
@@ -347,8 +308,8 @@ public class EsqlSession {
                 // TODO in follow-PR (for skip_unavailble handling of missing concrete indexes) add some tests for invalid index
                 // resolution to updateExecutionInfo
                 if (indexResolution.isValid()) {
-                    updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, indexResolution);
-                    updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.getUnavailableClusters());
+                    CcsUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, indexResolution);
+                    CcsUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.getUnavailableClusters());
                     if (executionInfo.isCrossClusterSearch()
                         && executionInfo.getClusterStateCount(EsqlExecutionInfo.Cluster.Status.RUNNING) == 0) {
                         // for a CCS, if all clusters have been marked as SKIPPED, nothing to search so send a sentinel
@@ -422,7 +383,7 @@ public class EsqlSession {
             }
             // if the preceding call to the enrich policy API found unavailable clusters, recreate the index expression to search
             // based only on available clusters (which could now be an empty list)
-            String indexExpressionToResolve = createIndexExpressionFromAvailableClusters(executionInfo);
+            String indexExpressionToResolve = CcsUtils.createIndexExpressionFromAvailableClusters(executionInfo);
             if (indexExpressionToResolve.isEmpty()) {
                 // if this was a pure remote CCS request (no local indices) and all remotes are offline, return an empty IndexResolution
                 listener.onResponse(IndexResolution.valid(new EsIndex(table.index(), Map.of(), Map.of())));
@@ -437,30 +398,6 @@ public class EsqlSession {
             } catch (Exception ex) {
                 listener.onFailure(ex);
             }
-        }
-    }
-
-    // visible for testing
-    static String createIndexExpressionFromAvailableClusters(EsqlExecutionInfo executionInfo) {
-        StringBuilder sb = new StringBuilder();
-        for (String clusterAlias : executionInfo.clusterAliases()) {
-            EsqlExecutionInfo.Cluster cluster = executionInfo.getCluster(clusterAlias);
-            if (cluster.getStatus() != EsqlExecutionInfo.Cluster.Status.SKIPPED) {
-                if (cluster.getClusterAlias().equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY)) {
-                    sb.append(executionInfo.getCluster(clusterAlias).getIndexExpression()).append(',');
-                } else {
-                    String indexExpression = executionInfo.getCluster(clusterAlias).getIndexExpression();
-                    for (String index : indexExpression.split(",")) {
-                        sb.append(clusterAlias).append(':').append(index).append(',');
-                    }
-                }
-            }
-        }
-
-        if (sb.length() > 0) {
-            return sb.substring(0, sb.length() - 1);
-        } else {
-            return "";
         }
     }
 
@@ -606,87 +543,5 @@ public class EsqlSession {
         var plan = physicalPlanOptimizer.optimize(physicalPlan(optimizedPlan));
         LOGGER.debug("Optimized physical plan:\n{}", plan);
         return plan;
-    }
-
-    static void updateExecutionInfoWithUnavailableClusters(EsqlExecutionInfo execInfo, Map<String, FieldCapabilitiesFailure> unavailable) {
-        for (Map.Entry<String, FieldCapabilitiesFailure> entry : unavailable.entrySet()) {
-            String clusterAlias = entry.getKey();
-            boolean skipUnavailable = execInfo.getCluster(clusterAlias).isSkipUnavailable();
-            RemoteTransportException e = new RemoteTransportException(
-                Strings.format("Remote cluster [%s] (with setting skip_unavailable=%s) is not available", clusterAlias, skipUnavailable),
-                entry.getValue().getException()
-            );
-            if (skipUnavailable) {
-                execInfo.swapCluster(
-                    clusterAlias,
-                    (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setStatus(EsqlExecutionInfo.Cluster.Status.SKIPPED)
-                        .setTotalShards(0)
-                        .setSuccessfulShards(0)
-                        .setSkippedShards(0)
-                        .setFailedShards(0)
-                        .setFailures(List.of(new ShardSearchFailure(e)))
-                        .build()
-                );
-            } else {
-                throw e;
-            }
-        }
-    }
-
-    // visible for testing
-    static void updateExecutionInfoWithClustersWithNoMatchingIndices(EsqlExecutionInfo executionInfo, IndexResolution indexResolution) {
-        Set<String> clustersWithResolvedIndices = new HashSet<>();
-        // determine missing clusters
-        for (String indexName : indexResolution.get().indexNameWithModes().keySet()) {
-            clustersWithResolvedIndices.add(RemoteClusterAware.parseClusterAlias(indexName));
-        }
-        Set<String> clustersRequested = executionInfo.clusterAliases();
-        Set<String> clustersWithNoMatchingIndices = Sets.difference(clustersRequested, clustersWithResolvedIndices);
-        clustersWithNoMatchingIndices.removeAll(indexResolution.getUnavailableClusters().keySet());
-        /*
-         * These are clusters in the original request that are not present in the field-caps response. They were
-         * specified with an index or indices that do not exist, so the search on that cluster is done.
-         * Mark it as SKIPPED with 0 shards searched and took=0.
-         */
-        for (String c : clustersWithNoMatchingIndices) {
-            // TODO: in a follow-on PR, throw a Verification(400 status code) for local and remotes with skip_unavailable=false if
-            // they were requested with one or more concrete indices
-            // for now we never mark the local cluster as SKIPPED
-            final var status = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.equals(c)
-                ? EsqlExecutionInfo.Cluster.Status.SUCCESSFUL
-                : EsqlExecutionInfo.Cluster.Status.SKIPPED;
-            executionInfo.swapCluster(
-                c,
-                (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setStatus(status)
-                    .setTook(new TimeValue(0))
-                    .setTotalShards(0)
-                    .setSuccessfulShards(0)
-                    .setSkippedShards(0)
-                    .setFailedShards(0)
-                    .build()
-            );
-        }
-    }
-
-    // visible for testing
-    static void updateExecutionInfoAtEndOfPlanning(EsqlExecutionInfo execInfo) {
-        // TODO: this logic assumes a single phase execution model, so it may need to altered once INLINESTATS is made CCS compatible
-        if (execInfo.isCrossClusterSearch()) {
-            execInfo.markEndPlanning();
-            for (String clusterAlias : execInfo.clusterAliases()) {
-                EsqlExecutionInfo.Cluster cluster = execInfo.getCluster(clusterAlias);
-                if (cluster.getStatus() == EsqlExecutionInfo.Cluster.Status.SKIPPED) {
-                    execInfo.swapCluster(
-                        clusterAlias,
-                        (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setTook(execInfo.planningTookTime())
-                            .setTotalShards(0)
-                            .setSuccessfulShards(0)
-                            .setSkippedShards(0)
-                            .setFailedShards(0)
-                            .build()
-                    );
-                }
-            }
-        }
     }
 }

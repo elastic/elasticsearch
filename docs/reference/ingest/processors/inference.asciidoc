@@ -771,8 +771,10 @@ PUT _ingest/pipeline/query_helper_pipeline
   ]
 }
 --------------------------------------------------
-// NOTCONSOLE
+// TEST[skip: An inference endpoint is required.]
 <1> The `prompt` field contains the prompt for the completion task.
+We use <<modules-scripting-painless,Painless>> to construct the prompt.
+With `+ ctx.content`, we append the natural language input as part of the generated prompt.
 <2> The ID of the {infer} endpoint created upfront that uses the <<infer-service-openai,`openai` service>> with the `completion` task type.
 
 
@@ -783,13 +785,15 @@ POST _ingest/pipeline/query_helper_pipeline/_simulate
   "docs": [
     {
       "_source": {
-        "content": "artificial intelligence in medicine articles published in the last 12 months"
+        "content": "artificial intelligence in medicine articles published in the last 12 months" <1>
       }
     }
   ]
 }
 --------------------------------------------------
-// NOTCONSOLE
+// TEST[skip: An inference processor with an inference endpoint is required.]
+<1> The natural language query to be used to generate an {es} query as part of the prompt scripted in the {infer} processor.
+
 
 [discrete]
 [[infer-proc-readings]]

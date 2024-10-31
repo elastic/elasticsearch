@@ -87,6 +87,7 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.LongSupplier;
 import java.util.function.ToLongFunction;
 
@@ -202,7 +203,7 @@ final class DefaultSearchContext extends SearchContext {
                     engineSearcher.getQueryCache(),
                     engineSearcher.getQueryCachingPolicy(),
                     lowLevelCancellation,
-                    executor,
+                    wrapExecutor(executor),
                     maximumNumberOfSlices,
                     minimumDocsPerSlice
                 );
@@ -227,6 +228,36 @@ final class DefaultSearchContext extends SearchContext {
                 close();
             }
         }
+    }
+
+    private static Executor wrapExecutor(Executor executor) {
+        if (executor instanceof ThreadPoolExecutor tpe) {
+            // let this searcher fork to a limited maximum number of tasks, to protect against situations where Lucene may
+            // submit too many segment level tasks. With enough parallel search requests and segments per shards, they may all see
+            // an empty queue and start parallelizing, filling up the queue very quickly and causing rejections, due to
+            // many small tasks in the queue that become no-op because the active caller thread will execute them instead.
+            // Note that despite all tasks are completed, TaskExecutor#invokeAll leaves the leftover no-op tasks in queue hence
+            // they contribute to the queue size until they are removed from it.
+            AtomicInteger segmentLevelTasks = new AtomicInteger(0);
+            return command -> {
+                if (segmentLevelTasks.incrementAndGet() > tpe.getMaximumPoolSize()) {
+                    try {
+                        command.run();
+                    } finally {
+                        segmentLevelTasks.decrementAndGet();
+                    }
+                } else {
+                    executor.execute(() -> {
+                        try {
+                            command.run();
+                        } finally {
+                            segmentLevelTasks.decrementAndGet();
+                        }
+                    });
+                }
+            };
+        }
+        return executor;
     }
 
     static long getFieldCardinality(String field, IndexService indexService, DirectoryReader directoryReader) {
@@ -290,6 +321,8 @@ final class DefaultSearchContext extends SearchContext {
         boolean enableQueryPhaseParallelCollection,
         ToLongFunction<String> fieldCardinality
     ) {
+        // Note: although this method refers to parallel collection, it affects any kind of parallelism, including query rewrite,
+        // given that if 1 is the returned value, no executor is provided to the searcher.
         return executor instanceof ThreadPoolExecutor tpe
             && tpe.getQueue().size() <= tpe.getMaximumPoolSize()
             && isParallelCollectionSupportedForResults(resultsType, request.source(), fieldCardinality, enableQueryPhaseParallelCollection)

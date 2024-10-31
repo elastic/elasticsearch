@@ -171,9 +171,6 @@ tests:
 - class: org.elasticsearch.xpack.sql.qa.security.JdbcSqlSpecIT
   method: test {case-functions.testSelectInsertWithLcaseAndLengthWithOrderBy}
   issue: https://github.com/elastic/elasticsearch/issues/112642
-- class: org.elasticsearch.action.admin.cluster.node.stats.NodeStatsTests
-  method: testChunking
-  issue: https://github.com/elastic/elasticsearch/issues/113139
 - class: org.elasticsearch.xpack.inference.rest.ServerSentEventsRestActionListenerTests
   method: testResponse
   issue: https://github.com/elastic/elasticsearch/issues/113148
@@ -343,15 +340,9 @@ tests:
 - class: org.elasticsearch.xpack.inference.InferenceCrudIT
   method: testSupportedStream
   issue: https://github.com/elastic/elasticsearch/issues/113430
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {p0=indices.create/20_synthetic_source/object with unmapped fields}
-  issue: https://github.com/elastic/elasticsearch/issues/115910
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {p0=indices.create/20_synthetic_source/empty object with unmapped fields}
-  issue: https://github.com/elastic/elasticsearch/issues/115911
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {p0=indices.create/20_synthetic_source/nested object with unmapped fields}
-  issue: https://github.com/elastic/elasticsearch/issues/115912
+- class: org.elasticsearch.xpack.spatial.search.GeoGridAggAndQueryConsistencyIT
+  method: testGeoShapeGeoHash
+  issue: https://github.com/elastic/elasticsearch/issues/115664
 
 # Examples:
 #

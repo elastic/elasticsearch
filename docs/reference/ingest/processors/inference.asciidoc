@@ -741,7 +741,8 @@ In this case, {feat-imp} is exposed in the
 [[inference-processor-examples]]
 ==== {infer-cap} processor examples
 
-The following examples uses an <<inference-apis,{infer} endpoint>> in an {infer} processor with the name of `query_helper_pipeline` to perform a chat completion task.
+The following example uses an <<inference-apis,{infer} endpoint>> in an {infer} processor named `query_helper_pipeline` to perform a chat completion task.
+The processor generates an {es} query from natural language input using a prompt designed for a completion task type.
 
 
 [source,console]
@@ -772,11 +773,11 @@ PUT _ingest/pipeline/query_helper_pipeline
 }
 --------------------------------------------------
 // TEST[skip: An inference endpoint is required.]
-<1> The `prompt` field contains the prompt for the completion task.
-We use <<modules-scripting-painless,Painless>> to construct the prompt.
-With `+ ctx.content`, we append the natural language input as part of the generated prompt.
-<2> The ID of the {infer} endpoint created upfront that uses the <<infer-service-openai,`openai` service>> with the `completion` task type.
+<1> The `prompt` field contains the prompt used for the completion task, created with <<modules-scripting-painless,Painless>>.
+`+ ctx.content` appends the natural language input to the prompt.
+<2> The ID of the pre-configured {infer} endpoint, which utilizes the <<infer-service-openai,`openai` service>> with the `completion` task type.
 
+The following API request will simulate running a document through the ingest pipeline created previously:
 
 [source,console]
 --------------------------------------------------
@@ -792,7 +793,7 @@ POST _ingest/pipeline/query_helper_pipeline/_simulate
 }
 --------------------------------------------------
 // TEST[skip: An inference processor with an inference endpoint is required.]
-<1> The natural language query to be used to generate an {es} query as part of the prompt scripted in the {infer} processor.
+<1> The natural language query used to generate an {es} query within the prompt created by the {infer} processor.
 
 
 [discrete]

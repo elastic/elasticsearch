@@ -54,10 +54,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.plugins.IngestPlugin;
-import org.elasticsearch.plugins.internal.DocumentParsingProvider;
-import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptModule;
@@ -68,7 +65,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.cbor.CborXContent;
 import org.junit.Before;
@@ -157,7 +153,6 @@ public class IngestServiceTests extends ESTestCase {
             List.of(DUMMY_PLUGIN),
             client,
             null,
-            DocumentParsingProvider.EMPTY_INSTANCE,
             FailureStoreMetrics.NOOP
         );
         Map<String, Processor.Factory> factories = ingestService.getProcessorFactories();
@@ -178,7 +173,6 @@ public class IngestServiceTests extends ESTestCase {
                 List.of(DUMMY_PLUGIN, DUMMY_PLUGIN),
                 client,
                 null,
-                DocumentParsingProvider.EMPTY_INSTANCE,
                 FailureStoreMetrics.NOOP
             )
         );
@@ -196,7 +190,6 @@ public class IngestServiceTests extends ESTestCase {
             List.of(DUMMY_PLUGIN),
             client,
             null,
-            DocumentParsingProvider.EMPTY_INSTANCE,
             FailureStoreMetrics.NOOP
         );
         final IndexRequest indexRequest = new IndexRequest("_index").id("_id")
@@ -1192,66 +1185,6 @@ public class IngestServiceTests extends ESTestCase {
             argThat(iae -> "pipeline with id [does_not_exist] does not exist".equals(iae.getMessage()))
         );
         verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
-    }
-
-    public void testExecuteBulkRequestCallsDocumentSizeObserver() {
-        /*
-         * This test makes sure that for both insert and upsert requests, when we call executeBulkRequest DocumentSizeObserver is
-         * called using a non-null index name.
-         */
-        AtomicInteger wrappedObserverWasUsed = new AtomicInteger(0);
-        AtomicInteger parsedValueWasUsed = new AtomicInteger(0);
-        DocumentParsingProvider documentParsingProvider = new DocumentParsingProvider() {
-            @Override
-            public <T> XContentMeteringParserDecorator newMeteringParserDecorator(DocWriteRequest<T> request) {
-                return new XContentMeteringParserDecorator() {
-                    @Override
-                    public ParsedDocument.DocumentSize meteredDocumentSize() {
-                        parsedValueWasUsed.incrementAndGet();
-                        return new ParsedDocument.DocumentSize(0, 0);
-                    }
-
-                    @Override
-                    public XContentParser decorate(XContentParser xContentParser) {
-                        wrappedObserverWasUsed.incrementAndGet();
-                        return xContentParser;
-                    }
-                };
-            }
-        };
-        IngestService ingestService = createWithProcessors(
-            Map.of("mock", (factories, tag, description, config) -> mockCompoundProcessor()),
-            documentParsingProvider
-        );
-
-        PutPipelineRequest putRequest = putJsonPipelineRequest("_id", "{\"processors\": [{\"mock\" : {}}]}");
-        ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build(); // Start empty
-        ClusterState previousClusterState = clusterState;
-        clusterState = executePut(putRequest, clusterState);
-        ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
-
-        BulkRequest bulkRequest = new BulkRequest();
-        UpdateRequest updateRequest = new UpdateRequest("_index", "_id1").upsert("{}", "{}");
-        updateRequest.upsertRequest().setPipeline("_id");
-        bulkRequest.add(updateRequest);
-        IndexRequest indexRequest = new IndexRequest("_index").id("_id1").source(Map.of()).setPipeline("_id1");
-        bulkRequest.add(indexRequest);
-        @SuppressWarnings("unchecked")
-        BiConsumer<Integer, Exception> failureHandler = mock(BiConsumer.class);
-        @SuppressWarnings("unchecked")
-        final BiConsumer<Thread, Exception> completionHandler = mock(BiConsumer.class);
-        ingestService.executeBulkRequest(
-            bulkRequest.numberOfActions(),
-            bulkRequest.requests(),
-            indexReq -> {},
-            (s) -> false,
-            (slot, targetIndex, e) -> fail("Should not be redirecting failures"),
-            failureHandler,
-            completionHandler,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
-        );
-        assertThat(wrappedObserverWasUsed.get(), equalTo(2));
-        assertThat(parsedValueWasUsed.get(), equalTo(2));
     }
 
     public void testExecuteSuccess() {
@@ -2271,7 +2204,6 @@ public class IngestServiceTests extends ESTestCase {
             List.of(testPlugin),
             client,
             null,
-            DocumentParsingProvider.EMPTY_INSTANCE,
             FailureStoreMetrics.NOOP
         );
         ingestService.addIngestClusterStateListener(ingestClusterStateListener);
@@ -2611,7 +2543,6 @@ public class IngestServiceTests extends ESTestCase {
             List.of(DUMMY_PLUGIN),
             client,
             null,
-            DocumentParsingProvider.EMPTY_INSTANCE,
             FailureStoreMetrics.NOOP
         );
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, clusterState));
@@ -2921,13 +2852,6 @@ public class IngestServiceTests extends ESTestCase {
     }
 
     private static IngestService createWithProcessors(Map<String, Processor.Factory> processors) {
-        return createWithProcessors(processors, DocumentParsingProvider.EMPTY_INSTANCE);
-    }
-
-    private static IngestService createWithProcessors(
-        Map<String, Processor.Factory> processors,
-        DocumentParsingProvider documentParsingProvider
-    ) {
         Client client = mock(Client.class);
         ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.generic()).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
@@ -2946,7 +2870,6 @@ public class IngestServiceTests extends ESTestCase {
             }),
             client,
             null,
-            documentParsingProvider,
             FailureStoreMetrics.NOOP
         );
         if (randomBoolean()) {

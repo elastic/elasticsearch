@@ -312,14 +312,13 @@ public class TickerScheduleEngineTests extends ESTestCase {
 
         engine.register(events -> {
             for (TriggerEvent ignored : events) {
-                if (runCount.get() == 0) {
+                if (runCount.getAndIncrement() == 0) {
                     logger.info("job first fire");
                     firstLatch.countDown();
                 } else {
                     logger.info("job second fire");
                     secondLatch.countDown();
                 }
-                runCount.incrementAndGet();
             }
         });
 
@@ -375,14 +374,13 @@ public class TickerScheduleEngineTests extends ESTestCase {
 
         engine.register(events -> {
             for (TriggerEvent ignored : events) {
-                if (runCount.get() == 0) {
+                if (runCount.getAndIncrement() == 0) {
                     logger.info("job first fire");
                     firstLatch.countDown();
                 } else {
                     logger.info("job second fire");
                     secondLatch.countDown();
                 }
-                runCount.incrementAndGet();
             }
         });
 
@@ -428,14 +426,13 @@ public class TickerScheduleEngineTests extends ESTestCase {
 
         engine.register(events -> {
             for (TriggerEvent ignored : events) {
-                if (runCount.get() == 0) {
+                if (runCount.getAndIncrement() == 0) {
                     logger.info("job first fire");
                     firstLatch.countDown();
                 } else {
                     logger.info("job second fire");
                     secondLatch.countDown();
                 }
-                runCount.incrementAndGet();
             }
         });
 
@@ -492,14 +489,13 @@ public class TickerScheduleEngineTests extends ESTestCase {
 
         engine.register(events -> {
             for (TriggerEvent ignored : events) {
-                if (runCount.get() == 0) {
+                if (runCount.getAndIncrement() == 0) {
                     logger.info("job first fire");
                     firstLatch.countDown();
                 } else {
                     logger.info("job second fire");
                     secondLatch.countDown();
                 }
-                runCount.incrementAndGet();
             }
         });
 

@@ -142,7 +142,7 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
 
     protected final DocumentMapper createDocumentMapper(XContentBuilder mappings, IndexMode indexMode) throws IOException {
         return switch (indexMode) {
-            case STANDARD -> createDocumentMapper(mappings);
+            case STANDARD, LOOKUP -> createDocumentMapper(mappings);
             case TIME_SERIES -> createTimeSeriesModeDocumentMapper(mappings);
             case LOGSDB -> createLogsModeDocumentMapper(mappings);
         };
@@ -170,7 +170,7 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
     }
 
     protected final DocumentMapper createDocumentMapper(String mappings) throws IOException {
-        MapperService mapperService = createMapperService(mapping(b -> {}));
+        var mapperService = createMapperService(mapping(b -> {}));
         merge(mapperService, mappings);
         return mapperService.documentMapper();
     }
@@ -890,24 +890,6 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
             new FieldMaskingReader(SourceFieldMapper.RECOVERY_SOURCE_NAME, reader),
             new FieldMaskingReader(SourceFieldMapper.RECOVERY_SOURCE_NAME, roundTripReader)
         );
-    }
-
-    protected static XContentBuilder syntheticSourceMapping(CheckedConsumer<XContentBuilder, IOException> buildFields) throws IOException {
-        return topMapping(b -> {
-            b.startObject("_source").field("mode", "synthetic").endObject();
-            b.startObject("properties");
-            buildFields.accept(b);
-            b.endObject();
-        });
-    }
-
-    protected static XContentBuilder syntheticSourceFieldMapping(CheckedConsumer<XContentBuilder, IOException> buildField)
-        throws IOException {
-        return syntheticSourceMapping(b -> {
-            b.startObject("field");
-            buildField.accept(b);
-            b.endObject();
-        });
     }
 
     protected static DirectoryReader wrapInMockESDirectoryReader(DirectoryReader directoryReader) throws IOException {

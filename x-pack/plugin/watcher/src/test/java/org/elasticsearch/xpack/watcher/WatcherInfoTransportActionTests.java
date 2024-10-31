@@ -26,7 +26,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ObjectPath;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.XPackFeatureSet;
+import org.elasticsearch.xpack.core.XPackFeatureUsage;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
 import org.elasticsearch.xpack.core.watcher.WatcherFeatureSetUsage;
 import org.elasticsearch.xpack.core.watcher.WatcherField;
@@ -155,9 +155,9 @@ public class WatcherInfoTransportActionTests extends ESTestCase {
         assertThat(spam, is(1L));
         BytesStreamOutput out = new BytesStreamOutput();
         watcherUsage.writeTo(out);
-        XPackFeatureSet.Usage serializedUsage = new WatcherFeatureSetUsage(out.bytes().streamInput());
+        XPackFeatureUsage serializedUsage = new WatcherFeatureSetUsage(out.bytes().streamInput());
 
-        for (XPackFeatureSet.Usage usage : Arrays.asList(watcherUsage, serializedUsage)) {
+        for (XPackFeatureUsage usage : Arrays.asList(watcherUsage, serializedUsage)) {
             XContentBuilder builder = jsonBuilder();
             usage.toXContent(builder, ToXContent.EMPTY_PARAMS);
 

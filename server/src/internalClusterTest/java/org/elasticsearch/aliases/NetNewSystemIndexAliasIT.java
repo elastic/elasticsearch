@@ -89,7 +89,6 @@ public class NetNewSystemIndexAliasIT extends ESIntegTestCase {
                         .setPrimaryIndex(SYSTEM_INDEX_NAME)
                         .setDescription("Test system index")
                         .setOrigin(getClass().getName())
-                        .setVersionMetaKey("version")
                         .setMappings(builder)
                         .setSettings(SETTINGS)
                         .setType(SystemIndexDescriptor.Type.INTERNAL_MANAGED)

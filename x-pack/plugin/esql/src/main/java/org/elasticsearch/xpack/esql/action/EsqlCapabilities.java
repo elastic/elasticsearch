@@ -441,7 +441,19 @@ public class EsqlCapabilities {
         /**
          * Support simplified syntax for named parameters for field and function names.
          */
-        NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES_SIMPLIFIED_SYNTAX(Build.current().isSnapshot());
+        NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES_SIMPLIFIED_SYNTAX(Build.current().isSnapshot()),
+
+        /**
+         * Fix pushdown of LIMIT past MV_EXPAND
+         */
+        ADD_LIMIT_INSIDE_MV_EXPAND,
+
+        /**
+         * WIP on Join planning
+         * - Introduce BinaryPlan and co
+         * - Refactor INLINESTATS and LOOKUP as a JOIN block
+         */
+        JOIN_PLANNING_V1(Build.current().isSnapshot());
 
         private final boolean enabled;
 

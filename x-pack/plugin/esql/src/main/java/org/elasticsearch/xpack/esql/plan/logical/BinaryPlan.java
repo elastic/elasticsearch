@@ -6,9 +6,12 @@
  */
 package org.elasticsearch.xpack.esql.plan.logical;
 
+import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 import java.util.Arrays;
+import java.util.List;
 import java.util.Objects;
 
 public abstract class BinaryPlan extends LogicalPlan {
@@ -28,6 +31,26 @@ public abstract class BinaryPlan extends LogicalPlan {
     public LogicalPlan right() {
         return right;
     }
+
+    @Override
+    public final BinaryPlan replaceChildren(List<LogicalPlan> newChildren) {
+        return replaceChildren(newChildren.get(0), newChildren.get(1));
+    }
+
+    public final BinaryPlan replaceLeft(LogicalPlan newLeft) {
+        return replaceChildren(newLeft, right);
+    }
+
+    public final BinaryPlan replaceRight(LogicalPlan newRight) {
+        return replaceChildren(left, newRight);
+    }
+
+    protected AttributeSet computeReferences() {
+        // TODO: this needs to be driven by the join config
+        return Expressions.references(output());
+    }
+
+    public abstract BinaryPlan replaceChildren(LogicalPlan left, LogicalPlan right);
 
     @Override
     public boolean equals(Object obj) {

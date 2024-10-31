@@ -45,7 +45,7 @@ public class EsqlSessionTests extends ESTestCase {
             executionInfo.swapCluster(remote1Alias, (k, v) -> new EsqlExecutionInfo.Cluster(remote1Alias, "*", true));
             executionInfo.swapCluster(remote2Alias, (k, v) -> new EsqlExecutionInfo.Cluster(remote2Alias, "mylogs1,mylogs2,logs*", true));
 
-            String indexExpr = EsqlSession.createIndexExpressionFromAvailableClusters(executionInfo);
+            String indexExpr = CcsUtils.createIndexExpressionFromAvailableClusters(executionInfo);
             List<String> list = Arrays.stream(Strings.splitStringByCommaToArray(indexExpr)).toList();
             assertThat(list.size(), equalTo(5));
             assertThat(
@@ -69,7 +69,7 @@ public class EsqlSessionTests extends ESTestCase {
                 )
             );
 
-            String indexExpr = EsqlSession.createIndexExpressionFromAvailableClusters(executionInfo);
+            String indexExpr = CcsUtils.createIndexExpressionFromAvailableClusters(executionInfo);
             List<String> list = Arrays.stream(Strings.splitStringByCommaToArray(indexExpr)).toList();
             assertThat(list.size(), equalTo(3));
             assertThat(new HashSet<>(list), equalTo(Strings.commaDelimitedListToSet("logs*,remote1:*,remote1:foo")));
@@ -93,7 +93,7 @@ public class EsqlSessionTests extends ESTestCase {
                 )
             );
 
-            assertThat(EsqlSession.createIndexExpressionFromAvailableClusters(executionInfo), equalTo("logs*"));
+            assertThat(CcsUtils.createIndexExpressionFromAvailableClusters(executionInfo), equalTo("logs*"));
         }
 
         // only remotes present and all marked as skipped, so in revised index expression should be empty string
@@ -113,7 +113,7 @@ public class EsqlSessionTests extends ESTestCase {
                 )
             );
 
-            assertThat(EsqlSession.createIndexExpressionFromAvailableClusters(executionInfo), equalTo(""));
+            assertThat(CcsUtils.createIndexExpressionFromAvailableClusters(executionInfo), equalTo(""));
         }
     }
 
@@ -131,7 +131,7 @@ public class EsqlSessionTests extends ESTestCase {
 
             var failure = new FieldCapabilitiesFailure(new String[] { "logs-a" }, new NoSeedNodeLeftException("unable to connect"));
             var unvailableClusters = Map.of(remote1Alias, failure, remote2Alias, failure);
-            EsqlSession.updateExecutionInfoWithUnavailableClusters(executionInfo, unvailableClusters);
+            CcsUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, unvailableClusters);
 
             assertThat(executionInfo.clusterAliases(), equalTo(Set.of(localClusterAlias, remote1Alias, remote2Alias)));
             assertNull(executionInfo.overallTook());
@@ -159,7 +159,7 @@ public class EsqlSessionTests extends ESTestCase {
             var failure = new FieldCapabilitiesFailure(new String[] { "logs-a" }, new NoSeedNodeLeftException("unable to connect"));
             RemoteTransportException e = expectThrows(
                 RemoteTransportException.class,
-                () -> EsqlSession.updateExecutionInfoWithUnavailableClusters(executionInfo, Map.of(remote2Alias, failure))
+                () -> CcsUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, Map.of(remote2Alias, failure))
             );
             assertThat(e.status().getStatus(), equalTo(500));
             assertThat(
@@ -176,7 +176,7 @@ public class EsqlSessionTests extends ESTestCase {
             executionInfo.swapCluster(remote1Alias, (k, v) -> new EsqlExecutionInfo.Cluster(remote1Alias, "*", true));
             executionInfo.swapCluster(remote2Alias, (k, v) -> new EsqlExecutionInfo.Cluster(remote2Alias, "mylogs1,mylogs2,logs*", false));
 
-            EsqlSession.updateExecutionInfoWithUnavailableClusters(executionInfo, Map.of());
+            CcsUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, Map.of());
 
             assertThat(executionInfo.clusterAliases(), equalTo(Set.of(localClusterAlias, remote1Alias, remote2Alias)));
             assertNull(executionInfo.overallTook());
@@ -224,7 +224,7 @@ public class EsqlSessionTests extends ESTestCase {
             );
             IndexResolution indexResolution = IndexResolution.valid(esIndex, Map.of());
 
-            EsqlSession.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, indexResolution);
+            CcsUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, indexResolution);
 
             EsqlExecutionInfo.Cluster localCluster = executionInfo.getCluster(localClusterAlias);
             assertThat(localCluster.getIndexExpression(), equalTo("logs*"));
@@ -262,7 +262,7 @@ public class EsqlSessionTests extends ESTestCase {
             );
             IndexResolution indexResolution = IndexResolution.valid(esIndex, Map.of());
 
-            EsqlSession.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, indexResolution);
+            CcsUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, indexResolution);
 
             EsqlExecutionInfo.Cluster localCluster = executionInfo.getCluster(localClusterAlias);
             assertThat(localCluster.getIndexExpression(), equalTo("logs*"));
@@ -298,7 +298,7 @@ public class EsqlSessionTests extends ESTestCase {
             var failure = new FieldCapabilitiesFailure(new String[] { "logs-a" }, new NoSeedNodeLeftException("unable to connect"));
             IndexResolution indexResolution = IndexResolution.valid(esIndex, Map.of(remote1Alias, failure));
 
-            EsqlSession.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, indexResolution);
+            CcsUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, indexResolution);
 
             EsqlExecutionInfo.Cluster localCluster = executionInfo.getCluster(localClusterAlias);
             assertThat(localCluster.getIndexExpression(), equalTo("logs*"));
@@ -336,7 +336,7 @@ public class EsqlSessionTests extends ESTestCase {
 
             var failure = new FieldCapabilitiesFailure(new String[] { "logs-a" }, new NoSeedNodeLeftException("unable to connect"));
             IndexResolution indexResolution = IndexResolution.valid(esIndex, Map.of(remote1Alias, failure));
-            EsqlSession.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, indexResolution);
+            CcsUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, indexResolution);
         }
     }
 
@@ -358,7 +358,7 @@ public class EsqlSessionTests extends ESTestCase {
             Thread.sleep(1);
         } catch (InterruptedException e) {}
 
-        EsqlSession.updateExecutionInfoAtEndOfPlanning(executionInfo);
+        CcsUtils.updateExecutionInfoAtEndOfPlanning(executionInfo);
 
         assertThat(executionInfo.planningTookTime().millis(), greaterThanOrEqualTo(0L));
         assertNull(executionInfo.overallTook());

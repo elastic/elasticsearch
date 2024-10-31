@@ -36,8 +36,8 @@ public class SourceFieldMetricsTests extends MapperServiceTestCase {
     public void testFieldHasValueWithEmptyFieldInfos() {}
 
     public void testSyntheticSourceLoadLatency() throws IOException {
-        var mapping = syntheticSourceMapping(b -> b.startObject("kwd").field("type", "keyword").endObject());
-        var mapper = createDocumentMapper(mapping);
+        var mapping = mapping(b -> b.startObject("kwd").field("type", "keyword").endObject());
+        var mapper = createSytheticSourceMapperService(mapping).documentMapper();
 
         try (Directory directory = newDirectory()) {
             RandomIndexWriter iw = new RandomIndexWriter(random(), directory);

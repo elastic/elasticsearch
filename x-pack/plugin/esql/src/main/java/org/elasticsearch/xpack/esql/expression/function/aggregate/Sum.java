@@ -9,7 +9,10 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.IntermediateStateDesc;
+import org.elasticsearch.compute.aggregation.OverflowingSumLongAggregatorFunction;
 import org.elasticsearch.compute.aggregation.OverflowingSumLongAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.OverflowingSumLongGroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SumDoubleAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.SumIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.SumLongAggregatorFunctionSupplier;
@@ -27,6 +30,7 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSum;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
+import org.elasticsearch.xpack.esql.planner.ToIntermediateState;
 import org.elasticsearch.xpack.esql.plugin.EsqlFeatures;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
@@ -43,7 +47,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 /**
  * Sum all values of a field in matching documents.
  */
-public class Sum extends ConfigurationAggregateFunction implements ToAggregator, SurrogateExpression {
+public class Sum extends ConfigurationAggregateFunction implements ToAggregator, ToIntermediateState, SurrogateExpression {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Sum", Sum::new);
 
     @FunctionInfo(
@@ -131,6 +135,17 @@ public class Sum extends ConfigurationAggregateFunction implements ToAggregator,
             return new SumDoubleAggregatorFunctionSupplier(inputChannels);
         }
         throw EsqlIllegalArgumentException.illegalDataType(type);
+    }
+
+    @Override
+    public List<IntermediateStateDesc> intermediateState(boolean grouping) {
+        DataType type = field().dataType();
+        if (type == DataType.LONG && configuration().clusterHasFeature(EsqlFeatures.FN_SUM_OVERFLOW_HANDLING) == false) {
+            return grouping
+                ? OverflowingSumLongGroupingAggregatorFunction.intermediateStateDesc()
+                : OverflowingSumLongAggregatorFunction.intermediateStateDesc();
+        }
+        return null;
     }
 
     @Override

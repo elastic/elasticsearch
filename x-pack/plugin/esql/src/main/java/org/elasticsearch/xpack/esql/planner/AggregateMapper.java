@@ -131,11 +131,16 @@ final class AggregateMapper {
     }
 
     private static List<NamedExpression> computeEntryForAgg(Expression aggregate, boolean grouping) {
+        if (aggregate instanceof ToIntermediateState intermediateStateGetter) {
+            var intermediateStates = intermediateStateGetter.intermediateState(grouping);
+            if (intermediateStates != null) {
+                return isToNE(intermediateStates).toList();
+            }
+        }
         var aggDef = aggDefOrNull(aggregate, grouping);
         if (aggDef != null) {
-            var is = getNonNull(aggDef);
-            var exp = isToNE(is).toList();
-            return exp;
+            var intermediateStates = getNonNull(aggDef);
+            return isToNE(intermediateStates).toList();
         }
         if (aggregate instanceof FieldAttribute || aggregate instanceof MetadataAttribute || aggregate instanceof ReferenceAttribute) {
             // This condition is a little pedantic, but do we expected other expressions here? if so, then add them

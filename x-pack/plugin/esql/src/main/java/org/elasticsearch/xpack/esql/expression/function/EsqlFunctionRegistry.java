@@ -262,7 +262,7 @@ public class EsqlFunctionRegistry {
             // since they declare two public constructors - one with filter (for nested where) and one without
             // use casting to disambiguate between the two
             new FunctionDefinition[] {
-                def(Avg.class, uni(Avg::new), "avg"),
+                def(Avg.class, uniConfig(Avg::new), "avg"),
                 def(Count.class, uni(Count::new), "count"),
                 def(CountDistinct.class, bi(CountDistinct::new), "count_distinct"),
                 def(Max.class, uni(Max::new), "max"),
@@ -270,10 +270,10 @@ public class EsqlFunctionRegistry {
                 def(MedianAbsoluteDeviation.class, uni(MedianAbsoluteDeviation::new), "median_absolute_deviation"),
                 def(Min.class, uni(Min::new), "min"),
                 def(Percentile.class, bi(Percentile::new), "percentile"),
-                def(Sum.class, uni(Sum::new), "sum"),
+                def(Sum.class, uniConfig(Sum::new), "sum"),
                 def(Top.class, tri(Top::new), "top"),
                 def(Values.class, uni(Values::new), "values"),
-                def(WeightedAvg.class, bi(WeightedAvg::new), "weighted_avg") },
+                def(WeightedAvg.class, biConfig(WeightedAvg::new), "weighted_avg") },
             // math
             new FunctionDefinition[] {
                 def(Abs.class, Abs::new, "abs"),
@@ -935,8 +935,14 @@ public class EsqlFunctionRegistry {
     private static <T extends Function> BiFunction<Source, Expression, T> uni(BiFunction<Source, Expression, T> function) {
         return function;
     }
+    private static <T extends Function> UnaryConfigurationAwareBuilder<T> uniConfig(UnaryConfigurationAwareBuilder<T> function) {
+        return function;
+    }
 
     private static <T extends Function> BinaryBuilder<T> bi(BinaryBuilder<T> function) {
+        return function;
+    }
+    private static <T extends Function> BinaryConfigurationAwareBuilder<T> biConfig(BinaryConfigurationAwareBuilder<T> function) {
         return function;
     }
 

@@ -178,6 +178,11 @@ public class EsqlFeatures implements FeatureSpecification {
      */
     public static final NodeFeature RESOLVE_FIELDS_API = new NodeFeature("esql.resolve_fields_api");
 
+    /**
+     * Overflow handling for Sum aggregation function
+     */
+    public static final NodeFeature FN_SUM_OVERFLOW_HANDLING = new NodeFeature("esql.fn_sum_overflow_handling");
+
     private Set<NodeFeature> snapshotBuildFeatures() {
         assert Build.current().isSnapshot() : Build.current();
         return Set.of(METRICS_SYNTAX);
@@ -207,7 +212,8 @@ public class EsqlFeatures implements FeatureSpecification {
             METADATA_FIELDS,
             TIMESPAN_ABBREVIATIONS,
             COUNTER_TYPES,
-            RESOLVE_FIELDS_API
+            RESOLVE_FIELDS_API,
+            FN_SUM_OVERFLOW_HANDLING
         );
         if (Build.current().isSnapshot()) {
             return Collections.unmodifiableSet(Sets.union(features, snapshotBuildFeatures()));

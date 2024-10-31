@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvAvg;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
 import java.util.List;
@@ -34,7 +35,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
-public class WeightedAvg extends AggregateFunction implements SurrogateExpression, Validatable {
+public class WeightedAvg extends ConfigurationAggregateFunction implements SurrogateExpression, Validatable {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "WeightedAvg",
@@ -54,13 +55,14 @@ public class WeightedAvg extends AggregateFunction implements SurrogateExpressio
     public WeightedAvg(
         Source source,
         @Param(name = "number", type = { "double", "integer", "long" }, description = "A numeric value.") Expression field,
-        @Param(name = "weight", type = { "double", "integer", "long" }, description = "A numeric weight.") Expression weight
+        @Param(name = "weight", type = { "double", "integer", "long" }, description = "A numeric weight.") Expression weight,
+        Configuration configuration
     ) {
-        this(source, field, Literal.TRUE, weight);
+        this(source, field, Literal.TRUE, weight, configuration);
     }
 
-    public WeightedAvg(Source source, Expression field, Expression filter, Expression weight) {
-        super(source, field, filter, List.of(weight));
+    public WeightedAvg(Source source, Expression field, Expression filter, Expression weight, Configuration configuration) {
+        super(source, field, filter, List.of(weight), configuration);
         this.weight = weight;
     }
 
@@ -73,7 +75,8 @@ public class WeightedAvg extends AggregateFunction implements SurrogateExpressio
                 : Literal.TRUE,
             in.getTransportVersion().onOrAfter(TransportVersions.ESQL_PER_AGGREGATE_FILTER)
                 ? in.readNamedWriteableCollectionAsList(Expression.class).get(0)
-                : in.readNamedWriteable(Expression.class)
+                : in.readNamedWriteable(Expression.class),
+            ((PlanStreamInput) in).configuration()
         );
     }
 
@@ -132,17 +135,17 @@ public class WeightedAvg extends AggregateFunction implements SurrogateExpressio
 
     @Override
     protected NodeInfo<WeightedAvg> info() {
-        return NodeInfo.create(this, WeightedAvg::new, field(), filter(), weight);
+        return NodeInfo.create(this, WeightedAvg::new, field(), filter(), weight, configuration());
     }
 
     @Override
     public WeightedAvg replaceChildren(List<Expression> newChildren) {
-        return new WeightedAvg(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
+        return new WeightedAvg(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2), configuration());
     }
 
     @Override
     public WeightedAvg withFilter(Expression filter) {
-        return new WeightedAvg(source(), field(), filter, weight());
+        return new WeightedAvg(source(), field(), filter, weight(), configuration());
     }
 
     @Override
@@ -155,9 +158,9 @@ public class WeightedAvg extends AggregateFunction implements SurrogateExpressio
             return new MvAvg(s, field);
         }
         if (weight.foldable()) {
-            return new Div(s, new Sum(s, field), new Count(s, field), dataType());
+            return new Div(s, new Sum(s, field, configuration()), new Count(s, field), dataType());
         } else {
-            return new Div(s, new Sum(s, new Mul(s, field, weight)), new Sum(s, weight), dataType());
+            return new Div(s, new Sum(s, new Mul(s, field, weight), configuration()), new Sum(s, weight, configuration()), dataType());
         }
     }
 

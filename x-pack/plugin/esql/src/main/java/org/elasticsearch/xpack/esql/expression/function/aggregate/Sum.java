@@ -12,6 +12,7 @@ import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.SumDoubleAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.SumIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.SumLongAggregatorFunctionSupplier;
+import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -24,11 +25,16 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSum;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
+import org.elasticsearch.xpack.esql.planner.ToAggregator;
+import org.elasticsearch.xpack.esql.plugin.EsqlFeatures;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
 import java.util.List;
 
 import static java.util.Collections.emptyList;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
@@ -36,7 +42,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 /**
  * Sum all values of a field in matching documents.
  */
-public class Sum extends NumericAggregate implements SurrogateExpression {
+public class Sum extends ConfigurationAggregateFunction implements ToAggregator, SurrogateExpression {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Sum", Sum::new);
 
     @FunctionInfo(
@@ -53,12 +59,16 @@ public class Sum extends NumericAggregate implements SurrogateExpression {
                 tag = "docsStatsSumNestedExpression"
             ) }
     )
-    public Sum(Source source, @Param(name = "number", type = { "double", "integer", "long" }) Expression field) {
-        this(source, field, Literal.TRUE);
+    public Sum(
+        Source source,
+        @Param(name = "number", type = { "double", "integer", "long" }) Expression field,
+        Configuration configuration
+    ) {
+        this(source, field, Literal.TRUE, configuration);
     }
 
-    public Sum(Source source, Expression field, Expression filter) {
-        super(source, field, filter, emptyList());
+    public Sum(Source source, Expression field, Expression filter, Configuration configuration) {
+        super(source, field, filter, emptyList(), configuration);
     }
 
     private Sum(StreamInput in) throws IOException {
@@ -72,17 +82,28 @@ public class Sum extends NumericAggregate implements SurrogateExpression {
 
     @Override
     protected NodeInfo<Sum> info() {
-        return NodeInfo.create(this, Sum::new, field(), filter());
+        return NodeInfo.create(this, Sum::new, field(), filter(), configuration());
     }
 
     @Override
     public Sum replaceChildren(List<Expression> newChildren) {
-        return new Sum(source(), newChildren.get(0), newChildren.get(1));
+        return new Sum(source(), newChildren.get(0), newChildren.get(1), configuration());
     }
 
     @Override
     public Sum withFilter(Expression filter) {
-        return new Sum(source(), field(), filter);
+        return new Sum(source(), field(), filter, configuration());
+    }
+
+    @Override
+    protected TypeResolution resolveType() {
+        return isType(
+            field(),
+            dt -> dt.isNumeric() && dt != DataType.UNSIGNED_LONG,
+            sourceText(),
+            DEFAULT,
+            "numeric except unsigned_long or counter types"
+        );
     }
 
     @Override
@@ -92,19 +113,23 @@ public class Sum extends NumericAggregate implements SurrogateExpression {
     }
 
     @Override
-    protected AggregatorFunctionSupplier longSupplier(List<Integer> inputChannels) {
-        var location = source().source();
-        return new SumLongAggregatorFunctionSupplier(location.getLineNumber(), location.getColumnNumber(), source().text(), inputChannels);
-    }
-
-    @Override
-    protected AggregatorFunctionSupplier intSupplier(List<Integer> inputChannels) {
-        return new SumIntAggregatorFunctionSupplier(inputChannels);
-    }
-
-    @Override
-    protected AggregatorFunctionSupplier doubleSupplier(List<Integer> inputChannels) {
-        return new SumDoubleAggregatorFunctionSupplier(inputChannels);
+    public final AggregatorFunctionSupplier supplier(List<Integer> inputChannels) {
+        DataType type = field().dataType();
+        if (type == DataType.LONG) {
+            // Old Sum without overflow handling
+            if (configuration().clusterHasFeature(EsqlFeatures.FN_SUM_OVERFLOW_HANDLING) == false) {
+                // return new SumLongAggregatorFunctionSupplier(inputChannels);
+            }
+            var location = source().source();
+            return new SumLongAggregatorFunctionSupplier(location.getLineNumber(), location.getColumnNumber(), source().text(), inputChannels);
+        }
+        if (type == DataType.INTEGER) {
+            return new SumIntAggregatorFunctionSupplier(inputChannels);
+        }
+        if (type == DataType.DOUBLE) {
+            return new SumDoubleAggregatorFunctionSupplier(inputChannels);
+        }
+        throw EsqlIllegalArgumentException.illegalDataType(type);
     }
 
     @Override

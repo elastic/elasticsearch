@@ -8,13 +8,17 @@
 package org.elasticsearch.xpack.esql.session;
 
 import org.elasticsearch.TransportVersions;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.compute.data.BlockStreamInput;
+import org.elasticsearch.features.FeatureService;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.xpack.esql.Column;
+import org.elasticsearch.xpack.esql.plugin.EsqlFeatures;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.io.IOException;
@@ -27,6 +31,8 @@ import java.time.ZonedDateTime;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.unit.ByteSizeUnit.KB;
 
@@ -53,7 +59,11 @@ public class Configuration implements Writeable {
     private final Map<String, Map<String, Column>> tables;
     private final long queryStartTimeNanos;
 
+    private final Set<String> activeEsqlFeatures;
+
     public Configuration(
+        FeatureService featureService,
+        ClusterService clusterService,
         ZoneId zi,
         Locale locale,
         String username,
@@ -79,6 +89,10 @@ public class Configuration implements Writeable {
         this.tables = tables;
         assert tables != null;
         this.queryStartTimeNanos = queryStartTimeNanos;
+        this.activeEsqlFeatures = new EsqlFeatures().getFeatures().stream()
+            .filter(f -> featureService.clusterHasFeature(clusterService.state(), f))
+            .map(NodeFeature::id)
+            .collect(Collectors.toSet());
     }
 
     public Configuration(BlockStreamInput in) throws IOException {
@@ -106,6 +120,11 @@ public class Configuration implements Writeable {
         } else {
             this.queryStartTimeNanos = -1;
         }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_CONFIGURATION_WITH_FEATURES)) {
+            this.activeEsqlFeatures = in.readCollectionAsImmutableSet(StreamInput::readString);
+        } else {
+            this.activeEsqlFeatures = Set.of();
+        }
     }
 
     @Override
@@ -129,6 +148,9 @@ public class Configuration implements Writeable {
         }
         if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_CCS_EXECUTION_INFO)) {
             out.writeLong(queryStartTimeNanos);
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_CONFIGURATION_WITH_FEATURES)) {
+            out.writeCollection(activeEsqlFeatures, StreamOutput::writeString);
         }
     }
 
@@ -196,6 +218,10 @@ public class Configuration implements Writeable {
      */
     public boolean profile() {
         return profile;
+    }
+
+    public boolean clusterHasFeature(NodeFeature feature) {
+        return activeEsqlFeatures.contains(feature.id());
     }
 
     private static void writeQuery(StreamOutput out, String query) throws IOException {

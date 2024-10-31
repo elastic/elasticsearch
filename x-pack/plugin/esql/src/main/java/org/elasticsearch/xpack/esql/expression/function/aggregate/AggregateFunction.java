@@ -85,7 +85,7 @@ public abstract class AggregateFunction extends Function {
     }
 
     @Override
-    public final void writeTo(StreamOutput out) throws IOException {
+    public void writeTo(StreamOutput out) throws IOException {
         Source.EMPTY.writeTo(out);
         out.writeNamedWriteable(field);
         if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_PER_AGGREGATE_FILTER)) {

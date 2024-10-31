@@ -19,6 +19,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.tasks.CancellableTask;
@@ -62,6 +63,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     private final ComputeService computeService;
     private final ExchangeService exchangeService;
     private final ClusterService clusterService;
+    private final FeatureService featureService;
     private final Executor requestExecutor;
     private final EnrichPolicyResolver enrichPolicyResolver;
     private final EnrichLookupService enrichLookupService;
@@ -78,18 +80,19 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         SearchService searchService,
         ExchangeService exchangeService,
         ClusterService clusterService,
+        FeatureService featureService,
         ThreadPool threadPool,
         BigArrays bigArrays,
         BlockFactory blockFactory,
         Client client,
         NamedWriteableRegistry registry
-
     ) {
         // TODO replace SAME when removing workaround for https://github.com/elastic/elasticsearch/issues/97916
         super(EsqlQueryAction.NAME, transportService, actionFilters, EsqlQueryRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.threadPool = threadPool;
         this.planExecutor = planExecutor;
         this.clusterService = clusterService;
+        this.featureService = featureService;
         this.requestExecutor = threadPool.executor(ThreadPool.Names.SEARCH);
         exchangeService.registerTransportHandler(transportService);
         this.exchangeService = exchangeService;
@@ -155,6 +158,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
 
     private void innerExecute(Task task, EsqlQueryRequest request, ActionListener<EsqlQueryResponse> listener) {
         Configuration configuration = new Configuration(
+            featureService,
+            clusterService,
             ZoneOffset.UTC,
             request.locale() != null ? request.locale() : Locale.US,
             // TODO: plug-in security

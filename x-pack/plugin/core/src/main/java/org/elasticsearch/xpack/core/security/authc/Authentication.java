@@ -1334,9 +1334,9 @@ public final class Authentication implements ToXContentObject {
                 );
             }
 
-            // removes the entire remote_cluster field from the role descriptors
             if (authentication.getEffectiveSubject().getTransportVersion().onOrAfter(ROLE_REMOTE_CLUSTER_PRIVS)
                 && streamVersion.before(ROLE_REMOTE_CLUSTER_PRIVS)) {
+                // if the remote does not understand the remote_cluster field remove it
                 metadata = new HashMap<>(metadata);
                 metadata.put(
                     AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY,
@@ -1354,8 +1354,7 @@ public final class Authentication implements ToXContentObject {
                 .getTransportVersion()
                 .onOrAfter(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY)
                 && streamVersion.onOrAfter(ROLE_REMOTE_CLUSTER_PRIVS)) {
-                    // the remote cluster understands remote_cluster field in role descriptors, so check each permission and remove as
-                    // needed
+                    // the remote does understand the remote_cluster field, so check each permission and remove permission as needed
                     metadata = new HashMap<>(metadata);
                     metadata.put(
                         AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY,
@@ -1487,7 +1486,7 @@ public final class Authentication implements ToXContentObject {
 
     /**
      * Before we send the role descriptors to the remote cluster, we need to remove the remote cluster privileges that the other cluster
-     * will not understand.
+     * will not understand. If all privileges are removed, then the entire "remote_cluster" is removed to avoid sending empty privileges.
      * @param roleDescriptorsBytes The role descriptors to be sent to the remote cluster, represented as bytes.
      * @return The role descriptors with the privileges that unsupported by version removed, represented as bytes.
      */
@@ -1516,18 +1515,31 @@ public final class Authentication implements ToXContentObject {
                         if (mutated.equals(discoveredRemoteClusterPermission) == false) {
                             // swap out the old value with the new value
                             modified.set(true);
-                            Map<String, Object> remoteClusterMap = ((Map<String, Object>) roleDescriptorsMapMutated.get(key));
-                            remoteClusterMap.put(innerKey, mutated.toMap());
+                            Map<String, Object> remoteClusterMap = new HashMap<>((Map<String, Object>) roleDescriptorsMapMutated.get(key));
+                            if(mutated.hasPrivileges()){
+                                //has at least one group with privileges
+                                remoteClusterMap.put(innerKey, mutated.toMap());
+                            }else {
+                                //has no groups with privileges
+                                remoteClusterMap.remove(innerKey);
+                            }
+                            roleDescriptorsMapMutated.put(key, remoteClusterMap);
                         }
                     }
                 });
             }
         });
-
         if (modified.get()) {
+            logger.debug(
+                "mutated role descriptors. Changed from {} to {} for outbound version {}",
+                roleDescriptorsMap,
+                roleDescriptorsMapMutated,
+                outboundVersion
+            );
             return convertRoleDescriptorsMapToBytes(roleDescriptorsMapMutated);
         } else {
             // No need to serialize if we did not change anything.
+            logger.trace("no change to role descriptors {} for outbound version {}", roleDescriptorsMap, outboundVersion);
             return roleDescriptorsBytes;
         }
     }

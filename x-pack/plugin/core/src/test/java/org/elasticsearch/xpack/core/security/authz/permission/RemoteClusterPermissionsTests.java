@@ -32,6 +32,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.TransportVersions.ROLE_MONITOR_STATS;
+import static org.elasticsearch.core.Booleans.isFalse;
 import static org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions.ROLE_REMOTE_CLUSTER_PRIVS;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -208,6 +209,31 @@ public class RemoteClusterPermissionsTests extends AbstractXContentSerializingTe
         assertEquals(remoteClusterPermissions, remoteClusterPermissionsAsMap);
     }
 
+    public void testRemoveUnsupportedPrivilegesExplicit() {
+
+//        RemoteClusterPermissions remoteClusterPermissions = new RemoteClusterPermissions();
+//        RemoteClusterPermissionGroup group = new RemoteClusterPermissionGroup(new String[] { "monitor_enrich" }, new String[] { "*" });
+//        remoteClusterPermissions.addGroup(group);
+//        assertEquals(remoteClusterPermissions, remoteClusterPermissions.removeUnsupportedPrivileges(ROLE_REMOTE_CLUSTER_PRIVS));
+//        assertEquals(remoteClusterPermissions, remoteClusterPermissions.removeUnsupportedPrivileges(ROLE_MONITOR_STATS));
+//
+//        remoteClusterPermissions = new RemoteClusterPermissions();
+//        group = new RemoteClusterPermissionGroup(new String[] { "monitor_stats" }, new String[] { "*" });
+//        remoteClusterPermissions.addGroup(group);
+//        assertNotEquals(remoteClusterPermissions, remoteClusterPermissions.removeUnsupportedPrivileges(ROLE_REMOTE_CLUSTER_PRIVS));
+//        assertFalse(remoteClusterPermissions.hasPrivileges());
+//        assertEquals(remoteClusterPermissions, remoteClusterPermissions.removeUnsupportedPrivileges(ROLE_MONITOR_STATS));
+//
+//
+//
+////        RemoteClusterPermissions allowed = new RemoteClusterPermissions().addGroup(group);
+////        RemoteClusterPermissions removed = new RemoteClusterPermissions().addGroup(new RemoteClusterPermissionGroup(new String[] { "monitor_stats" }, new String[] { "*" }));
+////        assertEquals(allowed, remoteClusterPermissions.removeUnsupportedPrivileges(ROLE_REMOTE_CLUSTER_PRIVS));
+////        assertEquals(removed, remoteClusterPermissions.removeUnsupportedPrivileges(ROLE_MONITOR_STATS));
+//
+//
+//        //Randomized test for all privileges and versions
+    }
     private List<RemoteClusterPermissionGroup> generateRandomGroups(boolean fuzzyCluster) {
         clean();
         List<RemoteClusterPermissionGroup> groups = new ArrayList<>();

@@ -14,6 +14,8 @@ import org.apache.http.entity.StringEntity;
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
+import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
+import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
@@ -21,6 +23,7 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.fieldcaps.TransportFieldCapabilitiesAction;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Cancellable;
 import org.elasticsearch.client.Request;
@@ -317,6 +320,67 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
         assertIndices(response1, "old_index", "new_index");
         FieldCapabilitiesResponse response2 = client().prepareFieldCaps("current", "old_index", "new_index").setFields("*").get();
         assertEquals(response1, response2);
+    }
+
+    public void testClosedIndexNoIndices() {
+        boolean ignoreUnavailable = true;
+        IndicesOptions options = IndicesOptions.fromOptions(ignoreUnavailable, true, true, false);
+
+        // No indices in request
+        FieldCapabilitiesResponse response = client().prepareFieldCaps().setFields("*").setIndicesOptions(options).get();
+        assertIndices(response, "old_index", "new_index");
+
+        client().admin().indices().close(new CloseIndexRequest("old_index")).actionGet();
+
+        response = client().prepareFieldCaps().setFields("*").setIndicesOptions(options).get();
+        assertIndices(response, "new_index");
+    }
+
+    public void testClosedIndexOneIndex() {
+        boolean ignoreUnavailable = true;
+        IndicesOptions options = IndicesOptions.fromOptions(ignoreUnavailable, true, true, false);
+
+        FieldCapabilitiesResponse response = client().prepareFieldCaps("old_index").setFields("*").setIndicesOptions(options).get();
+        assertIndices(response, "old_index");
+
+        client().admin().indices().close(new CloseIndexRequest("old_index")).actionGet();
+
+        response = client().prepareFieldCaps("old_index").setFields("*").setIndicesOptions(options).get();
+        assertIndices(response);
+    }
+
+    public void testClosedIndexTwoIndices() {
+        boolean ignoreUnavailable = true;
+        IndicesOptions options = IndicesOptions.fromOptions(ignoreUnavailable, true, true, false);
+
+        FieldCapabilitiesResponse response = client().prepareFieldCaps("old_index", "new_index")
+                                                     .setFields("*")
+                                                     .setIndicesOptions(options).get();
+        assertIndices(response, "old_index", "new_index");
+
+        client().admin().indices().close(new CloseIndexRequest("old_index")).actionGet();
+
+        response = client().prepareFieldCaps("old_index", "new_index")
+                           .setFields("*")
+                           .setIndicesOptions(options).get();
+        assertIndices(response, "new_index");
+    }
+
+    public void testClosedIndexTwoIndicesOneNotExisting() {
+        boolean ignoreUnavailable = true;
+        IndicesOptions options = IndicesOptions.fromOptions(ignoreUnavailable, true, true, false);
+
+        FieldCapabilitiesResponse response = client().prepareFieldCaps("old_index", "not_existing")
+            .setFields("*")
+            .setIndicesOptions(options).get();
+        assertIndices(response, "old_index");
+
+        client().admin().indices().close(new CloseIndexRequest("old_index")).actionGet();
+
+        response = client().prepareFieldCaps("old_index", "not_existing")
+            .setFields("*")
+            .setIndicesOptions(options).get();
+        assertIndices(response);
     }
 
     public void testWithIndexFilter() throws InterruptedException {

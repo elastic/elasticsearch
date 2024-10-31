@@ -1732,7 +1732,7 @@ public class IndexNameExpressionResolver {
                     throw new InvalidIndexNameException(expression, "must not start with '_'.");
                 }
                 final boolean isWildcard = expandWildcards && isWildcard(expression);
-                if (isWildcard || (wildcardSeen && expression.charAt(0) == '-') || ensureAliasOrIndexExists(context, expression)) {
+                if (isWildcard || (wildcardSeen && expression.charAt(0) == '-') || ensureAliasOrIndexExistsAnOpen(context, expression)) {
                     if (result != null) {
                         result.add(expression);
                     }
@@ -1753,7 +1753,7 @@ public class IndexNameExpressionResolver {
          * exception.
          */
         @Nullable
-        private static boolean ensureAliasOrIndexExists(Context context, String name) {
+        private static boolean ensureAliasOrIndexExistsAnOpen(Context context, String name) {
             boolean ignoreUnavailable = context.getOptions().ignoreUnavailable();
             IndexAbstraction indexAbstraction = context.getState().getMetadata().getIndicesLookup().get(name);
             if (indexAbstraction == null) {
@@ -1763,6 +1763,12 @@ public class IndexNameExpressionResolver {
                     throw notFoundException(name);
                 }
             }
+
+            IndexMetadata metadata = context.getState().getMetadata().getIndices().get(name);
+            if (metadata != null && metadata.getState() == IndexMetadata.State.CLOSE && ignoreUnavailable) {
+                return false;
+            }
+
             // treat aliases as unavailable indices when ignoreAliases is set to true (e.g. delete index and update aliases api)
             if (indexAbstraction.getType() == Type.ALIAS && context.getOptions().ignoreAliases()) {
                 if (ignoreUnavailable) {

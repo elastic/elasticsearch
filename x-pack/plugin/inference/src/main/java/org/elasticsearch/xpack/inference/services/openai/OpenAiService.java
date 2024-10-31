@@ -11,18 +11,25 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
 import org.elasticsearch.inference.ChunkingOptions;
 import org.elasticsearch.inference.ChunkingSettings;
+import org.elasticsearch.inference.EmptySettingsConfiguration;
+import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
+import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.SimilarityMeasure;
+import org.elasticsearch.inference.TaskSettingsConfiguration;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.configuration.SettingsConfigurationDisplayType;
+import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.inference.ChunkingSettingsFeatureFlag;
 import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsBuilder;
@@ -38,22 +45,30 @@ import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsServiceSettings;
+import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
+import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.elasticsearch.xpack.inference.services.validation.ModelValidatorBuilder;
 
+import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
+import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.parsePersistedConfigErrorMsg;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
 import static org.elasticsearch.xpack.inference.services.openai.OpenAiServiceFields.EMBEDDING_MAX_BATCH_SIZE;
+import static org.elasticsearch.xpack.inference.services.openai.OpenAiServiceFields.ORGANIZATION;
 
 public class OpenAiService extends SenderService {
     public static final String NAME = "openai";
+
+    private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.COMPLETION);
 
     public OpenAiService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents) {
         super(factory, serviceComponents);
@@ -213,6 +228,16 @@ public class OpenAiService extends SenderService {
     }
 
     @Override
+    public InferenceServiceConfiguration getConfiguration() {
+        return Configuration.get();
+    }
+
+    @Override
+    public EnumSet<TaskType> supportedTaskTypes() {
+        return supportedTaskTypes;
+    }
+
+    @Override
     public void doInfer(
         Model model,
         InferenceInputs inputs,
@@ -343,5 +368,79 @@ public class OpenAiService extends SenderService {
             var modelId = taskSettings.remove(MODEL_ID);
             serviceSettings.put(MODEL_ID, modelId);
         }
+    }
+
+    public static class Configuration {
+        public static InferenceServiceConfiguration get() {
+            return configuration.getOrCompute();
+        }
+
+        private static final LazyInitializable<InferenceServiceConfiguration, RuntimeException> configuration = new LazyInitializable<>(
+            () -> {
+                var configurationMap = new HashMap<String, SettingsConfiguration>();
+
+                configurationMap.put(
+                    MODEL_ID,
+                    new SettingsConfiguration.Builder().setDisplay(SettingsConfigurationDisplayType.TEXTBOX)
+                        .setLabel("Model ID")
+                        .setOrder(2)
+                        .setRequired(true)
+                        .setSensitive(false)
+                        .setTooltip("The name of the model to use for the inference task.")
+                        .setType(SettingsConfigurationFieldType.STRING)
+                        .build()
+                );
+
+                configurationMap.put(
+                    ORGANIZATION,
+                    new SettingsConfiguration.Builder().setDisplay(SettingsConfigurationDisplayType.TEXTBOX)
+                        .setLabel("Organization ID")
+                        .setOrder(3)
+                        .setRequired(false)
+                        .setSensitive(false)
+                        .setTooltip("The unique identifier of your organization.")
+                        .setType(SettingsConfigurationFieldType.STRING)
+                        .build()
+                );
+
+                configurationMap.put(
+                    URL,
+                    new SettingsConfiguration.Builder().setDisplay(SettingsConfigurationDisplayType.TEXTBOX)
+                        .setLabel("URL")
+                        .setOrder(4)
+                        .setRequired(true)
+                        .setSensitive(false)
+                        .setTooltip(
+                            "The OpenAI API endpoint URL. For more information on the URL, refer to the "
+                                + "https://platform.openai.com/docs/api-reference."
+                        )
+                        .setType(SettingsConfigurationFieldType.STRING)
+                        .setDefaultValue("https://api.openai.com/v1/chat/completions")
+                        .build()
+                );
+
+                configurationMap.putAll(
+                    DefaultSecretSettings.toSettingsConfigurationWithTooltip(
+                        "The OpenAI API authentication key. For more details about generating OpenAI API keys, "
+                            + "refer to the https://platform.openai.com/account/api-keys."
+                    )
+                );
+                configurationMap.putAll(
+                    RateLimitSettings.toSettingsConfigurationWithTooltip(
+                        "Default number of requests allowed per minute. For text_embedding is 3000. For completion is 500."
+                    )
+                );
+
+                return new InferenceServiceConfiguration.Builder().setProvider(NAME).setTaskTypes(supportedTaskTypes.stream().map(t -> {
+                    Map<String, SettingsConfiguration> taskSettingsConfig;
+                    switch (t) {
+                        case TEXT_EMBEDDING -> taskSettingsConfig = OpenAiEmbeddingsModel.Configuration.get();
+                        case COMPLETION -> taskSettingsConfig = OpenAiChatCompletionModel.Configuration.get();
+                        default -> taskSettingsConfig = EmptySettingsConfiguration.get();
+                    }
+                    return new TaskSettingsConfiguration.Builder().setTaskType(t).setConfiguration(taskSettingsConfig).build();
+                }).toList()).setConfiguration(configurationMap).build();
+            }
+        );
     }
 }

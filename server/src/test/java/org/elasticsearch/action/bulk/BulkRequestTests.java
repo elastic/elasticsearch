@@ -42,6 +42,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -426,12 +427,12 @@ public class BulkRequestTests extends ESTestCase {
             { "field1" : "value1" }
             """;
         BulkRequest bulkRequest = new BulkRequest();
-        bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, XContentType.JSON);
-
-        assertWarnings(
-            "A bulk action wasn't closed properly with the closing brace. Malformed objects are currently accepted"
-                + " but will be rejected in a future version."
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, XContentType.JSON)
         );
+
+        assertThat(ex.getMessage(), containsString("Unexpected end of file"));
     }
 
     public void testBulkActionWithAdditionalKeys() throws Exception {
@@ -440,12 +441,12 @@ public class BulkRequestTests extends ESTestCase {
             { "field1" : "value1" }
             """;
         BulkRequest bulkRequest = new BulkRequest();
-        bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, XContentType.JSON);
-
-        assertWarnings(
-            "A bulk action object contained multiple keys. Additional keys are currently ignored but will be "
-                + "rejected in a future version."
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, XContentType.JSON)
         );
+
+        assertThat(ex.getMessage(), is("Malformed action/metadata line [1], expected END_OBJECT but found [FIELD_NAME]"));
     }
 
     public void testBulkActionWithTrailingData() throws Exception {
@@ -454,12 +455,12 @@ public class BulkRequestTests extends ESTestCase {
             { "field1" : "value1" }
             """;
         BulkRequest bulkRequest = new BulkRequest();
-        bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, XContentType.JSON);
-
-        assertWarnings(
-            "A bulk action contained trailing data after the closing brace. This is currently ignored "
-                + "but will be rejected in a future version."
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, XContentType.JSON)
         );
+
+        assertThat(ex.getMessage(), is("Malformed action/metadata line [1], unexpected data after the closing brace"));
     }
 
     public void testUnsupportedAction() {

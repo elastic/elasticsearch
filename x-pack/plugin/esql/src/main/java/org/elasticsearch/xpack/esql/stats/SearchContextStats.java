@@ -45,7 +45,7 @@ import static org.elasticsearch.index.mapper.KeywordFieldMapper.KeywordFieldType
  * The remaining statistics are lazily computed and cached only on demand.
  * This cache is not thread-safe.
  */
-public class SearchStatsFromContexts implements SearchStats {
+public class SearchContextStats implements SearchStats {
 
     private final List<SearchExecutionContext> contexts;
 
@@ -68,42 +68,16 @@ public class SearchStatsFromContexts implements SearchStats {
         }
     };
 
-    public SearchStatsFromContexts(List<SearchExecutionContext> contexts) {
-        this.contexts = contexts;
-        // TODO: This assertion fails in too many cases, why would we ever have no contexts?
-        //assert contexts != null && contexts.isEmpty() == false;
-    }
-
-    public long count() {
-        var count = new long[] { 0 };
-        boolean completed = doWithContexts(r -> {
-            count[0] += r.numDocs();
-            return true;
-        }, false);
-        return completed ? count[0] : -1;
-    }
-
-    public long count(String field) {
-        var stat = cache.computeIfAbsent(field, this::makeFieldStats);
-        if (stat.count == null) {
-            var count = new long[] { 0 };
-            boolean completed = doWithContexts(r -> {
-                count[0] += countEntries(r, field);
-                return true;
-            }, false);
-            stat.count = completed ? count[0] : -1;
+    public SearchStats from(List<SearchExecutionContext> contexts) {
+        if (contexts == null || contexts.isEmpty()) {
+            return new EmptySearchStats();
         }
-        return stat.count;
+        return new SearchContextStats(contexts);
     }
 
-    public long count(String field, BytesRef value) {
-        var count = new long[] { 0 };
-        Term term = new Term(field, value);
-        boolean completed = doWithContexts(r -> {
-            count[0] += r.docFreq(term);
-            return true;
-        }, false);
-        return completed ? count[0] : -1;
+    public SearchContextStats(List<SearchExecutionContext> contexts) {
+        this.contexts = contexts;
+        assert contexts != null && contexts.isEmpty() == false;
     }
 
     public boolean exists(String field) {
@@ -149,11 +123,6 @@ public class SearchStatsFromContexts implements SearchStats {
         }
     }
 
-    public boolean hasIdenticalDelegate(String field) {
-        var stat = cache.computeIfAbsent(field, this::makeFieldStats);
-        return stat.config.hasIdenticalDelegate;
-    }
-
     public boolean isIndexed(String field) {
         var stat = cache.computeIfAbsent(field, this::makeFieldStats);
         return stat.config.indexed;
@@ -162,6 +131,43 @@ public class SearchStatsFromContexts implements SearchStats {
     public boolean hasDocValues(String field) {
         var stat = cache.computeIfAbsent(field, this::makeFieldStats);
         return stat.config.hasDocValues;
+    }
+
+    public boolean hasIdenticalDelegate(String field) {
+        var stat = cache.computeIfAbsent(field, this::makeFieldStats);
+        return stat.config.hasIdenticalDelegate;
+    }
+
+    public long count() {
+        var count = new long[] { 0 };
+        boolean completed = doWithContexts(r -> {
+            count[0] += r.numDocs();
+            return true;
+        }, false);
+        return completed ? count[0] : -1;
+    }
+
+    public long count(String field) {
+        var stat = cache.computeIfAbsent(field, this::makeFieldStats);
+        if (stat.count == null) {
+            var count = new long[] { 0 };
+            boolean completed = doWithContexts(r -> {
+                count[0] += countEntries(r, field);
+                return true;
+            }, false);
+            stat.count = completed ? count[0] : -1;
+        }
+        return stat.count;
+    }
+
+    public long count(String field, BytesRef value) {
+        var count = new long[] { 0 };
+        Term term = new Term(field, value);
+        boolean completed = doWithContexts(r -> {
+            count[0] += r.docFreq(term);
+            return true;
+        }, false);
+        return completed ? count[0] : -1;
     }
 
     public byte[] min(String field, DataType dataType) {

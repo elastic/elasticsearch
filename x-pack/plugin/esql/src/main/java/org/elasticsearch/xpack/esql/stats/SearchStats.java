@@ -15,23 +15,23 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
  * This is used by the optimizer to make decisions about how to optimize queries.
  */
 public interface SearchStats {
-    long count();
-
-    long count(String field);
-
-    long count(String field, BytesRef value);
-
     boolean exists(String field);
-
-    byte[] min(String field, DataType dataType);
-
-    byte[] max(String field, DataType dataType);
-
-    boolean isSingleValue(String field);
 
     boolean isIndexed(String field);
 
     boolean hasDocValues(String field);
 
     boolean hasIdenticalDelegate(String field);
+
+    long count();
+
+    long count(String field);
+
+    long count(String field, BytesRef value);
+
+    byte[] min(String field, DataType dataType);
+
+    byte[] max(String field, DataType dataType);
+
+    boolean isSingleValue(String field);
 }

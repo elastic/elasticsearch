@@ -213,38 +213,8 @@ public final class EsqlTestUtils {
     public static class TestSearchStats implements SearchStats {
 
         @Override
-        public long count() {
-            return -1;
-        }
-
-        @Override
-        public long count(String field) {
-            return exists(field) ? -1 : 0;
-        }
-
-        @Override
-        public long count(String field, BytesRef value) {
-            return exists(field) ? -1 : 0;
-        }
-
-        @Override
         public boolean exists(String field) {
             return true;
-        }
-
-        @Override
-        public byte[] min(String field, DataType dataType) {
-            return null;
-        }
-
-        @Override
-        public byte[] max(String field, DataType dataType) {
-            return null;
-        }
-
-        @Override
-        public boolean isSingleValue(String field) {
-            return false;
         }
 
         @Override
@@ -260,6 +230,36 @@ public final class EsqlTestUtils {
         @Override
         public boolean hasIdenticalDelegate(String field) {
             return exists(field);
+        }
+
+        @Override
+        public long count() {
+            return -1;
+        }
+
+        @Override
+        public long count(String field) {
+            return exists(field) ? -1 : 0;
+        }
+
+        @Override
+        public long count(String field, BytesRef value) {
+            return exists(field) ? -1 : 0;
+        }
+
+        @Override
+        public byte[] min(String field, DataType dataType) {
+            return null;
+        }
+
+        @Override
+        public byte[] max(String field, DataType dataType) {
+            return null;
+        }
+
+        @Override
+        public boolean isSingleValue(String field) {
+            return false;
         }
     }
 

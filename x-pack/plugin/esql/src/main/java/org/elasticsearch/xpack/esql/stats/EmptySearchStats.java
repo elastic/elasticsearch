@@ -10,41 +10,40 @@ package org.elasticsearch.xpack.esql.stats;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
-public class DisabledSearchStats implements SearchStats {
-
-    @Override
-    public boolean exists(String field) {
-        return true;
-    }
-
-    @Override
-    public boolean isIndexed(String field) {
-        return true;
-    }
-
-    @Override
-    public boolean hasDocValues(String field) {
-        return true;
-    }
-
-    @Override
-    public boolean hasIdenticalDelegate(String field) {
-        return true;
-    }
-
+public record EmptySearchStats() implements SearchStats {
     @Override
     public long count() {
-        return -1;
+        return 0;
     }
 
     @Override
     public long count(String field) {
-        return -1;
+        return 0;
     }
 
     @Override
     public long count(String field, BytesRef value) {
-        return -1;
+        return 0;
+    }
+
+    @Override
+    public boolean exists(String field) {
+        return false;
+    }
+
+    @Override
+    public boolean isIndexed(String field) {
+        return false;
+    }
+
+    @Override
+    public boolean hasDocValues(String field) {
+        return false;
+    }
+
+    @Override
+    public boolean hasIdenticalDelegate(String field) {
+        return false;
     }
 
     @Override
@@ -59,6 +58,7 @@ public class DisabledSearchStats implements SearchStats {
 
     @Override
     public boolean isSingleValue(String field) {
-        return false;
+        return true;
     }
+
 }

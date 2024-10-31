@@ -1,0 +1,5 @@
+pr: 115807
+summary: "[Inference API] Improve chunked results error message"
+area: Machine Learning
+type: enhancement
+issues: []

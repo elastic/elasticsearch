@@ -9,6 +9,7 @@
 package org.elasticsearch.repositories.s3;
 
 import com.amazonaws.AmazonWebServiceRequest;
+import com.amazonaws.retry.PredefinedRetryPolicies;
 import com.amazonaws.services.s3.model.AmazonS3Exception;
 
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
@@ -47,19 +48,36 @@ public class S3ServiceTests extends ESTestCase {
         e.setStatusCode(403);
         e.setErrorCode("InvalidAccessKeyId");
 
-        // Retry on 403 invalid access key id
+        // AWS default retry condition does not retry on 403
+        assertFalse(PredefinedRetryPolicies.DEFAULT_RETRY_CONDITION.shouldRetry(mock(AmazonWebServiceRequest.class), e, between(0, 9)));
+
+        // The retryable 403 condition retries on 403 invalid access key id
         assertTrue(
             S3Service.RETRYABLE_403_RETRY_POLICY.getRetryCondition().shouldRetry(mock(AmazonWebServiceRequest.class), e, between(0, 9))
         );
 
-        // Not retry if not 403 or not invalid access key id
         if (randomBoolean()) {
+            // Random for another error status that is not 403
             e.setStatusCode(randomValueOtherThan(403, () -> between(0, 600)));
+            // Retryable 403 condition delegates to the AWS default retry condition. Its result must be consistent with the decision
+            // by the AWS default, e.g. some error status like 429 is retryable by default, the retryable 403 condition respects it.
+            if (PredefinedRetryPolicies.DEFAULT_RETRY_CONDITION.shouldRetry(mock(AmazonWebServiceRequest.class), e, between(0, 9))) {
+                assertTrue(
+                    S3Service.RETRYABLE_403_RETRY_POLICY.getRetryCondition()
+                        .shouldRetry(mock(AmazonWebServiceRequest.class), e, between(0, 9))
+                );
+            } else {
+                assertFalse(
+                    S3Service.RETRYABLE_403_RETRY_POLICY.getRetryCondition()
+                        .shouldRetry(mock(AmazonWebServiceRequest.class), e, between(0, 9))
+                );
+            }
         } else {
+            // Not retry for 403 with error code that is not invalid access key id
             e.setErrorCode(randomAlphaOfLength(10));
+            assertFalse(
+                S3Service.RETRYABLE_403_RETRY_POLICY.getRetryCondition().shouldRetry(mock(AmazonWebServiceRequest.class), e, between(0, 9))
+            );
         }
-        assertFalse(
-            S3Service.RETRYABLE_403_RETRY_POLICY.getRetryCondition().shouldRetry(mock(AmazonWebServiceRequest.class), e, between(0, 9))
-        );
     }
 }

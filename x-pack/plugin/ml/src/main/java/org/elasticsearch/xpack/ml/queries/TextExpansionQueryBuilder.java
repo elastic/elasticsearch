@@ -208,27 +208,14 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
     }
 
     private QueryBuilder weightedTokensToQuery(String fieldName, TextExpansionResults textExpansionResults) {
-        if (tokenPruningConfig != null) {
-            WeightedTokensQueryBuilder weightedTokensQueryBuilder = new WeightedTokensQueryBuilder(
-                fieldName,
-                textExpansionResults.getWeightedTokens(),
-                tokenPruningConfig
-            );
-            weightedTokensQueryBuilder.queryName(queryName);
-            weightedTokensQueryBuilder.boost(boost);
-            return weightedTokensQueryBuilder;
-        }
-        // Note: Weighted tokens queries were introduced in 8.13.0. To support mixed version clusters prior to 8.13.0,
-        // if no token pruning configuration is specified we fall back to a boolean query.
-        // TODO this should be updated to always use a WeightedTokensQueryBuilder once it's in all supported versions.
-        var boolQuery = QueryBuilders.boolQuery();
-        for (var weightedToken : textExpansionResults.getWeightedTokens()) {
-            boolQuery.should(QueryBuilders.termQuery(fieldName, weightedToken.token()).boost(weightedToken.weight()));
-        }
-        boolQuery.minimumShouldMatch(1);
-        boolQuery.boost(boost);
-        boolQuery.queryName(queryName);
-        return boolQuery;
+        WeightedTokensQueryBuilder weightedTokensQueryBuilder = new WeightedTokensQueryBuilder(
+            fieldName,
+            textExpansionResults.getWeightedTokens(),
+            tokenPruningConfig
+        );
+        weightedTokensQueryBuilder.queryName(queryName);
+        weightedTokensQueryBuilder.boost(boost);
+        return weightedTokensQueryBuilder;
     }
 
     @Override

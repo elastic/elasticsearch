@@ -1,7 +1,4 @@
 tests:
-- class: "org.elasticsearch.upgrades.SearchStatesIT"
-  issue: "https://github.com/elastic/elasticsearch/issues/108991"
-  method: "testCanMatch"
 - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
   method: test {yaml=reference/esql/esql-async-query-api/line_17}
   issue: https://github.com/elastic/elasticsearch/issues/109260
@@ -231,9 +228,6 @@ tests:
 - class: org.elasticsearch.xpack.restart.MLModelDeploymentFullClusterRestartIT
   method: testDeploymentSurvivesRestart {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/115528
-- class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
-  method: test {yaml=reference/esql/esql-across-clusters/line_197}
-  issue: https://github.com/elastic/elasticsearch/issues/115575
 - class: org.elasticsearch.oldrepos.OldRepositoryAccessIT
   method: testOldRepoAccess
   issue: https://github.com/elastic/elasticsearch/issues/115631

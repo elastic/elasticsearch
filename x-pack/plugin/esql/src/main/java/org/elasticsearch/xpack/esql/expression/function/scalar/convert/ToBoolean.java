@@ -45,11 +45,11 @@ public class ToBoolean extends AbstractConvertFunction {
         Map.entry(BOOLEAN, (field, source) -> field),
         Map.entry(KEYWORD, ToBooleanFromStringEvaluator.Factory::new),
         Map.entry(TEXT, ToBooleanFromStringEvaluator.Factory::new),
+        Map.entry(SEMANTIC_TEXT, ToBooleanFromStringEvaluator.Factory::new),
         Map.entry(DOUBLE, ToBooleanFromDoubleEvaluator.Factory::new),
         Map.entry(LONG, ToBooleanFromLongEvaluator.Factory::new),
         Map.entry(UNSIGNED_LONG, ToBooleanFromUnsignedLongEvaluator.Factory::new),
-        Map.entry(INTEGER, ToBooleanFromIntEvaluator.Factory::new),
-        Map.entry(SEMANTIC_TEXT, ToBooleanFromStringEvaluator.Factory::new)
+        Map.entry(INTEGER, ToBooleanFromIntEvaluator.Factory::new)
     );
 
     @FunctionInfo(

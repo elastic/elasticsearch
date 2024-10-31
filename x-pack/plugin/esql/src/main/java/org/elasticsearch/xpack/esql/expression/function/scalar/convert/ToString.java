@@ -61,13 +61,13 @@ public class ToString extends AbstractConvertFunction implements EvaluatorMapper
         Map.entry(LONG, ToStringFromLongEvaluator.Factory::new),
         Map.entry(INTEGER, ToStringFromIntEvaluator.Factory::new),
         Map.entry(TEXT, (fieldEval, source) -> fieldEval),
+        Map.entry(SEMANTIC_TEXT, (fieldEval, source) -> fieldEval),
         Map.entry(VERSION, ToStringFromVersionEvaluator.Factory::new),
         Map.entry(UNSIGNED_LONG, ToStringFromUnsignedLongEvaluator.Factory::new),
         Map.entry(GEO_POINT, ToStringFromGeoPointEvaluator.Factory::new),
         Map.entry(CARTESIAN_POINT, ToStringFromCartesianPointEvaluator.Factory::new),
         Map.entry(CARTESIAN_SHAPE, ToStringFromCartesianShapeEvaluator.Factory::new),
-        Map.entry(GEO_SHAPE, ToStringFromGeoShapeEvaluator.Factory::new),
-        Map.entry(SEMANTIC_TEXT, (fieldEval, source) -> fieldEval)
+        Map.entry(GEO_SHAPE, ToStringFromGeoShapeEvaluator.Factory::new)
     );
 
     @FunctionInfo(

@@ -41,8 +41,8 @@ public class ToGeoShape extends AbstractConvertFunction {
         Map.entry(GEO_POINT, (fieldEval, source) -> fieldEval),
         Map.entry(GEO_SHAPE, (fieldEval, source) -> fieldEval),
         Map.entry(KEYWORD, ToGeoShapeFromStringEvaluator.Factory::new),
-        Map.entry(SEMANTIC_TEXT, ToGeoShapeFromStringEvaluator.Factory::new),
-        Map.entry(TEXT, ToGeoShapeFromStringEvaluator.Factory::new)
+        Map.entry(TEXT, ToGeoShapeFromStringEvaluator.Factory::new),
+        Map.entry(SEMANTIC_TEXT, ToGeoShapeFromStringEvaluator.Factory::new)
     );
 
     @FunctionInfo(

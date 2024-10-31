@@ -51,11 +51,11 @@ public class ToInteger extends AbstractConvertFunction {
         Map.entry(DATETIME, ToIntegerFromLongEvaluator.Factory::new),
         Map.entry(KEYWORD, ToIntegerFromStringEvaluator.Factory::new),
         Map.entry(TEXT, ToIntegerFromStringEvaluator.Factory::new),
+        Map.entry(SEMANTIC_TEXT, ToIntegerFromStringEvaluator.Factory::new),
         Map.entry(DOUBLE, ToIntegerFromDoubleEvaluator.Factory::new),
         Map.entry(UNSIGNED_LONG, ToIntegerFromUnsignedLongEvaluator.Factory::new),
         Map.entry(LONG, ToIntegerFromLongEvaluator.Factory::new),
-        Map.entry(COUNTER_INTEGER, (fieldEval, source) -> fieldEval),
-        Map.entry(SEMANTIC_TEXT, ToIntegerFromStringEvaluator.Factory::new)
+        Map.entry(COUNTER_INTEGER, (fieldEval, source) -> fieldEval)
     );
 
     @FunctionInfo(

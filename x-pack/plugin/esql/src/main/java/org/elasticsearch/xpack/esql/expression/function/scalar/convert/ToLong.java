@@ -48,12 +48,12 @@ public class ToLong extends AbstractConvertFunction {
         Map.entry(BOOLEAN, ToLongFromBooleanEvaluator.Factory::new),
         Map.entry(KEYWORD, ToLongFromStringEvaluator.Factory::new),
         Map.entry(TEXT, ToLongFromStringEvaluator.Factory::new),
+        Map.entry(SEMANTIC_TEXT, ToLongFromStringEvaluator.Factory::new),
         Map.entry(DOUBLE, ToLongFromDoubleEvaluator.Factory::new),
         Map.entry(UNSIGNED_LONG, ToLongFromUnsignedLongEvaluator.Factory::new),
         Map.entry(INTEGER, ToLongFromIntEvaluator.Factory::new), // CastIntToLongEvaluator would be a candidate, but not MV'd
         Map.entry(DataType.COUNTER_LONG, (field, source) -> field),
-        Map.entry(DataType.COUNTER_INTEGER, ToLongFromIntEvaluator.Factory::new),
-        Map.entry(SEMANTIC_TEXT, ToLongFromStringEvaluator.Factory::new)
+        Map.entry(DataType.COUNTER_INTEGER, ToLongFromIntEvaluator.Factory::new)
     );
 
     @FunctionInfo(

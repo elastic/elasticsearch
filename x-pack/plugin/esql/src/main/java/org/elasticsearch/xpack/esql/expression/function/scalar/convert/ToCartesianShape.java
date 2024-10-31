@@ -41,8 +41,8 @@ public class ToCartesianShape extends AbstractConvertFunction {
         Map.entry(CARTESIAN_POINT, (fieldEval, source) -> fieldEval),
         Map.entry(CARTESIAN_SHAPE, (fieldEval, source) -> fieldEval),
         Map.entry(KEYWORD, ToCartesianShapeFromStringEvaluator.Factory::new),
-        Map.entry(SEMANTIC_TEXT, ToCartesianShapeFromStringEvaluator.Factory::new),
-        Map.entry(TEXT, ToCartesianShapeFromStringEvaluator.Factory::new)
+        Map.entry(TEXT, ToCartesianShapeFromStringEvaluator.Factory::new),
+        Map.entry(SEMANTIC_TEXT, ToCartesianShapeFromStringEvaluator.Factory::new)
     );
 
     @FunctionInfo(

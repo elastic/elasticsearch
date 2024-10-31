@@ -48,10 +48,10 @@ public class ToDatetime extends AbstractConvertFunction {
         Map.entry(LONG, (field, source) -> field),
         Map.entry(KEYWORD, ToDatetimeFromStringEvaluator.Factory::new),
         Map.entry(TEXT, ToDatetimeFromStringEvaluator.Factory::new),
+        Map.entry(SEMANTIC_TEXT, ToDatetimeFromStringEvaluator.Factory::new),
         Map.entry(DOUBLE, ToLongFromDoubleEvaluator.Factory::new),
         Map.entry(UNSIGNED_LONG, ToLongFromUnsignedLongEvaluator.Factory::new),
-        Map.entry(INTEGER, ToLongFromIntEvaluator.Factory::new), // CastIntToLongEvaluator would be a candidate, but not MV'd
-        Map.entry(SEMANTIC_TEXT, ToDatetimeFromStringEvaluator.Factory::new)
+        Map.entry(INTEGER, ToLongFromIntEvaluator.Factory::new) // CastIntToLongEvaluator would be a candidate, but not MV'd
     );
 
     @FunctionInfo(

@@ -19,6 +19,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoveryFileChunkRequest;
@@ -38,6 +39,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Function;
 
 import static org.elasticsearch.node.RecoverySettingsChunkSizePlugin.CHUNK_SIZE_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -113,7 +115,13 @@ public class TruncatedRecoveryIT extends ESIntegTestCase {
 
         final CountDownLatch latch = new CountDownLatch(1);
         final AtomicBoolean truncate = new AtomicBoolean(true);
+
         IndicesService unluckyIndices = internalCluster().getInstance(IndicesService.class, unluckyNode);
+        Function<ShardId, Path> getUnluckyIndexPath = (shardId) -> unluckyIndices.indexService(shardId.getIndex())
+            .getShard(shardId.getId())
+            .shardPath()
+            .resolveIndex();
+
         for (NodeStats dataNode : dataNodeStats) {
             MockTransportService.getInstance(dataNode.getNode().getName())
                 .addSendBehavior(
@@ -122,14 +130,14 @@ public class TruncatedRecoveryIT extends ESIntegTestCase {
                         if (action.equals(PeerRecoveryTargetService.Actions.FILE_CHUNK)) {
                             RecoveryFileChunkRequest req = (RecoveryFileChunkRequest) request;
                             logger.info("file chunk [{}] lastChunk: {}", req, req.lastChunk());
-                            if ((req.name().endsWith("cfs") || req.name().endsWith("fdt")) && req.lastChunk() && truncate.get()) {
-                                var shardId = req.shardId();
-                                var shardPath = unluckyIndices.indexService(shardId.getIndex())
-                                    .getShard(shardId.getId())
-                                    .shardPath()
-                                    .resolveIndex();
+                            // During the first recovery attempt (when truncate is set), write an extra garbage file once for each
+                            // file transmitted. We get multiple chunks per file but only one is the last.
+                            if (truncate.get() && req.lastChunk()) {
+                                final var shardPath = getUnluckyIndexPath.apply(req.shardId());
                                 final var garbagePath = Files.createTempFile(shardPath, GARBAGE_PREFIX, null);
                                 logger.info("writing garbage at: {}", garbagePath);
+                            }
+                            if ((req.name().endsWith("cfs") || req.name().endsWith("fdt")) && req.lastChunk() && truncate.get()) {
                                 latch.countDown();
                                 throw new RuntimeException("Caused some truncated files for fun and profit");
                             }
@@ -137,13 +145,9 @@ public class TruncatedRecoveryIT extends ESIntegTestCase {
                             // verify there are no garbage files present at the FILES_INFO stage of recovery. This precedes FILES_CHUNKS
                             // and so will run before garbage has been introduced on the first attempt, and before post-transfer cleanup
                             // has been performed on the second.
-                            var shardId = ((RecoveryFilesInfoRequest) request).shardId();
-                            var shardPath = unluckyIndices.indexService(shardId.getIndex())
-                                .getShard(shardId.getId())
-                                .shardPath()
-                                .resolveIndex();
+                            final var shardPath = getUnluckyIndexPath.apply(((RecoveryFilesInfoRequest) request).shardId());
                             try (var list = Files.list(shardPath).filter(path -> path.getFileName().startsWith(GARBAGE_PREFIX))) {
-                                var garbageFiles = list.toArray();
+                                final var garbageFiles = list.toArray();
                                 assertArrayEquals(
                                     "garbage files should have been cleaned before file transmission",
                                     new Path[0],

@@ -45,7 +45,7 @@ public class IndicesStatsResponse extends ChunkedBroadcastResponse {
 
     private final Map<String, ClusterHealthStatus> indexHealthMap;
 
-    private final Map<String, IndexMetadata.State> indexStateMap;
+    private final Map<String, IndexMetadata> indexMetadataMap;
 
     private final ShardStats[] shards;
 
@@ -56,10 +56,10 @@ public class IndicesStatsResponse extends ChunkedBroadcastResponse {
         shards = in.readArray(ShardStats::new, ShardStats[]::new);
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0)) {
             indexHealthMap = in.readMap(ClusterHealthStatus::readFrom);
-            indexStateMap = in.readMap(IndexMetadata.State::readFrom);
+            indexMetadataMap = in.readMap(IndexMetadata::readFrom);
         } else {
             indexHealthMap = Map.of();
-            indexStateMap = Map.of();
+            indexMetadataMap = Map.of();
         }
     }
 
@@ -78,7 +78,7 @@ public class IndicesStatsResponse extends ChunkedBroadcastResponse {
         Objects.requireNonNull(routingTable);
         Objects.requireNonNull(shards);
         Map<String, ClusterHealthStatus> indexHealthModifiableMap = new HashMap<>();
-        Map<String, IndexMetadata.State> indexStateModifiableMap = new HashMap<>();
+        Map<String, IndexMetadata> indexMetadataModifiableMap = new HashMap<>();
         for (ShardStats shard : shards) {
             Index index = shard.getShardRouting().index();
             IndexMetadata indexMetadata = metadata.index(index);
@@ -87,11 +87,11 @@ public class IndicesStatsResponse extends ChunkedBroadcastResponse {
                     index.getName(),
                     ignored -> new ClusterIndexHealth(indexMetadata, routingTable.index(index)).getStatus()
                 );
-                indexStateModifiableMap.computeIfAbsent(index.getName(), ignored -> indexMetadata.getState());
+                indexMetadataModifiableMap.computeIfAbsent(index.getName(), ignored -> indexMetadata);
             }
         }
         indexHealthMap = unmodifiableMap(indexHealthModifiableMap);
-        indexStateMap = unmodifiableMap(indexStateModifiableMap);
+        indexMetadataMap = unmodifiableMap(indexMetadataModifiableMap);
     }
 
     public Map<ShardRouting, ShardStats> asMap() {
@@ -129,7 +129,7 @@ public class IndicesStatsResponse extends ChunkedBroadcastResponse {
             Index index = shard.getShardRouting().index();
             IndexStatsBuilder indexStatsBuilder = indexToIndexStatsBuilder.computeIfAbsent(
                 index.getName(),
-                k -> new IndexStatsBuilder(k, index.getUUID(), indexHealthMap.get(index.getName()), indexStateMap.get(index.getName()))
+                k -> new IndexStatsBuilder(k, index.getUUID(), indexHealthMap.get(index.getName()), indexMetadataMap.get(index.getName()))
             );
             indexStatsBuilder.add(shard);
         }
@@ -176,7 +176,7 @@ public class IndicesStatsResponse extends ChunkedBroadcastResponse {
         out.writeArray(shards);
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0)) {
             out.writeMap(indexHealthMap, StreamOutput::writeWriteable);
-            out.writeMap(indexStateMap, StreamOutput::writeWriteable);
+            out.writeMap(indexMetadataMap, StreamOutput::writeWriteable);
         }
     }
 
@@ -202,6 +202,9 @@ public class IndicesStatsResponse extends ChunkedBroadcastResponse {
                             }
                             if (indexStats.getState() != null) {
                                 builder.field("status", indexStats.getState().toString().toLowerCase(Locale.ROOT));
+                            }
+                            if (indexStats.getTierPreference() != null) {
+                                builder.field("tier_preference", indexStats.getTierPreference());
                             }
                             builder.startObject("primaries");
                             indexStats.getPrimaries().toXContent(builder, p);

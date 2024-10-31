@@ -10,13 +10,7 @@ package org.elasticsearch.xpack.esql.stats;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
-import static java.util.Collections.emptyList;
-
-public class DisabledSearchStats extends SearchStats {
-
-    public DisabledSearchStats() {
-        super(emptyList());
-    }
+public class DisabledSearchStats implements SearchStats {
 
     @Override
     public long count() {

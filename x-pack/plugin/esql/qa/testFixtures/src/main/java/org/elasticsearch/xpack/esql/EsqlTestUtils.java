@@ -210,10 +210,7 @@ public final class EsqlTestUtils {
         return new EsRelation(EMPTY, new EsIndex(randomAlphaOfLength(8), emptyMap()), IndexMode.STANDARD, randomBoolean());
     }
 
-    public static class TestSearchStats extends SearchStats {
-        public TestSearchStats() {
-            super(emptyList());
-        }
+    public static class TestSearchStats implements SearchStats {
 
         @Override
         public long count() {

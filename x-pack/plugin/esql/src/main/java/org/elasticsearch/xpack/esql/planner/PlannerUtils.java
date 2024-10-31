@@ -53,6 +53,7 @@ import org.elasticsearch.xpack.esql.planner.mapper.LocalMapper;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
+import org.elasticsearch.xpack.esql.stats.SearchStatsFromContexts;
 
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
@@ -138,7 +139,7 @@ public class PlannerUtils {
     }
 
     public static PhysicalPlan localPlan(List<SearchExecutionContext> searchContexts, Configuration configuration, PhysicalPlan plan) {
-        return localPlan(configuration, plan, new SearchStats(searchContexts));
+        return localPlan(configuration, plan, new SearchStatsFromContexts(searchContexts));
     }
 
     public static PhysicalPlan localPlan(Configuration configuration, PhysicalPlan plan, SearchStats searchStats) {

@@ -1,6 +1,6 @@
 object with unmapped fields:
   - requires:
-      cluster_features: ["mapper.track_ignored_source"]
+      cluster_features: ["mapper.ignored_source.dont_expand_dots"]
       reason: requires tracking ignored source
 
   - do:
@@ -100,7 +100,7 @@ unmapped arrays:
 ---
 nested object with unmapped fields:
   - requires:
-      cluster_features: ["mapper.track_ignored_source"]
+      cluster_features: ["mapper.ignored_source.dont_expand_dots"]
       reason: requires tracking ignored source
 
   - do:
@@ -152,7 +152,7 @@ nested object with unmapped fields:
 ---
 empty object with unmapped fields:
   - requires:
-      cluster_features: ["mapper.track_ignored_source"]
+      cluster_features: ["mapper.ignored_source.dont_expand_dots"]
       reason: requires tracking ignored source
 
   - do:

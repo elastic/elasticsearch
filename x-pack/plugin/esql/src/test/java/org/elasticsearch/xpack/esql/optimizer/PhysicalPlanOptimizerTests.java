@@ -115,8 +115,8 @@ import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.RowExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
-import org.elasticsearch.xpack.esql.planner.Mapper;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
+import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.esql.querydsl.query.SpatialRelatesQuery;
@@ -220,7 +220,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         logicalOptimizer = new LogicalPlanOptimizer(new LogicalOptimizerContext(EsqlTestUtils.TEST_CFG));
         physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(config));
         EsqlFunctionRegistry functionRegistry = new EsqlFunctionRegistry();
-        mapper = new Mapper(functionRegistry);
+        mapper = new Mapper();
         var enrichResolution = setupEnrichResolution();
         // Most tests used data from the test index, so we load it here, and use it in the plan() function.
         this.testData = makeTestDataSource("test", "mapping-basic.json", functionRegistry, enrichResolution);
@@ -6300,7 +6300,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 .item(startsWith("last_name{f}"))
                 .item(startsWith("long_noidx{f}"))
                 .item(startsWith("salary{f}"))
-                .item(startsWith("name{r}"))
+                .item(startsWith("name{f}"))
         );
     }
 
@@ -6352,10 +6352,10 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 .item(startsWith("last_name{f}"))
                 .item(startsWith("long_noidx{f}"))
                 .item(startsWith("salary{f}"))
-                .item(startsWith("name{r}"))
+                .item(startsWith("name{f}"))
         );
 
-        var middleProject = as(join.child(), ProjectExec.class);
+        var middleProject = as(join.left(), ProjectExec.class);
         assertThat(middleProject.projections().stream().map(Objects::toString).toList(), not(hasItem(startsWith("name{f}"))));
         /*
          * At the moment we don't push projections past the HashJoin so we still include first_name here
@@ -6402,7 +6402,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         TopN innerTopN = as(opt, TopN.class);
         assertMap(
             innerTopN.order().stream().map(o -> o.child().toString()).toList(),
-            matchesList().item(startsWith("name{r}")).item(startsWith("emp_no{f}"))
+            matchesList().item(startsWith("name{f}")).item(startsWith("emp_no{f}"))
         );
         Join join = as(innerTopN.child(), Join.class);
         assertThat(join.config().type(), equalTo(JoinType.LEFT));

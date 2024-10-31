@@ -1,0 +1,5 @@
+pr: 115952
+summary: "ESQL: Fix a bug in VALUES agg"
+area: ES|QL
+type: bug
+issues: []

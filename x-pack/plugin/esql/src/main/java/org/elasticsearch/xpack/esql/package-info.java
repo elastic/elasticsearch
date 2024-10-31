@@ -121,8 +121,7 @@
  *         function implementations.</li>
  *     <li>{@link org.elasticsearch.xpack.esql.action.RestEsqlQueryAction Sync} and
  *         {@link org.elasticsearch.xpack.esql.action.RestEsqlAsyncQueryAction async} HTTP API entry points</li>
- *     <li>{@link org.elasticsearch.xpack.esql.plan.logical.Phased} - Marks a {@link org.elasticsearch.xpack.esql.plan.logical.LogicalPlan}
- *         node as requiring multiple ESQL executions to run. </li>
+
  * </ul>
  *
  * <h3>Query Planner</h3>
@@ -144,7 +143,7 @@
  *     <li>{@link org.elasticsearch.xpack.esql.analysis.Analyzer Analyzer} resolves references</li>
  *     <li>{@link org.elasticsearch.xpack.esql.analysis.Verifier Verifier} does type checking</li>
  *     <li>{@link org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer LogicalPlanOptimizer} applies many optimizations</li>
- *     <li>{@link org.elasticsearch.xpack.esql.planner.Mapper Mapper} translates logical plans to phyisical plans</li>
+ *     <li>{@link org.elasticsearch.xpack.esql.planner.mapper.Mapper Mapper} translates logical plans to phyisical plans</li>
  *     <li>{@link org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizer PhysicalPlanOptimizer} - decides what plan fragments to
  *     send to which data nodes</li>
  *     <li>{@link org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizer LocalLogicalPlanOptimizer} applies index-specific

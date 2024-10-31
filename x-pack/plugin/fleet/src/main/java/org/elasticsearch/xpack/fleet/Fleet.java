@@ -77,7 +77,6 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
     public static final String FLEET_SECRETS_INDEX_NAME = ".fleet-secrets";
 
     private static final int CURRENT_INDEX_VERSION = 7;
-    private static final String VERSION_KEY = "version";
     private static final String MAPPING_VERSION_VARIABLE = "fleet.version";
     private static final List<String> ALLOWED_PRODUCTS = List.of("kibana", "fleet");
     private static final int FLEET_ACTIONS_MAPPINGS_VERSION = 1;
@@ -140,7 +139,6 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
             .setType(Type.EXTERNAL_MANAGED)
             .setAllowedElasticProductOrigins(ALLOWED_PRODUCTS)
             .setOrigin(FLEET_ORIGIN)
-            .setVersionMetaKey(VERSION_KEY)
             .setMappings(request.mappings())
             .setSettings(request.settings())
             .setPrimaryIndex(".fleet-actions-" + CURRENT_INDEX_VERSION)
@@ -158,7 +156,6 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
             .setType(Type.EXTERNAL_MANAGED)
             .setAllowedElasticProductOrigins(ALLOWED_PRODUCTS)
             .setOrigin(FLEET_ORIGIN)
-            .setVersionMetaKey(VERSION_KEY)
             .setMappings(request.mappings())
             .setSettings(request.settings())
             .setPrimaryIndex(".fleet-agents-" + CURRENT_INDEX_VERSION)
@@ -179,7 +176,6 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
             .setType(Type.EXTERNAL_MANAGED)
             .setAllowedElasticProductOrigins(ALLOWED_PRODUCTS)
             .setOrigin(FLEET_ORIGIN)
-            .setVersionMetaKey(VERSION_KEY)
             .setMappings(request.mappings())
             .setSettings(request.settings())
             .setPrimaryIndex(".fleet-enrollment-api-keys-" + CURRENT_INDEX_VERSION)
@@ -195,7 +191,6 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
         return SystemIndexDescriptor.builder()
             .setType(Type.INTERNAL_MANAGED)
             .setOrigin(FLEET_ORIGIN)
-            .setVersionMetaKey(VERSION_KEY)
             .setMappings(request.mappings())
             .setSettings(request.settings())
             .setPrimaryIndex(FLEET_SECRETS_INDEX_NAME + "-" + CURRENT_INDEX_VERSION)
@@ -213,7 +208,6 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
             .setType(Type.EXTERNAL_MANAGED)
             .setAllowedElasticProductOrigins(ALLOWED_PRODUCTS)
             .setOrigin(FLEET_ORIGIN)
-            .setVersionMetaKey(VERSION_KEY)
             .setMappings(request.mappings())
             .setSettings(request.settings())
             .setPrimaryIndex(".fleet-policies-" + CURRENT_INDEX_VERSION)
@@ -231,7 +225,6 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
             .setType(Type.EXTERNAL_MANAGED)
             .setAllowedElasticProductOrigins(ALLOWED_PRODUCTS)
             .setOrigin(FLEET_ORIGIN)
-            .setVersionMetaKey(VERSION_KEY)
             .setMappings(request.mappings())
             .setSettings(request.settings())
             .setPrimaryIndex(".fleet-policies-leader-" + CURRENT_INDEX_VERSION)
@@ -249,7 +242,6 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
             .setType(Type.EXTERNAL_MANAGED)
             .setAllowedElasticProductOrigins(ALLOWED_PRODUCTS)
             .setOrigin(FLEET_ORIGIN)
-            .setVersionMetaKey(VERSION_KEY)
             .setMappings(request.mappings())
             .setSettings(request.settings())
             .setPrimaryIndex(".fleet-servers-" + CURRENT_INDEX_VERSION)
@@ -267,7 +259,6 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
             .setType(Type.EXTERNAL_MANAGED)
             .setAllowedElasticProductOrigins(ALLOWED_PRODUCTS)
             .setOrigin(FLEET_ORIGIN)
-            .setVersionMetaKey(VERSION_KEY)
             .setMappings(request.mappings())
             .setSettings(request.settings())
             .setPrimaryIndex(".fleet-artifacts-" + CURRENT_INDEX_VERSION)

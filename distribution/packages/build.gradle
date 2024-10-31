@@ -278,7 +278,7 @@ def commonPackageConfig(String type, String architecture) {
     }
     copyEmptyDir('/var/log/elasticsearch', 'elasticsearch', 'elasticsearch', true, 0750)
     copyEmptyDir('/var/lib/elasticsearch', 'elasticsearch', 'elasticsearch', true, 0750)
-    copyEmptyDir('/usr/share/elasticsearch/plugins', 'root', 'root', true, 0755)
+    copyEmptyDir('/usr/share/elasticsearch/plugins', 'root', 'root', false, 0755)
 
     // the oss package conflicts with the default distribution and vice versa
     conflicts('elasticsearch-oss')

@@ -92,6 +92,7 @@ public class IndexResolver {
     public IndexResolution mergedMappings(String indexPattern, FieldCapabilitiesResponse fieldCapsResponse) {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH_COORDINATION); // too expensive to run this on a transport worker
         if (fieldCapsResponse.getIndexResponses().isEmpty()) {
+            // TODO in follow-on PR, handle the case where remotes were specified with non-existent indices, according to skip_unavailable
             return IndexResolution.notFound(indexPattern);
         }
 
@@ -160,18 +161,18 @@ public class IndexResolver {
         for (FieldCapabilitiesIndexResponse ir : fieldCapsResponse.getIndexResponses()) {
             concreteIndices.put(ir.getIndexName(), ir.getIndexMode());
         }
-        Set<String> unavailableRemoteClusters = determineUnavailableRemoteClusters(fieldCapsResponse.getFailures());
-        return IndexResolution.valid(new EsIndex(indexPattern, rootFields, concreteIndices), unavailableRemoteClusters);
+        Map<String, FieldCapabilitiesFailure> unavailableRemotes = determineUnavailableRemoteClusters(fieldCapsResponse.getFailures());
+        return IndexResolution.valid(new EsIndex(indexPattern, rootFields, concreteIndices), unavailableRemotes);
     }
 
     // visible for testing
-    static Set<String> determineUnavailableRemoteClusters(List<FieldCapabilitiesFailure> failures) {
-        Set<String> unavailableRemotes = new HashSet<>();
+    static Map<String, FieldCapabilitiesFailure> determineUnavailableRemoteClusters(List<FieldCapabilitiesFailure> failures) {
+        Map<String, FieldCapabilitiesFailure> unavailableRemotes = new HashMap<>();
         for (FieldCapabilitiesFailure failure : failures) {
             if (ExceptionsHelper.isRemoteUnavailableException(failure.getException())) {
                 for (String indexExpression : failure.getIndices()) {
                     if (indexExpression.indexOf(RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR) > 0) {
-                        unavailableRemotes.add(RemoteClusterAware.parseClusterAlias(indexExpression));
+                        unavailableRemotes.put(RemoteClusterAware.parseClusterAlias(indexExpression), failure);
                     }
                 }
             }

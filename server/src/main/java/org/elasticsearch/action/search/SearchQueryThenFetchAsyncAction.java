@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
@@ -93,8 +94,15 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
         final SearchShardTarget shard,
         final SearchActionListener<SearchPhaseResult> listener
     ) {
+        final Transport.Connection connection;
+        try {
+            connection = getConnection(shard.getClusterAlias(), shard.getNodeId());
+        } catch (Exception e) {
+            listener.onFailure(e);
+            return;
+        }
         ShardSearchRequest request = rewriteShardSearchRequest(super.buildShardSearchRequest(shardIt, listener.requestIndex));
-        getSearchTransport().sendExecuteQuery(getConnection(shard.getClusterAlias(), shard.getNodeId()), request, getTask(), listener);
+        getSearchTransport().sendExecuteQuery(connection, request, getTask(), listener);
     }
 
     @Override
@@ -125,9 +133,22 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
         super.onShardResult(result, shardIt);
     }
 
+    static SearchPhase nextPhase(
+        Client client,
+        SearchPhaseContext context,
+        SearchPhaseResults<SearchPhaseResult> queryResults,
+        AggregatedDfs aggregatedDfs
+    ) {
+        var rankFeaturePhaseCoordCtx = RankFeaturePhase.coordinatorContext(context.getRequest().source(), client);
+        if (rankFeaturePhaseCoordCtx == null) {
+            return new FetchSearchPhase(queryResults, aggregatedDfs, context, null);
+        }
+        return new RankFeaturePhase(queryResults, aggregatedDfs, context, rankFeaturePhaseCoordCtx);
+    }
+
     @Override
     protected SearchPhase getNextPhase(final SearchPhaseResults<SearchPhaseResult> results, SearchPhaseContext context) {
-        return new RankFeaturePhase(results, null, this, client);
+        return nextPhase(client, this, results, null);
     }
 
     private ShardSearchRequest rewriteShardSearchRequest(ShardSearchRequest request) {

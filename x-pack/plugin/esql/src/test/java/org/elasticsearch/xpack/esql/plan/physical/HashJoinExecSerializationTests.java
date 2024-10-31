@@ -36,8 +36,8 @@ public class HashJoinExecSerializationTests extends AbstractPhysicalPlanSerializ
 
     @Override
     protected HashJoinExec mutateInstance(HashJoinExec instance) throws IOException {
-        PhysicalPlan child = instance.child();
-        LocalSourceExec joinData = instance.joinData();
+        PhysicalPlan child = instance.left();
+        PhysicalPlan joinData = instance.joinData();
         List<Attribute> matchFields = randomFieldAttributes(1, 5, false);
         List<Attribute> leftFields = randomFieldAttributes(1, 5, false);
         List<Attribute> rightFields = randomFieldAttributes(1, 5, false);
@@ -52,5 +52,10 @@ public class HashJoinExecSerializationTests extends AbstractPhysicalPlanSerializ
             default -> throw new UnsupportedOperationException();
         }
         return new HashJoinExec(instance.source(), child, joinData, matchFields, leftFields, rightFields, output);
+    }
+
+    @Override
+    protected boolean alwaysEmptySource() {
+        return true;
     }
 }

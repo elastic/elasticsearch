@@ -70,6 +70,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.transport.Transports;
 import org.elasticsearch.transport.netty4.Netty4Utils;
 
 import java.util.Collection;
@@ -208,6 +209,29 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
 
             // terminate connection on server and wait resources are released
             handler.channel.request().getHttpChannel().close();
+            assertBusy(() -> {
+                assertNull(handler.stream.buf());
+                assertTrue(handler.streamClosed);
+            });
+        }
+    }
+
+    public void testServerExceptionMidStream() throws Exception {
+        try (var ctx = setupClientCtx()) {
+            var opaqueId = opaqueId(0);
+
+            // write half of http request
+            ctx.clientChannel.write(httpRequest(opaqueId, 2 * 1024));
+            ctx.clientChannel.writeAndFlush(randomContent(1024, false));
+
+            // await stream handler is ready and request full content
+            var handler = ctx.awaitRestChannelAccepted(opaqueId);
+            assertBusy(() -> assertNotNull(handler.stream.buf()));
+            assertFalse(handler.streamClosed);
+
+            handler.shouldThrowInsideHandleChunk = true;
+            handler.stream.next();
+
             assertBusy(() -> {
                 assertNull(handler.stream.buf());
                 assertTrue(handler.streamClosed);
@@ -598,6 +622,7 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
         RestChannel channel;
         boolean recvLast = false;
         volatile boolean streamClosed = false;
+        volatile boolean shouldThrowInsideHandleChunk = false;
 
         ServerRequestHandler(String opaqueId, Netty4HttpRequestBodyStream stream) {
             this.opaqueId = opaqueId;
@@ -606,6 +631,12 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
 
         @Override
         public void handleChunk(RestChannel channel, ReleasableBytesReference chunk, boolean isLast) {
+            Transports.assertTransportThread();
+            if (shouldThrowInsideHandleChunk) {
+                // Must close the chunk. This is the contract of this method.
+                chunk.close();
+                throw new RuntimeException("simulated exception inside handleChunk");
+            }
             recvChunks.add(new Chunk(chunk, isLast));
         }
 

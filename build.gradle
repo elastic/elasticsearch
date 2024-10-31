@@ -409,6 +409,10 @@ gradle.projectsEvaluated {
   }
 }
 
+tasks.named("validateChangelogs") {
+  onlyIf { project.gradle.startParameter.taskNames.any { it.startsWith("checkPart") || it == 'functionalTests' } == false }
+}
+
 tasks.named("precommit") {
   dependsOn gradle.includedBuild('build-tools').task(':precommit')
   dependsOn gradle.includedBuild('build-tools-internal').task(':precommit')

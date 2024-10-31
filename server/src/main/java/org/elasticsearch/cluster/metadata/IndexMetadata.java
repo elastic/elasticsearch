@@ -1684,8 +1684,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             } else {
                 eventIngestedRange = IndexLongFieldRange.UNKNOWN;
             }
-            if (in.getTransportVersion().onOrAfter(TransportVersions.INCLUDE_IS_DATA_STREAM_BACKING_INDEX_METADATA)) {
-                isDataStreamBackingIndex = in.readBoolean();
+            if (in.getTransportVersion().onOrAfter(TransportVersions.IS_DATA_STREAM_BACKING_INDEX_METADATA)) {
+                isDataStreamBackingIndex = in.readOptionalBoolean();
             } else {
                 isDataStreamBackingIndex = false;
             }
@@ -1736,10 +1736,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 assert eventIngestedRange == IndexLongFieldRange.UNKNOWN
                     : "eventIngestedRange should be UNKNOWN until all nodes are on the new version but is " + eventIngestedRange;
             }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.INCLUDE_IS_DATA_STREAM_BACKING_INDEX_METADATA)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.IS_DATA_STREAM_BACKING_INDEX_METADATA)) {
                 out.writeBoolean(isDataStreamBackingIndex);
-            } else {
-                out.writeBoolean(false);
             }
         }
 

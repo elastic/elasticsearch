@@ -15,8 +15,8 @@ base {
 
 dependencies {
   compileOnly project(":server")
-  compileOnly project(":libs:elasticsearch-cli")
-  compileOnly project(":libs:elasticsearch-x-content")
+  compileOnly project(":libs:cli")
+  compileOnly project(":libs:x-content")
   testImplementation project(":test:framework")
   testImplementation "org.apache.commons:commons-compress:1.26.1"
   testImplementation "commons-io:commons-io:2.15.1"

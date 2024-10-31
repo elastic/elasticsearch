@@ -43,7 +43,8 @@ public class Slow extends BinaryScalarFunction implements EvaluatorMapper {
 
     @FunctionInfo(
         returnType = { "boolean" },
-        description = "Debug function to slow down processing. If the condition is true, the function will sleep for the specified number of milliseconds.",
+        description = "Debug function to slow down processing. "
+            + "If the condition is true, the function will sleep for the specified number of milliseconds.",
         examples = { @Example(file = "null", tag = "slow") }
     )
     public Slow(

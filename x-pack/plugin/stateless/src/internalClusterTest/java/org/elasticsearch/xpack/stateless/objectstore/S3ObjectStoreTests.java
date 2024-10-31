@@ -29,6 +29,7 @@ import com.sun.net.httpserver.HttpHandler;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.core.LogEvent;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.MockSecureSettings;
@@ -58,12 +59,14 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -568,6 +571,95 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
         } finally {
             internalCluster().stopNode(searchNode);
             internalCluster().stopNode(masterAndIndexNode);
+        }
+    }
+
+    public void testRetryOn403ForGet() throws Exception {
+        final Set<String> requestsErroredFor403 = ConcurrentCollections.newConcurrentSet();
+        var getBlob = new AtomicReference<String>();
+        var listBlobs = new AtomicReference<String>();
+        s3HttpHandler.setInterceptor(new Interceptor() {
+            @SuppressForbidden(reason = "this test uses a HttpServer to emulate an S3 endpoint")
+            @Override
+            public boolean intercept(HttpExchange exchange) throws IOException {
+                final String request = exchange.getRequestMethod() + " " + exchange.getRequestURI().toString();
+                if (getBlob.get() != null
+                    && listBlobs.get() != null
+                    && (request.startsWith(getBlob.get()) || request.startsWith(listBlobs.get()))
+                    && requestsErroredFor403.add(request)) {
+                    try (exchange) {
+                        final byte[] response = Strings.format("""
+                            <?xml version="1.0" encoding="UTF-8"?>
+                            <Error>
+                              <Code>InvalidAccessKeyId</Code>
+                              <Message>The AWS Access Key Id you provided does not exist in our records.</Message>
+                              <RequestId>%s</RequestId>
+                            </Error>""", randomUUID()).getBytes(StandardCharsets.UTF_8);
+                        exchange.getResponseHeaders().add("Content-Type", "application/xml");
+                        exchange.sendResponseHeaders(403, response.length);
+                        exchange.getResponseBody().write(response);
+                    }
+                    return true;
+                }
+                return false;
+            }
+        });
+
+        final String masterNode = startMasterAndIndexNode();
+        final String indexNode1 = startIndexNode();
+        final String searchNode = startSearchNode();
+        ensureStableCluster(3);
+
+        String indexNode2 = null;
+        try {
+            var indexName = randomIdentifier();
+            createIndex(
+                indexName,
+                indexSettings(1, 0).put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_PREFIX + "._name", indexNode1).build()
+            );
+            var indexUuid = resolveIndex(indexName).getUUID();
+
+            var basePath = getCurrentMasterObjectStoreService().getObjectStore().basePath().buildAsString().replaceAll("/", "%2F");
+            listBlobs.set("GET /bucket/?prefix=" + basePath + "indices%2F" + indexUuid + "%2F");
+            getBlob.set("GET /bucket/base_path/indices/" + indexUuid + "/0/");
+
+            int iters = between(1, 5);
+            for (int i = 0; i < iters; i++) {
+                indexDocs(indexName, between(1, 10));
+                flush(indexName);
+                internalCluster().restartNode(indexNode1);
+                ensureGreen(indexName);
+
+                assertThat(requestsErroredFor403, not(empty()));
+                requestsErroredFor403.clear();
+            }
+
+            indexNode2 = startIndexNode();
+            ensureStableCluster(4);
+
+            updateIndexSettings(
+                Settings.builder().putList(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_PREFIX + "._name", indexNode2),
+                indexName
+            );
+            ensureGreen(indexName);
+
+            assertThat(requestsErroredFor403, not(empty()));
+            requestsErroredFor403.clear();
+
+            updateIndexSettings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                    .putList(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_PREFIX + "._name", List.of(indexNode2, searchNode)),
+                indexName
+            );
+            ensureGreen(indexName);
+            // The test passes as long as the cluster forms successfully and completes some normal activities
+            assertThat(requestsErroredFor403, not(empty()));
+        } finally {
+            internalCluster().stopNode(searchNode);
+            internalCluster().stopNode(indexNode1);
+            internalCluster().stopNode(indexNode2);
+            internalCluster().stopNode(masterNode);
         }
     }
 

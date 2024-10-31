@@ -1,5 +1,6 @@
 SLOW
-from employees | sort emp_no | where slow(true, 5) | keep emp_no, still_hired | limit 3;
+required_capability: snapshot_test_for_telemetry
+from employees | sort emp_no | where slow(true, 1) | keep emp_no, still_hired | limit 3;
 
 emp_no:integer | still_hired:boolean
 10001          | true

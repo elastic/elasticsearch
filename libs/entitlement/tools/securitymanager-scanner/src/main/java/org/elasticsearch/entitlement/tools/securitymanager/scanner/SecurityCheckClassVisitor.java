@@ -9,12 +9,11 @@
 
 package org.elasticsearch.entitlement.tools.securitymanager.scanner;
 
+import org.elasticsearch.core.SuppressForbidden;
 import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Type;
-import org.objectweb.asm.util.Textifier;
-import org.objectweb.asm.util.TraceMethodVisitor;
 
 import java.lang.constant.ClassDesc;
 import java.lang.reflect.InaccessibleObjectException;
@@ -84,11 +83,7 @@ class SecurityCheckClassVisitor extends ClassVisitor {
         if (excludedClasses.contains(this.className)) {
             return super.visitMethod(access, name, descriptor, signature, exceptions);
         }
-        return new SecurityCheckMethodVisitor(
-            new TraceMethodVisitor(super.visitMethod(access, name, descriptor, signature, exceptions), new Textifier()),
-            name,
-            access
-        );
+        return new SecurityCheckMethodVisitor(super.visitMethod(access, name, descriptor, signature, exceptions), name, access);
     }
 
     public void setCurrentModule(String moduleName, Set<String> moduleExports) {
@@ -104,20 +99,22 @@ class SecurityCheckClassVisitor extends ClassVisitor {
 
         private final String methodName;
         private int line;
-        private boolean callsTarget;
-        private final TraceMethodVisitor traceMethodVisitor;
         private String permissionType;
         private String runtimePermissionType;
         private final int methodAccess;
 
-        protected SecurityCheckMethodVisitor(TraceMethodVisitor mv, String methodName, int methodAccess) {
+        protected SecurityCheckMethodVisitor(MethodVisitor mv, String methodName, int methodAccess) {
             super(ASM9, mv);
             this.methodName = methodName;
-            this.traceMethodVisitor = mv;
             this.methodAccess = methodAccess;
         }
 
         private static final Set<String> KNOWN_PERMISSIONS = Set.of("jdk.vm.ci.services.JVMCIPermission");
+
+        @SuppressForbidden(reason = "System.err is OK for this simple command-line tool")
+        private void handleException(String className, Throwable e) {
+            System.err.println("Cannot process " + className + ": " + e.getMessage());
+        }
 
         @Override
         public void visitTypeInsn(int opcode, String type) {
@@ -134,7 +131,7 @@ class SecurityCheckClassVisitor extends ClassVisitor {
                                 permissionType = type;
                             }
                         } catch (ClassNotFoundException e) {
-                            e.printStackTrace();
+                            handleException(objectType.getClassName(), e);
                         }
                     }
                 }
@@ -142,6 +139,7 @@ class SecurityCheckClassVisitor extends ClassVisitor {
         }
 
         @Override
+        @SuppressForbidden(reason = "We need to violate java's access system to access private parts")
         public void visitFieldInsn(int opcode, String owner, String name, String descriptor) {
             super.visitFieldInsn(opcode, owner, name, descriptor);
             if (opcode == GETSTATIC && descriptor.endsWith("Permission;")) {
@@ -155,7 +153,7 @@ class SecurityCheckClassVisitor extends ClassVisitor {
                         this.permissionType = permissionType.getInternalName();
                     }
                 } catch (ClassNotFoundException e) {
-                    e.printStackTrace();
+                    handleException(permissionType.getClassName(), e);
                 }
 
                 var objectType = Type.getObjectType(owner);
@@ -172,13 +170,13 @@ class SecurityCheckClassVisitor extends ClassVisitor {
                                     var p = (Permission) (x.get(null));
                                     this.runtimePermissionType = p.getName();
                                 } catch (IllegalAccessException | InaccessibleObjectException e) {
-                                    e.printStackTrace();
+                                    handleException(x.getName(), e);
                                 }
                             }
                         });
 
                 } catch (ClassNotFoundException | NoClassDefFoundError | UnsatisfiedLinkError e) {
-                    e.printStackTrace();
+                    handleException(objectType.getClassName(), e);
                 }
             }
         }
@@ -206,7 +204,6 @@ class SecurityCheckClassVisitor extends ClassVisitor {
                         && moduleExports.contains(getPackageName(className));
 
                     if (name.equals("checkPermission")) {
-                        this.callsTarget = true;
                         var callers = callerInfoByMethod.computeIfAbsent(name, ignored -> new ArrayList<>());
                         callers.add(
                             new CallerInfo(
@@ -260,9 +257,6 @@ class SecurityCheckClassVisitor extends ClassVisitor {
         @Override
         public void visitEnd() {
             super.visitEnd();
-            if (callsTarget) {
-                // System.out.println(traceMethodVisitor.p.getText());
-            }
         }
     }
 }

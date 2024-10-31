@@ -9,6 +9,7 @@
 
 package org.elasticsearch.entitlement.tools.securitymanager.scanner;
 
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.entitlement.tools.Utils;
 import org.objectweb.asm.ClassReader;
 
@@ -51,6 +52,11 @@ public class Main {
             });
         }
 
+        printToStdout(callers);
+    }
+
+    @SuppressForbidden(reason = "This simple tool just prints to System.out")
+    private static void printToStdout(HashMap<String, List<SecurityCheckClassVisitor.CallerInfo>> callers) {
         for (var kv : callers.entrySet()) {
             for (var e : kv.getValue()) {
                 System.out.println(toString(kv.getKey(), e));

@@ -53,9 +53,15 @@ repositories {
 }
 
 dependencies {
+  compileOnly(project(':libs:core'))
   implementation 'org.ow2.asm:asm:9.7'
   implementation 'org.ow2.asm:asm-util:9.7'
   implementation 'org.ow2.asm:asm-tree:9.7'
   implementation 'org.ow2.asm:asm-analysis:9.7'
   implementation(project(':libs:entitlement:tools:common'))
+}
+
+tasks.named('forbiddenApisMain').configure {
+  // TODO: Need to decide how we want to handle for forbidden signatures with the changes to core
+  replaceSignatureFiles 'jdk-signatures'
 }

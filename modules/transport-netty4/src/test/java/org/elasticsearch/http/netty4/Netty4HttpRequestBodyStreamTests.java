@@ -19,24 +19,33 @@ import io.netty.handler.codec.http.HttpContent;
 import io.netty.handler.flow.FlowControlHandler;
 
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.http.HttpBody;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
+
+import static org.hamcrest.Matchers.hasEntry;
 
 public class Netty4HttpRequestBodyStreamTests extends ESTestCase {
 
-    EmbeddedChannel channel;
-    Netty4HttpRequestBodyStream stream;
+    private final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+    private EmbeddedChannel channel;
+    private Netty4HttpRequestBodyStream stream;
     static HttpBody.ChunkHandler discardHandler = (chunk, isLast) -> chunk.close();
 
     @Override
     public void setUp() throws Exception {
         super.setUp();
         channel = new EmbeddedChannel();
-        stream = new Netty4HttpRequestBodyStream(channel);
+        threadContext.putHeader("header1", "value1");
+        stream = new Netty4HttpRequestBodyStream(channel, threadContext);
         stream.setHandler(discardHandler); // set default handler, each test might override one
         channel.pipeline().addLast(new SimpleChannelInboundHandler<HttpContent>(false) {
             @Override
@@ -82,6 +91,15 @@ public class Netty4HttpRequestBodyStreamTests extends ESTestCase {
         assertEquals(chunkSize * totalChunks, totalBytes.get());
     }
 
+    // ensures that channel.setAutoRead(true) only when we flush last chunk
+    public void testSetAutoReadOnLastFlush() {
+        channel.writeInbound(randomLastContent(10));
+        assertFalse("should not auto-read on last content reception", channel.config().isAutoRead());
+        stream.next();
+        channel.runPendingTasks();
+        assertTrue("should set auto-read once last content is flushed", channel.config().isAutoRead());
+    }
+
     // ensures that we read from channel when no current chunks available
     // and pass next chunk downstream without holding
     public void testReadFromChannel() {
@@ -107,6 +125,60 @@ public class Netty4HttpRequestBodyStreamTests extends ESTestCase {
             assertEquals("each next() should produce single chunk", i + 1, gotChunks.size());
         }
         assertTrue("should receive last content", gotLast.get());
+    }
+
+    public void testReadFromHasCorrectThreadContext() throws InterruptedException {
+        var gotLast = new AtomicBoolean(false);
+        AtomicReference<Map<String, String>> headers = new AtomicReference<>();
+        stream.setHandler(new HttpBody.ChunkHandler() {
+            @Override
+            public void onNext(ReleasableBytesReference chunk, boolean isLast) {
+                headers.set(threadContext.getHeaders());
+                gotLast.set(isLast);
+                chunk.close();
+            }
+
+            @Override
+            public void close() {
+                headers.set(threadContext.getHeaders());
+            }
+        });
+        channel.pipeline().addFirst(new FlowControlHandler()); // block all incoming messages, need explicit channel.read()
+        var chunkSize = 1024;
+
+        channel.writeInbound(randomContent(chunkSize));
+        channel.writeInbound(randomLastContent(chunkSize));
+
+        threadContext.putHeader("header2", "value2");
+        stream.next();
+
+        Thread thread = new Thread(() -> channel.runPendingTasks());
+        thread.start();
+        thread.join();
+
+        assertThat(headers.get(), hasEntry("header1", "value1"));
+        assertThat(headers.get(), hasEntry("header2", "value2"));
+
+        threadContext.putHeader("header3", "value3");
+        stream.next();
+
+        thread = new Thread(() -> channel.runPendingTasks());
+        thread.start();
+        thread.join();
+
+        assertThat(headers.get(), hasEntry("header1", "value1"));
+        assertThat(headers.get(), hasEntry("header2", "value2"));
+        assertThat(headers.get(), hasEntry("header3", "value3"));
+
+        assertTrue("should receive last content", gotLast.get());
+
+        headers.set(new HashMap<>());
+
+        stream.close();
+
+        assertThat(headers.get(), hasEntry("header1", "value1"));
+        assertThat(headers.get(), hasEntry("header2", "value2"));
+        assertThat(headers.get(), hasEntry("header3", "value3"));
     }
 
     HttpContent randomContent(int size, boolean isLast) {

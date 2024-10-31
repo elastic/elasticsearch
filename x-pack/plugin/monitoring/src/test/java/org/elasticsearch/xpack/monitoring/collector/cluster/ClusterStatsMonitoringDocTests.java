@@ -60,7 +60,7 @@ import org.elasticsearch.plugins.PluginRuntimeInfo;
 import org.elasticsearch.test.BuildUtils;
 import org.elasticsearch.transport.TransportInfo;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.XPackFeatureSet;
+import org.elasticsearch.xpack.core.XPackFeatureUsage;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.monitoring.MonitoringFeatureSetUsage;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
@@ -78,7 +78,6 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.singleton;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
-import static org.elasticsearch.action.search.TransportSearchAction.CCS_TELEMETRY_FEATURE_FLAG;
 import static org.elasticsearch.common.xcontent.XContentHelper.stripWhitespace;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -92,7 +91,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
     private String clusterName;
     private String version;
     private ClusterHealthStatus clusterStatus;
-    private List<XPackFeatureSet.Usage> usages;
+    private List<XPackFeatureUsage> usages;
     private ClusterStatsResponse clusterStats;
     private ClusterState clusterState;
     private License license;
@@ -313,7 +312,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
             .maxNodes(2)
             .build();
 
-        final List<XPackFeatureSet.Usage> usageList = singletonList(new MonitoringFeatureSetUsage(false, null));
+        final List<XPackFeatureUsage> usageList = singletonList(new MonitoringFeatureSetUsage(false, null));
 
         final NodeInfo mockNodeInfo = mock(NodeInfo.class);
         var mockNodeVersion = randomAlphaOfLengthBetween(6, 32);
@@ -591,7 +590,8 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                     "total": 0,
                     "queries": {},
                     "rescorers": {},
-                    "sections": {}
+                    "sections": {},
+                    "retrievers": {}
                   },
                   "dense_vector": {
                     "value_count": 0
@@ -847,10 +847,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                 }
               }
             }""";
-        assertEquals(
-            stripWhitespace(Strings.format(expectedJson + (CCS_TELEMETRY_FEATURE_FLAG.isEnabled() ? ccsOutput : "") + suffixJson, args)),
-            xContent.utf8ToString()
-        );
+        assertEquals(stripWhitespace(Strings.format(expectedJson + ccsOutput + suffixJson, args)), xContent.utf8ToString());
     }
 
     private DiscoveryNode masterNode() {

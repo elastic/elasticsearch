@@ -50,6 +50,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.node.NodeService;
 import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -314,7 +315,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<
 
         public ClusterStatsNodeRequest(StreamInput in) throws IOException {
             super(in);
-            skipLegacyNodesRequestHeader(TransportVersions.DROP_UNUSED_NODES_REQUESTS, in);
+            skipLegacyNodesRequestHeader(TransportVersions.V_8_15_0, in);
         }
 
         @Override
@@ -325,7 +326,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            sendLegacyNodesRequestHeader(TransportVersions.DROP_UNUSED_NODES_REQUESTS, out);
+            sendLegacyNodesRequestHeader(TransportVersions.V_8_15_0, out);
         }
     }
 
@@ -434,8 +435,8 @@ public class TransportClusterStatsAction extends TransportNodesAction<
         }
     }
 
-    private static boolean doRemotes(ClusterStatsRequest request) {
-        return request.doRemotes();
+    private boolean doRemotes(ClusterStatsRequest request) {
+        return SearchService.CCS_COLLECT_TELEMETRY.get(settings) && request.doRemotes();
     }
 
     private class RemoteStatsFanout extends CancellableFanOut<String, RemoteClusterStatsResponse, Map<String, RemoteClusterStats>> {

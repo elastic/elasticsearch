@@ -8,12 +8,19 @@
 package org.elasticsearch.xpack.rank.rrf;
 
 import org.apache.lucene.search.TotalHits;
+import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequestBuilder;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -24,19 +31,25 @@ import org.elasticsearch.search.retriever.StandardRetrieverBuilder;
 import org.elasticsearch.search.retriever.TestRetrieverBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
+import org.elasticsearch.search.vectors.QueryVectorBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
@@ -163,7 +176,10 @@ public class RRFRetrieverBuilderIT extends ESIntegTestCase {
                 );
                 // this one retrieves docs 2 and 6 due to prefilter
                 StandardRetrieverBuilder standard1 = new StandardRetrieverBuilder(
-                    QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_2", "doc_3", "doc_6")).boost(20L)
+                    QueryBuilders.boolQuery()
+                        .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_2")).boost(20L))
+                        .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_3")).boost(10L))
+                        .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_6")).boost(5L))
                 );
                 standard1.getPreFilterQueryBuilders().add(QueryBuilders.queryStringQuery("search").defaultField(TEXT_FIELD));
                 // this one retrieves docs 2, 3, 6, and 7
@@ -210,7 +226,10 @@ public class RRFRetrieverBuilderIT extends ESIntegTestCase {
         );
         // this one retrieves docs 2 and 6 due to prefilter
         StandardRetrieverBuilder standard1 = new StandardRetrieverBuilder(
-            QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_2", "doc_3", "doc_6")).boost(20L)
+            QueryBuilders.boolQuery()
+                .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_2")).boost(20L))
+                .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_3")).boost(10L))
+                .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_6")).boost(5L))
         );
         standard1.getPreFilterQueryBuilders().add(QueryBuilders.queryStringQuery("search").defaultField(TEXT_FIELD));
         // this one retrieves docs 2, 3, 6, and 7
@@ -262,7 +281,10 @@ public class RRFRetrieverBuilderIT extends ESIntegTestCase {
         );
         // this one retrieves docs 2 and 6 due to prefilter
         StandardRetrieverBuilder standard1 = new StandardRetrieverBuilder(
-            QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_2", "doc_3", "doc_6")).boost(20L)
+            QueryBuilders.boolQuery()
+                .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_2")).boost(20L))
+                .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_3")).boost(10L))
+                .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_6")).boost(5L))
         );
         standard1.getPreFilterQueryBuilders().add(QueryBuilders.queryStringQuery("search").defaultField(TEXT_FIELD));
         // this one retrieves docs 2, 3, 6, and 7
@@ -316,7 +338,10 @@ public class RRFRetrieverBuilderIT extends ESIntegTestCase {
         );
         // this one retrieves docs 2 and 6 due to prefilter
         StandardRetrieverBuilder standard1 = new StandardRetrieverBuilder(
-            QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_2", "doc_3", "doc_6")).boost(20L)
+            QueryBuilders.boolQuery()
+                .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_2")).boost(20L))
+                .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_3")).boost(10L))
+                .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_6")).boost(5L))
         );
         standard1.getPreFilterQueryBuilders().add(QueryBuilders.queryStringQuery("search").defaultField(TEXT_FIELD));
         // this one retrieves docs 2, 3, 6, and 7
@@ -379,7 +404,10 @@ public class RRFRetrieverBuilderIT extends ESIntegTestCase {
         );
         // this one retrieves docs 2 and 6 due to prefilter
         StandardRetrieverBuilder standard1 = new StandardRetrieverBuilder(
-            QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_2", "doc_3", "doc_6")).boost(20L)
+            QueryBuilders.boolQuery()
+                .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_2")).boost(20L))
+                .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_3")).boost(10L))
+                .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_6")).boost(5L))
         );
         standard1.getPreFilterQueryBuilders().add(QueryBuilders.queryStringQuery("search").defaultField(TEXT_FIELD));
         // this one retrieves docs 2, 3, 6, and 7
@@ -442,7 +470,10 @@ public class RRFRetrieverBuilderIT extends ESIntegTestCase {
         standard0.retrieverName("my_custom_retriever");
         // this one retrieves docs 2 and 6 due to prefilter
         StandardRetrieverBuilder standard1 = new StandardRetrieverBuilder(
-            QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_2", "doc_3", "doc_6")).boost(20L)
+            QueryBuilders.boolQuery()
+                .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_2")).boost(20L))
+                .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_3")).boost(10L))
+                .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_6")).boost(5L))
         );
         standard1.getPreFilterQueryBuilders().add(QueryBuilders.queryStringQuery("search").defaultField(TEXT_FIELD));
         // this one retrieves docs 2, 3, 6, and 7
@@ -498,7 +529,10 @@ public class RRFRetrieverBuilderIT extends ESIntegTestCase {
         standard0.retrieverName("my_custom_retriever");
         // this one retrieves docs 2 and 6 due to prefilter
         StandardRetrieverBuilder standard1 = new StandardRetrieverBuilder(
-            QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_2", "doc_3", "doc_6")).boost(20L)
+            QueryBuilders.boolQuery()
+                .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_2")).boost(20L))
+                .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_3")).boost(10L))
+                .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_6")).boost(5L))
         );
         standard1.getPreFilterQueryBuilders().add(QueryBuilders.queryStringQuery("search").defaultField(TEXT_FIELD));
         // this one retrieves docs 2, 3, 6, and 7
@@ -557,16 +591,19 @@ public class RRFRetrieverBuilderIT extends ESIntegTestCase {
         });
     }
 
-    public void testRRFInnerRetrieverSearchError() {
+    public void testRRFInnerRetrieverAll4xxSearchErrors() {
         final int rankWindowSize = 100;
         final int rankConstant = 10;
         SearchSourceBuilder source = new SearchSourceBuilder();
-        // this will throw an error during evaluation
+        // this will throw a 4xx error during evaluation
         StandardRetrieverBuilder standard0 = new StandardRetrieverBuilder(
             QueryBuilders.constantScoreQuery(QueryBuilders.rangeQuery(VECTOR_FIELD).gte(10))
         );
         StandardRetrieverBuilder standard1 = new StandardRetrieverBuilder(
-            QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_2", "doc_3", "doc_6")).boost(20L)
+            QueryBuilders.boolQuery()
+                .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_2")).boost(20L))
+                .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_3")).boost(10L))
+                .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_6")).boost(5L))
         );
         standard1.getPreFilterQueryBuilders().add(QueryBuilders.queryStringQuery("search").defaultField(TEXT_FIELD));
         source.retriever(
@@ -580,10 +617,57 @@ public class RRFRetrieverBuilderIT extends ESIntegTestCase {
             )
         );
         SearchRequestBuilder req = client().prepareSearch(INDEX).setSource(source);
-        Exception ex = expectThrows(IllegalStateException.class, req::get);
-        assertThat(ex, instanceOf(IllegalStateException.class));
-        assertThat(ex.getMessage(), containsString("Search failed - some nested retrievers returned errors"));
-        assertThat(ex.getSuppressed().length, greaterThan(0));
+        Exception ex = expectThrows(ElasticsearchStatusException.class, req::get);
+        assertThat(ex, instanceOf(ElasticsearchStatusException.class));
+        assertThat(
+            ex.getMessage(),
+            containsString(
+                "[rrf] search failed - retrievers '[standard]' returned errors. All failures are attached as suppressed exceptions."
+            )
+        );
+        assertThat(ExceptionsHelper.status(ex), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(ex.getSuppressed().length, equalTo(1));
+        assertThat(ex.getSuppressed()[0].getCause().getCause(), instanceOf(IllegalArgumentException.class));
+    }
+
+    public void testRRFInnerRetrieverMultipleErrorsOne5xx() {
+        final int rankWindowSize = 100;
+        final int rankConstant = 10;
+        SearchSourceBuilder source = new SearchSourceBuilder();
+        // this will throw a 4xx error during evaluation
+        StandardRetrieverBuilder standard0 = new StandardRetrieverBuilder(
+            QueryBuilders.constantScoreQuery(QueryBuilders.rangeQuery(VECTOR_FIELD).gte(10))
+        );
+        // this will throw a 5xx error
+        TestRetrieverBuilder testRetrieverBuilder = new TestRetrieverBuilder("val") {
+            @Override
+            public void extractToSearchSourceBuilder(SearchSourceBuilder searchSourceBuilder, boolean compoundUsed) {
+                searchSourceBuilder.aggregation(AggregationBuilders.avg("some_invalid_param"));
+            }
+        };
+        source.retriever(
+            new RRFRetrieverBuilder(
+                Arrays.asList(
+                    new CompoundRetrieverBuilder.RetrieverSource(standard0, null),
+                    new CompoundRetrieverBuilder.RetrieverSource(testRetrieverBuilder, null)
+                ),
+                rankWindowSize,
+                rankConstant
+            )
+        );
+        SearchRequestBuilder req = client().prepareSearch(INDEX).setSource(source);
+        Exception ex = expectThrows(ElasticsearchStatusException.class, req::get);
+        assertThat(ex, instanceOf(ElasticsearchStatusException.class));
+        assertThat(
+            ex.getMessage(),
+            containsString(
+                "[rrf] search failed - retrievers '[standard, test]' returned errors. All failures are attached as suppressed exceptions."
+            )
+        );
+        assertThat(ExceptionsHelper.status(ex), equalTo(RestStatus.INTERNAL_SERVER_ERROR));
+        assertThat(ex.getSuppressed().length, equalTo(2));
+        assertThat(ex.getSuppressed()[0].getCause().getCause(), instanceOf(IllegalArgumentException.class));
+        assertThat(ex.getSuppressed()[1].getCause().getCause(), instanceOf(IllegalStateException.class));
     }
 
     public void testRRFInnerRetrieverErrorWhenExtractingToSource() {
@@ -602,7 +686,10 @@ public class RRFRetrieverBuilderIT extends ESIntegTestCase {
             }
         };
         StandardRetrieverBuilder standard1 = new StandardRetrieverBuilder(
-            QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_2", "doc_3", "doc_6")).boost(20L)
+            QueryBuilders.boolQuery()
+                .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_2")).boost(20L))
+                .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_3")).boost(10L))
+                .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_6")).boost(5L))
         );
         standard1.getPreFilterQueryBuilders().add(QueryBuilders.queryStringQuery("search").defaultField(TEXT_FIELD));
         source.retriever(
@@ -635,7 +722,10 @@ public class RRFRetrieverBuilderIT extends ESIntegTestCase {
             }
         };
         StandardRetrieverBuilder standard1 = new StandardRetrieverBuilder(
-            QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_2", "doc_3", "doc_6")).boost(20L)
+            QueryBuilders.boolQuery()
+                .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_2")).boost(20L))
+                .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_3")).boost(10L))
+                .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_6")).boost(5L))
         );
         standard1.getPreFilterQueryBuilders().add(QueryBuilders.queryStringQuery("search").defaultField(TEXT_FIELD));
         source.retriever(
@@ -651,5 +741,56 @@ public class RRFRetrieverBuilderIT extends ESIntegTestCase {
         source.size(1);
         source.aggregation(AggregationBuilders.terms("topic_agg").field(TOPIC_FIELD));
         expectThrows(UnsupportedOperationException.class, () -> client().prepareSearch(INDEX).setSource(source).get());
+    }
+
+    public void testRewriteOnce() {
+        final float[] vector = new float[] { 1 };
+        AtomicInteger numAsyncCalls = new AtomicInteger();
+        QueryVectorBuilder vectorBuilder = new QueryVectorBuilder() {
+            @Override
+            public void buildVector(Client client, ActionListener<float[]> listener) {
+                numAsyncCalls.incrementAndGet();
+                listener.onResponse(vector);
+            }
+
+            @Override
+            public String getWriteableName() {
+                throw new IllegalStateException("Should not be called");
+            }
+
+            @Override
+            public TransportVersion getMinimalSupportedVersion() {
+                throw new IllegalStateException("Should not be called");
+            }
+
+            @Override
+            public void writeTo(StreamOutput out) throws IOException {
+                throw new IllegalStateException("Should not be called");
+            }
+
+            @Override
+            public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+                throw new IllegalStateException("Should not be called");
+            }
+        };
+        var knn = new KnnRetrieverBuilder("vector", null, vectorBuilder, 10, 10, null);
+        var standard = new StandardRetrieverBuilder(new KnnVectorQueryBuilder("vector", vectorBuilder, 10, 10, null));
+        var rrf = new RRFRetrieverBuilder(
+            List.of(new CompoundRetrieverBuilder.RetrieverSource(knn, null), new CompoundRetrieverBuilder.RetrieverSource(standard, null)),
+            10,
+            10
+        );
+        assertResponse(
+            client().prepareSearch(INDEX).setSource(new SearchSourceBuilder().retriever(rrf)),
+            searchResponse -> assertThat(searchResponse.getHits().getTotalHits().value, is(4L))
+        );
+        assertThat(numAsyncCalls.get(), equalTo(2));
+
+        // check that we use the rewritten vector to build the explain query
+        assertResponse(
+            client().prepareSearch(INDEX).setSource(new SearchSourceBuilder().retriever(rrf).explain(true)),
+            searchResponse -> assertThat(searchResponse.getHits().getTotalHits().value, is(4L))
+        );
+        assertThat(numAsyncCalls.get(), equalTo(4));
     }
 }

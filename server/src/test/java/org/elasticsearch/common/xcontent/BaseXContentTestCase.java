@@ -390,28 +390,31 @@ public abstract class BaseXContentTestCase extends ESTestCase {
     }
 
     public void testDate() throws Exception {
-        assertResult("{'date':null}", () -> builder().startObject().timeField("date", (Date) null).endObject());
-        assertResult("{'date':null}", () -> builder().startObject().field("date").timeValue((Date) null).endObject());
+        assertResult("{'date':null}", () -> builder().startObject().timestampField("date", (Date) null).endObject());
+        assertResult("{'date':null}", () -> builder().startObject().field("date").timestampValue((Date) null).endObject());
 
         final Date d1 = Date.from(ZonedDateTime.of(2016, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC).toInstant());
-        assertResult("{'d1':'2016-01-01T00:00:00.000Z'}", () -> builder().startObject().timeField("d1", d1).endObject());
-        assertResult("{'d1':'2016-01-01T00:00:00.000Z'}", () -> builder().startObject().field("d1").timeValue(d1).endObject());
+        assertResult("{'d1':'2016-01-01T00:00:00.000Z'}", () -> builder().startObject().timestampField("d1", d1).endObject());
+        assertResult("{'d1':'2016-01-01T00:00:00.000Z'}", () -> builder().startObject().field("d1").timestampValue(d1).endObject());
 
         final Date d2 = Date.from(ZonedDateTime.of(2016, 12, 25, 7, 59, 42, 213000000, ZoneOffset.UTC).toInstant());
-        assertResult("{'d2':'2016-12-25T07:59:42.213Z'}", () -> builder().startObject().timeField("d2", d2).endObject());
-        assertResult("{'d2':'2016-12-25T07:59:42.213Z'}", () -> builder().startObject().field("d2").timeValue(d2).endObject());
+        assertResult("{'d2':'2016-12-25T07:59:42.213Z'}", () -> builder().startObject().timestampField("d2", d2).endObject());
+        assertResult("{'d2':'2016-12-25T07:59:42.213Z'}", () -> builder().startObject().field("d2").timestampValue(d2).endObject());
     }
 
-    public void testDateField() throws Exception {
+    public void testUnixEpochMillisField() throws Exception {
         final Date d = Date.from(ZonedDateTime.of(2016, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC).toInstant());
 
         assertResult(
             "{'date_in_millis':1451606400000}",
-            () -> builder().startObject().timeField("date_in_millis", "date", d.getTime()).endObject()
+            () -> builder().startObject().timestampFieldsFromUnixEpochMillis("date_in_millis", "date", d.getTime()).endObject()
         );
         assertResult(
             "{'date':'2016-01-01T00:00:00.000Z','date_in_millis':1451606400000}",
-            () -> builder().humanReadable(true).startObject().timeField("date_in_millis", "date", d.getTime()).endObject()
+            () -> builder().humanReadable(true)
+                .startObject()
+                .timestampFieldsFromUnixEpochMillis("date_in_millis", "date", d.getTime())
+                .endObject()
         );
     }
 
@@ -419,7 +422,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         Calendar calendar = GregorianCalendar.from(ZonedDateTime.of(2016, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC));
         assertResult(
             "{'calendar':'2016-01-01T00:00:00.000Z'}",
-            () -> builder().startObject().field("calendar").timeValue(calendar).endObject()
+            () -> builder().startObject().field("calendar").timestampValue(calendar).endObject()
         );
     }
 
@@ -427,83 +430,95 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         final ZonedDateTime d1 = ZonedDateTime.of(2016, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC);
 
         // ZonedDateTime
-        assertResult("{'date':null}", () -> builder().startObject().timeField("date", (ZonedDateTime) null).endObject());
-        assertResult("{'date':null}", () -> builder().startObject().field("date").timeValue((ZonedDateTime) null).endObject());
+        assertResult("{'date':null}", () -> builder().startObject().timestampField("date", (ZonedDateTime) null).endObject());
+        assertResult("{'date':null}", () -> builder().startObject().field("date").timestampValue((ZonedDateTime) null).endObject());
         assertResult("{'date':null}", () -> builder().startObject().field("date", (ZonedDateTime) null).endObject());
-        assertResult("{'d1':'2016-01-01T00:00:00.000Z'}", () -> builder().startObject().timeField("d1", d1).endObject());
-        assertResult("{'d1':'2016-01-01T00:00:00.000Z'}", () -> builder().startObject().field("d1").timeValue(d1).endObject());
+        assertResult("{'d1':'2016-01-01T00:00:00.000Z'}", () -> builder().startObject().timestampField("d1", d1).endObject());
+        assertResult("{'d1':'2016-01-01T00:00:00.000Z'}", () -> builder().startObject().field("d1").timestampValue(d1).endObject());
         assertResult("{'d1':'2016-01-01T00:00:00.000Z'}", () -> builder().startObject().field("d1", d1).endObject());
 
         // Instant
-        assertResult("{'date':null}", () -> builder().startObject().timeField("date", (java.time.Instant) null).endObject());
-        assertResult("{'date':null}", () -> builder().startObject().field("date").timeValue((java.time.Instant) null).endObject());
+        assertResult("{'date':null}", () -> builder().startObject().timestampField("date", (java.time.Instant) null).endObject());
+        assertResult("{'date':null}", () -> builder().startObject().field("date").timestampValue((java.time.Instant) null).endObject());
         assertResult("{'date':null}", () -> builder().startObject().field("date", (java.time.Instant) null).endObject());
-        assertResult("{'d1':'2016-01-01T00:00:00.000Z'}", () -> builder().startObject().timeField("d1", d1.toInstant()).endObject());
-        assertResult("{'d1':'2016-01-01T00:00:00.000Z'}", () -> builder().startObject().field("d1").timeValue(d1.toInstant()).endObject());
+        assertResult("{'d1':'2016-01-01T00:00:00.000Z'}", () -> builder().startObject().timestampField("d1", d1.toInstant()).endObject());
+        assertResult(
+            "{'d1':'2016-01-01T00:00:00.000Z'}",
+            () -> builder().startObject().field("d1").timestampValue(d1.toInstant()).endObject()
+        );
         assertResult("{'d1':'2016-01-01T00:00:00.000Z'}", () -> builder().startObject().field("d1", d1.toInstant()).endObject());
 
         // LocalDateTime (no time zone)
-        assertResult("{'date':null}", () -> builder().startObject().timeField("date", (LocalDateTime) null).endObject());
-        assertResult("{'date':null}", () -> builder().startObject().field("date").timeValue((LocalDateTime) null).endObject());
+        assertResult("{'date':null}", () -> builder().startObject().timestampField("date", (LocalDateTime) null).endObject());
+        assertResult("{'date':null}", () -> builder().startObject().field("date").timestampValue((LocalDateTime) null).endObject());
         assertResult("{'date':null}", () -> builder().startObject().field("date", (LocalDateTime) null).endObject());
-        assertResult("{'d1':'2016-01-01T00:00:00.000Z'}", () -> builder().startObject().timeField("d1", d1.toLocalDateTime()).endObject());
         assertResult(
             "{'d1':'2016-01-01T00:00:00.000Z'}",
-            () -> builder().startObject().field("d1").timeValue(d1.toLocalDateTime()).endObject()
+            () -> builder().startObject().timestampField("d1", d1.toLocalDateTime()).endObject()
+        );
+        assertResult(
+            "{'d1':'2016-01-01T00:00:00.000Z'}",
+            () -> builder().startObject().field("d1").timestampValue(d1.toLocalDateTime()).endObject()
         );
         assertResult("{'d1':'2016-01-01T00:00:00.000Z'}", () -> builder().startObject().field("d1", d1.toLocalDateTime()).endObject());
 
         // LocalDate (no time, no time zone)
-        assertResult("{'date':null}", () -> builder().startObject().timeField("date", (LocalDate) null).endObject());
-        assertResult("{'date':null}", () -> builder().startObject().field("date").timeValue((LocalDate) null).endObject());
+        assertResult("{'date':null}", () -> builder().startObject().timestampField("date", (LocalDate) null).endObject());
+        assertResult("{'date':null}", () -> builder().startObject().field("date").timestampValue((LocalDate) null).endObject());
         assertResult("{'date':null}", () -> builder().startObject().field("date", (LocalDate) null).endObject());
-        assertResult("{'d1':'2016-01-01'}", () -> builder().startObject().timeField("d1", d1.toLocalDate()).endObject());
-        assertResult("{'d1':'2016-01-01'}", () -> builder().startObject().field("d1").timeValue(d1.toLocalDate()).endObject());
+        assertResult("{'d1':'2016-01-01'}", () -> builder().startObject().timestampField("d1", d1.toLocalDate()).endObject());
+        assertResult("{'d1':'2016-01-01'}", () -> builder().startObject().field("d1").timestampValue(d1.toLocalDate()).endObject());
         assertResult("{'d1':'2016-01-01'}", () -> builder().startObject().field("d1", d1.toLocalDate()).endObject());
 
         // LocalTime (no date, no time zone)
-        assertResult("{'date':null}", () -> builder().startObject().timeField("date", (LocalTime) null).endObject());
-        assertResult("{'date':null}", () -> builder().startObject().field("date").timeValue((LocalTime) null).endObject());
+        assertResult("{'date':null}", () -> builder().startObject().timestampField("date", (LocalTime) null).endObject());
+        assertResult("{'date':null}", () -> builder().startObject().field("date").timestampValue((LocalTime) null).endObject());
         assertResult("{'date':null}", () -> builder().startObject().field("date", (LocalTime) null).endObject());
-        assertResult("{'d1':'00:00:00.000'}", () -> builder().startObject().timeField("d1", d1.toLocalTime()).endObject());
-        assertResult("{'d1':'00:00:00.000'}", () -> builder().startObject().field("d1").timeValue(d1.toLocalTime()).endObject());
+        assertResult("{'d1':'00:00:00.000'}", () -> builder().startObject().timestampField("d1", d1.toLocalTime()).endObject());
+        assertResult("{'d1':'00:00:00.000'}", () -> builder().startObject().field("d1").timestampValue(d1.toLocalTime()).endObject());
         assertResult("{'d1':'00:00:00.000'}", () -> builder().startObject().field("d1", d1.toLocalTime()).endObject());
         final ZonedDateTime d2 = ZonedDateTime.of(2016, 1, 1, 7, 59, 23, 123_000_000, ZoneOffset.UTC);
-        assertResult("{'d1':'07:59:23.123'}", () -> builder().startObject().timeField("d1", d2.toLocalTime()).endObject());
-        assertResult("{'d1':'07:59:23.123'}", () -> builder().startObject().field("d1").timeValue(d2.toLocalTime()).endObject());
+        assertResult("{'d1':'07:59:23.123'}", () -> builder().startObject().timestampField("d1", d2.toLocalTime()).endObject());
+        assertResult("{'d1':'07:59:23.123'}", () -> builder().startObject().field("d1").timestampValue(d2.toLocalTime()).endObject());
         assertResult("{'d1':'07:59:23.123'}", () -> builder().startObject().field("d1", d2.toLocalTime()).endObject());
 
         // OffsetDateTime
-        assertResult("{'date':null}", () -> builder().startObject().timeField("date", (OffsetDateTime) null).endObject());
-        assertResult("{'date':null}", () -> builder().startObject().field("date").timeValue((OffsetDateTime) null).endObject());
+        assertResult("{'date':null}", () -> builder().startObject().timestampField("date", (OffsetDateTime) null).endObject());
+        assertResult("{'date':null}", () -> builder().startObject().field("date").timestampValue((OffsetDateTime) null).endObject());
         assertResult("{'date':null}", () -> builder().startObject().field("date", (OffsetDateTime) null).endObject());
         assertResult("{'d1':'2016-01-01T00:00:00.000Z'}", () -> builder().startObject().field("d1", d1.toOffsetDateTime()).endObject());
-        assertResult("{'d1':'2016-01-01T00:00:00.000Z'}", () -> builder().startObject().timeField("d1", d1.toOffsetDateTime()).endObject());
         assertResult(
             "{'d1':'2016-01-01T00:00:00.000Z'}",
-            () -> builder().startObject().field("d1").timeValue(d1.toOffsetDateTime()).endObject()
+            () -> builder().startObject().timestampField("d1", d1.toOffsetDateTime()).endObject()
+        );
+        assertResult(
+            "{'d1':'2016-01-01T00:00:00.000Z'}",
+            () -> builder().startObject().field("d1").timestampValue(d1.toOffsetDateTime()).endObject()
         );
         // also test with a date that has a real offset
         OffsetDateTime offsetDateTime = d1.withZoneSameLocal(ZoneOffset.ofHours(5)).toOffsetDateTime();
         assertResult("{'d1':'2016-01-01T00:00:00.000+05:00'}", () -> builder().startObject().field("d1", offsetDateTime).endObject());
-        assertResult("{'d1':'2016-01-01T00:00:00.000+05:00'}", () -> builder().startObject().timeField("d1", offsetDateTime).endObject());
         assertResult(
             "{'d1':'2016-01-01T00:00:00.000+05:00'}",
-            () -> builder().startObject().field("d1").timeValue(offsetDateTime).endObject()
+            () -> builder().startObject().timestampField("d1", offsetDateTime).endObject()
+        );
+        assertResult(
+            "{'d1':'2016-01-01T00:00:00.000+05:00'}",
+            () -> builder().startObject().field("d1").timestampValue(offsetDateTime).endObject()
         );
 
         // OffsetTime
-        assertResult("{'date':null}", () -> builder().startObject().timeField("date", (OffsetTime) null).endObject());
-        assertResult("{'date':null}", () -> builder().startObject().field("date").timeValue((OffsetTime) null).endObject());
+        assertResult("{'date':null}", () -> builder().startObject().timestampField("date", (OffsetTime) null).endObject());
+        assertResult("{'date':null}", () -> builder().startObject().field("date").timestampValue((OffsetTime) null).endObject());
         assertResult("{'date':null}", () -> builder().startObject().field("date", (OffsetTime) null).endObject());
         final OffsetTime offsetTime = d2.toOffsetDateTime().toOffsetTime();
-        assertResult("{'o':'07:59:23.123Z'}", () -> builder().startObject().timeField("o", offsetTime).endObject());
-        assertResult("{'o':'07:59:23.123Z'}", () -> builder().startObject().field("o").timeValue(offsetTime).endObject());
+        assertResult("{'o':'07:59:23.123Z'}", () -> builder().startObject().timestampField("o", offsetTime).endObject());
+        assertResult("{'o':'07:59:23.123Z'}", () -> builder().startObject().field("o").timestampValue(offsetTime).endObject());
         assertResult("{'o':'07:59:23.123Z'}", () -> builder().startObject().field("o", offsetTime).endObject());
         // also test with a date that has a real offset
         final OffsetTime zonedOffsetTime = offsetTime.withOffsetSameLocal(ZoneOffset.ofHours(5));
-        assertResult("{'o':'07:59:23.123+05:00'}", () -> builder().startObject().timeField("o", zonedOffsetTime).endObject());
-        assertResult("{'o':'07:59:23.123+05:00'}", () -> builder().startObject().field("o").timeValue(zonedOffsetTime).endObject());
+        assertResult("{'o':'07:59:23.123+05:00'}", () -> builder().startObject().timestampField("o", zonedOffsetTime).endObject());
+        assertResult("{'o':'07:59:23.123+05:00'}", () -> builder().startObject().field("o").timestampValue(zonedOffsetTime).endObject());
         assertResult("{'o':'07:59:23.123+05:00'}", () -> builder().startObject().field("o", zonedOffsetTime).endObject());
 
         // DayOfWeek enum, not a real time value, but might be used in scripts

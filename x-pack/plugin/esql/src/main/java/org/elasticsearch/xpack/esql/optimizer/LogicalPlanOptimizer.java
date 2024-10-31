@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.CombineEvals;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.CombineProjections;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ConstantFolding;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ConvertStringToByteRef;
-import org.elasticsearch.xpack.esql.optimizer.rules.logical.DuplicateLimitAfterMvExpand;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.FoldNull;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.LiteralsOnTheRight;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PartiallyFoldCase;
@@ -53,6 +52,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.SimplifyComparisonsA
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SkipQueryOnEmptyMappings;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SkipQueryOnLimitZero;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SplitInWithFoldableValue;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteFilteredExpression;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteSpatialSurrogates;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteSurrogates;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.TranslateMetricsAggregate;
@@ -122,6 +122,9 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             "Substitutions",
             Limiter.ONCE,
             new ReplaceLookupWithJoin(),
+            // translate filtered expressions into aggregate with filters - can't use surrogate expressions because it was
+            // retrofitted for constant folding - this needs to be fixed
+            new SubstituteFilteredExpression(),
             new RemoveStatsOverride(),
             // first extract nested expressions inside aggs
             new ReplaceStatsNestedExpressionWithEval(),
@@ -170,7 +173,6 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new PruneColumns(),
             new PruneLiteralsInOrderBy(),
             new PushDownAndCombineLimits(),
-            new DuplicateLimitAfterMvExpand(),
             new PushDownAndCombineFilters(),
             new PushDownEval(),
             new PushDownRegexExtract(),

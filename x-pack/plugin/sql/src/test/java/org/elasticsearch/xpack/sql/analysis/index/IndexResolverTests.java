@@ -149,7 +149,7 @@ public class IndexResolverTests extends ESTestCase {
         addFieldCaps(fieldCaps, "text", "keyword", true, true);
 
         String wildcard = "*";
-        IndexResolution resolution = mergedMappings(wildcard, new String[] { "index" }, fieldCaps);
+        IndexResolution resolution = mergedMappings(wildcard, new String[] { "org/elasticsearch/xpack/sql/index" }, fieldCaps);
         assertTrue(resolution.isValid());
 
         EsIndex esIndex = resolution.get();
@@ -159,7 +159,7 @@ public class IndexResolverTests extends ESTestCase {
         assertNull(esIndex.mapping().get("_doc_count"));
         assertEquals(INTEGER, esIndex.mapping().get("_not_meta_field").getDataType());
         assertEquals(KEYWORD, esIndex.mapping().get("text").getDataType());
-        assertEquals(Set.of("index"), resolution.get().concreteIndices());
+        assertEquals(Set.of("org/elasticsearch/xpack/sql/index"), resolution.get().concreteIndices());
     }
 
     public void testFlattenedHiddenSubfield() throws Exception {
@@ -174,12 +174,12 @@ public class IndexResolverTests extends ESTestCase {
         addFieldCaps(fieldCaps, "text", "keyword", true, true);
 
         String wildcard = "*";
-        IndexResolution resolution = mergedMappings(wildcard, new String[] { "index" }, fieldCaps);
+        IndexResolution resolution = mergedMappings(wildcard, new String[] { "org/elasticsearch/xpack/sql/index" }, fieldCaps);
         assertTrue(resolution.isValid());
 
         EsIndex esIndex = resolution.get();
         assertEquals(wildcard, esIndex.name());
-        assertEquals(Set.of("index"), resolution.get().concreteIndices());
+        assertEquals(Set.of("org/elasticsearch/xpack/sql/index"), resolution.get().concreteIndices());
         assertEquals(UNSUPPORTED, esIndex.mapping().get("some_field").getDataType());
         assertEquals(UNSUPPORTED, esIndex.mapping().get("some_field").getProperties().get("_keyed").getDataType());
         assertEquals(OBJECT, esIndex.mapping().get("nested_field").getDataType());
@@ -204,12 +204,12 @@ public class IndexResolverTests extends ESTestCase {
         addFieldCaps(fieldCaps, "a.b.c.e", "foo", true, true);
 
         String wildcard = "*";
-        IndexResolution resolution = mergedMappings(wildcard, new String[] { "index" }, fieldCaps);
+        IndexResolution resolution = mergedMappings(wildcard, new String[] { "org/elasticsearch/xpack/sql/index" }, fieldCaps);
         assertTrue(resolution.isValid());
 
         EsIndex esIndex = resolution.get();
         assertEquals(wildcard, esIndex.name());
-        assertEquals(Set.of("index"), resolution.get().concreteIndices());
+        assertEquals(Set.of("org/elasticsearch/xpack/sql/index"), resolution.get().concreteIndices());
         assertEquals(TEXT, esIndex.mapping().get("a").getDataType());
         assertEquals(UNSUPPORTED, esIndex.mapping().get("a").getProperties().get("b").getDataType());
         assertEquals(UNSUPPORTED, esIndex.mapping().get("a").getProperties().get("b").getProperties().get("c").getDataType());
@@ -240,12 +240,12 @@ public class IndexResolverTests extends ESTestCase {
         addFieldCaps(fieldCaps, "text", "keyword", true, true);
 
         String wildcard = "*";
-        IndexResolution resolution = mergedMappings(wildcard, new String[] { "index" }, fieldCaps);
+        IndexResolution resolution = mergedMappings(wildcard, new String[] { "org/elasticsearch/xpack/sql/index" }, fieldCaps);
         assertTrue(resolution.isValid());
 
         EsIndex esIndex = resolution.get();
         assertEquals(wildcard, esIndex.name());
-        assertEquals(Set.of("index"), resolution.get().concreteIndices());
+        assertEquals(Set.of("org/elasticsearch/xpack/sql/index"), resolution.get().concreteIndices());
         assertEquals(UNSUPPORTED, esIndex.mapping().get("some_field").getDataType());
         assertEquals(OBJECT, esIndex.mapping().get("nested_field").getDataType());
         assertEquals(UNSUPPORTED, esIndex.mapping().get("nested_field").getProperties().get("sub_field1").getDataType());
@@ -362,7 +362,7 @@ public class IndexResolverTests extends ESTestCase {
             Map<String, EsField> mapping = Maps.newMapWithExpectedSize(1);
             String fieldName = "field" + (i + 1);
             mapping.put(fieldName, new KeywordEsField(fieldName));
-            expectedIndices[i] = new EsIndex("index" + (i + 1), mapping);
+            expectedIndices[i] = new EsIndex("org/elasticsearch/xpack/sql/index" + (i + 1), mapping);
         }
         Arrays.sort(expectedIndices, Comparator.comparing(EsIndex::name));
 
@@ -384,7 +384,7 @@ public class IndexResolverTests extends ESTestCase {
             Map<String, EsField> mapping = Maps.newMapWithExpectedSize(1);
             String fieldName = "field" + (i + 1);
             mapping.put(fieldName, new KeywordEsField(fieldName));
-            String indexName = "index" + (i + 1);
+            String indexName = "org/elasticsearch/xpack/sql/index" + (i + 1);
             expectedIndices[i] = new EsIndex(indexName, mapping, Set.of(indexName));
             indexNames.add(indexName);
         }

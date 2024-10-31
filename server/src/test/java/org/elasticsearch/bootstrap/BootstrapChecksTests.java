@@ -389,8 +389,8 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
         final AtomicLong maxFileSize = new AtomicLong(randomIntBetween(0, Integer.MAX_VALUE));
         final BootstrapChecks.MaxFileSizeCheck check = new BootstrapChecks.MaxFileSizeCheck() {
             @Override
-            long getMaxFileSize() {
-                return maxFileSize.get();
+            protected ProcessLimits getProcessLimits() {
+                return new ProcessLimits(ProcessLimits.UNKNOWN, ProcessLimits.UNKNOWN, maxFileSize.get());
             }
         };
 

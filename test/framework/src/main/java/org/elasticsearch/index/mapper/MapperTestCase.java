@@ -49,6 +49,7 @@ import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.lookup.LeafStoredFieldsLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.Source;
@@ -1119,6 +1120,10 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             return false;
         }
 
+        default boolean ignoreAbove() {
+            return false;
+        }
+
         /**
          * Examples that should work when source is generated from doc values.
          */
@@ -1158,11 +1163,11 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     }
 
     private void assertSyntheticSource(SyntheticSourceExample example) throws IOException {
-        DocumentMapper mapper = createDocumentMapper(syntheticSourceMapping(b -> {
+        DocumentMapper mapper = createSytheticSourceMapperService(mapping(b -> {
             b.startObject("field");
             example.mapping().accept(b);
             b.endObject();
-        }));
+        })).documentMapper();
         assertThat(syntheticSource(mapper, example::buildInput), equalTo(example.expected()));
     }
 
@@ -1194,11 +1199,11 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         boolean ignoreMalformed = shouldUseIgnoreMalformed();
         int maxValues = randomBoolean() ? 1 : 5;
         SyntheticSourceSupport support = syntheticSourceSupport(ignoreMalformed);
-        DocumentMapper mapper = createDocumentMapper(syntheticSourceMapping(b -> {
+        DocumentMapper mapper = createSytheticSourceMapperService(mapping(b -> {
             b.startObject("field");
             support.example(maxValues).mapping().accept(b);
             b.endObject();
-        }));
+        })).documentMapper();
         int count = between(2, 1000);
         String[] expected = new String[count];
         try (Directory directory = newDirectory()) {
@@ -1243,23 +1248,23 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     public final void testNoSyntheticSourceForScript() throws IOException {
         // Fetch the ingest script support to eagerly assumeFalse if the mapper doesn't support ingest scripts
         ingestScriptSupport();
-        DocumentMapper mapper = createDocumentMapper(syntheticSourceMapping(b -> {
+        DocumentMapper mapper = createSytheticSourceMapperService(mapping(b -> {
             b.startObject("field");
             minimalMapping(b);
             b.field("script", randomBoolean() ? "empty" : "non-empty");
             b.endObject();
-        }));
+        })).documentMapper();
         assertThat(syntheticSource(mapper, b -> {}), equalTo("{}"));
     }
 
     public final void testSyntheticSourceInObject() throws IOException {
         boolean ignoreMalformed = shouldUseIgnoreMalformed();
         SyntheticSourceExample syntheticSourceExample = syntheticSourceSupport(ignoreMalformed).example(5);
-        DocumentMapper mapper = createDocumentMapper(syntheticSourceMapping(b -> {
+        DocumentMapper mapper = createSytheticSourceMapperService(mapping(b -> {
             b.startObject("obj").startObject("properties").startObject("field");
             syntheticSourceExample.mapping().accept(b);
             b.endObject().endObject().endObject();
-        }));
+        })).documentMapper();
         assertThat(syntheticSource(mapper, b -> {
             b.startObject("obj");
             syntheticSourceExample.buildInput(b);
@@ -1272,11 +1277,11 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         boolean ignoreMalformed = shouldUseIgnoreMalformed();
         SyntheticSourceSupport support = syntheticSourceSupport(ignoreMalformed);
         SyntheticSourceExample syntheticSourceExample = support.example(5);
-        DocumentMapper mapper = createDocumentMapper(syntheticSourceMapping(b -> {
+        DocumentMapper mapper = createSytheticSourceMapperService(mapping(b -> {
             b.startObject("field");
             syntheticSourceExample.mapping().accept(b);
             b.endObject();
-        }));
+        })).documentMapper();
 
         var expected = support.preservesExactSource() ? "{\"field\":[]}" : "{}";
         assertThat(syntheticSource(mapper, b -> b.startArray("field").endArray()), equalTo(expected));
@@ -1337,12 +1342,12 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             return mapper.fieldType(loaderFieldName).blockLoader(new MappedFieldType.BlockLoaderContext() {
                 @Override
                 public String indexName() {
-                    throw new UnsupportedOperationException();
+                    return mapper.getIndexSettings().getIndex().getName();
                 }
 
                 @Override
                 public IndexSettings indexSettings() {
-                    throw new UnsupportedOperationException();
+                    return mapper.getIndexSettings();
                 }
 
                 @Override
@@ -1375,9 +1380,18 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
     private void testBlockLoader(boolean syntheticSource, boolean columnReader) throws IOException {
         // TODO if we're not using synthetic source use a different sort of example. Or something.
-        SyntheticSourceExample example = syntheticSourceSupport(false, columnReader).example(5);
-        XContentBuilder mapping = syntheticSource ? syntheticSourceFieldMapping(example.mapping) : fieldMapping(example.mapping);
-        MapperService mapper = createMapperService(mapping);
+        var syntheticSourceSupport = syntheticSourceSupport(false, columnReader);
+        SyntheticSourceExample example = syntheticSourceSupport.example(5);
+        if (syntheticSource && columnReader == false) {
+            // The synthetic source testing support can't always handle now the difference between stored and synthetic source mode.
+            // In case of ignore above, the ignored values are always appended after the valid values
+            // (both if field has doc values or stored field). While stored source just reads original values (from _source) and there
+            // is no notion of values that are ignored.
+            // TODO: fix this by improving block loader support: https://github.com/elastic/elasticsearch/issues/115257
+            assumeTrue("inconsistent synthetic source testing support with ignore above", syntheticSourceSupport.ignoreAbove() == false);
+        }
+        XContentBuilder mapping = fieldMapping(example.mapping);
+        MapperService mapper = syntheticSource ? createSytheticSourceMapperService(mapping) : createMapperService(mapping);
         BlockReaderSupport blockReaderSupport = getSupportedReaders(mapper, "field");
         if (syntheticSource) {
             // geo_point and point do not yet support synthetic source
@@ -1386,11 +1400,16 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                 blockReaderSupport.syntheticSource
             );
         }
-        testBlockLoader(columnReader, example, blockReaderSupport);
+        var sourceLoader = mapper.mappingLookup().newSourceLoader(SourceFieldMetrics.NOOP);
+        testBlockLoader(columnReader, example, blockReaderSupport, sourceLoader);
     }
 
-    protected final void testBlockLoader(boolean columnReader, SyntheticSourceExample example, BlockReaderSupport blockReaderSupport)
-        throws IOException {
+    protected final void testBlockLoader(
+        boolean columnReader,
+        SyntheticSourceExample example,
+        BlockReaderSupport blockReaderSupport,
+        SourceLoader sourceLoader
+    ) throws IOException {
         BlockLoader loader = blockReaderSupport.getBlockLoader(columnReader);
         Function<Object, Object> valuesConvert = loadBlockExpected(blockReaderSupport, columnReader);
         if (valuesConvert == null) {
@@ -1417,9 +1436,15 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                         return;
                     }
                 } else {
+                    StoredFieldsSpec storedFieldsSpec = loader.rowStrideStoredFieldSpec();
+                    if (storedFieldsSpec.requiresSource()) {
+                        storedFieldsSpec = storedFieldsSpec.merge(
+                            new StoredFieldsSpec(true, storedFieldsSpec.requiresMetadata(), sourceLoader.requiredStoredFields())
+                        );
+                    }
                     BlockLoaderStoredFieldsFromLeafLoader storedFieldsLoader = new BlockLoaderStoredFieldsFromLeafLoader(
-                        StoredFieldLoader.fromSpec(loader.rowStrideStoredFieldSpec()).getLoader(ctx, null),
-                        loader.rowStrideStoredFieldSpec().requiresSource() ? SourceLoader.FROM_STORED_SOURCE.leaf(ctx.reader(), null) : null
+                        StoredFieldLoader.fromSpec(storedFieldsSpec).getLoader(ctx, null),
+                        storedFieldsSpec.requiresSource() ? sourceLoader.leaf(ctx.reader(), null) : null
                     );
                     storedFieldsLoader.advanceTo(0);
                     BlockLoader.Builder builder = loader.builder(TestBlock.factory(ctx.reader().numDocs()), 1);
@@ -1491,11 +1516,11 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     private void assertNoDocValueLoader(CheckedConsumer<XContentBuilder, IOException> doc) throws IOException {
         boolean ignoreMalformed = supportsIgnoreMalformed() ? rarely() : false;
         SyntheticSourceExample syntheticSourceExample = syntheticSourceSupport(ignoreMalformed).example(5);
-        DocumentMapper mapper = createDocumentMapper(syntheticSourceMapping(b -> {
+        DocumentMapper mapper = createSytheticSourceMapperService(mapping(b -> {
             b.startObject("field");
             syntheticSourceExample.mapping().accept(b);
             b.endObject();
-        }));
+        })).documentMapper();
         try (Directory directory = newDirectory()) {
             RandomIndexWriter iw = new RandomIndexWriter(random(), directory);
             iw.addDocument(mapper.parse(source(doc)).rootDoc());
@@ -1520,7 +1545,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             Exception e = expectThrows(
                 IllegalArgumentException.class,
                 example.toString(),
-                () -> createDocumentMapper(syntheticSourceMapping(b -> {
+                () -> createSytheticSourceMapperService(mapping(b -> {
                     b.startObject("field");
                     example.mapping.accept(b);
                     b.endObject();
@@ -1533,11 +1558,11 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     public final void testSyntheticSourceInNestedObject() throws IOException {
         boolean ignoreMalformed = shouldUseIgnoreMalformed();
         SyntheticSourceExample syntheticSourceExample = syntheticSourceSupport(ignoreMalformed).example(5);
-        DocumentMapper mapper = createDocumentMapper(syntheticSourceMapping(b -> {
+        DocumentMapper mapper = createSytheticSourceMapperService(mapping(b -> {
             b.startObject("obj").field("type", "nested").startObject("properties").startObject("field");
             syntheticSourceExample.mapping().accept(b);
             b.endObject().endObject().endObject();
-        }));
+        })).documentMapper();
         assertThat(syntheticSource(mapper, b -> {
             b.startObject("obj");
             syntheticSourceExample.buildInput(b);
@@ -1551,23 +1576,23 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
     public void testSyntheticSourceKeepNone() throws IOException {
         SyntheticSourceExample example = syntheticSourceSupportForKeepTests(shouldUseIgnoreMalformed()).example(1);
-        DocumentMapper mapper = createDocumentMapper(syntheticSourceMapping(b -> {
+        DocumentMapper mapper = createSytheticSourceMapperService(mapping(b -> {
             b.startObject("field");
             b.field("synthetic_source_keep", "none");
             example.mapping().accept(b);
             b.endObject();
-        }));
+        })).documentMapper();
         assertThat(syntheticSource(mapper, example::buildInput), equalTo(example.expected()));
     }
 
     public void testSyntheticSourceKeepAll() throws IOException {
         SyntheticSourceExample example = syntheticSourceSupportForKeepTests(shouldUseIgnoreMalformed()).example(1);
-        DocumentMapper mapperAll = createDocumentMapper(syntheticSourceMapping(b -> {
+        DocumentMapper mapperAll = createSytheticSourceMapperService(mapping(b -> {
             b.startObject("field");
             b.field("synthetic_source_keep", "all");
             example.mapping().accept(b);
             b.endObject();
-        }));
+        })).documentMapper();
 
         var builder = XContentFactory.jsonBuilder();
         builder.startObject();
@@ -1579,12 +1604,12 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
     public void testSyntheticSourceKeepArrays() throws IOException {
         SyntheticSourceExample example = syntheticSourceSupportForKeepTests(shouldUseIgnoreMalformed()).example(1);
-        DocumentMapper mapperAll = createDocumentMapper(syntheticSourceMapping(b -> {
+        DocumentMapper mapperAll = createSytheticSourceMapperService(mapping(b -> {
             b.startObject("field");
             b.field("synthetic_source_keep", randomFrom("arrays", "all"));  // Both options keep array source.
             example.mapping().accept(b);
             b.endObject();
-        }));
+        })).documentMapper();
 
         int elementCount = randomIntBetween(2, 5);
         CheckedConsumer<XContentBuilder, IOException> buildInput = (XContentBuilder builder) -> {

@@ -199,6 +199,9 @@ public class SimpleQueryStringQueryParser extends SimpleQueryParser {
         if (disjuncts.size() == 1) {
             return disjuncts.get(0);
         }
+        if (disjuncts.size() == 0) {
+            return null;
+        }
         return new DisjunctionMaxQuery(disjuncts, 1.0f);
     }
 

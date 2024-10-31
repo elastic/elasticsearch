@@ -52,7 +52,7 @@ public class GetShutdownStatusAction extends ActionType<GetShutdownStatusAction.
 
         @UpdateForV9 // only needed for bwc, inline in v9
         public static Request readFrom(StreamInput in) throws IOException {
-            if (in.getTransportVersion().onOrAfter(TransportVersions.GET_SHUTDOWN_STATUS_TIMEOUT)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
                 return new Request(in);
             } else {
                 return new Request(TimeValue.THIRTY_SECONDS, in);
@@ -61,20 +61,20 @@ public class GetShutdownStatusAction extends ActionType<GetShutdownStatusAction.
 
         private Request(StreamInput in) throws IOException {
             super(in);
-            assert in.getTransportVersion().onOrAfter(TransportVersions.GET_SHUTDOWN_STATUS_TIMEOUT);
+            assert in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0);
             nodeIds = in.readStringArray();
         }
 
         @UpdateForV9 // only needed for bwc, remove in v9
         private Request(TimeValue masterNodeTimeout, StreamInput in) throws IOException {
             super(masterNodeTimeout);
-            assert in.getTransportVersion().before(TransportVersions.GET_SHUTDOWN_STATUS_TIMEOUT);
+            assert in.getTransportVersion().before(TransportVersions.V_8_15_0);
             nodeIds = in.readStringArray();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getTransportVersion().onOrAfter(TransportVersions.GET_SHUTDOWN_STATUS_TIMEOUT)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
                 super.writeTo(out);
             }
             out.writeStringArray(this.nodeIds);

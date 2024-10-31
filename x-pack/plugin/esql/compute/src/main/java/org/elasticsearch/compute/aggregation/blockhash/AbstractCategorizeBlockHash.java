@@ -7,12 +7,14 @@
 
 package org.elasticsearch.compute.aggregation.blockhash;
 
+import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
@@ -46,29 +48,17 @@ public abstract class AbstractCategorizeBlockHash extends BlockHash {
 
     @Override
     public Block[] getKeys() {
-        if (outputPartial) {
-            return new Block[] { buildIntermediateBlock() };
-            // NOCOMMIT load partial
-            // Block state = null;
-            // Block keys; // NOCOMMIT do we even need to send the keys? it's just going to be 0 to the length of state
-            // return new Block[] {new CompositeBlock()};
-            // return null;
-        }
-
-        // NOCOMMIT load final
-        return new Block[0];
+        return new Block[] { outputPartial ? buildIntermediateBlock() : buildFinalBlock() };
     }
 
     @Override
     public IntVector nonEmpty() {
-        // TODO
-        return null;
+        return IntVector.range(0, categorizer.getCategoryCount(), blockFactory);
     }
 
     @Override
     public BitArray seenGroupIds(BigArrays bigArrays) {
-        // TODO
-        return null;
+        throw new UnsupportedOperationException();
     }
 
     @Override
@@ -76,8 +66,7 @@ public abstract class AbstractCategorizeBlockHash extends BlockHash {
         throw new UnsupportedOperationException();
     }
 
-    // visible for testing
-    Block buildIntermediateBlock() {
+    private Block buildIntermediateBlock() {
         if (categorizer.getCategoryCount() == 0) {
             return blockFactory.newConstantNullBlock(1);
         }
@@ -90,6 +79,18 @@ public abstract class AbstractCategorizeBlockHash extends BlockHash {
             return blockFactory.newConstantBytesRefBlockWith(out.bytes().toBytesRef(), 1);
         } catch (IOException e) {
             throw new RuntimeException(e);
+        }
+    }
+
+    private Block buildFinalBlock() {
+        try (BytesRefVector.Builder result = blockFactory.newBytesRefVectorBuilder(categorizer.getCategoryCount())) {
+            BytesRefBuilder scratch = new BytesRefBuilder();
+            for (SerializableTokenListCategory category : categorizer.toCategories(categorizer.getCategoryCount())) {
+                scratch.copyChars(category.getRegex());
+                result.appendBytesRef(scratch.get());
+                scratch.clear();
+            }
+            return result.build().asBlock();
         }
     }
 }

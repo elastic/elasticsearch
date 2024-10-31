@@ -133,6 +133,8 @@ public abstract class BlockHash implements Releasable, SeenGroupIds {
             case LONG -> new LongBlockHash(channel, blockFactory);
             case DOUBLE -> new DoubleBlockHash(channel, blockFactory);
             case BYTES_REF -> new BytesRefBlockHash(channel, blockFactory);
+            case CATEGORY_RAW -> new CategorizeRawBlockHash(channel, blockFactory, true);
+            case CATEGORY_INTERMEDIATE -> new CategorizedIntermediateBlockHash(channel, blockFactory, false);
             default -> throw new IllegalArgumentException("unsupported grouping element type [" + type + "]");
         };
     }

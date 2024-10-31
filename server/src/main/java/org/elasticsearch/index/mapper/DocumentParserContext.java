@@ -119,7 +119,7 @@ public abstract class DocumentParserContext {
     private final SourceToParse sourceToParse;
 
     private final Set<String> ignoredFields;
-    private final List<IgnoredSourceFieldMapper.NameValue> ignoredFieldValues;
+    public final List<IgnoredSourceFieldMapper.NameValue> ignoredFieldValues;
     private final List<IgnoredSourceFieldMapper.NameValue> ignoredFieldsMissingValues;
     private boolean inArrayScopeEnabled;
     private Scope currentScope;

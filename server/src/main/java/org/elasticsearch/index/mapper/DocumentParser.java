@@ -61,13 +61,11 @@ public final class DocumentParser {
     private final XContentParserConfiguration parserConfiguration;
     private final MappingParserContext mappingParserContext;
 
-    private final List<DocumentParserListener> listeners;
+    private List<DocumentParserListener> listeners;
 
     DocumentParser(XContentParserConfiguration parserConfiguration, MappingParserContext mappingParserContext) {
         this.mappingParserContext = mappingParserContext;
         this.parserConfiguration = parserConfiguration;
-
-        this.listeners = List.of(new SyntheticSourceDocumentParserListener());
     }
 
     /**
@@ -94,12 +92,45 @@ public final class DocumentParser {
                     public Token nextToken() throws IOException {
                         var token = delegate().nextToken();
 
+                        var listenerToken = DocumentParserListener.Token.current(delegate());
+                        for (var l : listeners) {
+                            l.consume(listenerToken);
+                        }
+
                         return token;
+                    }
+
+                    @Override
+                    public void skipChildren() throws IOException {
+                        // We can not use "native" implementation because some listeners may want to see
+                        // skipped parts.
+                        Token token = currentToken();
+                        if (token != Token.START_OBJECT && token != Token.START_ARRAY) {
+                            return;
+                        }
+
+                        int depth = 0;
+                        while (token != null) {
+                            if (token == Token.START_OBJECT || token == Token.START_ARRAY) {
+                                depth += 1;
+                            }
+                            if (token == Token.END_OBJECT || token == Token.END_ARRAY) {
+                                depth -= 1;
+                                if (depth == 0) {
+                                    return;
+                                }
+                            }
+
+                            token = nextToken();
+                        }
                     }
                 }
             )
         ) {
             context = new RootDocumentParserContext(mappingLookup, mappingParserContext, source, parser);
+
+            this.listeners = List.of(new SyntheticSourceDocumentParserListener(mappingLookup, context.doc()));
+
             validateStart(context.parser());
             MetadataFieldMapper[] metadataFieldsMappers = mappingLookup.getMapping().getSortedMetadataMappers();
             internalParseDocument(metadataFieldsMappers, context);
@@ -143,23 +174,14 @@ public final class DocumentParser {
 
             if (context.root().isEnabled() == false) {
                 // entire type is disabled
-                if (context.canAddIgnoredField()) {
-                    context.addIgnoredField(
-                        new IgnoredSourceFieldMapper.NameValue(
-                            MapperService.SINGLE_MAPPING_NAME,
-                            0,
-                            context.encodeFlattenedToken(),
-                            context.doc()
-                        )
-                    );
-                } else {
-                    context.parser().skipChildren();
-                }
+                context.parser().skipChildren();
             } else if (emptyDoc == false) {
                 parseObjectOrNested(context);
             }
 
             executeIndexTimeScripts(context);
+
+            context.ignoredFieldValues.addAll(((SyntheticSourceDocumentParserListener) this.listeners.get(0)).getValuesToStore());
 
             // Record additional entries for {@link IgnoredSourceFieldMapper} before calling #postParse, so that they get stored.
             addIgnoredSourceMissingValues(context);
@@ -415,18 +437,7 @@ public final class DocumentParser {
         String currentFieldName = parser.currentName();
         if (context.parent().isEnabled() == false) {
             // entire type is disabled
-            if (context.canAddIgnoredField()) {
-                context.addIgnoredField(
-                    new IgnoredSourceFieldMapper.NameValue(
-                        context.parent().fullPath(),
-                        context.parent().fullPath().lastIndexOf(context.parent().leafName()),
-                        context.encodeFlattenedToken(),
-                        context.doc()
-                    )
-                );
-            } else {
-                parser.skipChildren();
-            }
+            parser.skipChildren();
             return;
         }
         XContentParser.Token token = parser.currentToken();

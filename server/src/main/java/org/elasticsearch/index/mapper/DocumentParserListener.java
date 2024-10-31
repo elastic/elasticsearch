@@ -11,9 +11,11 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.xcontent.XContentParser;
 
+import java.io.IOException;
+
 public interface DocumentParserListener {
-    sealed interface Token permits Token.FieldName, Token.StartObject, Token.EndObject, Token.StartArray, Token.EndArray,
-        Token.StringValue {
+    sealed interface Token permits Token.FieldName, Token.StartObject, Token.EndObject, Token.StartArray, Token.EndArray, Token.StringValue,
+        Token.BooleanValue, Token.IntValue {
         record FieldName(String name) implements Token {}
 
         record StartObject() implements Token {}
@@ -24,12 +26,35 @@ public interface DocumentParserListener {
 
         record EndArray() implements Token {}
 
-        record StringValue() implements Token {}
+        record StringValue(String value) implements Token {}
 
-        static Token current(XContentParser parser) {
-            return new Token.StartArray();
+        record BooleanValue(boolean value) implements Token {}
+
+        record IntValue(int value) implements Token {}
+
+        static Token current(XContentParser parser) throws IOException {
+            return switch (parser.currentToken()) {
+                case START_OBJECT -> new StartObject();
+                case END_OBJECT -> new EndObject();
+                case START_ARRAY -> new StartArray();
+                case END_ARRAY -> new EndArray();
+                case FIELD_NAME -> new FieldName(parser.currentName());
+                case VALUE_STRING -> new StringValue(parser.text());
+                case VALUE_NUMBER -> switch (parser.numberType()) {
+                    case INT -> new Token.IntValue(parser.intValue());
+                    case BIG_INTEGER -> null;
+                    case LONG -> null;
+                    case FLOAT -> null;
+                    case DOUBLE -> null;
+                    case BIG_DECIMAL -> null;
+                };
+                case VALUE_BOOLEAN -> new BooleanValue(parser.booleanValue());
+                case VALUE_EMBEDDED_OBJECT -> null;
+                case VALUE_NULL -> null;
+                case null -> null;
+            };
         }
     }
 
-    void consume(Token token);
+    void consume(Token token) throws IOException;
 }

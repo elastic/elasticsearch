@@ -115,8 +115,8 @@ import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.RowExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
-import org.elasticsearch.xpack.esql.planner.Mapper;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
+import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.esql.querydsl.query.SpatialRelatesQuery;
@@ -172,7 +172,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
-// @TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
+// @TestLogging(value = "org.elasticsearch.xpack.esql:DEBUG", reason = "debug")
 public class PhysicalPlanOptimizerTests extends ESTestCase {
 
     private static final String PARAM_FORMATTING = "%1$s";
@@ -220,7 +220,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         logicalOptimizer = new LogicalPlanOptimizer(new LogicalOptimizerContext(EsqlTestUtils.TEST_CFG));
         physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(config));
         EsqlFunctionRegistry functionRegistry = new EsqlFunctionRegistry();
-        mapper = new Mapper(functionRegistry);
+        mapper = new Mapper();
         var enrichResolution = setupEnrichResolution();
         // Most tests used data from the test index, so we load it here, and use it in the plan() function.
         this.testData = makeTestDataSource("test", "mapping-basic.json", functionRegistry, enrichResolution);
@@ -5851,14 +5851,14 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 | EVAL employee_id = to_str(emp_no)
                 | ENRICH _remote:departments
                 | LIMIT 10""");
-            var enrich = as(plan, EnrichExec.class);
-            assertThat(enrich.mode(), equalTo(Enrich.Mode.REMOTE));
-            assertThat(enrich.concreteIndices(), equalTo(Map.of("cluster_1", ".enrich-departments-2")));
-            var eval = as(enrich.child(), EvalExec.class);
-            var finalLimit = as(eval.child(), LimitExec.class);
+            var finalLimit = as(plan, LimitExec.class);
             var exchange = as(finalLimit.child(), ExchangeExec.class);
             var fragment = as(exchange.child(), FragmentExec.class);
-            var partialLimit = as(fragment.fragment(), Limit.class);
+            var enrich = as(fragment.fragment(), Enrich.class);
+            assertThat(enrich.mode(), equalTo(Enrich.Mode.REMOTE));
+            assertThat(enrich.concreteIndices(), equalTo(Map.of("cluster_1", ".enrich-departments-2")));
+            var evalFragment = as(enrich.child(), Eval.class);
+            var partialLimit = as(evalFragment.child(), Limit.class);
             as(partialLimit.child(), EsRelation.class);
         }
     }
@@ -5901,13 +5901,21 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testLimitThenEnrichRemote() {
-        var error = expectThrows(VerificationException.class, () -> physicalPlan("""
+        var plan = physicalPlan("""
             FROM test
             | LIMIT 10
             | EVAL employee_id = to_str(emp_no)
             | ENRICH _remote:departments
-            """));
-        assertThat(error.getMessage(), containsString("line 4:3: ENRICH with remote policy can't be executed after LIMIT"));
+            """);
+        var finalLimit = as(plan, LimitExec.class);
+        var exchange = as(finalLimit.child(), ExchangeExec.class);
+        var fragment = as(exchange.child(), FragmentExec.class);
+        var enrich = as(fragment.fragment(), Enrich.class);
+        assertThat(enrich.mode(), equalTo(Enrich.Mode.REMOTE));
+        assertThat(enrich.concreteIndices(), equalTo(Map.of("cluster_1", ".enrich-departments-2")));
+        var evalFragment = as(enrich.child(), Eval.class);
+        var partialLimit = as(evalFragment.child(), Limit.class);
+        as(partialLimit.child(), EsRelation.class);
     }
 
     public void testEnrichBeforeTopN() {
@@ -5942,6 +5950,23 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             var exchange = as(enrich.child(), ExchangeExec.class);
             var fragment = as(exchange.child(), FragmentExec.class);
             var eval = as(fragment.fragment(), Eval.class);
+            as(eval.child(), EsRelation.class);
+        }
+        {
+            var plan = physicalPlan("""
+                FROM test
+                | EVAL employee_id = to_str(emp_no)
+                | ENRICH _remote:departments
+                | SORT department
+                | LIMIT 10""");
+            var topN = as(plan, TopNExec.class);
+            var exchange = as(topN.child(), ExchangeExec.class);
+            var fragment = as(exchange.child(), FragmentExec.class);
+            var partialTopN = as(fragment.fragment(), TopN.class);
+            var enrich = as(partialTopN.child(), Enrich.class);
+            assertThat(enrich.mode(), equalTo(Enrich.Mode.REMOTE));
+            assertThat(enrich.concreteIndices(), equalTo(Map.of("cluster_1", ".enrich-departments-2")));
+            var eval = as(enrich.child(), Eval.class);
             as(eval.child(), EsRelation.class);
         }
         {
@@ -5998,6 +6023,24 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             var exchange = as(topN.child(), ExchangeExec.class);
             var fragment = as(exchange.child(), FragmentExec.class);
             var partialTopN = as(fragment.fragment(), TopN.class);
+            as(partialTopN.child(), EsRelation.class);
+        }
+        {
+            var plan = physicalPlan("""
+                FROM test
+                | SORT emp_no
+                | LIMIT 10
+                | EVAL employee_id = to_str(emp_no)
+                | ENRICH _remote:departments
+                """);
+            var topN = as(plan, TopNExec.class);
+            var exchange = as(topN.child(), ExchangeExec.class);
+            var fragment = as(exchange.child(), FragmentExec.class);
+            var enrich = as(fragment.fragment(), Enrich.class);
+            assertThat(enrich.mode(), equalTo(Enrich.Mode.REMOTE));
+            assertThat(enrich.concreteIndices(), equalTo(Map.of("cluster_1", ".enrich-departments-2")));
+            var evalFragment = as(enrich.child(), Eval.class);
+            var partialTopN = as(evalFragment.child(), TopN.class);
             as(partialTopN.child(), EsRelation.class);
         }
     }
@@ -6257,7 +6300,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 .item(startsWith("last_name{f}"))
                 .item(startsWith("long_noidx{f}"))
                 .item(startsWith("salary{f}"))
-                .item(startsWith("name{r}"))
+                .item(startsWith("name{f}"))
         );
     }
 
@@ -6309,10 +6352,10 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 .item(startsWith("last_name{f}"))
                 .item(startsWith("long_noidx{f}"))
                 .item(startsWith("salary{f}"))
-                .item(startsWith("name{r}"))
+                .item(startsWith("name{f}"))
         );
 
-        var middleProject = as(join.child(), ProjectExec.class);
+        var middleProject = as(join.left(), ProjectExec.class);
         assertThat(middleProject.projections().stream().map(Objects::toString).toList(), not(hasItem(startsWith("name{f}"))));
         /*
          * At the moment we don't push projections past the HashJoin so we still include first_name here
@@ -6359,7 +6402,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         TopN innerTopN = as(opt, TopN.class);
         assertMap(
             innerTopN.order().stream().map(o -> o.child().toString()).toList(),
-            matchesList().item(startsWith("name{r}")).item(startsWith("emp_no{f}"))
+            matchesList().item(startsWith("name{f}")).item(startsWith("emp_no{f}"))
         );
         Join join = as(innerTopN.child(), Join.class);
         assertThat(join.config().type(), equalTo(JoinType.LEFT));

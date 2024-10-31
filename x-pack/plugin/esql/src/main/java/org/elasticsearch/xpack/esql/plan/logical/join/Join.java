@@ -61,7 +61,7 @@ public class Join extends BinaryPlan {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        source().writeTo(out);
+        Source.EMPTY.writeTo(out);
         out.writeNamedWriteable(left());
         out.writeNamedWriteable(right());
         config.writeTo(out);
@@ -74,11 +74,6 @@ public class Join extends BinaryPlan {
 
     public JoinConfig config() {
         return config;
-    }
-
-    @Override
-    protected AttributeSet computeReferences() {
-        return Expressions.references(config.leftFields()).combine(Expressions.references(config.rightFields()));
     }
 
     @Override
@@ -98,10 +93,6 @@ public class Join extends BinaryPlan {
     }
 
     @Override
-    public Join replaceChildren(List<LogicalPlan> newChildren) {
-        return new Join(source(), newChildren.get(0), newChildren.get(1), config);
-    }
-
     public Join replaceChildren(LogicalPlan left, LogicalPlan right) {
         return new Join(source(), left, right, config);
     }
@@ -126,7 +117,7 @@ public class Join extends BinaryPlan {
             case LEFT -> {
                 // Right side becomes nullable.
                 List<Attribute> fieldsAddedFromRight = removeCollisionsWithMatchFields(rightOutput, matchFieldSet, matchFieldNames);
-                yield mergeOutputAttributes(makeNullable(makeReference(fieldsAddedFromRight)), leftOutput);
+                yield mergeOutputAttributes(fieldsAddedFromRight, leftOutput);
             }
             default -> throw new UnsupportedOperationException("Other JOINs than LEFT not supported");
         };

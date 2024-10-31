@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.monitoring.exporter.BaseFilteredMonitoringDocTest
 import org.junit.Before;
 
 import java.io.IOException;
+import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -227,7 +228,7 @@ public class NodeStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestCa
                       "stat": {
                         "number_of_elapsed_periods": 39,
                         "number_of_times_throttled": 40,
-                        "time_throttled_nanos": 41
+                        "time_throttled_nanos": 9223372036854775848
                       }
                     },
                     "memory": {
@@ -393,10 +394,14 @@ public class NodeStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestCa
 
         // Os
         final OsStats.Cpu osCpu = new OsStats.Cpu((short) no, new double[] { ++iota, ++iota, ++iota });
-        final OsStats.Cgroup.CpuStat osCpuStat = new OsStats.Cgroup.CpuStat(++iota, ++iota, ++iota);
+        final OsStats.Cgroup.CpuStat osCpuStat = new OsStats.Cgroup.CpuStat(
+            BigInteger.valueOf(++iota),
+            BigInteger.valueOf(++iota),
+            BigInteger.valueOf(Long.MAX_VALUE).add(BigInteger.valueOf(++iota))
+        );
         final OsStats.Cgroup osCgroup = new OsStats.Cgroup(
             "_cpu_acct_ctrl_group",
-            ++iota,
+            BigInteger.valueOf(++iota),
             "_cpu_ctrl_group",
             ++iota,
             ++iota,

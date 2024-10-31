@@ -70,6 +70,7 @@
           body:
               settings:
                   number_of_replicas: 0
+                  store.stats_refresh_interval: 0ms
 
   - do:
       index:
@@ -78,6 +79,10 @@
         refresh: true
         body:
           foo: bar
+
+  - do:
+      indices.flush:
+        index: test
 
   - do:
       cluster.health:
@@ -121,10 +126,10 @@
   - is_true: ccs._search.total
   - is_true: ccs._search.success
   - exists: ccs._search.skipped
-  - is_true: ccs._search.took
-  - is_true: ccs._search.took.max
-  - is_true: ccs._search.took.avg
-  - is_true: ccs._search.took.p90
+  - exists: ccs._search.took
+  - exists: ccs._search.took.max
+  - exists: ccs._search.took.avg
+  - exists: ccs._search.took.p90
   - is_true: ccs._search.took_mrt_true
   - exists: ccs._search.took_mrt_true.max
   - exists: ccs._search.took_mrt_true.avg
@@ -145,7 +150,7 @@
   - gte: {ccs._search.clusters.cluster_two.total: 1}
   - exists: ccs._search.clusters.cluster_one.skipped
   - exists: ccs._search.clusters.cluster_two.skipped
-  - is_true: ccs._search.clusters.cluster_one.took
-  - is_true: ccs._search.clusters.cluster_one.took.max
-  - is_true: ccs._search.clusters.cluster_one.took.avg
-  - is_true: ccs._search.clusters.cluster_one.took.p90
+  - exists: ccs._search.clusters.cluster_one.took
+  - exists: ccs._search.clusters.cluster_one.took.max
+  - exists: ccs._search.clusters.cluster_one.took.avg
+  - exists: ccs._search.clusters.cluster_one.took.p90

@@ -772,8 +772,8 @@ PUT _ingest/pipeline/query_helper_pipeline
 }
 --------------------------------------------------
 // NOTCONSOLE
-<1> The `prompt` field contains the prompt for the chat completion task.
-<2> 
+<1> The `prompt` field contains the prompt for the completion task.
+<2> The ID of the {infer} endpoint created upfront that uses the <<infer-service-openai,`openai` service>> with the `completion` task type.
 
 
 [source,console]

@@ -15,6 +15,7 @@ import org.elasticsearch.transport.NoSuchRemoteClusterException;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -33,8 +34,8 @@ public class IndexResolverTests extends ESTestCase {
                 )
             );
 
-            Set<String> unavailableClusters = IndexResolver.determineUnavailableRemoteClusters(failures);
-            assertThat(unavailableClusters, equalTo(Set.of("remote1", "remote2")));
+            Map<String, FieldCapabilitiesFailure> unavailableClusters = IndexResolver.determineUnavailableRemoteClusters(failures);
+            assertThat(unavailableClusters.keySet(), equalTo(Set.of("remote1", "remote2")));
         }
 
         // one cluster with "remote unavailable" with two failures
@@ -43,8 +44,8 @@ public class IndexResolverTests extends ESTestCase {
             failures.add(new FieldCapabilitiesFailure(new String[] { "remote2:mylogs1" }, new NoSuchRemoteClusterException("remote2")));
             failures.add(new FieldCapabilitiesFailure(new String[] { "remote2:mylogs1" }, new NoSeedNodeLeftException("no seed node")));
 
-            Set<String> unavailableClusters = IndexResolver.determineUnavailableRemoteClusters(failures);
-            assertThat(unavailableClusters, equalTo(Set.of("remote2")));
+            Map<String, FieldCapabilitiesFailure> unavailableClusters = IndexResolver.determineUnavailableRemoteClusters(failures);
+            assertThat(unavailableClusters.keySet(), equalTo(Set.of("remote2")));
         }
 
         // two clusters, one "remote unavailable" type exceptions and one with another type
@@ -57,23 +58,23 @@ public class IndexResolverTests extends ESTestCase {
                     new IllegalStateException("Unable to open any connections")
                 )
             );
-            Set<String> unavailableClusters = IndexResolver.determineUnavailableRemoteClusters(failures);
-            assertThat(unavailableClusters, equalTo(Set.of("remote2")));
+            Map<String, FieldCapabilitiesFailure> unavailableClusters = IndexResolver.determineUnavailableRemoteClusters(failures);
+            assertThat(unavailableClusters.keySet(), equalTo(Set.of("remote2")));
         }
 
         // one cluster1 with exception not known to indicate "remote unavailable"
         {
             List<FieldCapabilitiesFailure> failures = new ArrayList<>();
             failures.add(new FieldCapabilitiesFailure(new String[] { "remote1:mylogs1" }, new RuntimeException("foo")));
-            Set<String> unavailableClusters = IndexResolver.determineUnavailableRemoteClusters(failures);
-            assertThat(unavailableClusters, equalTo(Set.of()));
+            Map<String, FieldCapabilitiesFailure> unavailableClusters = IndexResolver.determineUnavailableRemoteClusters(failures);
+            assertThat(unavailableClusters.keySet(), equalTo(Set.of()));
         }
 
         // empty failures list
         {
             List<FieldCapabilitiesFailure> failures = new ArrayList<>();
-            Set<String> unavailableClusters = IndexResolver.determineUnavailableRemoteClusters(failures);
-            assertThat(unavailableClusters, equalTo(Set.of()));
+            Map<String, FieldCapabilitiesFailure> unavailableClusters = IndexResolver.determineUnavailableRemoteClusters(failures);
+            assertThat(unavailableClusters.keySet(), equalTo(Set.of()));
         }
     }
 }

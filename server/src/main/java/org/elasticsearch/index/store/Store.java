@@ -696,7 +696,12 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                 }
             }
             directory.syncMetaData();
-            final Store.MetadataSnapshot metadataOrEmpty = getMetadata(null);
+            Store.MetadataSnapshot metadataOrEmpty;
+            try {
+                metadataOrEmpty = getMetadata(null);
+            } catch (IndexNotFoundException e) {
+                metadataOrEmpty = MetadataSnapshot.EMPTY;
+            }
             verifyAfterCleanup(sourceMetadata, metadataOrEmpty);
         } finally {
             metadataLock.writeLock().unlock();

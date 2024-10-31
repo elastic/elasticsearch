@@ -1,0 +1,5 @@
+pr: 115834
+summary: Try to simplify geometries that fail with `TopologyException`
+area: Geo
+type: bug
+issues: []

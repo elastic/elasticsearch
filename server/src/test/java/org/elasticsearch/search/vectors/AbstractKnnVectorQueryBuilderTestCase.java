@@ -139,6 +139,7 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
                 queryBuilder.queryVector().asFloatVector(),
                 queryBuilder.k(),
                 queryBuilder.numCands(),
+                queryBuilder.rescoreOversample(),
                 filterQuery
             );
         };

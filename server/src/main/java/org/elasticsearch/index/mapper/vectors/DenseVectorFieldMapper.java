@@ -1983,6 +1983,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             VectorData queryVector,
             Integer k,
             int numCands,
+            Float rescoreOversample,
             Query filter,
             Float similarityThreshold,
             BitSetProducer parentFilter
@@ -1994,7 +1995,15 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
             return switch (getElementType()) {
                 case BYTE -> createKnnByteQuery(queryVector.asByteVector(), k, numCands, filter, similarityThreshold, parentFilter);
-                case FLOAT -> createKnnFloatQuery(queryVector.asFloatVector(), k, numCands, filter, similarityThreshold, parentFilter);
+                case FLOAT -> createKnnFloatQuery(
+                    queryVector.asFloatVector(),
+                    k,
+                    numCands,
+                    rescoreOversample,
+                    filter,
+                    similarityThreshold,
+                    parentFilter
+                );
                 case BIT -> createKnnBitQuery(queryVector.asByteVector(), k, numCands, filter, similarityThreshold, parentFilter);
             };
         }
@@ -2052,6 +2061,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             float[] queryVector,
             Integer k,
             int numCands,
+            Float rescoreOversample,
             Query filter,
             Float similarityThreshold,
             BitSetProducer parentFilter
@@ -2073,7 +2083,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
             Query knnQuery = parentFilter != null
                 ? new ESDiversifyingChildrenFloatKnnVectorQuery(name(), queryVector, filter, k, numCands, parentFilter)
-                : new ESKnnFloatVectorQuery(name(), queryVector, k, numCands, filter);
+                : new ESKnnFloatVectorQuery(name(), queryVector, k, numCands, rescoreOversample, filter);
             if (similarityThreshold != null) {
                 knnQuery = new VectorSimilarityQuery(
                     knnQuery,

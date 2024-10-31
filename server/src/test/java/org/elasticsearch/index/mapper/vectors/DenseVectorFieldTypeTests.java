@@ -169,7 +169,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             for (int i = 0; i < dims; i++) {
                 queryVector[i] = randomFloat();
             }
-            Query query = field.createKnnQuery(VectorData.fromFloats(queryVector), 10, 10, null, null, producer);
+            Query query = field.createKnnQuery(VectorData.fromFloats(queryVector), 10, 10, null, null, null, producer);
             assertThat(query, instanceOf(DiversifyingChildrenFloatKnnVectorQuery.class));
         }
         {
@@ -190,11 +190,11 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
                 floatQueryVector[i] = queryVector[i];
             }
             VectorData vectorData = new VectorData(null, queryVector);
-            Query query = field.createKnnQuery(vectorData, 10, 10, null, null, producer);
+            Query query = field.createKnnQuery(vectorData, 10, 10, null, null, null, producer);
             assertThat(query, instanceOf(DiversifyingChildrenByteKnnVectorQuery.class));
 
             vectorData = new VectorData(floatQueryVector, null);
-            query = field.createKnnQuery(vectorData, 10, 10, null, null, producer);
+            query = field.createKnnQuery(vectorData, 10, 10, null, null, null, producer);
             assertThat(query, instanceOf(DiversifyingChildrenByteKnnVectorQuery.class));
         }
     }
@@ -255,7 +255,15 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         );
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> unindexedField.createKnnQuery(VectorData.fromFloats(new float[] { 0.3f, 0.1f, 1.0f, 0.0f }), 10, 10, null, null, null)
+            () -> unindexedField.createKnnQuery(
+                VectorData.fromFloats(new float[] { 0.3f, 0.1f, 1.0f, 0.0f }),
+                10,
+                10,
+                null,
+                null,
+                null,
+                null
+            )
         );
         assertThat(e.getMessage(), containsString("to perform knn search on field [f], its mapping must have [index] set to [true]"));
 
@@ -275,7 +283,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         }
         e = expectThrows(
             IllegalArgumentException.class,
-            () -> dotProductField.createKnnQuery(VectorData.fromFloats(queryVector), 10, 10, null, null, null)
+            () -> dotProductField.createKnnQuery(VectorData.fromFloats(queryVector), 10, 10, null, null, null, null)
         );
         assertThat(e.getMessage(), containsString("The [dot_product] similarity can only be used with unit-length vectors."));
 
@@ -291,7 +299,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         );
         e = expectThrows(
             IllegalArgumentException.class,
-            () -> cosineField.createKnnQuery(VectorData.fromFloats(new float[BBQ_MIN_DIMS]), 10, 10, null, null, null)
+            () -> cosineField.createKnnQuery(VectorData.fromFloats(new float[BBQ_MIN_DIMS]), 10, 10, null, null, null, null)
         );
         assertThat(e.getMessage(), containsString("The [cosine] similarity does not support vectors with zero magnitude."));
     }
@@ -312,7 +320,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             for (int i = 0; i < 4096; i++) {
                 queryVector[i] = randomFloat();
             }
-            Query query = fieldWith4096dims.createKnnQuery(VectorData.fromFloats(queryVector), 10, 10, null, null, null);
+            Query query = fieldWith4096dims.createKnnQuery(VectorData.fromFloats(queryVector), 10, 10, null, null, null, null);
             assertThat(query, instanceOf(KnnFloatVectorQuery.class));
         }
 
@@ -332,7 +340,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
                 queryVector[i] = randomByte();
             }
             VectorData vectorData = new VectorData(null, queryVector);
-            Query query = fieldWith4096dims.createKnnQuery(vectorData, 10, 10, null, null, null);
+            Query query = fieldWith4096dims.createKnnQuery(vectorData, 10, 10, null, null, null, null);
             assertThat(query, instanceOf(KnnByteVectorQuery.class));
         }
     }
@@ -350,7 +358,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         );
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> unindexedField.createKnnQuery(VectorData.fromFloats(new float[] { 0.3f, 0.1f, 1.0f }), 10, 10, null, null, null)
+            () -> unindexedField.createKnnQuery(VectorData.fromFloats(new float[] { 0.3f, 0.1f, 1.0f }), 10, 10, null, null, null, null)
         );
         assertThat(e.getMessage(), containsString("to perform knn search on field [f], its mapping must have [index] set to [true]"));
 
@@ -366,13 +374,13 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         );
         e = expectThrows(
             IllegalArgumentException.class,
-            () -> cosineField.createKnnQuery(VectorData.fromFloats(new float[] { 0.0f, 0.0f, 0.0f }), 10, 10, null, null, null)
+            () -> cosineField.createKnnQuery(VectorData.fromFloats(new float[] { 0.0f, 0.0f, 0.0f }), 10, 10, null, null, null, null)
         );
         assertThat(e.getMessage(), containsString("The [cosine] similarity does not support vectors with zero magnitude."));
 
         e = expectThrows(
             IllegalArgumentException.class,
-            () -> cosineField.createKnnQuery(new VectorData(null, new byte[] { 0, 0, 0 }), 10, 10, null, null, null)
+            () -> cosineField.createKnnQuery(new VectorData(null, new byte[] { 0, 0, 0 }), 10, 10, null, null, null, null)
         );
         assertThat(e.getMessage(), containsString("The [cosine] similarity does not support vectors with zero magnitude."));
     }

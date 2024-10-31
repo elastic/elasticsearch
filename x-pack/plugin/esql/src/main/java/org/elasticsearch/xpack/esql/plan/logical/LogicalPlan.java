@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.esql.core.capabilities.Resolvable;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.plan.QueryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
@@ -33,11 +34,12 @@ public abstract class LogicalPlan extends QueryPlan<LogicalPlan> implements Reso
             Filter.ENTRY,
             Grok.ENTRY,
             InlineStats.ENTRY,
+            InlineJoin.ENTRY,
+            Join.ENTRY,
             LocalRelation.ENTRY,
             Limit.ENTRY,
             Lookup.ENTRY,
             MvExpand.ENTRY,
-            Join.ENTRY,
             OrderBy.ENTRY,
             Project.ENTRY,
             TopN.ENTRY

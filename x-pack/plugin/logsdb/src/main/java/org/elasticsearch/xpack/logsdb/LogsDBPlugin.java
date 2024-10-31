@@ -7,23 +7,34 @@
 
 package org.elasticsearch.xpack.logsdb;
 
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettingProvider;
+import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.core.XPackPlugin;
+import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
+import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
-import static org.elasticsearch.xpack.logsdb.LogsdbIndexModeSettingsProvider.CLUSTER_LOGSDB_ENABLED;
 import static org.elasticsearch.xpack.logsdb.SyntheticSourceLicenseService.FALLBACK_SETTING;
 
-public class LogsDBPlugin extends Plugin {
+public class LogsDBPlugin extends Plugin implements ActionPlugin {
 
     private final Settings settings;
     private final SyntheticSourceLicenseService licenseService;
+    public static final Setting<Boolean> CLUSTER_LOGSDB_ENABLED = Setting.boolSetting(
+        "cluster.logsdb.enabled",
+        false,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
 
     private final LogsdbIndexModeSettingsProvider logsdbIndexModeSettingsProvider;
 
@@ -60,5 +71,13 @@ public class LogsDBPlugin extends Plugin {
     @Override
     public List<Setting<?>> getSettings() {
         return List.of(FALLBACK_SETTING, CLUSTER_LOGSDB_ENABLED);
+    }
+
+    @Override
+    public List<ActionPlugin.ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+        List<ActionPlugin.ActionHandler<? extends ActionRequest, ? extends ActionResponse>> actions = new ArrayList<>();
+        actions.add(new ActionPlugin.ActionHandler<>(XPackUsageFeatureAction.LOGSDB, LogsDBUsageTransportAction.class));
+        actions.add(new ActionPlugin.ActionHandler<>(XPackInfoFeatureAction.LOGSDB, LogsDBInfoTransportAction.class));
+        return actions;
     }
 }

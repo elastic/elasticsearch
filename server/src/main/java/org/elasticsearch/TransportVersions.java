@@ -186,6 +186,7 @@ public class TransportVersions {
     public static final TransportVersion CPU_STAT_STRING_PARSING = def(8_781_00_0);
     public static final TransportVersion QUERY_RULES_RETRIEVER = def(8_782_00_0);
     public static final TransportVersion ESQL_CCS_EXEC_INFO_WITH_FAILURES = def(8_783_00_0);
+    public static final TransportVersion LOGSDB_TELEMETRY = def(8_784_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

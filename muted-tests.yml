@@ -163,8 +163,6 @@ tests:
 - class: org.elasticsearch.xpack.ml.integration.MlJobIT
   method: testDeleteJobAfterMissingAliases
   issue: https://github.com/elastic/elasticsearch/issues/112823
-- class: org.elasticsearch.repositories.blobstore.testkit.analyze.HdfsRepositoryAnalysisRestIT
-  issue: https://github.com/elastic/elasticsearch/issues/112889
 - class: org.elasticsearch.xpack.ml.integration.MlJobIT
   method: testCreateJob_WithClashingFieldMappingsFails
   issue: https://github.com/elastic/elasticsearch/issues/113046

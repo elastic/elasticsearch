@@ -26,7 +26,7 @@ topLevelQuery
     ;
 
 query
-    : <assoc=right> query operator=(AND | OR) query     #booleanQuery
+    : <assoc=right> query operator=(AND|OR) query     #booleanQuery
     | NOT subQuery=simpleQuery                          #notQuery
     | simpleQuery                                       #defaultQuery
     ;
@@ -77,9 +77,9 @@ fieldLessQuery
     ;
 
 fieldQueryValue
-    : (AND|OR|NOT)? (UNQUOTED_LITERAL | WILDCARD )+
-    | (UNQUOTED_LITERAL | WILDCARD )+ (NOT|AND|OR)?
-    | (NOT|AND|OR)
+    : (AND|OR|NOT)? (UNQUOTED_LITERAL|WILDCARD)+ (NOT|AND|OR)?
+    | (AND|OR)(AND|OR|NOT)?
+    | NOT (AND|OR)?
     | QUOTED_STRING
     ;
 

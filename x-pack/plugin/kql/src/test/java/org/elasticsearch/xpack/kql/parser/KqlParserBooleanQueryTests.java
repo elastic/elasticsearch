@@ -121,10 +121,7 @@ public class KqlParserBooleanQueryTests extends AbstractKqlParserTestCase {
     public void testOperatorPrecedence() throws IOException {
         KqlParser parser = new KqlParser();
         SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
-        List<String> supportedQueries = readQueries(
-            SUPPORTED_QUERY_FILE_PATH,
-            Predicate.not(BOOLEAN_QUERY_FILTER).and((q -> q.startsWith("NOT") == false))
-        );
+        List<String> supportedQueries = readQueries(SUPPORTED_QUERY_FILE_PATH, Predicate.not(BOOLEAN_QUERY_FILTER));
 
         for (int runs = 0; runs < 100; runs++) {
             String queryA = randomFrom(supportedQueries);

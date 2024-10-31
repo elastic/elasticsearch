@@ -44,9 +44,15 @@ public class KqlParserFieldlessQueryTests extends AbstractKqlParserTestCase {
         assertMultiMatchQuery(parseKqlQuery("AND foo"), "AND foo", MultiMatchQueryBuilder.Type.BEST_FIELDS);
         assertMultiMatchQuery(parseKqlQuery("OR foo"), "OR foo", MultiMatchQueryBuilder.Type.BEST_FIELDS);
 
-        // Lone operators (AND, NOT, OR)
+        // Lonely operators (AND, NOT, OR)
         assertMultiMatchQuery(parseKqlQuery("AND"), "AND", MultiMatchQueryBuilder.Type.BEST_FIELDS);
+        assertMultiMatchQuery(parseKqlQuery("AND AND"), "AND AND", MultiMatchQueryBuilder.Type.BEST_FIELDS);
+        assertMultiMatchQuery(parseKqlQuery("AND OR"), "AND OR", MultiMatchQueryBuilder.Type.BEST_FIELDS);
+        assertMultiMatchQuery(parseKqlQuery("AND NOT"), "AND NOT", MultiMatchQueryBuilder.Type.BEST_FIELDS);
         assertMultiMatchQuery(parseKqlQuery("OR"), "OR", MultiMatchQueryBuilder.Type.BEST_FIELDS);
+        assertMultiMatchQuery(parseKqlQuery("OR AND"), "OR AND", MultiMatchQueryBuilder.Type.BEST_FIELDS);
+        assertMultiMatchQuery(parseKqlQuery("OR OR"), "OR OR", MultiMatchQueryBuilder.Type.BEST_FIELDS);
+        assertMultiMatchQuery(parseKqlQuery("OR NOT"), "OR NOT", MultiMatchQueryBuilder.Type.BEST_FIELDS);
         assertMultiMatchQuery(parseKqlQuery("NOT"), "NOT", MultiMatchQueryBuilder.Type.BEST_FIELDS);
     }
 

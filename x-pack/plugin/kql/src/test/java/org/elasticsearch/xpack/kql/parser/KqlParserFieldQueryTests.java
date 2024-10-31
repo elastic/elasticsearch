@@ -79,10 +79,17 @@ public class KqlParserFieldQueryTests extends AbstractKqlParserTestCase {
         assertTermQueryBuilder(parseKqlQuery(kqlFieldQuery(KEYWORD_FIELD_NAME, "OR bar")), KEYWORD_FIELD_NAME, "OR bar");
         assertTermQueryBuilder(parseKqlQuery(kqlFieldQuery(KEYWORD_FIELD_NAME, "NOT bar")), KEYWORD_FIELD_NAME, "NOT bar");
 
-        // Lone operators (AND, NOT, OR)
-        assertTermQueryBuilder(parseKqlQuery(kqlFieldQuery(KEYWORD_FIELD_NAME, "AND")), KEYWORD_FIELD_NAME, "AND");
+        // Lonely operators (AND, NOT, OR)
+        assertTermQueryBuilder(parseKqlQuery(kqlFieldQuery(KEYWORD_FIELD_NAME, "AND AND")), KEYWORD_FIELD_NAME, "AND AND");
+        assertTermQueryBuilder(parseKqlQuery(kqlFieldQuery(KEYWORD_FIELD_NAME, "AND OR")), KEYWORD_FIELD_NAME, "AND OR");
+        assertTermQueryBuilder(parseKqlQuery(kqlFieldQuery(KEYWORD_FIELD_NAME, "AND NOT")), KEYWORD_FIELD_NAME, "AND NOT");
         assertTermQueryBuilder(parseKqlQuery(kqlFieldQuery(KEYWORD_FIELD_NAME, "OR")), KEYWORD_FIELD_NAME, "OR");
+        assertTermQueryBuilder(parseKqlQuery(kqlFieldQuery(KEYWORD_FIELD_NAME, "OR AND")), KEYWORD_FIELD_NAME, "OR AND");
+        assertTermQueryBuilder(parseKqlQuery(kqlFieldQuery(KEYWORD_FIELD_NAME, "OR OR")), KEYWORD_FIELD_NAME, "OR OR");
+        assertTermQueryBuilder(parseKqlQuery(kqlFieldQuery(KEYWORD_FIELD_NAME, "OR NOT")), KEYWORD_FIELD_NAME, "OR NOT");
         assertTermQueryBuilder(parseKqlQuery(kqlFieldQuery(KEYWORD_FIELD_NAME, "NOT")), KEYWORD_FIELD_NAME, "NOT");
+        assertTermQueryBuilder(parseKqlQuery(kqlFieldQuery(KEYWORD_FIELD_NAME, "NOT AND")), KEYWORD_FIELD_NAME, "NOT AND");
+        assertTermQueryBuilder(parseKqlQuery(kqlFieldQuery(KEYWORD_FIELD_NAME, "NOT OR")), KEYWORD_FIELD_NAME, "NOT OR");
 
         // Check we can use quoted field name as well
         assertThat(
@@ -146,10 +153,18 @@ public class KqlParserFieldQueryTests extends AbstractKqlParserTestCase {
             assertMatchQueryBuilder(parseKqlQuery(kqlFieldQuery(fieldName, "OR bar")), fieldName, "OR bar");
             assertMatchQueryBuilder(parseKqlQuery(kqlFieldQuery(fieldName, "NOT bar")), fieldName, "NOT bar");
 
-            // Lone operators (AND, NOT, OR)
+            // Lonely operators (AND, NOT, OR)
             assertMatchQueryBuilder(parseKqlQuery(kqlFieldQuery(fieldName, "AND")), fieldName, "AND");
+            assertMatchQueryBuilder(parseKqlQuery(kqlFieldQuery(fieldName, "AND AND")), fieldName, "AND AND");
+            assertMatchQueryBuilder(parseKqlQuery(kqlFieldQuery(fieldName, "AND OR")), fieldName, "AND OR");
+            assertMatchQueryBuilder(parseKqlQuery(kqlFieldQuery(fieldName, "AND NOT")), fieldName, "AND NOT");
             assertMatchQueryBuilder(parseKqlQuery(kqlFieldQuery(fieldName, "OR")), fieldName, "OR");
+            assertMatchQueryBuilder(parseKqlQuery(kqlFieldQuery(fieldName, "OR AND")), fieldName, "OR AND");
+            assertMatchQueryBuilder(parseKqlQuery(kqlFieldQuery(fieldName, "OR OR")), fieldName, "OR OR");
+            assertMatchQueryBuilder(parseKqlQuery(kqlFieldQuery(fieldName, "OR NOT")), fieldName, "OR NOT");
             assertMatchQueryBuilder(parseKqlQuery(kqlFieldQuery(fieldName, "NOT")), fieldName, "NOT");
+            assertMatchQueryBuilder(parseKqlQuery(kqlFieldQuery(fieldName, "NOT AND")), fieldName, "NOT AND");
+            assertMatchQueryBuilder(parseKqlQuery(kqlFieldQuery(fieldName, "NOT OR")), fieldName, "NOT OR");
 
             // Check we can use quoted field name as well
             assertThat(

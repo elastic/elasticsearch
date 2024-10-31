@@ -285,6 +285,9 @@ tests:
 - class: org.elasticsearch.search.basic.SearchWithRandomExceptionsIT
   method: testRandomExceptions
   issue: https://github.com/elastic/elasticsearch/issues/116027
+- class: org.elasticsearch.action.admin.HotThreadsIT
+  method: testHotThreadsDontFail
+  issue: https://github.com/elastic/elasticsearch/issues/115754
 
 # Examples:
 #

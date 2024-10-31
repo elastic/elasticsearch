@@ -39,6 +39,8 @@ dependencies {
   api project(':libs:elasticsearch-grok')
   api project(":libs:elasticsearch-tdigest")
   implementation project(":libs:elasticsearch-simdvec")
+  implementation project(":distribution:tools:entitlement-instrumentation")
+  implementation project(":distribution:tools:entitlement-runtime")
 
   // lucene
   api "org.apache.lucene:lucene-core:${versions.lucene}"

@@ -9,4 +9,5 @@
 
 module org.elasticsearch.entitlement.instrumentation {
     exports org.elasticsearch.entitlement.instrumentation;
+    uses org.elasticsearch.entitlement.instrumentation.InstrumentationService;
 }

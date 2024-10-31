@@ -42,8 +42,9 @@ final class SystemJvmOptions {
                 // Entitlement agent
                 "-Djdk.attach.allowAttachSelf=true",
                 "-XX:+EnableDynamicAgentLoading",
+                "--patch-module", "java.base=" + entitlementJarLocation("bridge", workingDir),
                 entitlementJarPropertyOption("agent", workingDir),
-                entitlementJarPropertyOption("bridge", workingDir),
+//                entitlementJarPropertyOption("bridge", workingDir),
                 entitlementJarPropertyOption("runtime", workingDir),
                 // pre-touch JVM emory pages during initialization
                 "-XX:+AlwaysPreTouch",
@@ -81,15 +82,17 @@ final class SystemJvmOptions {
     }
 
     private static String entitlementJarPropertyOption(String libraryName, Path workingDir) {
+        return "-Des.entitlement." + libraryName + "Jar=" + entitlementJarLocation(libraryName, workingDir);
+    }
+
+    private static Path entitlementJarLocation(String libraryName, Path workingDir) {
         String jarSuffix;
         try (JarFile cliJar = new JarFile(SystemJvmOptions.class.getProtectionDomain().getCodeSource().getLocation().getPath())) {
             jarSuffix = cliJar.getManifest().getMainAttributes().getValue("X-Compile-Elasticsearch-Entitlement-Jar-Suffix");
-            System.out.println("********** jarSuffix: " + jarSuffix);
         } catch (IOException e) {
             throw new IllegalStateException("Unable to determine location of entitlement jar files", e);
         }
-        return "-Des.entitlement." + libraryName + "Jar="
-            + workingDir.resolve(
+        return workingDir.resolve(
             Path.of("lib", "tools", "entitlement-" + libraryName, "entitlement-" + libraryName + jarSuffix + ".jar")
         );
     }

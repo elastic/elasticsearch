@@ -9,11 +9,8 @@
 
 package org.elasticsearch.entitlement.agent;
 
-import org.elasticsearch.bootstrap.EntitlementBootstrap;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.internal.provider.ProviderLocator;
-import org.elasticsearch.entitlement.api.EntitlementChecks;
-import org.elasticsearch.entitlement.api.EntitlementProvider;
 import org.elasticsearch.entitlement.instrumentation.InstrumentationService;
 import org.elasticsearch.entitlement.instrumentation.MethodKey;
 
@@ -31,18 +28,18 @@ public class EntitlementAgent {
     }
 
     public static void agentmain(String agentArgs, Instrumentation inst) throws Exception {
-        var parameters = EntitlementBootstrap.agentParameters();
+//        var parameters = EntitlementBootstrap.agentParameters();
         // Add the entitlement libraries to the classpath.
         // We can't actually reference the classes here for real before this, because they won't resolve.
-        addJarToBootstrapClassLoader(inst, parameters.bridgeLibrary());
-        addJarToSystemClassLoader(inst, parameters.runtimeLibrary());
-        addJarToSystemClassLoader(inst, parameters.instrumentationLibrary());
+//        addJarToBootstrapClassLoader(inst, parameters.bridgeLibrary());
+//        addJarToSystemClassLoader(inst, parameters.runtimeLibrary());
+//        addJarToSystemClassLoader(inst, parameters.instrumentationLibrary());
 
         // Ensure the checks are available and ready before we start adding instrumentation that will try to use them
-        EntitlementProvider.checks();
+//        EntitlementProvider.checks();
 
         System.out.println("*** PATDOYLE *** InstrumentationService module " + InstrumentationService.class.getModule() + "; layer " + InstrumentationService.class.getModule().getLayer());
-        System.out.println("*** PATDOYLE *** EntitlementChecks module " + EntitlementChecks.class.getModule() + "; layer " + EntitlementChecks.class.getModule().getLayer());
+//        System.out.println("*** PATDOYLE *** EntitlementChecks module " + EntitlementChecks.class.getModule() + "; layer " + EntitlementChecks.class.getModule().getLayer());
 
         InstrumentationService instrumentationService = (new ProviderLocator<>(
             "entitlement-instrumentation",
@@ -52,7 +49,7 @@ public class EntitlementAgent {
         )).get();
 
         Method targetMethod = System.class.getMethod("exit", int.class);
-        Method instrumentationMethod = EntitlementChecks.class.getMethod("checkSystemExit", Class.class, int.class);
+        Method instrumentationMethod = Class.forName("org.elasticsearch.entitlement.api.EntitlementChecks").getMethod("checkSystemExit", Class.class, int.class);
         Map<MethodKey, Method> methodMap = Map.of(instrumentationService.methodKeyForTarget(targetMethod), instrumentationMethod);
 
         inst.addTransformer(new Transformer(instrumentationService.newInstrumenter("", methodMap), Set.of(internalName(System.class))), true);

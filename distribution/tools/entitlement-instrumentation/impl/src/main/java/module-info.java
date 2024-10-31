@@ -7,7 +7,11 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
+import org.elasticsearch.entitlement.instrumentation.impl.InstrumentationServiceImpl;
+
 module org.elasticsearch.entitlement.instrumentation.impl {
     requires org.elasticsearch.entitlement.instrumentation;
     requires org.objectweb.asm;
+
+    provides org.elasticsearch.entitlement.instrumentation.InstrumentationService with InstrumentationServiceImpl;
 }

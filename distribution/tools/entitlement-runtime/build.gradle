@@ -9,12 +9,23 @@
 apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.publish'
 
+configurations {
+  entitlementBridge
+}
+
 dependencies {
   compileOnly project(':libs:elasticsearch-core') // For @SuppressForbidden
   compileOnly project(":libs:elasticsearch-x-content") // for parsing policy files
   compileOnly project(":libs:elasticsearch-logging")
   compileOnly project(':distribution:tools:entitlement-bridge')
+  entitlementBridge project(":distribution:tools:entitlement-bridge")
   testImplementation project(":test:framework")
+}
+
+tasks.named('compileJava').configure {
+  options.compilerArgs << "--patch-module=java.base=${configurations.entitlementBridge.singleFile}"
+  options.compilerArgs << "--add-exports=java.base/org.elasticsearch.entitlement.api=org.elasticsearch.entitlement.runtime"
+  options.release.set(null)
 }
 
 tasks.named('forbiddenApisMain').configure {

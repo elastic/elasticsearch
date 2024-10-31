@@ -287,6 +287,9 @@ tests:
 - class: org.elasticsearch.search.query.SearchQueryIT
   method: testAllDocsQueryString
   issue: https://github.com/elastic/elasticsearch/issues/115728
+- class: org.elasticsearch.search.basic.SearchWithRandomExceptionsIT
+  method: testRandomExceptions
+  issue: https://github.com/elastic/elasticsearch/issues/116027
 
 # Examples:
 #

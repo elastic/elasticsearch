@@ -284,6 +284,9 @@ tests:
 - class: org.elasticsearch.index.reindex.ReindexNodeShutdownIT
   method: testReindexWithShutdown
   issue: https://github.com/elastic/elasticsearch/issues/115996
+- class: org.elasticsearch.search.query.SearchQueryIT
+  method: testAllDocsQueryString
+  issue: https://github.com/elastic/elasticsearch/issues/115728
 
 # Examples:
 #

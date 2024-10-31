@@ -246,7 +246,7 @@ public class BalancedSingleShardTests extends ESAllocationTestCase {
         // return the same ranking as the current node
         ClusterState clusterState = ClusterStateCreationUtils.state(randomIntBetween(1, 10), new String[] { "idx" }, 1);
         ShardRouting shardToRebalance = clusterState.routingTable().index("idx").shardsWithState(ShardRoutingState.STARTED).get(0);
-        MoveDecision decision = executeRebalanceFor(shardToRebalance, clusterState, emptySet(), -1);
+        MoveDecision decision = executeRebalanceFor(shardToRebalance, clusterState, emptySet());
         int currentRanking = decision.getCurrentNodeRanking();
         assertEquals(1, currentRanking);
         for (NodeAllocationResult result : decision.getNodeDecisions()) {
@@ -258,7 +258,7 @@ public class BalancedSingleShardTests extends ESAllocationTestCase {
         clusterState = ClusterStateCreationUtils.state(1, new String[] { "idx" }, randomIntBetween(2, 10));
         shardToRebalance = clusterState.routingTable().index("idx").shardsWithState(ShardRoutingState.STARTED).get(0);
         clusterState = addNodesToClusterState(clusterState, randomIntBetween(1, 10));
-        decision = executeRebalanceFor(shardToRebalance, clusterState, emptySet(), 0.01f);
+        decision = executeRebalanceFor(shardToRebalance, clusterState, emptySet());
         for (NodeAllocationResult result : decision.getNodeDecisions()) {
             assertThat(result.getWeightRanking(), lessThan(decision.getCurrentNodeRanking()));
         }
@@ -285,7 +285,7 @@ public class BalancedSingleShardTests extends ESAllocationTestCase {
             }
         }
         clusterState = addNodesToClusterState(clusterState, 1);
-        decision = executeRebalanceFor(shardToRebalance, clusterState, emptySet(), 0.01f);
+        decision = executeRebalanceFor(shardToRebalance, clusterState, emptySet());
         for (NodeAllocationResult result : decision.getNodeDecisions()) {
             if (result.getWeightRanking() < decision.getCurrentNodeRanking()) {
                 // highest ranked node should not be any of the initial nodes
@@ -298,22 +298,13 @@ public class BalancedSingleShardTests extends ESAllocationTestCase {
                 assertTrue(nodesWithTwoShards.contains(result.getNode().getId()));
             }
         }
-
-        assertCriticalWarnings("""
-            ignoring value [0.01] for [cluster.routing.allocation.balance.threshold] since it is smaller than 1.0; setting \
-            [cluster.routing.allocation.balance.threshold] to a value smaller than 1.0 will be forbidden in a future release""");
     }
 
     private MoveDecision executeRebalanceFor(
         final ShardRouting shardRouting,
         final ClusterState clusterState,
-        final Set<String> noDecisionNodes,
-        final float threshold
+        final Set<String> noDecisionNodes
     ) {
-        Settings settings = Settings.EMPTY;
-        if (Float.compare(-1.0f, threshold) != 0) {
-            settings = Settings.builder().put(BalancedShardsAllocator.THRESHOLD_SETTING.getKey(), threshold).build();
-        }
         AllocationDecider allocationDecider = new AllocationDecider() {
             @Override
             public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
@@ -329,7 +320,7 @@ public class BalancedSingleShardTests extends ESAllocationTestCase {
                 return Decision.YES;
             }
         };
-        BalancedShardsAllocator allocator = new BalancedShardsAllocator(settings);
+        BalancedShardsAllocator allocator = new BalancedShardsAllocator(Settings.EMPTY);
         RoutingAllocation routingAllocation = newRoutingAllocation(
             new AllocationDeciders(Arrays.asList(allocationDecider, rebalanceDecider)),
             clusterState

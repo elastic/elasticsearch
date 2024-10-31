@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.indices.InvalidIndexNameException;
@@ -762,6 +763,68 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         assertHitCount(client.prepareSearch("test-idx").setSize(0).setQuery(matchQuery("field1", "Foo")), numdocs);
         assertHitCount(client.prepareSearch("test-idx").setSize(0).setQuery(matchQuery("field1", "bar")), numdocs);
+    }
+
+    public void testRestoreChangeIndexMode() {
+        Client client = client();
+        createRepository("test-repo", "fs");
+        String indexName = "test-idx";
+        assertAcked(client.admin().indices().prepareCreate(indexName).setSettings(Settings.builder().put(indexSettings())));
+        createSnapshot("test-repo", "test-snap", Collections.singletonList(indexName));
+        cluster().wipeIndices(indexName);
+        for (IndexMode mode : IndexMode.values()) {
+            var error = expectThrows(SnapshotRestoreException.class, () -> {
+                client.admin()
+                    .cluster()
+                    .prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, "test-repo", "test-snap")
+                    .setIndexSettings(Settings.builder().put("index.mode", mode.name()))
+                    .setWaitForCompletion(true)
+                    .get();
+            });
+            assertThat(error.getMessage(), containsString("cannot modify setting [index.mode] on restore"));
+        }
+    }
+
+    public void testRestoreChangeSyntheticSource() {
+        Client client = client();
+        createRepository("test-repo", "fs");
+        String indexName = "test-idx";
+        assertAcked(client.admin().indices().prepareCreate(indexName).setSettings(Settings.builder().put(indexSettings())));
+        createSnapshot("test-repo", "test-snap", Collections.singletonList(indexName));
+        cluster().wipeIndices(indexName);
+        var error = expectThrows(SnapshotRestoreException.class, () -> {
+            client.admin()
+                .cluster()
+                .prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, "test-repo", "test-snap")
+                .setIndexSettings(Settings.builder().put("index.mapping.source.mode", "synthetic"))
+                .setWaitForCompletion(true)
+                .get();
+        });
+        assertThat(error.getMessage(), containsString("cannot modify setting [index.mapping.source.mode] on restore"));
+    }
+
+    public void testRestoreChangeIndexSorts() {
+        Client client = client();
+        createRepository("test-repo", "fs");
+        String indexName = "test-idx";
+        assertAcked(
+            client.admin()
+                .indices()
+                .prepareCreate(indexName)
+                .setMapping("host.name", "type=keyword", "@timestamp", "type=date")
+                .setSettings(Settings.builder().put(indexSettings()).putList("index.sort.field", List.of("@timestamp", "host.name")))
+        );
+        createSnapshot("test-repo", "test-snap", Collections.singletonList(indexName));
+        cluster().wipeIndices(indexName);
+        var error = expectThrows(SnapshotRestoreException.class, () -> {
+            client.admin()
+                .cluster()
+                .prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, "test-repo", "test-snap")
+                .setIndexSettings(Settings.builder().putList("index.sort.field", List.of("host.name")))
+                .setWaitForCompletion(true)
+                .get();
+        });
+        assertThat(error.getMessage(), containsString("cannot modify setting [index.sort.field] on restore"));
     }
 
     public void testRecreateBlocksOnRestore() throws Exception {

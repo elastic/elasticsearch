@@ -75,7 +75,7 @@ public class SearchStats {
     }
 
     public long count(String field) {
-        var stat = cache.computeIfAbsent(field, s -> new FieldStat());
+        var stat = cache.computeIfAbsent(field, this::makeFieldStat);
         if (stat.count == null) {
             var count = new long[] { 0 };
             boolean completed = doWithContexts(r -> {
@@ -156,7 +156,7 @@ public class SearchStats {
     }
 
     public byte[] min(String field, DataType dataType) {
-        var stat = cache.computeIfAbsent(field, s -> new FieldStat());
+        var stat = cache.computeIfAbsent(field, this::makeFieldStat);
         if (stat.min == null) {
             var min = new byte[][] { null };
             doWithContexts(r -> {
@@ -178,7 +178,7 @@ public class SearchStats {
     }
 
     public byte[] max(String field, DataType dataType) {
-        var stat = cache.computeIfAbsent(field, s -> new FieldStat());
+        var stat = cache.computeIfAbsent(field, this::makeFieldStat);
         if (stat.max == null) {
             var max = new byte[][] { null };
             doWithContexts(r -> {
@@ -200,7 +200,7 @@ public class SearchStats {
     }
 
     public boolean isSingleValue(String field) {
-        var stat = cache.computeIfAbsent(field, s -> new FieldStat());
+        var stat = cache.computeIfAbsent(field, this::makeFieldStat);
         if (stat.singleValue == null) {
             // there's no such field so no need to worry about multi-value fields
             if (exists(field) == false) {

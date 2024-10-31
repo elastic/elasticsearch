@@ -13,7 +13,6 @@ apply plugin: 'elasticsearch.bwc-test'
 
 
 dependencies {
-  testImplementation project(path: xpackModule('ent-search'))
   javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
   javaRestTestImplementation(testArtifact(project(":qa:full-cluster-restart"), "javaRestTest"))
 }

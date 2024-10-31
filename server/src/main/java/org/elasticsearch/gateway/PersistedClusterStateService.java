@@ -364,7 +364,7 @@ public class PersistedClusterStateService {
                         );
                     } else if (nodeId == null) {
                         nodeId = thisNodeId;
-                        version = BuildVersion.fromVersionId(Integer.parseInt(userData.get(NODE_VERSION_KEY)));
+                        version = BuildVersion.fromNodeMetadata(userData.get(NODE_VERSION_KEY));
                         if (userData.containsKey(OLDEST_INDEX_VERSION_KEY)) {
                             oldestIndexVersion = IndexVersion.fromId(Integer.parseInt(userData.get(OLDEST_INDEX_VERSION_KEY)));
                         } else {
@@ -395,7 +395,7 @@ public class PersistedClusterStateService {
 
                     try (IndexWriter indexWriter = createIndexWriter(new NIOFSDirectory(dataPath.resolve(METADATA_DIRECTORY_NAME)), true)) {
                         final Map<String, String> commitData = new HashMap<>(userData);
-                        commitData.put(NODE_VERSION_KEY, Integer.toString(newVersion.id()));
+                        commitData.put(NODE_VERSION_KEY, newVersion.toNodeMetadata());
                         commitData.put(OVERRIDDEN_NODE_VERSION_KEY, Boolean.toString(true));
                         indexWriter.setLiveCommitData(commitData.entrySet());
                         indexWriter.commit();
@@ -852,7 +852,7 @@ public class PersistedClusterStateService {
             final Map<String, String> commitData = Maps.newMapWithExpectedSize(COMMIT_DATA_SIZE);
             commitData.put(CURRENT_TERM_KEY, Long.toString(currentTerm));
             commitData.put(LAST_ACCEPTED_VERSION_KEY, Long.toString(lastAcceptedVersion));
-            commitData.put(NODE_VERSION_KEY, Integer.toString(BuildVersion.current().id()));
+            commitData.put(NODE_VERSION_KEY, BuildVersion.current().toNodeMetadata());
             commitData.put(OLDEST_INDEX_VERSION_KEY, Integer.toString(oldestIndexVersion.id()));
             commitData.put(NODE_ID_KEY, nodeId);
             commitData.put(CLUSTER_UUID_KEY, clusterUUID);

@@ -8,7 +8,6 @@
  */
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
@@ -26,8 +25,6 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.internal.CompletionsPostingsFormatExtension;
-import org.elasticsearch.plugins.ExtensionLoader;
 import org.elasticsearch.search.suggest.completion.CompletionSuggester;
 import org.elasticsearch.search.suggest.completion.context.ContextMapping;
 import org.elasticsearch.search.suggest.completion.context.ContextMappings;
@@ -50,7 +47,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.ServiceLoader;
 import java.util.Set;
 
 /**
@@ -345,22 +341,6 @@ public class CompletionFieldMapper extends FieldMapper {
     @Override
     public CompletionFieldType fieldType() {
         return (CompletionFieldType) super.fieldType();
-    }
-
-    public static PostingsFormat postingsFormat() {
-        return PostingsFormatHolder.POSTINGS_FORMAT;
-    }
-
-    private static class PostingsFormatHolder {
-        private static final PostingsFormat POSTINGS_FORMAT = getPostingsFormat();
-
-        private static PostingsFormat getPostingsFormat() {
-            String defaultName = "Completion912";
-            String codecName = ExtensionLoader.loadSingleton(ServiceLoader.load(CompletionsPostingsFormatExtension.class))
-                .map(CompletionsPostingsFormatExtension::getFormatName)
-                .orElse(defaultName);
-            return PostingsFormat.forName(codecName);
-        }
     }
 
     @Override

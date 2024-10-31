@@ -289,8 +289,7 @@ module org.elasticsearch.server {
             org.elasticsearch.serverless.version,
             org.elasticsearch.serverless.buildinfo,
             org.elasticsearch.serverless.constants,
-            org.elasticsearch.serverless.codec,
-            org.elasticsearch.stateless;
+            org.elasticsearch.serverless.codec;
     exports org.elasticsearch.lucene.analysis.miscellaneous;
     exports org.elasticsearch.lucene.grouping;
     exports org.elasticsearch.lucene.queries;

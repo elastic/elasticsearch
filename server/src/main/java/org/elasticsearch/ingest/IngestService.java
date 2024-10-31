@@ -21,6 +21,7 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.bulk.FailureStoreMetrics;
+import org.elasticsearch.action.bulk.TransportAbstractBulkAction;
 import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.ingest.DeletePipelineRequest;
@@ -267,6 +268,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
      * @param originalRequest Original write request received.
      * @param indexRequest    The {@link org.elasticsearch.action.index.IndexRequest} object to update.
      * @param metadata        Cluster metadata from where the pipeline information could be derived.
+     * @return
      */
     public static void resolvePipelinesAndUpdateIndexRequest(
         final DocWriteRequest<?> originalRequest,
@@ -274,14 +276,6 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         final Metadata metadata
     ) {
         resolvePipelinesAndUpdateIndexRequest(originalRequest, indexRequest, metadata, System.currentTimeMillis());
-    }
-
-    private static boolean isRolloverOnWrite(Metadata metadata, final DocWriteRequest<?> request, IndexRequest indexRequest) {
-        DataStream dataStream = metadata.dataStreams().get(indexRequest.index());
-        if (dataStream == null) {
-            return false;
-        }
-        return dataStream.getBackingIndices().isRolloverOnWrite();
     }
 
     static void resolvePipelinesAndUpdateIndexRequest(
@@ -293,29 +287,65 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         if (indexRequest.isPipelineResolved()) {
             return;
         }
+        var pipelines = resolveStoredPipelines(originalRequest, indexRequest, metadata, epochMillis);
+        setPipelineOnRequest(indexRequest, pipelines);
+    }
 
-        /*
-         * Here we look for the pipelines associated with the index if the index exists. If the index does not exist we fall back to using
-         * templates to find the pipelines.
-         */
+    public static boolean resolveAndUpdateAllPipelines(List<DocWriteRequest<?>> requests, Metadata metadata) {
+        final Map<String, IngestService.Pipelines> storedPipelineCache = new HashMap<>();
+        boolean hasIndexRequestsWithPipelines = false;
+        for (DocWriteRequest<?> actionRequest : requests) {
+            IndexRequest indexRequest = TransportAbstractBulkAction.getIndexWriteRequest(actionRequest);
+            if (indexRequest != null) {
+                if (indexRequest.isPipelineResolved() == false) {
+                    // Resolve the pipeline from setting or templates if not cached
+                    var pipelines = storedPipelineCache.computeIfAbsent(
+                        indexRequest.index(),
+                        (index) -> IngestService.resolveStoredPipelines(actionRequest, indexRequest, metadata, System.currentTimeMillis())
+                    );
 
-        final Pipelines pipelines;
-        if (isRolloverOnWrite(metadata, originalRequest, indexRequest)) {
-            pipelines = resolvePipelinesFromIndexTemplates(indexRequest, metadata).orElse(Pipelines.NO_PIPELINES_DEFINED);
+                    // Set pipeline on the index request
+                    setPipelineOnRequest(indexRequest, pipelines);
+                }
+                hasIndexRequestsWithPipelines |= IngestService.hasPipeline(indexRequest);
+            }
+        }
+        return hasIndexRequestsWithPipelines;
+    }
+
+    private static boolean isRolloverOnWrite(Metadata metadata, IndexRequest indexRequest) {
+        DataStream dataStream = metadata.dataStreams().get(indexRequest.index());
+        if (dataStream == null) {
+            return false;
+        }
+        return dataStream.getBackingIndices().isRolloverOnWrite();
+    }
+
+    static Pipelines resolveStoredPipelines(
+        final DocWriteRequest<?> originalRequest,
+        final IndexRequest indexRequest,
+        final Metadata metadata,
+        final long epochMillis
+    ) {
+        assert indexRequest.isPipelineResolved() == false;
+        if (isRolloverOnWrite(metadata, indexRequest)) {
+            return resolvePipelinesFromIndexTemplates(indexRequest, metadata).orElse(Pipelines.NO_PIPELINES_DEFINED);
         } else {
-            pipelines = resolvePipelinesFromMetadata(originalRequest, indexRequest, metadata, epochMillis).or(
+            return resolvePipelinesFromMetadata(originalRequest, indexRequest, metadata, epochMillis).or(
                 () -> resolvePipelinesFromIndexTemplates(indexRequest, metadata)
             ).orElse(Pipelines.NO_PIPELINES_DEFINED);
         }
+    }
 
+    static void setPipelineOnRequest(IndexRequest indexRequest, Pipelines resolvedPipelines) {
         // The pipeline coming as part of the request always has priority over the resolved one from metadata or templates
         String requestPipeline = indexRequest.getPipeline();
         if (requestPipeline != null) {
             indexRequest.setPipeline(requestPipeline);
         } else {
-            indexRequest.setPipeline(pipelines.defaultPipeline);
+            indexRequest.setPipeline(resolvedPipelines.defaultPipeline);
         }
-        indexRequest.setFinalPipeline(pipelines.finalPipeline);
+        indexRequest.setFinalPipeline(resolvedPipelines.finalPipeline);
         indexRequest.isPipelineResolved(true);
     }
 
@@ -1521,7 +1551,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             || NOOP_PIPELINE_NAME.equals(indexRequest.getFinalPipeline()) == false;
     }
 
-    private record Pipelines(String defaultPipeline, String finalPipeline) {
+    public record Pipelines(String defaultPipeline, String finalPipeline) {
 
         private static final Pipelines NO_PIPELINES_DEFINED = new Pipelines(NOOP_PIPELINE_NAME, NOOP_PIPELINE_NAME);
 

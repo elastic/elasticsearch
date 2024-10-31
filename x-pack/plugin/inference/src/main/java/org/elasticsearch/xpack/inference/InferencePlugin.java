@@ -288,7 +288,6 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
             .setDescription("Contains inference service and model configuration")
             .setMappings(InferenceIndex.mappingsV1())
             .setSettings(InferenceIndex.settings())
-            .setVersionMetaKey("version")
             .setOrigin(ClientHelper.INFERENCE_ORIGIN)
             .build();
 
@@ -301,7 +300,6 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
                 .setDescription("Contains inference service and model configuration")
                 .setMappings(InferenceIndex.mappings())
                 .setSettings(InferenceIndex.settings())
-                .setVersionMetaKey("version")
                 .setOrigin(ClientHelper.INFERENCE_ORIGIN)
                 .setPriorSystemIndexDescriptors(List.of(inferenceIndexV1Descriptor))
                 .build(),
@@ -312,7 +310,6 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
                 .setDescription("Contains inference service secrets")
                 .setMappings(InferenceSecretsIndex.mappings())
                 .setSettings(InferenceSecretsIndex.settings())
-                .setVersionMetaKey("version")
                 .setOrigin(ClientHelper.INFERENCE_ORIGIN)
                 .setNetNew()
                 .build()

@@ -735,3 +735,64 @@ You can also specify the target field as follows:
 
 In this case, {feat-imp} is exposed in the
 `my_field.foo.feature_importance` field.
+
+
+[discrete]
+[[inference-processor-examples]]
+==== {infer-cap} processor examples
+
+The following examples uses an <<inference-apis,{infer} endpoint>> in an {infer} processor with the name of `query_helper_pipeline` to perform a chat completion task.
+
+
+[source,console]
+--------------------------------------------------
+PUT _ingest/pipeline/query_helper_pipeline
+{
+  "processors": [
+    {
+      "script": {
+        "source": "ctx.prompt = 'Please generate an elasticsearch search query on index `articles_index` for the following natural language query. Dates are in the field `@timestamp`, document types are in the field `type` (options are `news`, `publication`), categories in the field `category` and can be multiple (options are `medicine`, `pharmaceuticals`, `technology`), and document names are in the field `title` which should use a fuzzy match. Ignore fields which cannot be determined from the natural language query context: ' + ctx.content" <1>
+      }
+    },
+    {
+      "inference": {
+        "model_id": "openai_chat_completions", <2>
+        "input_output": {
+          "input_field": "prompt",
+          "output_field": "query"
+        }
+      }
+    },
+    {
+      "remove": {
+        "field": "prompt"
+      }
+    }
+  ]
+}
+--------------------------------------------------
+// NOTCONSOLE
+<1> The `prompt` field contains the prompt for the chat completion task.
+<2> 
+
+
+[source,console]
+--------------------------------------------------
+POST _ingest/pipeline/query_helper_pipeline/_simulate
+{
+  "docs": [
+    {
+      "_source": {
+        "content": "artificial intelligence in medicine articles published in the last 12 months"
+      }
+    }
+  ]
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+[discrete]
+[[infer-proc-readings]]
+==== Further readings
+
+* https://www.elastic.co/search-labs/blog/openwebcrawler-llms-semantic-text-resume-job-search[Which job is the best for you? Using LLMs and semantic_text to match resumes to jobs]

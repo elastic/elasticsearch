@@ -89,7 +89,16 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 
-// TODO: Move these tests to the right test classes.
+/**
+ * This venerable test builds {@link Driver}s by hand and runs them together, simulating
+ * whole runs without needing to involve ESQL-proper. It's a wonderful place to integration
+ * test new ideas, and it was the first tests the compute engine ever had. But as we plug
+ * these things into ESQL tests should leave here and just run in csv-spec tests. Or move
+ * into unit tests for the operators themselves.
+ * <p>
+ *     TODO move any of these we can to unit tests for the operator.
+ * </p>
+ */
 public class OperatorTests extends MapperServiceTestCase {
 
     public void testQueryOperator() throws IOException {
@@ -355,7 +364,6 @@ public class OperatorTests extends MapperServiceTestCase {
         } finally {
             primesBlock.close();
         }
-
     }
 
     /**

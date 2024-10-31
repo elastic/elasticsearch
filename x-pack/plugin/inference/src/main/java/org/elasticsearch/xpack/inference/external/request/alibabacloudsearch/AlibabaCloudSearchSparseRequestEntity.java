@@ -21,9 +21,9 @@ public record AlibabaCloudSearchSparseRequestEntity(List<String> input, AlibabaC
 
     private static final String TEXTS_FIELD = "input";
 
-    static final String INPUT_TYPE_FIELD = "input_type";
+    public static final String INPUT_TYPE_FIELD = "input_type";
 
-    static final String RETURN_TOKEN_FIELD = "return_token";
+    public static final String RETURN_TOKEN_FIELD = "return_token";
 
     public AlibabaCloudSearchSparseRequestEntity {
         Objects.requireNonNull(input);

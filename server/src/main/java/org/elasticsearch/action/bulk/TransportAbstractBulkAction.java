@@ -228,10 +228,15 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
             metadata = clusterService.state().getMetadata();
         }
 
+        Map<String, IngestService.Pipelines> resolvedPipelineCache = new HashMap<>();
         for (DocWriteRequest<?> actionRequest : bulkRequest.requests) {
+
             IndexRequest indexRequest = getIndexWriteRequest(actionRequest);
             if (indexRequest != null) {
-                IngestService.resolvePipelinesAndUpdateIndexRequest(actionRequest, indexRequest, metadata);
+                var pipelines = IngestService.resolvePipelinesAndUpdateIndexRequest(actionRequest, indexRequest, metadata, resolvedPipelineCache);
+                if (pipelines != null)  {
+                    resolvedPipelineCache.put(indexRequest.index(), pipelines);
+                }
                 hasIndexRequestsWithPipelines |= IngestService.hasPipeline(indexRequest);
             }
 

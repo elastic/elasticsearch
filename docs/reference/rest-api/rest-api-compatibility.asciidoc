@@ -36,8 +36,9 @@ the incompatibility, a message is written to the deprecation log with
 the category "compatible_api". Review the deprecation log to identify
 any gaps in usage and fully supported features.
 
-For information about specific breaking changes and the impact of requesting
-compatibility mode. See <<migrate_rest_api_changes,REST API changes>>  in the migration guide.
+//TODO: add this back once this is fixed: ES-9932
+// For information about specific breaking changes and the impact of requesting
+// compatibility mode. See <<migrate_rest_api_changes,REST API changes>>  in the migration guide.
 
 [discrete]
 [[request-rest-api-compatibility]]

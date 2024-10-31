@@ -208,9 +208,6 @@ tests:
 - class: org.elasticsearch.xpack.remotecluster.RemoteClusterSecurityWithApmTracingRestIT
   method: testTracingCrossCluster
   issue: https://github.com/elastic/elasticsearch/issues/112731
-- class: org.elasticsearch.packaging.test.EnrollmentProcessTests
-  method: test20DockerAutoFormCluster
-  issue: https://github.com/elastic/elasticsearch/issues/114885
 - class: org.elasticsearch.xpack.inference.DefaultEndPointsIT
   method: testInferDeploysDefaultElser
   issue: https://github.com/elastic/elasticsearch/issues/114913

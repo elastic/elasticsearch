@@ -25,6 +25,9 @@ import static org.elasticsearch.entitlement.runtime.internals.EntitlementInterna
  * The bridge module loads this object via SPI.
  */
 public class ElasticsearchEntitlementManager implements EntitlementChecks {
+    static {
+        System.out.println("********** pdoyle - EEM loader: " + ElasticsearchEntitlementManager.class.getClassLoader() + "; system loader: " + ClassLoader.getSystemClassLoader());
+    }
     public ElasticsearchEntitlementManager() {
         logger.info("Entitlement manager started - inactive");
     }

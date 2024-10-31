@@ -12,6 +12,8 @@ package org.elasticsearch.entitlement.api;
 import java.util.List;
 import java.util.ServiceLoader;
 
+import static java.util.Objects.requireNonNull;
+
 public class EntitlementProvider {
     private static final EntitlementChecks CHECKS = lookupEntitlementChecksImplementation();
 
@@ -20,8 +22,14 @@ public class EntitlementProvider {
     }
 
     private static EntitlementChecks lookupEntitlementChecksImplementation() {
+        return requireNonNull(EntitlementReceiver.entitlementChecks);
+    }
+
+    private static EntitlementChecks old_lookupEntitlementChecksImplementation() {
         configureModule();
-        List<EntitlementChecks> candidates = ServiceLoader.load(EntitlementChecks.class, ClassLoader.getSystemClassLoader())
+        ServiceLoader<EntitlementChecks> loader = ServiceLoader.load(EntitlementChecks.class, ClassLoader.getSystemClassLoader());
+        loader.reload(); // We've dynamically configured the module, so clear all caches
+        List<EntitlementChecks> candidates = loader
             .stream()
             .map(ServiceLoader.Provider::get)
             .toList();

@@ -20,7 +20,6 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
 import java.io.IOException;
-import java.lang.invoke.MethodHandles;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
@@ -48,8 +47,10 @@ public final class EntitlementBootstrap {
     @SuppressForbidden(reason = "VirtualMachine.loadAgent is the only way to attach the agent dynamically")
     static void configure() {
         try {
-            MethodHandles.lookup().ensureInitialized(ElasticsearchEntitlementManager.class);
-        } catch (IllegalAccessException e) {
+            Class.forName("org.elasticsearch.entitlement.api.EntitlementReceiver")
+                .getField("entitlementChecks")
+                .set(null, new ElasticsearchEntitlementManager());
+        } catch (IllegalAccessException | NoSuchFieldException | ClassNotFoundException e) {
             throw new IllegalStateException(e);
         }
         LibraryLocations libs = findEntitlementLibraries();

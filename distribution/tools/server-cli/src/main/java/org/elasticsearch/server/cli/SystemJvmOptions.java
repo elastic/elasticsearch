@@ -43,7 +43,8 @@ final class SystemJvmOptions {
                 "-Djdk.attach.allowAttachSelf=true",
                 "-XX:+EnableDynamicAgentLoading",
                 "--patch-module", "java.base=" + entitlementJarLocation("bridge", workingDir),
-                "--add-exports", "java.base/org.elasticsearch.entitlement.api=org.elasticsearch.entitlement.runtime",
+                "--add-exports", "java.base/org.elasticsearch.entitlement.api=org.elasticsearch.entitlement.runtime", // For ElasticsearchEntitlementManager
+                "--add-exports", "java.base/org.elasticsearch.entitlement.api=org.elasticsearch.server", // For bootstrap
 //                entitlementJarPropertyOption("agent", workingDir),
 //                entitlementJarPropertyOption("bridge", workingDir),
 //                entitlementJarPropertyOption("runtime", workingDir),

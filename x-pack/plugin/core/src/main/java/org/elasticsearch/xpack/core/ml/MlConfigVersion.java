@@ -298,7 +298,7 @@ public record MlConfigVersion(int id) implements VersionId<MlConfigVersion>, ToX
 
     public static MlConfigVersion getMlConfigVersionForNode(DiscoveryNode node) {
         String mlConfigVerStr = node.getAttributes().get(ML_CONFIG_VERSION_NODE_ATTR);
-        if (mlConfigVerStr == null) throw new IllegalStateException("MlConfigVersion not present on node");
+        if (mlConfigVerStr == null) throw new IllegalStateException(ML_CONFIG_VERSION_NODE_ATTR + " not present on node");
         return fromString(mlConfigVerStr);
     }
 

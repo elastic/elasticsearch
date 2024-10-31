@@ -68,7 +68,7 @@ public class SearchContextStats implements SearchStats {
         }
     };
 
-    public SearchStats from(List<SearchExecutionContext> contexts) {
+    public static SearchStats from(List<SearchExecutionContext> contexts) {
         if (contexts == null || contexts.isEmpty()) {
             return SearchStats.EMPTY;
         }

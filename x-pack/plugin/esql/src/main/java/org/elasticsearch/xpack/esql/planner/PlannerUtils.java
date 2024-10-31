@@ -139,7 +139,7 @@ public class PlannerUtils {
     }
 
     public static PhysicalPlan localPlan(List<SearchExecutionContext> searchContexts, Configuration configuration, PhysicalPlan plan) {
-        return localPlan(configuration, plan, new SearchContextStats(searchContexts));
+        return localPlan(configuration, plan, SearchContextStats.from(searchContexts));
     }
 
     public static PhysicalPlan localPlan(Configuration configuration, PhysicalPlan plan, SearchStats searchStats) {

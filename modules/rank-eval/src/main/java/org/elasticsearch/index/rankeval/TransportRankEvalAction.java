@@ -234,11 +234,14 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
                         List<RatedRequest> ratedRequests = new ArrayList<>();
                         Map<String, List<RatedDocument>> queryIdToRatedDocumentMap = new HashMap<>();
                         Map<String, String> queryIdToQueryStringMap = new HashMap<>();
+                        Map<String, Map<String, Object>> queryIdToQueryVectorsMap = new HashMap<>();
 
                         Arrays.stream(response.getHits().getHits()).forEach(hit -> {
                             Map<String, Object> source = hit.getSourceAsMap();
                             String queryId = (String) source.get("query_id");
                             String queryString = (String) source.get("query_string");
+                            @SuppressWarnings("unchecked")
+                            Map<String, Object> queryVector = (Map<String, Object>) source.get("query_vector");
                             String index = (String) source.get("index");
                             String documentId = (String) source.get("document_id");
                             Integer score = (Integer) source.get("score");
@@ -246,17 +249,20 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
                             RatedDocument ratedDocument = new RatedDocument(index, documentId, score);
                             queryIdToRatedDocumentMap.computeIfAbsent(queryId, k -> new ArrayList<>()).add(ratedDocument);
                             queryIdToQueryStringMap.put(queryId, queryString);
+                            queryIdToQueryVectorsMap.put(queryId, queryVector);
                         });
 
                         queryIdToRatedDocumentMap.forEach((queryId, ratedDocuments) -> {
-                            ratedRequests.add(
-                                new RatedRequest(
-                                    queryId,
-                                    ratedDocuments,
-                                    Map.of("query_string", queryIdToQueryStringMap.get(queryId)),
-                                    templateId
-                                )
-                            );
+
+                            Map<String, Object> params = new HashMap<>();
+                            if (queryIdToQueryStringMap.containsKey(queryId)) {
+                                params.put("query_string", queryIdToQueryStringMap.get(queryId));
+                            }
+                            if (queryIdToQueryVectorsMap.containsKey(queryId)) {
+                                params.put("query_vector", queryIdToQueryVectorsMap.get(queryId));
+                            }
+
+                            ratedRequests.add(new RatedRequest(queryId, ratedDocuments, params, templateId));
                         });
 
                         actionListener.onResponse(ratedRequests);

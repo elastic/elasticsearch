@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.session.Configuration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -69,7 +70,8 @@ public class ToUpperTests extends AbstractConfigurationFunctionTestCase {
             "",
             false,
             Map.of(),
-            System.nanoTime()
+            System.nanoTime(),
+            Set.of()
         );
     }
 

@@ -46,14 +46,6 @@ public abstract class ConfigurationAggregateFunction extends AggregateFunction {
         this.configuration = ((PlanStreamInput) in).configuration();
     }
 
-    @Override
-    public final void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_CONFIGURATION_WITH_FEATURES)) {
-            configuration.writeTo(out);
-        }
-    }
-
     public Configuration configuration() {
         return configuration;
     }

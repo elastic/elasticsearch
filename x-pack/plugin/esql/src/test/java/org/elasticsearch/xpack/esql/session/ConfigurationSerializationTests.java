@@ -18,13 +18,16 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.esql.Column;
+import org.elasticsearch.xpack.esql.plugin.EsqlFeatures;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.time.ZoneId;
 import java.util.Locale;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomConfiguration;
 import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomTables;
@@ -103,7 +106,10 @@ public class ConfigurationSerializationTests extends AbstractWireSerializingTest
             query,
             profile,
             tables,
-            System.nanoTime()
+            System.nanoTime(),
+            new EsqlFeatures().getFeatures().stream()
+                .map(NodeFeature::id)
+                .collect(Collectors.toSet())
         );
 
     }

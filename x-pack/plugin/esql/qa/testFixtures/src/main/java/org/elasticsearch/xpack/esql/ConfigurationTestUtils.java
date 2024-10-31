@@ -18,14 +18,17 @@ import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.lucene.DataPartitioning;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.xpack.esql.action.ParseTables;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
+import org.elasticsearch.xpack.esql.plugin.EsqlFeatures;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import static org.apache.lucene.tests.util.LuceneTestCase.random;
 import static org.apache.lucene.tests.util.LuceneTestCase.randomLocale;
@@ -71,7 +74,10 @@ public class ConfigurationTestUtils {
             query,
             profile,
             tables,
-            System.nanoTime()
+            System.nanoTime(),
+            new EsqlFeatures().getFeatures().stream()
+                .map(NodeFeature::id)
+                .collect(Collectors.toSet())
         );
     }
 

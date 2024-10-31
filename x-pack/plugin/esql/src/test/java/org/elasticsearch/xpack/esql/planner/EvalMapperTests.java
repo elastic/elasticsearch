@@ -14,6 +14,7 @@ import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.SerializationTestUtils;
@@ -49,6 +50,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Gre
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
+import org.elasticsearch.xpack.esql.plugin.EsqlFeatures;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.time.Duration;
@@ -58,6 +60,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 public class EvalMapperTests extends ESTestCase {
     private static final FieldAttribute DOUBLE1 = field("foo", DataType.DOUBLE);
@@ -76,7 +79,10 @@ public class EvalMapperTests extends ESTestCase {
         StringUtils.EMPTY,
         false,
         Map.of(),
-        System.nanoTime()
+        System.nanoTime(),
+        new EsqlFeatures().getFeatures().stream()
+            .map(NodeFeature::id)
+            .collect(Collectors.toSet())
     );
 
     @ParametersFactory(argumentFormatting = "%1$s")

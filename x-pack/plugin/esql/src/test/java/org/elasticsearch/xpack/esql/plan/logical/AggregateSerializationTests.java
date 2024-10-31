@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plan.logical;
 
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -51,7 +52,7 @@ public class AggregateSerializationTests extends AbstractLogicalPlanSerializatio
                     new Literal(randomSource(), randomFrom("ASC", "DESC"), DataType.KEYWORD)
                 );
                 case 4 -> new Values(randomSource(), FieldAttributeTests.createFieldAttribute(1, true));
-                case 5 -> new Sum(randomSource(), FieldAttributeTests.createFieldAttribute(1, true));
+                case 5 -> new Sum(randomSource(), FieldAttributeTests.createFieldAttribute(1, true), EsqlTestUtils.TEST_CFG);
                 default -> throw new IllegalArgumentException();
             };
             result.add(new Alias(randomSource(), randomAlphaOfLength(5), agg));

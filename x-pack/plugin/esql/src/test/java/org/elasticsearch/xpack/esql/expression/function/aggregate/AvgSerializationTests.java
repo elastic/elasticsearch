@@ -14,12 +14,12 @@ import java.io.IOException;
 public class AvgSerializationTests extends AbstractExpressionSerializationTests<Avg> {
     @Override
     protected Avg createTestInstance() {
-        return new Avg(randomSource(), randomChild());
+        return new Avg(randomSource(), randomChild(), configuration());
     }
 
     @Override
     protected Avg mutateInstance(Avg instance) throws IOException {
-        return new Avg(instance.source(), randomValueOtherThan(instance.field(), AbstractExpressionSerializationTests::randomChild));
+        return new Avg(instance.source(), randomValueOtherThan(instance.field(), AbstractExpressionSerializationTests::randomChild), instance.configuration());
     }
 
     @Override

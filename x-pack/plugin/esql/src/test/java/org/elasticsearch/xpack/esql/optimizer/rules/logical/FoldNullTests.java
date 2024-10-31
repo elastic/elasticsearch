@@ -65,6 +65,7 @@ import java.lang.reflect.Constructor;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.L;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getFieldAttribute;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.greaterThanOf;
@@ -191,9 +192,9 @@ public class FoldNullTests extends ESTestCase {
             assertEquals(NULL, rule.rule(conditionalFunction));
         }
 
-        Avg avg = new Avg(EMPTY, getFieldAttribute("a"));
+        Avg avg = new Avg(EMPTY, getFieldAttribute("a"), TEST_CFG);
         assertEquals(avg, rule.rule(avg));
-        avg = new Avg(EMPTY, NULL);
+        avg = new Avg(EMPTY, NULL, TEST_CFG);
         assertEquals(new Literal(EMPTY, null, DOUBLE), rule.rule(avg));
 
         Count count = new Count(EMPTY, getFieldAttribute("a"));
@@ -221,9 +222,9 @@ public class FoldNullTests extends ESTestCase {
         percentile = new Percentile(EMPTY, NULL, NULL);
         assertEquals(new Literal(EMPTY, null, DOUBLE), rule.rule(percentile));
 
-        Sum sum = new Sum(EMPTY, getFieldAttribute("a"));
+        Sum sum = new Sum(EMPTY, getFieldAttribute("a"), TEST_CFG);
         assertEquals(sum, rule.rule(sum));
-        sum = new Sum(EMPTY, NULL);
+        sum = new Sum(EMPTY, NULL, TEST_CFG);
         assertEquals(new Literal(EMPTY, null, DOUBLE), rule.rule(sum));
     }
 

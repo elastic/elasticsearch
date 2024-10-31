@@ -8,17 +8,20 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
+import org.elasticsearch.xpack.esql.plugin.EsqlFeatures;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.esql.SerializationTestUtils.assertSerialization;
 
@@ -43,7 +46,10 @@ public abstract class AbstractConfigurationFunctionTestCase extends AbstractScal
             StringUtils.EMPTY,
             randomBoolean(),
             Map.of(),
-            System.nanoTime()
+            System.nanoTime(),
+            new EsqlFeatures().getFeatures().stream()
+                .map(NodeFeature::id)
+                .collect(Collectors.toSet())
         );
     }
 

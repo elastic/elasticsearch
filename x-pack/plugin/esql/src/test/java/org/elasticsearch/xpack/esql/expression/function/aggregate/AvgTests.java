@@ -58,7 +58,7 @@ public class AvgTests extends AbstractAggregationTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new Avg(source, args.get(0));
+        return new Avg(source, args.get(0), configuration());
     }
 
     private static TestCaseSupplier makeSupplier(TestCaseSupplier.TypedDataSupplier fieldSupplier) {

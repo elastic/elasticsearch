@@ -69,6 +69,7 @@ import org.elasticsearch.xpack.esql.session.Configuration;
 import org.hamcrest.Matcher;
 import org.junit.After;
 import org.junit.AfterClass;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.lang.reflect.Constructor;
@@ -94,6 +95,7 @@ import java.util.stream.Stream;
 
 import static java.util.Map.entry;
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
+import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomConfiguration;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomLiteral;
 import static org.elasticsearch.xpack.esql.SerializationTestUtils.assertSerialization;
 import static org.hamcrest.Matchers.either;
@@ -133,6 +135,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     );
 
     private static EsqlFunctionRegistry functionRegistry = new EsqlFunctionRegistry().snapshotRegistry();
+
+    private Configuration config;
 
     protected TestCaseSupplier.TestCase testCase;
 
@@ -1348,5 +1352,14 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             }
         }
         return false;
+    }
+
+    @Before
+    public void initConfig() {
+        config = randomConfiguration("FROM test", Map.of());
+    }
+
+    protected Configuration configuration() {
+        return config;
     }
 }

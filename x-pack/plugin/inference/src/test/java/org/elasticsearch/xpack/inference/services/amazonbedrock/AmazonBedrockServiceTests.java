@@ -32,6 +32,8 @@ import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
 import org.elasticsearch.xpack.core.inference.results.InferenceChunkedTextEmbeddingFloatResults;
@@ -1423,7 +1425,7 @@ public class AmazonBedrockServiceTests extends ESTestCase {
         }
     }
 
-    public void testChunkedInfer_ChunkingSettingsSet() throws IOException {  
+    public void testChunkedInfer_ChunkingSettingsSet() throws IOException {
         var model = AmazonBedrockEmbeddingsModelTests.createModel(
             "id",
             "region",

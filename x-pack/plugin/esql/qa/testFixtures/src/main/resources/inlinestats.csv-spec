@@ -346,7 +346,7 @@ abbrev:keyword | scalerank:keyword
            ACA |              four
 ;
 
-afterEnrich
+afterEnrich-Ignore
 required_capability: join_planning_v1
 
 FROM airports
@@ -407,7 +407,7 @@ emp_no:integer | languages:integer | max_salary:integer
          10003 |                 4 | 74572
 ;
 
-beforeEnrich
+beforeEnrich-Ignore
 required_capability: join_planning_v1
 
 FROM airports

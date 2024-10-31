@@ -230,12 +230,12 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
 
         Map<String, IngestService.Pipelines> resolvedPipelineCache = new HashMap<>();
         for (DocWriteRequest<?> actionRequest : bulkRequest.requests) {
-
             IndexRequest indexRequest = getIndexWriteRequest(actionRequest);
             if (indexRequest != null) {
                 if (indexRequest.isPipelineResolved() == false) {
                     var pipeline = resolvedPipelineCache.computeIfAbsent(
                         indexRequest.index(),
+                        // TODO perhaps this should be update to use `threadPool.absoluteTimeInMillis()`, but leaving as is for now.
                         (index) -> IngestService.resolveStoredPipelines(actionRequest, indexRequest, metadata, System.currentTimeMillis())
                     );
                     IngestService.setPipelineOnRequest(indexRequest, pipeline);

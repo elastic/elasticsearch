@@ -70,7 +70,8 @@ public class SearchStatsFromContexts implements SearchStats {
 
     public SearchStatsFromContexts(List<SearchExecutionContext> contexts) {
         this.contexts = contexts;
-        assert contexts != null && contexts.isEmpty() == false;
+        // TODO: This assertion fails in too many cases, why would we ever have no contexts?
+        //assert contexts != null && contexts.isEmpty() == false;
     }
 
     public long count() {

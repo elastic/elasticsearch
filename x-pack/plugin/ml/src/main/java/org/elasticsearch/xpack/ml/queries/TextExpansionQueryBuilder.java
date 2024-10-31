@@ -20,7 +20,6 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xcontent.ParseField;

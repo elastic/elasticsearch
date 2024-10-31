@@ -277,7 +277,6 @@ public class TransportGetAliasesActionTests extends ESTestCase {
             .setDescription(this.getTestName())
             .setMappings("{\"_meta\":  {\"version\":  \"1.0.0\", \"" + SystemIndexDescriptor.VERSION_META_KEY + "\": 0}}")
             .setSettings(Settings.EMPTY)
-            .setVersionMetaKey("version")
             .setOrigin(this.getTestName())
             .setNetNew()
             .build();

@@ -117,7 +117,6 @@ public class EsqlDataTypeConverter {
         entry(LONG, ToLong::new),
         // ToRadians, typeless
         entry(KEYWORD, ToString::new),
-        entry(TEXT, ToString::new),
         entry(UNSIGNED_LONG, ToUnsignedLong::new),
         entry(VERSION, ToVersion::new),
         entry(DATE_PERIOD, ToDatePeriod::new),

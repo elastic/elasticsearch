@@ -1,0 +1,29 @@
+pr: 115399
+summary: Adding breaking change entry for retrievers
+area: Search
+type: breaking
+issues: []
+breaking:
+  title: Reworking RRF retriever to be evaluated during rewrite phase
+  area: REST API
+  details: |-
+    In this release (8.16), we have introduced major changes to the retrievers framework 
+    and how they can be evaluated, focusing mainly on compound retrievers 
+    like `rrf` and `text_similarity_reranker`, which allowed us to support full 
+    composability (i.e. any retriever can be nested under any compound retriever), 
+    as well as supporting additional search features like collapsing, explaining, 
+    aggregations, and highlighting.
+    
+    To ensure consistency, and given that this rework is not available until 8.16, 
+    `rrf` and `text_similarity_reranker`  retriever queries would now  
+    throw an exception in a mixed cluster scenario, where there are nodes 
+    both in current or later (i.e. >= 8.16) and previous ( <= 8.15) versions.
+    
+    As part of the rework, we have also removed the `_rank` property from 
+    the responses of an `rrf` retriever.
+  impact: |-
+    - Users will not be able to use the `rrf` and `text_similarity_reranker` retrievers in a mixed cluster scenario
+    with previous releases (i.e. prior to 8.16), and the request will throw an `IllegalArgumentException`.
+    - `_rank` has now been removed from the output of the `rrf` retrievers so trying to directly parse the field
+    will throw an exception
+  notable: false

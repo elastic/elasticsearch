@@ -9,7 +9,6 @@
 
 package org.elasticsearch.reservedstate.service;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -26,6 +25,7 @@ import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.env.BuildVersion;
 import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
 import org.elasticsearch.reservedstate.TransformState;
 import org.elasticsearch.reservedstate.action.ReservedClusterSettingsAction;
@@ -167,7 +167,12 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
         AtomicReference<Exception> x = new AtomicReference<>();
 
         try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, testJSON)) {
-            controller.process("operator", parser, x::set);
+            controller.process(
+                "operator",
+                parser,
+                randomFrom(ReservedStateVersionCheck.HIGHER_VERSION_ONLY, ReservedStateVersionCheck.HIGHER_OR_SAME_VERSION),
+                x::set
+            );
 
             assertThat(x.get(), instanceOf(IllegalStateException.class));
             assertThat(x.get().getMessage(), containsString("Error processing state change request for operator"));
@@ -197,7 +202,12 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
             """;
 
         try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, testJSON)) {
-            controller.process("operator", parser, Assert::assertNull);
+            controller.process(
+                "operator",
+                parser,
+                randomFrom(ReservedStateVersionCheck.HIGHER_VERSION_ONLY, ReservedStateVersionCheck.HIGHER_OR_SAME_VERSION),
+                Assert::assertNull
+            );
         }
     }
 
@@ -236,7 +246,15 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
         AtomicBoolean successCalled = new AtomicBoolean(false);
 
         ReservedStateUpdateTask task = spy(
-            new ReservedStateUpdateTask("test", null, Map.of(), Set.of(), errorState -> {}, ActionListener.noop())
+            new ReservedStateUpdateTask(
+                "test",
+                null,
+                ReservedStateVersionCheck.HIGHER_VERSION_ONLY,
+                Map.of(),
+                Set.of(),
+                errorState -> {},
+                ActionListener.noop()
+            )
         );
 
         doReturn(state).when(task).execute(any());
@@ -275,7 +293,13 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
 
         ReservedClusterStateService service = new ReservedClusterStateService(clusterService, mock(RerouteService.class), List.of());
 
-        ErrorState error = new ErrorState("namespace", 2L, List.of("error"), ReservedStateErrorMetadata.ErrorKind.TRANSIENT);
+        ErrorState error = new ErrorState(
+            "namespace",
+            2L,
+            ReservedStateVersionCheck.HIGHER_VERSION_ONLY,
+            List.of("error"),
+            ReservedStateErrorMetadata.ErrorKind.TRANSIENT
+        );
         service.updateErrorState(error);
 
         assertThat(updateTask.getValue(), notNullValue());
@@ -296,7 +320,13 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
 
         // it should not update if the error version is less than the current version
         when(clusterService.state()).thenReturn(updatedState);
-        ErrorState oldError = new ErrorState("namespace", 1L, List.of("old error"), ReservedStateErrorMetadata.ErrorKind.TRANSIENT);
+        ErrorState oldError = new ErrorState(
+            "namespace",
+            1L,
+            ReservedStateVersionCheck.HIGHER_VERSION_ONLY,
+            List.of("old error"),
+            ReservedStateErrorMetadata.ErrorKind.TRANSIENT
+        );
         service.updateErrorState(oldError);
         verifyNoMoreInteractions(errorQueue);
     }
@@ -308,7 +338,13 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
 
         ReservedStateErrorTask task = spy(
             new ReservedStateErrorTask(
-                new ErrorState("test", 1L, List.of("some parse error", "some io error"), ReservedStateErrorMetadata.ErrorKind.PARSING),
+                new ErrorState(
+                    "test",
+                    1L,
+                    ReservedStateVersionCheck.HIGHER_VERSION_ONLY,
+                    List.of("some parse error", "some io error"),
+                    ReservedStateErrorMetadata.ErrorKind.PARSING
+                ),
                 ActionListener.running(() -> listenerCompleted.set(true))
             )
         );
@@ -353,12 +389,14 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
         Metadata metadata = Metadata.builder().put(operatorMetadata).build();
         ClusterState state = ClusterState.builder(new ClusterName("test")).metadata(metadata).build();
 
-        assertFalse(ReservedStateErrorTask.isNewError(operatorMetadata, 2L));
-        assertFalse(ReservedStateErrorTask.isNewError(operatorMetadata, 1L));
-        assertTrue(ReservedStateErrorTask.isNewError(operatorMetadata, 3L));
-        assertTrue(ReservedStateErrorTask.isNewError(null, 1L));
+        assertFalse(ReservedStateErrorTask.isNewError(operatorMetadata, 2L, ReservedStateVersionCheck.HIGHER_VERSION_ONLY));
+        assertFalse(ReservedStateErrorTask.isNewError(operatorMetadata, 1L, ReservedStateVersionCheck.HIGHER_VERSION_ONLY));
+        assertTrue(ReservedStateErrorTask.isNewError(operatorMetadata, 2L, ReservedStateVersionCheck.HIGHER_OR_SAME_VERSION));
+        assertTrue(ReservedStateErrorTask.isNewError(operatorMetadata, 3L, ReservedStateVersionCheck.HIGHER_VERSION_ONLY));
+        assertTrue(ReservedStateErrorTask.isNewError(null, 1L, ReservedStateVersionCheck.HIGHER_VERSION_ONLY));
+        assertTrue(ReservedStateErrorTask.isNewError(null, 1L, ReservedStateVersionCheck.HIGHER_OR_SAME_VERSION));
 
-        var chunk = new ReservedStateChunk(Map.of("one", "two", "maker", "three"), new ReservedStateVersion(2L, Version.CURRENT));
+        var chunk = new ReservedStateChunk(Map.of("one", "two", "maker", "three"), new ReservedStateVersion(2L, BuildVersion.current()));
         var orderedHandlers = List.of(exceptionThrower.name(), newStateMaker.name());
 
         // We submit a task with two handler, one will cause an exception, the other will create a new state.
@@ -367,9 +405,10 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
         ReservedStateUpdateTask task = new ReservedStateUpdateTask(
             "namespace_one",
             chunk,
+            ReservedStateVersionCheck.HIGHER_VERSION_ONLY,
             Map.of(exceptionThrower.name(), exceptionThrower, newStateMaker.name(), newStateMaker),
             orderedHandlers,
-            errorState -> assertFalse(ReservedStateErrorTask.isNewError(operatorMetadata, errorState.version())),
+            errorState -> assertFalse(ReservedStateErrorTask.isNewError(operatorMetadata, errorState.version(), errorState.versionCheck())),
             ActionListener.noop()
         );
 
@@ -414,9 +453,21 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
         ReservedStateMetadata operatorMetadata = ReservedStateMetadata.builder("test").version(123L).build();
 
         ClusterState state = ClusterState.builder(new ClusterName("test")).metadata(Metadata.builder().put(operatorMetadata)).build();
+
         ReservedStateUpdateTask task = new ReservedStateUpdateTask(
             "test",
-            new ReservedStateChunk(Map.of(), new ReservedStateVersion(124L, Version.CURRENT)),
+            new ReservedStateChunk(Map.of(), new ReservedStateVersion(124L, BuildVersion.current())),
+            ReservedStateVersionCheck.HIGHER_VERSION_ONLY,
+            Map.of(),
+            List.of(),
+            e -> {},
+            ActionListener.noop()
+        );
+        assertThat("Cluster state should be modified", task.execute(state), not(sameInstance(state)));
+        task = new ReservedStateUpdateTask(
+            "test",
+            new ReservedStateChunk(Map.of(), new ReservedStateVersion(124L, BuildVersion.current())),
+            ReservedStateVersionCheck.HIGHER_VERSION_ONLY,
             Map.of(),
             List.of(),
             e -> {},
@@ -426,7 +477,39 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
 
         task = new ReservedStateUpdateTask(
             "test",
-            new ReservedStateChunk(Map.of(), new ReservedStateVersion(123L, Version.CURRENT)),
+            new ReservedStateChunk(Map.of(), new ReservedStateVersion(123L, BuildVersion.current())),
+            ReservedStateVersionCheck.HIGHER_VERSION_ONLY,
+            Map.of(),
+            List.of(),
+            e -> {},
+            ActionListener.noop()
+        );
+        assertThat("Cluster state should not be modified", task.execute(state), sameInstance(state));
+        task = new ReservedStateUpdateTask(
+            "test",
+            new ReservedStateChunk(Map.of(), new ReservedStateVersion(123L, BuildVersion.current())),
+            ReservedStateVersionCheck.HIGHER_OR_SAME_VERSION,
+            Map.of(),
+            List.of(),
+            e -> {},
+            ActionListener.noop()
+        );
+        assertThat("Cluster state should be modified", task.execute(state), not(sameInstance(state)));
+
+        task = new ReservedStateUpdateTask(
+            "test",
+            new ReservedStateChunk(Map.of(), new ReservedStateVersion(122L, BuildVersion.current())),
+            ReservedStateVersionCheck.HIGHER_VERSION_ONLY,
+            Map.of(),
+            List.of(),
+            e -> {},
+            ActionListener.noop()
+        );
+        assertThat("Cluster state should not be modified", task.execute(state), sameInstance(state));
+        task = new ReservedStateUpdateTask(
+            "test",
+            new ReservedStateChunk(Map.of(), new ReservedStateVersion(122L, BuildVersion.current())),
+            ReservedStateVersionCheck.HIGHER_OR_SAME_VERSION,
             Map.of(),
             List.of(),
             e -> {},
@@ -436,7 +519,18 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
 
         task = new ReservedStateUpdateTask(
             "test",
-            new ReservedStateChunk(Map.of(), new ReservedStateVersion(124L, Version.fromId(Version.CURRENT.id + 1))),
+            new ReservedStateChunk(Map.of(), new ReservedStateVersion(124L, BuildVersion.fromVersionId(BuildVersion.current().id() + 1))),
+            ReservedStateVersionCheck.HIGHER_VERSION_ONLY,
+            Map.of(),
+            List.of(),
+            e -> {},
+            ActionListener.noop()
+        );
+        assertThat("Cluster state should not be modified", task.execute(state), sameInstance(state));
+        task = new ReservedStateUpdateTask(
+            "test",
+            new ReservedStateChunk(Map.of(), new ReservedStateVersion(124L, BuildVersion.fromVersionId(BuildVersion.current().id() + 1))),
+            ReservedStateVersionCheck.HIGHER_OR_SAME_VERSION,
             Map.of(),
             List.of(),
             e -> {},
@@ -530,11 +624,11 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
 
         final var controller = spy(new ReservedClusterStateService(clusterService, mock(RerouteService.class), List.of()));
 
-        assertNull(controller.checkAndReportError("test", List.of(), null));
+        assertNull(controller.checkAndReportError("test", List.of(), null, ReservedStateVersionCheck.HIGHER_VERSION_ONLY));
         verify(controller, times(0)).updateErrorState(any());
 
-        var version = new ReservedStateVersion(2L, Version.CURRENT);
-        var error = controller.checkAndReportError("test", List.of("test error"), version);
+        var version = new ReservedStateVersion(2L, BuildVersion.current());
+        var error = controller.checkAndReportError("test", List.of("test error"), version, ReservedStateVersionCheck.HIGHER_VERSION_ONLY);
         assertThat(error, instanceOf(IllegalStateException.class));
         assertThat(error.getMessage(), is("Error processing state change request for test, errors: test error"));
         verify(controller, times(1)).updateErrorState(any());
@@ -565,7 +659,10 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
         Metadata metadata = Metadata.builder().put(operatorMetadata).build();
         ClusterState state = ClusterState.builder(new ClusterName("test")).metadata(metadata).build();
 
-        var chunk = new ReservedStateChunk(Map.of("non-state", "two", "maker", "three"), new ReservedStateVersion(2L, Version.CURRENT));
+        var chunk = new ReservedStateChunk(
+            Map.of("non-state", "two", "maker", "three"),
+            new ReservedStateVersion(2L, BuildVersion.current())
+        );
         var orderedHandlers = List.of(exceptionThrower.name(), newStateMaker.name());
 
         ClusterService clusterService = mock(ClusterService.class);

@@ -128,7 +128,7 @@
       <a href="https://www.elastic.co/guide/en/cloud/current/ec-cloud-ingest-data.html">Adding data to Elasticsearch</a>
     </li>
     <li>
-      <a href="https://www.elastic.co/guide/en/enterprise-search/current/connectors.html">Connectors</a>
+      <a href="es-connectors.html">Connectors</a>
     </li>
     <li>
       <a href="https://www.elastic.co/guide/en/enterprise-search/current/crawler.html">Web crawler</a>

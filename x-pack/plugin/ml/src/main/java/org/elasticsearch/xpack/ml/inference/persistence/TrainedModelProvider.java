@@ -1008,7 +1008,7 @@ public class TrainedModelProvider {
             ML_ORIGIN,
             searchRequest,
             ActionListener.<SearchResponse>wrap(response -> {
-                long totalHitCount = response.getHits().getTotalHits().value + foundResourceIds.size();
+                long totalHitCount = response.getHits().getTotalHits().value() + foundResourceIds.size();
                 Set<String> foundFromDocs = new HashSet<>();
                 for (SearchHit hit : response.getHits().getHits()) {
                     Map<String, Object> docSource = hit.getSourceAsMap();

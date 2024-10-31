@@ -1,0 +1,7 @@
+pr: 115194
+summary: Update APM Java Agent to support JDK 23
+area: Infra/Metrics
+type: upgrade
+issues:
+ - 115101
+ - 115100

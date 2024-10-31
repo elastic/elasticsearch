@@ -77,10 +77,10 @@ be changed or removed in a future release. Elastic will work to fix
 any issues, but features in technical preview are not subject to the support SLA
 of official GA features.
 
-`version` fields support <<synthetic-source,synthetic `_source`>> so long as they don't
-declare <<copy-to,`copy_to`>>.
+`version` fields support <<synthetic-source,synthetic `_source`>> in their
+default configuration..
 
-Synthetic source always sorts `version` fields and removes duplicates. For example:
+Synthetic source may sort `version` field values and remove duplicates. For example:
 [source,console,id=synthetic-source-version-example]
 ----
 PUT idx

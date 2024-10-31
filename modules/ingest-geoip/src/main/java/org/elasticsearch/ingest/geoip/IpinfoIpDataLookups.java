@@ -218,8 +218,8 @@ final class IpinfoIpDataLookups {
     public record GeolocationResult(
         String city,
         String country,
-        Double latitude,
-        Double longitude,
+        Double lat,
+        Double lng,
         String postalCode,
         String region,
         String timezone
@@ -229,14 +229,15 @@ final class IpinfoIpDataLookups {
         public GeolocationResult(
             @MaxMindDbParameter(name = "city") String city,
             @MaxMindDbParameter(name = "country") String country,
-            @MaxMindDbParameter(name = "latitude") String latitude,
-            @MaxMindDbParameter(name = "longitude") String longitude,
-            // @MaxMindDbParameter(name = "network") String network, // for now we're not exposing this
+            // @MaxMindDbParameter(name = "geoname_id") String geonameId, // for now we're not exposing this
+            @MaxMindDbParameter(name = "lat") String lat,
+            @MaxMindDbParameter(name = "lng") String lng,
             @MaxMindDbParameter(name = "postal_code") String postalCode,
             @MaxMindDbParameter(name = "region") String region,
+            // @MaxMindDbParameter(name = "region_code") String regionCode, // for now we're not exposing this
             @MaxMindDbParameter(name = "timezone") String timezone
         ) {
-            this(city, country, parseLocationDouble(latitude), parseLocationDouble(longitude), postalCode, region, timezone);
+            this(city, country, parseLocationDouble(lat), parseLocationDouble(lng), postalCode, region, timezone);
         }
     }
 
@@ -395,8 +396,8 @@ final class IpinfoIpDataLookups {
                         }
                     }
                     case LOCATION -> {
-                        Double latitude = response.latitude;
-                        Double longitude = response.longitude;
+                        Double latitude = response.lat;
+                        Double longitude = response.lng;
                         if (latitude != null && longitude != null) {
                             Map<String, Object> locationObject = new HashMap<>();
                             locationObject.put("lat", latitude);

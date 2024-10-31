@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -46,6 +47,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.util.DateUtils;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
+import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.RLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
@@ -260,7 +262,7 @@ public final class EsqlTestUtils {
 
     public static final Configuration TEST_CFG = configuration(new QueryPragmas(Settings.EMPTY));
 
-    public static final Verifier TEST_VERIFIER = new Verifier(new Metrics());
+    public static final Verifier TEST_VERIFIER = new Verifier(new Metrics(new EsqlFunctionRegistry()));
 
     private EsqlTestUtils() {}
 
@@ -599,7 +601,10 @@ public final class EsqlTestUtils {
                 Files.walkFileTree(path, EnumSet.allOf(FileVisitOption.class), 1, new SimpleFileVisitor<>() {
                     @Override
                     public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-                        if (Regex.simpleMatch(filePattern, file.toString())) {
+                        // remove the path folder from the URL
+                        String name = Strings.replace(file.toUri().toString(), path.toUri().toString(), StringUtils.EMPTY);
+                        Tuple<String, String> entrySplit = pathAndName(name);
+                        if (root.equals(entrySplit.v1()) && Regex.simpleMatch(filePattern, entrySplit.v2())) {
                             matches.add(file.toUri().toURL());
                         }
                         return FileVisitResult.CONTINUE;
@@ -647,7 +652,7 @@ public final class EsqlTestUtils {
             case KEYWORD -> new BytesRef(randomAlphaOfLength(5));
             case IP -> new BytesRef(InetAddressPoint.encode(randomIp(randomBoolean())));
             case TIME_DURATION -> Duration.ofMillis(randomLongBetween(-604800000L, 604800000L)); // plus/minus 7 days
-            case TEXT -> new BytesRef(randomAlphaOfLength(50));
+            case TEXT, SEMANTIC_TEXT -> new BytesRef(randomAlphaOfLength(50));
             case VERSION -> randomVersion().toBytesRef();
             case GEO_POINT -> GEO.asWkb(GeometryTestUtils.randomPoint());
             case CARTESIAN_POINT -> CARTESIAN.asWkb(ShapeTestUtils.randomPoint());

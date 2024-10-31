@@ -172,7 +172,14 @@ setup:
 ---
 "using query and dfs knn search":
 
+  - requires:
+      cluster_features: ["gte_v8.16.0"]
+      reason: "deprecation added in 8.16"
+      test_runner_features: warnings
+
   - do:
+      warnings:
+        - "Deprecated field [rank] used, replaced by [retriever]"
       search:
         index: test
         body:

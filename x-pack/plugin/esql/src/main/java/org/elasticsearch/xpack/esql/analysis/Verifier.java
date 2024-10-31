@@ -58,6 +58,7 @@ import org.elasticsearch.xpack.esql.stats.Metrics;
 import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -480,6 +481,9 @@ public class Verifier {
         for (int i = b.nextSetBit(0); i >= 0; i = b.nextSetBit(i + 1)) {
             metrics.inc(FeatureMetric.values()[i]);
         }
+        Set<Class<?>> functions = new HashSet<>();
+        plan.forEachExpressionDown(Function.class, p -> functions.add(p.getClass()));
+        functions.forEach(f -> metrics.incFunctionMetric(f));
     }
 
     /**
@@ -605,22 +609,15 @@ public class Verifier {
      */
     private static void checkRemoteEnrich(LogicalPlan plan, Set<Failure> failures) {
         boolean[] agg = { false };
-        boolean[] limit = { false };
         boolean[] enrichCoord = { false };
 
         plan.forEachUp(UnaryPlan.class, u -> {
-            if (u instanceof Limit) {
-                limit[0] = true; // TODO: Make Limit then enrich_remote work
-            }
             if (u instanceof Aggregate) {
                 agg[0] = true;
             } else if (u instanceof Enrich enrich && enrich.mode() == Enrich.Mode.COORDINATOR) {
                 enrichCoord[0] = true;
             }
             if (u instanceof Enrich enrich && enrich.mode() == Enrich.Mode.REMOTE) {
-                if (limit[0]) {
-                    failures.add(fail(enrich, "ENRICH with remote policy can't be executed after LIMIT"));
-                }
                 if (agg[0]) {
                     failures.add(fail(enrich, "ENRICH with remote policy can't be executed after STATS"));
                 }

@@ -1,0 +1,114 @@
+import org.elasticsearch.gradle.internal.info.BuildParams
+import static org.elasticsearch.gradle.util.PlatformUtils.normalize
+
+apply plugin: 'elasticsearch.internal-es-plugin'
+apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'elasticsearch.publish'
+
+esplugin {
+  name 'x-pack-kql'
+  description 'Elasticsearch Expanded Pack Plugin - KQL query'
+  classname 'org.elasticsearch.xpack.kql.KqlPlugin'
+  extendedPlugins = ['x-pack-core']
+}
+base {
+  archivesName = 'x-pack-kql'
+}
+
+dependencies {
+  compileOnly project(path: xpackModule('core'))
+  compileOnly "org.antlr:antlr4-runtime:${versions.antlr4}"
+
+  testImplementation "org.antlr:antlr4-runtime:${versions.antlr4}"
+  testImplementation project(':test:framework')
+  testImplementation(testArtifact(project(xpackModule('core'))))
+}
+
+/****************************************************************
+ *  Enable QA/rest integration tests for snapshot builds only   *
+ *  TODO: Enable for all builds upon this feature release       *
+ ****************************************************************/
+if (BuildParams.isSnapshotBuild()) {
+  addQaCheckDependencies(project)
+}
+
+/**********************************
+ * KQL parser configuration       *
+ **********************************/
+configurations {
+  regenerate
+}
+
+dependencies {
+  regenerate "org.antlr:antlr4:${versions.antlr4}"
+}
+
+String grammarPath = 'src/main/antlr'
+String outputPath = 'src/main/java/org/elasticsearch/xpack/kql/parser'
+
+pluginManager.withPlugin('com.diffplug.spotless') {
+  spotless {
+    java {
+      // for some reason "${outputPath}/KqlBaser*.java" does not match the same files...
+      targetExclude "src/main/java/org/elasticsearch/xpack/kql/parser/KqlBase*.java"
+    }
+  }
+}
+tasks.named('checkstyleMain').configure {
+  exclude { normalize(it.file.toString()).contains("src/main/java/org/elasticsearch/xpack/kql/parser/KqlBase") }
+}
+
+tasks.register("cleanGenerated", Delete) {
+  delete fileTree(grammarPath) {
+    include '*.tokens'
+  }
+  delete fileTree(outputPath) {
+    include 'KqlBase*.java'
+    include 'KqlBase*.interp'
+  }
+}
+
+tasks.register("regenParser", JavaExec) {
+  dependsOn "cleanGenerated"
+  mainClass = 'org.antlr.v4.Tool'
+  classpath = configurations.regenerate
+  systemProperty 'file.encoding', 'UTF-8'
+  systemProperty 'user.language', 'en'
+  systemProperty 'user.country', 'US'
+  systemProperty 'user.variant', ''
+  args '-Werror',
+    '-package', 'org.elasticsearch.xpack.kql.parser',
+    '-listener',
+    '-visitor',
+    '-o', outputPath,
+    "${file(grammarPath)}/KqlBase.g4"
+}
+
+tasks.register("regen") {
+  dependsOn "regenParser"
+  doLast {
+    // moves token files to grammar directory for use with IDE's
+    ant.move(file: "${outputPath}/KqlBase.tokens", toDir: grammarPath)
+    ant.move(file: "${outputPath}/KqlBaseLexer.tokens", toDir: grammarPath)
+    // make the generated classes package private
+    ant.replaceregexp(match: 'public ((interface|class) \\QKqlBase\\E\\w+)',
+      replace: '\\1',
+      encoding: 'UTF-8') {
+      fileset(dir: outputPath, includes: 'KqlBase*.java')
+    }
+    // nuke timestamps/filenames in generated files
+    ant.replaceregexp(match: '\\Q// Generated from \\E.*',
+      replace: '\\/\\/ ANTLR GENERATED CODE: DO NOT EDIT',
+      encoding: 'UTF-8') {
+      fileset(dir: outputPath, includes: 'KqlBase*.java')
+    }
+    // remove tabs in antlr generated files
+    ant.replaceregexp(match: '\t', flags: 'g', replace: '    ', encoding: 'UTF-8') {
+      fileset(dir: outputPath, includes: 'KqlBase*.java')
+    }
+    // fix line endings
+    ant.fixcrlf(srcdir: outputPath, eol: 'lf') {
+      patternset(includes: 'KqlBase*.java')
+    }
+  }
+}

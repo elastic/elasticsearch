@@ -1,0 +1,6 @@
+pr: 115594
+summary: Update `BlobCacheBufferedIndexInput::readVLong` to correctly handle negative
+  long values
+area: Search
+type: bug
+issues: []

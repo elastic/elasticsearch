@@ -112,6 +112,7 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         );
         assumeFalse("INLINESTATS not yet supported in CCS", testCase.requiredCapabilities.contains("inlinestats"));
         assumeFalse("INLINESTATS not yet supported in CCS", testCase.requiredCapabilities.contains("inlinestats_v2"));
+        assumeFalse("INLINESTATS not yet supported in CCS", testCase.requiredCapabilities.contains("join_planning_v1"));
     }
 
     private TestFeatureService remoteFeaturesService() throws IOException {
@@ -260,5 +261,10 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
     @Override
     protected boolean enableRoundingDoubleValuesOnAsserting() {
         return true;
+    }
+
+    @Override
+    protected boolean supportsInferenceTestService() {
+        return false;
     }
 }

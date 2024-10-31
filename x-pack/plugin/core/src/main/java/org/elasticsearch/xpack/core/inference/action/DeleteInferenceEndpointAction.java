@@ -50,7 +50,7 @@ public class DeleteInferenceEndpointAction extends ActionType<DeleteInferenceEnd
             super(in);
             this.inferenceEndpointId = in.readString();
             this.taskType = TaskType.fromStream(in);
-            if (in.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_ENHANCE_DELETE_ENDPOINT)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
                 this.forceDelete = Boolean.TRUE.equals(in.readOptionalBoolean());
                 this.dryRun = Boolean.TRUE.equals(in.readOptionalBoolean());
             } else {
@@ -80,7 +80,7 @@ public class DeleteInferenceEndpointAction extends ActionType<DeleteInferenceEnd
             super.writeTo(out);
             out.writeString(inferenceEndpointId);
             taskType.writeTo(out);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_ENHANCE_DELETE_ENDPOINT)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
                 out.writeOptionalBoolean(forceDelete);
                 out.writeOptionalBoolean(dryRun);
             }
@@ -121,7 +121,7 @@ public class DeleteInferenceEndpointAction extends ActionType<DeleteInferenceEnd
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            if (in.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_ENHANCE_DELETE_ENDPOINT)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
                 pipelineIds = in.readCollectionAsSet(StreamInput::readString);
             } else {
                 pipelineIds = Set.of();
@@ -140,7 +140,7 @@ public class DeleteInferenceEndpointAction extends ActionType<DeleteInferenceEnd
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_ENHANCE_DELETE_ENDPOINT)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
                 out.writeCollection(pipelineIds, StreamOutput::writeString);
             }
             if (out.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_DONT_DELETE_WHEN_SEMANTIC_TEXT_EXISTS)) {

@@ -195,7 +195,7 @@ identifier
 
 identifierPattern
     : ID_PATTERN
-    | parameter
+    | {this.isDevVersion()}? parameter
     ;
 
 constant
@@ -218,7 +218,7 @@ parameter
 
 identifierOrParameter
     : identifier
-    | parameter
+    | {this.isDevVersion()}? parameter
     ;
 
 limitCommand

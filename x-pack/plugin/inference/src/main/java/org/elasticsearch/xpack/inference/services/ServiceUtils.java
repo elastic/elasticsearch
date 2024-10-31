@@ -435,6 +435,32 @@ public final class ServiceUtils {
         return field;
     }
 
+    public static Integer extractRequiredPositiveIntegerBetween(
+        Map<String, Object> map,
+        String settingName,
+        int minValue,
+        int maxValue,
+        String scope,
+        ValidationException validationException
+    ) {
+        Integer field = extractRequiredPositiveInteger(map, settingName, scope, validationException);
+
+        if (field != null && field < minValue) {
+            validationException.addValidationError(
+                ServiceUtils.mustBeGreaterThanOrEqualNumberErrorMessage(settingName, scope, field, minValue)
+            );
+            return null;
+        }
+        if (field != null && field > maxValue) {
+            validationException.addValidationError(
+                ServiceUtils.mustBeLessThanOrEqualNumberErrorMessage(settingName, scope, field, maxValue)
+            );
+            return null;
+        }
+
+        return field;
+    }
+
     public static Integer extractOptionalPositiveInteger(
         Map<String, Object> map,
         String settingName,

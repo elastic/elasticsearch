@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.core.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.core.expression.predicate.nulls.IsNull;
-import org.elasticsearch.xpack.esql.core.expression.predicate.regex.Like;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLike;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RegexMatch;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardLike;
@@ -66,9 +65,6 @@ public final class ExpressionTranslators {
         }
 
         private static Query translateField(RegexMatch e, String targetFieldName) {
-            if (e instanceof Like l) {
-                return new WildcardQuery(e.source(), targetFieldName, l.pattern().asLuceneWildcard(), l.caseInsensitive());
-            }
             if (e instanceof WildcardLike l) {
                 return new WildcardQuery(e.source(), targetFieldName, l.pattern().asLuceneWildcard(), l.caseInsensitive());
             }

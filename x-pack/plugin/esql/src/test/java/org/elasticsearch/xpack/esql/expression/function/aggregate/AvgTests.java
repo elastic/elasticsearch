@@ -64,25 +64,27 @@ public class AvgTests extends AbstractAggregationTestCase {
     private static TestCaseSupplier makeSupplier(TestCaseSupplier.TypedDataSupplier fieldSupplier) {
         return new TestCaseSupplier(List.of(fieldSupplier.type()), () -> {
             var fieldTypedData = fieldSupplier.get();
+            var fieldData = fieldTypedData.multiRowData();
 
-            Object expected = switch (fieldTypedData.type().widenSmallNumeric()) {
-                case INTEGER -> fieldTypedData.multiRowData()
-                    .stream()
-                    .map(v -> (Integer) v)
-                    .collect(Collectors.summarizingInt(Integer::intValue))
-                    .getAverage();
-                case LONG -> fieldTypedData.multiRowData()
-                    .stream()
-                    .map(v -> (Long) v)
-                    .collect(Collectors.summarizingLong(Long::longValue))
-                    .getAverage();
-                case DOUBLE -> fieldTypedData.multiRowData()
-                    .stream()
-                    .map(v -> (Double) v)
-                    .collect(Collectors.summarizingDouble(Double::doubleValue))
-                    .getAverage();
-                default -> throw new IllegalStateException("Unexpected value: " + fieldTypedData.type());
-            };
+            Object expected = null;
+
+            if (fieldData.size() == 1) {
+                // For single elements, we directly return them to avoid precision issues
+                expected = ((Number) fieldData.get(0)).doubleValue();
+            } else if (fieldData.size() > 1) {
+                expected = switch (fieldTypedData.type().widenSmallNumeric()) {
+                    case INTEGER -> fieldData.stream()
+                        .map(v -> (Integer) v)
+                        .collect(Collectors.summarizingInt(Integer::intValue))
+                        .getAverage();
+                    case LONG -> fieldData.stream().map(v -> (Long) v).collect(Collectors.summarizingLong(Long::longValue)).getAverage();
+                    case DOUBLE -> fieldData.stream()
+                        .map(v -> (Double) v)
+                        .collect(Collectors.summarizingDouble(Double::doubleValue))
+                        .getAverage();
+                    default -> throw new IllegalStateException("Unexpected value: " + fieldTypedData.type());
+                };
+            }
 
             return new TestCaseSupplier.TestCase(
                 List.of(fieldTypedData),

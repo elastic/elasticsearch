@@ -30,6 +30,7 @@ import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.node.Node;
 
@@ -830,6 +831,7 @@ public final class IndexSettings {
     private volatile boolean skipIgnoredSourceRead;
     private volatile boolean syntheticSourceSecondDocParsingPassEnabled;
     private final SourceFieldMapper.Mode indexMappingSourceMode;
+    private final boolean recoverySourceEnabled;
 
     /**
      * The maximum number of refresh listeners allows on this shard.
@@ -992,6 +994,7 @@ public final class IndexSettings {
         skipIgnoredSourceRead = scopedSettings.get(IgnoredSourceFieldMapper.SKIP_IGNORED_SOURCE_READ_SETTING);
         syntheticSourceSecondDocParsingPassEnabled = scopedSettings.get(SYNTHETIC_SOURCE_SECOND_DOC_PARSING_PASS_SETTING);
         indexMappingSourceMode = scopedSettings.get(SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING);
+        recoverySourceEnabled = RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.get(nodeSettings);
 
         scopedSettings.addSettingsUpdateConsumer(
             MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING,
@@ -1685,6 +1688,14 @@ public final class IndexSettings {
 
     public SourceFieldMapper.Mode getIndexMappingSourceMode() {
         return indexMappingSourceMode;
+    }
+
+    /**
+     * @return Whether recovery source should be enabled if needed.
+     *         Note that this is a node setting, and this setting is not sourced from index settings.
+     */
+    public boolean isRecoverySourceEnabled() {
+        return recoverySourceEnabled;
     }
 
     /**

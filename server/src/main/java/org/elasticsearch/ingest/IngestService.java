@@ -267,6 +267,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
      * @param originalRequest Original write request received.
      * @param indexRequest    The {@link org.elasticsearch.action.index.IndexRequest} object to update.
      * @param metadata        Cluster metadata from where the pipeline information could be derived.
+     * @param resolvedPipelineCache map from index name to resolved pipelines from previous requests in bulk request
      */
     public static Pipelines resolvePipelinesAndUpdateIndexRequest(
         final DocWriteRequest<?> originalRequest,
@@ -274,7 +275,13 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         final Metadata metadata,
         final Map<String, Pipelines> resolvedPipelineCache
     ) {
-        return resolvePipelinesAndUpdateIndexRequest(originalRequest, indexRequest, metadata, System.currentTimeMillis(), resolvedPipelineCache);
+        return resolvePipelinesAndUpdateIndexRequest(
+            originalRequest,
+            indexRequest,
+            metadata,
+            System.currentTimeMillis(),
+            resolvedPipelineCache
+        );
     }
 
     private static boolean isRolloverOnWrite(Metadata metadata, final DocWriteRequest<?> request, IndexRequest indexRequest) {

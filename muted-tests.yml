@@ -1,7 +1,4 @@
 tests:
-- class: "org.elasticsearch.upgrades.SearchStatesIT"
-  issue: "https://github.com/elastic/elasticsearch/issues/108991"
-  method: "testCanMatch"
 - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
   method: test {yaml=reference/esql/esql-async-query-api/line_17}
   issue: https://github.com/elastic/elasticsearch/issues/109260
@@ -23,8 +20,6 @@ tests:
 - class: org.elasticsearch.nativeaccess.VectorSystemPropertyTests
   method: testSystemPropertyDisabled
   issue: https://github.com/elastic/elasticsearch/issues/110949
-- class: org.elasticsearch.multi_node.GlobalCheckpointSyncActionIT
-  issue: https://github.com/elastic/elasticsearch/issues/111124
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test021InstallPlugin
   issue: https://github.com/elastic/elasticsearch/issues/110343
@@ -195,8 +190,6 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test022InstallPluginsFromLocalArchive
   issue: https://github.com/elastic/elasticsearch/issues/111063
-- class: org.elasticsearch.gradle.internal.PublishPluginFuncTest
-  issue: https://github.com/elastic/elasticsearch/issues/114492
 - class: org.elasticsearch.xpack.inference.DefaultElserIT
   method: testInferCreatesDefaultElser
   issue: https://github.com/elastic/elasticsearch/issues/114503
@@ -215,9 +208,6 @@ tests:
 - class: org.elasticsearch.xpack.remotecluster.RemoteClusterSecurityWithApmTracingRestIT
   method: testTracingCrossCluster
   issue: https://github.com/elastic/elasticsearch/issues/112731
-- class: org.elasticsearch.packaging.test.EnrollmentProcessTests
-  method: test20DockerAutoFormCluster
-  issue: https://github.com/elastic/elasticsearch/issues/114885
 - class: org.elasticsearch.xpack.inference.DefaultEndPointsIT
   method: testInferDeploysDefaultElser
   issue: https://github.com/elastic/elasticsearch/issues/114913
@@ -233,9 +223,6 @@ tests:
 - class: org.elasticsearch.xpack.restart.MLModelDeploymentFullClusterRestartIT
   method: testDeploymentSurvivesRestart {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/115528
-- class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
-  method: test {yaml=reference/esql/esql-across-clusters/line_197}
-  issue: https://github.com/elastic/elasticsearch/issues/115575
 - class: org.elasticsearch.oldrepos.OldRepositoryAccessIT
   method: testOldRepoAccess
   issue: https://github.com/elastic/elasticsearch/issues/115631
@@ -275,6 +262,29 @@ tests:
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=ml/inference_crud/Test delete given model referenced by pipeline}
   issue: https://github.com/elastic/elasticsearch/issues/115970
+- class: org.elasticsearch.monitor.jvm.JvmStatsTests
+  method: testJvmStats
+  issue: https://github.com/elastic/elasticsearch/issues/115711
+- class: org.elasticsearch.repositories.s3.S3ServiceTests
+  method: testRetryOn403RetryPolicy
+  issue: https://github.com/elastic/elasticsearch/issues/115986
+- class: org.elasticsearch.search.slice.SearchSliceIT
+  method: testPointInTime
+  issue: https://github.com/elastic/elasticsearch/issues/115988
+- class: org.elasticsearch.action.search.PointInTimeIT
+  method: testPITTiebreak
+  issue: https://github.com/elastic/elasticsearch/issues/115810
+- class: org.elasticsearch.xpack.searchablesnapshots.hdfs.SecureHdfsSearchableSnapshotsIT
+  issue: https://github.com/elastic/elasticsearch/issues/115995
+- class: org.elasticsearch.index.reindex.ReindexNodeShutdownIT
+  method: testReindexWithShutdown
+  issue: https://github.com/elastic/elasticsearch/issues/115996
+- class: org.elasticsearch.search.query.SearchQueryIT
+  method: testAllDocsQueryString
+  issue: https://github.com/elastic/elasticsearch/issues/115728
+- class: org.elasticsearch.search.basic.SearchWithRandomExceptionsIT
+  method: testRandomExceptions
+  issue: https://github.com/elastic/elasticsearch/issues/116027
 
 # Examples:
 #

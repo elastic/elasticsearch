@@ -43,9 +43,10 @@ final class SystemJvmOptions {
                 "-Djdk.attach.allowAttachSelf=true",
                 "-XX:+EnableDynamicAgentLoading",
                 "--patch-module", "java.base=" + entitlementJarLocation("bridge", workingDir),
-                entitlementJarPropertyOption("agent", workingDir),
+                "--add-exports", "java.base/org.elasticsearch.entitlement.api=org.elasticsearch.entitlement.runtime",
+//                entitlementJarPropertyOption("agent", workingDir),
 //                entitlementJarPropertyOption("bridge", workingDir),
-                entitlementJarPropertyOption("runtime", workingDir),
+//                entitlementJarPropertyOption("runtime", workingDir),
                 // pre-touch JVM emory pages during initialization
                 "-XX:+AlwaysPreTouch",
                 // explicitly set the stack size

@@ -20,6 +20,7 @@ public class EntitlementProvider {
     }
 
     private static EntitlementChecks lookupEntitlementChecksImplementation() {
+        configureModule();
         List<EntitlementChecks> candidates = ServiceLoader.load(EntitlementChecks.class, ClassLoader.getSystemClassLoader())
             .stream()
             .map(ServiceLoader.Provider::get)
@@ -34,4 +35,13 @@ public class EntitlementProvider {
             return candidates.get(0);
         }
     }
+
+    /**
+     * At runtime, this code runs in java.base, so we can't use a normal module-info.java
+     */
+    private static void configureModule() {
+        Module thisModule = EntitlementProvider.class.getModule();
+        thisModule.addUses(EntitlementChecks.class);
+    }
+
 }

@@ -8,6 +8,10 @@
  */
 
 module org.elasticsearch.entitlement.instrumentation {
+    requires java.instrument;
+    requires java.xml;
+    requires org.elasticsearch.base;
     exports org.elasticsearch.entitlement.instrumentation;
+    exports org.elasticsearch.entitlement.instrumentation.init;
     uses org.elasticsearch.entitlement.instrumentation.InstrumentationService;
 }

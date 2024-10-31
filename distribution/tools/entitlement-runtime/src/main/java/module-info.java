@@ -11,8 +11,10 @@ module org.elasticsearch.entitlement.runtime {
     // Note that the bridge will be in java.base here
     requires org.elasticsearch.xcontent;
     requires org.elasticsearch.logging;
+    requires java.instrument;
 
     exports org.elasticsearch.entitlement.runtime.api;
+    exports org.elasticsearch.entitlement.runtime.init;
 
 //    provides org.elasticsearch.entitlement.api.EntitlementChecks
 //        with

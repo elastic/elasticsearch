@@ -15,10 +15,12 @@ import com.sun.tools.attach.AttachNotSupportedException;
 import com.sun.tools.attach.VirtualMachine;
 
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.entitlement.runtime.api.ElasticsearchEntitlementManager;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
 import java.io.IOException;
+import java.lang.invoke.MethodHandles;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
@@ -45,6 +47,11 @@ public final class EntitlementBootstrap {
 
     @SuppressForbidden(reason = "VirtualMachine.loadAgent is the only way to attach the agent dynamically")
     static void configure() {
+        try {
+            MethodHandles.lookup().ensureInitialized(ElasticsearchEntitlementManager.class);
+        } catch (IllegalAccessException e) {
+            throw new IllegalStateException(e);
+        }
         LibraryLocations libs = findEntitlementLibraries();
         logger.debug("Loading agent");
         agentParameters = new AgentParameters(libs.bridge(), libs.instrumentation(), libs.runtime());

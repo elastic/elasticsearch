@@ -15,6 +15,7 @@ embeddedProviders {
 }
 
 dependencies {
+  compileOnly project(":libs:elasticsearch-core") // For the embedded provider mechanism
   testImplementation project(":distribution:tools:entitlement-instrumentation:impl")
 }
 

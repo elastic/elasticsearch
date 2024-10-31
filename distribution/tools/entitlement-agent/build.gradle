@@ -30,10 +30,8 @@ dependencies {
 tasks.named('jar').configure {
   manifest {
     attributes(
-      'Premain-Class': 'org.elasticsearch.entitlement.agent.EntitlementAgent'
-      , 'Agent-Class': 'org.elasticsearch.entitlement.agent.EntitlementAgent'
+      'Agent-Class': 'org.elasticsearch.entitlement.agent.EntitlementAgent'
       , 'Can-Retransform-Classes': 'true'
-      , 'Automatic-Module-Name': 'org.elasticsearch.entitlement.agent'
     )
   }
 }

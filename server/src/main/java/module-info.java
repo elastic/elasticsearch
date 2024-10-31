@@ -24,8 +24,6 @@ module org.elasticsearch.server {
     requires org.elasticsearch.geo;
     requires org.elasticsearch.lz4;
     requires org.elasticsearch.securesm;
-    requires org.elasticsearch.xcontent;
-    requires org.elasticsearch.logging;
     requires org.elasticsearch.plugin;
     requires org.elasticsearch.plugin.analysis;
     requires org.elasticsearch.grok;
@@ -54,6 +52,7 @@ module org.elasticsearch.server {
     requires org.apache.lucene.sandbox;
     requires org.apache.lucene.suggest;
     requires jdk.attach;
+    requires org.elasticsearch.entitlement.runtime;
 
     exports org.elasticsearch;
     exports org.elasticsearch.action;

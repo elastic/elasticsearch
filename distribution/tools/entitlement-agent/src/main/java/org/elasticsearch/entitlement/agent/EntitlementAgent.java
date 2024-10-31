@@ -9,66 +9,28 @@
 
 package org.elasticsearch.entitlement.agent;
 
-import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.core.internal.provider.ProviderLocator;
-import org.elasticsearch.entitlement.instrumentation.InstrumentationService;
-import org.elasticsearch.entitlement.instrumentation.MethodKey;
-
-import java.io.IOException;
 import java.lang.instrument.Instrumentation;
-import java.lang.reflect.Method;
-import java.util.Map;
-import java.util.Set;
-import java.util.jar.JarFile;
 
+/**
+ * Java agents are not loaded as modules, so we want to run as little code as possible in this bizarro world.
+ * Hence, we only act as a shim that calls into the runtime and instrumentation modules to initialize them.
+ */
 public class EntitlementAgent {
 
-    public static void premain(String agentArgs, Instrumentation inst) throws Exception {
-        agentmain(agentArgs, inst);
-    }
-
     public static void agentmain(String agentArgs, Instrumentation inst) throws Exception {
-//        var parameters = EntitlementBootstrap.agentParameters();
-        // Add the entitlement libraries to the classpath.
-        // We can't actually reference the classes here for real before this, because they won't resolve.
-//        addJarToBootstrapClassLoader(inst, parameters.bridgeLibrary());
-//        addJarToSystemClassLoader(inst, parameters.runtimeLibrary());
-//        addJarToSystemClassLoader(inst, parameters.instrumentationLibrary());
+        // Initialize runtime first. The runtime must be prepared to be called before we inject any instrumentation.
+        Class.forName(
+                "org.elasticsearch.entitlement.runtime.init.EntitlementRuntimeInit",
+                true,
+                ClassLoader.getSystemClassLoader())
+            .getMethod("initialize").invoke(null);
 
-        // Ensure the checks are available and ready before we start adding instrumentation that will try to use them
-//        EntitlementProvider.checks();
-
-        System.out.println("*** PATDOYLE *** InstrumentationService module " + InstrumentationService.class.getModule() + "; layer " + InstrumentationService.class.getModule().getLayer());
-//        System.out.println("*** PATDOYLE *** EntitlementChecks module " + EntitlementChecks.class.getModule() + "; layer " + EntitlementChecks.class.getModule().getLayer());
-
-        InstrumentationService instrumentationService = (new ProviderLocator<>(
-            "entitlement-instrumentation",
-            InstrumentationService.class,
-            "org.elasticsearch.entitlement.instrumentation.impl",
-            Set.of("org.objectweb.nonexistent.asm")
-        )).get();
-
-        Method targetMethod = System.class.getMethod("exit", int.class);
-        Method instrumentationMethod = Class.forName("org.elasticsearch.entitlement.api.EntitlementChecks").getMethod("checkSystemExit", Class.class, int.class);
-        Map<MethodKey, Method> methodMap = Map.of(instrumentationService.methodKeyForTarget(targetMethod), instrumentationMethod);
-
-        inst.addTransformer(new Transformer(instrumentationService.newInstrumenter("", methodMap), Set.of(internalName(System.class))), true);
-        inst.retransformClasses(System.class);
+        // Let 'er rip.
+        Class.forName(
+            "org.elasticsearch.entitlement.instrumentation.init.EntitlementInstrumentationInit",
+                true,
+                ClassLoader.getSystemClassLoader())
+            .getMethod("initialize", Instrumentation.class).invoke(null, inst);
     }
 
-    @SuppressForbidden(reason = "The appendToBootstrapClassLoaderSearch method takes a JarFile")
-    private static void addJarToBootstrapClassLoader(Instrumentation inst, String jarString) throws IOException {
-        inst.appendToBootstrapClassLoaderSearch(new JarFile(jarString));
-    }
-
-    @SuppressForbidden(reason = "The appendToSystemClassLoaderSearch method takes a JarFile")
-    private static void addJarToSystemClassLoader(Instrumentation inst, String jarString) throws IOException {
-        inst.appendToSystemClassLoaderSearch(new JarFile(jarString));
-    }
-
-    private static String internalName(Class<?> c) {
-        return c.getName().replace('.', '/');
-    }
-
-    // private static final Logger LOGGER = LogManager.getLogger(EntitlementAgent.class);
 }

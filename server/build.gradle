@@ -39,6 +39,7 @@ dependencies {
   api project(':libs:elasticsearch-grok')
   api project(":libs:elasticsearch-tdigest")
   implementation project(":libs:elasticsearch-simdvec")
+  compileOnly project(":distribution:tools:entitlement-bridge")
   implementation project(":distribution:tools:entitlement-instrumentation")
   implementation project(":distribution:tools:entitlement-runtime")
 

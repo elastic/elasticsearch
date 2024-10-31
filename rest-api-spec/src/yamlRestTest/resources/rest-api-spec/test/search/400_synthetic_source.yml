@@ -168,7 +168,7 @@ force_synthetic_source_ok:
         body:
           settings:
             index:
-              mapping.source.mode: synthetic
+              mapping.source.mode: stored
           mappings:
             properties:
               obj:

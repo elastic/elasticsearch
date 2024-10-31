@@ -21,6 +21,7 @@ setup:
                     index_options: positions
                   vectors:
                     type: text
+                    store: false
                     term_vector: with_positions_offsets
                   positions:
                     type: text

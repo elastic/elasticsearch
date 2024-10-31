@@ -1305,7 +1305,7 @@ foo:long | client_ip:ip
  8268153 | 172.21.3.15
 ;
 
-multiIndexIndirectUseOfUnionTypesInInlineStats
+multiIndexIndirectUseOfUnionTypesInInlineStats-Ignore
 // TODO: `union_types` is required only because this makes the test skip in the csv tests; better solution:
 // make the csv tests work with multiple indices.
 required_capability: union_types

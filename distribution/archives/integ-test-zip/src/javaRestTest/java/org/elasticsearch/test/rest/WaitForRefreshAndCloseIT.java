@@ -17,8 +17,10 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.ResponseListener;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.util.Map;
@@ -32,6 +34,15 @@ import static org.hamcrest.Matchers.instanceOf;
  * Tests that wait for refresh is fired if the index is closed.
  */
 public class WaitForRefreshAndCloseIT extends ESRestTestCase {
+
+    @ClassRule
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local().build();
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
+
     @Before
     public void setupIndex() throws IOException {
         Request request = new Request("PUT", "/test");

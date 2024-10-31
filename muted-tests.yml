@@ -287,6 +287,9 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/115810
 - class: org.elasticsearch.xpack.searchablesnapshots.hdfs.SecureHdfsSearchableSnapshotsIT
   issue: https://github.com/elastic/elasticsearch/issues/115995
+- class: org.elasticsearch.index.reindex.ReindexNodeShutdownIT
+  method: testReindexWithShutdown
+  issue: https://github.com/elastic/elasticsearch/issues/115996
 
 # Examples:
 #

@@ -268,7 +268,6 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
      * @param originalRequest Original write request received.
      * @param indexRequest    The {@link org.elasticsearch.action.index.IndexRequest} object to update.
      * @param metadata        Cluster metadata from where the pipeline information could be derived.
-     * @return
      */
     public static void resolvePipelinesAndUpdateIndexRequest(
         final DocWriteRequest<?> originalRequest,

@@ -161,7 +161,7 @@ class SnykDependencyMonitoringGradlePluginFuncTest extends AbstractGradleInterna
             },
             "target": {
                 "remoteUrl": "http://acme.org",
-                "branch": "$version"
+                "branch": "unknown"
             },
             "targetReference": "$version",
             "projectAttributes": {

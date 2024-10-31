@@ -23,7 +23,8 @@ public class WeightedAvgSerializationTests extends AbstractExpressionSerializati
             instance.source(),
             randomValueOtherThan(instance.field(), AbstractExpressionSerializationTests::randomChild),
             randomValueOtherThan(instance.weight(), AbstractExpressionSerializationTests::randomChild),
-            instance.configuration());
+            instance.configuration()
+        );
     }
 
     @Override

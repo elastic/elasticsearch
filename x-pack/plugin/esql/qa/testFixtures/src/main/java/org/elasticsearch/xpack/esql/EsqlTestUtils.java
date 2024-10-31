@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
@@ -27,7 +26,6 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geo.ShapeTestUtils;
@@ -135,7 +133,6 @@ import static org.elasticsearch.xpack.esql.parser.ParserUtils.ParamClassificatio
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.ParamClassification.VALUE;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.Mockito.mock;
 
 public final class EsqlTestUtils {
 
@@ -285,9 +282,7 @@ public final class EsqlTestUtils {
             false,
             TABLES,
             System.nanoTime(),
-            new EsqlFeatures().getFeatures().stream()
-                .map(NodeFeature::id)
-                .collect(Collectors.toSet())
+            new EsqlFeatures().getFeatures().stream().map(NodeFeature::id).collect(Collectors.toSet())
         );
     }
 

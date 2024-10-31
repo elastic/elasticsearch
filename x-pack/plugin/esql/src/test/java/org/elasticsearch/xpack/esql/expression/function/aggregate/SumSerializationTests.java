@@ -19,7 +19,11 @@ public class SumSerializationTests extends AbstractExpressionSerializationTests<
 
     @Override
     protected Sum mutateInstance(Sum instance) throws IOException {
-        return new Sum(instance.source(), randomValueOtherThan(instance.field(), AbstractExpressionSerializationTests::randomChild), instance.configuration());
+        return new Sum(
+            instance.source(),
+            randomValueOtherThan(instance.field(), AbstractExpressionSerializationTests::randomChild),
+            instance.configuration()
+        );
     }
 
     @Override

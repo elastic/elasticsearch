@@ -20,12 +20,9 @@ import org.elasticsearch.compute.operator.SequenceLongBlockSourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.operator.TestResultPageSinkOperator;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.LongStream;
 
-import static org.hamcrest.Matchers.contains;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class OverflowingSumLongAggregatorFunctionTests extends AggregatorFunctionTestCase {

@@ -20,11 +20,7 @@ import org.elasticsearch.compute.ann.IntermediateState;
  *     Can't be removed, as the new aggregator's layout is different.
  * </p>
  */
-@Aggregator(
-    value = {
-        @IntermediateState(name = "sum", type = "LONG"),
-        @IntermediateState(name = "seen", type = "BOOLEAN") }
-)
+@Aggregator(value = { @IntermediateState(name = "sum", type = "LONG"), @IntermediateState(name = "seen", type = "BOOLEAN") })
 @GroupingAggregator
 class OverflowingSumLongAggregator {
 

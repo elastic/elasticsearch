@@ -46,7 +46,11 @@ public class Avg extends ConfigurationAggregateFunction implements SurrogateExpr
                 tag = "docsStatsAvgNestedExpression"
             ) }
     )
-    public Avg(Source source, @Param(name = "number", type = { "double", "integer", "long" }) Expression field, Configuration configuration) {
+    public Avg(
+        Source source,
+        @Param(name = "number", type = { "double", "integer", "long" }) Expression field,
+        Configuration configuration
+    ) {
         this(source, field, Literal.TRUE, configuration);
     }
 

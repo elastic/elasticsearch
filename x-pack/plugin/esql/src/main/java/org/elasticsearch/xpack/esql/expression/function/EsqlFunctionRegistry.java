@@ -935,6 +935,7 @@ public class EsqlFunctionRegistry {
     private static <T extends Function> BiFunction<Source, Expression, T> uni(BiFunction<Source, Expression, T> function) {
         return function;
     }
+
     private static <T extends Function> UnaryConfigurationAwareBuilder<T> uniConfig(UnaryConfigurationAwareBuilder<T> function) {
         return function;
     }
@@ -942,6 +943,7 @@ public class EsqlFunctionRegistry {
     private static <T extends Function> BinaryBuilder<T> bi(BinaryBuilder<T> function) {
         return function;
     }
+
     private static <T extends Function> BinaryConfigurationAwareBuilder<T> biConfig(BinaryConfigurationAwareBuilder<T> function) {
         return function;
     }

@@ -126,7 +126,12 @@ public class Sum extends ConfigurationAggregateFunction implements ToAggregator,
                 return new OverflowingSumLongAggregatorFunctionSupplier(inputChannels);
             }
             var location = source().source();
-            return new SumLongAggregatorFunctionSupplier(location.getLineNumber(), location.getColumnNumber(), source().text(), inputChannels);
+            return new SumLongAggregatorFunctionSupplier(
+                location.getLineNumber(),
+                location.getColumnNumber(),
+                source().text(),
+                inputChannels
+            );
         }
         if (type == DataType.INTEGER) {
             return new SumIntAggregatorFunctionSupplier(inputChannels);

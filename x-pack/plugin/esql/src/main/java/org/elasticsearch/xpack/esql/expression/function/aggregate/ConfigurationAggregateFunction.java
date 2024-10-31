@@ -7,15 +7,10 @@
 
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
@@ -31,7 +26,13 @@ public abstract class ConfigurationAggregateFunction extends AggregateFunction {
         this.configuration = configuration;
     }
 
-    ConfigurationAggregateFunction(Source source, Expression field, Expression filter, List<Expression> parameters, Configuration configuration) {
+    ConfigurationAggregateFunction(
+        Source source,
+        Expression field,
+        Expression filter,
+        List<Expression> parameters,
+        Configuration configuration
+    ) {
         super(source, field, filter, parameters);
         this.configuration = configuration;
     }

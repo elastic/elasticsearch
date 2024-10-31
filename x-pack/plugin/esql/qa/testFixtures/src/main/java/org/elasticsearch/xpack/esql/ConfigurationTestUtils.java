@@ -75,9 +75,7 @@ public class ConfigurationTestUtils {
             profile,
             tables,
             System.nanoTime(),
-            new EsqlFeatures().getFeatures().stream()
-                .map(NodeFeature::id)
-                .collect(Collectors.toSet())
+            new EsqlFeatures().getFeatures().stream().map(NodeFeature::id).collect(Collectors.toSet())
         );
     }
 

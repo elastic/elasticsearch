@@ -80,9 +80,7 @@ public class EvalMapperTests extends ESTestCase {
         false,
         Map.of(),
         System.nanoTime(),
-        new EsqlFeatures().getFeatures().stream()
-            .map(NodeFeature::id)
-            .collect(Collectors.toSet())
+        new EsqlFeatures().getFeatures().stream().map(NodeFeature::id).collect(Collectors.toSet())
     );
 
     @ParametersFactory(argumentFormatting = "%1$s")

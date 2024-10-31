@@ -124,7 +124,8 @@ public class Configuration implements Writeable {
     }
 
     public static Set<String> calculateActiveClusterFeatures(FeatureService featureService, ClusterService clusterService) {
-        return new EsqlFeatures().getFeatures().stream()
+        return new EsqlFeatures().getFeatures()
+            .stream()
             .filter(f -> featureService.clusterHasFeature(clusterService.state(), f))
             .map(NodeFeature::id)
             .collect(Collectors.toSet());

@@ -19,7 +19,11 @@ public class AvgSerializationTests extends AbstractExpressionSerializationTests<
 
     @Override
     protected Avg mutateInstance(Avg instance) throws IOException {
-        return new Avg(instance.source(), randomValueOtherThan(instance.field(), AbstractExpressionSerializationTests::randomChild), instance.configuration());
+        return new Avg(
+            instance.source(),
+            randomValueOtherThan(instance.field(), AbstractExpressionSerializationTests::randomChild),
+            instance.configuration()
+        );
     }
 
     @Override

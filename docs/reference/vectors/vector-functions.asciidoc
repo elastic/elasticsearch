@@ -332,6 +332,9 @@ When using `bit` vectors, not all the vector functions are available. The suppor
 * <<vector-functions-hamming,`hamming`>> – calculates Hamming distance, the sum of the bitwise XOR of the two vectors
 * <<vector-functions-l1,`l1norm`>> – calculates L^1^ distance, this is simply the `hamming` distance
 * <<vector-functions-l2,`l2norm`>> - calculates L^2^ distance, this is the square root of the `hamming` distance
+* <<vector-functions-dot-product,`dotProduct`>> – calculates dot product. When comparing two `bit` vectors,
+this is the sum of the bitwise AND of the two vectors. If providing `float[]` as a query vector, the `dotProduct` is
+the sum of the floating point values using the stored `bit` vector as a mask.
 
-Currently, the `cosineSimilarity` and `dotProduct` functions are not supported for `bit` vectors.
+Currently, the `cosineSimilarity` function is not supported for `bit` vectors.
 

@@ -5,7 +5,7 @@ type: breaking
 issues: []
 breaking:
   title: Remove `ecs` option on `user_agent` processor
-  area: REST API
+  area: Ingest
   details: >-
     The `user_agent` ingest processor no longer accepts the `ecs` option. (It was previously deprecated and ignored.)
   impact: Users should remove the `ecs` option from usages of the `user_agent` ingest processor.

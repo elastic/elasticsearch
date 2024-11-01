@@ -3,13 +3,10 @@
 
 Elasticsearch reference architectures are blueprints for deploying Elasticsearch clusters tailored to different use cases. Whether you're handling logs or metrics these reference architectures focus on scalability, reliability, and efficient resource utilization. Use these guidelines to deploy Elasticsearch for your use case.
 
-These architectures are designed by Elastic Solutions Architects to provide standardized, proven solutions that help users follow best practices when deploying Elasticsearch. Some of the key areas of focus are listed below. 
+These architectures are designed by architects and engineers to provide standardized, proven solutions that help users follow best practices when deploying Elasticsearch. Some of the key areas of focus are listed below. 
 
-* Infrastructure setup
-* Data ingestion
-* Indexing
-* Search performance
 * High availability 
+* Scalability
 
 TIP: These architectures are specific to running your deployment on-premises or cloud. If you are using Elastic serverless your Elasticsearch clusters are autoscaled and fully managed by Elastic. For all the deployment options, see https://www.elastic.co/guide/en/elasticsearch/reference/current/elasticsearch-intro-deploy.html[Run Elasticsearch].
 
@@ -24,7 +21,7 @@ These reference architectures are recommendations and should be adapted to fit y
 | *Architecture* | *When to use*
 | <<elastic-cloud-architecture>>
 
-This architecture is a Hot-Frozen architecture on the Elastic Cloud that is optimized for time series datasets while keeping all of the data fully searchable. It maintains index structures that allow for fast search in cloud object stores. 
+This architecture uses the Elasticsearch Service to simplify deployment and management. It uses a multi-availability zone architecture and is optimized for time-series datasets.
 
 a| 
 * You want to use the best practices Elastic Cloud implements to run your cluster.
@@ -34,7 +31,7 @@ a|
 
 | <<three-availability-zones>>
 
-The three zone architecture is used for rolling upgrades and failure domains locally because non-disruptive upgrades and other plans or unplanned outages are more sustainable with 33% of the resources off-line and 66% available
+This architecture is derived from the Elasticsearch Service - High Availability - Single Region architecture. It defines additional considerations required when self-deploying. It uses multi-availability zone architecture and is optimized for time-series.
 
 a| 
 * When you need an architecture that is resilient to unplanned outages

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.Build;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.client.internal.Client;
@@ -27,6 +28,7 @@ import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
@@ -39,26 +41,30 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
-    private static final String REMOTE_CLUSTER = "cluster-a";
+    private static final String REMOTE_CLUSTER_1 = "cluster-a";
+    private static final String REMOTE_CLUSTER_2 = "remote-b";
 
     @Override
     protected Collection<String> remoteClusterAlias() {
-        return List.of(REMOTE_CLUSTER);
+        return List.of(REMOTE_CLUSTER_1, REMOTE_CLUSTER_2);
     }
 
     @Override
     protected Map<String, Boolean> skipUnavailableForRemoteClusters() {
-        return Map.of(REMOTE_CLUSTER, randomBoolean());
+        return Map.of(REMOTE_CLUSTER_1, randomBoolean());
     }
 
     @Override
@@ -90,7 +96,7 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
         Tuple<Boolean, Boolean> includeCCSMetadata = randomIncludeCCSMetadata();
         Boolean requestIncludeMeta = includeCCSMetadata.v1();
         boolean responseExpectMeta = includeCCSMetadata.v2();
-        try (EsqlQueryResponse resp = runQuery("from logs-*,*:logs-* | stats sum (v)", requestIncludeMeta)) {
+        try (EsqlQueryResponse resp = runQuery("from logs-*,c*:logs-* | stats sum (v)", requestIncludeMeta)) {
             List<List<Object>> values = getValuesList(resp);
             assertThat(values, hasSize(1));
             assertThat(values.get(0), equalTo(List.of(330L)));
@@ -102,9 +108,9 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
             assertThat(overallTookMillis, greaterThanOrEqualTo(0L));
             assertThat(executionInfo.includeCCSMetadata(), equalTo(responseExpectMeta));
 
-            assertThat(executionInfo.clusterAliases(), equalTo(Set.of(REMOTE_CLUSTER, LOCAL_CLUSTER)));
+            assertThat(executionInfo.clusterAliases(), equalTo(Set.of(REMOTE_CLUSTER_1, LOCAL_CLUSTER)));
 
-            EsqlExecutionInfo.Cluster remoteCluster = executionInfo.getCluster(REMOTE_CLUSTER);
+            EsqlExecutionInfo.Cluster remoteCluster = executionInfo.getCluster(REMOTE_CLUSTER_1);
             assertThat(remoteCluster.getIndexExpression(), equalTo("logs-*"));
             assertThat(remoteCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
             assertThat(remoteCluster.getTook().millis(), greaterThanOrEqualTo(0L));
@@ -128,7 +134,7 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
             assertClusterMetadataInResponse(resp, responseExpectMeta);
         }
 
-        try (EsqlQueryResponse resp = runQuery("from logs-*,*:logs-* | stats count(*) by tag | sort tag | keep tag", requestIncludeMeta)) {
+        try (EsqlQueryResponse resp = runQuery("from logs-*,c*:logs-* | stats count(*) by tag | sort tag | keep tag", requestIncludeMeta)) {
             List<List<Object>> values = getValuesList(resp);
             assertThat(values, hasSize(2));
             assertThat(values.get(0), equalTo(List.of("local")));
@@ -141,9 +147,9 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
             assertThat(overallTookMillis, greaterThanOrEqualTo(0L));
             assertThat(executionInfo.includeCCSMetadata(), equalTo(responseExpectMeta));
 
-            assertThat(executionInfo.clusterAliases(), equalTo(Set.of(REMOTE_CLUSTER, LOCAL_CLUSTER)));
+            assertThat(executionInfo.clusterAliases(), equalTo(Set.of(REMOTE_CLUSTER_1, LOCAL_CLUSTER)));
 
-            EsqlExecutionInfo.Cluster remoteCluster = executionInfo.getCluster(REMOTE_CLUSTER);
+            EsqlExecutionInfo.Cluster remoteCluster = executionInfo.getCluster(REMOTE_CLUSTER_1);
             assertThat(remoteCluster.getIndexExpression(), equalTo("logs-*"));
             assertThat(remoteCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
             assertThat(remoteCluster.getTook().millis(), greaterThanOrEqualTo(0L));
@@ -168,10 +174,405 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
         }
     }
 
-    public void testSearchesWhereMissingIndicesAreSpecified() {
-        Map<String, Object> testClusterInfo = setupTwoClusters();
+    public void testSearchesAgainstNonMatchingIndicesWithSkipUnavailableFalse() {
+        Map<String, Object> testClusterInfo = setupClusters(3);
+        int localNumShards = (Integer) testClusterInfo.get("local.num_shards");
+        int remote1NumShards = (Integer) testClusterInfo.get("remote.num_shards");
+        int remote2NumShards = (Integer) testClusterInfo.get("remote2.num_shards");
+
+        setSkipUnavailable(REMOTE_CLUSTER_1, false);
+        setSkipUnavailable(REMOTE_CLUSTER_2, true);  // MP TODO: what do here? randomBoolean()?
+
+        Tuple<Boolean, Boolean> includeCCSMetadata = randomIncludeCCSMetadata();
+        Boolean requestIncludeMeta = includeCCSMetadata.v1();
+        boolean responseExpectMeta = includeCCSMetadata.v2();
+
+        try {
+            // missing concrete local index is fatal
+            {
+                String q = "FROM nomatch,cluster-a:logs*";
+                VerificationException e = expectThrows(VerificationException.class, () -> runQuery(q, requestIncludeMeta));
+                assertThat(e.getDetailedMessage(), containsString("No matching indices for [nomatch]"));
+
+                String limit0 = q + " | LIMIT 0";
+                e = expectThrows(VerificationException.class, () -> runQuery(limit0, requestIncludeMeta));
+                assertThat(e.getDetailedMessage(), containsString("No matching indices for [nomatch]"));
+            }
+
+            // missing concrete remote index is fatal when skip_unavailable=false
+            {
+                String q = "FROM logs*,cluster-a:nomatch,remote*:*";
+                VerificationException e = expectThrows(VerificationException.class, () -> runQuery(q, requestIncludeMeta));
+                assertThat(e.getDetailedMessage(), containsString("No matching indices for [nomatch] on remote cluster [cluster-a]"));
+
+                String limit0 = q + " | LIMIT 0";
+                e = expectThrows(VerificationException.class, () -> runQuery(limit0, requestIncludeMeta));
+                assertThat(e.getDetailedMessage(), containsString("No matching indices for [nomatch] on remote cluster [cluster-a]"));
+            }
+
+            // non-matching wildcarded local expression is not fatal
+            {
+                String q = "FROM nomatch*,*:logs*";
+                try (EsqlQueryResponse resp = runQuery(q, requestIncludeMeta)) {
+                    assertThat(getValuesList(resp).size(), greaterThanOrEqualTo(1));
+                    EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
+                    assertThat(executionInfo.isCrossClusterSearch(), is(true));
+                    assertThat(executionInfo.includeCCSMetadata(), equalTo(responseExpectMeta));
+                    assertExpectedClusters(executionInfo, List.of(
+                        // local cluster is never marked as SKIPPED even when no matcing indices - just marked as 0 shards searched
+                        new ExpectedCluster(LOCAL_CLUSTER, "nomatch*", EsqlExecutionInfo.Cluster.Status.SUCCESSFUL, 0),
+                        new ExpectedCluster(REMOTE_CLUSTER_1, "logs*", EsqlExecutionInfo.Cluster.Status.SUCCESSFUL, remote1NumShards),
+                        new ExpectedCluster(REMOTE_CLUSTER_2, "logs*", EsqlExecutionInfo.Cluster.Status.SUCCESSFUL, remote2NumShards)
+                    ));
+                }
+
+                String limit0 = q + " | LIMIT 0";
+                try (EsqlQueryResponse resp = runQuery(limit0, requestIncludeMeta)) {
+                    assertThat(getValuesList(resp).size(), equalTo(0));
+                    assertThat(resp.columns().size(), greaterThan(0));
+                    EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
+                    assertThat(executionInfo.isCrossClusterSearch(), is(true));
+                    assertThat(executionInfo.includeCCSMetadata(), equalTo(responseExpectMeta));
+                    assertExpectedClusters(executionInfo, List.of(
+                        // local cluster is never marked as SKIPPED even when no matcing indices - just marked as 0 shards searched
+                        new ExpectedCluster(LOCAL_CLUSTER, "nomatch*", EsqlExecutionInfo.Cluster.Status.SUCCESSFUL, 0),
+                        // LIMIT 0 searches always have total shards = 0
+                        new ExpectedCluster(REMOTE_CLUSTER_1, "logs*", EsqlExecutionInfo.Cluster.Status.SUCCESSFUL, 0),
+                        new ExpectedCluster(REMOTE_CLUSTER_2, "logs*", EsqlExecutionInfo.Cluster.Status.SUCCESSFUL, 0)
+                    ));
+                }
+            }
+
+            // missing concrete remote index 'cluster-a:nomatch*' is fatal since cluster-a has skip_unavailable=false
+            {
+                // MP TODO: waiting on feedback from Andrei
+                String q = "FROM logs*,cluster-a:nomatch*,remote*:logs*";
+//                EsqlQueryResponse response = runQuery(q, requestIncludeMeta);
+//                System.err.println(response.getExecutionInfo());
+//                VerificationException e = expectThrows(VerificationException.class, () -> runQuery(q, requestIncludeMeta));
+//                assertThat(e.getDetailedMessage(), containsString("No matching indices for [nomatch*] on remote cluster [cluster-a]"));
+            }
+
+            // an error is thrown if there are no matching indices at all - single remote cluster with concrete index expression
+            {
+                String q = "FROM cluster-a:nomatch";
+                VerificationException e = expectThrows(VerificationException.class, () -> runQuery(q, requestIncludeMeta));
+                assertThat(e.getDetailedMessage(), containsString("Unknown index [cluster-a:nomatch]"));
+
+                String limit0 = q + " | LIMIT 0";
+                e = expectThrows(VerificationException.class, () -> runQuery(limit0, requestIncludeMeta));
+                assertThat(e.getDetailedMessage(), containsString("Unknown index [cluster-a:nomatch]"));
+            }
+
+            // an error is thrown if there are no matching indices at all - single remote cluster with wildcard index expression
+            {
+                String q = "FROM cluster-a:nomatch*";
+                VerificationException e = expectThrows(VerificationException.class, () -> runQuery(q, requestIncludeMeta));
+                assertThat(e.getDetailedMessage(), containsString("Unknown index [cluster-a:nomatch*]"));
+
+                String limit0 = q + " | LIMIT 0";
+                e = expectThrows(VerificationException.class, () -> runQuery(limit0, requestIncludeMeta));
+                assertThat(e.getDetailedMessage(), containsString("Unknown index [cluster-a:nomatch*]"));
+            }
+
+            // an error is thrown if there are no matching indices at all - local with wildcard, remote with concrete
+            {
+                String q = "FROM nomatch*,cluster-a:nomatch";
+                VerificationException e = expectThrows(VerificationException.class, () -> runQuery(q, requestIncludeMeta));
+                assertThat(e.getDetailedMessage(), containsString("Unknown index [cluster-a:nomatch,nomatch*]"));
+
+                String limit0 = q + " | LIMIT 0";
+                e = expectThrows(VerificationException.class, () -> runQuery(limit0, requestIncludeMeta));
+                assertThat(e.getDetailedMessage(), containsString("Unknown index [cluster-a:nomatch,nomatch*]"));
+            }
+
+            // an error is thrown if there are no matching indices at all - local with wildcard, remote with wildcard
+            {
+                String q = "FROM nomatch*,cluster-a:nomatch*";
+                VerificationException e = expectThrows(VerificationException.class, () -> runQuery(q, requestIncludeMeta));
+                assertThat(e.getDetailedMessage(), containsString("Unknown index [cluster-a:nomatch*,nomatch*]"));
+
+                String limit0 = q + " | LIMIT 0";
+                e = expectThrows(VerificationException.class, () -> runQuery(limit0, requestIncludeMeta));
+                assertThat(e.getDetailedMessage(), containsString("Unknown index [cluster-a:nomatch*,nomatch*]"));
+            }
+
+            // an error is thrown if there are no matching indices at all - local with concrete, remote with concrete
+            {
+                String q = "FROM nomatch,cluster-a:nomatch";
+                VerificationException e = expectThrows(VerificationException.class, () -> runQuery(q, requestIncludeMeta));
+                assertThat(e.getDetailedMessage(), containsString("Unknown index [cluster-a:nomatch,nomatch]"));
+
+                String limit0 = q + " | LIMIT 0";
+                e = expectThrows(VerificationException.class, () -> runQuery(limit0, requestIncludeMeta));
+                assertThat(e.getDetailedMessage(), containsString("Unknown index [cluster-a:nomatch,nomatch]"));
+            }
+
+            // an error is thrown if there are no matching indices at all - local with concrete, remote with wildcard
+            {
+                String q = "FROM nomatch,cluster-a:nomatch*";
+                VerificationException e = expectThrows(VerificationException.class, () -> runQuery(q, requestIncludeMeta));
+                assertThat(e.getDetailedMessage(), containsString("Unknown index [cluster-a:nomatch*,nomatch]"));
+
+                String limit0 = q + " | LIMIT 0";
+                e = expectThrows(VerificationException.class, () -> runQuery(limit0, requestIncludeMeta));
+                assertThat(e.getDetailedMessage(), containsString("Unknown index [cluster-a:nomatch*,nomatch]"));
+            }
+
+            {
+                String q = "FROM cluster-a:nomatch,remote*:*";
+//                VerificationException e = expectThrows(VerificationException.class, () -> runQuery(q, requestIncludeMeta));
+//                assertThat(e.getDetailedMessage(), containsString("Unknown index [cluster-a:nomatch*,nomatch]"));
+            }
+        } finally {
+            clearSkipUnavailable();
+        }
+    }
+
+    public void testSearchesAgainstNonMatchingIndicesWithSkipUnavailableTrue() {
+        Map<String, Object> testClusterInfo = setupClusters(3);
+        int localNumShards = (Integer) testClusterInfo.get("local.num_shards");
+        int remote1NumShards = (Integer) testClusterInfo.get("remote.num_shards");
+        int remote2NumShards = (Integer) testClusterInfo.get("remote2.num_shards");
+
+        setSkipUnavailable(REMOTE_CLUSTER_1, true);
+        setSkipUnavailable(REMOTE_CLUSTER_2, true);
+
+        Tuple<Boolean, Boolean> includeCCSMetadata = randomIncludeCCSMetadata();
+        Boolean requestIncludeMeta = includeCCSMetadata.v1();
+        boolean responseExpectMeta = includeCCSMetadata.v2();
+
+        try {
+            // missing concrete local index is fatal
+            {
+                String q = "FROM nomatch,cluster-a:logs*";
+                VerificationException e = expectThrows(VerificationException.class, () -> runQuery(q, requestIncludeMeta));
+                assertThat(e.getDetailedMessage(), containsString("No matching indices for [nomatch]"));
+
+                String limit0 = q + " | LIMIT 0";
+                e = expectThrows(VerificationException.class, () -> runQuery(limit0, requestIncludeMeta));
+                assertThat(e.getDetailedMessage(), containsString("No matching indices for [nomatch]"));
+            }
+
+            // missing concrete remote index is not fatal when skip_unavailable=true
+            {
+                String q = "FROM logs*,cluster-a:nomatch,remote*:*";
+                try (EsqlQueryResponse resp = runQuery(q, requestIncludeMeta)) {
+                    assertThat(getValuesList(resp).size(), greaterThanOrEqualTo(1));
+                    EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
+                    assertThat(executionInfo.isCrossClusterSearch(), is(true));
+                    assertThat(executionInfo.includeCCSMetadata(), equalTo(responseExpectMeta));
+                    assertExpectedClusters(executionInfo, List.of(
+                        new ExpectedCluster(LOCAL_CLUSTER, "logs*", EsqlExecutionInfo.Cluster.Status.SUCCESSFUL, localNumShards),
+                        new ExpectedCluster(REMOTE_CLUSTER_1, "nomatch", EsqlExecutionInfo.Cluster.Status.SKIPPED, 0),
+                        new ExpectedCluster(REMOTE_CLUSTER_2, "*", EsqlExecutionInfo.Cluster.Status.SUCCESSFUL, remote2NumShards)
+                    ));
+                }
+
+                String limit0 = q + " | LIMIT 0";
+                try (EsqlQueryResponse resp = runQuery(limit0, requestIncludeMeta)) {
+                    assertThat(resp.columns().size(), greaterThan(0));
+                    assertThat(getValuesList(resp).size(), greaterThanOrEqualTo(0));
+                    EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
+                    assertThat(executionInfo.isCrossClusterSearch(), is(true));
+                    assertThat(executionInfo.includeCCSMetadata(), equalTo(responseExpectMeta));
+                    assertExpectedClusters(executionInfo, List.of(
+                        new ExpectedCluster(LOCAL_CLUSTER, "logs*", EsqlExecutionInfo.Cluster.Status.SUCCESSFUL, 0),
+                        new ExpectedCluster(REMOTE_CLUSTER_1, "nomatch", EsqlExecutionInfo.Cluster.Status.SKIPPED, 0),
+                        new ExpectedCluster(REMOTE_CLUSTER_2, "*", EsqlExecutionInfo.Cluster.Status.SUCCESSFUL, 0)
+                    ));
+                }
+            }
+
+            // non-matching wildcarded local expression is not fatal
+            {
+                String q = "FROM nomatch*,*:logs*";
+                try (EsqlQueryResponse resp = runQuery(q, requestIncludeMeta)) {
+                    assertThat(getValuesList(resp).size(), greaterThanOrEqualTo(1));
+                    EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
+                    assertThat(executionInfo.isCrossClusterSearch(), is(true));
+                    assertThat(executionInfo.includeCCSMetadata(), equalTo(responseExpectMeta));
+                    assertExpectedClusters(executionInfo, List.of(
+                        // local cluster is never marked as SKIPPED even when no matcing indices - just marked as 0 shards searched
+                        new ExpectedCluster(LOCAL_CLUSTER, "nomatch*", EsqlExecutionInfo.Cluster.Status.SUCCESSFUL, 0),
+                        new ExpectedCluster(REMOTE_CLUSTER_1, "logs*", EsqlExecutionInfo.Cluster.Status.SUCCESSFUL, remote1NumShards),
+                        new ExpectedCluster(REMOTE_CLUSTER_2, "logs*", EsqlExecutionInfo.Cluster.Status.SUCCESSFUL, remote2NumShards)
+                    ));
+                }
+
+                String limit0 = q + " | LIMIT 0";
+                try (EsqlQueryResponse resp = runQuery(limit0, requestIncludeMeta)) {
+                    assertThat(getValuesList(resp).size(), equalTo(0));
+                    assertThat(resp.columns().size(), greaterThan(0));
+                    EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
+                    assertThat(executionInfo.isCrossClusterSearch(), is(true));
+                    assertThat(executionInfo.includeCCSMetadata(), equalTo(responseExpectMeta));
+                    assertExpectedClusters(executionInfo, List.of(
+                        // local cluster is never marked as SKIPPED even when no matcing indices - just marked as 0 shards searched
+                        new ExpectedCluster(LOCAL_CLUSTER, "nomatch*", EsqlExecutionInfo.Cluster.Status.SUCCESSFUL, 0),
+                        // LIMIT 0 searches always have total shards = 0
+                        new ExpectedCluster(REMOTE_CLUSTER_1, "logs*", EsqlExecutionInfo.Cluster.Status.SUCCESSFUL, 0),
+                        new ExpectedCluster(REMOTE_CLUSTER_2, "logs*", EsqlExecutionInfo.Cluster.Status.SUCCESSFUL, 0)
+                    ));
+                }
+            }
+
+            // missing wildcarded remote index 'cluster-a:nomatch*' is not fatal since cluster-a has skip_unavailable=true
+            {
+                // MP TODO: waiting on feedback from Andrei
+                String q = "FROM logs*,cluster-a:nomatch*,remote*:*";
+                try (EsqlQueryResponse resp = runQuery(q, requestIncludeMeta)) {
+                    assertThat(getValuesList(resp).size(), greaterThanOrEqualTo(1));
+                    EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
+                    assertThat(executionInfo.isCrossClusterSearch(), is(true));
+                    assertThat(executionInfo.includeCCSMetadata(), equalTo(responseExpectMeta));
+                    assertExpectedClusters(executionInfo, List.of(
+                        new ExpectedCluster(LOCAL_CLUSTER, "logs*", EsqlExecutionInfo.Cluster.Status.SUCCESSFUL, localNumShards),
+                        new ExpectedCluster(REMOTE_CLUSTER_1, "nomatch*", EsqlExecutionInfo.Cluster.Status.SKIPPED, 0),
+                        new ExpectedCluster(REMOTE_CLUSTER_2, "*", EsqlExecutionInfo.Cluster.Status.SUCCESSFUL, remote2NumShards)
+                    ));
+                }
+
+                String limit0 = q + " | LIMIT 0";
+                try (EsqlQueryResponse resp = runQuery(limit0, requestIncludeMeta)) {
+                    assertThat(resp.columns().size(), greaterThan(0));
+                    assertThat(getValuesList(resp).size(), greaterThanOrEqualTo(0));
+                    EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
+                    assertThat(executionInfo.isCrossClusterSearch(), is(true));
+                    assertThat(executionInfo.includeCCSMetadata(), equalTo(responseExpectMeta));
+                    assertExpectedClusters(executionInfo, List.of(
+                        new ExpectedCluster(LOCAL_CLUSTER, "logs*", EsqlExecutionInfo.Cluster.Status.SUCCESSFUL, 0),
+                        new ExpectedCluster(REMOTE_CLUSTER_1, "nomatch*", EsqlExecutionInfo.Cluster.Status.SKIPPED, 0),
+                        new ExpectedCluster(REMOTE_CLUSTER_2, "*", EsqlExecutionInfo.Cluster.Status.SUCCESSFUL, 0)
+                    ));
+                }
+            }
+
+            // an error is thrown if there are no matching indices at all, even when the cluster is skip_unavailable=false
+            {
+                // with non-matching concrete index
+                String q = "FROM cluster-a:nomatch";
+                VerificationException e = expectThrows(VerificationException.class, () -> runQuery(q, requestIncludeMeta));
+                assertThat(e.getDetailedMessage(), containsString("Unknown index [cluster-a:nomatch]"));
+
+                String limit0 = q + " | LIMIT 0";
+                e = expectThrows(VerificationException.class, () -> runQuery(limit0, requestIncludeMeta));
+                assertThat(e.getDetailedMessage(), containsString("Unknown index [cluster-a:nomatch]"));
+            }
+
+            // an error is thrown if there are no matching indices at all, even when the cluster is skip_unavailable=false (???
+            {
+                // with non-matching wildcard index
+                String q = "FROM cluster-a:nomatch*";
+                VerificationException e = expectThrows(VerificationException.class, () -> runQuery(q, requestIncludeMeta));
+                assertThat(e.getDetailedMessage(), containsString("Unknown index [cluster-a:nomatch*]"));
+
+                String limit0 = q + " | LIMIT 0";
+                e = expectThrows(VerificationException.class, () -> runQuery(limit0, requestIncludeMeta));
+                assertThat(e.getDetailedMessage(), containsString("Unknown index [cluster-a:nomatch*]"));
+            }
+
+            // an error is thrown if there are no matching indices at all - local with wildcard, remote with concrete
+            {
+                String q = "FROM nomatch*,cluster-a:nomatch";
+                VerificationException e = expectThrows(VerificationException.class, () -> runQuery(q, requestIncludeMeta));
+                assertThat(e.getDetailedMessage(), containsString("Unknown index [cluster-a:nomatch,nomatch*]"));
+
+                String limit0 = q + " | LIMIT 0";
+                e = expectThrows(VerificationException.class, () -> runQuery(limit0, requestIncludeMeta));
+                assertThat(e.getDetailedMessage(), containsString("Unknown index [cluster-a:nomatch,nomatch*]"));
+            }
+
+            // an error is thrown if there are no matching indices at all - local with wildcard, remote with wildcard
+            {
+                String q = "FROM nomatch*,cluster-a:nomatch*";
+                VerificationException e = expectThrows(VerificationException.class, () -> runQuery(q, requestIncludeMeta));
+                assertThat(e.getDetailedMessage(), containsString("Unknown index [cluster-a:nomatch*,nomatch*]"));
+
+                String limit0 = q + " | LIMIT 0";
+                e = expectThrows(VerificationException.class, () -> runQuery(limit0, requestIncludeMeta));
+                assertThat(e.getDetailedMessage(), containsString("Unknown index [cluster-a:nomatch*,nomatch*]"));
+            }
+
+            // an error is thrown if there are no matching indices at all - local with concrete, remote with concrete
+            {
+                String q = "FROM nomatch,cluster-a:nomatch";
+                VerificationException e = expectThrows(VerificationException.class, () -> runQuery(q, requestIncludeMeta));
+                assertThat(e.getDetailedMessage(), containsString("Unknown index [cluster-a:nomatch,nomatch]"));
+
+                String limit0 = q + " | LIMIT 0";
+                e = expectThrows(VerificationException.class, () -> runQuery(limit0, requestIncludeMeta));
+                assertThat(e.getDetailedMessage(), containsString("Unknown index [cluster-a:nomatch,nomatch]"));
+            }
+
+            // an error is thrown if there are no matching indices at all - local with concrete, remote with wildcard
+            {
+                String q = "FROM nomatch,cluster-a:nomatch*";
+                VerificationException e = expectThrows(VerificationException.class, () -> runQuery(q, requestIncludeMeta));
+                assertThat(e.getDetailedMessage(), containsString("Unknown index [cluster-a:nomatch*,nomatch]"));
+
+                String limit0 = q + " | LIMIT 0";
+                e = expectThrows(VerificationException.class, () -> runQuery(limit0, requestIncludeMeta));
+                assertThat(e.getDetailedMessage(), containsString("Unknown index [cluster-a:nomatch*,nomatch]"));
+            }
+
+            // since cluster-a is skip_unavailable=true and one cluster has a matching indices, no error is thrown
+            {
+                String q = "FROM cluster-a:nomatch,remote*:*";
+                try (EsqlQueryResponse resp = runQuery(q, requestIncludeMeta)) {
+                    assertThat(getValuesList(resp).size(), greaterThanOrEqualTo(1));
+                    EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
+                    assertThat(executionInfo.isCrossClusterSearch(), is(true));
+                    assertThat(executionInfo.includeCCSMetadata(), equalTo(responseExpectMeta));
+                    assertExpectedClusters(executionInfo, List.of(
+                        // local cluster is never marked as SKIPPED even when no matcing indices - just marked as 0 shards searched
+                        new ExpectedCluster(REMOTE_CLUSTER_1, "nomatch", EsqlExecutionInfo.Cluster.Status.SKIPPED, 0),
+                        new ExpectedCluster(REMOTE_CLUSTER_2, "*", EsqlExecutionInfo.Cluster.Status.SUCCESSFUL, remote2NumShards)
+                    ));
+                }
+            }
+
+        } finally {
+            clearSkipUnavailable();
+        }
+    }
+
+    record ExpectedCluster(String clusterAlias, String indexExpression, EsqlExecutionInfo.Cluster.Status status, Integer totalShards) {}
+
+    public void assertExpectedClusters(EsqlExecutionInfo executionInfo, List<ExpectedCluster> expected) {
+        long overallTookMillis = executionInfo.overallTook().millis();
+        assertThat(overallTookMillis, greaterThanOrEqualTo(0L));
+
+        Set<String> expectedClusterAliases = expected.stream().map(c -> c.clusterAlias()).collect(Collectors.toSet());
+        assertThat(executionInfo.clusterAliases(), equalTo(expectedClusterAliases));
+
+        for (ExpectedCluster expectedCluster : expected) {
+            EsqlExecutionInfo.Cluster cluster = executionInfo.getCluster(expectedCluster.clusterAlias());
+            String msg = cluster.getClusterAlias();
+            assertThat(msg, cluster.getIndexExpression(), equalTo(expectedCluster.indexExpression()));
+            assertThat(msg, cluster.getStatus(), equalTo(expectedCluster.status()));
+            assertThat(msg, cluster.getTook().millis(), greaterThanOrEqualTo(0L));
+            assertThat(msg, cluster.getTook().millis(), lessThanOrEqualTo(overallTookMillis));
+            assertThat(msg, cluster.getTotalShards(), equalTo(expectedCluster.totalShards()));
+            if (cluster.getStatus() == EsqlExecutionInfo.Cluster.Status.SUCCESSFUL) {
+                assertThat(msg, cluster.getSuccessfulShards(), equalTo(expectedCluster.totalShards()));
+                assertThat(msg, cluster.getSkippedShards(), equalTo(0));
+            } else if (cluster.getStatus() == EsqlExecutionInfo.Cluster.Status.SKIPPED) {
+                assertThat(msg, cluster.getSuccessfulShards(), equalTo(0));
+                assertThat(msg, cluster.getSkippedShards(), equalTo(expectedCluster.totalShards()));
+            }
+            // currently failed shards is always zero - change this once we start allowing partial data for individual shard failures
+            assertThat(msg, cluster.getFailedShards(), equalTo(0));
+        }
+    }
+
+    public void testSearchesWhereMissingIndicesAreSpecifiedWithSkipUnavailableTrueORIG() {
+        Map<String, Object> testClusterInfo = setupClusters(3);
         int localNumShards = (Integer) testClusterInfo.get("local.num_shards");
         int remoteNumShards = (Integer) testClusterInfo.get("remote.num_shards");
+
+        setSkipUnavailable(REMOTE_CLUSTER_1, true);
+        setSkipUnavailable(REMOTE_CLUSTER_2, true);
 
         Tuple<Boolean, Boolean> includeCCSMetadata = randomIncludeCCSMetadata();
         Boolean requestIncludeMeta = includeCCSMetadata.v1();
@@ -191,135 +592,14 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
             assertThat(overallTookMillis, greaterThanOrEqualTo(0L));
             assertThat(executionInfo.includeCCSMetadata(), equalTo(responseExpectMeta));
 
-            assertThat(executionInfo.clusterAliases(), equalTo(Set.of(REMOTE_CLUSTER, LOCAL_CLUSTER)));
+            assertThat(executionInfo.clusterAliases(), equalTo(Set.of(REMOTE_CLUSTER_1, LOCAL_CLUSTER)));
 
-            EsqlExecutionInfo.Cluster remoteCluster = executionInfo.getCluster(REMOTE_CLUSTER);
+            EsqlExecutionInfo.Cluster remoteCluster = executionInfo.getCluster(REMOTE_CLUSTER_1);
             assertThat(remoteCluster.getIndexExpression(), equalTo("no_such_index"));
             assertThat(remoteCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SKIPPED));
             assertThat(remoteCluster.getTook().millis(), greaterThanOrEqualTo(0L));
             assertThat(remoteCluster.getTook().millis(), lessThanOrEqualTo(overallTookMillis));
             assertThat(remoteCluster.getTotalShards(), equalTo(0));  // 0 since no matching index, thus no shards to search
-            assertThat(remoteCluster.getSuccessfulShards(), equalTo(0));
-            assertThat(remoteCluster.getSkippedShards(), equalTo(0));
-            assertThat(remoteCluster.getFailedShards(), equalTo(0));
-
-            EsqlExecutionInfo.Cluster localCluster = executionInfo.getCluster(LOCAL_CLUSTER);
-            assertThat(localCluster.getIndexExpression(), equalTo("logs-*"));
-            assertThat(localCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
-            assertThat(localCluster.getTook().millis(), greaterThanOrEqualTo(0L));
-            assertThat(localCluster.getTook().millis(), lessThanOrEqualTo(overallTookMillis));
-            assertThat(localCluster.getTotalShards(), equalTo(localNumShards));
-            assertThat(localCluster.getSuccessfulShards(), equalTo(localNumShards));
-            assertThat(localCluster.getSkippedShards(), equalTo(0));
-            assertThat(localCluster.getFailedShards(), equalTo(0));
-        }
-
-        // since the remote cluster has a valid index expression, the missing local index is ignored
-        // make this is captured in the EsqlExecutionInfo
-        try (
-            EsqlQueryResponse resp = runQuery(
-                "from no_such_index,*:logs-* | stats count(*) by tag | sort tag | keep tag",
-                requestIncludeMeta
-            )
-        ) {
-            List<List<Object>> values = getValuesList(resp);
-            assertThat(values, hasSize(1));
-            assertThat(values.get(0), equalTo(List.of("remote")));
-
-            EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
-            assertNotNull(executionInfo);
-            assertThat(executionInfo.isCrossClusterSearch(), is(true));
-            long overallTookMillis = executionInfo.overallTook().millis();
-            assertThat(overallTookMillis, greaterThanOrEqualTo(0L));
-            assertThat(executionInfo.includeCCSMetadata(), equalTo(responseExpectMeta));
-
-            assertThat(executionInfo.clusterAliases(), equalTo(Set.of(REMOTE_CLUSTER, LOCAL_CLUSTER)));
-
-            EsqlExecutionInfo.Cluster remoteCluster = executionInfo.getCluster(REMOTE_CLUSTER);
-            assertThat(remoteCluster.getIndexExpression(), equalTo("logs-*"));
-            assertThat(remoteCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
-            assertThat(remoteCluster.getTook().millis(), greaterThanOrEqualTo(0L));
-            assertThat(remoteCluster.getTook().millis(), lessThanOrEqualTo(overallTookMillis));
-            assertThat(remoteCluster.getTotalShards(), equalTo(remoteNumShards));
-            assertThat(remoteCluster.getSuccessfulShards(), equalTo(remoteNumShards));
-            assertThat(remoteCluster.getSkippedShards(), equalTo(0));
-            assertThat(remoteCluster.getFailedShards(), equalTo(0));
-
-            EsqlExecutionInfo.Cluster localCluster = executionInfo.getCluster(LOCAL_CLUSTER);
-            assertThat(localCluster.getIndexExpression(), equalTo("no_such_index"));
-            // TODO: a follow on PR will change this to throw an Exception when the local cluster requests a concrete index that is missing
-            assertThat(localCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
-            assertThat(localCluster.getTook().millis(), greaterThanOrEqualTo(0L));
-            assertThat(localCluster.getTook().millis(), lessThanOrEqualTo(overallTookMillis));
-            assertThat(localCluster.getTotalShards(), equalTo(0));
-            assertThat(localCluster.getSuccessfulShards(), equalTo(0));
-            assertThat(localCluster.getSkippedShards(), equalTo(0));
-            assertThat(localCluster.getFailedShards(), equalTo(0));
-        }
-
-        // when multiple invalid indices are specified on the remote cluster, both should be ignored and present
-        // in the index expression of the EsqlExecutionInfo and with an indication that zero shards were searched
-        try (
-            EsqlQueryResponse resp = runQuery(
-                "FROM no_such_index*,*:no_such_index1,*:no_such_index2,logs-1 | STATS COUNT(*) by tag | SORT tag | KEEP tag",
-                requestIncludeMeta
-            )
-        ) {
-            List<List<Object>> values = getValuesList(resp);
-            assertThat(values, hasSize(1));
-            assertThat(values.get(0), equalTo(List.of("local")));
-
-            EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
-            assertNotNull(executionInfo);
-            assertThat(executionInfo.isCrossClusterSearch(), is(true));
-            long overallTookMillis = executionInfo.overallTook().millis();
-            assertThat(overallTookMillis, greaterThanOrEqualTo(0L));
-            assertThat(executionInfo.includeCCSMetadata(), equalTo(responseExpectMeta));
-
-            assertThat(executionInfo.clusterAliases(), equalTo(Set.of(REMOTE_CLUSTER, LOCAL_CLUSTER)));
-
-            EsqlExecutionInfo.Cluster remoteCluster = executionInfo.getCluster(REMOTE_CLUSTER);
-            assertThat(remoteCluster.getIndexExpression(), equalTo("no_such_index1,no_such_index2"));
-            assertThat(remoteCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SKIPPED));
-            assertThat(remoteCluster.getTook().millis(), greaterThanOrEqualTo(0L));
-            assertThat(remoteCluster.getTook().millis(), lessThanOrEqualTo(overallTookMillis));
-            assertThat(remoteCluster.getTotalShards(), equalTo(0));
-            assertThat(remoteCluster.getSuccessfulShards(), equalTo(0));
-            assertThat(remoteCluster.getSkippedShards(), equalTo(0));
-            assertThat(remoteCluster.getFailedShards(), equalTo(0));
-
-            EsqlExecutionInfo.Cluster localCluster = executionInfo.getCluster(LOCAL_CLUSTER);
-            assertThat(localCluster.getIndexExpression(), equalTo("no_such_index*,logs-1"));
-            assertThat(localCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
-            assertThat(localCluster.getTook().millis(), greaterThanOrEqualTo(0L));
-            assertThat(localCluster.getTook().millis(), lessThanOrEqualTo(overallTookMillis));
-            assertThat(localCluster.getTotalShards(), equalTo(localNumShards));
-            assertThat(localCluster.getSuccessfulShards(), equalTo(localNumShards));
-            assertThat(localCluster.getSkippedShards(), equalTo(0));
-            assertThat(localCluster.getFailedShards(), equalTo(0));
-        }
-
-        // wildcard on remote cluster that matches nothing - should be present in EsqlExecutionInfo marked as SKIPPED, no shards searched
-        try (EsqlQueryResponse resp = runQuery("from cluster-a:no_such_index*,logs-* | stats sum (v)", requestIncludeMeta)) {
-            EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
-            List<List<Object>> values = getValuesList(resp);
-            assertThat(values, hasSize(1));
-            assertThat(values.get(0), equalTo(List.of(45L)));
-
-            assertNotNull(executionInfo);
-            assertThat(executionInfo.isCrossClusterSearch(), is(true));
-            long overallTookMillis = executionInfo.overallTook().millis();
-            assertThat(overallTookMillis, greaterThanOrEqualTo(0L));
-            assertThat(executionInfo.includeCCSMetadata(), equalTo(responseExpectMeta));
-
-            assertThat(executionInfo.clusterAliases(), equalTo(Set.of(REMOTE_CLUSTER, LOCAL_CLUSTER)));
-
-            EsqlExecutionInfo.Cluster remoteCluster = executionInfo.getCluster(REMOTE_CLUSTER);
-            assertThat(remoteCluster.getIndexExpression(), equalTo("no_such_index*"));
-            assertThat(remoteCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SKIPPED));
-            assertThat(remoteCluster.getTook().millis(), greaterThanOrEqualTo(0L));
-            assertThat(remoteCluster.getTook().millis(), lessThanOrEqualTo(overallTookMillis));
-            assertThat(remoteCluster.getTotalShards(), equalTo(0));
             assertThat(remoteCluster.getSuccessfulShards(), equalTo(0));
             assertThat(remoteCluster.getSkippedShards(), equalTo(0));
             assertThat(remoteCluster.getFailedShards(), equalTo(0));
@@ -376,9 +656,9 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
             assertThat(executionInfo.overallTook().millis(), greaterThanOrEqualTo(0L));
             assertThat(executionInfo.includeCCSMetadata(), equalTo(responseExpectMeta));
 
-            assertThat(executionInfo.clusterAliases(), equalTo(Set.of(REMOTE_CLUSTER, LOCAL_CLUSTER)));
+            assertThat(executionInfo.clusterAliases(), equalTo(Set.of(REMOTE_CLUSTER_1, LOCAL_CLUSTER)));
 
-            EsqlExecutionInfo.Cluster remoteCluster = executionInfo.getCluster(REMOTE_CLUSTER);
+            EsqlExecutionInfo.Cluster remoteCluster = executionInfo.getCluster(REMOTE_CLUSTER_1);
             assertThat(remoteCluster.getIndexExpression(), equalTo("no_such_index*"));
             assertThat(remoteCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SKIPPED));
             assertThat(remoteCluster.getTook().millis(), greaterThanOrEqualTo(0L));
@@ -405,7 +685,10 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
      * at query time.
      */
     public void testCCSExecutionOnSearchesWithLimit0() {
-        setupTwoClusters();
+        Map<String, Object> setupMap = setupTwoClusters();
+        boolean skipUnavailable = (Boolean) setupMap.get("remote.skip_unavailable");
+
+        System.err.println(skipUnavailable);
 
         Tuple<Boolean, Boolean> includeCCSMetadata = randomIncludeCCSMetadata();
         Boolean requestIncludeMeta = includeCCSMetadata.v1();
@@ -427,9 +710,9 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
             long overallTookMillis = executionInfo.overallTook().millis();
             assertThat(overallTookMillis, greaterThanOrEqualTo(0L));
             assertThat(executionInfo.includeCCSMetadata(), equalTo(responseExpectMeta));
-            assertThat(executionInfo.clusterAliases(), equalTo(Set.of(REMOTE_CLUSTER, LOCAL_CLUSTER)));
+            assertThat(executionInfo.clusterAliases(), equalTo(Set.of(REMOTE_CLUSTER_1, LOCAL_CLUSTER)));
 
-            EsqlExecutionInfo.Cluster remoteCluster = executionInfo.getCluster(REMOTE_CLUSTER);
+            EsqlExecutionInfo.Cluster remoteCluster = executionInfo.getCluster(REMOTE_CLUSTER_1);
             assertThat(remoteCluster.getIndexExpression(), equalTo("*"));
             assertThat(remoteCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
             assertThat(remoteCluster.getTook().millis(), greaterThanOrEqualTo(0L));
@@ -450,65 +733,52 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
             assertThat(remoteCluster.getFailedShards(), equalTo(0));
         }
 
-        try (EsqlQueryResponse resp = runQuery("FROM logs*,cluster-a:nomatch* | LIMIT 0", requestIncludeMeta)) {
-            EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
-            assertNotNull(executionInfo);
-            assertThat(executionInfo.isCrossClusterSearch(), is(true));
-            long overallTookMillis = executionInfo.overallTook().millis();
-            assertThat(overallTookMillis, greaterThanOrEqualTo(0L));
-            assertThat(executionInfo.includeCCSMetadata(), equalTo(responseExpectMeta));
-            assertThat(executionInfo.clusterAliases(), equalTo(Set.of(REMOTE_CLUSTER, LOCAL_CLUSTER)));
-
-            EsqlExecutionInfo.Cluster remoteCluster = executionInfo.getCluster(REMOTE_CLUSTER);
-            assertThat(remoteCluster.getIndexExpression(), equalTo("nomatch*"));
-            assertThat(remoteCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SKIPPED));
-            assertThat(remoteCluster.getTook().millis(), greaterThanOrEqualTo(0L));
-            assertThat(remoteCluster.getTook().millis(), lessThanOrEqualTo(overallTookMillis));
-            assertThat(remoteCluster.getTotalShards(), equalTo(0));
-            assertThat(remoteCluster.getSuccessfulShards(), equalTo(0));
-            assertThat(remoteCluster.getSkippedShards(), equalTo(0));
-            assertThat(remoteCluster.getFailedShards(), equalTo(0));
-
-            EsqlExecutionInfo.Cluster localCluster = executionInfo.getCluster(LOCAL_CLUSTER);
-            assertThat(localCluster.getIndexExpression(), equalTo("logs*"));
-            assertThat(localCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
-            assertThat(localCluster.getTook().millis(), greaterThanOrEqualTo(0L));
-            assertThat(localCluster.getTook().millis(), lessThanOrEqualTo(overallTookMillis));
-            assertThat(localCluster.getTotalShards(), equalTo(0));
-            assertThat(localCluster.getSuccessfulShards(), equalTo(0));
-            assertThat(localCluster.getSkippedShards(), equalTo(0));
-            assertThat(localCluster.getFailedShards(), equalTo(0));
-        }
-
-        try (EsqlQueryResponse resp = runQuery("FROM nomatch*,cluster-a:* | LIMIT 0", requestIncludeMeta)) {
-            EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
-            assertNotNull(executionInfo);
-            assertThat(executionInfo.isCrossClusterSearch(), is(true));
-            long overallTookMillis = executionInfo.overallTook().millis();
-            assertThat(overallTookMillis, greaterThanOrEqualTo(0L));
-            assertThat(executionInfo.includeCCSMetadata(), equalTo(responseExpectMeta));
-            assertThat(executionInfo.clusterAliases(), equalTo(Set.of(REMOTE_CLUSTER, LOCAL_CLUSTER)));
-
-            EsqlExecutionInfo.Cluster remoteCluster = executionInfo.getCluster(REMOTE_CLUSTER);
-            assertThat(remoteCluster.getIndexExpression(), equalTo("*"));
-            assertThat(remoteCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
-            assertThat(remoteCluster.getTook().millis(), greaterThanOrEqualTo(0L));
-            assertThat(remoteCluster.getTook().millis(), lessThanOrEqualTo(overallTookMillis));
-            assertThat(remoteCluster.getTotalShards(), equalTo(0));
-            assertThat(remoteCluster.getSuccessfulShards(), equalTo(0));
-            assertThat(remoteCluster.getSkippedShards(), equalTo(0));
-            assertThat(remoteCluster.getFailedShards(), equalTo(0));
-
-            EsqlExecutionInfo.Cluster localCluster = executionInfo.getCluster(LOCAL_CLUSTER);
-            assertThat(localCluster.getIndexExpression(), equalTo("nomatch*"));
-            assertThat(localCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
-            assertThat(localCluster.getTook().millis(), greaterThanOrEqualTo(0L));
-            assertThat(localCluster.getTook().millis(), lessThanOrEqualTo(overallTookMillis));
-            assertThat(remoteCluster.getTotalShards(), equalTo(0));
-            assertThat(remoteCluster.getSuccessfulShards(), equalTo(0));
-            assertThat(remoteCluster.getSkippedShards(), equalTo(0));
-            assertThat(remoteCluster.getFailedShards(), equalTo(0));
-        }
+//        // MP TODO: delete this one?
+//        if (skipUnavailable == false) {
+//            VerificationException e = expectThrows(VerificationException.class,
+//                () -> runQuery("FROM logs*,cluster-a:nomatch* | LIMIT 0", requestIncludeMeta));
+//            assertThat(e.getDetailedMessage(), containsString("No matching indices for [nomatch*] on remote cluster [cluster-a]"));
+//        } else {
+//            try (EsqlQueryResponse resp = runQuery("FROM logs*,cluster-a:nomatch* | LIMIT 0", requestIncludeMeta)) {
+//                EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
+//                assertNotNull(executionInfo);
+//                assertThat(executionInfo.isCrossClusterSearch(), is(true));
+//                long overallTookMillis = executionInfo.overallTook().millis();
+//                assertThat(overallTookMillis, greaterThanOrEqualTo(0L));
+//                assertThat(executionInfo.includeCCSMetadata(), equalTo(responseExpectMeta));
+//                assertThat(executionInfo.clusterAliases(), equalTo(Set.of(REMOTE_CLUSTER_1, LOCAL_CLUSTER)));
+//
+//                EsqlExecutionInfo.Cluster remoteCluster = executionInfo.getCluster(REMOTE_CLUSTER_1);
+//                assertThat(remoteCluster.getIndexExpression(), equalTo("nomatch*"));
+//                assertThat(remoteCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SKIPPED));
+//                assertThat(remoteCluster.getTook().millis(), greaterThanOrEqualTo(0L));
+//                assertThat(remoteCluster.getTook().millis(), lessThanOrEqualTo(overallTookMillis));
+//                assertThat(remoteCluster.getTotalShards(), equalTo(0));
+//                assertThat(remoteCluster.getSuccessfulShards(), equalTo(0));
+//                assertThat(remoteCluster.getSkippedShards(), equalTo(0));
+//                assertThat(remoteCluster.getFailedShards(), equalTo(0));
+//
+//                EsqlExecutionInfo.Cluster localCluster = executionInfo.getCluster(LOCAL_CLUSTER);
+//                assertThat(localCluster.getIndexExpression(), equalTo("logs*"));
+//                assertThat(localCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
+//                assertThat(localCluster.getTook().millis(), greaterThanOrEqualTo(0L));
+//                assertThat(localCluster.getTook().millis(), lessThanOrEqualTo(overallTookMillis));
+//                assertThat(localCluster.getTotalShards(), equalTo(0));
+//                assertThat(localCluster.getSuccessfulShards(), equalTo(0));
+//                assertThat(localCluster.getSkippedShards(), equalTo(0));
+//                assertThat(localCluster.getFailedShards(), equalTo(0));
+//            }
+//        }
+//        {
+//            VerificationException e = expectThrows(VerificationException.class,
+//                () -> runQuery("FROM nomatch*,cluster-a:* | LIMIT 0", requestIncludeMeta));
+//            assertThat(e.getDetailedMessage(), containsString("No matching indices for [nomatch*]"));
+//        }
+//        {
+//            VerificationException e = expectThrows(VerificationException.class,
+//                () -> runQuery("FROM nomatch*,foo*,cluster-a:* | LIMIT 0", requestIncludeMeta));
+//            assertThat(e.getDetailedMessage(), containsString("No matching indices for [nomatch*,foo*]"));
+//        }
     }
 
     public void testMetadataIndex() {
@@ -536,7 +806,7 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
             assertThat(executionInfo.includeCCSMetadata(), equalTo(responseExpectMeta));
             assertThat(executionInfo.overallTook().millis(), greaterThanOrEqualTo(0L));
 
-            EsqlExecutionInfo.Cluster remoteCluster = executionInfo.getCluster(REMOTE_CLUSTER);
+            EsqlExecutionInfo.Cluster remoteCluster = executionInfo.getCluster(REMOTE_CLUSTER_1);
             assertThat(remoteCluster.getIndexExpression(), equalTo("logs*"));
             assertThat(remoteCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
             assertThat(remoteCluster.getTook().millis(), greaterThanOrEqualTo(0L));
@@ -571,12 +841,12 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
             .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).put("index.routing.rebalance.enable", "none"))
             .get();
         waitForNoInitializingShards(client(LOCAL_CLUSTER), TimeValue.timeValueSeconds(30), "logs-1");
-        client(REMOTE_CLUSTER).admin()
+        client(REMOTE_CLUSTER_1).admin()
             .indices()
             .prepareUpdateSettings("logs-2")
             .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).put("index.routing.rebalance.enable", "none"))
             .get();
-        waitForNoInitializingShards(client(REMOTE_CLUSTER), TimeValue.timeValueSeconds(30), "logs-2");
+        waitForNoInitializingShards(client(REMOTE_CLUSTER_1), TimeValue.timeValueSeconds(30), "logs-2");
         final int localOnlyProfiles;
         {
             EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest();
@@ -593,7 +863,7 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
 
                 EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
                 assertNotNull(executionInfo);
-                EsqlExecutionInfo.Cluster remoteCluster = executionInfo.getCluster(REMOTE_CLUSTER);
+                EsqlExecutionInfo.Cluster remoteCluster = executionInfo.getCluster(REMOTE_CLUSTER_1);
                 assertNull(remoteCluster);
                 assertThat(executionInfo.isCrossClusterSearch(), is(false));
                 assertThat(executionInfo.includeCCSMetadata(), is(false));
@@ -621,7 +891,7 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
                 assertThat(executionInfo.includeCCSMetadata(), is(false));
                 assertThat(executionInfo.overallTook().millis(), greaterThanOrEqualTo(0L));
 
-                EsqlExecutionInfo.Cluster remoteCluster = executionInfo.getCluster(REMOTE_CLUSTER);
+                EsqlExecutionInfo.Cluster remoteCluster = executionInfo.getCluster(REMOTE_CLUSTER_1);
                 assertThat(remoteCluster.getIndexExpression(), equalTo("logs*"));
                 assertThat(remoteCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
                 assertThat(remoteCluster.getTook().millis(), greaterThanOrEqualTo(0L));
@@ -654,7 +924,7 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
                 assertThat(executionInfo.includeCCSMetadata(), is(false));
                 assertThat(executionInfo.overallTook().millis(), greaterThanOrEqualTo(0L));
 
-                EsqlExecutionInfo.Cluster remoteCluster = executionInfo.getCluster(REMOTE_CLUSTER);
+                EsqlExecutionInfo.Cluster remoteCluster = executionInfo.getCluster(REMOTE_CLUSTER_1);
                 assertThat(remoteCluster.getIndexExpression(), equalTo("logs*"));
                 assertThat(remoteCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
                 assertThat(remoteCluster.getTook().millis(), greaterThanOrEqualTo(0L));
@@ -704,7 +974,7 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
             assertThat(executionInfo.includeCCSMetadata(), is(false));
             assertThat(executionInfo.overallTook().millis(), greaterThanOrEqualTo(0L));
 
-            EsqlExecutionInfo.Cluster remoteCluster = executionInfo.getCluster(REMOTE_CLUSTER);
+            EsqlExecutionInfo.Cluster remoteCluster = executionInfo.getCluster(REMOTE_CLUSTER_1);
             assertThat(remoteCluster.getIndexExpression(), equalTo("logs*"));
             assertThat(remoteCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
             assertThat(remoteCluster.getTook().millis(), greaterThanOrEqualTo(0L));
@@ -792,13 +1062,18 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
     }
 
     Map<String, Object> setupTwoClusters() {
+        return setupClusters(2);
+    }
+
+    Map<String, Object> setupClusters(int numClusters) {
+        assert numClusters == 2 || numClusters == 3 : "2 or 3 clusters supported not: " + numClusters;
         String localIndex = "logs-1";
         int numShardsLocal = randomIntBetween(1, 5);
         populateLocalIndices(localIndex, numShardsLocal);
 
         String remoteIndex = "logs-2";
         int numShardsRemote = randomIntBetween(1, 5);
-        populateRemoteIndices(remoteIndex, numShardsRemote);
+        populateRemoteIndices(REMOTE_CLUSTER_1, remoteIndex, numShardsRemote);
 
         Map<String, Object> clusterInfo = new HashMap<>();
         clusterInfo.put("local.num_shards", numShardsLocal);
@@ -806,8 +1081,15 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
         clusterInfo.put("remote.num_shards", numShardsRemote);
         clusterInfo.put("remote.index", remoteIndex);
 
-        String skipUnavailableKey = Strings.format("cluster.remote.%s.skip_unavailable", REMOTE_CLUSTER);
-        Setting<?> skipUnavailableSetting = cluster(REMOTE_CLUSTER).clusterService().getClusterSettings().get(skipUnavailableKey);
+        if (numClusters == 3) {
+            int numShardsRemote2 = randomIntBetween(1, 5);
+            populateRemoteIndices(REMOTE_CLUSTER_2, remoteIndex, numShardsRemote2);
+            clusterInfo.put("remote2.index", remoteIndex);
+            clusterInfo.put("remote2.num_shards", numShardsRemote2);
+        }
+
+        String skipUnavailableKey = Strings.format("cluster.remote.%s.skip_unavailable", REMOTE_CLUSTER_1);
+                Setting<?> skipUnavailableSetting = cluster(REMOTE_CLUSTER_1).clusterService().getClusterSettings().get(skipUnavailableKey);
         boolean skipUnavailable = (boolean) cluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY).clusterService()
             .getClusterSettings()
             .get(skipUnavailableSetting);
@@ -815,6 +1097,7 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
 
         return clusterInfo;
     }
+
 
     void populateLocalIndices(String indexName, int numShards) {
         Client localClient = client(LOCAL_CLUSTER);
@@ -831,8 +1114,8 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
         localClient.admin().indices().prepareRefresh(indexName).get();
     }
 
-    void populateRemoteIndices(String indexName, int numShards) {
-        Client remoteClient = client(REMOTE_CLUSTER);
+    void populateRemoteIndices(String clusterAlias, String indexName, int numShards) {
+        Client remoteClient = client(clusterAlias);
         assertAcked(
             remoteClient.admin()
                 .indices()
@@ -844,5 +1127,23 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
             remoteClient.prepareIndex(indexName).setSource("id", "remote-" + i, "tag", "remote", "v", i * i).get();
         }
         remoteClient.admin().indices().prepareRefresh(indexName).get();
+    }
+
+    private void setSkipUnavailable(String clusterAlias, boolean skip) {
+        client(LOCAL_CLUSTER).admin()
+            .cluster()
+            .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+            .setPersistentSettings(Settings.builder().put("cluster.remote." + clusterAlias + ".skip_unavailable", skip).build())
+            .get();
+    }
+
+    private void clearSkipUnavailable() {
+        Settings.Builder settingsBuilder = Settings.builder().putNull("cluster.remote." + REMOTE_CLUSTER_1 + ".skip_unavailable")
+            .putNull("cluster.remote." + REMOTE_CLUSTER_2 + ".skip_unavailable");
+        client(LOCAL_CLUSTER).admin()
+            .cluster()
+            .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+            .setPersistentSettings(settingsBuilder.build())
+            .get();
     }
 }

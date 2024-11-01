@@ -17,6 +17,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteTransportException;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
@@ -33,7 +34,6 @@ class EsqlSessionCCSUtils {
 
     private EsqlSessionCCSUtils() {}
 
-    // visible for testing
     static Map<String, FieldCapabilitiesFailure> determineUnavailableRemoteClusters(List<FieldCapabilitiesFailure> failures) {
         Map<String, FieldCapabilitiesFailure> unavailableRemotes = new HashMap<>();
         for (FieldCapabilitiesFailure failure : failures) {
@@ -132,7 +132,6 @@ class EsqlSessionCCSUtils {
         }
     }
 
-    // visible for testing
     static String createIndexExpressionFromAvailableClusters(EsqlExecutionInfo executionInfo) {
         StringBuilder sb = new StringBuilder();
         for (String clusterAlias : executionInfo.clusterAliases()) {
@@ -181,7 +180,6 @@ class EsqlSessionCCSUtils {
         }
     }
 
-    // visible for testing
     static void updateExecutionInfoWithClustersWithNoMatchingIndices(EsqlExecutionInfo executionInfo, IndexResolution indexResolution) {
         Set<String> clustersWithResolvedIndices = new HashSet<>();
         // determine missing clusters
@@ -191,29 +189,58 @@ class EsqlSessionCCSUtils {
         Set<String> clustersRequested = executionInfo.clusterAliases();
         Set<String> clustersWithNoMatchingIndices = Sets.difference(clustersRequested, clustersWithResolvedIndices);
         clustersWithNoMatchingIndices.removeAll(indexResolution.getUnavailableClusters().keySet());
+
+        /**
+         * The rules to determine whether missing indices is an error or not are:
+         * 1. no matching indices on any cluster: error   MP TODO: I think this is handled elsewhere? Where? Check this
+         * ✓ 2. skip_unavailable=false remotes with no matching indices: error
+         * 3. missing concrete index expression:
+         *  (a) error for local and skip_unavailable=false remotes
+         *  (b) not an error for skip_unavailable=true remotes as long as there is at least one other matching index expression in the query (for any cluster)
+         * 4. wildcard index expressions, if at least one matches: not an error
+         */
+
+        String fatalErrorMessage = null;
         /*
+         * MP TODO: update this code comment
          * These are clusters in the original request that are not present in the field-caps response. They were
          * specified with an index or indices that do not exist, so the search on that cluster is done.
          * Mark it as SKIPPED with 0 shards searched and took=0.
          */
         for (String c : clustersWithNoMatchingIndices) {
-            // TODO: in a follow-on PR, throw a Verification(400 status code) for local and remotes with skip_unavailable=false if
-            // they were requested with one or more concrete indices
-            // for now we never mark the local cluster as SKIPPED
-            final var status = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.equals(c)
-                ? EsqlExecutionInfo.Cluster.Status.SUCCESSFUL
-                : EsqlExecutionInfo.Cluster.Status.SKIPPED;
-            executionInfo.swapCluster(
-                c,
-                (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setStatus(status)
-                    .setTook(new TimeValue(0))
-                    .setTotalShards(0)
-                    .setSuccessfulShards(0)
-                    .setSkippedShards(0)
-                    .setFailedShards(0)
-                    .build()
-            );
+            if (executionInfo.isSkipUnavailable(c) == false)) {
+                String error = "No matching indices for [" + executionInfo.getCluster(c).getIndexExpression() + "]";
+                if (c.equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY) == false) {
+                    error += " on remote cluster [" + c + "]";
+                }
+                if (fatalErrorMessage == null) {
+                    fatalErrorMessage = error;
+                } else {
+                    fatalErrorMessage += "; " + error;
+                }
+            } else {
+                EsqlExecutionInfo.Cluster.Status status = c.equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY) ?
+                    EsqlExecutionInfo.Cluster.Status.SUCCESSFUL : EsqlExecutionInfo.Cluster.Status.SKIPPED;
+                executionInfo.swapCluster(
+                    c,
+                    (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setStatus(status)
+                        .setTook(new TimeValue(0))
+                        .setTotalShards(0)
+                        .setSuccessfulShards(0)
+                        .setSkippedShards(0)
+                        .setFailedShards(0)
+                        .build()
+                );
+            }
         }
+        if (fatalErrorMessage != null) {
+            throw new VerificationException(fatalErrorMessage);
+        }
+    }
+
+    // MP TODO: is there a better method for doing this, say in RemoteClusterService or RemoteClusterAware?
+    private static boolean concreteIndexRequested(String indexExpression) {
+        return indexExpression.indexOf('*') < 0;
     }
 
     // visible for testing

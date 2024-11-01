@@ -24,7 +24,10 @@ import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
@@ -35,8 +38,10 @@ import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import java.util.Collection;
 import java.util.List;
 import java.util.function.Function;
+import java.util.function.IntSupplier;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
@@ -97,6 +102,65 @@ public class StatelessMergeIT extends AbstractStatelessIntegTestCase {
                     .completed()
             )
         );
+    }
+
+    public void testRefreshOnLargeMerge_true() throws Exception {
+        refreshOnLargeMergeTest(true);
+    }
+
+    public void testRefreshOnLargeMerge_false() throws Exception {
+        refreshOnLargeMergeTest(false);
+    }
+
+    // test that merges at or above a size threshold trigger an immediate refresh, and below that threshold do not.
+    // Generates multiple commits, then forces a merge, then compares the index on the primary and search node to see if the search node
+    // was refreshed or not.
+    private void refreshOnLargeMergeTest(boolean forceRefresh) throws Exception {
+        // A threshold too large to cross during testing
+        final var refreshThreshold = forceRefresh ? ByteSizeValue.ZERO : ByteSizeValue.ofPb(1);
+        // Two external refreshes occur during initial recovery. We'll expect to also have one for a merge if we force it.
+        final long expectedRefreshes = forceRefresh ? 3L : 2L;
+
+        startMasterAndIndexNode(
+            Settings.builder().put(ThreadPoolMergeScheduler.MERGE_FORCE_REFRESH_SIZE.getKey(), refreshThreshold).build()
+        );
+        startSearchNode();
+
+        final String indexName = randomIdentifier();
+        createIndex(indexName, indexSettings(1, 1).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.MINUS_ONE).build());
+
+        IntSupplier addDocs = () -> {
+            int numDocs = randomIntBetween(100, 200);
+            indexDocs(indexName, numDocs);
+            return numDocs;
+        };
+
+        long flushedDocs = 0;
+        long unflushedDocs = 0;
+
+        // Create two commits to merge.
+        flushedDocs += addDocs.getAsInt();
+        flush(indexName);
+        logger.info("flushed {} docs", flushedDocs);
+        flushedDocs += addDocs.getAsInt();
+        flush(indexName);
+        logger.info("flushed {} docs", flushedDocs);
+        // then add some more docs and force a merge, which will refresh depending on forceRefresh
+        unflushedDocs += addDocs.getAsInt();
+        logger.info("indexed {} docs", flushedDocs);
+        assertNoFailures(indicesAdmin().prepareForceMerge(indexName).setMaxNumSegments(1).setFlush(false).get());
+
+        final long expectedTotalDocs = forceRefresh ? flushedDocs + unflushedDocs : flushedDocs;
+        assertBusy(
+            () -> assertHitCount(
+                prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()).setTrackTotalHits(true),
+                expectedTotalDocs
+            )
+        );
+
+        IndicesStatsResponse indicesStats = client().admin().indices().prepareStats(indexName).setMerge(true).get();
+        var actualRefreshes = indicesStats.getIndices().get(indexName).getPrimaries().getRefresh().getExternalTotal();
+        assertThat("unexpected number of refreshes", actualRefreshes, equalTo(expectedRefreshes));
     }
 
     public void testMergeMetricsPublication() {

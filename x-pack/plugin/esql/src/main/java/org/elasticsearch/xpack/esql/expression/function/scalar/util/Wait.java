@@ -10,13 +10,11 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.util;
 import org.elasticsearch.Build;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
-import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -24,7 +22,7 @@ import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
-import org.elasticsearch.xpack.esql.expression.function.scalar.math.Asin;
+import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
 
 import java.io.IOException;
 import java.time.Duration;
@@ -35,31 +33,30 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
 
 /**
  * Slowdown function - for debug purposes only.
- * Syntax: SLOW(boolean, ms) - if boolean is true, the function will sleep for ms milliseconds.
- * The boolean is useful if you want to slow down processing on specific index or cluster only.
+ * Syntax: WAIT(ms) - will sleep for ms milliseconds.
  */
-public class Slow extends UnaryScalarFunction {
-    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Slow", Slow::new);
+public class Wait extends UnaryScalarFunction {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Wait", Wait::new);
 
     @FunctionInfo(
         returnType = { "boolean" },
         description = "Debug function to slow down processing. The function will sleep for the specified number of milliseconds.",
-        examples = { @Example(file = "null", tag = "slow") }
+        examples = { @Example(file = "null", tag = "wait") }
     )
-    public Slow(
+    public Wait(
         Source source,
         @Param(name = "ms", type = { "integer", "long", "time_duration", }, description = "For how long") Expression ms
     ) {
         super(source, ms);
     }
 
-    private Slow(StreamInput in) throws IOException {
+    private Wait(StreamInput in) throws IOException {
         super(in);
     }
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new Slow(source(), newChildren.getFirst());
+        return new Wait(source(), newChildren.getFirst());
     }
 
     @Override
@@ -96,7 +93,7 @@ public class Slow extends UnaryScalarFunction {
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, Slow::new, field());
+        return NodeInfo.create(this, Wait::new, field());
     }
 
     @Override
@@ -122,7 +119,7 @@ public class Slow extends UnaryScalarFunction {
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(EvaluatorMapper.ToEvaluator toEvaluator) {
-        return new SlowEvaluator.Factory(source(), msValue());
+        return new WaitEvaluator.Factory(source(), msValue());
     }
 
     @Evaluator

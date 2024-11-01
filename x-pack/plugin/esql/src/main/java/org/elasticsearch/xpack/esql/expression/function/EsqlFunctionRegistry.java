@@ -135,7 +135,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.Substring;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToLower;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToUpper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Trim;
-import org.elasticsearch.xpack.esql.expression.function.scalar.util.Slow;
+import org.elasticsearch.xpack.esql.expression.function.scalar.util.Wait;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.lang.reflect.Constructor;
@@ -398,7 +398,7 @@ public class EsqlFunctionRegistry {
     private static FunctionDefinition[][] snapshotFunctions() {
         return new FunctionDefinition[][] {
             new FunctionDefinition[] {
-                def(Slow.class, Slow::new, "slow"),
+                def(Wait.class, Wait::new, "wait"),
                 def(Categorize.class, Categorize::new, "categorize"),
                 def(Rate.class, Rate::withUnresolvedTimestamp, "rate") } };
     }

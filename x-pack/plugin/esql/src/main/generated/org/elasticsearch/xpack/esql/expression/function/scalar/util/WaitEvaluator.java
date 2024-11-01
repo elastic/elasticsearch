@@ -15,10 +15,10 @@ import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Slow}.
+ * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Wait}.
  * This class is generated. Do not edit it.
  */
-public final class SlowEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class WaitEvaluator implements EvalOperator.ExpressionEvaluator {
   private final Source source;
 
   private final long ms;
@@ -27,7 +27,7 @@ public final class SlowEvaluator implements EvalOperator.ExpressionEvaluator {
 
   private Warnings warnings;
 
-  public SlowEvaluator(Source source, long ms, DriverContext driverContext) {
+  public WaitEvaluator(Source source, long ms, DriverContext driverContext) {
     this.source = source;
     this.ms = ms;
     this.driverContext = driverContext;
@@ -41,7 +41,7 @@ public final class SlowEvaluator implements EvalOperator.ExpressionEvaluator {
   public BooleanVector eval(int positionCount) {
     try(BooleanVector.FixedBuilder result = driverContext.blockFactory().newBooleanVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendBoolean(p, Slow.process(this.ms));
+        result.appendBoolean(p, Wait.process(this.ms));
       }
       return result.build();
     }
@@ -49,7 +49,7 @@ public final class SlowEvaluator implements EvalOperator.ExpressionEvaluator {
 
   @Override
   public String toString() {
-    return "SlowEvaluator[" + "ms=" + ms + "]";
+    return "WaitEvaluator[" + "ms=" + ms + "]";
   }
 
   @Override
@@ -79,13 +79,13 @@ public final class SlowEvaluator implements EvalOperator.ExpressionEvaluator {
     }
 
     @Override
-    public SlowEvaluator get(DriverContext context) {
-      return new SlowEvaluator(source, ms, context);
+    public WaitEvaluator get(DriverContext context) {
+      return new WaitEvaluator(source, ms, context);
     }
 
     @Override
     public String toString() {
-      return "SlowEvaluator[" + "ms=" + ms + "]";
+      return "WaitEvaluator[" + "ms=" + ms + "]";
     }
   }
 }

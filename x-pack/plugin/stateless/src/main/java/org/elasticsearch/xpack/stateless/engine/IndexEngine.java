@@ -54,6 +54,7 @@ import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.engine.LiveVersionMapArchive;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.merge.OnGoingMerge;
 import org.elasticsearch.index.seqno.LocalCheckpointTracker;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
@@ -92,6 +93,7 @@ public class IndexEngine extends InternalEngine {
     private final Function<String, BlobContainer> translogBlobContainer;
     private final boolean fastRefresh;
     private final RefreshThrottler refreshThrottler;
+    private final long mergeForceRefreshSize;
     private final IndexEngineLocalReaderListener localReaderListener;
     private final CommitBCCResolver commitBCCResolver;
     private final DocumentSizeAccumulator documentSizeAccumulator;
@@ -128,6 +130,8 @@ public class IndexEngine extends InternalEngine {
         this.cacheWarmingService = cacheWarmingService;
         this.fastRefresh = INDEX_FAST_REFRESH_SETTING.get(config().getIndexSettings().getSettings());
         this.refreshThrottler = refreshThrottlerFactory.create(this::doExternalRefresh);
+        this.mergeForceRefreshSize = ThreadPoolMergeScheduler.MERGE_FORCE_REFRESH_SIZE.get(config().getIndexSettings().getSettings())
+            .getBytes();
         this.localReaderListener = localReaderListener;
         this.commitBCCResolver = commitBCCResolver;
         this.documentSizeAccumulator = documentParsingProvider.createDocumentSizeAccumulator();
@@ -593,6 +597,14 @@ public class IndexEngine extends InternalEngine {
         return statelessCommitService;
     }
 
+    private void onAfterMerge(OnGoingMerge merge) {
+        // A merge can occupy a lot of disk space that can't be reused until it has been pushed into the object store, so it
+        // can be worth refreshing immediately to allow that space to be reclaimed faster.
+        if (merge.getTotalBytesSize() >= mergeForceRefreshSize) {
+            maybeRefresh("large merge", ActionListener.noop());
+        }
+    }
+
     @Override
     protected ElasticsearchMergeScheduler createMergeScheduler(ShardId shardId, IndexSettings indexSettings) {
         if (ThreadPoolMergeScheduler.MERGE_THREAD_POOL_SCHEDULER.get(indexSettings.getSettings())) {
@@ -608,6 +620,7 @@ public class IndexEngine extends InternalEngine {
                     merge,
                     fileName -> statelessCommitService.getBlobLocation(shardId, fileName)
                 ),
+                this::onAfterMerge,
                 this::mergeException
             );
         } else {

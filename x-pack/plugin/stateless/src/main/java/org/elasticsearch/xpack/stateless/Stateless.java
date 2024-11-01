@@ -878,6 +878,7 @@ public class Stateless extends Plugin
             TranslogReplicator.FLUSH_SIZE_SETTING,
             ThreadPoolMergeScheduler.MERGE_THREAD_POOL_SCHEDULER,
             ThreadPoolMergeScheduler.MERGE_PREWARM,
+            ThreadPoolMergeScheduler.MERGE_FORCE_REFRESH_SIZE,
             StatelessClusterConsistencyService.DELAYED_CLUSTER_CONSISTENCY_INTERVAL_SETTING,
             StoreHeartbeatService.HEARTBEAT_FREQUENCY,
             StoreHeartbeatService.MAX_MISSED_HEARTBEATS,

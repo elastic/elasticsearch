@@ -26,6 +26,7 @@ import org.apache.lucene.index.MergeTrigger;
 import org.apache.lucene.util.SameThreadExecutorService;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.engine.ElasticsearchMergeScheduler;
@@ -65,12 +66,20 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
 
     public static final Setting<Boolean> MERGE_PREWARM = Setting.boolSetting("stateless.merge.prewarm", true, Setting.Property.NodeScope);
 
+    // If the size of a merge is greater than or equal to this, force a refresh to allow its space to be reclaimed immediately.
+    public static final Setting<ByteSizeValue> MERGE_FORCE_REFRESH_SIZE = Setting.byteSizeSetting(
+        "stateless.merge.force_refresh_size",
+        ByteSizeValue.ofMb(64),
+        Setting.Property.NodeScope
+    );
+
     private final Logger logger;
     private final ShardId shardId;
     private final boolean prewarm;
     private final ThreadPool threadPool;
     private final Supplier<MergeMetrics> mergeMetrics;
     private final BiConsumer<String, MergePolicy.OneMerge> warmer;
+    private final Consumer<OnGoingMerge> afterMerge;
     private final Consumer<Exception> exceptionHandler;
     private final MergeTracking mergeTracking;
     private final SameThreadExecutorService sameThreadExecutorService = new SameThreadExecutorService();
@@ -83,6 +92,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
         ThreadPool threadPool,
         Supplier<MergeMetrics> mergeMetrics,
         BiConsumer<String, MergePolicy.OneMerge> warmer,
+        Consumer<OnGoingMerge> afterMerge,
         Consumer<Exception> exceptionHandler
     ) {
         this.logger = Loggers.getLogger(getClass(), shardId);
@@ -91,6 +101,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
         this.threadPool = threadPool;
         this.mergeMetrics = mergeMetrics;
         this.warmer = warmer;
+        this.afterMerge = afterMerge;
         this.exceptionHandler = exceptionHandler;
         this.mergeTracking = new MergeTracking(logger, () -> Double.POSITIVE_INFINITY);
     }
@@ -167,6 +178,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
                     }
                     mergeSource.merge(currentMerge);
                     success = true;
+                    afterMerge.accept(onGoingMerge);
                 } finally {
                     long tookMS = TimeValue.nsecToMSec(System.nanoTime() - timeNS);
                     if (success) {

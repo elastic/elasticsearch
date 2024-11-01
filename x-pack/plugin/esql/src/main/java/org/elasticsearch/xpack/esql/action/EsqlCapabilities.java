@@ -453,7 +453,7 @@ public class EsqlCapabilities {
          * - Introduce BinaryPlan and co
          * - Refactor INLINESTATS and LOOKUP as a JOIN block
          */
-        JOIN_PLANNING_V1(Build.current().isSnapshot());
+        JOIN_PLANNING_V1(Build.current().isSnapshot()),
 
         /**
          * Support the "METADATA _score" directive to enable _score column.

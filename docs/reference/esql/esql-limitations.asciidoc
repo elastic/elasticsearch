@@ -116,14 +116,25 @@ For example, this query is valid:
 
 [source,esql]
 ----
-| WHERE field LIKE "elasticsearch query language"
+FROM books
+| WHERE MATCH(author, "Faulkner") AND MATCH(author, "Tolkien")
 ----
 
-But this query will fail:
+But this query will fail due to the <<esql-stats-by, STATS>> command:
 
 [source,esql]
 ----
-| WHERE field LIKE "elasticsearch query language"
+FROM books
+| STATS AVG(price) BY author
+| WHERE MATCH(author, "Faulkner")
+----
+
+And this query will fail due to the disjunction:
+
+[source,esql]
+----
+FROM books
+| WHERE MATCH(author, "Faulkner") OR author LIKE "Hemingway"
 ----
 
 Note that, because of <<esql-limitations-text-fields,the way {esql} treats `text` values>>,

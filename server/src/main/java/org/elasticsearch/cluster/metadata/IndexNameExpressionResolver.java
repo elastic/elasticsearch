@@ -719,21 +719,6 @@ public class IndexNameExpressionResolver {
     }
 
     /**
-     * @return If the specified string is data math expression then this method returns the resolved expression.
-     */
-    public static String resolveDateMathExpression(String dateExpression) {
-        return DateMathExpressionResolver.resolveExpression(dateExpression);
-    }
-
-    /**
-     * @param time instant to consider when parsing the expression
-     * @return If the specified string is data math expression then this method returns the resolved expression.
-     */
-    public static String resolveDateMathExpression(String dateExpression, long time) {
-        return DateMathExpressionResolver.resolveExpression(dateExpression, () -> time);
-    }
-
-    /**
      * Resolve an array of expressions to the set of indices and aliases that these expressions match.
      */
     public Set<String> resolveExpressions(ClusterState state, String... expressions) {
@@ -1033,6 +1018,16 @@ public class IndexNameExpressionResolver {
         return aliasesOrIndices != null && aliasesOrIndices.size() == 1 && Metadata.ALL.equals(aliasesOrIndices.iterator().next());
     }
 
+    /**
+     * Identifies if this expression list is *,-* which effectively means a request that requests no indices.
+     */
+    static boolean isNoneExpression(String[] expressions) {
+        return expressions.length == 2 && "*".equals(expressions[0]) && "-*".equals(expressions[1]);
+    }
+
+    /**
+     * @return the system access level that will be applied in this resolution. See {@link SystemIndexAccessLevel} for details.
+     */
     public SystemIndexAccessLevel getSystemIndexAccessLevel() {
         final SystemIndexAccessLevel accessLevel = SystemIndices.getSystemIndexAccessLevel(threadContext);
         assert accessLevel != SystemIndexAccessLevel.BACKWARDS_COMPATIBLE_ONLY
@@ -1512,6 +1507,24 @@ public class IndexNameExpressionResolver {
         }
     }
 
+    /**
+     * @return If the specified string is data math expression then this method returns the resolved expression.
+     */
+    public static String resolveDateMathExpression(String dateExpression) {
+        return DateMathExpressionResolver.resolveExpression(dateExpression);
+    }
+
+    /**
+     * @param time instant to consider when parsing the expression
+     * @return If the specified string is data math expression then this method returns the resolved expression.
+     */
+    public static String resolveDateMathExpression(String dateExpression, long time) {
+        return DateMathExpressionResolver.resolveExpression(dateExpression, () -> time);
+    }
+
+    /**
+     * Resolves a date math expression based on the requested time.
+     */
     public static final class DateMathExpressionResolver {
 
         private static final DateFormatter DEFAULT_DATE_FORMATTER = DateFormatter.forPattern("uuuu.MM.dd");
@@ -1527,35 +1540,18 @@ public class IndexNameExpressionResolver {
         }
 
         /**
-         * Resolves date math expressions. If this is a noop the given {@code expressions} list is returned without copying.
-         * As a result callers of this method should not mutate the returned list. Mutating it may come with unexpected side effects.
+         * Resolves a date math expression using the current time. This method recognises a date math expression iff when they start with
+         * <code>%3C</code> and end with <code>%3E</code>. Otherwise, it returns the expression intact.
          */
-        public static List<String> resolve(Context context, List<String> expressions) {
-            boolean wildcardSeen = false;
-            final boolean expandWildcards = context.getOptions().expandWildcardExpressions();
-            String[] result = null;
-            for (int i = 0, n = expressions.size(); i < n; i++) {
-                String expression = expressions.get(i);
-                // accepts date-math exclusions that are of the form "-<...{}>",f i.e. the "-" is outside the "<>" date-math template
-                boolean isExclusion = wildcardSeen && expression.startsWith("-");
-                wildcardSeen = wildcardSeen || (expandWildcards && isWildcard(expression));
-                String toResolve = isExclusion ? expression.substring(1) : expression;
-                String resolved = resolveExpression(toResolve, context::getStartTime);
-                if (toResolve != resolved) {
-                    if (result == null) {
-                        result = expressions.toArray(Strings.EMPTY_ARRAY);
-                    }
-                    result[i] = isExclusion ? "-" + resolved : resolved;
-                }
-            }
-            return result == null ? expressions : Arrays.asList(result);
-        }
-
-        static String resolveExpression(String expression) {
+        public static String resolveExpression(String expression) {
             return resolveExpression(expression, System::currentTimeMillis);
         }
 
-        static String resolveExpression(String expression, LongSupplier getTime) {
+        /**
+         * Resolves a date math expression using the provided time. This method recognises a date math expression iff when they start with
+         * <code>%3C</code> and end with <code>%3E</code>. Otherwise, it returns the expression intact.
+         */
+        public static String resolveExpression(String expression, LongSupplier getTime) {
             if (expression.startsWith(EXPRESSION_LEFT_BOUND) == false || expression.endsWith(EXPRESSION_RIGHT_BOUND) == false) {
                 return expression;
             }

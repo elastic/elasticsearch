@@ -32,25 +32,6 @@ a|
 * You need long retention periods with the ability to search indices in an object store cost-effectively.
 * Use cloud provider's highly available object stores for data integrity so you don't have to depend on your own.
 
-
-| <<multi-region-two-datacenter-architecture>>
-
-A scalable and highly available architecture for Elasticsearch using two datacenters in separate geographical regions. Requests will be better served to a cluster that is geographically closer to you.
-
-a| 
-* Allows you multiple options to scale effectively
-* You need a seperate geographical region to help with network latency
-* This is cost-effective if you have many small clusters to accomodate
-
-
-| <<self-managed-single-datacenter>>
-
-An architecture is designed to satisfy high availability requirements under normal processing as well as including high availability and resiliency during node maintenance or re-paving activities.
-
-a| 
-* When you only have one datacenter available.
-* When you are just getting started and there is no requirement for data resiliency in your project.
-
 | <<three-availability-zones>>
 
 The three zone architecture is used for rolling upgrades and failure domains locally because non-disruptive upgrades and other plans or unplanned outages are more sustainable with 33% of the resources off-line and 66% available

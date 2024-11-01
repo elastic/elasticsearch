@@ -165,8 +165,8 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
                     throw new IllegalArgumentException("failed to find global analyzer [" + request.analyzer() + "]");
                 }
                 return analyzer instanceof NamedAnalyzer
-                       ? new NamedAnalyzer((NamedAnalyzer)analyzer, TextFieldMapper.Defaults.POSITION_INCREMENT_GAP)
-                       : analyzer;
+                    ? new NamedAnalyzer((NamedAnalyzer) analyzer, TextFieldMapper.Defaults.POSITION_INCREMENT_GAP)
+                    : analyzer;
             } else {
                 Analyzer analyzer = indexService.getIndexAnalyzers().get(request.analyzer());
                 if (analyzer == null) {

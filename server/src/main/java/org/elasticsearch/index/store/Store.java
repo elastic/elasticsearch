@@ -1150,14 +1150,6 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             return count;
         }
 
-        /**
-         * Returns the sync id of the commit point that this MetadataSnapshot represents.
-         *
-         * @return sync id if exists, else null
-         */
-        public String getSyncId() {
-            return commitUserData.get(Engine.SYNC_COMMIT_ID);
-        }
     }
 
     /**

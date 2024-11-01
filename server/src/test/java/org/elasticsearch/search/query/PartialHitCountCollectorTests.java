@@ -121,9 +121,13 @@ public class PartialHitCountCollectorTests extends ESTestCase {
 
     public void testCollectedHitCount() throws Exception {
         Query query = new NonCountingTermQuery(new Term("string", "a1"));
-        int threshold = randomIntBetween(1, 10000);
-        assumeTrue("bug with single collection & single segment: https://github.com/elastic/elasticsearch/issues/106647", threshold > 1);
-        // there's one doc matching the query: any totalHitsThreshold greater than or equal to 1 will not cause early termination
+        int threshold = randomIntBetween(2, 10000);
+        // there's one doc matching the query: any totalHitsThreshold greater than 1 will not cause early termination
+        // threshold 1 behaves differently depending on whether there is a single segment (no early termination) or multiple segments.
+        // With inter-segment concurrency the behaviour is not deterministic and depends on the timing of the different threads.
+        // Without inter-segment concurrency the behaviour depends on which segment holds the matching document.
+        // This is because the check for early termination is performed every time a leaf collector is pulled for a segment, as well
+        // as for every collected doc.
         CollectorManager<PartialHitCountCollector, Result> collectorManager = createCollectorManager(new HitsThresholdChecker(threshold));
         Result result = searcher.search(query, collectorManager);
         assertEquals(1, result.totalHits);

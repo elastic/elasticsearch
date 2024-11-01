@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.date;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.elasticsearch.common.Rounding;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -24,9 +23,6 @@ import java.time.Period;
 import java.util.List;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc.createRounding;
-import static org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc.process;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class DateTruncTests extends AbstractScalarFunctionTestCase {
@@ -61,7 +57,6 @@ public class DateTruncTests extends AbstractScalarFunctionTestCase {
             default -> null;
         });
     }
-
 
     private static TestCaseSupplier ofDatePeriod(Period period, long value, String expectedDate) {
         return new TestCaseSupplier(

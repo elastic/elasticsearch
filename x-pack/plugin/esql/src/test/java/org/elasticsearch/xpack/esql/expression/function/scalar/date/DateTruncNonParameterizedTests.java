@@ -100,7 +100,6 @@ public class DateTruncNonParameterizedTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("Zero or negative time interval is not supported"));
     }
 
-
     private static long toMillis(String timestamp) {
         return Instant.parse(timestamp).toEpochMilli();
     }

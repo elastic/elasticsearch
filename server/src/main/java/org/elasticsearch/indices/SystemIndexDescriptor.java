@@ -13,7 +13,6 @@ import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.create.AutoCreateAction;
 import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -36,7 +35,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -141,24 +139,11 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
     /** For internally-managed indices, an optional {@link IndexMetadata#INDEX_FORMAT_SETTING} value to expect */
     private final int indexFormat;
 
-    /**
-     * For internally-managed indices, specifies a key name under <code>_meta</code> in the index mappings
-     * that contains the index's mappings' {@link Version}. We need to read and write this field for
-     * backwards compatibility.
-     */
-    private final String mappingsNodeVersionMetaKey;
-
     /** The version meta key for the integer system index mapping version */
     public static final String VERSION_META_KEY = "managed_index_mappings_version";
 
     /** For internally-managed indices, specifies the origin to use when creating or updating the index */
     private final String origin;
-
-    /** The minimum cluster node version required for this descriptor */
-    private final Version minimumNodeVersion;
-
-    /** Legacy mapping version from the descriptor */
-    private final Version mappingsNodeVersion;
 
     /** Mapping version from the descriptor */
     private final MappingsVersion mappingsVersion;
@@ -209,11 +194,8 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
      * @param settings The settings to apply to this index when auto-creating, if appropriate
      * @param aliasName An alias for the index, or null
      * @param indexFormat A value for the `index.format` setting. Pass 0 or higher.
-     * @param mappingsNodeVersionMetaKey a mapping key under <code>_meta</code> where a version can be found, which indicates the
-    *                       Elasticsearch version when the index was created.
      * @param origin the client origin to use when creating this index. Internal system indices must not provide an origin, while external
      *               system indices must do so.
-     * @param minimumNodeVersion the minimum cluster node version required for this descriptor
      * @param type The {@link Type} of system index
      * @param allowedElasticProductOrigins A list of allowed origin values that should be allowed access in the case of external system
      *                                     indices
@@ -229,9 +211,7 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
         Settings settings,
         String aliasName,
         int indexFormat,
-        String mappingsNodeVersionMetaKey,
         String origin,
-        @Deprecated Version minimumNodeVersion,
         Type type,
         List<String> allowedElasticProductOrigins,
         List<SystemIndexDescriptor> priorSystemIndexDescriptors,
@@ -282,12 +262,10 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
             Objects.requireNonNull(settings, "Must supply settings for a managed system index");
             Strings.requireNonEmpty(mappings, "Must supply mappings for a managed system index");
             Strings.requireNonEmpty(primaryIndex, "Must supply primaryIndex for a managed system index");
-            Strings.requireNonEmpty(mappingsNodeVersionMetaKey, "Must supply nodeVersionMetaKey for a managed system index");
             Strings.requireNonEmpty(origin, "Must supply origin for a managed system index");
             if (settings.getAsInt(IndexMetadata.INDEX_FORMAT_SETTING.getKey(), 0) != indexFormat) {
                 throw new IllegalArgumentException("Descriptor index format does not match index format in managed settings");
             }
-            this.mappingsNodeVersion = bestEffortExtractNodeVersionFromMappings(mappings, mappingsNodeVersionMetaKey);
             this.mappingsVersion = extractVersionFromMappings(mappings);
             assert mappingsVersion.version >= 0 : "The mappings version must not be negative";
 
@@ -295,8 +273,6 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
             assert Objects.isNull(settings) : "Unmanaged index descriptors should not have settings";
             assert Objects.isNull(mappings) : "Unmanaged index descriptors should not have mappings";
             assert Objects.isNull(primaryIndex) : "Unmanaged index descriptors should not have a primary index";
-            assert Objects.isNull(mappingsNodeVersionMetaKey) : "Unmanaged index descriptors should not have a version meta key";
-            this.mappingsNodeVersion = null;
             this.mappingsVersion = null;
         }
 
@@ -310,8 +286,8 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
         Objects.requireNonNull(priorSystemIndexDescriptors, "priorSystemIndexDescriptors must not be null");
         if (priorSystemIndexDescriptors.isEmpty() == false) {
             // the rules for prior system index descriptors
-            // 1. No values with the same minimum node version
-            // 2. All prior system index descriptors must have a minimumNodeVersion before this one
+            // 1. No values with the same minimum mappings version
+            // 2. All prior system index descriptors must have a lower mappings version
             // 3. Prior system index descriptors may not have other prior system index descriptors
             // to avoid multiple branches that need followed
             // 4. Must have same indexPattern, primaryIndex, and alias
@@ -383,9 +359,7 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
             throw new IllegalArgumentException("System indices must have " + IndexMetadata.SETTING_INDEX_HIDDEN + " set to true.");
         }
         this.indexFormat = indexFormat;
-        this.mappingsNodeVersionMetaKey = mappingsNodeVersionMetaKey;
         this.origin = origin;
-        this.minimumNodeVersion = minimumNodeVersion;
         this.type = type;
         this.allowedElasticProductOrigins = allowedElasticProductOrigins;
         this.hasDynamicMappings = this.mappings != null
@@ -478,16 +452,6 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
         return this.indexFormat;
     }
 
-    public String getMappingsNodeVersionMetaKey() {
-        assert isAutomaticallyManaged() : "Do not request version meta keys for unmanaged system indices";
-        return this.mappingsNodeVersionMetaKey;
-    }
-
-    public Version getMinimumNodeVersion() {
-        assert isAutomaticallyManaged() : "Do not request version minimum node version for unmanaged system indices";
-        return minimumNodeVersion;
-    }
-
     public boolean isAutomaticallyManaged() {
         return type.isManaged();
     }
@@ -534,18 +498,6 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
         return allowsTemplates;
     }
 
-    /**
-     * Use of the mappings {@link Version} should be replaced with the value returned from {@link #getMappingsVersion()}
-     * @return Elasticsearch version associated with this descriptor's mappings.
-     */
-    @Deprecated
-    public Version getMappingsNodeVersion() {
-        if (isAutomaticallyManaged() == false) {
-            throw new IllegalStateException(this + " is not managed so there are no mappings or version");
-        }
-        return mappingsNodeVersion;
-    }
-
     public MappingsVersion getMappingsVersion() {
         if (isAutomaticallyManaged() == false) {
             throw new IllegalStateException(this + " is not managed so there are no mappings or version");
@@ -554,7 +506,7 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
     }
 
     /**
-     * Gets a standardized message when the node contains a data or master node whose version is less
+     * Gets a standardized message when the node contains a data or master node whose mappings version is less
      * than that of the minimum supported version of this descriptor and its prior descriptors.
      *
      * @param cause the action being attempted that triggered the check. Used in the error message.
@@ -574,54 +526,11 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
     }
 
     /**
-     * Gets a standardized message when the node contains a data or master node whose version is less
-     * than that of the minimum supported version of this descriptor and its prior descriptors.
-     *
-     * @param cause the action being attempted that triggered the check. Used in the error message.
-     * @return the standardized error message
-     */
-    @Deprecated
-    public String getMinimumNodeVersionMessage(String cause) {
-        Objects.requireNonNull(cause);
-        final Version actualMinimumVersion = priorSystemIndexDescriptors.isEmpty()
-            ? minimumNodeVersion
-            : priorSystemIndexDescriptors.get(priorSystemIndexDescriptors.size() - 1).minimumNodeVersion;
-        return String.format(
-            Locale.ROOT,
-            "[%s] failed - system index [%s] requires all data and master nodes to be at least version [%s]",
-            cause,
-            this.getPrimaryIndex(),
-            actualMinimumVersion
-        );
-    }
-
-    /**
      * Finds the descriptor that can be used within this cluster, by comparing the supplied minimum
-     * node version to this descriptor's minimum version and the prior descriptors minimum version.
+     * mappings version to this descriptor's minimum version and the prior descriptors minimum version.
      *
-     * @param version the lower node version in the cluster
-     * @return <code>null</code> if the lowest node version is lower than the minimum version in this descriptor,
-     * or the appropriate descriptor if the supplied version is acceptable.
-     */
-    @Deprecated
-    public SystemIndexDescriptor getDescriptorCompatibleWith(Version version) {
-        if (minimumNodeVersion.onOrBefore(version)) {
-            return this;
-        }
-        for (SystemIndexDescriptor prior : priorSystemIndexDescriptors) {
-            if (version.onOrAfter(prior.minimumNodeVersion)) {
-                return prior;
-            }
-        }
-        return null;
-    }
-
-    /**
-     * Finds the descriptor that can be used within this cluster, by comparing the supplied minimum
-     * node version to this descriptor's minimum version and the prior descriptors minimum version.
-     *
-     * @param version the lower node version in the cluster
-     * @return <code>null</code> if the lowest node version is lower than the minimum version in this descriptor,
+     * @param version the lower mappings version in the cluster
+     * @return <code>null</code> if the lowest mappings version is lower than the minimum version in this descriptor,
      * or the appropriate descriptor if the supplied version is acceptable.
      */
     public SystemIndexDescriptor getDescriptorCompatibleWith(MappingsVersion version) {
@@ -637,8 +546,7 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
     }
 
     /**
-     * @return The names of thread pools that should be used for operations on this
-     *    system index.
+     * @return The names of thread pools that should be used for operations on this system index.
      */
     public ExecutorNames getThreadPoolNames() {
         return this.executorNames;
@@ -650,7 +558,7 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
 
     @Override
     public int compareTo(SystemIndexDescriptor other) {
-        return minimumNodeVersion.compareTo(other.minimumNodeVersion) * -1;
+        return mappingsVersion.compareTo(other.mappingsVersion) * -1;
     }
 
     /**
@@ -745,9 +653,7 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
         private Settings settings = null;
         private String aliasName = null;
         private int indexFormat = 0;
-        private String versionMetaKey = null;
         private String origin = null;
-        private Version minimumNodeVersion = Version.CURRENT.minimumCompatibilityVersion();
         private Type type = Type.INTERNAL_MANAGED;
         private List<String> allowedElasticProductOrigins = List.of();
         private List<SystemIndexDescriptor> priorSystemIndexDescriptors = List.of();
@@ -797,11 +703,6 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
             return this;
         }
 
-        public Builder setVersionMetaKey(String versionMetaKey) {
-            this.versionMetaKey = versionMetaKey;
-            return this;
-        }
-
         /**
          * Sometimes a system operation will need to dispatch sub-actions. A product origin string will tell the system which component
          * generated the sub-action. Internal system indices must not provide an origin, since they are supposed to reject access from
@@ -812,11 +713,6 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
          */
         public Builder setOrigin(String origin) {
             this.origin = origin;
-            return this;
-        }
-
-        public Builder setMinimumNodeVersion(Version version) {
-            this.minimumNodeVersion = version;
             return this;
         }
 
@@ -863,9 +759,7 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
                 settings,
                 aliasName,
                 indexFormat,
-                versionMetaKey,
                 origin,
-                minimumNodeVersion,
                 type,
                 allowedElasticProductOrigins,
                 priorSystemIndexDescriptors,
@@ -962,44 +856,4 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
         }
         return new MappingsVersion(value, Objects.hash(properties));
     }
-
-    /**
-     * An accurate node version is no longer required in system index mappings metadata.
-     * because the mappings version should be used to determine if an upgrade is required,
-     * not the node version. However, some parts of the code are still relying on
-     * <code>mappingsNodeVersion</code>. This method allows sections of the code to stop
-     * accurately setting node version in their mappings while other sections continue to
-     * use it. Once all uses of <code>mappingsNodeVersion</code> are removed this method
-     * can be removed too.
-     */
-    @Deprecated
-    private static Version bestEffortExtractNodeVersionFromMappings(String mappings, String versionMetaKey) {
-        try {
-            return extractNodeVersionFromMappings(mappings, versionMetaKey);
-        } catch (Exception e) {
-            return null;
-        }
-    }
-
-    @Deprecated
-    @SuppressWarnings("unchecked")
-    private static Version extractNodeVersionFromMappings(String mappings, String versionMetaKey) {
-        final Map<String, Object> mappingsMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), mappings, false);
-        final Map<String, Object> doc = (Map<String, Object>) mappingsMap.get("_doc");
-        final Map<String, Object> meta;
-        if (doc == null) {
-            meta = (Map<String, Object>) mappingsMap.get("_meta");
-        } else {
-            meta = (Map<String, Object>) doc.get("_meta");
-        }
-        if (meta == null) {
-            throw new IllegalStateException("mappings do not have _meta field");
-        }
-        final String value = (String) meta.get(versionMetaKey);
-        if (value == null) {
-            throw new IllegalArgumentException("mappings do not have a version in _meta." + versionMetaKey);
-        }
-        return Version.fromString(value);
-    }
-
 }

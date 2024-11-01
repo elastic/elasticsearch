@@ -182,9 +182,10 @@ histogram with synthetic source:
       indices.create:
         index: histo_synthetic
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               latency:
                 type: histogram
@@ -228,9 +229,10 @@ histogram with synthetic source and zero counts:
       indices.create:
         index: histo_synthetic
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               latency:
                 type: histogram
@@ -317,9 +319,10 @@ histogram with synthetic source and ignore_malformed:
       indices.create:
         index: histo_synthetic
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               latency:
                 type: histogram

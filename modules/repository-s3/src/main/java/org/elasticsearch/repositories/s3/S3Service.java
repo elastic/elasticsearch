@@ -335,7 +335,7 @@ class S3Service implements Closeable {
      * Customizes {@link com.amazonaws.auth.WebIdentityTokenCredentialsProvider}
      *
      * <ul>
-     * <li>Reads the the location of the web identity token not from AWS_WEB_IDENTITY_TOKEN_FILE, but from a symlink
+     * <li>Reads the location of the web identity token not from AWS_WEB_IDENTITY_TOKEN_FILE, but from a symlink
      * in the plugin directory, so we don't need to create a hardcoded read file permission for the plugin.</li>
      * <li>Supports customization of the STS endpoint via a system property, so we can test it against a test fixture.</li>
      * <li>Supports gracefully shutting down the provider and the STS client.</li>

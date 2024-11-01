@@ -24,6 +24,7 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -148,7 +149,10 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             // in the case we have one or more remote indices but no local we don't expand to all local indices and just do remote indices
             concreteIndices = Strings.EMPTY_ARRAY;
         } else {
-            concreteIndices = indexNameExpressionResolver.concreteIndexNames(clusterState, localIndices);
+            concreteIndices = Arrays.stream(indexNameExpressionResolver.concreteIndexNames(clusterState, localIndices)).filter(index -> {
+                IndexMetadata metadata = clusterState.getMetadata().getIndices().get(index);
+                return metadata != null && metadata.getState() == IndexMetadata.State.OPEN;
+            }).toArray(String[]::new);
         }
 
         if (concreteIndices.length == 0 && remoteClusterIndices.isEmpty()) {

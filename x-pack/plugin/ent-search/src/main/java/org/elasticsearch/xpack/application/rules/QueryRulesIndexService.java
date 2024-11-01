@@ -92,7 +92,6 @@ public class QueryRulesIndexService {
                 .setSettings(getIndexSettings())
                 .setAliasName(QUERY_RULES_ALIAS_NAME)
                 .setIndexFormat(QueryRulesIndexMappingVersion.latest().id)
-                .setVersionMetaKey("version")
                 .setOrigin(ENT_SEARCH_ORIGIN)
                 .setThreadPools(ExecutorNames.DEFAULT_SYSTEM_INDEX_THREAD_POOLS);
 
@@ -436,7 +435,7 @@ public class QueryRulesIndexService {
         final List<QueryRulesetListItem> rulesetResults = Arrays.stream(response.getHits().getHits())
             .map(QueryRulesIndexService::hitToQueryRulesetListItem)
             .toList();
-        return new QueryRulesetResult(rulesetResults, (int) response.getHits().getTotalHits().value);
+        return new QueryRulesetResult(rulesetResults, (int) response.getHits().getTotalHits().value());
     }
 
     private static QueryRulesetListItem hitToQueryRulesetListItem(SearchHit searchHit) {

@@ -130,7 +130,6 @@ public class SearchApplicationIndexService {
             .setMappings(getIndexMappings())
             .setSettings(getIndexSettings())
             .setAliasName(SEARCH_APPLICATION_ALIAS_NAME)
-            .setVersionMetaKey("version")
             .setOrigin(ENT_SEARCH_ORIGIN)
             .setThreadPools(ExecutorNames.DEFAULT_SYSTEM_INDEX_THREAD_POOLS)
             .build();
@@ -416,7 +415,7 @@ public class SearchApplicationIndexService {
         final List<SearchApplicationListItem> apps = Arrays.stream(response.getHits().getHits())
             .map(SearchApplicationIndexService::hitToSearchApplicationListItem)
             .toList();
-        return new SearchApplicationResult(apps, (int) response.getHits().getTotalHits().value);
+        return new SearchApplicationResult(apps, (int) response.getHits().getTotalHits().value());
     }
 
     private static SearchApplicationListItem hitToSearchApplicationListItem(SearchHit searchHit) {

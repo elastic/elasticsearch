@@ -18,8 +18,6 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.Strings;
-import org.elasticsearch.core.UpdateForV9;
-import org.elasticsearch.test.rest.RestTestLegacyFeatures;
 import org.elasticsearch.upgrades.FullClusterRestartUpgradeStatus;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AllocationStatus;
@@ -93,9 +91,6 @@ public class MLModelDeploymentFullClusterRestartIT extends AbstractXpackFullClus
     }
 
     public void testDeploymentSurvivesRestart() throws Exception {
-        @UpdateForV9(owner = UpdateForV9.Owner.MACHINE_LEARNING) // condition will always be true from v8, can be removed
-        var originalClusterSupportsNlpModels = oldClusterHasFeature(RestTestLegacyFeatures.ML_NLP_SUPPORTED);
-        assumeTrue("NLP model deployments added in 8.0", originalClusterSupportsNlpModels);
 
         String modelId = "trained-model-full-cluster-restart";
 
@@ -139,7 +134,7 @@ public class MLModelDeploymentFullClusterRestartIT extends AbstractXpackFullClus
                 equalTo("fully_allocated")
             );
             assertThat(stat.toString(), XContentMapValues.extractValue("deployment_stats.state", stat), equalTo("started"));
-        }, 90, TimeUnit.SECONDS);
+        }, 120, TimeUnit.SECONDS);
     }
 
     private void assertInfer(String modelId) throws IOException {

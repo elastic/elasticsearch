@@ -14,7 +14,6 @@ import org.apache.lucene.search.AutomatonQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
-import org.apache.lucene.util.automaton.MinimizationOperations;
 import org.apache.lucene.util.automaton.Operations;
 
 import java.util.ArrayList;
@@ -37,8 +36,6 @@ public class AutomatonQueries {
 
         Automaton a = Operations.concatenate(list);
         // since all elements in the list should be deterministic already, the concatenation also is, so no need to determinized
-        assert a.isDeterministic();
-        a = MinimizationOperations.minimize(a, 0);
         assert a.isDeterministic();
         return a;
     }
@@ -100,7 +97,7 @@ public class AutomatonQueries {
             i += length;
         }
 
-        return Operations.concatenate(automata);
+        return Operations.determinize(Operations.concatenate(automata), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
     }
 
     protected static Automaton toCaseInsensitiveString(BytesRef br) {
@@ -117,7 +114,6 @@ public class AutomatonQueries {
         Automaton a = Operations.concatenate(list);
         // concatenating deterministic automata should result in a deterministic automaton. No need to determinize here.
         assert a.isDeterministic();
-        a = MinimizationOperations.minimize(a, 0);
         return a;
     }
 
@@ -132,7 +128,6 @@ public class AutomatonQueries {
         if (altCase != codepoint) {
             result = Operations.union(case1, Automata.makeChar(altCase));
             // this automaton should always be deterministic, no need to determinize
-            result = MinimizationOperations.minimize(result, 0);
             assert result.isDeterministic();
         } else {
             result = case1;

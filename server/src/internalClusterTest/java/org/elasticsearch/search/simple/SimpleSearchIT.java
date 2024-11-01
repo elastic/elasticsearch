@@ -555,7 +555,7 @@ public class SimpleSearchIT extends ESIntegTestCase {
         assertNoFailuresAndResponse(
             prepareSearch("test_count_1", "test_count_2").setTrackTotalHits(true).setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0),
             response -> {
-                assertThat(response.getHits().getTotalHits().value, equalTo(11L));
+                assertThat(response.getHits().getTotalHits().value(), equalTo(11L));
                 assertThat(response.getHits().getHits().length, equalTo(0));
             }
         );

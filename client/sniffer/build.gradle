@@ -73,7 +73,7 @@ tasks.named("dependencyLicenses").configure {
 }
 
 // JarHell is part of es server, which we don't want to pull in
-// TODO: Not anymore. Now in :libs:elasticsearch-core
+// TODO: Not anymore. Now in :libs:core
 tasks.named("jarHell").configure { enabled = false }
 
 tasks.named("testTestingConventions").configure {

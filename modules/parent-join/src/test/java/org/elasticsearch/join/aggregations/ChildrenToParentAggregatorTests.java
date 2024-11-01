@@ -107,7 +107,7 @@ public class ChildrenToParentAggregatorTests extends AggregatorTestCase {
 
         // verify for each children
         for (String parent : expectedParentChildRelations.keySet()) {
-            testCase(new TermInSetQuery(IdFieldMapper.NAME, Uid.encodeId("child0_" + parent)), indexReader, aggregation -> {
+            testCase(new TermInSetQuery(IdFieldMapper.NAME, List.of(Uid.encodeId("child0_" + parent))), indexReader, aggregation -> {
                 assertEquals(
                     "Expected one result for min-aggregation for parent: " + parent + ", but had aggregation-results: " + aggregation,
                     1,

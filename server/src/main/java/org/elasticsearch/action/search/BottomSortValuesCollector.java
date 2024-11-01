@@ -54,7 +54,7 @@ class BottomSortValuesCollector {
     }
 
     synchronized void consumeTopDocs(TopFieldDocs topDocs, DocValueFormat[] sortValuesFormat) {
-        totalHits += topDocs.totalHits.value;
+        totalHits += topDocs.totalHits.value();
         if (validateShardSortFields(topDocs.fields) == false) {
             return;
         }

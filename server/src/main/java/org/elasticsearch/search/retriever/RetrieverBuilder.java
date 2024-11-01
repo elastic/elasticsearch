@@ -218,6 +218,10 @@ public abstract class RetrieverBuilder implements Rewriteable<RetrieverBuilder>,
         this.rankDocs = rankDocs;
     }
 
+    public RankDoc[] getRankDocs() {
+        return rankDocs;
+    }
+
     /**
      * Gets the filters for this retriever.
      */
@@ -239,6 +243,7 @@ public abstract class RetrieverBuilder implements Rewriteable<RetrieverBuilder>,
     public ActionRequestValidationException validate(
         SearchSourceBuilder source,
         ActionRequestValidationException validationException,
+        boolean isScroll,
         boolean allowPartialSearchResults
     ) {
         return validationException;

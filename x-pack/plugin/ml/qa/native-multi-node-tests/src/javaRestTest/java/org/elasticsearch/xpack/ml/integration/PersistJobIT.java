@@ -77,7 +77,7 @@ public class PersistJobIT extends MlNativeAutodetectIntegTestCase {
                         ++numStateRecords;
                     }
                 }
-                assertThat(stateDocsResponse1.getHits().getTotalHits().value, equalTo(2L));
+                assertThat(stateDocsResponse1.getHits().getTotalHits().value(), equalTo(2L));
                 assertThat(numQuantileRecords, equalTo(1));
                 assertThat(numStateRecords, equalTo(1));
             }
@@ -117,7 +117,7 @@ public class PersistJobIT extends MlNativeAutodetectIntegTestCase {
                     }
                 }
 
-                assertThat(stateDocsResponse2.getHits().getTotalHits().value, equalTo(3L));
+                assertThat(stateDocsResponse2.getHits().getTotalHits().value(), equalTo(3L));
                 assertThat(numQuantileRecords, equalTo(1));
                 assertThat(numStateRecords, equalTo(2));
 
@@ -154,7 +154,7 @@ public class PersistJobIT extends MlNativeAutodetectIntegTestCase {
                         ++numStateRecords;
                     }
                 }
-                assertThat(stateDocsResponse.getHits().getTotalHits().value, equalTo(2L));
+                assertThat(stateDocsResponse.getHits().getTotalHits().value(), equalTo(2L));
                 assertThat(numQuantileRecords, equalTo(1));
                 assertThat(numStateRecords, equalTo(1));
             }

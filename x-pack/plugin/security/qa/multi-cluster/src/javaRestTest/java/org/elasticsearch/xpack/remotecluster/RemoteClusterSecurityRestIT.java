@@ -419,7 +419,7 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
                 responseAsParser(performRequestWithRemoteMetricUser(metricSearchRequest))
             );
             try {
-                assertThat(metricSearchResponse.getHits().getTotalHits().value, equalTo(4L));
+                assertThat(metricSearchResponse.getHits().getTotalHits().value(), equalTo(4L));
                 assertThat(
                     Arrays.stream(metricSearchResponse.getHits().getHits()).map(SearchHit::getIndex).collect(Collectors.toSet()),
                     containsInAnyOrder("shared-metrics")

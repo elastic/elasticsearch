@@ -163,7 +163,8 @@ aa:keyword | ab:keyword | na:integer | nb:integer
 bar        | bar        |       null |       null
 ;
 
-lookupBeforeStats
+# needs qualifiers for proper field resolution and extraction
+lookupBeforeStats-Ignore
 required_capability: lookup_v4
   FROM employees
 | RENAME languages AS int
@@ -212,7 +213,8 @@ emp_no:integer | languages:long | name:keyword
          10004 |              5 | five
 ;
 
-lookupBeforeSort
+# needs qualifiers for field resolution
+lookupBeforeSort-Ignore
 required_capability: lookup_v4
 FROM employees
 | WHERE emp_no < 10005

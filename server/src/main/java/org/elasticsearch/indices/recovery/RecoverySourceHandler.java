@@ -954,7 +954,7 @@ public class RecoverySourceHandler {
 
     void createRetentionLease(final long startingSeqNo, ActionListener<RetentionLease> listener) {
         updateRetentionLease(syncListener -> {
-            // Clone the peer recovery retention lease belonging to the source shard. We are retaining history between the the local
+            // Clone the peer recovery retention lease belonging to the source shard. We are retaining history between the local
             // checkpoint of the safe commit we're creating and this lease's retained seqno with the retention lock, and by cloning an
             // existing lease we (approximately) know that all our peers are also retaining history as requested by the cloned lease. If
             // the recovery now fails before copying enough history over then a subsequent attempt will find this lease, determine it is

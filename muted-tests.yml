@@ -8,9 +8,6 @@ tests:
 - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
   method: test {yaml=reference/esql/esql-async-query-api/line_17}
   issue: https://github.com/elastic/elasticsearch/issues/109260
-- class: "org.elasticsearch.analysis.common.CommonAnalysisClientYamlTestSuiteIT"
-  issue: "https://github.com/elastic/elasticsearch/issues/109318"
-  method: "test {yaml=analysis-common/50_char_filters/pattern_replace error handling (too complex pattern)}"
 - class: "org.elasticsearch.xpack.ml.integration.ClassificationHousePricingIT"
   issue: "https://github.com/elastic/elasticsearch/issues/101598"
   method: "testFeatureImportanceValues"
@@ -61,9 +58,6 @@ tests:
 - class: "org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT"
   issue: "https://github.com/elastic/elasticsearch/issues/110591"
 - class: org.elasticsearch.packaging.test.DockerTests
-  method: test021InstallPlugin
-  issue: https://github.com/elastic/elasticsearch/issues/110343
-- class: org.elasticsearch.packaging.test.DockerTests
   method: test600Interrupt
   issue: https://github.com/elastic/elasticsearch/issues/111324
 - class: org.elasticsearch.xpack.transform.integration.TransformIT
@@ -72,21 +66,9 @@ tests:
 - class: org.elasticsearch.index.mapper.IgnoredSourceFieldMapperTests
   method: testStoredNestedSubObjectWithNameOverlappingParentName
   issue: https://github.com/elastic/elasticsearch/issues/112083
-- class: org.elasticsearch.xpack.security.authc.kerberos.SimpleKdcLdapServerTests
-  method: testClientServiceMutualAuthentication
-  issue: https://github.com/elastic/elasticsearch/issues/112529
-- class: org.elasticsearch.upgrades.FullClusterRestartIT
-  method: testSnapshotRestore {cluster=OLD}
-  issue: https://github.com/elastic/elasticsearch/issues/111777
-- class: org.elasticsearch.xpack.restart.CoreFullClusterRestartIT
-  method: testSnapshotRestore {cluster=OLD}
-  issue: https://github.com/elastic/elasticsearch/issues/111774
 - class: org.elasticsearch.upgrades.FullClusterRestartIT
   method: testSnapshotRestore {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/111798
-- class: org.elasticsearch.xpack.restart.CoreFullClusterRestartIT
-  method: testSnapshotRestore {cluster=UPGRADED}
-  issue: https://github.com/elastic/elasticsearch/issues/111799
 - class: org.elasticsearch.xpack.security.authc.kerberos.KerberosTicketValidatorTests
   method: testValidKebrerosTicket
   issue: https://github.com/elastic/elasticsearch/issues/112632
@@ -96,8 +78,6 @@ tests:
 - class: org.elasticsearch.xpack.security.authc.kerberos.KerberosTicketValidatorTests
   method: testWhenKeyTabWithInvalidContentFailsValidation
   issue: https://github.com/elastic/elasticsearch/issues/112631
-- class: org.elasticsearch.xpack.inference.TextEmbeddingCrudIT
-  issue: https://github.com/elastic/elasticsearch/issues/113915
 
 # Examples:
 #

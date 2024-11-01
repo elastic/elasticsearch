@@ -1,7 +1,7 @@
 [[three-availability-zones]]
-== Self-managed hot-frozen three availability zone architecture for time series data
+== Self Managed - High Availability - Single Region
 ++++
-<titleabbrev>Architecture: Self-managed - three availability zone</titleabbrev>
+<titleabbrev>Self Managed - High Availability - Single Region</titleabbrev>
 ++++
 
 This article outlines a scalable and highly available architecture for Elasticsearch using three availability zones. 

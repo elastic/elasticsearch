@@ -1,0 +1,6 @@
+pr: 116103
+summary: Add `TimeZone` support to Watcher schedules
+area: Watcher
+type: enhancement
+issues:
+ - 34659

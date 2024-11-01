@@ -24,7 +24,9 @@ dependencies {
   compileOnly project(':libs:logging')
   compileOnly project(":libs:x-content") // for parsing policy files
   compileOnly project(':libs:entitlement:bridge')
-  testImplementation project(":test:framework")
+  testImplementation(project(":test:framework")) {
+    exclude group: 'org.elasticsearch', module: 'entitlement'
+  }
   entitlementBridge project(':libs:entitlement:bridge')
 }
 

@@ -236,7 +236,7 @@ public class IndexNameExpressionResolver {
                     );
                 }
             }
-            checkSystemIndexAccess(context, Set.of(ia.getWriteIndex()));
+            SystemResourceAccess.checkSystemIndexAccess(context, Set.of(ia.getWriteIndex()), threadContext);
             return ia;
         } else {
             throw new IllegalArgumentException(
@@ -414,7 +414,7 @@ public class IndexNameExpressionResolver {
         if (context.getOptions().allowNoIndices() == false && concreteIndicesResult.isEmpty()) {
             throw notFoundException(indexExpressions);
         }
-        checkSystemIndexAccess(context, concreteIndicesResult);
+        SystemResourceAccess.checkSystemIndexAccess(context, concreteIndicesResult, threadContext);
         return concreteIndicesResult.toArray(Index.EMPTY_ARRAY);
     }
 
@@ -480,64 +480,6 @@ public class IndexNameExpressionResolver {
         return indexAbstraction.getIndices().size() > 1;
     }
 
-    private void checkSystemIndexAccess(Context context, Set<Index> concreteIndices) {
-        final Predicate<String> systemIndexAccessPredicate = context.getSystemIndexAccessPredicate();
-        if (systemIndexAccessPredicate == Predicates.<String>always()) {
-            return;
-        }
-        doCheckSystemIndexAccess(context, concreteIndices, systemIndexAccessPredicate);
-    }
-
-    private void doCheckSystemIndexAccess(Context context, Set<Index> concreteIndices, Predicate<String> systemIndexAccessPredicate) {
-        final Metadata metadata = context.getState().metadata();
-        final List<String> resolvedSystemIndices = new ArrayList<>();
-        final List<String> resolvedNetNewSystemIndices = new ArrayList<>();
-        final Set<String> resolvedSystemDataStreams = new HashSet<>();
-        final SortedMap<String, IndexAbstraction> indicesLookup = metadata.getIndicesLookup();
-        boolean matchedIndex = false;
-        for (Index concreteIndex : concreteIndices) {
-            IndexMetadata idxMetadata = metadata.index(concreteIndex);
-            String name = concreteIndex.getName();
-            if (idxMetadata.isSystem() && systemIndexAccessPredicate.test(name) == false) {
-                matchedIndex = true;
-                IndexAbstraction indexAbstraction = indicesLookup.get(name);
-                if (indexAbstraction.getParentDataStream() != null) {
-                    resolvedSystemDataStreams.add(indexAbstraction.getParentDataStream().getName());
-                } else if (systemIndices.isNetNewSystemIndex(name)) {
-                    resolvedNetNewSystemIndices.add(name);
-                } else {
-                    resolvedSystemIndices.add(name);
-                }
-            }
-        }
-        if (matchedIndex) {
-            handleMatchedSystemIndices(resolvedSystemIndices, resolvedSystemDataStreams, resolvedNetNewSystemIndices);
-        }
-    }
-
-    private void handleMatchedSystemIndices(
-        List<String> resolvedSystemIndices,
-        Set<String> resolvedSystemDataStreams,
-        List<String> resolvedNetNewSystemIndices
-    ) {
-        if (resolvedSystemIndices.isEmpty() == false) {
-            Collections.sort(resolvedSystemIndices);
-            deprecationLogger.warn(
-                DeprecationCategory.API,
-                "open_system_index_access",
-                "this request accesses system indices: {}, but in a future major version, direct access to system "
-                    + "indices will be prevented by default",
-                resolvedSystemIndices
-            );
-        }
-        if (resolvedSystemDataStreams.isEmpty() == false) {
-            throw SystemIndices.dataStreamAccessException(threadContext, resolvedSystemDataStreams);
-        }
-        if (resolvedNetNewSystemIndices.isEmpty() == false) {
-            throw SystemIndices.netNewSystemIndexAccessException(threadContext, resolvedNetNewSystemIndices);
-        }
-    }
-
     private static IndexNotFoundException notFoundException(String... indexExpressions) {
         final IndexNotFoundException infe;
         if (indexExpressions == null
@@ -566,8 +508,7 @@ public class IndexNameExpressionResolver {
     }
 
     private static boolean shouldTrackConcreteIndex(Context context, IndicesOptions options, Index index) {
-        if (context.systemIndexAccessLevel == SystemIndexAccessLevel.BACKWARDS_COMPATIBLE_ONLY
-            && context.netNewSystemIndexPredicate.test(index.getName())) {
+        if (SystemResourceAccess.isNetNewInBackwardCompatibleMode(context, index)) {
             // Exclude this one as it's a net-new system index, and we explicitly don't want those.
             return false;
         }
@@ -1035,6 +976,14 @@ public class IndexNameExpressionResolver {
         return accessLevel;
     }
 
+    /**
+     * Determines the right predicate based on the {@link IndexNameExpressionResolver#getSystemIndexAccessLevel()}. Specifically:
+     * - NONE implies no access to net-new system indices and data streams
+     * - BACKWARDS_COMPATIBLE_ONLY allows access also to net-new system resources
+     * - ALL allows access to everything
+     * - otherwise we fall back to {@link SystemIndices#getProductSystemIndexNamePredicate(ThreadContext)}
+     * @return the predicate that defines the access to system indices.
+     */
     public Predicate<String> getSystemIndexAccessPredicate() {
         final SystemIndexAccessLevel systemIndexAccessLevel = getSystemIndexAccessLevel();
         final Predicate<String> systemIndexAccessLevelPredicate;
@@ -1801,6 +1750,135 @@ public class IndexNameExpressionResolver {
             throw new IllegalArgumentException(
                 "Cross-cluster calls are not supported in this context but remote indices were requested: " + crossClusterIndices
             );
+        }
+    }
+
+    /**
+     * In this class we collect the system access relevant code. The helper methods provide the following functionalities:
+     * - determining the access to a system index abstraction
+     * - verifying the access to system abstractions and adding the necessary warnings
+     * - determining the access to a system index based on its name
+     * WARNING: we have observed differences in how the access is determined. For now this behaviour is documented and preserved.
+     */
+    public static final class SystemResourceAccess {
+
+        private SystemResourceAccess() {
+            // Helper class
+        }
+
+        /**
+         * Checks if this system index abstraction should be included when resolving via
+         * {@link
+         * IndexNameExpressionResolver.WildcardExpressionResolver#resolveEmptyOrTrivialWildcardWithAllowedSystemIndices(Context, String[])}.
+         * NOTE: it behaves differently than {@link SystemResourceAccess#shouldExpandToSystemIndexAbstraction(Context, IndexAbstraction)}
+         * because in the case that the access level is BACKWARDS_COMPATIBLE_ONLY it does not include the net-new indices, this is
+         * questionable.
+         */
+        public static boolean isSystemIndexAbstractionAccessible(Context context, IndexAbstraction abstraction) {
+            assert abstraction.isSystem() : "We should only check this for system resources";
+            if (context.netNewSystemIndexPredicate.test(abstraction.getName())) {
+                if (SystemIndexAccessLevel.BACKWARDS_COMPATIBLE_ONLY.equals(context.systemIndexAccessLevel)) {
+                    return false;
+                } else {
+                    return context.systemIndexAccessPredicate.test(abstraction.getName());
+                }
+            } else if (abstraction.getType() == Type.DATA_STREAM || abstraction.getParentDataStream() != null) {
+                return context.systemIndexAccessPredicate.test(abstraction.getName());
+            }
+            return true;
+        }
+
+        /**
+         * Historic, i.e. not net-new, system indices are included irrespective of the system access predicate
+         * the system access predicate is based on the endpoint kind and HTTP request headers that identify the stack feature.
+         * A historic system resource, can only be an index since system data streams were added later.
+         */
+        private static boolean shouldExpandToSystemIndexAbstraction(Context context, IndexAbstraction indexAbstraction) {
+            assert indexAbstraction.isSystem() : "We should only check this for system resources";
+            boolean isHistoric = indexAbstraction.getType() != Type.DATA_STREAM
+                && indexAbstraction.getParentDataStream() == null
+                && context.netNewSystemIndexPredicate.test(indexAbstraction.getName()) == false;
+            return isHistoric || context.systemIndexAccessPredicate.test(indexAbstraction.getName());
+        }
+
+        /**
+         * Checks if any system indices that should not have been accessible according to the {@link Context#getSystemIndexAccessPredicate()}
+         * are accessed, and it performs the following actions:
+         * - if there are historic (aka not net-new) system indices, then it adds a deprecation warning
+         * - if it contains net-new system indices or system data streams, it throws an exception.
+         */
+        private static void checkSystemIndexAccess(Context context, Set<Index> concreteIndices, ThreadContext threadContext) {
+            final Predicate<String> systemIndexAccessPredicate = context.getSystemIndexAccessPredicate();
+            if (systemIndexAccessPredicate == Predicates.<String>always()) {
+                return;
+            }
+            doCheckSystemIndexAccess(context, concreteIndices, systemIndexAccessPredicate, threadContext);
+        }
+
+        private static void doCheckSystemIndexAccess(
+            Context context,
+            Set<Index> concreteIndices,
+            Predicate<String> systemIndexAccessPredicate,
+            ThreadContext threadContext
+        ) {
+            final Metadata metadata = context.getState().metadata();
+            final List<String> resolvedSystemIndices = new ArrayList<>();
+            final List<String> resolvedNetNewSystemIndices = new ArrayList<>();
+            final Set<String> resolvedSystemDataStreams = new HashSet<>();
+            final SortedMap<String, IndexAbstraction> indicesLookup = metadata.getIndicesLookup();
+            boolean matchedIndex = false;
+            for (Index concreteIndex : concreteIndices) {
+                IndexMetadata idxMetadata = metadata.index(concreteIndex);
+                String name = concreteIndex.getName();
+                if (idxMetadata.isSystem() && systemIndexAccessPredicate.test(name) == false) {
+                    matchedIndex = true;
+                    IndexAbstraction indexAbstraction = indicesLookup.get(name);
+                    if (indexAbstraction.getParentDataStream() != null) {
+                        resolvedSystemDataStreams.add(indexAbstraction.getParentDataStream().getName());
+                    } else if (context.netNewSystemIndexPredicate.test(name)) {
+                        resolvedNetNewSystemIndices.add(name);
+                    } else {
+                        resolvedSystemIndices.add(name);
+                    }
+                }
+            }
+            if (matchedIndex) {
+                handleMatchedSystemIndices(resolvedSystemIndices, resolvedSystemDataStreams, resolvedNetNewSystemIndices, threadContext);
+            }
+        }
+
+        private static void handleMatchedSystemIndices(
+            List<String> resolvedSystemIndices,
+            Set<String> resolvedSystemDataStreams,
+            List<String> resolvedNetNewSystemIndices,
+            ThreadContext threadContext
+        ) {
+            if (resolvedSystemIndices.isEmpty() == false) {
+                Collections.sort(resolvedSystemIndices);
+                deprecationLogger.warn(
+                    DeprecationCategory.API,
+                    "open_system_index_access",
+                    "this request accesses system indices: {}, but in a future major version, direct access to system "
+                        + "indices will be prevented by default",
+                    resolvedSystemIndices
+                );
+            }
+            if (resolvedSystemDataStreams.isEmpty() == false) {
+                throw SystemIndices.dataStreamAccessException(threadContext, resolvedSystemDataStreams);
+            }
+            if (resolvedNetNewSystemIndices.isEmpty() == false) {
+                throw SystemIndices.netNewSystemIndexAccessException(threadContext, resolvedNetNewSystemIndices);
+            }
+        }
+
+        /**
+         * Used in {@link IndexNameExpressionResolver#shouldTrackConcreteIndex(Context, IndicesOptions, Index)} to exclude net-new indices
+         * when we are in backwards compatible only access level.
+         * This also feels questionable as well.
+         */
+        private static boolean isNetNewInBackwardCompatibleMode(Context context, Index index) {
+            return context.systemIndexAccessLevel == SystemIndexAccessLevel.BACKWARDS_COMPATIBLE_ONLY
+                && context.netNewSystemIndexPredicate.test(index.getName());
         }
     }
 

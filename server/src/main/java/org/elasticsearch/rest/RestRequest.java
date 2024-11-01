@@ -21,6 +21,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
@@ -49,7 +50,7 @@ import java.util.regex.Pattern;
 import static org.elasticsearch.common.unit.ByteSizeValue.parseBytesSizeValue;
 import static org.elasticsearch.core.TimeValue.parseTimeValue;
 
-public class RestRequest implements ToXContent.Params, Traceable {
+public class RestRequest implements ToXContent.Params, Traceable, Releasable {
 
     /**
      * Internal marker request parameter to indicate that a request was made in serverless mode. Use this parameter, together with
@@ -308,6 +309,14 @@ public class RestRequest implements ToXContent.Params, Traceable {
 
     public HttpBody.Stream contentStream() {
         return httpRequest.body().asStream();
+    }
+
+    /**
+     * Release underlying HTTP request and related buffers.
+     */
+    @Override
+    public void close() {
+        httpRequest.release();
     }
 
     /**

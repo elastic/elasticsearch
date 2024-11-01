@@ -196,7 +196,10 @@ public class Netty4PipeliningIT extends ESNetty4IntegTestCase {
 
                 @Override
                 protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
-                    return channel -> addListener(new RestToXContentListener<>(channel));
+                    return channel -> {
+                        request.close();
+                        addListener(new RestToXContentListener<>(channel));
+                    };
                 }
             });
         }

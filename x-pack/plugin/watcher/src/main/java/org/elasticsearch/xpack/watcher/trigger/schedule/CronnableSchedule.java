@@ -11,12 +11,14 @@ import org.elasticsearch.xpack.core.scheduler.Cron;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Objects;
+import java.util.TimeZone;
 
 public abstract class CronnableSchedule implements Schedule {
 
     private static final Comparator<Cron> CRON_COMPARATOR = Comparator.comparing(Cron::expression);
 
     protected final Cron[] crons;
+    private TimeZone timeZone;
 
     CronnableSchedule(String... expressions) {
         this(crons(expressions));
@@ -26,6 +28,17 @@ public abstract class CronnableSchedule implements Schedule {
         assert crons.length > 0;
         this.crons = crons;
         Arrays.sort(crons, CRON_COMPARATOR);
+    }
+
+    protected void setTimeZone(TimeZone timeZone) {
+        this.timeZone = timeZone;
+        for (Cron cron : crons) {
+            cron.setTimeZone(timeZone);
+        }
+    }
+
+    public TimeZone getTimeZone() {
+        return timeZone;
     }
 
     @Override

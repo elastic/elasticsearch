@@ -8,13 +8,13 @@
  */
 
 module org.elasticsearch.entitlement {
-    requires java.base; // Actually the bridge library
     requires org.elasticsearch.xcontent;
     requires org.elasticsearch.logging;
-    requires static elasticsearch.entitlement.bridge;
     requires java.instrument;
     requires org.elasticsearch.base;
     requires jdk.attach;
+
+    requires static elasticsearch.entitlement.bridge; // At runtime, this will be in java.base
 
     exports org.elasticsearch.entitlement.runtime.api;
     exports org.elasticsearch.entitlement.instrumentation;

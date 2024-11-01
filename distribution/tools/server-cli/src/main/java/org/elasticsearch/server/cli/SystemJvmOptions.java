@@ -15,7 +15,6 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
@@ -140,26 +139,25 @@ final class SystemJvmOptions {
     }
 
     private static Stream<String> entitlementOptions() {
-        Path dir = Paths.get("").resolve("lib/entitlement-bridge");
+        Path dir = Path.of("lib", "entitlement-bridge");
         if (dir.toFile().exists() == false) {
-            throw new IllegalStateException("Directory for entitlement jar does not exist: " + dir);
+            throw new IllegalStateException("Directory for entitlement bridge jar does not exist: " + dir);
         }
-        String jar;
+        String bridgeJar;
         try (var s = Files.list(dir)) {
             var candidates = s.limit(2).toList();
             if (candidates.size() != 1) {
                 throw new IllegalStateException("Expected one jar in " + dir + "; found " + candidates.size());
             }
-            jar = candidates.get(0).toString();
+            bridgeJar = candidates.get(0).toString();
         } catch (IOException e) {
             throw new IllegalStateException("Failed to list entitlement jars in: " + dir, e);
         }
         return Stream.of(
-            // Entitlement agent
-            "-Djdk.attach.allowAttachSelf=true",
             "-XX:+EnableDynamicAgentLoading",
-            "--patch-module", "java.base=" + jar,
-            "--add-exports", "java.base/org.elasticsearch.entitlement.bridge=org.elasticsearch.entitlement" // For ElasticsearchEntitlementManager
+            "-Djdk.attach.allowAttachSelf=true",
+            "--patch-module", "java.base=" + bridgeJar,
+            "--add-exports", "java.base/org.elasticsearch.entitlement.bridge=org.elasticsearch.entitlement"
         );
     }
 }

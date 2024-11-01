@@ -4,9 +4,10 @@ setup:
       indices.create:
         index: source
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               baz:
                 type: keyword

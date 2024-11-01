@@ -8,9 +8,10 @@ keywords:
       indices.create:
         index: index1
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               field1:
                 type: keyword
@@ -76,9 +77,10 @@ doubles:
       indices.create:
         index: index1
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               field1:
                 type: double

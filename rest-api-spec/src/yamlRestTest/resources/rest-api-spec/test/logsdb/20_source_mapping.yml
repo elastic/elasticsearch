@@ -30,9 +30,7 @@ stored _source mode is supported:
           settings:
             index:
               mode: logsdb
-          mappings:
-            _source:
-              mode: stored
+              mapping.source.mode: stored
   - do:
       indices.get:
         index: test-stored-source
@@ -69,9 +67,7 @@ disabled _source is not supported:
           settings:
             index:
               mode: logsdb
-          mappings:
-            _source:
-              mode: disabled
+              mapping.source.mode: disabled
 
   - match: { error.type: "mapper_parsing_exception" }
   - match: { error.root_cause.0.type: "mapper_parsing_exception" }
@@ -120,9 +116,9 @@ include/exclude is supported with stored _source:
           settings:
             index:
               mode: logsdb
+              mapping.source.mode: stored
           mappings:
             _source:
-              mode: stored
               includes: [a]
 
   - do:
@@ -139,9 +135,9 @@ include/exclude is supported with stored _source:
           settings:
             index:
               mode: logsdb
+              mapping.source.mode: stored
           mappings:
             _source:
-              mode: stored
               excludes: [b]
 
   - do:

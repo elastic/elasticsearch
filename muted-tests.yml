@@ -98,8 +98,6 @@ tests:
 - class: org.elasticsearch.xpack.sql.qa.single_node.JdbcSqlSpecIT
   method: test {case-functions.testUcaseInline3}
   issue: https://github.com/elastic/elasticsearch/issues/112643
-- class: org.elasticsearch.repositories.blobstore.testkit.analyze.HdfsRepositoryAnalysisRestIT
-  issue: https://github.com/elastic/elasticsearch/issues/112889
 - class: org.elasticsearch.xpack.sql.qa.security.JdbcSqlSpecIT
   method: test {case-functions.testUcaseInline1}
   issue: https://github.com/elastic/elasticsearch/issues/112641
@@ -274,8 +272,6 @@ tests:
 - class: org.elasticsearch.action.search.PointInTimeIT
   method: testPITTiebreak
   issue: https://github.com/elastic/elasticsearch/issues/115810
-- class: org.elasticsearch.xpack.searchablesnapshots.hdfs.SecureHdfsSearchableSnapshotsIT
-  issue: https://github.com/elastic/elasticsearch/issues/115995
 - class: org.elasticsearch.index.reindex.ReindexNodeShutdownIT
   method: testReindexWithShutdown
   issue: https://github.com/elastic/elasticsearch/issues/115996
@@ -288,6 +284,15 @@ tests:
 - class: org.elasticsearch.action.admin.HotThreadsIT
   method: testHotThreadsDontFail
   issue: https://github.com/elastic/elasticsearch/issues/115754
+- class: org.elasticsearch.search.functionscore.QueryRescorerIT
+  method: testScoring
+  issue: https://github.com/elastic/elasticsearch/issues/116050
+- class: org.elasticsearch.indexing.IndexActionIT
+  method: testAutoGenerateIdNoDuplicates
+  issue: https://github.com/elastic/elasticsearch/issues/115716
+- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
+  method: test {yaml=logsdb/10_settings/logsdb with default ignore dynamic beyond limit and subobjects false}
+  issue: https://github.com/elastic/elasticsearch/issues/116054
 
 # Examples:
 #

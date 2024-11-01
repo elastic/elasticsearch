@@ -370,7 +370,7 @@ public class EsqlDataTypeConverter {
                 return KEYWORD;
             }
             if (left == TEXT || right == TEXT) {
-                return TEXT;
+                return KEYWORD;
             }
             return right;
         }

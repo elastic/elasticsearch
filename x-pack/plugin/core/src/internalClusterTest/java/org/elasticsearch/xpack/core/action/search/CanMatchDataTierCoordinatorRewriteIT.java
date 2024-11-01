@@ -78,7 +78,7 @@ public class CanMatchDataTierCoordinatorRewriteIT extends ESIntegTestCase {
             assertThat(searchResponse.getFailedShards(), equalTo(0));
             // we should be receiving the 2 docs from the index that's in the data_hot tier
             assertNotNull(searchResponse.getHits().getTotalHits());
-            assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(2L));
+            assertThat(searchResponse.getHits().getTotalHits().value, equalTo(2L));
         });
     }
 

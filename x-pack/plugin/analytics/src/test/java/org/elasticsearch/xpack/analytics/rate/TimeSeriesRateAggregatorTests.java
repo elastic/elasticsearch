@@ -42,6 +42,7 @@ import java.util.function.Consumer;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.startsWith;
 
 public class TimeSeriesRateAggregatorTests extends AggregatorTestCase {
 
@@ -155,14 +156,14 @@ public class TimeSeriesRateAggregatorTests extends AggregatorTestCase {
 
         AggTestConfig aggTestConfig = new AggTestConfig(tsBuilder, timeStampField(), counterField("counter_field"))
             .withSplitLeavesIntoSeperateAggregators(false);
-        expectThrows(IllegalArgumentException.class, () -> testCase(iw -> {
-            for (Document document : docs(2000, "1", 15, 37, 60, /*reset*/ 14)) {
-                iw.addDocument(document);
-            }
-            for (Document document : docs(2000, "2", 74, 150, /*reset*/ 50, 90, /*reset*/ 40)) {
-                iw.addDocument(document);
-            }
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> testCase(iw -> {
+            iw.addDocuments(docs(2000, "1", 15, 37, 60, /*reset*/ 14));
+            iw.addDocuments(docs(2000, "2", 74, 150, /*reset*/ 50, 90, /*reset*/ 40));
         }, verifier, aggTestConfig));
+        assertThat(
+            e.getMessage(),
+            startsWith("Wrapping a time-series rate aggregation within a DeferableBucketAggregator is not supported.")
+        );
     }
 
     private List<Document> docs(long startTimestamp, String dim, long... values) throws IOException {

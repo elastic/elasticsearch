@@ -100,6 +100,7 @@ import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.index.translog.TranslogDeletionPolicy;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
@@ -428,7 +429,7 @@ public abstract class EngineTestCase extends ESTestCase {
             source,
             XContentType.JSON,
             mappingUpdate,
-            ParsedDocument.DocumentSize.UNKNOWN
+            XContentMeteringParserDecorator.UNKNOWN_SIZE
         );
     }
 

@@ -216,6 +216,7 @@ l:long
 1698068014937193000
 1698064048948000000
 1698063303360103847
+1698063303360103847
 ;
 
 long to date nanos, index version
@@ -231,6 +232,7 @@ d:date_nanos
 2023-10-23T13:33:34.937193000Z
 2023-10-23T12:27:28.948000000Z
 2023-10-23T12:15:03.360103847Z
+2023-10-23T12:15:03.360103847Z
 ;
 
 date_nanos to date nanos, index version
@@ -245,6 +247,7 @@ d:date_nanos
 2023-10-23T13:51:54.732102837Z
 2023-10-23T13:33:34.937193000Z
 2023-10-23T12:27:28.948000000Z
+2023-10-23T12:15:03.360103847Z
 2023-10-23T12:15:03.360103847Z
 ;
 
@@ -330,4 +333,32 @@ FROM date_nanos | WHERE millis < "2000-01-01" | EVAL a = MV_SLICE(MV_SORT(nanos,
 a:date_nanos
 [2023-02-23T13:33:34.937193000Z, 2023-03-23T12:15:03.360103847Z]
 [2023-03-23T12:15:03.360103847Z, 2023-03-23T12:15:03.360103847Z]
+;
+
+
+Max and Min of date nanos
+required_capability: date_nanos_aggregations
+
+FROM date_nanos | STATS max = MAX(nanos), min = MIN(nanos);
+
+max:date_nanos                 | min:date_nanos
+2023-10-23T13:55:01.543123456Z | 2023-01-23T13:55:01.543123456Z
+;
+
+Count and count distinct of date nanos
+required_capability: date_nanos_aggregations
+
+FROM date_nanos | WHERE millis > "2020-01-01" | STATS count = COUNT(nanos), count_distinct = COUNT_DISTINCT(nanos);
+
+count:long | count_distinct:long
+8          | 7
+;
+
+Values aggregation on date nanos
+required_capability: date_nanos_aggregations
+
+FROM date_nanos | WHERE millis > "2020-01-01" | STATS v = MV_SORT(VALUES(nanos), "DESC");
+
+v:date_nanos
+[2023-10-23T13:55:01.543123456Z, 2023-10-23T13:53:55.832987654Z, 2023-10-23T13:52:55.015787878Z, 2023-10-23T13:51:54.732102837Z, 2023-10-23T13:33:34.937193000Z, 2023-10-23T12:27:28.948000000Z, 2023-10-23T12:15:03.360103847Z]
 ;

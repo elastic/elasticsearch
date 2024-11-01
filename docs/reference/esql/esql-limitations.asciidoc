@@ -105,12 +105,12 @@ is currently experimental.
 === Full-text search
 
 experimental:[] {esql}'s support for <<esql-search-functions,full-text search>>
-is currently in Technical Preview. A restriction of full-text search is that
-the search function must come directly after, or very close to, the `FROM`
-source command. Otherwise, the query will fail to execute.
-
-Until such time that full-text search becomes final, one can follow this
-advice.
+is currently in Technical Preview. One limitation of full-text search is that
+it is necessary to use the search function, like <<esql-match>>, in a <<esql-where>> command
+directly after the <<esql-from>> source command, or close enough to it.
+Otherwise, the query will fail with a validation error.
+Another limitation is that any <<esql-where>> command containing a full-text search function
+cannot also use disjunctions (`OR`).
 
 Because of <<esql-limitations-text-fields,the way {esql} treats `text` values>>,
 queries on `text` fields are like queries on `keyword` fields: they are

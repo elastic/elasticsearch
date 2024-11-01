@@ -150,7 +150,7 @@ public class GreaterThanOrEqualTests extends AbstractScalarFunctionTestCase {
                     o,
                     v,
                     t,
-                    (l, p) -> "date_nanos, datetime, double, integer, ip, keyword, long, text, unsigned_long or version"
+                    (l, p) -> "date_nanos, datetime, double, integer, ip, keyword, long, semantic_text, text, unsigned_long or version"
                 )
             )
         );

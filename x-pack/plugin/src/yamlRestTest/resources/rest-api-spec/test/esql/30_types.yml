@@ -809,10 +809,9 @@ synthetic _source text stored:
       indices.create:
         index:  test
         body:
-          settings:
-            index:
-              mapping.source.mode: synthetic
           mappings:
+            _source:
+              mode: synthetic
             properties:
               card:
                 type: text
@@ -841,10 +840,9 @@ synthetic _source text with parent keyword:
       indices.create:
         index:  test
         body:
-          settings:
-            index:
-              mapping.source.mode: synthetic
           mappings:
+            _source:
+              mode: synthetic
             properties:
               card:
                 type: keyword

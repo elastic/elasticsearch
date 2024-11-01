@@ -13,10 +13,9 @@ Filter on single field:
       indices.create:
         index: index_dls
         body:
-          settings:
-            index:
-              mapping.source.mode: synthetic
           mappings:
+            _source:
+              mode: synthetic
             properties:
               name:
                 type: keyword
@@ -96,10 +95,9 @@ Filter on nested field:
       indices.create:
         index: index_dls
         body:
-          settings:
-            index:
-              mapping.source.mode: synthetic
           mappings:
+            _source:
+              mode: synthetic
             properties:
               name:
                 type: keyword
@@ -180,10 +178,9 @@ Filter on object with stored source:
       indices.create:
         index: index_dls
         body:
-          settings:
-            index:
-              mapping.source.mode: synthetic
           mappings:
+            _source:
+              mode: synthetic
             properties:
               name:
                 type: keyword
@@ -261,10 +258,9 @@ Filter on field within a disabled object:
       indices.create:
         index: index_dls
         body:
-          settings:
-            index:
-              mapping.source.mode: synthetic
           mappings:
+            _source:
+              mode: synthetic
             properties:
               name:
                 type: keyword
@@ -339,10 +335,9 @@ Filter on field with ignored_malformed:
       indices.create:
         index: index_dls
         body:
-          settings:
-            index:
-              mapping.source.mode: synthetic
           mappings:
+            _source:
+              mode: synthetic
             properties:
               name:
                 type: keyword

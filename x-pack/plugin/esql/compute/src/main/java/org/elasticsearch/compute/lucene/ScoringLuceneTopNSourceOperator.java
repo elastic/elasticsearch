@@ -105,7 +105,7 @@ public final class ScoringLuceneTopNSourceOperator extends LuceneTopNSourceOpera
         return page.appendBlocks(new Block[] { currentScoresBuilder.build().asBlock() });
     }
 
-    float getScore(ScoreDoc scoreDoc) {
+    private float getScore(ScoreDoc scoreDoc) {
         if (scoreDoc instanceof FieldDoc fieldDoc) {
             if (Float.isNaN(fieldDoc.score)) {
                 if (sorts != null) {

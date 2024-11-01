@@ -15,7 +15,6 @@ import org.apache.logging.log4j.Level;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
-import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
@@ -354,15 +353,14 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
         IndicesOptions options = IndicesOptions.fromOptions(ignoreUnavailable, true, true, false);
 
         FieldCapabilitiesResponse response = client().prepareFieldCaps("old_index", "new_index")
-                                                     .setFields("*")
-                                                     .setIndicesOptions(options).get();
+            .setFields("*")
+            .setIndicesOptions(options)
+            .get();
         assertIndices(response, "old_index", "new_index");
 
         client().admin().indices().close(new CloseIndexRequest("old_index")).actionGet();
 
-        response = client().prepareFieldCaps("old_index", "new_index")
-                           .setFields("*")
-                           .setIndicesOptions(options).get();
+        response = client().prepareFieldCaps("old_index", "new_index").setFields("*").setIndicesOptions(options).get();
         assertIndices(response, "new_index");
     }
 
@@ -372,14 +370,13 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
 
         FieldCapabilitiesResponse response = client().prepareFieldCaps("old_index", "not_existing")
             .setFields("*")
-            .setIndicesOptions(options).get();
+            .setIndicesOptions(options)
+            .get();
         assertIndices(response, "old_index");
 
         client().admin().indices().close(new CloseIndexRequest("old_index")).actionGet();
 
-        response = client().prepareFieldCaps("old_index", "not_existing")
-            .setFields("*")
-            .setIndicesOptions(options).get();
+        response = client().prepareFieldCaps("old_index", "not_existing").setFields("*").setIndicesOptions(options).get();
         assertIndices(response);
     }
 

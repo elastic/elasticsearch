@@ -407,16 +407,6 @@ public final class EsqlTestUtils {
         return String.join(" | ", all);
     }
 
-    public static void assertWarnings(List<String> warnings, List<String> allowedWarnings, List<Pattern> allowedWarningsRegex) {
-        if (allowedWarningsRegex.isEmpty()) {
-            assertMap(warnings.stream().sorted().toList(), matchesList(allowedWarnings.stream().sorted().toList()));
-        } else {
-            for (String warning : warnings) {
-                assertTrue("Unexpected warning: " + warning, allowedWarningsRegex.stream().anyMatch(x -> x.matcher(warning).matches()));
-            }
-        }
-    }
-
     /**
      * "tables" provided in the context for the LOOKUP command. If you
      * add to this, you must also add to {@code EsqlSpecTestCase#tables};

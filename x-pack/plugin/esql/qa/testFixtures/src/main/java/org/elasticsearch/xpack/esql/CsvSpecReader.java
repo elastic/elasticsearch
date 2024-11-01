@@ -142,6 +142,22 @@ public final class CsvSpecReader {
         public List<Pattern> expectedWarningsRegex() {
             return expectedWarningsRegex;
         }
+
+        /**
+         * How should we assert the warnings returned by ESQL.
+         */
+        public AssertWarnings assertWarnings(boolean deduplicateExact) {
+            if (expectedWarnings.isEmpty() == false) {
+                if (deduplicateExact) {
+                    return new AssertWarnings.DeduplicatedStrings(expectedWarnings);
+                }
+                return new AssertWarnings.ExactStrings(expectedWarnings);
+            }
+            if (expectedWarningsRegex.isEmpty() == false) {
+                return new AssertWarnings.AllowedRegexes(expectedWarningsRegex);
+            }
+            return new AssertWarnings.NoWarnings();
+        }
     }
 
 }

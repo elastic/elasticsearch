@@ -10,7 +10,7 @@ apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.legacy-java-rest-test'
 
 dependencies {
-  testImplementation project(":libs:elasticsearch-x-content")
+  testImplementation project(":libs:x-content")
   testImplementation project(":test:framework")
 
 }

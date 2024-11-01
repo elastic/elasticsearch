@@ -2508,9 +2508,9 @@ public class IngestServiceTests extends ESTestCase {
     }
 
     public void testRolloverOnWrite() {
-        {   // false is not data stream
+        {   // false if not data stream
             IndexMetadata.Builder builder = IndexMetadata.builder("idx")
-                .settings(settings(IndexVersion.current()).put(IndexSettings.FINAL_PIPELINE.getKey(), "final-pipeline"))
+                .settings(settings(IndexVersion.current()))
                 .numberOfShards(1)
                 .numberOfReplicas(0);
             Metadata metadata = Metadata.builder().put(builder).build();

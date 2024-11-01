@@ -13,7 +13,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -32,7 +31,7 @@ import java.util.Objects;
  * Looks up values from the associated {@code tables}.
  * The class is supposed to be substituted by a {@link Join}.
  */
-public class Lookup extends UnaryPlan {
+public class Lookup extends UnaryPlan implements SurrogateLogicalPlan {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Lookup", Lookup::new);
 
     private final Expression tableName;
@@ -96,6 +95,12 @@ public class Lookup extends UnaryPlan {
         return localRelation;
     }
 
+    @Override
+    public LogicalPlan surrogate() {
+        // left join between the main relation and the local, lookup relation
+        return new Join(source(), child(), localRelation, joinConfig());
+    }
+
     public JoinConfig joinConfig() {
         List<Attribute> leftFields = new ArrayList<>(matchFields.size());
         List<Attribute> rightFields = new ArrayList<>(matchFields.size());
@@ -113,10 +118,6 @@ public class Lookup extends UnaryPlan {
     }
 
     @Override
-    protected AttributeSet computeReferences() {
-        return new AttributeSet(matchFields);
-    }
-
     public String commandName() {
         return "LOOKUP";
     }

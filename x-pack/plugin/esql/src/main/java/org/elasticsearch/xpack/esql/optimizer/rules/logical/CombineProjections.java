@@ -30,7 +30,6 @@ public final class CombineProjections extends OptimizerRules.OptimizerRule<Unary
     }
 
     @Override
-    @SuppressWarnings("unchecked")
     protected LogicalPlan rule(UnaryPlan plan) {
         LogicalPlan child = plan.child();
 
@@ -67,7 +66,7 @@ public final class CombineProjections extends OptimizerRules.OptimizerRule<Unary
                     if (grouping instanceof Attribute attribute) {
                         groupingAttrs.add(attribute);
                     } else {
-                        // After applying ReplaceStatsNestedExpressionWithEval, groupings can only contain attributes.
+                        // After applying ReplaceAggregateNestedExpressionWithEval, groupings can only contain attributes.
                         throw new EsqlIllegalArgumentException("Expected an Attribute, got {}", grouping);
                     }
                 }

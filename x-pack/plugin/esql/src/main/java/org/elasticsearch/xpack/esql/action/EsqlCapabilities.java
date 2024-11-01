@@ -444,6 +444,18 @@ public class EsqlCapabilities {
         NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES_SIMPLIFIED_SYNTAX(Build.current().isSnapshot()),
 
         /**
+         * Fix pushdown of LIMIT past MV_EXPAND
+         */
+        ADD_LIMIT_INSIDE_MV_EXPAND,
+
+        /**
+         * WIP on Join planning
+         * - Introduce BinaryPlan and co
+         * - Refactor INLINESTATS and LOOKUP as a JOIN block
+         */
+        JOIN_PLANNING_V1(Build.current().isSnapshot());
+
+        /**
          * Support the "METADATA _score" directive to enable _score column.
          */
         METADATA_SCORE(true);

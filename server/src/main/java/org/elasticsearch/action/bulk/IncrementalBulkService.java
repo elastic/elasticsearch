@@ -17,7 +17,6 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -43,12 +42,10 @@ public class IncrementalBulkService {
     private final Client client;
     private final AtomicBoolean enabledForTests = new AtomicBoolean(true);
     private final IndexingPressure indexingPressure;
-    private final ThreadContext threadContext;
 
-    public IncrementalBulkService(Client client, IndexingPressure indexingPressure, ThreadContext threadContext) {
+    public IncrementalBulkService(Client client, IndexingPressure indexingPressure) {
         this.client = client;
         this.indexingPressure = indexingPressure;
-        this.threadContext = threadContext;
     }
 
     public Handler newBulkRequest() {
@@ -58,7 +55,7 @@ public class IncrementalBulkService {
 
     public Handler newBulkRequest(@Nullable String waitForActiveShards, @Nullable TimeValue timeout, @Nullable String refresh) {
         ensureEnabled();
-        return new Handler(client, threadContext, indexingPressure, waitForActiveShards, timeout, refresh);
+        return new Handler(client, indexingPressure, waitForActiveShards, timeout, refresh);
     }
 
     private void ensureEnabled() {
@@ -94,7 +91,6 @@ public class IncrementalBulkService {
         public static final BulkRequest.IncrementalState EMPTY_STATE = new BulkRequest.IncrementalState(Collections.emptyMap(), true);
 
         private final Client client;
-        private final ThreadContext threadContext;
         private final IndexingPressure indexingPressure;
         private final ActiveShardCount waitForActiveShards;
         private final TimeValue timeout;
@@ -106,22 +102,18 @@ public class IncrementalBulkService {
         private boolean globalFailure = false;
         private boolean incrementalRequestSubmitted = false;
         private boolean bulkInProgress = false;
-        private ThreadContext.StoredContext requestContext;
         private Exception bulkActionLevelFailure = null;
         private long currentBulkSize = 0L;
         private BulkRequest bulkRequest = null;
 
         protected Handler(
             Client client,
-            ThreadContext threadContext,
             IndexingPressure indexingPressure,
             @Nullable String waitForActiveShards,
             @Nullable TimeValue timeout,
             @Nullable String refresh
         ) {
             this.client = client;
-            this.threadContext = threadContext;
-            this.requestContext = threadContext.newStoredContext();
             this.indexingPressure = indexingPressure;
             this.waitForActiveShards = waitForActiveShards != null ? ActiveShardCount.parseString(waitForActiveShards) : null;
             this.timeout = timeout;
@@ -141,31 +133,28 @@ public class IncrementalBulkService {
                     if (shouldBackOff()) {
                         final boolean isFirstRequest = incrementalRequestSubmitted == false;
                         incrementalRequestSubmitted = true;
-                        try (var ignored = threadContext.restoreExistingContext(requestContext)) {
-                            final ArrayList<Releasable> toRelease = new ArrayList<>(releasables);
-                            releasables.clear();
-                            bulkInProgress = true;
-                            client.bulk(bulkRequest, ActionListener.runAfter(new ActionListener<>() {
+                        final ArrayList<Releasable> toRelease = new ArrayList<>(releasables);
+                        releasables.clear();
+                        bulkInProgress = true;
+                        client.bulk(bulkRequest, ActionListener.runAfter(new ActionListener<>() {
 
-                                @Override
-                                public void onResponse(BulkResponse bulkResponse) {
-                                    handleBulkSuccess(bulkResponse);
-                                    createNewBulkRequest(
-                                        new BulkRequest.IncrementalState(bulkResponse.getIncrementalState().shardLevelFailures(), true)
-                                    );
-                                }
+                            @Override
+                            public void onResponse(BulkResponse bulkResponse) {
+                                handleBulkSuccess(bulkResponse);
+                                createNewBulkRequest(
+                                    new BulkRequest.IncrementalState(bulkResponse.getIncrementalState().shardLevelFailures(), true)
+                                );
+                            }
 
-                                @Override
-                                public void onFailure(Exception e) {
-                                    handleBulkFailure(isFirstRequest, e);
-                                }
-                            }, () -> {
-                                bulkInProgress = false;
-                                requestContext = threadContext.newStoredContext();
-                                toRelease.forEach(Releasable::close);
-                                nextItems.run();
-                            }));
-                        }
+                            @Override
+                            public void onFailure(Exception e) {
+                                handleBulkFailure(isFirstRequest, e);
+                            }
+                        }, () -> {
+                            bulkInProgress = false;
+                            toRelease.forEach(Releasable::close);
+                            nextItems.run();
+                        }));
                     } else {
                         nextItems.run();
                     }
@@ -187,28 +176,26 @@ public class IncrementalBulkService {
             } else {
                 assert bulkRequest != null;
                 if (internalAddItems(items, releasable)) {
-                    try (var ignored = threadContext.restoreExistingContext(requestContext)) {
-                        final ArrayList<Releasable> toRelease = new ArrayList<>(releasables);
-                        releasables.clear();
-                        // We do not need to set this back to false as this will be the last request.
-                        bulkInProgress = true;
-                        client.bulk(bulkRequest, ActionListener.runBefore(new ActionListener<>() {
+                    final ArrayList<Releasable> toRelease = new ArrayList<>(releasables);
+                    releasables.clear();
+                    // We do not need to set this back to false as this will be the last request.
+                    bulkInProgress = true;
+                    client.bulk(bulkRequest, ActionListener.runBefore(new ActionListener<>() {
 
-                            private final boolean isFirstRequest = incrementalRequestSubmitted == false;
+                        private final boolean isFirstRequest = incrementalRequestSubmitted == false;
 
-                            @Override
-                            public void onResponse(BulkResponse bulkResponse) {
-                                handleBulkSuccess(bulkResponse);
-                                listener.onResponse(combineResponses());
-                            }
+                        @Override
+                        public void onResponse(BulkResponse bulkResponse) {
+                            handleBulkSuccess(bulkResponse);
+                            listener.onResponse(combineResponses());
+                        }
 
-                            @Override
-                            public void onFailure(Exception e) {
-                                handleBulkFailure(isFirstRequest, e);
-                                errorResponse(listener);
-                            }
-                        }, () -> toRelease.forEach(Releasable::close)));
-                    }
+                        @Override
+                        public void onFailure(Exception e) {
+                            handleBulkFailure(isFirstRequest, e);
+                            errorResponse(listener);
+                        }
+                    }, () -> toRelease.forEach(Releasable::close)));
                 } else {
                     errorResponse(listener);
                 }

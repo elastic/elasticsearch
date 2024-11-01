@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.common.logging.LoggerMessageFormat;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.core.capabilities.Unresolvable;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
@@ -551,6 +552,9 @@ public class Verifier {
         List<DataType> allowed = new ArrayList<>();
         allowed.add(DataType.KEYWORD);
         allowed.add(DataType.TEXT);
+        if (EsqlCapabilities.Cap.SEMANTIC_TEXT_TYPE.isEnabled()) {
+            allowed.add(DataType.SEMANTIC_TEXT);
+        }
         allowed.add(DataType.IP);
         allowed.add(DataType.DATETIME);
         allowed.add(DataType.VERSION);

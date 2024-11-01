@@ -25,13 +25,6 @@ interface KqlBaseVisitor<T> extends ParseTreeVisitor<T> {
      */
     T visitTopLevelQuery(KqlBaseParser.TopLevelQueryContext ctx);
     /**
-     * Visit a parse tree produced by the {@code notQuery}
-     * labeled alternative in {@link KqlBaseParser#query}.
-     * @param ctx the parse tree
-     * @return the visitor result
-     */
-    T visitNotQuery(KqlBaseParser.NotQueryContext ctx);
-    /**
      * Visit a parse tree produced by the {@code booleanQuery}
      * labeled alternative in {@link KqlBaseParser#query}.
      * @param ctx the parse tree
@@ -51,6 +44,12 @@ interface KqlBaseVisitor<T> extends ParseTreeVisitor<T> {
      * @return the visitor result
      */
     T visitSimpleQuery(KqlBaseParser.SimpleQueryContext ctx);
+    /**
+     * Visit a parse tree produced by {@link KqlBaseParser#notQuery}.
+     * @param ctx the parse tree
+     * @return the visitor result
+     */
+    T visitNotQuery(KqlBaseParser.NotQueryContext ctx);
     /**
      * Visit a parse tree produced by {@link KqlBaseParser#nestedQuery}.
      * @param ctx the parse tree

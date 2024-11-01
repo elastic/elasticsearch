@@ -10,7 +10,7 @@
 package org.elasticsearch.entitlement.instrumentation.impl;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.entitlement.bridge.EntitlementChecks;
+import org.elasticsearch.entitlement.bridge.EntitlementChecker;
 import org.elasticsearch.entitlement.bridge.EntitlementProvider;
 import org.elasticsearch.entitlement.instrumentation.InstrumentationService;
 import org.elasticsearch.logging.LogManager;
@@ -74,10 +74,10 @@ public class InstrumenterTests extends ESTestCase {
 
     /**
      * We're not testing the permission checking logic here.
-     * This is a trivial implementation of {@link EntitlementChecks} that just always throws,
+     * This is a trivial implementation of {@link EntitlementChecker} that just always throws,
      * just to demonstrate that the injected bytecodes succeed in calling these methods.
      */
-    public static class TestEntitlementManager implements EntitlementChecks {
+    public static class TestEntitlementManager implements EntitlementChecker {
         /**
          * This allows us to test that the instrumentation is correct in both cases:
          * if the check throws, and if it doesn't.
@@ -187,7 +187,7 @@ public class InstrumenterTests extends ESTestCase {
      * is not what would happen when it's run by the agent.
      */
     private InstrumenterImpl createInstrumenter(Class<?> classToInstrument, String... methodNames) throws NoSuchMethodException {
-        Method v1 = EntitlementChecks.class.getMethod("checkSystemExit", Class.class, int.class);
+        Method v1 = EntitlementChecker.class.getMethod("checkSystemExit", Class.class, int.class);
         var methods = Arrays.stream(methodNames).map(name -> {
             try {
                 return instrumentationService.methodKeyForTarget(classToInstrument.getMethod(name, int.class));

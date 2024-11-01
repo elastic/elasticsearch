@@ -14,12 +14,12 @@ import java.lang.reflect.Method;
 
 public class EntitlementCheckerHandle {
 
-    public static EntitlementChecks instance() {
+    public static EntitlementChecker instance() {
         return Holder.instance;
     }
 
     private static class Holder {
-        private static final EntitlementChecks instance;
+        private static final EntitlementChecker instance;
         static {
             String initClazz = "org.elasticsearch.entitlement.initialization.EntitlementInitialization";
             final Class<?> clazz;
@@ -35,7 +35,7 @@ public class EntitlementCheckerHandle {
                 throw new AssertionError("EntitlementInitialization is missing checker() method", e);
             }
             try {
-                instance = (EntitlementChecks) checkerMethod.invoke(null);
+                instance = (EntitlementChecker) checkerMethod.invoke(null);
             } catch (IllegalAccessException | InvocationTargetException e) {
                 throw new AssertionError(e);
             }

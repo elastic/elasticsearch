@@ -203,19 +203,19 @@ public class InstrumenterImpl implements Instrumenter {
 
         @Override
         public void visitCode() {
-            pushEntitlementChecksObject();
+            pushEntitlementChecker();
             pushCallerClass();
             forwardIncomingArguments();
             invokeInstrumentationMethod();
             super.visitCode();
         }
 
-        private void pushEntitlementChecksObject() {
+        private void pushEntitlementChecker() {
             mv.visitMethodInsn(
                 INVOKESTATIC,
                 "org/elasticsearch/entitlement/bridge/EntitlementCheckerHandle",
                 "instance",
-                "()Lorg/elasticsearch/entitlement/bridge/EntitlementChecks;",
+                "()Lorg/elasticsearch/entitlement/bridge/EntitlementChecker;",
                 false
             );
         }

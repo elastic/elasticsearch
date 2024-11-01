@@ -10,7 +10,7 @@
 package org.elasticsearch.entitlement.initialization;
 
 import org.elasticsearch.core.internal.provider.ProviderLocator;
-import org.elasticsearch.entitlement.bridge.EntitlementChecks;
+import org.elasticsearch.entitlement.bridge.EntitlementChecker;
 import org.elasticsearch.entitlement.instrumentation.InstrumentationService;
 import org.elasticsearch.entitlement.instrumentation.MethodKey;
 import org.elasticsearch.entitlement.instrumentation.Transformer;
@@ -25,7 +25,7 @@ public class EntitlementInitialization {
     private static ElasticsearchEntitlementManager manager;
 
     // Note: referenced by bridge reflectively
-    public static EntitlementChecks checker() {
+    public static EntitlementChecker checker() {
         return manager;
     }
 
@@ -35,7 +35,7 @@ public class EntitlementInitialization {
 
         // TODO: move this instrumentation code
         Method targetMethod = System.class.getMethod("exit", int.class);
-        Method instrumentationMethod = Class.forName("org.elasticsearch.entitlement.bridge.EntitlementChecks")
+        Method instrumentationMethod = Class.forName("org.elasticsearch.entitlement.bridge.EntitlementChecker")
             .getMethod("checkSystemExit", Class.class, int.class);
         Map<MethodKey, Method> methodMap = Map.of(INSTRUMENTER_FACTORY.methodKeyForTarget(targetMethod), instrumentationMethod);
 

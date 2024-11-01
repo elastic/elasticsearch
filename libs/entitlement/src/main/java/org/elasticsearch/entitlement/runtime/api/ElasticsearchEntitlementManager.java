@@ -9,7 +9,7 @@
 
 package org.elasticsearch.entitlement.runtime.api;
 
-import org.elasticsearch.entitlement.bridge.EntitlementChecks;
+import org.elasticsearch.entitlement.bridge.EntitlementChecker;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
@@ -18,11 +18,11 @@ import java.util.Optional;
 import static org.elasticsearch.entitlement.runtime.internals.EntitlementInternals.isActive;
 
 /**
- * Implementation of the {@link EntitlementChecks} interface, providing additional
+ * Implementation of the {@link EntitlementChecker} interface, providing additional
  * API methods for managing the checks.
  * The trampoline module loads this object via SPI.
  */
-public class ElasticsearchEntitlementManager implements EntitlementChecks {
+public class ElasticsearchEntitlementManager implements EntitlementChecker {
     /**
      * Log level recommendations:
      * <dl>

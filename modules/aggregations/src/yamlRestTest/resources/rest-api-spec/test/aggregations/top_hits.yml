@@ -350,6 +350,7 @@ sequence number and primary term:
 synthetic _source:
   - requires:
       cluster_features: ["mapper.source.mode_from_index_setting"]
+      reason: "Source mode configured through index setting"
 
   - do:
       indices.create:

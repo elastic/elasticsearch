@@ -24,6 +24,8 @@ final class SystemJvmOptions {
     static List<String> systemJvmOptions(Settings nodeSettings, final Map<String, String> sysprops) {
         String distroType = sysprops.get("es.distribution.type");
         boolean isHotspot = sysprops.getOrDefault("sun.management.compiler", "").contains("HotSpot");
+        boolean useEntitlements = sysprops.getOrDefault("es.entitlements.enabled", "false").equalsIgnoreCase("true");
+        System.err.println("pdoyle *************** useEntitlements: " + useEntitlements);
 
         return Stream.of(
             Stream.of(
@@ -71,7 +73,7 @@ final class SystemJvmOptions {
             maybeSetActiveProcessorCount(nodeSettings),
             maybeSetReplayFile(distroType, isHotspot),
             maybeWorkaroundG1Bug(),
-            entitlementOptions()
+            maybeAttachEntitlementAgent(useEntitlements)
         ).flatMap(s -> s).toList();
     }
 
@@ -138,7 +140,11 @@ final class SystemJvmOptions {
         return Stream.of();
     }
 
-    private static Stream<String> entitlementOptions() {
+    private static Stream<String> maybeAttachEntitlementAgent(boolean useEntitlements) {
+        if (useEntitlements == false) {
+            return Stream.empty();
+        }
+
         Path dir = Path.of("lib", "entitlement-bridge");
         if (dir.toFile().exists() == false) {
             throw new IllegalStateException("Directory for entitlement bridge jar does not exist: " + dir);
@@ -154,10 +160,11 @@ final class SystemJvmOptions {
             throw new IllegalStateException("Failed to list entitlement jars in: " + dir, e);
         }
         return Stream.of(
+            "-Des.entitlements.enabled=true",
             "-XX:+EnableDynamicAgentLoading",
             "-Djdk.attach.allowAttachSelf=true",
-            "--patch-module", "java.base=" + bridgeJar,
-            "--add-exports", "java.base/org.elasticsearch.entitlement.bridge=org.elasticsearch.entitlement"
+            "--patch-module=java.base=" + bridgeJar,
+            "--add-exports=java.base/org.elasticsearch.entitlement.bridge=org.elasticsearch.entitlement"
         );
     }
 }

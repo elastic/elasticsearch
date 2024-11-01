@@ -7,21 +7,13 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-apply plugin: 'elasticsearch.build'
+package org.elasticsearch.entitlement.api;
 
-dependencies {
-  compileOnly project(':libs:entitlement:agent')
-  implementation 'org.ow2.asm:asm:9.7'
-  testImplementation project(":test:framework")
-  testImplementation project(":libs:entitlement:bridge")
-  testImplementation 'org.ow2.asm:asm-util:9.7'
+/**
+ * This is separated from {@link EntitlementProvider} so the latter can be initialized after the
+ * {@link EntitlementChecks} object is placed here, thereby allowing {@link EntitlementProvider}
+ * to stash it in a static final field.
+ */
+public class EntitlementReceiver {
+    public static EntitlementChecks entitlementChecks;
 }
-
-tasks.named('test').configure {
-  systemProperty "tests.security.manager", "false"
-}
-
-tasks.named('forbiddenApisMain').configure {
-  replaceSignatureFiles 'jdk-signatures'
-}
-

@@ -7,8 +7,21 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-module org.elasticsearch.entitlement.bridge {
-    uses org.elasticsearch.entitlement.api.EntitlementChecks;
+apply plugin: 'elasticsearch.build'
 
-    exports org.elasticsearch.entitlement.api;
+dependencies {
+  compileOnly project(':libs:entitlement')
+  implementation 'org.ow2.asm:asm:9.7'
+  testImplementation project(":test:framework")
+  testImplementation project(":libs:entitlement:bridge")
+  testImplementation 'org.ow2.asm:asm-util:9.7'
 }
+
+tasks.named('test').configure {
+  systemProperty "tests.security.manager", "false"
+}
+
+tasks.named('forbiddenApisMain').configure {
+  replaceSignatureFiles 'jdk-signatures'
+}
+

@@ -9,12 +9,29 @@
 apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.publish'
 
+apply plugin: 'elasticsearch.embedded-providers'
+
+embeddedProviders {
+  impl 'entitlement', project(':libs:entitlement:instrumentation-impl')
+}
+
+configurations {
+  entitlementBridge
+}
+
 dependencies {
   compileOnly project(':libs:core') // For @SuppressForbidden
   compileOnly project(":libs:x-content") // for parsing policy files
-  compileOnly project(':server') // To access the main server module for special permission checks
-  compileOnly project(':libs:entitlement:bridge')
   testImplementation project(":test:framework")
+  entitlementBridge project(':libs:entitlement:bridge')
+}
+
+tasks.named('compileJava').configure {
+  // The bridge library can't be a normal dependency because it will appear in the java.base module at runtime
+  System.err.println "--patch-module=java.base=${configurations.entitlementBridge.singleFile}"
+  options.compilerArgs << "--patch-module=java.base=${configurations.entitlementBridge.singleFile}"
+  options.compilerArgs << "--add-exports=java.base/org.elasticsearch.entitlement.api=org.elasticsearch.entitlement.runtime"
+  options.release.set(null) // Incompatible with --patch-module
 }
 
 tasks.named('forbiddenApisMain').configure {

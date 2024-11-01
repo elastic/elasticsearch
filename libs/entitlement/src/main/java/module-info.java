@@ -8,11 +8,11 @@
  */
 
 module org.elasticsearch.entitlement.runtime {
-    requires org.elasticsearch.entitlement.bridge;
+    requires java.base; // Actually the bridge library
     requires org.elasticsearch.xcontent;
-    requires org.elasticsearch.server;
 
     exports org.elasticsearch.entitlement.runtime.api;
+    exports org.elasticsearch.entitlement.instrumentation;
 
     provides org.elasticsearch.entitlement.api.EntitlementChecks
         with

@@ -9,8 +9,7 @@
 
 package org.elasticsearch.entitlement.api;
 
-import java.util.List;
-import java.util.ServiceLoader;
+import static java.util.Objects.requireNonNull;
 
 public class EntitlementProvider {
     private static final EntitlementChecks CHECKS = lookupEntitlementChecksImplementation();
@@ -20,15 +19,6 @@ public class EntitlementProvider {
     }
 
     private static EntitlementChecks lookupEntitlementChecksImplementation() {
-        List<EntitlementChecks> candidates = ServiceLoader.load(EntitlementChecks.class).stream().map(ServiceLoader.Provider::get).toList();
-        if (candidates.isEmpty()) {
-            throw new IllegalStateException("No EntitlementChecks service");
-        } else if (candidates.size() >= 2) {
-            throw new IllegalStateException(
-                "Multiple EntitlementChecks services: " + candidates.stream().map(e -> e.getClass().getSimpleName()).toList()
-            );
-        } else {
-            return candidates.get(0);
-        }
+        return requireNonNull(EntitlementReceiver.entitlementChecks);
     }
 }

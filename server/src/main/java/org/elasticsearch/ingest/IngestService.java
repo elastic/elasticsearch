@@ -288,7 +288,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         }
     }
 
-    private static boolean isRolloverOnWrite(Metadata metadata, IndexRequest indexRequest) {
+    static boolean isRolloverOnWrite(Metadata metadata, IndexRequest indexRequest) {
         DataStream dataStream = metadata.dataStreams().get(indexRequest.index());
         if (dataStream == null) {
             return false;
@@ -296,6 +296,15 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         return dataStream.getBackingIndices().isRolloverOnWrite();
     }
 
+    /**
+     *  Resolve the default and final pipelines from the cluster state metadata or index templates.
+     *
+     * @param originalRequest initial request
+     * @param indexRequest the index request, which could be different from the initial request if rerouted
+     * @param metadata cluster data metadata
+     * @param epochMillis current time for index name resolution
+     * @return the resolved pipelines
+     */
     public static Pipelines resolveStoredPipelines(
         final DocWriteRequest<?> originalRequest,
         final IndexRequest indexRequest,
@@ -311,6 +320,12 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         }
     }
 
+    /**
+     *  Set the request pipeline on the index request if present, otherwise set the default pipeline.
+     *  Always set the final pipeline.
+     * @param indexRequest the index request
+     * @param resolvedPipelines default and final pipelines resolved from metadata and templates
+     */
     public static void setPipelineOnRequest(IndexRequest indexRequest, Pipelines resolvedPipelines) {
         // The pipeline coming as part of the request always has priority over the resolved one from metadata or templates
         String requestPipeline = indexRequest.getPipeline();

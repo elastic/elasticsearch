@@ -2507,6 +2507,52 @@ public class IngestServiceTests extends ESTestCase {
         }
     }
 
+    public void testRolloverOnWrite() {
+        {   // false is not data stream
+            IndexMetadata.Builder builder = IndexMetadata.builder("idx")
+                .settings(settings(IndexVersion.current()).put(IndexSettings.FINAL_PIPELINE.getKey(), "final-pipeline"))
+                .numberOfShards(1)
+                .numberOfReplicas(0);
+            Metadata metadata = Metadata.builder().put(builder).build();
+            IndexRequest indexRequest = new IndexRequest("idx").setPipeline("request-pipeline");
+            assertFalse(IngestService.isRolloverOnWrite(metadata, indexRequest));
+        }
+
+        {   // false if not rollover on write
+            var backingIndex = ".ds-data-stream-01";
+            var indexUUID = randomUUID();
+
+            var dataStream = DataStream.builder(
+                "no-rollover-data-stream",
+                DataStream.DataStreamIndices.backingIndicesBuilder(List.of(new Index(backingIndex, indexUUID)))
+                    .setRolloverOnWrite(false)
+                    .build()
+            ).build();
+
+            Metadata metadata = Metadata.builder().dataStreams(Map.of(dataStream.getName(), dataStream), Map.of()).build();
+
+            IndexRequest indexRequest = new IndexRequest("no-rollover-data-stream");
+            assertFalse(IngestService.isRolloverOnWrite(metadata, indexRequest));
+        }
+
+        {   // true if rollover on write
+            var backingIndex = ".ds-data-stream-01";
+            var indexUUID = randomUUID();
+
+            var dataStream = DataStream.builder(
+                "rollover-data-stream",
+                DataStream.DataStreamIndices.backingIndicesBuilder(List.of(new Index(backingIndex, indexUUID)))
+                    .setRolloverOnWrite(true)
+                    .build()
+            ).build();
+
+            Metadata metadata = Metadata.builder().dataStreams(Map.of(dataStream.getName(), dataStream), Map.of()).build();
+
+            IndexRequest indexRequest = new IndexRequest("rollover-data-stream");
+            assertTrue(IngestService.isRolloverOnWrite(metadata, indexRequest));
+        }
+    }
+
     public void testResolveFromTemplateIfRolloverOnWrite() {
         {   // if rolloverOnWrite is false, get pipeline from metadata
             var backingIndex = ".ds-data-stream-01";

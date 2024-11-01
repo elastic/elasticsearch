@@ -281,7 +281,7 @@ public class KqlParserFieldQueryTests extends AbstractKqlParserTestCase {
         assertWildcardQueryBuilder(parseKqlQuery(kqlFieldQuery(KEYWORD_FIELD_NAME, "NOT fo*")), KEYWORD_FIELD_NAME, "NOT fo*");
     }
 
-    public void testFieldWildCardQueries() {
+    public void testFieldWildcardFieldQueries() {
         List<String> queries = List.of("foo", "foo bar", quoteString("foo"), "foo*");
         List<String> mappedFieldName = mappedLeafFields();
         for (String query : queries) {

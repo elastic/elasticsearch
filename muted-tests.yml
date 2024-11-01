@@ -288,17 +288,14 @@ tests:
 - class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
   method: test {yaml=logsdb/10_settings/logsdb with default ignore dynamic beyond limit and subobjects false}
   issue: https://github.com/elastic/elasticsearch/issues/116054
-- class: org.elasticsearch.indices.state.CloseIndexIT
-  method: testConcurrentClose
-  issue: https://github.com/elastic/elasticsearch/issues/116073
-- class: org.elasticsearch.xpack.ccr.action.ShardFollowTaskReplicationTests
-  method: testRetryBulkShardOperations
-  issue: https://github.com/elastic/elasticsearch/issues/116080
 - class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
   method: test {yaml=logsdb/10_settings/logsdb with default ignore dynamic beyond limit and default sorting}
   issue: https://github.com/elastic/elasticsearch/issues/116062
 - class: org.elasticsearch.xpack.application.connector.ConnectorIndexServiceTests
   issue: https://github.com/elastic/elasticsearch/issues/116087
+- class: org.elasticsearch.xpack.searchbusinessrules.PinnedQueryBuilderIT
+  method: testPinnedPromotions
+  issue: https://github.com/elastic/elasticsearch/issues/116097
 
 # Examples:
 #

@@ -1,0 +1,12 @@
+pr: 116112
+summary: Remove ignored fallback option on GeoIP processor
+area: Ingest Node
+type: breaking
+issues: []
+breaking:
+  title: Remove ignored fallback option on GeoIP processor
+  area: Ingest Node
+  details: Please describe the details of this change for the release notes. You can
+    use asciidoc.
+  impact: Please describe the impact of this change to users
+  notable: false

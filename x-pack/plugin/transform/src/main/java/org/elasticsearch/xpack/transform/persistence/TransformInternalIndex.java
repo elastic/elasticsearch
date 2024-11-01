@@ -111,7 +111,6 @@ public final class TransformInternalIndex {
             .setDescription("Contains Transform configuration data")
             .setMappings(mappings())
             .setSettings(settings(transformInternalIndexAdditionalSettings))
-            .setVersionMetaKey("version")
             .setOrigin(TRANSFORM_ORIGIN)
             .build();
     }

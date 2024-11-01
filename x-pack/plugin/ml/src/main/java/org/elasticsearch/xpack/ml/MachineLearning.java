@@ -1982,7 +1982,6 @@ public class MachineLearning extends Plugin
                 .setDescription("Contains scheduling and anomaly tracking metadata")
                 .setMappings(MlMetaIndex.mapping())
                 .setSettings(MlMetaIndex.settings())
-                .setVersionMetaKey("version")
                 .setOrigin(ML_ORIGIN)
                 .build(),
             SystemIndexDescriptor.builder()
@@ -1991,7 +1990,6 @@ public class MachineLearning extends Plugin
                 .setDescription("Contains ML configuration data")
                 .setMappings(MlConfigIndex.mapping())
                 .setSettings(MlConfigIndex.settings())
-                .setVersionMetaKey("version")
                 .setOrigin(ML_ORIGIN)
                 .build(),
             getInferenceIndexSystemIndexDescriptor()
@@ -2005,7 +2003,6 @@ public class MachineLearning extends Plugin
             .setDescription("Contains ML model configuration and statistics")
             .setMappings(InferenceIndexConstants.mapping())
             .setSettings(InferenceIndexConstants.settings())
-            .setVersionMetaKey("version")
             .setOrigin(ML_ORIGIN)
             .build();
     }

@@ -34,7 +34,7 @@ public class KqlParserExistsQueryTests extends AbstractKqlParserTestCase {
     }
 
     public void testParseExistsQueryWithASingleField() {
-        for (String fieldName : mappedLeafFields()) {
+        for (String fieldName : searchableFields()) {
             ExistsQueryBuilder parsedQuery = asInstanceOf(ExistsQueryBuilder.class, parseKqlQuery(kqlExistsQuery(fieldName)));
             assertThat(parsedQuery.fieldName(), equalTo(fieldName));
 
@@ -44,13 +44,17 @@ public class KqlParserExistsQueryTests extends AbstractKqlParserTestCase {
     }
 
     public void testParseExistsQueryUsingWildcardFieldName() {
-        BoolQueryBuilder parsedQuery = asInstanceOf(BoolQueryBuilder.class, parseKqlQuery(kqlExistsQuery("mapped_*")));
+        String fieldNamePattern = "mapped_*";
+        BoolQueryBuilder parsedQuery = asInstanceOf(BoolQueryBuilder.class, parseKqlQuery(kqlExistsQuery(fieldNamePattern)));
         assertThat(parsedQuery.minimumShouldMatch(), equalTo("1"));
         assertThat(parsedQuery.must(), empty());
         assertThat(parsedQuery.mustNot(), empty());
         assertThat(parsedQuery.filter(), empty());
 
-        assertThat(parsedQuery.should(), containsInAnyOrder(mappedLeafFields().stream().map(QueryBuilders::existsQuery).toArray()));
+        assertThat(
+            parsedQuery.should(),
+            containsInAnyOrder(searchableFields(fieldNamePattern).stream().map(QueryBuilders::existsQuery).toArray())
+        );
     }
 
     private static String kqlExistsQuery(String field) {

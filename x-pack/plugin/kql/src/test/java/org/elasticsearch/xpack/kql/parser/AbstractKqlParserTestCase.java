@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.kql.parser;
 
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.query.MatchPhraseQueryBuilder;
@@ -95,6 +96,17 @@ public abstract class AbstractKqlParserTestCase extends AbstractBuilderTestCase 
             Arrays.stream(MAPPED_LEAF_FIELD_NAMES),
             List.of(DATE_FIELD_NAME, INT_FIELD_NAME).stream().map(subfieldName -> OBJECT_FIELD_NAME + "." + subfieldName)
         ).toList();
+    }
+
+    protected List<String> searchableFields() {
+        return Stream.concat(
+            mappedLeafFields().stream().filter(fieldName -> fieldName.equals(BINARY_FIELD_NAME) == false),
+            Stream.of("_id", "_index")
+        ).toList();
+    }
+
+    protected List<String> searchableFields(String fieldNamePattern) {
+        return searchableFields().stream().filter(fieldName -> Regex.simpleMatch(fieldNamePattern, fieldName)).toList();
     }
 
     protected QueryBuilder parseKqlQuery(String kqlQuery) {

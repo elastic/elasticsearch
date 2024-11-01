@@ -16,11 +16,27 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.time.ZoneId;
 import java.util.List;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Tuple.tuple;
 
 class KqlParserExecutionContext extends SearchExecutionContext {
+
+    private static final List<String> IGNORED_METADATA_FIELDS = List.of(
+        "_seq_no",
+        "_index_mode",
+        "_routing",
+        "_ignored",
+        "_nested_path",
+        "_field_names"
+    );
+
+    private static Predicate<Tuple<String, MappedFieldType>> searchableFieldFilter = (fieldDef) -> fieldDef.v2().isSearchable();
+
+    private static Predicate<Tuple<String, MappedFieldType>> ignoredFieldFilter = (fieldDef) -> IGNORED_METADATA_FIELDS.contains(
+        fieldDef.v1()
+    );
 
     KqlParserExecutionContext(SearchExecutionContext source) {
         super(source);
@@ -36,6 +52,7 @@ class KqlParserExecutionContext extends SearchExecutionContext {
 
         return getMatchingFieldNames(fieldNamePattern).stream()
             .map(fieldName -> tuple(fieldName, getFieldType(fieldName)))
+            .filter(searchableFieldFilter.and(Predicate.not(ignoredFieldFilter)))
             .collect(Collectors.toList());
     }
 

@@ -283,21 +283,22 @@ public class KqlParserFieldQueryTests extends AbstractKqlParserTestCase {
 
     public void testFieldWildcardFieldQueries() {
         List<String> queries = List.of("foo", "foo bar", quoteString("foo"), "foo*");
-        List<String> mappedFieldName = mappedLeafFields();
         for (String query : queries) {
-            String kqlQuery = kqlFieldQuery("mapped_*", query);
-            BoolQueryBuilder parsedQuery = asInstanceOf(BoolQueryBuilder.class, parseKqlQuery(kqlQuery));
+            for (String fieldNamePattern : List.of("mapped_*", "*")) {
+                List<String> searchableFields = searchableFields(fieldNamePattern);
+                String kqlQuery = kqlFieldQuery(fieldNamePattern, query);
+                BoolQueryBuilder parsedQuery = asInstanceOf(BoolQueryBuilder.class, parseKqlQuery(kqlQuery));
+                assertThat(parsedQuery.mustNot(), empty());
+                assertThat(parsedQuery.must(), empty());
+                assertThat(parsedQuery.filter(), empty());
+                assertThat(parsedQuery.minimumShouldMatch(), equalTo("1"));
+                assertThat(parsedQuery.should(), hasSize(searchableFields.size()));
 
-            assertThat(parsedQuery.mustNot(), empty());
-            assertThat(parsedQuery.must(), empty());
-            assertThat(parsedQuery.filter(), empty());
-            assertThat(parsedQuery.minimumShouldMatch(), equalTo("1"));
-            assertThat(parsedQuery.should(), hasSize(mappedFieldName.size()));
-
-            assertThat(
-                parsedQuery.should(),
-                containsInAnyOrder(mappedFieldName.stream().map(fieldName -> parseKqlQuery(kqlFieldQuery(fieldName, query))).toArray())
-            );
+                assertThat(
+                    parsedQuery.should(),
+                    containsInAnyOrder(searchableFields.stream().map(fieldName -> parseKqlQuery(kqlFieldQuery(fieldName, query))).toArray())
+                );
+            }
         }
     }
 

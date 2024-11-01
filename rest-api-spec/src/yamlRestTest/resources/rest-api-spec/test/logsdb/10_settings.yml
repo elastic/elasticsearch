@@ -1,7 +1,6 @@
 ---
 setup:
   - requires:
-      cluster_features: [ "mapper.source.mode_from_index_setting" ]
       test_runner_features: [capabilities]
       capabilities:
         - method: PUT
@@ -11,6 +10,14 @@ setup:
 
 ---
 create logs index:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ logsdb_index_mode ]
+      reason: "Support for 'logsdb' index mode capability required"
+
   - do:
       indices.create:
         index: test
@@ -76,6 +83,14 @@ create logs index:
 
 ---
 using default timestamp field mapping:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ logsdb_index_mode ]
+      reason: "Support for 'logsdb' index mode capability required"
+
   - do:
       indices.create:
         index: test-timestamp-missing
@@ -100,6 +115,14 @@ using default timestamp field mapping:
 
 ---
 missing hostname field:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ logsdb_index_mode ]
+      reason: "Support for 'logsdb' index mode capability required"
+
   - do:
       indices.create:
         index: test-hostname-missing
@@ -131,6 +154,14 @@ missing hostname field:
 
 ---
 missing sort field:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ logsdb_index_mode ]
+      reason: "Support for 'logsdb' index mode capability required"
+
   - do:
       catch: bad_request
       indices.create:
@@ -164,6 +195,14 @@ missing sort field:
 
 ---
 non-default sort settings:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ logsdb_index_mode ]
+      reason: "Support for 'logsdb' index mode capability required"
+
   - do:
       indices.create:
         index: test-sort
@@ -209,6 +248,14 @@ non-default sort settings:
 
 ---
 override sort order settings:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ logsdb_index_mode ]
+      reason: "Support for 'logsdb' index mode capability required"
+
   - do:
       indices.create:
         index: test-sort-order
@@ -249,6 +296,14 @@ override sort order settings:
 
 ---
 override sort missing settings:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ logsdb_index_mode ]
+      reason: "Support for 'logsdb' index mode capability required"
+
   - do:
       indices.create:
         index: test-sort-missing
@@ -289,6 +344,14 @@ override sort missing settings:
 
 ---
 override sort mode settings:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ logsdb_index_mode ]
+      reason: "Support for 'logsdb' index mode capability required"
+
   - do:
       indices.create:
         index: test-sort-mode
@@ -417,6 +480,14 @@ override sort field using nested field type:
 
 ---
 routing path not allowed in logs mode:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ logsdb_index_mode ]
+      reason: "Support for 'logsdb' index mode capability required"
+
   - do:
       catch: bad_request
       indices.create:
@@ -449,6 +520,14 @@ routing path not allowed in logs mode:
 
 ---
 start time not allowed in logs mode:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ logsdb_index_mode ]
+      reason: "Support for 'logsdb' index mode capability required"
+
   - do:
       catch: bad_request
       indices.create:
@@ -482,6 +561,14 @@ start time not allowed in logs mode:
 
 ---
 end time not allowed in logs mode:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ logsdb_index_mode ]
+      reason: "Support for 'logsdb' index mode capability required"
+
   - do:
       catch: bad_request
       indices.create:

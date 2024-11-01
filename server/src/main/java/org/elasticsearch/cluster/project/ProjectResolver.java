@@ -10,6 +10,7 @@
 package org.elasticsearch.cluster.project;
 
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
@@ -26,6 +27,10 @@ public interface ProjectResolver {
 
     default ProjectMetadata getProjectMetadata(ClusterState clusterState) {
         return getProjectMetadata(clusterState.metadata());
+    }
+
+    default ProjectState getProjectState(ClusterState clusterState) {
+        return clusterState.projectState(getProjectId(clusterState));
     }
 
     // TODO multi-project: change this so it doesn't take in any parameters

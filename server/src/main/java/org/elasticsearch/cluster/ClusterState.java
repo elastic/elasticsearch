@@ -509,6 +509,10 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         }
     }
 
+    public ProjectState projectState(ProjectId projectId) {
+        return new ProjectState(this, projectId);
+    }
+
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();

@@ -293,6 +293,9 @@ tests:
 - class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
   method: test {yaml=logsdb/10_settings/logsdb with default ignore dynamic beyond limit and subobjects false}
   issue: https://github.com/elastic/elasticsearch/issues/116054
+- class: org.elasticsearch.indices.state.CloseIndexIT
+  method: testConcurrentClose
+  issue: https://github.com/elastic/elasticsearch/issues/116073
 
 # Examples:
 #

@@ -481,10 +481,9 @@ setup:
       indices.create:
         index: test2
         body:
-          settings:
-            index:
-              mapping.source.mode: synthetic
           mappings:
+            _source:
+              mode: synthetic
             properties:
               "emp_no":
                 type: long
@@ -527,10 +526,9 @@ setup:
       indices.create:
         index: test2
         body:
-          settings:
-            index:
-              mapping.source.mode: synthetic
           mappings:
+            _source:
+              mode: synthetic
             properties:
               "emp_no":
                 type: long

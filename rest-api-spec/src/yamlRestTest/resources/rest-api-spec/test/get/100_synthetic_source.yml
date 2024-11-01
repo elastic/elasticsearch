@@ -7,10 +7,9 @@ keyword:
       indices.create:
         index: test
         body:
-          settings:
-            index:
-              mapping.source.mode: synthetic
           mappings:
+            _source:
+              mode: synthetic
             properties:
               kwd:
                 type: keyword
@@ -49,8 +48,9 @@ fetch without refresh also produces synthetic source:
           settings:
             index:
               refresh_interval: -1
-              mapping.source.mode: synthetic
           mappings:
+            _source:
+              mode: synthetic
             properties:
               obj:
                 properties:
@@ -90,10 +90,9 @@ force_synthetic_source_ok:
       indices.create:
         index: test
         body:
-          settings:
-            index:
-              mapping.source.mode: stored
           mappings:
+            _source:
+              mode: stored
             properties:
               obj:
                 properties:
@@ -140,10 +139,9 @@ stored text:
       indices.create:
         index: test
         body:
-          settings:
-            index:
-              mapping.source.mode: synthetic
           mappings:
+            _source:
+              mode: synthetic
             properties:
               text:
                 type: text
@@ -214,10 +212,9 @@ stored keyword:
       indices.create:
         index: test
         body:
-          settings:
-            index:
-              mapping.source.mode: synthetic
           mappings:
+            _source:
+              mode: synthetic
             properties:
               kwd:
                 type: keyword
@@ -256,10 +253,9 @@ doc values keyword with ignore_above:
       indices.create:
         index: test
         body:
-          settings:
-            index:
-              mapping.source.mode: synthetic
           mappings:
+            _source:
+              mode: synthetic
             properties:
               kwd:
                 type: keyword
@@ -340,10 +336,9 @@ stored keyword with ignore_above:
       indices.create:
         index: test
         body:
-          settings:
-            index:
-              mapping.source.mode: synthetic
           mappings:
+            _source:
+              mode: synthetic
             properties:
               kwd:
                 type: keyword
@@ -426,10 +421,9 @@ indexed dense vectors:
       indices.create:
         index: test
         body:
-          settings:
-            index:
-              mapping.source.mode: synthetic
           mappings:
+            _source:
+              mode: synthetic
             properties:
               name:
                 type: keyword
@@ -471,10 +465,9 @@ non-indexed dense vectors:
       indices.create:
         index: test
         body:
-          settings:
-            index:
-              mapping.source.mode: synthetic
           mappings:
+            _source:
+              mode: synthetic
             properties:
               name:
                 type: keyword
@@ -515,10 +508,9 @@ _source filtering:
       indices.create:
         index: test
         body:
-          settings:
-            index:
-              mapping.source.mode: synthetic
           mappings:
+            _source:
+              mode: synthetic
             properties:
               kwd:
                 type: keyword
@@ -558,9 +550,9 @@ _doc_count:
       indices.create:
         index: test
         body:
-          settings:
-            index:
-              mapping.source.mode: synthetic
+          mappings:
+            _source:
+              mode: synthetic
 
   # with _doc_count
   - do:
@@ -687,10 +679,9 @@ fields with ignore_malformed:
       indices.create:
         index: test
         body:
-          settings:
-            index:
-              mapping.source.mode: synthetic
           mappings:
+            _source:
+              mode: synthetic
             properties:
               ip:
                 type: ip
@@ -923,10 +914,9 @@ flattened field:
       indices.create:
         index: test
         body:
-          settings:
-            index:
-              mapping.source.mode: synthetic
           mappings:
+            _source:
+              mode: synthetic
             properties:
               flattened:
                 type: flattened
@@ -1016,10 +1006,9 @@ flattened field with ignore_above:
       indices.create:
         index: test
         body:
-          settings:
-            index:
-              mapping.source.mode: synthetic
           mappings:
+            _source:
+              mode: synthetic
             properties:
               field:
                 type: flattened
@@ -1072,10 +1061,9 @@ flattened field with ignore_above and arrays:
       indices.create:
         index: test
         body:
-          settings:
-            index:
-              mapping.source.mode: synthetic
           mappings:
+            _source:
+              mode: synthetic
             properties:
               field:
                 type: flattened
@@ -1129,10 +1117,9 @@ completion:
       indices.create:
         index: test
         body:
-          settings:
-            index:
-              mapping.source.mode: synthetic
           mappings:
+            _source:
+              mode: synthetic
             properties:
               completion:
                 type: completion

@@ -25,8 +25,6 @@ final class SystemJvmOptions {
         String distroType = sysprops.get("es.distribution.type");
         boolean isHotspot = sysprops.getOrDefault("sun.management.compiler", "").contains("HotSpot");
         boolean useEntitlements = sysprops.getOrDefault("es.entitlements.enabled", "false").equalsIgnoreCase("true");
-        System.err.println("pdoyle *************** useEntitlements: " + useEntitlements);
-
         return Stream.of(
             Stream.of(
                 /*
@@ -146,7 +144,7 @@ final class SystemJvmOptions {
         }
 
         Path dir = Path.of("lib", "entitlement-bridge");
-        if (dir.toFile().exists() == false) {
+        if (Files.exists(dir) == false) {
             throw new IllegalStateException("Directory for entitlement bridge jar does not exist: " + dir);
         }
         String bridgeJar;

@@ -9,6 +9,6 @@
 
 // This module-info is used just to satisfy your IDE.
 // At build and run time, the bridge is patched into the java.base module.
-module elasticsearch.entitlement.bridge {
+module org.elasticsearch.entitlement.bridge {
     exports org.elasticsearch.entitlement.bridge;
 }

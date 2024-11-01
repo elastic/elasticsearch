@@ -16,7 +16,7 @@ import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
-import org.elasticsearch.xpack.esql.core.expression.function.scalar.UnaryScalarFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -24,10 +24,11 @@ import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
-import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.Asin;
 
 import java.io.IOException;
 import java.time.Duration;
+import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
@@ -37,7 +38,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
  * Syntax: SLOW(boolean, ms) - if boolean is true, the function will sleep for ms milliseconds.
  * The boolean is useful if you want to slow down processing on specific index or cluster only.
  */
-public class Slow extends UnaryScalarFunction implements EvaluatorMapper {
+public class Slow extends UnaryScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Slow", Slow::new);
 
     @FunctionInfo(
@@ -53,18 +54,12 @@ public class Slow extends UnaryScalarFunction implements EvaluatorMapper {
     }
 
     private Slow(StreamInput in) throws IOException {
-        this(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(Expression.class));
+        super(in);
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        source().writeTo(out);
-        out.writeNamedWriteable(field());
-    }
-
-    @Override
-    protected UnaryScalarFunction replaceChild(Expression newChild) {
-        return new Slow(source(), newChild);
+    public Expression replaceChildren(List<Expression> newChildren) {
+        return new Slow(source(), newChildren.getFirst());
     }
 
     @Override

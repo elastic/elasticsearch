@@ -12,6 +12,10 @@ package org.elasticsearch.server.cli;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
@@ -67,7 +71,8 @@ final class SystemJvmOptions {
             maybeOverrideDockerCgroup(distroType),
             maybeSetActiveProcessorCount(nodeSettings),
             maybeSetReplayFile(distroType, isHotspot),
-            maybeWorkaroundG1Bug()
+            maybeWorkaroundG1Bug(),
+            entitlementOptions()
         ).flatMap(s -> s).toList();
     }
 
@@ -132,5 +137,29 @@ final class SystemJvmOptions {
             return Stream.of("-XX:+UnlockDiagnosticVMOptions", "-XX:G1NumCollectionsKeepPinned=10000000");
         }
         return Stream.of();
+    }
+
+    private static Stream<String> entitlementOptions() {
+        Path dir = Paths.get("").resolve("lib/entitlement-bridge");
+        if (dir.toFile().exists() == false) {
+            throw new IllegalStateException("Directory for entitlement jar does not exist: " + dir);
+        }
+        String jar;
+        try (var s = Files.list(dir)) {
+            var candidates = s.limit(2).toList();
+            if (candidates.size() != 1) {
+                throw new IllegalStateException("Expected one jar in " + dir + "; found " + candidates.size());
+            }
+            jar = candidates.get(0).toString();
+        } catch (IOException e) {
+            throw new IllegalStateException("Failed to list entitlement jars in: " + dir, e);
+        }
+        return Stream.of(
+            // Entitlement agent
+            "-Djdk.attach.allowAttachSelf=true",
+            "-XX:+EnableDynamicAgentLoading",
+            "--patch-module", "java.base=" + jar,
+            "--add-exports", "java.base/org.elasticsearch.entitlement.bridge=org.elasticsearch.entitlement" // For ElasticsearchEntitlementManager
+        );
     }
 }

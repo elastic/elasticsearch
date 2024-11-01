@@ -16,7 +16,6 @@ module org.elasticsearch.server {
     requires java.sql;
     requires java.management;
     requires jdk.unsupported;
-    requires jdk.attach; // For entitlement agent
     requires java.net.http; // required by ingest-geoip's dependency maxmind.geoip2 https://github.com/elastic/elasticsearch/issues/93553
 
     requires org.elasticsearch.cli;
@@ -25,13 +24,14 @@ module org.elasticsearch.server {
     requires org.elasticsearch.geo;
     requires org.elasticsearch.lz4;
     requires org.elasticsearch.securesm;
+    requires org.elasticsearch.xcontent;
     requires org.elasticsearch.logging;
     requires org.elasticsearch.plugin;
     requires org.elasticsearch.plugin.analysis;
     requires org.elasticsearch.grok;
     requires org.elasticsearch.tdigest;
     requires org.elasticsearch.simdvec;
-    requires org.elasticsearch.entitlement.runtime;
+    requires org.elasticsearch.entitlement;
 
     requires hppc;
     requires HdrHistogram;

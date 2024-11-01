@@ -9,8 +9,7 @@
 
 package org.elasticsearch.entitlement.runtime.api;
 
-import org.elasticsearch.entitlement.api.EntitlementChecks;
-import org.elasticsearch.entitlement.api.EntitlementProvider;
+import org.elasticsearch.entitlement.bridge.EntitlementChecks;
 
 import java.util.Optional;
 
@@ -22,12 +21,6 @@ import static org.elasticsearch.entitlement.runtime.internals.EntitlementInterna
  * The trampoline module loads this object via SPI.
  */
 public class ElasticsearchEntitlementManager implements EntitlementChecks {
-    /**
-     * @return the same instance of {@link ElasticsearchEntitlementManager} returned by {@link EntitlementProvider}.
-     */
-    public static ElasticsearchEntitlementManager get() {
-        return (ElasticsearchEntitlementManager) EntitlementProvider.checks();
-    }
 
     /**
      * Causes entitlements to be enforced.
@@ -40,7 +33,7 @@ public class ElasticsearchEntitlementManager implements EntitlementChecks {
     public void checkSystemExit(Class<?> callerClass, int status) {
         var requestingModule = requestingModule(callerClass);
         if (isTriviallyAllowed(requestingModule)) {
-            // System.out.println(" - Trivially allowed");
+            System.out.println(" - Trivially allowed");
             return;
         }
         // Hard-forbidden until we develop the permission granting scheme

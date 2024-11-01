@@ -12,7 +12,7 @@ import org.elasticsearch.entitlement.instrumentation.impl.InstrumentationService
 
 module org.elasticsearch.entitlement.instrumentation {
     requires org.objectweb.asm;
-    requires org.elasticsearch.entitlement.runtime;
+    requires org.elasticsearch.entitlement;
 
     provides InstrumentationService with InstrumentationServiceImpl;
 }

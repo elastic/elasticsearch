@@ -7,14 +7,19 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-module org.elasticsearch.entitlement.runtime {
+module org.elasticsearch.entitlement {
     requires java.base; // Actually the bridge library
     requires org.elasticsearch.xcontent;
+    requires org.elasticsearch.logging;
+    requires static elasticsearch.entitlement.bridge;
+    requires java.instrument;
+    requires org.elasticsearch.base;
+    requires jdk.attach;
 
     exports org.elasticsearch.entitlement.runtime.api;
     exports org.elasticsearch.entitlement.instrumentation;
+    exports org.elasticsearch.entitlement.bootstrap to org.elasticsearch.server;
+    exports org.elasticsearch.entitlement.initialization to java.base;
 
-    provides org.elasticsearch.entitlement.api.EntitlementChecks
-        with
-            org.elasticsearch.entitlement.runtime.api.ElasticsearchEntitlementManager;
+    uses org.elasticsearch.entitlement.instrumentation.InstrumentationService;
 }

@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.entitlement.api;
+package org.elasticsearch.entitlement.bridge;
 
 public interface EntitlementChecks {
     void checkSystemExit(Class<?> callerClass, int status);

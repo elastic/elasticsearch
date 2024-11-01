@@ -10,8 +10,8 @@
 package org.elasticsearch.entitlement.instrumentation.impl;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.entitlement.api.EntitlementChecks;
-import org.elasticsearch.entitlement.api.EntitlementProvider;
+import org.elasticsearch.entitlement.bridge.EntitlementChecks;
+import org.elasticsearch.entitlement.bridge.EntitlementProvider;
 import org.elasticsearch.entitlement.instrumentation.InstrumentationService;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;

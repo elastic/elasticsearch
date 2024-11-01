@@ -7,9 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.entitlement.agent;
-
-import org.elasticsearch.entitlement.instrumentation.Instrumenter;
+package org.elasticsearch.entitlement.instrumentation;
 
 import java.lang.instrument.ClassFileTransformer;
 import java.security.ProtectionDomain;

@@ -213,9 +213,9 @@ public class InstrumenterImpl implements Instrumenter {
         private void pushEntitlementChecksObject() {
             mv.visitMethodInsn(
                 INVOKESTATIC,
-                "org/elasticsearch/entitlement/api/EntitlementProvider",
-                "checks",
-                "()Lorg/elasticsearch/entitlement/api/EntitlementChecks;",
+                    "org/elasticsearch/entitlement/bridge/EntitlementCheckerHandle",
+                "instance",
+                "()Lorg/elasticsearch/entitlement/bridge/EntitlementChecks;",
                 false
             );
         }

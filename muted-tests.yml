@@ -279,12 +279,6 @@ tests:
 - class: org.elasticsearch.indexing.IndexActionIT
   method: testAutoGenerateIdNoDuplicates
   issue: https://github.com/elastic/elasticsearch/issues/115716
-- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
-  method: test {yaml=logsdb/10_settings/logsdb with default ignore dynamic beyond limit and subobjects false}
-  issue: https://github.com/elastic/elasticsearch/issues/116054
-- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
-  method: test {yaml=logsdb/10_settings/logsdb with default ignore dynamic beyond limit and default sorting}
-  issue: https://github.com/elastic/elasticsearch/issues/116062
 - class: org.elasticsearch.xpack.application.connector.ConnectorIndexServiceTests
   issue: https://github.com/elastic/elasticsearch/issues/116087
 - class: org.elasticsearch.compute.operator.FilterOperatorTests

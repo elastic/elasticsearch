@@ -290,6 +290,9 @@ tests:
 - class: org.elasticsearch.indexing.IndexActionIT
   method: testAutoGenerateIdNoDuplicates
   issue: https://github.com/elastic/elasticsearch/issues/115716
+- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
+  method: test {yaml=logsdb/10_settings/logsdb with default ignore dynamic beyond limit and subobjects false}
+  issue: https://github.com/elastic/elasticsearch/issues/116054
 
 # Examples:
 #

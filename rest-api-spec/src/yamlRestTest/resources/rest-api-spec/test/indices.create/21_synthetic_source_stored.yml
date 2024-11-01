@@ -8,9 +8,10 @@ object param - store complex object:
       indices.create:
         index: test
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               id:
                 type: integer
@@ -72,9 +73,10 @@ object param - object array:
       indices.create:
         index: test
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               id:
                 type: integer
@@ -136,9 +138,10 @@ object param - object array within array:
       indices.create:
         index: test
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               stored:
                 synthetic_source_keep: arrays
@@ -179,9 +182,10 @@ object param - no object array:
       indices.create:
         index: test
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               stored:
                 synthetic_source_keep: arrays
@@ -221,9 +225,10 @@ object param - field ordering in object array:
       indices.create:
         index: test
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               a:
                 type: keyword
@@ -270,9 +275,10 @@ object param - nested object array next to other fields:
       indices.create:
         index: test
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               a:
                 type: keyword
@@ -326,9 +332,10 @@ object param - nested object with stored array:
       indices.create:
         index: test
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               name:
                 type: keyword
@@ -378,9 +385,10 @@ index param - nested array within array:
       indices.create:
         index: test
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               name:
                 type: keyword
@@ -428,9 +436,9 @@ index param - nested array within array - disabled second pass:
             index:
               synthetic_source:
                 enable_second_doc_parsing_pass: false
+              mapping.source.mode: synthetic
+
           mappings:
-            _source:
-              mode: synthetic
             properties:
               name:
                 type: keyword
@@ -478,9 +486,8 @@ stored field under object with store_array_source:
             index:
               sort.field: "name"
               sort.order: "asc"
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               name:
                 type: keyword
@@ -525,9 +532,10 @@ field param - keep root array:
       indices.create:
         index: test
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               id:
                 type: integer
@@ -582,9 +590,10 @@ field param - keep nested array:
       indices.create:
         index: test
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               id:
                 type: integer
@@ -650,9 +659,10 @@ field param - keep root singleton fields:
       indices.create:
         index: test
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               id:
                 type: integer
@@ -739,9 +749,10 @@ field param - keep nested singleton fields:
       indices.create:
         index: test
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               id:
                 type: integer
@@ -820,9 +831,10 @@ field param - nested array within array:
       indices.create:
         index: test
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               name:
                 type: keyword
@@ -866,10 +878,9 @@ index param - root arrays:
           settings:
             index:
               mapping:
+                source.mode: synthetic
                 synthetic_source_keep: arrays
           mappings:
-            _source:
-              mode: synthetic
             properties:
               id:
                 type: integer
@@ -945,10 +956,9 @@ index param - dynamic root arrays:
           settings:
             index:
               mapping:
+                source.mode: synthetic
                 synthetic_source_keep: arrays
           mappings:
-            _source:
-              mode: synthetic
             properties:
               id:
                 type: integer
@@ -998,10 +1008,9 @@ index param - object array within array:
           settings:
             index:
               mapping:
+                source.mode: synthetic
                 synthetic_source_keep: arrays
           mappings:
-            _source:
-              mode: synthetic
             properties:
               stored:
                 properties:
@@ -1048,10 +1057,9 @@ index param - no object array:
           settings:
             index:
               mapping:
+                source.mode: synthetic
                 synthetic_source_keep: arrays
           mappings:
-            _source:
-              mode: synthetic
             properties:
               stored:
                 properties:
@@ -1093,10 +1101,9 @@ index param - field ordering:
           settings:
             index:
               mapping:
+                source.mode: synthetic
                 synthetic_source_keep: arrays
           mappings:
-            _source:
-              mode: synthetic
             properties:
               a:
                 type: keyword
@@ -1144,10 +1151,9 @@ index param - nested arrays:
           settings:
             index:
               mapping:
+                source.mode: synthetic
                 synthetic_source_keep: arrays
           mappings:
-            _source:
-              mode: synthetic
             properties:
               a:
                 type: keyword
@@ -1212,10 +1218,9 @@ index param - nested object with stored array:
           settings:
             index:
               mapping:
+                source.mode: synthetic
                 synthetic_source_keep: arrays
           mappings:
-            _source:
-              mode: synthetic
             properties:
               name:
                 type: keyword
@@ -1264,10 +1269,9 @@ index param - flattened fields:
           settings:
             index:
               mapping:
+                source.mode: synthetic
                 synthetic_source_keep: arrays
           mappings:
-            _source:
-              mode: synthetic
             properties:
               name:
                 type: keyword

@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -27,6 +28,7 @@ import org.elasticsearch.transport.TransportService;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 public class TransportGetIndexTemplatesAction extends TransportMasterNodeReadAction<GetIndexTemplatesRequest, GetIndexTemplatesResponse> {
 
@@ -63,11 +65,17 @@ public class TransportGetIndexTemplatesAction extends TransportMasterNodeReadAct
         ClusterState state,
         ActionListener<GetIndexTemplatesResponse> listener
     ) {
+        @FixForMultiProject // this will do weird things if there's multiple templates with the same name
         List<IndexTemplateMetadata> results;
 
         // If we did not ask for a specific name, then we return all templates
         if (request.names().length == 0) {
-            results = new ArrayList<>(state.metadata().getProject().templates().values());
+            results = state.metadata()
+                .projects()
+                .values()
+                .stream()
+                .flatMap(p -> p.templates().values().stream())
+                .collect(Collectors.toCollection(ArrayList::new));
         } else {
             results = new ArrayList<>();
         }

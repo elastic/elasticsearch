@@ -241,12 +241,6 @@ public final class GeoIpProcessor extends AbstractProcessor {
             // validate (and consume) the download_database_on_pipeline_creation property even though the result is not used by the factory
             readBooleanProperty(type, processorTag, config, "download_database_on_pipeline_creation", true);
 
-            // noop, should be removed in 9.0
-            Object value = config.remove("fallback_to_default_databases");
-            if (value != null) {
-                deprecationLogger.warn(DeprecationCategory.OTHER, "default_databases_message", DEFAULT_DATABASES_DEPRECATION_MESSAGE);
-            }
-
             final String databaseType;
             try (IpDatabase ipDatabase = ipDatabaseProvider.getDatabase(databaseFile)) {
                 if (ipDatabase == null) {

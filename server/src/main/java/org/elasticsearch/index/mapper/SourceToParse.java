@@ -91,7 +91,7 @@ public class SourceToParse {
         return this.xContentType;
     }
 
-    public XContentMeteringParserDecorator getDocumentSizeObserver() {
+    public XContentMeteringParserDecorator getMeteringParserDecorator() {
         return meteringParserDecorator;
     }
 }

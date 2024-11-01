@@ -42,9 +42,10 @@
       indices.create:
         index:  test
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               count:
                 type: token_count

@@ -188,7 +188,7 @@
         }
       ],
       "variadic" : true,
-      "returnType" : "text"
+      "returnType" : "keyword"
     },
     {
       "params" : [
@@ -206,7 +206,7 @@
         }
       ],
       "variadic" : true,
-      "returnType" : "text"
+      "returnType" : "keyword"
     },
     {
       "params" : [

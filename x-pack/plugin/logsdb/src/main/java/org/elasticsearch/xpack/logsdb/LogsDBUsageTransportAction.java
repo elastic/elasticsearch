@@ -56,16 +56,18 @@ public class LogsDBUsageTransportAction extends XPackUsageFeatureTransportAction
         ActionListener<XPackUsageFeatureResponse> listener
     ) {
         int numIndices = 0;
-        int numSyntheticSources = 0;
+        int numIndicesWithSyntheticSources = 0;
         for (IndexMetadata indexMetadata : state.metadata()) {
             if (indexMetadata.getIndexMode() == IndexMode.LOGSDB) {
                 numIndices++;
                 if (INDEX_MAPPER_SOURCE_MODE_SETTING.get(indexMetadata.getSettings()) == SourceFieldMapper.Mode.SYNTHETIC) {
-                    numSyntheticSources++;
+                    numIndicesWithSyntheticSources++;
                 }
             }
         }
         final boolean enabled = LogsDBPlugin.CLUSTER_LOGSDB_ENABLED.get(clusterService.getSettings());
-        listener.onResponse(new XPackUsageFeatureResponse(new LogsDBFeatureSetUsage(true, enabled, numIndices, numSyntheticSources)));
+        listener.onResponse(
+            new XPackUsageFeatureResponse(new LogsDBFeatureSetUsage(true, enabled, numIndices, numIndicesWithSyntheticSources))
+        );
     }
 }

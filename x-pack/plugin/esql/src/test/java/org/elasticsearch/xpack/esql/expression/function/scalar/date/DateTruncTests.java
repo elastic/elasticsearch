@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
+import org.hamcrest.Matchers;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -146,10 +147,10 @@ public class DateTruncTests extends AbstractScalarFunctionTestCase {
             List.of(DataType.DATE_PERIOD, DataType.DATETIME),
             () -> new TestCaseSupplier.TestCase(
                 List.of(
-                    new TestCaseSupplier.TypedData(period, DataType.DATE_PERIOD, "interval"),
+                    new TestCaseSupplier.TypedData(period, DataType.DATE_PERIOD, "interval").forceLiteral(),
                     new TestCaseSupplier.TypedData(value, DataType.DATETIME, "date")
                 ),
-                "DateTruncEvaluator[date=Attribute[channel=1], interval=Attribute[channel=0]]",
+                Matchers.startsWith("DateTruncEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding["),
                 DataType.DATETIME,
                 equalTo(toMillis(expectedDate))
             )
@@ -161,10 +162,10 @@ public class DateTruncTests extends AbstractScalarFunctionTestCase {
             List.of(DataType.TIME_DURATION, DataType.DATETIME),
             () -> new TestCaseSupplier.TestCase(
                 List.of(
-                    new TestCaseSupplier.TypedData(duration, DataType.TIME_DURATION, "interval"),
+                    new TestCaseSupplier.TypedData(duration, DataType.TIME_DURATION, "interval").forceLiteral(),
                     new TestCaseSupplier.TypedData(value, DataType.DATETIME, "date")
                 ),
-                "DateTruncEvaluator[date=Attribute[channel=1], interval=Attribute[channel=0]]",
+                Matchers.startsWith("DateTruncEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding["),
                 DataType.DATETIME,
                 equalTo(toMillis(expectedDate))
             )

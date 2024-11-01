@@ -175,8 +175,7 @@ setup:
 ---
 histogram with synthetic source:
   - requires:
-      cluster_features: ["gte_v8.5.0"]
-      reason: introduced in 8.5.0
+      cluster_features: [ "mapper.source.mode_from_index_setting" ]
 
   - do:
       indices.create:
@@ -222,8 +221,7 @@ histogram with synthetic source:
 ---
 histogram with synthetic source and zero counts:
   - requires:
-      cluster_features: ["gte_v8.5.0"]
-      reason: introduced in 8.5.0
+      cluster_features: [ "mapper.source.mode_from_index_setting" ]
 
   - do:
       indices.create:
@@ -312,8 +310,7 @@ histogram with large count values:
 ---
 histogram with synthetic source and ignore_malformed:
   - requires:
-      cluster_features: ["mapper.track_ignored_source"]
-      reason: introduced in 8.15.0
+      cluster_features: [ "mapper.source.mode_from_index_setting" ]
 
   - do:
       indices.create:

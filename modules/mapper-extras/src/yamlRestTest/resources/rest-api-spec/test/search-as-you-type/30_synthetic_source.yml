@@ -1,7 +1,6 @@
 setup:
   - requires:
-      cluster_features: ["mapper.track_ignored_source"]
-      reason: requires tracking ignored source
+      cluster_features: [ "mapper.source.mode_from_index_setting" ]
 
   - do:
       indices.create:

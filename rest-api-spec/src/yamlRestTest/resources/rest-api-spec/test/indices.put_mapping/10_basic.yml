@@ -148,8 +148,7 @@
 ---
 "enabling synthetic source from explicit succeeds":
   - requires:
-      cluster_features: [ "gte_v8.4.0" ]
-      reason:      "Added in 8.4.0"
+      cluster_features: [ "mapper.source.mode_from_index_setting" ]
 
   - do:
       indices.create:

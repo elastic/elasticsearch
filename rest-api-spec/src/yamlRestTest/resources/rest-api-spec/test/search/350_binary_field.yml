@@ -49,8 +49,8 @@
 ---
 "binary synthetic source":
   - requires:
-      cluster_features: "gte_v8.15.0"
-      reason: synthetic source support introduced in 8.15
+      cluster_features: [ "mapper.source.mode_from_index_setting" ]
+
   - do:
       indices.create:
         index: test

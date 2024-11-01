@@ -805,6 +805,9 @@ text:
 
 ---
 synthetic _source text stored:
+  - requires:
+      cluster_features: [ "mapper.source.mode_from_index_setting" ]
+
   - do:
       indices.create:
         index:  test
@@ -837,6 +840,9 @@ synthetic _source text stored:
 
 ---
 synthetic _source text with parent keyword:
+  - requires:
+      cluster_features: [ "mapper.source.mode_from_index_setting" ]
+
   - do:
       indices.create:
         index:  test

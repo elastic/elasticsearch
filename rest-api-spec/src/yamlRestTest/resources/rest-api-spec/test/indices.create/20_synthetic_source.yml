@@ -1,3 +1,7 @@
+setup:
+  - requires:
+      cluster_features: [ "mapper.source.mode_from_index_setting" ]
+
 ---
 object with unmapped fields:
   - requires:

@@ -2,6 +2,8 @@
 setup:
   - skip:
       features: headers
+  - requires:
+      cluster_features: [ "mapper.source.mode_from_index_setting" ]
 
   - do:
       cluster.health:

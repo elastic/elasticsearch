@@ -1,5 +1,8 @@
 ---
 setup:
+  - requires:
+      cluster_features: [ "mapper.source.mode_from_index_setting" ]
+
   - do:
       indices.create:
         index: source

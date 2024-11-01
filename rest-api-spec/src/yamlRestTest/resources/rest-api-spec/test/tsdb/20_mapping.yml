@@ -427,8 +427,7 @@ nested fields:
 ---
 "Synthetic source":
   - requires:
-      cluster_features: ["gte_v8.10.0"]
-      reason: Synthetic source shows up in the mapping in 8.10
+      cluster_features: [ "mapper.source.mode_from_index_setting" ]
 
   - do:
       indices.create:
@@ -458,8 +457,7 @@ nested fields:
 ---
 stored source is supported:
   - requires:
-      cluster_features: ["mapper.source.remove_synthetic_source_only_validation"]
-      reason: requires new validation logic
+      cluster_features: [ "mapper.source.mode_from_index_setting" ]
 
   - do:
       indices.create:
@@ -495,8 +493,7 @@ stored source is supported:
 ---
 disabled source is not supported:
   - requires:
-      cluster_features: ["mapper.source.remove_synthetic_source_only_validation"]
-      reason: requires new error message
+      cluster_features: [ "mapper.source.mode_from_index_setting" ]
 
   - do:
       catch: bad_request

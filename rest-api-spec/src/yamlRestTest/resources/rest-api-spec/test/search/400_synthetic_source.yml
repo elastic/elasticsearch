@@ -1,3 +1,8 @@
+setup:
+  - requires:
+      cluster_features: [ "mapper.source.mode_from_index_setting" ]
+
+---
 keyword:
   - requires:
       cluster_features: ["gte_v8.4.0"]

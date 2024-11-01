@@ -296,6 +296,9 @@ tests:
 - class: org.elasticsearch.xpack.ccr.action.ShardFollowTaskReplicationTests
   method: testRetryBulkShardOperations
   issue: https://github.com/elastic/elasticsearch/issues/116080
+- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
+  method: test {yaml=logsdb/10_settings/logsdb with default ignore dynamic beyond limit and default sorting}
+  issue: https://github.com/elastic/elasticsearch/issues/116062
 
 # Examples:
 #

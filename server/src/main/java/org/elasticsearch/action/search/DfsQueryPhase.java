@@ -96,7 +96,7 @@ final class DfsQueryPhase extends SearchPhase {
                 connection = context.getConnection(shardTarget.getClusterAlias(), shardTarget.getNodeId());
             } catch (Exception e) {
                 shardFailure(e, querySearchRequest, shardIndex, shardTarget, counter);
-                return;
+                continue;
             }
             searchTransportService.sendExecuteQuery(
                 connection,

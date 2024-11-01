@@ -6,7 +6,7 @@ A retriever replaces other elements of the <<search-search, search API>>
 that also return top documents such as <<query-dsl, `query`>> and
 <<search-api-knn, `knn`>>.
 A retriever may have child retrievers where a retriever with two or more children is considered a compound retriever.
-This allows for complex behavior to be depicted in a tree-like structure, called the retriever tree, to better clarify the order of operations that occur during a search.
+This allows for complex behavior to be depicted in a tree-like structure, called the retriever tree, which clarifies the order of operations that occur during a search.
 
 [TIP]
 ====
@@ -45,7 +45,7 @@ Defines a query to retrieve a set of top documents.
 `filter`::
 (Optional, <<query-dsl, query object or list of query objects>>)
 +
-Applies a <<query-dsl-bool-query, boolean query filter>> to this retriever where all documents must match this query but do not contribute to the score.
+Applies a <<query-dsl-bool-query, boolean query filter>> to this retriever, where all documents must match this query but do not contribute to the score.
 
 `search_after`::
 (Optional, <<search-after, search after object>>)
@@ -56,7 +56,7 @@ include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=terminate_after]
 
 `sort`::
 +
-(Optional, <<sort-search-results, sort object>>) A sort object that that specifies the order of matching documents.
+(Optional, <<sort-search-results, sort object>>) A sort object that specifies the order of matching documents.
 
 `min_score`::
 (Optional, `float`)
@@ -441,7 +441,7 @@ If the child retriever already specifies any filters, then this top-level filter
 ==== Example: Cohere Rerank
 
 This example enables out-of-the-box semantic search by re-ranking top documents using the Cohere Rerank API.
-This approach eliminate the need to generate and store embeddings for all indexed documents.
+This approach eliminates the need to generate and store embeddings for all indexed documents.
 This requires a <<infer-service-cohere,Cohere Rerank inference endpoint>> using the `rerank` task type.
 
 [source,console]
@@ -551,11 +551,12 @@ POST movies/_search
 This retriever uses a standard `match` query to search the `movie` index for films tagged with the genre "drama".
 It then re-ranks the results based on semantic similarity to the text in the `inference_text` parameter, using the model we uploaded to {es}.
 
+[discrete]
 [[rule-retriever]]
 ==== Query Rules Retriever
 
-The `rule` retriever offers users fine-grained control over the search results by applying contextual <<query-rules>> to pin or exclude documents for specific queries.
-This retriever performs similar functionality to the <<query-dsl-rule-query>> but works out of the box with other retrievers including reranking retrievers like <<text-similarity-reranker-retriever, text_similarity_reranker>> and <<rrf-retriever, rrf>>.
+The `rule` retriever enables fine-grained control over search results by applying contextual <<query-rules>> to pin or exclude documents for specific queries.
+This retriever has similar functionality to the <<query-dsl-rule-query>>, but works out of the box with other retrievers.
 
 ===== Prerequisites
 
@@ -566,13 +567,13 @@ To use the `rule` retriever you must first create one or more query rulesets usi
 `retriever`::
 (Required, <<retriever, retriever>>)
 +
-The child retriever that returns the results we will apply query rules on top of.
+The child retriever that returns the results to apply query rules on top of.
 This can be a standalone retriever such as the <<standard-retriever, standard>> or <<knn-retriever, knn>> retriever, or it can be a compound retriever.
 
 `ruleset_ids`::
 (Required, `array`)
 +
-An array of one or more unique <<query-rules-apis, query ruleset>> ID with query-based rules to match and apply as applicable.
+An array of one or more unique <<query-rules-apis, query ruleset>> IDs with query-based rules to match and apply as applicable.
 Rulesets and their associated rules are evaluated in the order in which they are specified in the query and ruleset.
 The maximum number of rulesets to specify is 10.
 
@@ -680,7 +681,7 @@ GET movies/_search
 The <<search-from-param, `from`>> and <<search-size-param, `size`>>
 parameters are provided globally as part of the general
 <<search-search, search API>>.
-They are applied to all retrievers in a retriever tree unless a specific retriever overrides the `size` parameter using a different parameter such as `rank_window_size`.
+They are applied to all retrievers in a retriever tree, unless a specific retriever overrides the `size` parameter using a different parameter such as `rank_window_size`.
 Though, the final search hits are always limited to `size`.
 
 ==== Using aggregations with a retriever tree
@@ -691,7 +692,7 @@ clauses in a <<query-dsl-bool-query, boolean query>>.
 
 ==== Restrictions on search parameters when specifying a retriever
 
-When a retriever is specified as part of a search the following elements are not allowed at the top-level and instead are only allowed as elements of specific retrievers:
+When a retriever is specified as part of a search, the following elements are not allowed at the top-level. Instead they are only allowed as elements of specific retrievers:
 
 * <<request-body-search-query, `query`>>
 * <<search-api-knn, `knn`>>

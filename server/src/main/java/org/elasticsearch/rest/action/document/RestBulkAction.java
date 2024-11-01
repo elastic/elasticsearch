@@ -293,11 +293,6 @@ public class RestBulkAction extends BaseRestHandler {
     }
 
     @Override
-    public boolean allowsUnsafeBuffers() {
-        return true;
-    }
-
-    @Override
     public Set<String> supportedCapabilities() {
         return capabilities;
     }

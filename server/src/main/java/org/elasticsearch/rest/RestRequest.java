@@ -188,15 +188,6 @@ public class RestRequest implements ToXContent.Params, Traceable {
     }
 
     /**
-     * Invoke {@link HttpRequest#releaseAndCopy()} on the http request in this instance and replace a pooled http request
-     * with an unpooled copy. This is supposed to be used before passing requests to {@link RestHandler} instances that can not safely
-     * handle http requests that use pooled buffers as determined by {@link RestHandler#allowsUnsafeBuffers()}.
-     */
-    void ensureSafeBuffers() {
-        httpRequest = httpRequest.releaseAndCopy();
-    }
-
-    /**
      * Creates a new REST request.
      *
      * @throws BadParameterException if the parameters can not be decoded

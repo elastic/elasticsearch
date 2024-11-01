@@ -204,7 +204,7 @@ class KqlAstBuilder extends KqlBaseBaseVisitor<QueryBuilder> {
             return new MatchNoneQueryBuilder();
         }
 
-        return boolQueryBuilder.should().size() == 1 ? boolQueryBuilder.should().getFirst() : boolQueryBuilder;
+        return boolQueryBuilder.should().size() == 1 ? boolQueryBuilder.should().get(0) : boolQueryBuilder;
     }
 
     private QueryBuilder rewriteConjunctionQuery(BoolQueryBuilder boolQueryBuilder) {
@@ -214,7 +214,7 @@ class KqlAstBuilder extends KqlBaseBaseVisitor<QueryBuilder> {
             return new MatchNoneQueryBuilder();
         }
 
-        return boolQueryBuilder.must().size() == 1 ? boolQueryBuilder.must().getFirst() : boolQueryBuilder;
+        return boolQueryBuilder.must().size() == 1 ? boolQueryBuilder.must().get(0) : boolQueryBuilder;
     }
 
     private BiFunction<RangeQueryBuilder, String, RangeQueryBuilder> rangeOperation(Token operator) {

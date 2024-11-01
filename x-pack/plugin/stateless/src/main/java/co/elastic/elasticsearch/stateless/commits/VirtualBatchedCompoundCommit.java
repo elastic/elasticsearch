@@ -35,6 +35,7 @@ import org.elasticsearch.blobcache.shared.SharedBytes;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.io.stream.PositionTrackingOutputStreamStreamOutput;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Streams;
@@ -50,6 +51,7 @@ import java.io.OutputStream;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -113,6 +115,11 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
     // VBCC can no longer be appended to once it is frozen
     private volatile boolean frozen = false;
 
+    // Tracks search nodes notified that the non-uploaded VBCC's commits are available from the index node.
+    // Search shards may move to new search nodes before the commits are uploaded and tracking in the BlobReference begins.
+    // So tracking begins here before a BlobReference is created.
+    private final Set<String> notifiedSearchNodeIds;
+
     public VirtualBatchedCompoundCommit(
         ShardId shardId,
         String nodeEphemeralId,
@@ -128,6 +135,17 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
         this.primaryTermAndGeneration = new PrimaryTermAndGeneration(primaryTerm, generation);
         this.blobFile = new BlobFile(StatelessCompoundCommit.blobNameFromGeneration(generation), primaryTermAndGeneration);
         this.creationTimeInMillis = timeInMillisSupplier.getAsLong();
+        notifiedSearchNodeIds = ConcurrentCollections.newConcurrentSet();
+    }
+
+    public void addNotifiedSearchNodeIds(Collection<String> nodeIds) {
+        assert frozen == false : "Unable to add notified search nodes ids after the VBCC is finalized";
+        notifiedSearchNodeIds.addAll(nodeIds);
+    }
+
+    public Set<String> getNotifiedSearchNodeIds() {
+        assert frozen : "Accessing the notified search node id list before the VBCC is finalized";
+        return Collections.unmodifiableSet(notifiedSearchNodeIds);
     }
 
     /**

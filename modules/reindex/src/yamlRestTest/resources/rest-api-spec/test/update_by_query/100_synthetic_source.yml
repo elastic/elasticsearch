@@ -3,10 +3,9 @@ update:
       indices.create:
         index: synthetic
         body:
-          settings:
-            index:
-              mapping.source.mode: synthetic
           mappings:
+            _source:
+              mode: synthetic
             properties:
               kwd:
                 type: keyword

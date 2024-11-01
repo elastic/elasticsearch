@@ -14,6 +14,7 @@ import com.sun.tools.attach.AgentLoadException;
 import com.sun.tools.attach.AttachNotSupportedException;
 import com.sun.tools.attach.VirtualMachine;
 
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.entitlement.initialization.EntitlementInitialization;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -26,10 +27,12 @@ public class EntitlementBootstrap {
 
     public static void bootstrap() {
         logger.debug("Loading entitlement agent");
-
         exportInitializationToAgent();
+        loadAgent(findAgentJar());
+    }
 
-        String agentPath = findAgentJar();
+    @SuppressForbidden(reason="The VirtualMachine API is the only way to attach a java agent dynamically")
+    private static void loadAgent(String agentPath) {
         try {
             VirtualMachine vm = VirtualMachine.attach(Long.toString(ProcessHandle.current().pid()));
             try {
@@ -57,7 +60,7 @@ public class EntitlementBootstrap {
         }
 
         Path dir = Path.of("lib", "entitlement-agent");
-        if (dir.toFile().exists() == false) {
+        if (Files.exists(dir) == false) {
             throw new IllegalStateException("Directory for entitlement jar does not exist: " + dir);
         }
         try (var s = Files.list(dir)) {

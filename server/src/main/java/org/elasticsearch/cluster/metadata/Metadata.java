@@ -2345,7 +2345,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
                 assert previousIndicesLookup.equals(buildIndicesLookup(dataStreamMetadata(), indicesMap));
                 indicesLookup = previousIndicesLookup;
             } else if (skipNameCollisionChecks == false) {
-                // we have changes to the the entity names so we ensure we have no naming collisions
+                // we have changes to the entity names so we ensure we have no naming collisions
                 ensureNoNameCollisions(aliasedIndices.keySet(), indicesMap, dataStreamMetadata());
             }
             assert assertDataStreams(indicesMap, dataStreamMetadata());

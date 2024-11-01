@@ -110,5 +110,4 @@ public class ElasticsearchEntitlementManager implements EntitlementChecks {
         return false;
     }
 
-
 }

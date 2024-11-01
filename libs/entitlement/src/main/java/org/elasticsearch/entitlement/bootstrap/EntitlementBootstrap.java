@@ -31,7 +31,7 @@ public class EntitlementBootstrap {
         loadAgent(findAgentJar());
     }
 
-    @SuppressForbidden(reason="The VirtualMachine API is the only way to attach a java agent dynamically")
+    @SuppressForbidden(reason = "The VirtualMachine API is the only way to attach a java agent dynamically")
     private static void loadAgent(String agentPath) {
         try {
             VirtualMachine vm = VirtualMachine.attach(Long.toString(ProcessHandle.current().pid()));

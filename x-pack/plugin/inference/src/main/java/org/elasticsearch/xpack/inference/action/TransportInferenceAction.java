@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.inference.action;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
@@ -38,6 +40,7 @@ import static org.elasticsearch.xpack.inference.telemetry.InferenceStats.modelAt
 import static org.elasticsearch.xpack.inference.telemetry.InferenceStats.responseAttributes;
 
 public class TransportInferenceAction extends HandledTransportAction<InferenceAction.Request, InferenceAction.Response> {
+    private static final Logger log = LogManager.getLogger(TransportInferenceAction.class);
     private static final String STREAMING_INFERENCE_TASK_TYPE = "streaming_inference";
     private static final String STREAMING_TASK_ACTION = "xpack/inference/streaming_inference[n]";
 
@@ -70,16 +73,16 @@ public class TransportInferenceAction extends HandledTransportAction<InferenceAc
             var service = serviceRegistry.getService(unparsedModel.service());
             if (service.isEmpty()) {
                 var e = unknownServiceException(unparsedModel.service(), request.getInferenceEntityId());
-                listener.onFailure(e);
                 recordMetrics(unparsedModel, timer, e);
+                listener.onFailure(e);
                 return;
             }
 
             if (request.getTaskType().isAnyOrSame(unparsedModel.taskType()) == false) {
                 // not the wildcard task type and not the model task type
                 var e = incompatibleTaskTypeException(request.getTaskType(), unparsedModel.taskType());
-                listener.onFailure(e);
                 recordMetrics(unparsedModel, timer, e);
+                listener.onFailure(e);
                 return;
             }
 
@@ -92,15 +95,23 @@ public class TransportInferenceAction extends HandledTransportAction<InferenceAc
                 );
             inferOnServiceWithMetrics(model, request, service.get(), timer, listener);
         }, e -> {
+            try {
+                inferenceStats.inferenceDuration().record(timer.elapsedMillis(), responseAttributes(e));
+            } catch (Exception metricsException) {
+                log.atDebug().withThrowable(metricsException).log("Failed to record metrics when the model is missing, dropping metrics");
+            }
             listener.onFailure(e);
-            inferenceStats.inferenceDuration().record(timer.elapsedMillis(), responseAttributes(e));
         });
 
         modelRegistry.getModelWithSecrets(request.getInferenceEntityId(), getModelListener);
     }
 
     private void recordMetrics(UnparsedModel model, InferenceTimer timer, @Nullable Throwable t) {
-        inferenceStats.inferenceDuration().record(timer.elapsedMillis(), responseAttributes(model, t));
+        try {
+            inferenceStats.inferenceDuration().record(timer.elapsedMillis(), responseAttributes(model, t));
+        } catch (Exception e) {
+            log.atDebug().withThrowable(e).log("Failed to record metrics with an unparsed model, dropping metrics");
+        }
     }
 
     private void inferOnServiceWithMetrics(
@@ -121,17 +132,21 @@ public class TransportInferenceAction extends HandledTransportAction<InferenceAc
 
                 listener.onResponse(new InferenceAction.Response(inferenceResults, instrumentedStream));
             } else {
-                listener.onResponse(new InferenceAction.Response(inferenceResults));
                 recordMetrics(model, timer, null);
+                listener.onResponse(new InferenceAction.Response(inferenceResults));
             }
         }, e -> {
-            listener.onFailure(e);
             recordMetrics(model, timer, e);
+            listener.onFailure(e);
         }));
     }
 
     private void recordMetrics(Model model, InferenceTimer timer, @Nullable Throwable t) {
-        inferenceStats.inferenceDuration().record(timer.elapsedMillis(), responseAttributes(model, t));
+        try {
+            inferenceStats.inferenceDuration().record(timer.elapsedMillis(), responseAttributes(model, t));
+        } catch (Exception e) {
+            log.atDebug().withThrowable(e).log("Failed to record metrics with a parsed model, dropping metrics");
+        }
     }
 
     private void inferOnService(
@@ -206,29 +221,20 @@ public class TransportInferenceAction extends HandledTransportAction<InferenceAc
 
         @Override
         public void onError(Throwable throwable) {
-            try {
-                super.onError(throwable);
-            } finally {
-                recordMetrics(model, timer, throwable);
-            }
+            recordMetrics(model, timer, throwable);
+            super.onError(throwable);
         }
 
         @Override
         protected void onCancel() {
-            try {
-                super.onCancel();
-            } finally {
-                recordMetrics(model, timer, null);
-            }
+            recordMetrics(model, timer, null);
+            super.onCancel();
         }
 
         @Override
         public void onComplete() {
-            try {
-                super.onComplete();
-            } finally {
-                recordMetrics(model, timer, null);
-            }
+            recordMetrics(model, timer, null);
+            super.onComplete();
         }
     }
 

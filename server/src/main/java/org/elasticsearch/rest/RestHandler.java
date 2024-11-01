@@ -78,7 +78,7 @@ public interface RestHandler {
      * @return true iff the handler supports requests that make use of pooled buffers
      */
     default boolean allowsUnsafeBuffers() {
-        return false;
+        return true;
     }
 
     /**

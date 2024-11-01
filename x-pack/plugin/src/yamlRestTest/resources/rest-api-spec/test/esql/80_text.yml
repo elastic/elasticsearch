@@ -479,6 +479,7 @@ setup:
 "text with synthetic source":
   - requires:
       cluster_features: [ "mapper.source.mode_from_index_setting" ]
+      reason: "Source mode configured through index setting"
 
   - do:
       indices.create:
@@ -528,6 +529,7 @@ setup:
 "stored text with synthetic source":
   - requires:
       cluster_features: [ "mapper.source.mode_from_index_setting" ]
+      reason: "Source mode configured through index setting"
 
   - do:
       indices.create:

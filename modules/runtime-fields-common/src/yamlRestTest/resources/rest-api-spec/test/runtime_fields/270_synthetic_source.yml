@@ -2,6 +2,7 @@
 keywords:
   - requires:
       cluster_features: [ "mapper.source.mode_from_index_setting" ]
+      reason: "Source mode configured through index setting"
 
   - do:
       indices.create:
@@ -70,6 +71,7 @@ keywords:
 doubles:
   - requires:
       cluster_features: [ "mapper.source.mode_from_index_setting" ]
+      reason: "Source mode configured through index setting"
 
   - do:
       indices.create:

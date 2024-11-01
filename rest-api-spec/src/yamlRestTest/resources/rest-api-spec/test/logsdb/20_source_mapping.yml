@@ -2,6 +2,7 @@
 synthetic _source is default:
   - requires:
       cluster_features: [ "mapper.source.mode_from_index_setting" ]
+      reason: "Source mode configured through index setting"
 
   - do:
       indices.create:
@@ -20,6 +21,7 @@ synthetic _source is default:
 stored _source mode is supported:
   - requires:
       cluster_features: [ "mapper.source.mode_from_index_setting" ]
+      reason: "Source mode configured through index setting"
 
   - do:
       indices.create:
@@ -39,6 +41,7 @@ stored _source mode is supported:
 disabled _source is not supported:
   - requires:
       cluster_features: [ "mapper.source.mode_from_index_setting" ]
+      reason: "Source mode configured through index setting"
 
   - do:
       catch: bad_request
@@ -74,6 +77,7 @@ disabled _source is not supported:
 include/exclude is not supported with synthetic _source:
   - requires:
       cluster_features: [ "mapper.source.mode_from_index_setting" ]
+      reason: "Source mode configured through index setting"
 
   - do:
       catch: '/filtering the stored _source is incompatible with synthetic source/'
@@ -103,6 +107,7 @@ include/exclude is not supported with synthetic _source:
 include/exclude is supported with stored _source:
   - requires:
       cluster_features: [ "mapper.source.mode_from_index_setting" ]
+      reason: "Source mode configured through index setting"
 
   - do:
       indices.create:

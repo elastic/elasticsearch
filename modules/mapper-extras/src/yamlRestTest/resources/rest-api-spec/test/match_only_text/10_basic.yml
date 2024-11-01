@@ -279,6 +279,7 @@ setup:
 synthetic_source:
   - requires:
       cluster_features: [ "mapper.source.mode_from_index_setting" ]
+      reason: "Source mode configured through index setting"
 
   - do:
       indices.create:
@@ -356,6 +357,7 @@ tsdb:
 synthetic_source with copy_to:
   - requires:
       cluster_features: [ "mapper.source.mode_from_index_setting" ]
+      reason: "Source mode configured through index setting"
 
   - do:
       indices.create:

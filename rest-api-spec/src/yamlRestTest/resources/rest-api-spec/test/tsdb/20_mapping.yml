@@ -428,6 +428,7 @@ nested fields:
 "Synthetic source":
   - requires:
       cluster_features: [ "mapper.source.mode_from_index_setting" ]
+      reason: "Source mode configured through index setting"
 
   - do:
       indices.create:
@@ -458,6 +459,7 @@ nested fields:
 stored source is supported:
   - requires:
       cluster_features: [ "mapper.source.mode_from_index_setting" ]
+      reason: "Source mode configured through index setting"
 
   - do:
       indices.create:
@@ -494,6 +496,7 @@ stored source is supported:
 disabled source is not supported:
   - requires:
       cluster_features: [ "mapper.source.mode_from_index_setting" ]
+      reason: "Source mode configured through index setting"
 
   - do:
       catch: bad_request

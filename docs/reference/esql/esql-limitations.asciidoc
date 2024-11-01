@@ -102,11 +102,19 @@ is currently experimental.
 
 [discrete]
 [[esql-limitations-full-text-search]]
-=== Full-text search is not supported
+=== Full-text search
+
+experimental:[] {esql}'s support for <<esql-search-functions,full-text search>>
+is currently in Technical Preview. A restriction of full-text search is that
+the search function must come directly after, or very close to, the `FROM`
+source command. Otherwise, the query will fail to execute.
+
+Until such time that full-text search becomes final, one can follow this
+advice.
 
 Because of <<esql-limitations-text-fields,the way {esql} treats `text` values>>,
-full-text search is not yet supported. Queries on `text` fields are like queries
-on `keyword` fields: they are case-sensitive and need to match the full string.
+queries on `text` fields are like queries on `keyword` fields: they are
+case-sensitive and need to match the full string.
 
 For example, after indexing a field of type `text` with the value `Elasticsearch
 query language`, the following `WHERE` clause does not match because the `LIKE`

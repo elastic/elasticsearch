@@ -8,8 +8,8 @@
 {esql} supports these full-text search functions:
 
 // tag::search_list[]
-* <<esql-match>>
-* <<esql-qstr>>
+* experimental:[] <<esql-match>>
+* experimental:[] <<esql-qstr>>
 // end::search_list[]
 
 include::layout/match.asciidoc[]

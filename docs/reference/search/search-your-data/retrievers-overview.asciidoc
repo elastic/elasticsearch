@@ -70,7 +70,9 @@ When using compound retrievers, only the query element is allowed, which enforce
 
 The following example demonstrates the powerful queries that we can now compose, and how retrievers simplify this process.
 We can use any combination of retrievers we want, propagating the results of a nested retriever to its parent.
-In this scenario, we'll make use of all 4 (currently) available retrievers, i.e. `standard`, `knn`, `text_similarity_reranker` and `rrf`.
+In this scenario, we'll make use of 4 of our currently available retrievers, i.e. `standard`, `knn`, `text_similarity_reranker` and `rrf`.
+See <<retrievers-overview-types>> for the complete list of available retrievers.
+
 We'll first combine the results of a `semantic` query using the `standard` retriever, and that of a `knn` search on a dense vector field, using `rrf` to get the top 100 results.
 Finally, we'll then rerank the top-50 results of `rrf` using the `text_similarity_reranker`
 

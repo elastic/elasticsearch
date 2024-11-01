@@ -640,7 +640,7 @@ Nesting a `rule` retriever as a sub-retriever under a reranker such as `rrf` or 
 GET movies/_search
 {
   "retriever": {
-    "rule": {
+    "rule": { <1>
       "match_criteria": {
         "query_string": "harry potter"
       },
@@ -648,7 +648,7 @@ GET movies/_search
         "my-ruleset"
       ],
       "retriever": {
-        "rrf": {
+        "rrf": { <2>
           "retrievers": [
             {
               "standard": {
@@ -676,6 +676,9 @@ GET movies/_search
 }
 ----
 
+<1> The `rule` retriever is the outermost retriever, applying rules to the search results that were previously reranked using the `rrf` retriever.
+<2> The `rrf` retriever returns results from all of its sub-retrievers, and the output of the `rrf` retriever is used as input to the `rule` retriever.
+
 ==== Using `from` and `size` with a retriever tree
 
 The <<search-from-param, `from`>> and <<search-size-param, `size`>>
@@ -692,7 +695,8 @@ clauses in a <<query-dsl-bool-query, boolean query>>.
 
 ==== Restrictions on search parameters when specifying a retriever
 
-When a retriever is specified as part of a search, the following elements are not allowed at the top-level. Instead they are only allowed as elements of specific retrievers:
+When a retriever is specified as part of a search, the following elements are not allowed at the top-level.
+Instead they are only allowed as elements of specific retrievers:
 
 * <<request-body-search-query, `query`>>
 * <<search-api-knn, `knn`>>

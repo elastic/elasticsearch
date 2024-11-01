@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.logsdb;
 
+import org.elasticsearch.client.Request;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
@@ -35,12 +37,6 @@ public class LogsdbRestIT extends ESRestTestCase {
     }
 
     public void testFeatureUsageWithLogsdbIndex() throws IOException {
-        {
-            var response = getAsMap("/_license/feature_usage");
-            @SuppressWarnings("unchecked")
-            List<Map<?, ?>> features = (List<Map<?, ?>>) response.get("features");
-            assertThat(features, Matchers.empty());
-        }
         {
             if (randomBoolean()) {
                 createIndex("test-index", Settings.builder().put("index.mode", "logsdb").build());
@@ -79,6 +75,37 @@ public class LogsdbRestIT extends ESRestTestCase {
             var settings = (Map<?, ?>) ((Map<?, ?>) getIndexSettings("test-index").get("test-index")).get("settings");
             assertNull(settings.get("index.mapping.source.mode"));  // Default, no downgrading.
         }
+    }
+
+    public void testLogsdbSourceModeForLogsIndex() throws IOException {
+        Request request = new Request("PUT", "/_cluster/settings");
+        request.setJsonEntity("{ \"transient\": { \"cluster.logsdb.enabled\": true } }");
+        assertOK(client().performRequest(request));
+
+        request = new Request("POST", "/_index_template/1");
+        request.setJsonEntity("""
+            {
+                "index_patterns": ["logs-test-*"],
+                "data_stream": {
+                }
+            }
+            """);
+        assertOK(client().performRequest(request));
+
+        request = new Request("POST", "/logs-test-foo/_doc");
+        request.setJsonEntity("""
+            {
+                "@timestamp": "2020-01-01T00:00:00.000Z",
+                "host.name": "foo",
+                "message": "bar"
+            }
+            """);
+        assertOK(client().performRequest(request));
+
+        String index = DataStream.getDefaultBackingIndexName("logs-test-foo", 1);
+        var settings = (Map<?, ?>) ((Map<?, ?>) getIndexSettings(index).get(index)).get("settings");
+        assertEquals("logsdb", settings.get("index.mode"));
+        assertNull(settings.get("index.mapping.source.mode"));
     }
 
 }

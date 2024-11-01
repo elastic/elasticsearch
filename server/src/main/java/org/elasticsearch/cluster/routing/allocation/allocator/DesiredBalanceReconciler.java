@@ -30,10 +30,6 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.gateway.PriorityComparator;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.telemetry.metric.DoubleGauge;
-import org.elasticsearch.telemetry.metric.DoubleWithAttributes;
-import org.elasticsearch.telemetry.metric.LongGaugeMetric;
-import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Comparator;
@@ -73,23 +69,10 @@ public class DesiredBalanceReconciler {
     private double undesiredAllocationsLogThreshold;
     private final NodeAllocationOrdering allocationOrdering = new NodeAllocationOrdering();
     private final NodeAllocationOrdering moveOrdering = new NodeAllocationOrdering();
+    private final DesiredBalanceMetrics desiredBalanceMetrics;
 
-    // stats
-    /**
-     * Number of unassigned shards during last reconciliation
-     */
-    protected final LongGaugeMetric unassignedShards;
-    /**
-     * Total number of assigned shards during last reconciliation
-     */
-    protected final LongGaugeMetric totalAllocations;
-    /**
-     * Number of assigned shards during last reconciliation that are not allocated on desired node and need to be moved
-     */
-    protected final LongGaugeMetric undesiredAllocations;
-    private final DoubleGauge undesiredAllocationsRatio;
-
-    public DesiredBalanceReconciler(ClusterSettings clusterSettings, ThreadPool threadPool, MeterRegistry meterRegistry) {
+    public DesiredBalanceReconciler(ClusterSettings clusterSettings, ThreadPool threadPool, DesiredBalanceMetrics desiredBalanceMetrics) {
+        this.desiredBalanceMetrics = desiredBalanceMetrics;
         this.undesiredAllocationLogInterval = new FrequencyCappedAction(
             threadPool.relativeTimeInMillisSupplier(),
             TimeValue.timeValueMinutes(5)
@@ -98,35 +81,6 @@ public class DesiredBalanceReconciler {
         clusterSettings.initializeAndWatch(
             UNDESIRED_ALLOCATIONS_LOG_THRESHOLD_SETTING,
             value -> this.undesiredAllocationsLogThreshold = value
-        );
-
-        unassignedShards = LongGaugeMetric.create(
-            meterRegistry,
-            "es.allocator.desired_balance.shards.unassigned.current",
-            "Current number of unassigned shards",
-            "{shard}"
-        );
-        totalAllocations = LongGaugeMetric.create(
-            meterRegistry,
-            "es.allocator.desired_balance.shards.current",
-            "Total number of shards",
-            "{shard}"
-        );
-        undesiredAllocations = LongGaugeMetric.create(
-            meterRegistry,
-            "es.allocator.desired_balance.allocations.undesired.current",
-            "Total number of shards allocated on undesired nodes excluding shutting down nodes",
-            "{shard}"
-        );
-        undesiredAllocationsRatio = meterRegistry.registerDoubleGauge(
-            "es.allocator.desired_balance.allocations.undesired.ratio",
-            "Ratio of undesired allocations to shard count excluding shutting down nodes",
-            "1",
-            () -> {
-                var total = totalAllocations.get();
-                var undesired = undesiredAllocations.get();
-                return new DoubleWithAttributes(total != 0 ? (double) undesired / total : 0.0);
-            }
         );
     }
 
@@ -578,9 +532,7 @@ public class DesiredBalanceReconciler {
                 }
             }
 
-            DesiredBalanceReconciler.this.unassignedShards.set(unassignedShards);
-            DesiredBalanceReconciler.this.undesiredAllocations.set(undesiredAllocationsExcludingShuttingDownNodes);
-            DesiredBalanceReconciler.this.totalAllocations.set(totalAllocations);
+            desiredBalanceMetrics.updateMetrics(unassignedShards, totalAllocations, undesiredAllocationsExcludingShuttingDownNodes);
 
             maybeLogUndesiredAllocationsWarning(totalAllocations, undesiredAllocationsExcludingShuttingDownNodes, routingNodes.size());
         }

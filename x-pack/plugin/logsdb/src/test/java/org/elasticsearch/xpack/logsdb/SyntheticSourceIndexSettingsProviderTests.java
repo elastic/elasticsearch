@@ -14,6 +14,7 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MapperTestUtils;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.license.MockLicenseState;
@@ -35,6 +36,10 @@ public class SyntheticSourceIndexSettingsProviderTests extends ESTestCase {
     private SyntheticSourceLicenseService syntheticSourceLicenseService;
     private SyntheticSourceIndexSettingsProvider provider;
 
+    private static LogsdbIndexModeSettingsProvider getLogsdbIndexModeSettingsProvider(boolean enabled) {
+        return new LogsdbIndexModeSettingsProvider(Settings.builder().put("cluster.logsdb.enabled", enabled).build());
+    }
+
     @Before
     public void setup() {
         MockLicenseState licenseState = mock(MockLicenseState.class);
@@ -46,7 +51,8 @@ public class SyntheticSourceIndexSettingsProviderTests extends ESTestCase {
 
         provider = new SyntheticSourceIndexSettingsProvider(
             syntheticSourceLicenseService,
-            im -> MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), im.getSettings(), im.getIndex().getName())
+            im -> MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), im.getSettings(), im.getIndex().getName()),
+            getLogsdbIndexModeSettingsProvider(false)
         );
     }
 
@@ -309,5 +315,72 @@ public class SyntheticSourceIndexSettingsProviderTests extends ESTestCase {
         );
         assertThat(result.size(), equalTo(1));
         assertEquals(SourceFieldMapper.Mode.STORED, SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.get(result));
+    }
+
+    public void testGetAdditionalIndexSettingsDowngradeFromSyntheticSourceFileMatch() throws IOException {
+        syntheticSourceLicenseService.setSyntheticSourceFallback(true);
+        provider = new SyntheticSourceIndexSettingsProvider(
+            syntheticSourceLicenseService,
+            im -> MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), im.getSettings(), im.getIndex().getName()),
+            getLogsdbIndexModeSettingsProvider(true)
+        );
+        final Settings settings = Settings.EMPTY;
+
+        String dataStreamName = "logs-app1";
+        Metadata.Builder mb = Metadata.builder(
+            DataStreamTestHelper.getClusterStateWithDataStreams(
+                List.of(Tuple.tuple(dataStreamName, 1)),
+                List.of(),
+                Instant.now().toEpochMilli(),
+                builder().build(),
+                1
+            ).getMetadata()
+        );
+        Metadata metadata = mb.build();
+        Settings result = provider.getAdditionalIndexSettings(
+            DataStream.getDefaultBackingIndexName(dataStreamName, 2),
+            dataStreamName,
+            null,
+            metadata,
+            Instant.ofEpochMilli(1L),
+            settings,
+            List.of()
+        );
+        assertThat(result.size(), equalTo(0));
+
+        dataStreamName = "logs-app1-0";
+        mb = Metadata.builder(
+            DataStreamTestHelper.getClusterStateWithDataStreams(
+                List.of(Tuple.tuple(dataStreamName, 1)),
+                List.of(),
+                Instant.now().toEpochMilli(),
+                builder().build(),
+                1
+            ).getMetadata()
+        );
+        metadata = mb.build();
+
+        result = provider.getAdditionalIndexSettings(
+            DataStream.getDefaultBackingIndexName(dataStreamName, 2),
+            dataStreamName,
+            null,
+            metadata,
+            Instant.ofEpochMilli(1L),
+            settings,
+            List.of()
+        );
+        assertThat(result.size(), equalTo(1));
+        assertEquals(SourceFieldMapper.Mode.STORED, SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.get(result));
+
+        result = provider.getAdditionalIndexSettings(
+            DataStream.getDefaultBackingIndexName(dataStreamName, 2),
+            dataStreamName,
+            null,
+            metadata,
+            Instant.ofEpochMilli(1L),
+            builder().put(IndexSettings.MODE.getKey(), IndexMode.STANDARD.toString()).build(),
+            List.of()
+        );
+        assertThat(result.size(), equalTo(0));
     }
 }

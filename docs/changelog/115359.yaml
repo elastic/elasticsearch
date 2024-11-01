@@ -1,0 +1,6 @@
+pr: 115359
+summary: Adding support for simulate ingest mapping adddition for indices with mappings
+  that do not come from templates
+area: Ingest Node
+type: enhancement
+issues: []

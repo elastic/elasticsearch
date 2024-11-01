@@ -1,6 +1,7 @@
 import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.internal.precommit.CheckForbiddenApisTask;
 import org.elasticsearch.gradle.internal.util.SourceDirectoryCommandLineArgumentProvider;
+import static org.elasticsearch.gradle.util.PlatformUtils.normalize
 
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
@@ -25,8 +26,8 @@ dependencies {
   compileOnly project(xpackModule('ml'))
   implementation project('compute')
   implementation project('compute:ann')
-  implementation project(':libs:elasticsearch-dissect')
-  implementation project(':libs:elasticsearch-grok')
+  implementation project(':libs:dissect')
+  implementation project(':libs:grok')
   implementation project('arrow')
 
   // Also contains a dummy processor to allow compilation with unused annotations.
@@ -56,7 +57,7 @@ def generatedSourceDir = projectDirectory.dir("src/main/generated")
 tasks.named("compileJava").configure {
   options.compilerArgumentProviders.add(new SourceDirectoryCommandLineArgumentProvider(generatedSourceDir))
   // IntelliJ sticks generated files here and we can't stop it....
-  exclude { it.file.toString().contains("src/main/generated-src/generated") }
+  exclude { normalize(it.file.toString()).contains("src/main/generated-src/generated") }
 }
 
 interface Injected {
@@ -262,8 +263,8 @@ tasks.register("regen") {
 tasks.named("spotlessJava") { dependsOn stringTemplates }
 tasks.named('checkstyleMain').configure {
   excludes = [ "**/*.java.st" ]
-  exclude { it.file.toString().contains("src/main/generated-src/generated") }
-  exclude { it.file.toString().contains("src/main/generated") }
+  exclude { normalize(it.file.toString()).contains("src/main/generated-src/generated") }
+  exclude { normalize(it.file.toString()).contains("src/main/generated") }
 }
 
 def prop(Type, type, TYPE, BYTES, Array) {

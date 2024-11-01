@@ -15,6 +15,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -144,7 +145,16 @@ public class FileSettingsService extends MasterNodeFileWatchingService implement
     }
 
     @Override
-    protected void processInitialFileMissing() throws ExecutionException, InterruptedException {
+    protected void onProcessFileChangesException(Exception e) {
+        if (e instanceof ExecutionException && e.getCause() instanceof FailedToCommitClusterStateException f) {
+            logger.error("Unable to commit cluster state", e);
+        } else {
+            super.onProcessFileChangesException(e);
+        }
+    }
+
+    @Override
+    protected void processInitialFileMissing() throws ExecutionException, InterruptedException, IOException {
         PlainActionFuture<ActionResponse.Empty> completion = new PlainActionFuture<>();
         logger.info("setting file [{}] not found, initializing [{}] as empty", watchedFile(), NAMESPACE);
         stateService.initEmpty(NAMESPACE, completion);

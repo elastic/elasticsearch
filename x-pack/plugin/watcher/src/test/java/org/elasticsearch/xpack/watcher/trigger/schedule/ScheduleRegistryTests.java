@@ -14,6 +14,7 @@ import org.junit.Before;
 
 import java.util.HashSet;
 import java.util.Set;
+import java.util.TimeZone;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
@@ -50,14 +51,21 @@ public class ScheduleRegistryTests extends ScheduleTestCase {
 
     public void testParseCron() throws Exception {
         Object cron = randomBoolean() ? Schedules.cron("* 0/5 * * * ?") : Schedules.cron("* 0/2 * * * ?", "* 0/3 * * * ?", "* 0/5 * * * ?");
-        XContentBuilder builder = jsonBuilder().startObject().field(CronSchedule.TYPE, cron).endObject();
+        TimeZone timeZone = null;
+        XContentBuilder builder = jsonBuilder().startObject().field(CronSchedule.TYPE, cron);
+        if (randomBoolean()) {
+            timeZone = randomTimeZone();
+            builder.field(ScheduleTrigger.TIMEZONE_FIELD, timeZone.getID());
+        }
+        builder.endObject();
         BytesReference bytes = BytesReference.bytes(builder);
         XContentParser parser = createParser(JsonXContent.jsonXContent, bytes);
         parser.nextToken();
-        Schedule schedule = registry.parse("ctx", parser);
+        CronnableSchedule schedule = (CronnableSchedule) registry.parse("ctx", parser);
         assertThat(schedule, notNullValue());
         assertThat(schedule, instanceOf(CronSchedule.class));
         assertThat(schedule, is(cron));
+        assertThat(schedule.getTimeZone(), equalTo(timeZone));
     }
 
     public void testParseHourly() throws Exception {

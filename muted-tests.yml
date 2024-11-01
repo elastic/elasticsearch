@@ -299,6 +299,9 @@ tests:
 - class: org.elasticsearch.xpack.searchbusinessrules.PinnedQueryBuilderIT
   method: testPinnedPromotions
   issue: https://github.com/elastic/elasticsearch/issues/116097
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=cat.shards/10_basic/Help}
+  issue: https://github.com/elastic/elasticsearch/issues/116110
 
 # Examples:
 #

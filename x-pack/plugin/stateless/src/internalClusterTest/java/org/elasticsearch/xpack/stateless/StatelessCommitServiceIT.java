@@ -101,6 +101,7 @@ public class StatelessCommitServiceIT extends AbstractStatelessIntegTestCase {
                 .build()
         );
         ensureGreen(indexName);
+        var indexNodeCommitService = internalCluster().getInstance(StatelessCommitService.class, indexNode);
 
         logger.info("--> Indexing documents and refreshing the index");
 
@@ -143,10 +144,20 @@ public class StatelessCommitServiceIT extends AbstractStatelessIntegTestCase {
                 () -> Long.MAX_VALUE
             );
 
-            // TODO (ES-9839): there's an edge case wherein an old search node using a not-yet-uploaded commit will not be tracked by the
-            // index shard that only adds tracking on commit upload. We want to add testing here to confirm the old search node is correctly
-            // tracked. For example, use StatelessCommitServiceTestUtils.getAllSearchNodesRetainingCommitsForShard to compare before and
-            // after the force-merge and commit service tracking update.
+            Set<String> trackingSearchNodes = StatelessCommitServiceTestUtils.getAllSearchNodesRetainingCommitsForShard(
+                indexNodeCommitService,
+                shardId
+            );
+            assertTrue(
+                "After shard movement and a commit, tracking search nodes: "
+                    + trackingSearchNodes
+                    + " should contain originally tracked search node:  "
+                    + searchNodeA
+                    + " (node ID "
+                    + getNodeId(searchNodeA)
+                    + ")",
+                trackingSearchNodes.contains(getNodeId(searchNodeA))
+            );
 
             // The index node will not perform any file deletions until it has verified that the cluster state in the blob store has not
             // changed. The StatelessClusterConsistencyService doesn't run immediately, so we set a Listener and wait for it to run here.

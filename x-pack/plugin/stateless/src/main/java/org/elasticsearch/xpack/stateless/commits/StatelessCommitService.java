@@ -440,6 +440,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
 
             final VirtualBatchedCompoundCommit virtualBcc;
             final boolean commitAfterRelocationStarted;
+            final Optional<IndexShardRoutingTable> shardRoutingTable = shardRoutingFinder.apply(shardId);
             synchronized (commitState) {
                 // Have to check under lock before creating vbcc to ensure that the shard has not closed.
                 if (commitState.isClosed()) {
@@ -454,11 +455,17 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     return;
                 }
                 virtualBcc = commitState.appendCommit(reference);
+                virtualBcc.addNotifiedSearchNodeIds(
+                    shardRoutingTable.map(e -> e.unpromotableShards())
+                        .orElse(List.of())
+                        .stream()
+                        .map(shardRouting -> shardRouting.currentNodeId())
+                        .toList()
+                );
                 commitAfterRelocationStarted = commitState.isRelocating() && reference.getGeneration() > commitState.maxGenerationToUpload;
             }
             success = true;
 
-            final Optional<IndexShardRoutingTable> shardRoutingTable = shardRoutingFinder.apply(shardId);
             // todo: ES-8431 remove commitState.isInitializingNoSearch, we only need this for relocations now.
             // It's possible that a background merge is triggered by the relocation flushes, we do not want to notify
             // the search nodes about this commit since the segments in that commit can overlap with some of the segments
@@ -1228,7 +1235,8 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 additionalFiles,
                 referencedBCCs,
                 virtualBcc.getPendingCompoundCommitGenerations(),
-                trackedGenerationalFiles
+                trackedGenerationalFiles,
+                virtualBcc.getNotifiedSearchNodeIds()
             );
 
             if (primaryTermAndGenToBlobReference.putIfAbsent(blobReference.getPrimaryTermAndGeneration(), blobReference) != null) {
@@ -1602,8 +1610,6 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             // We may not have currently assigned shards, or even an index, but it is possible that we still have some search nodes that
             // recently held search shards that may still be actively using shard commits. We'll send out requests to the old search nodes
             // as well as any current search nodes.
-
-            // TODO (ES-9839): this tracking is missing old search nodes that could have already started using the commits before upload.
             trackOutstandingUnpromotableShardCommitRef(currentRoutingNodesWithAssignedSearchShards, blobReference);
             lastNewCommitNotificationSentTimestamp = threadPool.relativeTimeInMillis();
 
@@ -2204,7 +2210,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
              * 5. When nodes is empty, using getAndUpdate to atomically set the reference to null.
              *    When successful this dec-refs the BlobReference's external reader ref-count.
              */
-            private final AtomicReference<Set<String>> searchNodesRef = new AtomicReference<>(Set.of());
+            private final AtomicReference<Set<String>> searchNodesRef;
 
             /**
              * Set to track the generational files that are stored in this blob and are opened locally by Lucene.
@@ -2242,12 +2248,24 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 Set<PrimaryTermAndGeneration> includedCommitGenerations,
                 Set<String> trackedGenerationalFiles
             ) {
+                this(primaryTermAndGeneration, internalFiles, references, includedCommitGenerations, trackedGenerationalFiles, Set.of());
+            }
+
+            BlobReference(
+                PrimaryTermAndGeneration primaryTermAndGeneration,
+                Set<String> internalFiles,
+                Set<BlobReference> references,
+                Set<PrimaryTermAndGeneration> includedCommitGenerations,
+                Set<String> trackedGenerationalFiles,
+                Set<String> searchNodes
+            ) {
                 this.primaryTermAndGeneration = primaryTermAndGeneration;
                 this.internalFiles = Set.copyOf(internalFiles);
                 this.references = references;
                 this.includedCommitGenerations = Set.copyOf(includedCommitGenerations);
                 this.localCommitsRef = new AtomicReference<>(Set.copyOf(includedCommitGenerations));
                 this.trackedGenerationalFiles = Set.copyOf(trackedGenerationalFiles);
+                searchNodesRef = new AtomicReference<>(searchNodes);
                 // we both decRef closedLocalReaders, closedExternalReaders and removeGenerationalFileRef,
                 // hence the extra incRefs (in addition to the 1 ref given by AbstractRefCounted constructor)
                 this.incRef();

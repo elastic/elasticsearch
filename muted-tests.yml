@@ -17,8 +17,6 @@ tests:
 - class: "org.elasticsearch.xpack.searchablesnapshots.FrozenSearchableSnapshotsIntegTests"
   issue: "https://github.com/elastic/elasticsearch/issues/110408"
   method: "testCreateAndRestorePartialSearchableSnapshot"
-- class: org.elasticsearch.multi_node.GlobalCheckpointSyncActionIT
-  issue: https://github.com/elastic/elasticsearch/issues/111124
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test021InstallPlugin
   issue: https://github.com/elastic/elasticsearch/issues/110343

@@ -242,7 +242,7 @@ public final class Settings implements ToXContentFragment, Writeable, Diffable<S
         if (prefix.isEmpty()) {
             return this;
         }
-        // create the the next prefix right after the given prefix, and use it as exclusive upper bound for the sub-map to filter by prefix
+        // create the next prefix right after the given prefix, and use it as exclusive upper bound for the sub-map to filter by prefix
         // below
         char[] toPrefixCharArr = prefix.toCharArray();
         toPrefixCharArr[toPrefixCharArr.length - 1]++;

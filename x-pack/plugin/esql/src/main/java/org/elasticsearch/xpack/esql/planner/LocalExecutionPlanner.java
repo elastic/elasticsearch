@@ -496,18 +496,19 @@ public class LocalExecutionPlanner {
     }
 
     private PhysicalOperation planHashJoin(HashJoinExec join, LocalExecutionPlannerContext context) {
-        PhysicalOperation source = plan(join.child(), context);
+        PhysicalOperation source = plan(join.left(), context);
         int positionsChannel = source.layout.numberOfChannels();
 
         Layout.Builder layoutBuilder = source.layout.builder();
         for (Attribute f : join.output()) {
-            if (join.child().outputSet().contains(f)) {
+            if (join.left().outputSet().contains(f)) {
                 continue;
             }
             layoutBuilder.append(f);
         }
         Layout layout = layoutBuilder.build();
-        Block[] localData = join.joinData().supplier().get();
+        LocalSourceExec localSourceExec = (LocalSourceExec) join.joinData();
+        Block[] localData = localSourceExec.supplier().get();
 
         RowInTableLookupOperator.Key[] keys = new RowInTableLookupOperator.Key[join.leftFields().size()];
         int[] blockMapping = new int[join.leftFields().size()];
@@ -515,8 +516,9 @@ public class LocalExecutionPlanner {
             Attribute left = join.leftFields().get(k);
             Attribute right = join.rightFields().get(k);
             Block localField = null;
-            for (int l = 0; l < join.joinData().output().size(); l++) {
-                if (join.joinData().output().get(l).name().equals((((NamedExpression) right).name()))) {
+            List<Attribute> output = join.joinData().output();
+            for (int l = 0; l < output.size(); l++) {
+                if (output.get(l).name().equals(right.name())) {
                     localField = localData[l];
                 }
             }

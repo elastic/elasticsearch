@@ -252,3 +252,107 @@ teardown:
   - match: { _source.existing-field : true }
   - match: { _source.added-in-pipeline-before-reroute : true }
   - match: { _source.added-in-pipeline-after-reroute : true }
+
+---
+"Test data stream with lazy rollover obtains pipeline from template":
+  # Start with pipeline that reroute
+  - do:
+      ingest.put_pipeline:
+        id: "demo-reroute"
+        body: >
+          {
+            "processors": [
+              {
+                "reroute" : {"namespace": "foo"}
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  # Set pipeline in template
+  - do:
+      indices.put_index_template:
+        name: demo_1
+        body:
+          index_patterns: [ "demo*" ]
+          priority: 1
+          data_stream: { }
+          template:
+            settings:
+              index.default_pipeline: "demo-reroute"
+  - match: { acknowledged: true }
+
+  - do:
+      indices.create_data_stream:
+        name: demo-dataset-default
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: demo-dataset-default
+        body:
+          '@timestamp': '2020-12-12'
+          some-field: 1
+  - do:
+      indices.refresh:
+        index: demo-dataset-foo
+
+  # document is rerouted
+  - do:
+      search:
+        index: demo-dataset-foo
+        body: { query: { match_all: { } } }
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.some-field: 1 }
+
+  # add higher priority template without reroute
+  - do:
+      indices.put_index_template:
+        name: demo_2
+        body:
+          index_patterns: [ "demo*" ]
+          priority: 2 # higher priority
+          data_stream: { }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: demo-dataset-default
+        body:
+          '@timestamp': '2020-12-12'
+          some-field: 2
+  - do:
+      indices.refresh:
+        index: demo-dataset-foo
+
+  # still reroute because datastream hasn't rolled over
+  - do:
+      search:
+        index: demo-dataset-foo
+        body: { query: { match_all: { } } }
+  - length: { hits.hits: 2 }
+
+  # perform lazy rollover
+  - do:
+      indices.rollover:
+        alias: demo-dataset-default
+        lazy: true
+
+  - do:
+      index:
+        index: demo-dataset-default
+        body:
+          '@timestamp': '2020-12-12'
+          some-field: 3
+  - do:
+      indices.refresh:
+        index: demo-dataset-default
+
+  # now absence of pipeline resolved from template, so no reroute
+  - do:
+      search:
+        index: demo-dataset-default
+        body: { query: { match_all: { } } }
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.some-field: 3 }
+

@@ -75,6 +75,7 @@ import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.similarity.NonNegativeScoresSimilarity;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.FsDirectoryFactory;
+import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
@@ -672,8 +673,14 @@ public class IndexModuleTests extends ESTestCase {
 
         module.setIndexCommitListener(new Engine.IndexCommitListener() {
             @Override
-            public void onNewCommit(Engine engine, Engine.IndexCommitRef indexCommitRef, Set<String> additionalFiles) {
-                lastAcquiredPrimaryTerm.set(engine.config().getPrimaryTermSupplier().getAsLong());
+            public void onNewCommit(
+                ShardId shardId,
+                Store store,
+                long primaryTerm,
+                Engine.IndexCommitRef indexCommitRef,
+                Set<String> additionalFiles
+            ) {
+                lastAcquiredPrimaryTerm.set(primaryTerm);
                 lastAcquiredCommit.set(indexCommitRef);
             }
 

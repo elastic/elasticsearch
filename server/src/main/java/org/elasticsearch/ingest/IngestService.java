@@ -283,7 +283,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         final long epochMillis
     ) {
         if (indexRequest.isPipelineResolved() == false) {
-            var pipelines = resolveStoredPipelines(originalRequest, indexRequest, metadata, epochMillis);
+            var pipelines = resolvePipelines(originalRequest, indexRequest, metadata, epochMillis);
             setPipelineOnRequest(indexRequest, pipelines);
         }
     }
@@ -305,7 +305,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
      * @param epochMillis current time for index name resolution
      * @return the resolved pipelines
      */
-    public static Pipelines resolveStoredPipelines(
+    public static Pipelines resolvePipelines(
         final DocWriteRequest<?> originalRequest,
         final IndexRequest indexRequest,
         final Metadata metadata,

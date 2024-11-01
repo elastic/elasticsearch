@@ -36,7 +36,10 @@ teardown:
       ingest.delete_pipeline:
         id: "pipeline-2"
         ignore: 404
-
+  - do:
+      indices.delete_data_stream:
+        name: "data-stream-*"
+        expand_wildcards: all
 ---
 "Test first matching router terminates pipeline":
   - skip:
@@ -314,15 +317,26 @@ teardown:
             settings:
               index.default_pipeline: "reroute-2"
   - match: { acknowledged: true }
+  - do:
+      indices.put_index_template:
+        name: template_3
+        body:
+          index_patterns: [ "data-stream-3" ]
+          priority: 1
+          data_stream: { }
+  - match: { acknowledged: true }
 
   - do:
       indices.create_data_stream:
         name: data-stream-1
   - match: { acknowledged: true }
-
   - do:
       indices.create_data_stream:
         name: data-stream-2
+  - match: { acknowledged: true }
+  - do:
+      indices.create_data_stream:
+        name: data-stream-3
   - match: { acknowledged: true }
 
   # write to ds-1
@@ -347,7 +361,7 @@ teardown:
   # add higher priority templates without reroute processors
   - do:
       indices.put_index_template:
-        name: template_3
+        name: template_4
         body:
           index_patterns: [ "data-stream-1" ]
           priority: 2 # higher priority
@@ -355,7 +369,7 @@ teardown:
   - match: { acknowledged: true }
   - do:
       indices.put_index_template:
-        name: template_4
+        name: template_5
         body:
           index_patterns: [ "data-stream-2" ]
           priority: 2 # higher priority
@@ -430,3 +444,133 @@ teardown:
   - length: { hits.hits: 1 }
   - match: { hits.hits.0._source.some-field: 4 }
 
+---
+"Test remove then add reroute processor with and without lazy rollover":
+  # start with pipeline that reroutes from ds-1 to ds-2
+  - do:
+      ingest.put_pipeline:
+        id: "reroute-1"
+        body: >
+          {
+            "processors": [
+              {
+                "reroute" : {"destination": "data-stream-2"}
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+ # set pipelines in templates
+  - do:
+      indices.put_index_template:
+        name: template-1
+        body:
+          index_patterns: [ "data-stream-1"]
+          priority: 1
+          data_stream: { }
+          template:
+            settings:
+              index.default_pipeline: "reroute-1"
+  - match: { acknowledged: true }
+  - do:
+      indices.put_index_template:
+        name: template_2
+        body:
+          index_patterns: [ "data-stream-2" ]
+          priority: 1
+          data_stream: { }
+  - match: { acknowledged: true }
+
+  - do:
+      indices.create_data_stream:
+        name: data-stream-1
+  - match: { acknowledged: true }
+
+  - do:
+      indices.create_data_stream:
+        name: data-stream-2
+  - match: { acknowledged: true }
+
+  # write to ds-1
+  - do:
+      index:
+        index: data-stream-1
+        body:
+          '@timestamp': '2020-12-12'
+          some-field: 1
+  - do:
+      indices.refresh:
+        index: data-stream-2
+
+  # document is rerouted to ds-2
+  - do:
+      search:
+        index: data-stream-2
+        body: { query: { match_all: { } } }
+  - length: { hits.hits: 1 }
+
+  # add higher priority templates without reroute processors
+  - do:
+      indices.put_index_template:
+        name: template_3
+        body:
+          index_patterns: [ "data-stream-1" ]
+          priority: 2 # higher priority
+          data_stream: { }
+  - match: { acknowledged: true }
+
+  # perform lazy rollover on ds-2
+  - do:
+      indices.rollover:
+        alias: data-stream-1
+        lazy: true
+
+  # write to ds-1
+  - do:
+      index:
+        index: data-stream-1
+        body:
+          '@timestamp': '2020-12-12'
+          some-field: 2
+  - do:
+      indices.refresh:
+        index: data-stream-1
+
+  # written to ds-1, as not rerouted to ds-2
+  - do:
+      search:
+        index: data-stream-1
+        body: { query: { match_all: { } } }
+  - length: { hits.hits: 1 }
+
+  # add another higher priority templates with reroute processors
+  - do:
+      indices.put_index_template:
+        name: template-3
+        body:
+          index_patterns: [ "data-stream-1" ]
+          priority: 3
+          data_stream: { }
+          template:
+            settings:
+              index.default_pipeline: "reroute-1"
+  - match: { acknowledged: true }
+
+  # don't do a lazy rollover
+  # write to ds-1
+  - do:
+      index:
+        index: data-stream-1
+        body:
+          '@timestamp': '2020-12-12'
+          some-field: 3
+  - do:
+      indices.refresh:
+        index: data-stream-1
+
+  # because no lazy rollover, still no reroute processor
+  - do:
+      search:
+        index: data-stream-1
+        body: { query: { match_all: { } } }
+  - length: { hits.hits: 2 }

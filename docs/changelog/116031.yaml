@@ -1,5 +1,6 @@
 pr: 116031
-summary: Resolve pipeline on lazy rollover write
+summary: Resolve pipelines from template on lazy rollover write
 area: Data streams
 type: bug
-issues: []
+issues:
+ - 112781

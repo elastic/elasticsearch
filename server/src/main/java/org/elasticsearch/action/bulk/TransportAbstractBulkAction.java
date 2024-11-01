@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -236,7 +237,7 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
                     var pipeline = resolvedPipelineCache.computeIfAbsent(
                         indexRequest.index(),
                         // TODO perhaps this should use `threadPool.absoluteTimeInMillis()`, but leaving as is for now.
-                        (index) -> IngestService.resolveStoredPipelines(actionRequest, indexRequest, metadata, System.currentTimeMillis())
+                        (index) -> IngestService.resolvePipelines(actionRequest, indexRequest, metadata, System.currentTimeMillis())
                     );
                     IngestService.setPipelineOnRequest(indexRequest, pipeline);
                 }

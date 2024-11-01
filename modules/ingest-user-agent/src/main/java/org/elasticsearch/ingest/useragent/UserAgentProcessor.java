@@ -9,8 +9,6 @@
 
 package org.elasticsearch.ingest.useragent;
 
-import org.elasticsearch.common.logging.DeprecationCategory;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.IngestDocument;
@@ -31,8 +29,6 @@ import static org.elasticsearch.ingest.ConfigurationUtils.readOptionalList;
 import static org.elasticsearch.ingest.ConfigurationUtils.readStringProperty;
 
 public class UserAgentProcessor extends AbstractProcessor {
-
-    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(UserAgentProcessor.class);
 
     public static final String TYPE = "user_agent";
 
@@ -198,21 +194,13 @@ public class UserAgentProcessor extends AbstractProcessor {
             String processorTag,
             String description,
             Map<String, Object> config
-        ) throws Exception {
+        ) {
             String field = readStringProperty(TYPE, processorTag, config, "field");
             String targetField = readStringProperty(TYPE, processorTag, config, "target_field", "user_agent");
             String regexFilename = readStringProperty(TYPE, processorTag, config, "regex_file", IngestUserAgentPlugin.DEFAULT_PARSER_NAME);
             List<String> propertyNames = readOptionalList(TYPE, processorTag, config, "properties");
             boolean extractDeviceType = readBooleanProperty(TYPE, processorTag, config, "extract_device_type", false);
             boolean ignoreMissing = readBooleanProperty(TYPE, processorTag, config, "ignore_missing", false);
-            Object ecsValue = config.remove("ecs");
-            if (ecsValue != null) {
-                deprecationLogger.warn(
-                    DeprecationCategory.SETTINGS,
-                    "ingest_useragent_ecs_settings",
-                    "setting [ecs] is deprecated as ECS format is the default and only option"
-                );
-            }
 
             UserAgentParser parser = userAgentParsers.get(regexFilename);
             if (parser == null) {

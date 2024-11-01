@@ -18,7 +18,6 @@ import org.apache.lucene.search.TopDocsCollector;
 import org.apache.lucene.search.TopFieldCollectorManager;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.IntBlock;
@@ -186,7 +185,6 @@ public class LuceneTopNSourceOperator extends LuceneOperator {
         IntBlock shard = null;
         IntVector segments = null;
         IntVector docs = null;
-        DocBlock docBlock = null;
         Page page = null;
         try (
             IntVector.Builder currentSegmentBuilder = blockFactory.newIntVectorFixedBuilder(size);
@@ -207,7 +205,7 @@ public class LuceneTopNSourceOperator extends LuceneOperator {
             shard = blockFactory.newConstantIntBlockWith(perShardCollector.shardContext.index(), size);
             segments = currentSegmentBuilder.build();
             docs = currentDocsBuilder.build();
-            docBlock = new DocVector(shard.asVector(), segments, docs, null).asBlock();
+            var docBlock = new DocVector(shard.asVector(), segments, docs, null).asBlock();
             page = maybeAppendScore(new Page(size, docBlock), currentScoresBuilder);
         } finally {
             if (page == null) {

@@ -101,6 +101,18 @@ final class SyntheticSourceIndexSettingsProvider implements IndexSettingProvider
 
         try {
             var tmpIndexMetadata = buildIndexMetadataForMapperService(indexName, templateIndexMode, indexTemplateAndCreateRequestSettings);
+            var indexMode = tmpIndexMetadata.getIndexMode();
+            if (SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.exists(tmpIndexMetadata.getSettings())
+                || indexMode == IndexMode.LOGSDB
+                || indexMode == IndexMode.TIME_SERIES) {
+                // in case when index mode is either tsdb or logsdb and only _source.mode attribute is specified, then the default could
+                // be wrong. However, it doesn't really matter, because if it is set to stored, then adding index.mapping.source.mode has
+                // no effect. And _source.mode can't be set to disabled, because that isn't allowed with logsdb/tsdb.
+                var sourceMode = SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.get(tmpIndexMetadata.getSettings());
+                return sourceMode == SourceFieldMapper.Mode.SYNTHETIC;
+            }
+
+            // TODO: remove this when _source.mode attribute has been removed:
             try (var mapperService = mapperServiceFactory.apply(tmpIndexMetadata)) {
                 // combinedTemplateMappings can be null when creating system indices
                 // combinedTemplateMappings can be empty when creating a normal index that doesn't match any template and without mapping.
@@ -112,7 +124,8 @@ final class SyntheticSourceIndexSettingsProvider implements IndexSettingProvider
             }
         } catch (AssertionError | Exception e) {
             // In case invalid mappings or setting are provided, then mapper service creation can fail.
-            // In that case it is ok to return false here. The index creation will fail anyway later, so need to fallback to stored source.
+            // In that case it is ok to return false here. The index creation will fail anyway later, so no need to fallback to stored
+            // source.
             LOGGER.info(() -> Strings.format("unable to create mapper service for index [%s]", indexName), e);
             return false;
         }

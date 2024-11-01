@@ -232,6 +232,8 @@ public class Cron implements ToXContentFragment {
 
     private final String expression;
 
+    private TimeZone timeZone;
+
     private transient TreeSet<Integer> seconds;
     private transient TreeSet<Integer> minutes;
     private transient TreeSet<Integer> hours;
@@ -246,7 +248,20 @@ public class Cron implements ToXContentFragment {
     private transient boolean nearestWeekday = false;
     private transient int lastdayOffset = 0;
 
-    public static final int MAX_YEAR = Calendar.getInstance(UTC, Locale.ROOT).get(Calendar.YEAR) + 100;
+    // Restricted to 50 years as the tzdb only has correct DST transition information for countries using a lunar calendar
+    // for the next ~60 years
+    public static final int MAX_YEAR = Calendar.getInstance(UTC, Locale.ROOT).get(Calendar.YEAR) + 50;
+
+    public Cron(String expression, TimeZone timeZone) {
+        this.timeZone = timeZone;
+        assert expression != null : "cron expression cannot be null";
+        this.expression = expression.toUpperCase(Locale.ROOT);
+        try {
+            buildExpression(this.expression);
+        } catch (Exception e) {
+            throw illegalArgument("invalid cron expression [{}]", e, expression);
+        }
+    }
 
     /**
      * Constructs a new <CODE>CronExpression</CODE> based on the specified
@@ -259,13 +274,7 @@ public class Cron implements ToXContentFragment {
      *         <CODE>CronExpression</CODE>
      */
     public Cron(String expression) {
-        assert expression != null : "cron expression cannot be null";
-        this.expression = expression.toUpperCase(Locale.ROOT);
-        try {
-            buildExpression(this.expression);
-        } catch (Exception e) {
-            throw illegalArgument("invalid cron expression [{}]", e, expression);
-        }
+        this(expression, UTC);
     }
 
     /**
@@ -275,7 +284,11 @@ public class Cron implements ToXContentFragment {
      * @param cron The existing cron expression to be copied
      */
     public Cron(Cron cron) {
-        this(cron.expression);
+        this(cron.expression, cron.timeZone);
+    }
+
+    public void setTimeZone(TimeZone timeZone) {
+        this.timeZone = timeZone;
     }
 
     /**
@@ -289,7 +302,7 @@ public class Cron implements ToXContentFragment {
     public long getNextValidTimeAfter(final long time) {
 
         // Computation is based on Gregorian year only.
-        Calendar cl = new java.util.GregorianCalendar(UTC, Locale.ROOT);
+        Calendar cl = new java.util.GregorianCalendar(timeZone, Locale.ROOT);
 
         // move ahead one second, since we're computing the time *after* the
         // given time
@@ -397,7 +410,7 @@ public class Cron implements ToXContentFragment {
                         day = getLastDayOfMonth(mon, cl.get(Calendar.YEAR));
                         day -= lastdayOffset;
 
-                        Calendar tcal = Calendar.getInstance(UTC, Locale.ROOT);
+                        Calendar tcal = Calendar.getInstance(timeZone, Locale.ROOT);
                         tcal.set(Calendar.SECOND, 0);
                         tcal.set(Calendar.MINUTE, 0);
                         tcal.set(Calendar.HOUR_OF_DAY, 0);
@@ -433,7 +446,7 @@ public class Cron implements ToXContentFragment {
                     t = day;
                     day = daysOfMonth.first();
 
-                    Calendar tcal = Calendar.getInstance(UTC, Locale.ROOT);
+                    Calendar tcal = Calendar.getInstance(timeZone, Locale.ROOT);
                     tcal.set(Calendar.SECOND, 0);
                     tcal.set(Calendar.MINUTE, 0);
                     tcal.set(Calendar.HOUR_OF_DAY, 0);

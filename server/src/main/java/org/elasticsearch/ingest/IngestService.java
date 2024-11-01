@@ -312,11 +312,12 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         final long epochMillis
     ) {
         if (isRolloverOnWrite(metadata, indexRequest)) {
-            return resolvePipelinesFromIndexTemplates(indexRequest, metadata).orElse(Pipelines.NO_PIPELINES_DEFINED);
+            return resolvePipelinesFromIndexTemplates(indexRequest, metadata) //
+                .orElse(Pipelines.NO_PIPELINES_DEFINED);
         } else {
-            return resolvePipelinesFromMetadata(originalRequest, indexRequest, metadata, epochMillis).or(
-                () -> resolvePipelinesFromIndexTemplates(indexRequest, metadata)
-            ).orElse(Pipelines.NO_PIPELINES_DEFINED);
+            return resolvePipelinesFromMetadata(originalRequest, indexRequest, metadata, epochMillis) //
+                .or(() -> resolvePipelinesFromIndexTemplates(indexRequest, metadata)) //
+                .orElse(Pipelines.NO_PIPELINES_DEFINED);
         }
     }
 

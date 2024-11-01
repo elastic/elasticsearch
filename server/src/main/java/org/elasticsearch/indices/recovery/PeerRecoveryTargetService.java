@@ -401,26 +401,27 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                 // operation runs only if the previous operation succeeded, and returns the previous operation's result.
                 // Failures at this stage aren't fatal, we can attempt to recover and then clean up again at the end. #104473
                 .andThenApply(startingSeqNo -> {
+                    Store.MetadataSnapshot snapshot;
+                    try {
+                        snapshot = indexShard.snapshotStoreMetadata();
+                    } catch (IOException e) {
+                        // We give up on the contents for any checked exception thrown by snapshotStoreMetadata. We don't want to
+                        // allow those to bubble up and interrupt recovery because the subsequent recovery attempt is expected
+                        // to fix up these problems for us if it completes successfully.
+                        if (e instanceof org.apache.lucene.index.IndexNotFoundException) {
+                            // this is the expected case on first recovery, so don't spam the logs with exceptions
+                            logger.debug(() -> format("no snapshot found for shard %s, treating as empty", indexShard.shardId()));
+                        } else {
+                            logger.warn(() -> format("unable to load snapshot for shard %s, treating as empty", indexShard.shardId()), e);
+                        }
+                        snapshot = Store.MetadataSnapshot.EMPTY;
+                    }
+
                     Store store = indexShard.store();
                     store.incRef();
                     try {
-                        store.cleanupAndVerify("cleanup before peer recovery", indexShard.snapshotStoreMetadata());
-                    } catch (IOException e) {
-                        // if we can't read a snapshot, then we don't have enough intact data locally to create one.
-                        // Make an attempt to clean up temporary files from the previous run. We could also just delete
-                        // everything in the directory but in that case we might want to be a little more thoughtful about
-                        // the exact exception triggered here. Corrupt indices might be recoverable without a full transfer, for
-                        // example.
-                        logger.info(() -> format("cleanup before peer recovery failed on shard [{}]", indexShard.shardId()), e);
-                        try {
-                            recoveryTarget.incRef();
-                            recoveryTarget.cleanTempFiles();
-                        } catch (IOException ie) {
-                            // log and ignore. Recovery gets another chance to clean up after file transfer.
-                            logger.warn(() -> format("temporary file cleanup failed on shard [{}]", indexShard.shardId()), ie);
-                        } finally {
-                            recoveryTarget.decRef();
-                        }
+                        logger.debug(() -> format("cleaning up index directory for %s before recovery", indexShard.shardId()));
+                        store.cleanupAndVerify("cleanup before peer recovery", snapshot);
                     } finally {
                         store.decRef();
                     }

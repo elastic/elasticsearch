@@ -5,8 +5,9 @@ type: breaking
 issues: []
 breaking:
   title: Remove ignored fallback option on GeoIP processor
-  area: Ingest Node
-  details: Please describe the details of this change for the release notes. You can
-    use asciidoc.
-  impact: Please describe the impact of this change to users
+  area: Ingest
+  details: >-
+    The option fallback_to_default_databases on the geoip ingest processor has been removed.
+    (It was deprecated and ignored since 8.0.0.)
+  impact: Customers should stop remove the noop fallback_to_default_databases option on any geoip ingest processors.
   notable: false

@@ -269,11 +269,9 @@ final class FetchSearchPhase extends SearchPhase {
         AtomicArray<? extends SearchPhaseResult> fetchResultsArr,
         SearchPhaseController.ReducedQueryPhase reducedQueryPhase
     ) {
-        context.executeNextPhase(this, () -> {
-            var resp = SearchPhaseController.merge(context.getRequest().scroll() != null, reducedQueryPhase, fetchResultsArr);
-            context.addReleasable(resp::decRef);
-            return nextPhaseFactory.apply(resp, searchPhaseShardResults);
-        });
+        var resp = SearchPhaseController.merge(context.getRequest().scroll() != null, reducedQueryPhase, fetchResultsArr);
+        context.addReleasable(resp::decRef);
+        context.executeNextPhase(this, nextPhaseFactory.apply(resp, searchPhaseShardResults));
     }
 
     private boolean shouldExplainRankScores(SearchRequest request) {

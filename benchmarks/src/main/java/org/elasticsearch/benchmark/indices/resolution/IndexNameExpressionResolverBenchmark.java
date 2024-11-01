@@ -63,7 +63,7 @@ public class IndexNameExpressionResolverBenchmark {
         int numIndices = toInt(params[1]);
 
         Metadata.Builder mb = Metadata.builder();
-        indices = new String[numIndices + numDataStreams * (numIndices + 1)];
+        String[] indices = new String[numIndices + numDataStreams * (numIndices + 1)];
         int position = 0;
         for (int i = 1; i <= numIndices; i++) {
             String indexName = INDEX_PREFIX + i;
@@ -85,6 +85,8 @@ public class IndexNameExpressionResolverBenchmark {
 
         clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(mb).build();
         resolver = new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY), new SystemIndices(List.of()));
+        indexListRequest = new IndicesRequest(IndicesOptions.lenientExpandOpenHidden(), indices);
+        starRequest = new IndicesRequest(IndicesOptions.lenientExpandOpenHidden(), "*");
     }
 
     private IndexMetadata createIndexMetadata(String indexName, Metadata.Builder mb) {
@@ -99,39 +101,41 @@ public class IndexNameExpressionResolverBenchmark {
 
     private IndexNameExpressionResolver resolver;
     private ClusterState clusterState;
-    private String[] indices;
+    private IndicesRequest starRequest;
+    private IndicesRequest indexListRequest;
 
     @Benchmark
     public String[] resolveResourcesListToConcreteIndices() {
-        return resolver.concreteIndexNames(clusterState, new IndicesRequest() {
-            @Override
-            public String[] indices() {
-                return indices;
-            }
-
-            @Override
-            public IndicesOptions indicesOptions() {
-                return IndicesOptions.lenientExpandOpenHidden();
-            }
-        });
+        return resolver.concreteIndexNames(clusterState, indexListRequest);
     }
 
     @Benchmark
     public String[] resolveAllStarToConcreteIndices() {
-        return resolver.concreteIndexNames(clusterState, new IndicesRequest() {
-            @Override
-            public String[] indices() {
-                return new String[] { "*" };
-            }
-
-            @Override
-            public IndicesOptions indicesOptions() {
-                return IndicesOptions.lenientExpandOpenHidden();
-            }
-        });
+        return resolver.concreteIndexNames(clusterState, starRequest);
     }
 
     private int toInt(String v) {
         return Integer.parseInt(v.trim());
+    }
+
+    static class IndicesRequest implements org.elasticsearch.action.IndicesRequest {
+
+        private final String[] indices;
+        private final IndicesOptions indicesOptions;
+
+        IndicesRequest(IndicesOptions indicesOptions, String... indices) {
+            this.indices = indices;
+            this.indicesOptions = indicesOptions;
+        }
+
+        @Override
+        public String[] indices() {
+            return indices;
+        }
+
+        @Override
+        public IndicesOptions indicesOptions() {
+            return indicesOptions;
+        }
     }
 }

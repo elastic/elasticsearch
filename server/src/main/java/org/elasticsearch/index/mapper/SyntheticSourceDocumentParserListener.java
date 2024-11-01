@@ -33,10 +33,13 @@ public class SyntheticSourceDocumentParserListener implements DocumentParserList
 
         this.document = document;
 
-        var parents = new Stack<ObjectMapper>() {{
-            push(mappingLookup.getMapping().getRoot());
-        }};
-        this.state = new Watching(MapperService.SINGLE_MAPPING_NAME, parents, null);
+        var rootMapper = mappingLookup.getMapping().getRoot();
+        var parents = new Stack<Watching.Parent>() {
+            {
+                push(new Watching.Parent(rootMapper, 0));
+            }
+        };
+        this.state = new Watching(MapperService.SINGLE_MAPPING_NAME, parents, rootMapper, 0);
     }
 
     @Override
@@ -94,11 +97,16 @@ public class SyntheticSourceDocumentParserListener implements DocumentParserList
                     if (startingToken instanceof Token.StartObject) {
                         depth -= 1;
                         if (depth == 0) {
-                            var parentOffset = parentMapper.fullPath().length() + 1;
+                            var parentOffset = parentMapper.isRoot() ? 0 : parentMapper.fullPath().length() + 1;
                             // TODO the way we store values is not final, maybe we should put them directly in DocumentParserContext ?
                             // does not feel great though
                             valuesToStore.add(
-                                new IgnoredSourceFieldMapper.NameValue(fullPath, parentOffset, XContentDataHelper.encodeXContentBuilder(data), document)
+                                new IgnoredSourceFieldMapper.NameValue(
+                                    fullPath,
+                                    parentOffset,
+                                    XContentDataHelper.encodeXContentBuilder(data),
+                                    document
+                                )
                             );
                             return returnState;
                         }
@@ -121,7 +129,12 @@ public class SyntheticSourceDocumentParserListener implements DocumentParserList
                             var parentOffset = parentMapper.fullPath().length() + 1;
                             // does not feel great though
                             valuesToStore.add(
-                                new IgnoredSourceFieldMapper.NameValue(fullPath, parentOffset, XContentDataHelper.encodeXContentBuilder(data), document)
+                                new IgnoredSourceFieldMapper.NameValue(
+                                    fullPath,
+                                    parentOffset,
+                                    XContentDataHelper.encodeXContentBuilder(data),
+                                    document
+                                )
                             );
                             return returnState;
                         }
@@ -131,6 +144,11 @@ public class SyntheticSourceDocumentParserListener implements DocumentParserList
                 case Token.StringValue stringValue -> data.value(stringValue.value());
                 case Token.BooleanValue booleanValue -> data.value(booleanValue.value());
                 case Token.IntValue intValue -> data.value(intValue.value());
+                case Token.LongValue longValue -> data.value(longValue.value());
+                case Token.BigIntegerValue bigIntegerValue -> data.value(bigIntegerValue.value());
+                case Token.DoubleValue doubleValue -> data.value(doubleValue.value());
+                case Token.FloatValue floatValue -> data.value(floatValue.value());
+                case Token.NullValue ignored -> data.nullValue();
             }
 
             return this;
@@ -139,54 +157,68 @@ public class SyntheticSourceDocumentParserListener implements DocumentParserList
 
     class Watching implements State {
         private String fullPath;
-        private Stack<ObjectMapper> parents;
-        private Stack<String> objectArrays;
+        private Stack<Parent> parents;
         private Mapper currentMapper;
+        private int depth;
 
-        Watching(String fullPath, Stack<ObjectMapper> parents, Mapper currentMapper) {
+        Watching(String fullPath, Stack<Parent> parents, Mapper currentMapper, int depth) {
             this.fullPath = fullPath;
             this.parents = parents;
-            this.objectArrays = new Stack<>();
             this.currentMapper = currentMapper;
+            this.depth = depth;
         }
 
         public State consume(Token token) throws IOException {
             switch (token) {
                 case Token.StartObject startObject -> {
                     if (currentMapper instanceof ObjectMapper om && om.isEnabled() == false) {
-                        var storingState = new Storing(this, startObject, fullPath, parents.peek());
+                        var storingState = new Storing(this, startObject, fullPath, parents.peek().parentMapper());
                         // TODO should we some cleaner "reset()" method on Watching or something?
                         currentMapper = null;
                         fullPath = null;
                         return storingState;
                     }
+
                     if (currentMapper instanceof ObjectMapper om) {
-                        parents.push(om);
+                        parents.push(new Parent(om, depth));
                         currentMapper = null;
                     }
+                    depth += 1;
                 }
                 case Token.EndObject endObject -> {
-                    parents.pop();
+                    assert depth > 0;
+                    depth -= 1;
+                    if (parents.peek().depth() == depth) {
+                        parents.pop();
+                    }
                 }
                 case Token.StartArray startArray -> {
                     if (currentMapper instanceof ObjectMapper om) {
-                        objectArrays.push(fullPath);
+                        parents.push(new Parent(om, depth));
+                        currentMapper = null;
                     }
+                    depth += 1;
                 }
                 case Token.EndArray endArray -> {
-                    if (currentMapper instanceof ObjectMapper om) {
-                        objectArrays.push(fullPath);
+                    assert depth > 0;
+                    depth -= 1;
+
+                    if (parents.peek().depth() == depth) {
+                        parents.pop();
                     }
                 }
                 case Token.FieldName fieldName -> {
-                    ObjectMapper parentMapper = parents.peek();
+                    ObjectMapper parentMapper = parents.peek().parentMapper();
                     fullPath = parentMapper.isRoot() ? fieldName.name() : parentMapper.fullPath() + "." + fieldName.name();
                     currentMapper = parentMapper.getMapper(fieldName.name());
                 }
-                default -> {}
+                default -> {
+                }
             }
 
             return this;
         }
+
+        record Parent(ObjectMapper parentMapper, int depth) {}
     }
 }

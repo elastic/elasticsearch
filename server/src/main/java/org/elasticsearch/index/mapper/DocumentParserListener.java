@@ -12,10 +12,11 @@ package org.elasticsearch.index.mapper;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.math.BigInteger;
 
 public interface DocumentParserListener {
     sealed interface Token permits Token.FieldName, Token.StartObject, Token.EndObject, Token.StartArray, Token.EndArray, Token.StringValue,
-        Token.BooleanValue, Token.IntValue {
+        Token.BooleanValue, Token.IntValue, Token.BigIntegerValue, Token.LongValue, Token.DoubleValue, Token.FloatValue, Token.NullValue {
         record FieldName(String name) implements Token {}
 
         record StartObject() implements Token {}
@@ -32,6 +33,16 @@ public interface DocumentParserListener {
 
         record IntValue(int value) implements Token {}
 
+        record LongValue(long value) implements Token {}
+
+        record BigIntegerValue(BigInteger value) implements Token {}
+
+        record DoubleValue(double value) implements Token {}
+
+        record FloatValue(float value) implements Token {}
+
+        record NullValue() implements Token {}
+
         static Token current(XContentParser parser) throws IOException {
             return switch (parser.currentToken()) {
                 case START_OBJECT -> new StartObject();
@@ -42,15 +53,20 @@ public interface DocumentParserListener {
                 case VALUE_STRING -> new StringValue(parser.text());
                 case VALUE_NUMBER -> switch (parser.numberType()) {
                     case INT -> new Token.IntValue(parser.intValue());
-                    case BIG_INTEGER -> null;
-                    case LONG -> null;
-                    case FLOAT -> null;
-                    case DOUBLE -> null;
-                    case BIG_DECIMAL -> null;
+                    case BIG_INTEGER -> new BigIntegerValue((BigInteger) parser.numberValue());
+                    case LONG -> new Token.LongValue(parser.longValue());
+                    case FLOAT -> new Token.FloatValue(parser.floatValue());
+                    case DOUBLE -> new Token.DoubleValue(parser.doubleValue());
+                    case BIG_DECIMAL -> {
+                        // See @XContentGenerator#copyCurrentEvent
+                        assert false : "missing xcontent number handling for type [" + parser.numberType() + "]";
+                        yield null;
+                    }
                 };
                 case VALUE_BOOLEAN -> new BooleanValue(parser.booleanValue());
+                // TODO
                 case VALUE_EMBEDDED_OBJECT -> null;
-                case VALUE_NULL -> null;
+                case VALUE_NULL -> new NullValue();
                 case null -> null;
             };
         }

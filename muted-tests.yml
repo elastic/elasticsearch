@@ -293,7 +293,18 @@ tests:
 - class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
   method: test {yaml=logsdb/10_settings/logsdb with default ignore dynamic beyond limit and non-default sorting}
   issue: https://github.com/elastic/elasticsearch/issues/116095
-
+- class: org.elasticsearch.xpack.ml.integration.DatafeedJobsRestIT
+  issue: https://github.com/elastic/elasticsearch/issues/111319
+- class: org.elasticsearch.upgrades.FullClusterRestartIT
+  method: testSnapshotRestore {cluster=OLD}
+  issue: https://github.com/elastic/elasticsearch/issues/111777
+- class: org.elasticsearch.xpack.restart.CoreFullClusterRestartIT
+  method: testSnapshotRestore {cluster=OLD}
+  issue: https://github.com/elastic/elasticsearch/issues/111775
+- class: org.elasticsearch.xpack.restart.CoreFullClusterRestartIT
+  method: testSnapshotRestore {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/111799
+  
 # Examples:
 #
 #  Mute a single test case in a YAML test suite:

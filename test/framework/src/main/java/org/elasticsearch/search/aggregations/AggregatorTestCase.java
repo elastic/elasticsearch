@@ -141,8 +141,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuil
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.fetch.FetchPhase;
-import org.elasticsearch.search.fetch.subphase.FetchDocValuesPhase;
-import org.elasticsearch.search.fetch.subphase.FetchSourcePhase;
+import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.SubSearchContext;
@@ -458,7 +457,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
-        when(ctx.fetchPhase()).thenReturn(new FetchPhase(Arrays.asList(new FetchSourcePhase(), new FetchDocValuesPhase())));
+        when(ctx.fetchPhase()).thenReturn(new FetchPhase(Arrays.asList(FetchSubPhase.FETCH_SOURCE, FetchSubPhase.FETCH_DOC_VALUES)));
 
         /*
          * Use a QueryShardContext that doesn't contain nested documents so we

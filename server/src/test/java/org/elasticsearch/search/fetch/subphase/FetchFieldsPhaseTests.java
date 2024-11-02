@@ -81,8 +81,7 @@ public class FetchFieldsPhaseTests extends ESTestCase {
         when(fetchContext.fetchFieldsContext()).thenReturn(ffc);
         when(fetchContext.getSearchExecutionContext()).thenReturn(sec);
 
-        FetchFieldsPhase phase = new FetchFieldsPhase();
-        FetchSubPhaseProcessor processor = phase.getProcessor(fetchContext);
+        FetchSubPhaseProcessor processor = FetchSubPhase.FETCH_FIELDS.getProcessor(fetchContext);
         assertNotNull(processor);
 
         for (LeafReaderContext context : reader.leaves()) {
@@ -98,7 +97,7 @@ public class FetchFieldsPhaseTests extends ESTestCase {
         dir.close();
     }
 
-    public void testStoredFieldsSpec() {
+    public void testStoredFieldsSpec() throws IOException {
         StoredFieldsContext storedFieldsContext = StoredFieldsContext.fromList(List.of("stored", "_metadata"));
         FetchFieldsContext ffc = new FetchFieldsContext(List.of(new FieldAndFormat("field", null)));
 
@@ -142,8 +141,7 @@ public class FetchFieldsPhaseTests extends ESTestCase {
         when(fetchContext.fetchFieldsContext()).thenReturn(ffc);
         when(fetchContext.storedFieldsContext()).thenReturn(storedFieldsContext);
         when(fetchContext.getSearchExecutionContext()).thenReturn(sec);
-        FetchFieldsPhase fetchFieldsPhase = new FetchFieldsPhase();
-        FetchSubPhaseProcessor processor = fetchFieldsPhase.getProcessor(fetchContext);
+        FetchSubPhaseProcessor processor = FetchSubPhase.FETCH_FIELDS.getProcessor(fetchContext);
         StoredFieldsSpec storedFieldsSpec = processor.storedFieldsSpec();
         assertEquals(3, storedFieldsSpec.requiredStoredFields().size());
         assertTrue(storedFieldsSpec.requiredStoredFields().contains("_routing"));

@@ -13,7 +13,6 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
-import org.elasticsearch.search.fetch.subphase.FetchFieldsPhase;
 import org.elasticsearch.search.lookup.Source;
 
 import java.io.IOException;
@@ -21,8 +20,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * A helper class for fetching field values during the {@link FetchFieldsPhase}. Each {@link MappedFieldType}
- * is in charge of defining a value fetcher through {@link MappedFieldType#valueFetcher}.
+ * A helper class for fetching field values during {@link org.elasticsearch.search.fetch.FetchSubPhase#FETCH_FIELDS}.
+ * Each {@link MappedFieldType} is in charge of defining a value fetcher through {@link MappedFieldType#valueFetcher}.
  */
 public interface ValueFetcher {
     /**

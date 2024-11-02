@@ -211,16 +211,6 @@ import org.elasticsearch.search.aggregations.pipeline.SumBucketPipelineAggregati
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.FetchSubPhase;
-import org.elasticsearch.search.fetch.subphase.ExplainPhase;
-import org.elasticsearch.search.fetch.subphase.FetchDocValuesPhase;
-import org.elasticsearch.search.fetch.subphase.FetchFieldsPhase;
-import org.elasticsearch.search.fetch.subphase.FetchScorePhase;
-import org.elasticsearch.search.fetch.subphase.FetchSourcePhase;
-import org.elasticsearch.search.fetch.subphase.FetchVersionPhase;
-import org.elasticsearch.search.fetch.subphase.MatchedQueriesPhase;
-import org.elasticsearch.search.fetch.subphase.ScriptFieldsPhase;
-import org.elasticsearch.search.fetch.subphase.SeqNoPrimaryTermPhase;
-import org.elasticsearch.search.fetch.subphase.StoredFieldsPhase;
 import org.elasticsearch.search.fetch.subphase.highlight.DefaultHighlighter;
 import org.elasticsearch.search.fetch.subphase.highlight.FastVectorHighlighter;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightPhase;
@@ -1066,17 +1056,17 @@ public class SearchModule {
     }
 
     private void registerFetchSubPhases(List<SearchPlugin> plugins) {
-        registerFetchSubPhase(new ExplainPhase());
-        registerFetchSubPhase(new StoredFieldsPhase());
-        registerFetchSubPhase(new FetchDocValuesPhase());
-        registerFetchSubPhase(new ScriptFieldsPhase());
-        registerFetchSubPhase(new FetchSourcePhase());
-        registerFetchSubPhase(new FetchFieldsPhase());
-        registerFetchSubPhase(new FetchVersionPhase());
-        registerFetchSubPhase(new SeqNoPrimaryTermPhase());
-        registerFetchSubPhase(new MatchedQueriesPhase());
+        registerFetchSubPhase(FetchSubPhase.EXPLAIN);
+        registerFetchSubPhase(FetchSubPhase.STORED_FIELDS);
+        registerFetchSubPhase(FetchSubPhase.FETCH_DOC_VALUES);
+        registerFetchSubPhase(FetchSubPhase.SCRIPT_FIELDS);
+        registerFetchSubPhase(FetchSubPhase.FETCH_SOURCE);
+        registerFetchSubPhase(FetchSubPhase.FETCH_FIELDS);
+        registerFetchSubPhase(FetchSubPhase.FETCH_VERSION);
+        registerFetchSubPhase(FetchSubPhase.SEQ_NO_PRIMARY_TERM);
+        registerFetchSubPhase(FetchSubPhase.MATCHED_QUERIES);
         registerFetchSubPhase(new HighlightPhase(highlighters));
-        registerFetchSubPhase(new FetchScorePhase());
+        registerFetchSubPhase(FetchSubPhase.FETCH_SCORE);
 
         FetchPhaseConstructionContext context = new FetchPhaseConstructionContext(highlighters);
         registerFromPlugin(plugins, p -> p.getFetchSubPhases(context), this::registerFetchSubPhase);

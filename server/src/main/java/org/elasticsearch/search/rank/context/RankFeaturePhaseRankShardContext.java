@@ -32,7 +32,7 @@ public abstract class RankFeaturePhaseRankShardContext {
 
     /**
      * This is used to fetch the feature data for a given set of documents, using the {@link  org.elasticsearch.search.fetch.FetchPhase}
-     * and the {@link org.elasticsearch.search.fetch.subphase.FetchFieldsPhase} subphase.
+     * and the {@link org.elasticsearch.search.fetch.FetchSubPhase#FETCH_FIELDS} subphase.
      * The feature data is then stored in a {@link org.elasticsearch.search.rank.feature.RankFeatureDoc} and passed back to the coordinator.
      */
     @Nullable

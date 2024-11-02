@@ -40,7 +40,6 @@ import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.fetch.subphase.FetchFieldsPhase;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
@@ -108,7 +107,7 @@ public abstract class MappedFieldType {
     }
 
     /**
-     * Create a helper class to fetch field values during the {@link FetchFieldsPhase}.
+     * Create a helper class to fetch field values during {@link org.elasticsearch.search.fetch.FetchSubPhase#FETCH_FIELDS}.
      *
      * New field types must implement this method in order to support the search 'fields' option. Except
      * for metadata fields, field types should not throw {@link UnsupportedOperationException} since this

@@ -12,7 +12,10 @@ package org.elasticsearch.search.fetch;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.FieldDoc;
+import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TotalHits;
+import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.index.mapper.IdLoader;
@@ -25,7 +28,6 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.fetch.FetchSubPhase.HitContext;
 import org.elasticsearch.search.fetch.subphase.InnerHitsContext;
-import org.elasticsearch.search.fetch.subphase.InnerHitsPhase;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.lookup.SourceProvider;
@@ -40,9 +42,12 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Supplier;
 
 /**
@@ -56,7 +61,75 @@ public final class FetchPhase {
 
     public FetchPhase(List<FetchSubPhase> fetchSubPhases) {
         this.fetchSubPhases = fetchSubPhases.toArray(new FetchSubPhase[fetchSubPhases.size() + 1]);
-        this.fetchSubPhases[fetchSubPhases.size()] = new InnerHitsPhase(this);
+        this.fetchSubPhases[fetchSubPhases.size()] = this::innerHitsPhase;
+    }
+
+    private FetchSubPhaseProcessor innerHitsPhase(FetchContext searchContext) {
+        if (searchContext.innerHits() == null || searchContext.innerHits().getInnerHits().isEmpty()) {
+            return null;
+        }
+        Map<String, InnerHitsContext.InnerHitSubContext> innerHits = searchContext.innerHits().getInnerHits();
+        return new FetchSubPhaseProcessor() {
+
+            private final StoredFieldsSpec storedFieldsSpec = new StoredFieldsSpec(requiresSource(innerHits.values()), false, Set.of());
+
+            @Override
+            public void setNextReader(LeafReaderContext readerContext) {}
+
+            @Override
+            public StoredFieldsSpec storedFieldsSpec() {
+                return storedFieldsSpec;
+            }
+
+            @Override
+            public void process(HitContext hitContext) throws IOException {
+                SearchHit hit = hitContext.hit();
+                Source rootSource = searchContext.getRootSource(hitContext);
+                for (Map.Entry<String, InnerHitsContext.InnerHitSubContext> entry : innerHits.entrySet()) {
+                    InnerHitsContext.InnerHitSubContext innerHitsContext = entry.getValue();
+                    TopDocsAndMaxScore topDoc = innerHitsContext.topDocs(hit);
+
+                    Map<String, SearchHits> results = hit.getInnerHits();
+                    if (results == null) {
+                        hit.setInnerHits(results = new HashMap<>());
+                    }
+                    innerHitsContext.queryResult()
+                        .topDocs(topDoc, innerHitsContext.sort() == null ? null : innerHitsContext.sort().formats);
+                    int[] docIdsToLoad = new int[topDoc.topDocs.scoreDocs.length];
+                    for (int j = 0; j < topDoc.topDocs.scoreDocs.length; j++) {
+                        docIdsToLoad[j] = topDoc.topDocs.scoreDocs[j].doc;
+                    }
+                    innerHitsContext.setRootId(hit.getId());
+                    innerHitsContext.setRootLookup(rootSource);
+
+                    execute(innerHitsContext, docIdsToLoad, null);
+                    FetchSearchResult fetchResult = innerHitsContext.fetchResult();
+                    SearchHit[] internalHits = fetchResult.fetchResult().hits().getHits();
+                    for (int j = 0; j < internalHits.length; j++) {
+                        ScoreDoc scoreDoc = topDoc.topDocs.scoreDocs[j];
+                        SearchHit searchHitFields = internalHits[j];
+                        searchHitFields.score(scoreDoc.score);
+                        if (scoreDoc instanceof FieldDoc fieldDoc) {
+                            searchHitFields.sortValues(fieldDoc.fields, innerHitsContext.sort().formats);
+                        }
+                    }
+                    var h = fetchResult.hits();
+                    assert hit.isPooled() || h.isPooled() == false;
+                    results.put(entry.getKey(), h);
+                    h.mustIncRef();
+                }
+            }
+
+            private static boolean requiresSource(Collection<? extends SearchContext> subContexts) {
+                boolean requiresSource = false;
+                for (SearchContext sc : subContexts) {
+                    requiresSource |= sc.sourceRequested();
+                    requiresSource |= sc.fetchFieldsContext() != null;
+                    requiresSource |= sc.highlight() != null;
+                }
+                return requiresSource;
+            }
+        };
     }
 
     public void execute(SearchContext context, int[] docIdsToLoad, RankDocShardInfo rankDocs) {
@@ -123,7 +196,7 @@ public final class FetchPhase {
         // Ideally the required stored fields would be provided as constructor argument a few lines above, but that requires moving
         // the getProcessors call to before the setLookupProviders call, which causes weird issues in InnerHitsPhase.
         // setLookupProviders resets the SearchLookup used throughout the rest of the fetch phase, which StoredValueFetchers rely on
-        // to retrieve stored fields, and InnerHitsPhase is the last sub-fetch phase and re-runs the entire fetch phase.
+        // to retrieve stored fields, and the inner hits phase is the last sub-fetch phase and re-runs the entire fetch phase.
         fieldLookupProvider.setPreloadedStoredFieldNames(storedFieldsSpec.requiredStoredFields());
 
         StoredFieldLoader storedFieldLoader = profiler.storedFields(StoredFieldLoader.fromSpec(storedFieldsSpec));

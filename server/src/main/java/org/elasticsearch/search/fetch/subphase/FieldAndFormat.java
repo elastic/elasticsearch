@@ -15,6 +15,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -31,7 +32,7 @@ import java.util.Objects;
  */
 public final class FieldAndFormat implements Writeable, ToXContentObject {
     private static final String USE_DEFAULT_FORMAT = "use_field_mapping";
-    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(FetchDocValuesPhase.class);
+    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(FetchSubPhase.class);
 
     public static final ParseField FIELD_FIELD = new ParseField("field");
     public static final ParseField FORMAT_FIELD = new ParseField("format");

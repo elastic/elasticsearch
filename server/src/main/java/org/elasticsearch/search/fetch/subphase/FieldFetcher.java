@@ -12,8 +12,11 @@ package org.elasticsearch.search.fetch.subphase;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.index.mapper.IgnoredFieldMapper;
+import org.elasticsearch.index.mapper.LegacyTypeFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NestedValueFetcher;
+import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.NestedUtils;
@@ -31,10 +34,18 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * A helper class to {@link FetchFieldsPhase} that's initialized with a list of field patterns to fetch.
+ * A helper class to {@link org.elasticsearch.search.fetch.FetchSubPhase#FETCH_FIELDS} that's initialized with a list of field patterns to
+ * fetch.
  * Then given a specific document, it can retrieve the corresponding fields through their corresponding {@link ValueFetcher}s.
  */
 public class FieldFetcher {
+
+    public static final List<FieldAndFormat> DEFAULT_METADATA_FIELDS = List.of(
+        new FieldAndFormat(IgnoredFieldMapper.NAME, null),
+        new FieldAndFormat(RoutingFieldMapper.NAME, null),
+        // will only be fetched when mapped (older archived indices)
+        new FieldAndFormat(LegacyTypeFieldMapper.NAME, null)
+    );
 
     private record ResolvedField(String field, String matchingPattern, MappedFieldType ft, String format) {}
 

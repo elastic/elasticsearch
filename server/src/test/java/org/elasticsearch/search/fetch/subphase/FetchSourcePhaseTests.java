@@ -16,6 +16,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.FetchContext;
+import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhase.HitContext;
 import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
 import org.elasticsearch.search.lookup.Source;
@@ -200,8 +201,7 @@ public class FetchSourcePhaseTests extends ESTestCase {
         Source source = sourceBuilder == null ? Source.empty(null) : Source.fromBytes(BytesReference.bytes(sourceBuilder));
         HitContext hitContext = new HitContext(searchHit, leafReaderContext, 1, Map.of(), source, null);
 
-        FetchSourcePhase phase = new FetchSourcePhase();
-        FetchSubPhaseProcessor processor = phase.getProcessor(fetchContext);
+        FetchSubPhaseProcessor processor = FetchSubPhase.FETCH_SOURCE.getProcessor(fetchContext);
         if (fetchSource == false) {
             assertNull(processor);
         } else {

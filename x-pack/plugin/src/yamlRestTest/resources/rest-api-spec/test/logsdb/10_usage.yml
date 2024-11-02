@@ -25,6 +25,7 @@ logsdb usage:
   - match: { logsdb.indices_count: 1 }
   - match: { logsdb.indices_with_synthetic_source: 1 }
   - match: { logsdb.num_docs: 2 }
+  - gt:    { logsdb.size_in_bytes: 0}
 
   - do:
       indices.create:
@@ -45,6 +46,7 @@ logsdb usage:
   - match: { logsdb.indices_count: 1 }
   - match: { logsdb.indices_with_synthetic_source: 1 }
   - match: { logsdb.num_docs: 2 }
+  - gt:    { logsdb.size_in_bytes: 0}
 
   - do:
       indices.create:
@@ -68,3 +70,4 @@ logsdb usage:
   - match: { logsdb.indices_count: 2 }
   - match: { logsdb.indices_with_synthetic_source: 1 }
   - match: { logsdb.num_docs: 3 }
+  - gt:    { logsdb.size_in_bytes: 0}

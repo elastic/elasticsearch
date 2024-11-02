@@ -80,5 +80,4 @@ public class LogsDBPlugin extends Plugin implements ActionPlugin {
         actions.add(new ActionPlugin.ActionHandler<>(XPackInfoFeatureAction.LOGSDB, LogsDBInfoTransportAction.class));
         return actions;
     }
-
 }

@@ -14,6 +14,8 @@ import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.handler.codec.http.HttpContent;
 import io.netty.handler.codec.http.HttpRequest;
 
+import org.elasticsearch.tasks.Task;
+
 /**
  * Inbound channel handler that enrich leaking buffers information from HTTP request.
  * It helps to detect which test is leaking buffers.
@@ -26,7 +28,7 @@ public class Netty4LeakDetectionHandler extends ChannelInboundHandlerAdapter {
     @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg) {
         if (msg instanceof HttpRequest request) {
-            var opaqueId = request.headers().get("unknown");
+            var opaqueId = request.headers().get(Task.X_OPAQUE_ID_HTTP_HEADER);
             info = "method: " + request.method() + "; uri: " + request.uri() + "; x-opaque-id: " + opaqueId;
         }
         if (msg instanceof HttpContent content) {

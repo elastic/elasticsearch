@@ -258,6 +258,9 @@ tests:
 - class: org.elasticsearch.xpack.spatial.search.GeoGridAggAndQueryConsistencyIT
   method: testGeoPointGeoTile
   issue: https://github.com/elastic/elasticsearch/issues/115818
+- class: org.elasticsearch.xpack.ml.integration.DatafeedJobsRestIT
+  method: testLookbackWithIndicesOptions
+  issue: https://github.com/elastic/elasticsearch/issues/116127
 
 # Examples:
 #

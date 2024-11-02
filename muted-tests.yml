@@ -300,6 +300,14 @@ tests:
 - class: org.elasticsearch.reservedstate.service.FileSettingsServiceTests
   method: testProcessFileChanges
   issue: https://github.com/elastic/elasticsearch/issues/115280
+- class: org.elasticsearch.xpack.ml.integration.DatafeedJobsRestIT
+  issue: https://github.com/elastic/elasticsearch/issues/111319
+- class: org.elasticsearch.upgrades.FullClusterRestartIT
+  method: testSnapshotRestore {cluster=OLD}
+  issue: https://github.com/elastic/elasticsearch/issues/111777
+- class: org.elasticsearch.xpack.restart.CoreFullClusterRestartIT
+  method: testSnapshotRestore {cluster=OLD}
+  issue: https://github.com/elastic/elasticsearch/issues/111775
 
 # Examples:
 #

@@ -264,6 +264,9 @@ tests:
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=ml/inference_crud/Test delete given model with alias referenced by pipeline}
   issue: https://github.com/elastic/elasticsearch/issues/116133
+- class: org.elasticsearch.xpack.inference.InferenceRestIT
+  method: test {p0=inference/30_semantic_text_inference/Calculates embeddings using the default ELSER 2 endpoint}
+  issue: https://github.com/elastic/elasticsearch/issues/114412
 
 # Examples:
 #

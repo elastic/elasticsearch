@@ -304,7 +304,10 @@ tests:
 - class: org.elasticsearch.xpack.restart.CoreFullClusterRestartIT
   method: testSnapshotRestore {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/111799
-  
+- class: org.elasticsearch.search.DefaultSearchContextTests
+  method: testSearchConcurrencyDoesNotCreateMoreTasksThanThreads
+  issue: https://github.com/elastic/elasticsearch/issues/116048
+
 # Examples:
 #
 #  Mute a single test case in a YAML test suite:

@@ -85,8 +85,14 @@ WHERE : 'where'               -> pushMode(EXPRESSION_MODE);
 // main section while preserving alphabetical order:
 // MYCOMMAND : 'mycommand' -> ...
 DEV_INLINESTATS : {this.isDevVersion()}? 'inlinestats'   -> pushMode(EXPRESSION_MODE);
-DEV_LOOKUP :      {this.isDevVersion()}? 'lookup'        -> pushMode(LOOKUP_MODE);
+DEV_LOOKUP :      {this.isDevVersion()}? 'look_up'       -> pushMode(LOOKUP_MODE);
 DEV_METRICS :     {this.isDevVersion()}? 'metrics'       -> pushMode(METRICS_MODE);
+// list of all JOIN commands
+DEV_JOIN :        {this.isDevVersion()}? 'join'          -> pushMode(JOIN_MODE);
+DEV_JOIN_LEFT :   {this.isDevVersion()}? 'left'          -> pushMode(JOIN_MODE);
+DEV_JOIN_RIGHT :  {this.isDevVersion()}? 'right'         -> pushMode(JOIN_MODE);
+DEV_JOIN_LOOKUP : {this.isDevVersion()}? 'lookup'        -> pushMode(JOIN_MODE);
+
 
 //
 // Catch-all for unrecognized commands - don't define any beyond this line
@@ -538,6 +544,31 @@ LOOKUP_FIELD_MULTILINE_COMMENT
     ;
 
 LOOKUP_FIELD_WS
+    : WS -> channel(HIDDEN)
+    ;
+
+//
+// JOIN-related commands
+//
+mode JOIN_MODE;
+JOIN_PIPE : PIPE -> type(PIPE), popMode;
+JOIN_JOIN : DEV_JOIN -> type(DEV_JOIN);
+JOIN_AS : 'AS' -> type(AS);
+JOIN_ON : 'ON' -> type(ON), popMode, pushMode(EXPRESSION_MODE);
+USING : 'USING' -> popMode, pushMode(EXPRESSION_MODE);
+
+JOIN_UNQUOTED_SOURCE: UNQUOTED_SOURCE -> type(UNQUOTED_SOURCE);
+JOIN_QUOTED_SOURCE : QUOTED_STRING -> type(QUOTED_STRING);
+
+JOIN_LINE_COMMENT
+    : LINE_COMMENT -> channel(HIDDEN)
+    ;
+
+JOIN_MULTILINE_COMMENT
+    : MULTILINE_COMMENT -> channel(HIDDEN)
+    ;
+
+JOIN_WS
     : WS -> channel(HIDDEN)
     ;
 

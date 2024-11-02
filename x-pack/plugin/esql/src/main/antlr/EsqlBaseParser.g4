@@ -54,6 +54,7 @@ processingCommand
     // in development
     | {this.isDevVersion()}? inlinestatsCommand
     | {this.isDevVersion()}? lookupCommand
+    | {this.isDevVersion()}? joinCommand
     ;
 
 whereCommand
@@ -323,4 +324,17 @@ lookupCommand
 
 inlinestatsCommand
     : DEV_INLINESTATS stats=aggFields (BY grouping=fields)?
+    ;
+
+joinCommand
+    : type=(DEV_JOIN_LOOKUP | DEV_JOIN_LEFT | DEV_JOIN_RIGHT)? DEV_JOIN target=indexString (AS alias=identifier)? joinCondition
+    ;
+
+joinCondition
+    : ON joinPredicate (COMMA joinPredicate)*
+    | USING qualifiedName (COMMA qualifiedName)*
+    ;
+
+joinPredicate
+    : valueExpression
     ;

@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
@@ -53,6 +54,7 @@ import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowInfo;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.joni.exception.SyntaxException;
@@ -68,6 +70,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 
+import static java.util.Collections.emptyList;
 import static org.elasticsearch.common.logging.HeaderWarning.addWarning;
 import static org.elasticsearch.xpack.esql.core.util.StringUtils.WILDCARD;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputExpressions;
@@ -502,7 +505,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @Override
     public PlanFactory visitLookupCommand(EsqlBaseParser.LookupCommandContext ctx) {
         if (false == Build.current().isSnapshot()) {
-            throw new ParsingException(source(ctx), "LOOKUP is in preview and only available in SNAPSHOT build");
+            throw new ParsingException(source(ctx), "LOOK_UP is in preview and only available in SNAPSHOT build");
         }
         var source = source(ctx);
 
@@ -522,6 +525,42 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         Literal tableName = new Literal(source, visitIndexPattern(List.of(ctx.indexPattern())), DataType.KEYWORD);
 
         return p -> new Lookup(source, p, tableName, matchFields, null /* localRelation will be resolved later*/);
+    }
+
+    public PlanFactory visitJoinCommand(EsqlBaseParser.JoinCommandContext ctx) {
+        var source = source(ctx);
+        if (false == Build.current().isSnapshot()) {
+            throw new ParsingException(source, "JOIN is in preview and only available in SNAPSHOT build");
+        }
+
+        if (ctx.type != null && ctx.type.getType() != EsqlBaseParser.DEV_JOIN_LOOKUP) {
+            String joinType = ctx.type == null ? "(INNER)" : ctx.type.getText();
+            throw new ParsingException(source, "only LOOKUP JOIN available, {} JOIN unsupported at the moment", joinType);
+        }
+
+        var target = ctx.joinTarget();
+        UnresolvedRelation right = new UnresolvedRelation(
+            source(target),
+            new TableIdentifier(source(target.index), null, visitIdentifierOrParameter(target.index)),
+            false,
+            emptyList(),
+            IndexMode.LOOKUP,
+            null,
+            "???"
+        );
+
+        var condition = ctx.joinCondition();
+
+        if (condition.ON() != null) {
+            throw new ParsingException(source(condition), "JOIN ON clause unsupported at the moment");
+        }
+        // USING
+        var fields = condition.qualifiedName();
+        List<Attribute> joinFields = new ArrayList<>(fields.size());
+        for (var f : fields) {
+            joinFields.add(visitQualifiedName(f));
+        }
+        return p -> new LookupJoin(source, p, right, joinFields);
     }
 
 }

@@ -327,7 +327,11 @@ inlinestatsCommand
     ;
 
 joinCommand
-    : type=(DEV_JOIN_LOOKUP | DEV_JOIN_LEFT | DEV_JOIN_RIGHT)? DEV_JOIN target=indexString (AS alias=identifier)? joinCondition
+    : type=(DEV_JOIN_LOOKUP | DEV_JOIN_LEFT | DEV_JOIN_RIGHT)? DEV_JOIN joinTarget joinCondition
+    ;
+
+joinTarget
+    : index=identifierOrParameter (AS alias=identifier)?
     ;
 
 joinCondition

@@ -58,6 +58,7 @@ public final class XPackUsageFeatureAction {
     public static final ActionType<XPackUsageFeatureResponse> REMOTE_CLUSTERS = xpackUsageFeatureAction(XPackField.REMOTE_CLUSTERS);
     public static final ActionType<XPackUsageFeatureResponse> ENTERPRISE_SEARCH = xpackUsageFeatureAction(XPackField.ENTERPRISE_SEARCH);
     public static final ActionType<XPackUsageFeatureResponse> UNIVERSAL_PROFILING = xpackUsageFeatureAction(XPackField.UNIVERSAL_PROFILING);
+    public static final ActionType<XPackUsageFeatureResponse> LOGSDB = xpackUsageFeatureAction(XPackField.LOGSDB);
 
     static final List<ActionType<XPackUsageFeatureResponse>> ALL = List.of(
         AGGREGATE_METRIC,
@@ -88,7 +89,8 @@ public final class XPackUsageFeatureAction {
         HEALTH,
         REMOTE_CLUSTERS,
         ENTERPRISE_SEARCH,
-        UNIVERSAL_PROFILING
+        UNIVERSAL_PROFILING,
+        LOGSDB
     );
 
     public static ActionType<XPackUsageFeatureResponse> xpackUsageFeatureAction(String suffix) {

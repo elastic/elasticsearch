@@ -68,6 +68,16 @@ foo_field:foo AND (foo_field:foo bar OR foo bar)
 foo_field:foo AND (foo_field:foo bar OR foo bar)
 foo_field:foo OR (foo_field:foo bar OR foo bar)
 
+foo:AND
+foo:OR
+foo:NOT
+foo AND
+foo OR
+foo NOT
+AND foo
+OR foo
+NOT
+
 // Nested queries
 nested_field: { NOT foo }
 nested_field: { NOT foo bar }
@@ -93,9 +103,9 @@ nested_field: { sub_nested_field : { foo_field:foo } AND foo_field:foo bar }
 // Queries with escape sequences
 foo_field : (foo\(bar\))
 foo_field : foo\:bar
-foo_field : (foo \and bar)
-foo_field : (foo \or bar)
-foo_field : foo \not bar
+foo_field : (foo \\and bar)
+foo_field : (foo \\or bar)
+foo_field : foo \\not bar
 foo_field : foo \{bar\}
 foo_field : foo \(bar\)
 foo_field : foo \\ bar

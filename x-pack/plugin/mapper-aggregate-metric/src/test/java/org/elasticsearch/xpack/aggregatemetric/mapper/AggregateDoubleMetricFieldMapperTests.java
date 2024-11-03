@@ -527,14 +527,14 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
     }
 
     public void testArrayValueSyntheticSource() throws Exception {
-        DocumentMapper mapper = createDocumentMapper(
-            syntheticSourceFieldMapping(
+        DocumentMapper mapper = createSytheticSourceMapperService(
+            fieldMapping(
                 b -> b.field("type", CONTENT_TYPE)
                     .array("metrics", "min", "max")
                     .field("default_metric", "min")
                     .field("ignore_malformed", "true")
             )
-        );
+        ).documentMapper();
 
         var randomString = randomAlphaOfLength(10);
         CheckedConsumer<XContentBuilder, IOException> arrayValue = b -> {

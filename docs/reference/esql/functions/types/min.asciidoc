@@ -12,6 +12,6 @@ integer | integer
 ip | ip
 keyword | keyword
 long | long
-text | text
+text | keyword
 version | version
 |===

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.logsdb;
 
 import org.elasticsearch.client.Request;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
@@ -167,6 +168,37 @@ public class LogsdbWithBasicRestIT extends ESRestTestCase {
 
         final String index = "test-index";
         createIndex(index);
+        var settings = (Map<?, ?>) ((Map<?, ?>) getIndexSettings(index).get(index)).get("settings");
+        assertEquals("logsdb", settings.get("index.mode"));
+        assertEquals(SourceFieldMapper.Mode.STORED.toString(), settings.get("index.mapping.source.mode"));
+    }
+
+    public void testLogsdbOverrideDefaultModeForLogsIndex() throws IOException {
+        Request request = new Request("PUT", "/_cluster/settings");
+        request.setJsonEntity("{ \"transient\": { \"cluster.logsdb.enabled\": true } }");
+        assertOK(client().performRequest(request));
+
+        request = new Request("POST", "/_index_template/1");
+        request.setJsonEntity("""
+            {
+                "index_patterns": ["logs-test-*"],
+                "data_stream": {
+                }
+            }
+            """);
+        assertOK(client().performRequest(request));
+
+        request = new Request("POST", "/logs-test-foo/_doc");
+        request.setJsonEntity("""
+            {
+                "@timestamp": "2020-01-01T00:00:00.000Z",
+                "host.name": "foo",
+                "message": "bar"
+            }
+            """);
+        assertOK(client().performRequest(request));
+
+        String index = DataStream.getDefaultBackingIndexName("logs-test-foo", 1);
         var settings = (Map<?, ?>) ((Map<?, ?>) getIndexSettings(index).get(index)).get("settings");
         assertEquals("logsdb", settings.get("index.mode"));
         assertEquals(SourceFieldMapper.Mode.STORED.toString(), settings.get("index.mapping.source.mode"));

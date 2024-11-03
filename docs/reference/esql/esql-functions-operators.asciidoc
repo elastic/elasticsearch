@@ -48,6 +48,12 @@ include::functions/ip-functions.asciidoc[tag=ip_list]
 include::functions/math-functions.asciidoc[tag=math_list]
 ====
 
+.*Search functions*
+[%collapsible]
+====
+include::functions/search-functions.asciidoc[tag=search_list]
+====
+
 .*Spatial functions*
 [%collapsible]
 ====
@@ -89,6 +95,7 @@ include::functions/conditional-functions-and-expressions.asciidoc[]
 include::functions/date-time-functions.asciidoc[]
 include::functions/ip-functions.asciidoc[]
 include::functions/math-functions.asciidoc[]
+include::functions/search-functions.asciidoc[]
 include::functions/spatial-functions.asciidoc[]
 include::functions/string-functions.asciidoc[]
 include::functions/type-conversion-functions.asciidoc[]

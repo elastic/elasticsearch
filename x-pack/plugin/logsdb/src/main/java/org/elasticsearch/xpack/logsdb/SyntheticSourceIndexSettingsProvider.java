@@ -38,13 +38,16 @@ final class SyntheticSourceIndexSettingsProvider implements IndexSettingProvider
 
     private final SyntheticSourceLicenseService syntheticSourceLicenseService;
     private final CheckedFunction<IndexMetadata, MapperService, IOException> mapperServiceFactory;
+    private final LogsdbIndexModeSettingsProvider logsdbIndexModeSettingsProvider;
 
     SyntheticSourceIndexSettingsProvider(
         SyntheticSourceLicenseService syntheticSourceLicenseService,
-        CheckedFunction<IndexMetadata, MapperService, IOException> mapperServiceFactory
+        CheckedFunction<IndexMetadata, MapperService, IOException> mapperServiceFactory,
+        LogsdbIndexModeSettingsProvider logsdbIndexModeSettingsProvider
     ) {
         this.syntheticSourceLicenseService = syntheticSourceLicenseService;
         this.mapperServiceFactory = mapperServiceFactory;
+        this.logsdbIndexModeSettingsProvider = logsdbIndexModeSettingsProvider;
     }
 
     @Override
@@ -63,6 +66,14 @@ final class SyntheticSourceIndexSettingsProvider implements IndexSettingProvider
         Settings indexTemplateAndCreateRequestSettings,
         List<CompressedXContent> combinedTemplateMappings
     ) {
+        var logsdbSettings = logsdbIndexModeSettingsProvider.getLogsdbModeSetting(dataStreamName, indexTemplateAndCreateRequestSettings);
+        if (logsdbSettings != Settings.EMPTY) {
+            indexTemplateAndCreateRequestSettings = Settings.builder()
+                .put(logsdbSettings)
+                .put(indexTemplateAndCreateRequestSettings)
+                .build();
+        }
+
         // This index name is used when validating component and index templates, we should skip this check in that case.
         // (See MetadataIndexTemplateService#validateIndexTemplateV2(...) method)
         boolean isTemplateValidation = "validate-index-name".equals(indexName);

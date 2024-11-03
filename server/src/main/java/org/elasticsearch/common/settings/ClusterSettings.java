@@ -108,6 +108,7 @@ import org.elasticsearch.monitor.os.OsService;
 import org.elasticsearch.monitor.process.ProcessService;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeRoleSettings;
+import org.elasticsearch.node.ShutdownPrepareService;
 import org.elasticsearch.persistent.PersistentTasksClusterService;
 import org.elasticsearch.persistent.decider.EnableAssignmentDecider;
 import org.elasticsearch.plugins.PluginsService;
@@ -456,6 +457,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
         Environment.PATH_SHARED_DATA_SETTING,
         NodeEnvironment.NODE_ID_SEED_SETTING,
         Node.INITIAL_STATE_TIMEOUT_SETTING,
+        ShutdownPrepareService.MAXIMUM_SHUTDOWN_TIMEOUT_SETTING,
+        ShutdownPrepareService.MAXIMUM_REINDEXING_TIMEOUT_SETTING,
         DiscoveryModule.DISCOVERY_TYPE_SETTING,
         DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING,
         DiscoveryModule.ELECTION_STRATEGY_SETTING,

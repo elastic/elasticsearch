@@ -285,6 +285,9 @@ tests:
 - class: org.elasticsearch.action.search.SearchPhaseControllerTests
   method: testProgressListener
   issue: https://github.com/elastic/elasticsearch/issues/116149
+- class: org.elasticsearch.xpack.test.rest.XPackRestIT
+  method: test {p0=ml/forecast/Test forecast unknown job}
+  issue: https://github.com/elastic/elasticsearch/issues/116150
 
 # Examples:
 #

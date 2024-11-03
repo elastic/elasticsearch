@@ -298,17 +298,22 @@ tests:
 - class: org.elasticsearch.upgrades.FullClusterRestartIT
   method: testSnapshotRestore {cluster=OLD}
   issue: https://github.com/elastic/elasticsearch/issues/111777
-- class: org.elasticsearch.xpack.restart.CoreFullClusterRestartIT
-  method: testSnapshotRestore {cluster=OLD}
-  issue: https://github.com/elastic/elasticsearch/issues/111775
-- class: org.elasticsearch.xpack.restart.CoreFullClusterRestartIT
-  method: testSnapshotRestore {cluster=UPGRADED}
-  issue: https://github.com/elastic/elasticsearch/issues/111799
 - class: org.elasticsearch.search.DefaultSearchContextTests
   method: testSearchConcurrencyDoesNotCreateMoreTasksThanThreads
   issue: https://github.com/elastic/elasticsearch/issues/116048
 - class: org.elasticsearch.analysis.common.CommonAnalysisClientYamlTestSuiteIT
   issue: https://github.com/elastic/elasticsearch/issues/116134
+  method: testLookbackWithIndicesOptions
+  issue: https://github.com/elastic/elasticsearch/issues/116127
+- class: org.elasticsearch.xpack.restart.CoreFullClusterRestartIT
+  method: testSnapshotRestore {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/111799
+- class: org.elasticsearch.xpack.restart.CoreFullClusterRestartIT
+  method: testSnapshotRestore {cluster=OLD}
+  issue: https://github.com/elastic/elasticsearch/issues/111774
+- class: org.elasticsearch.upgrades.FullClusterRestartIT
+  method: testSnapshotRestore {cluster=OLD}
+  issue: https://github.com/elastic/elasticsearch/issues/111777
 
 # Examples:
 #

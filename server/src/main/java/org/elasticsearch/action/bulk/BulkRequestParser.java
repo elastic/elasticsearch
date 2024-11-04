@@ -18,9 +18,8 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.RestApiVersion;
-import org.elasticsearch.core.UpdateForV9;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
@@ -38,7 +37,6 @@ import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 
@@ -46,7 +44,11 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_T
  * Helper to parse bulk requests. This should be considered an internal class.
  */
 public final class BulkRequestParser {
+
+    @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
+    // Remove deprecation logger when its usages in checkBulkActionIsProperlyClosed are removed
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(BulkRequestParser.class);
+
     private static final Set<String> SUPPORTED_ACTIONS = Set.of("create", "index", "update", "delete");
     private static final String STRICT_ACTION_PARSING_WARNING_KEY = "bulk_request_strict_action_parsing";
 
@@ -74,7 +76,6 @@ public final class BulkRequestParser {
      * Configuration for {@link XContentParser}.
      */
     private final XContentParserConfiguration config;
-    private final Supplier<Releasable> loggingContext;
 
     /**
      * Create a new parser.
@@ -83,20 +84,40 @@ public final class BulkRequestParser {
      * @param restApiVersion
      */
     public BulkRequestParser(boolean deprecateOrErrorOnType, RestApiVersion restApiVersion) {
-        this(deprecateOrErrorOnType, restApiVersion, () -> () -> {});
-    }
-
-    /**
-     * Create a new parser.
-     *
-     * @param deprecateOrErrorOnType whether to allow _type information in the index line; used by BulkMonitoring
-     * @param restApiVersion
-     */
-    public BulkRequestParser(boolean deprecateOrErrorOnType, RestApiVersion restApiVersion, Supplier<Releasable> loggingContext) {
         this.deprecateOrErrorOnType = deprecateOrErrorOnType;
         this.config = XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE)
             .withRestApiVersion(restApiVersion);
-        this.loggingContext = loggingContext;
+    }
+
+    private static int findNextMarker(byte marker, int from, BytesReference data, boolean lastData) {
+        final int res = data.indexOf(marker, from);
+        if (res != -1) {
+            assert res >= 0;
+            return res;
+        }
+        if (from != data.length() && lastData) {
+            throw new IllegalArgumentException("The bulk request must be terminated by a newline [\\n]");
+        }
+        return res;
+    }
+
+    /**
+     * Returns the sliced {@link BytesReference}. If the {@link XContentType} is JSON, the byte preceding the marker is checked to see
+     * if it is a carriage return and if so, the BytesReference is sliced so that the carriage return is ignored
+     */
+    private static BytesReference sliceTrimmingCarriageReturn(
+        BytesReference bytesReference,
+        int from,
+        int nextMarker,
+        XContentType xContentType
+    ) {
+        final int length;
+        if (XContentType.JSON == xContentType && bytesReference.get(nextMarker - 1) == (byte) '\r') {
+            length = nextMarker - from - 1;
+        } else {
+            length = nextMarker - from;
+        }
+        return bytesReference.slice(from, length);
     }
 
     /**
@@ -167,73 +188,6 @@ public final class BulkRequestParser {
         );
     }
 
-    @UpdateForV9(owner = UpdateForV9.Owner.DISTRIBUTED_INDEXING)
-    // Warnings will need to be replaced with XContentEOFException from 9.x
-    private static void warnBulkActionNotProperlyClosed(String message, Supplier<Releasable> loggingContext) {
-        try (Releasable ignore = loggingContext.get()) {
-            deprecationLogger.compatibleCritical(STRICT_ACTION_PARSING_WARNING_KEY, message);
-        }
-    }
-
-    private static void checkBulkActionIsProperlyClosed(XContentParser parser, Supplier<Releasable> loggingContext) throws IOException {
-        XContentParser.Token token;
-        try {
-            token = parser.nextToken();
-        } catch (XContentEOFException ignore) {
-            warnBulkActionNotProperlyClosed(
-                "A bulk action wasn't closed properly with the closing brace. Malformed objects are currently accepted but will be "
-                    + "rejected in a future version.",
-                loggingContext
-            );
-            return;
-        }
-        if (token != XContentParser.Token.END_OBJECT) {
-            warnBulkActionNotProperlyClosed(
-                "A bulk action object contained multiple keys. Additional keys are currently ignored but will be rejected in a "
-                    + "future version.",
-                loggingContext
-            );
-            return;
-        }
-        if (parser.nextToken() != null) {
-            warnBulkActionNotProperlyClosed(
-                "A bulk action contained trailing data after the closing brace. This is currently ignored but will be rejected in a "
-                    + "future version.",
-                loggingContext
-            );
-        }
-    }
-
-    private XContentParser createParser(XContent xContent, BytesReference data) throws IOException {
-        if (data.hasArray()) {
-            return parseBytesArray(xContent, data, 0, data.length());
-        } else {
-            return xContent.createParser(config, data.streamInput());
-        }
-    }
-
-    // Create an efficient parser of the given bytes, trying to directly parse a byte array if possible and falling back to stream wrapping
-    // otherwise.
-    private XContentParser createParser(XContent xContent, BytesReference data, int from, int nextMarker) throws IOException {
-        if (data.hasArray()) {
-            return parseBytesArray(xContent, data, from, nextMarker);
-        } else {
-            final int length = nextMarker - from;
-            final BytesReference slice = data.slice(from, length);
-            if (slice.hasArray()) {
-                return parseBytesArray(xContent, slice, 0, length);
-            } else {
-                return xContent.createParser(config, slice.streamInput());
-            }
-        }
-    }
-
-    private XContentParser parseBytesArray(XContent xContent, BytesReference array, int from, int nextMarker) throws IOException {
-        assert array.hasArray();
-        final int offset = array.arrayOffset();
-        return xContent.createParser(config, array.array(), offset + from, nextMarker - from);
-    }
-
     public class IncrementalParser {
 
         // Bulk requests can contain a lot of repeated strings for the index, pipeline and routing parameters. This map is used to
@@ -263,6 +217,7 @@ public final class BulkRequestParser {
         private String currentType = null;
         private String currentPipeline = null;
         private boolean currentListExecutedPipelines = false;
+        private FetchSourceContext currentFetchSourceContext = null;
 
         private IncrementalParser(
             @Nullable String defaultIndex,
@@ -298,7 +253,7 @@ public final class BulkRequestParser {
             int consumed = 0;
 
             while (true) {
-                int nextMarker = findNextMarker(marker, incrementalFromOffset, data, lastData == false);
+                int nextMarker = findNextMarker(marker, incrementalFromOffset, data, lastData);
                 if (nextMarker == -1) {
                     incrementalFromOffset = data.length() - consumed;
                     break;
@@ -328,26 +283,13 @@ public final class BulkRequestParser {
         private boolean parseActionLine(BytesReference data, int from, int to) throws IOException {
             assert currentRequest == null;
 
-            // Reset the fields which must be set for document line parsing
+            // Reset the fields which are accessed during document line parsing
             currentType = null;
             currentPipeline = defaultPipeline;
             currentListExecutedPipelines = defaultListExecutedPipelines != null && defaultListExecutedPipelines;
+            currentFetchSourceContext = defaultFetchSourceContext;
 
             try (XContentParser parser = createParser(xContentType.xContent(), data, from, to)) {
-                String action;
-                String index = defaultIndex;
-                String id = null;
-                String routing = defaultRouting;
-                String opType = null;
-                FetchSourceContext fetchSourceContext = defaultFetchSourceContext;
-                long version = Versions.MATCH_ANY;
-                VersionType versionType = VersionType.INTERNAL;
-                long ifSeqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
-                long ifPrimaryTerm = UNASSIGNED_PRIMARY_TERM;
-                int retryOnConflict = 0;
-                boolean requireAlias = defaultRequireAlias != null && defaultRequireAlias;
-                boolean requireDataStream = defaultRequireDataStream != null && defaultRequireDataStream;
-                Map<String, String> dynamicTemplates = Map.of();
 
                 // Move to START_OBJECT
                 XContentParser.Token token = parser.nextToken();
@@ -378,7 +320,7 @@ public final class BulkRequestParser {
                             + "]"
                     );
                 }
-                action = parser.currentName();
+                String action = parser.currentName();
                 if (SUPPORTED_ACTIONS.contains(action) == false) {
                     throw new IllegalArgumentException(
                         "Malformed action/metadata line ["
@@ -388,6 +330,19 @@ public final class BulkRequestParser {
                             + "]"
                     );
                 }
+
+                String index = defaultIndex;
+                String id = null;
+                String routing = defaultRouting;
+                String opType = null;
+                long version = Versions.MATCH_ANY;
+                VersionType versionType = VersionType.INTERNAL;
+                long ifSeqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
+                long ifPrimaryTerm = UNASSIGNED_PRIMARY_TERM;
+                int retryOnConflict = 0;
+                boolean requireAlias = defaultRequireAlias != null && defaultRequireAlias;
+                boolean requireDataStream = defaultRequireDataStream != null && defaultRequireDataStream;
+                Map<String, String> dynamicTemplates = Map.of();
 
                 // at this stage, next token can either be END_OBJECT (and use default index and type, with auto generated id)
                 // or START_OBJECT which will have another set of parameters
@@ -430,7 +385,7 @@ public final class BulkRequestParser {
                             } else if (PIPELINE.match(currentFieldName, parser.getDeprecationHandler())) {
                                 currentPipeline = stringDeduplicator.computeIfAbsent(parser.text(), Function.identity());
                             } else if (SOURCE.match(currentFieldName, parser.getDeprecationHandler())) {
-                                fetchSourceContext = FetchSourceContext.fromXContent(parser);
+                                currentFetchSourceContext = FetchSourceContext.fromXContent(parser);
                             } else if (REQUIRE_ALIAS.match(currentFieldName, parser.getDeprecationHandler())) {
                                 requireAlias = parser.booleanValue();
                             } else if (REQUIRE_DATA_STREAM.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -457,7 +412,7 @@ public final class BulkRequestParser {
                                 dynamicTemplates = parser.mapStrings();
                             } else if (token == XContentParser.Token.START_OBJECT
                                 && SOURCE.match(currentFieldName, parser.getDeprecationHandler())) {
-                                    fetchSourceContext = FetchSourceContext.fromXContent(parser);
+                                    currentFetchSourceContext = FetchSourceContext.fromXContent(parser);
                                 } else if (token != XContentParser.Token.VALUE_NULL) {
                                     throw new IllegalArgumentException(
                                         "Malformed action/metadata line ["
@@ -483,7 +438,7 @@ public final class BulkRequestParser {
                             + "]"
                     );
                 }
-                checkBulkActionIsProperlyClosed(parser, loggingContext);
+                checkBulkActionIsProperlyClosed(parser, line);
 
                 if ("delete".equals(action)) {
                     if (dynamicTemplates.isEmpty() == false) {
@@ -544,10 +499,6 @@ public final class BulkRequestParser {
                             .setIfPrimaryTerm(ifPrimaryTerm)
                             .setRequireAlias(requireAlias)
                             .routing(routing);
-                        // TODO: check that it is fine to set this before fromXContent
-                        if (fetchSourceContext != null) {
-                            updateRequest.fetchSource(fetchSourceContext);
-                        }
                         currentRequest = updateRequest;
                     }
                 }
@@ -569,6 +520,9 @@ public final class BulkRequestParser {
                 ) {
                     updateRequest.fromXContent(sliceParser);
                 }
+                if (currentFetchSourceContext != null) {
+                    updateRequest.fetchSource(currentFetchSourceContext);
+                }
                 IndexRequest upsertRequest = updateRequest.upsertRequest();
                 if (upsertRequest != null) {
                     upsertRequest.setPipeline(currentPipeline).setListExecutedPipelines(currentListExecutedPipelines);
@@ -577,35 +531,88 @@ public final class BulkRequestParser {
             }
         }
 
-        private static int findNextMarker(byte marker, int from, BytesReference data, boolean isIncremental) {
-            final int res = data.indexOf(marker, from);
-            if (res != -1) {
-                assert res >= 0;
-                return res;
-            }
-            if (from != data.length() && isIncremental == false) {
-                throw new IllegalArgumentException("The bulk request must be terminated by a newline [\\n]");
-            }
-            return res;
-        }
+    }
 
-        /**
-         * Returns the sliced {@link BytesReference}. If the {@link XContentType} is JSON, the byte preceding the marker is checked to see
-         * if it is a carriage return and if so, the BytesReference is sliced so that the carriage return is ignored
-         */
-        private static BytesReference sliceTrimmingCarriageReturn(
-            BytesReference bytesReference,
-            int from,
-            int nextMarker,
-            XContentType xContentType
-        ) {
-            final int length;
-            if (XContentType.JSON == xContentType && bytesReference.get(nextMarker - 1) == (byte) '\r') {
-                length = nextMarker - from - 1;
+    @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT) // Remove lenient parsing in V8 BWC mode
+    private void checkBulkActionIsProperlyClosed(XContentParser parser, int line) throws IOException {
+        XContentParser.Token token;
+        try {
+            token = parser.nextToken();
+        } catch (XContentEOFException e) {
+            if (config.restApiVersion() == RestApiVersion.V_8) {
+                deprecationLogger.compatibleCritical(
+                    STRICT_ACTION_PARSING_WARNING_KEY,
+                    "A bulk action wasn't closed properly with the closing brace. Malformed objects are currently accepted but will be"
+                        + " rejected in a future version."
+                );
+                return;
             } else {
-                length = nextMarker - from;
+                throw e;
             }
-            return bytesReference.slice(from, length);
         }
+        if (token != XContentParser.Token.END_OBJECT) {
+            if (config.restApiVersion() == RestApiVersion.V_8) {
+                deprecationLogger.compatibleCritical(
+                    STRICT_ACTION_PARSING_WARNING_KEY,
+                    "A bulk action object contained multiple keys. Additional keys are currently ignored but will be rejected in a "
+                        + "future version."
+                );
+                return;
+            } else {
+                throw new IllegalArgumentException(
+                    "Malformed action/metadata line ["
+                        + line
+                        + "], expected "
+                        + XContentParser.Token.END_OBJECT
+                        + " but found ["
+                        + token
+                        + "]"
+                );
+            }
+        }
+        if (parser.nextToken() != null) {
+            if (config.restApiVersion() == RestApiVersion.V_8) {
+                deprecationLogger.compatibleCritical(
+                    STRICT_ACTION_PARSING_WARNING_KEY,
+                    "A bulk action contained trailing data after the closing brace. This is currently ignored but will be rejected in a"
+                        + " future version."
+                );
+            } else {
+                throw new IllegalArgumentException(
+                    "Malformed action/metadata line [" + line + "], unexpected data after the closing brace"
+                );
+            }
+        }
+    }
+
+    private XContentParser createParser(XContent xContent, BytesReference data) throws IOException {
+        if (data.hasArray()) {
+            return parseBytesArray(xContent, data, 0, data.length());
+        } else {
+            return xContent.createParser(config, data.streamInput());
+        }
+    }
+
+    // Create an efficient parser of the given bytes, trying to directly parse a byte array if possible and falling back to stream
+    // wrapping
+    // otherwise.
+    private XContentParser createParser(XContent xContent, BytesReference data, int from, int nextMarker) throws IOException {
+        if (data.hasArray()) {
+            return parseBytesArray(xContent, data, from, nextMarker);
+        } else {
+            final int length = nextMarker - from;
+            final BytesReference slice = data.slice(from, length);
+            if (slice.hasArray()) {
+                return parseBytesArray(xContent, slice, 0, length);
+            } else {
+                return xContent.createParser(config, slice.streamInput());
+            }
+        }
+    }
+
+    private XContentParser parseBytesArray(XContent xContent, BytesReference array, int from, int nextMarker) throws IOException {
+        assert array.hasArray();
+        final int offset = array.arrayOffset();
+        return xContent.createParser(config, array.array(), offset + from, nextMarker - from);
     }
 }

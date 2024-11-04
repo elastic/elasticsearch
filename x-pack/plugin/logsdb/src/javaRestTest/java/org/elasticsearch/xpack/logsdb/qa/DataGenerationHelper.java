@@ -89,6 +89,7 @@ public class DataGenerationHelper {
     }
 
     void logsDbSettings(Settings.Builder builder) {
+        builder.put("index.mode", "logsdb");
         if (keepArraySource) {
             builder.put(Mapper.SYNTHETIC_SOURCE_KEEP_INDEX_SETTING.getKey(), "arrays");
         }

@@ -28,17 +28,17 @@ base {
 
 dependencies {
 
-  api project(':libs:elasticsearch-core')
-  api project(':libs:elasticsearch-logging')
-  api project(':libs:elasticsearch-secure-sm')
-  api project(':libs:elasticsearch-x-content')
-  api project(":libs:elasticsearch-geo")
-  api project(":libs:elasticsearch-lz4")
-  api project(":libs:elasticsearch-plugin-api")
-  api project(":libs:elasticsearch-plugin-analysis-api")
-  api project(':libs:elasticsearch-grok')
-  api project(":libs:elasticsearch-tdigest")
-  implementation project(":libs:elasticsearch-simdvec")
+  api project(':libs:core')
+  api project(':libs:logging')
+  api project(':libs:secure-sm')
+  api project(':libs:x-content')
+  api project(":libs:geo")
+  api project(":libs:lz4")
+  api project(":libs:plugin-api")
+  api project(":libs:plugin-analysis-api")
+  api project(':libs:grok')
+  api project(":libs:tdigest")
+  implementation project(":libs:simdvec")
 
   // lucene
   api "org.apache.lucene:lucene-core:${versions.lucene}"
@@ -56,7 +56,7 @@ dependencies {
   api "org.apache.lucene:lucene-suggest:${versions.lucene}"
 
   // utilities
-  api project(":libs:elasticsearch-cli")
+  api project(":libs:cli")
   implementation 'com.carrotsearch:hppc:0.8.1'
 
   // precentil ranks aggregation
@@ -67,7 +67,7 @@ dependencies {
   api "org.apache.logging.log4j:log4j-core:${versions.log4j}"
 
   // access to native functions
-  implementation project(':libs:elasticsearch-native')
+  implementation project(':libs:native')
 
   api "co.elastic.logging:log4j2-ecs-layout:${versions.ecsLogging}"
   api "co.elastic.logging:ecs-logging-core:${versions.ecsLogging}"

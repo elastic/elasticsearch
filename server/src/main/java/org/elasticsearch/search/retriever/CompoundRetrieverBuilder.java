@@ -11,6 +11,8 @@ package org.elasticsearch.search.retriever;
 
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.search.MultiSearchRequest;
@@ -20,6 +22,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.TransportMultiSearchAction;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.StoredFieldsContext;
@@ -121,10 +124,17 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
                 public void onResponse(MultiSearchResponse items) {
                     List<ScoreDoc[]> topDocs = new ArrayList<>();
                     List<Exception> failures = new ArrayList<>();
+                    // capture the max status code returned by any of the responses
+                    int statusCode = RestStatus.OK.getStatus();
+                    List<String> retrieversWithFailures = new ArrayList<>();
                     for (int i = 0; i < items.getResponses().length; i++) {
                         var item = items.getResponses()[i];
                         if (item.isFailure()) {
                             failures.add(item.getFailure());
+                            retrieversWithFailures.add(innerRetrievers.get(i).retriever().getName());
+                            if (ExceptionsHelper.status(item.getFailure()).getStatus() > statusCode) {
+                                statusCode = ExceptionsHelper.status(item.getFailure()).getStatus();
+                            }
                         } else {
                             assert item.getResponse() != null;
                             var rankDocs = getRankDocs(item.getResponse());
@@ -133,7 +143,14 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
                         }
                     }
                     if (false == failures.isEmpty()) {
-                        IllegalStateException ex = new IllegalStateException("Search failed - some nested retrievers returned errors.");
+                        assert statusCode != RestStatus.OK.getStatus();
+                        final String errMessage = "["
+                            + getName()
+                            + "] search failed - retrievers '"
+                            + retrieversWithFailures
+                            + "' returned errors. "
+                            + "All failures are attached as suppressed exceptions.";
+                        Exception ex = new ElasticsearchStatusException(errMessage, RestStatus.fromCode(statusCode));
                         failures.forEach(ex::addSuppressed);
                         listener.onFailure(ex);
                     } else {

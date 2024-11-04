@@ -24,6 +24,7 @@ import org.elasticsearch.common.lucene.store.IndexOutputOutputStream;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.transport.Transports;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -485,6 +486,7 @@ public abstract class MetadataStateFormat<T> {
      * @param dataLocations the data-locations to try.
      * @return the latest state or <code>null</code> if no state was found.
      */
+    @Nullable
     public T loadLatestState(Logger logger, NamedXContentRegistry namedXContentRegistry, Path... dataLocations) throws IOException {
         return loadLatestStateWithGeneration(logger, namedXContentRegistry, dataLocations).v1();
     }

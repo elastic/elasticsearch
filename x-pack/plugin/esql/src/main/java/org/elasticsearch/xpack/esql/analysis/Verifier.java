@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.common.logging.LoggerMessageFormat;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.core.capabilities.Unresolvable;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
@@ -505,6 +506,9 @@ public class Verifier {
         List<DataType> allowed = new ArrayList<>();
         allowed.add(DataType.KEYWORD);
         allowed.add(DataType.TEXT);
+        if (EsqlCapabilities.Cap.SEMANTIC_TEXT_TYPE.isEnabled()) {
+            allowed.add(DataType.SEMANTIC_TEXT);
+        }
         allowed.add(DataType.IP);
         allowed.add(DataType.DATETIME);
         allowed.add(DataType.VERSION);
@@ -609,22 +613,15 @@ public class Verifier {
      */
     private static void checkRemoteEnrich(LogicalPlan plan, Set<Failure> failures) {
         boolean[] agg = { false };
-        boolean[] limit = { false };
         boolean[] enrichCoord = { false };
 
         plan.forEachUp(UnaryPlan.class, u -> {
-            if (u instanceof Limit) {
-                limit[0] = true; // TODO: Make Limit then enrich_remote work
-            }
             if (u instanceof Aggregate) {
                 agg[0] = true;
             } else if (u instanceof Enrich enrich && enrich.mode() == Enrich.Mode.COORDINATOR) {
                 enrichCoord[0] = true;
             }
             if (u instanceof Enrich enrich && enrich.mode() == Enrich.Mode.REMOTE) {
-                if (limit[0]) {
-                    failures.add(fail(enrich, "ENRICH with remote policy can't be executed after LIMIT"));
-                }
                 if (agg[0]) {
                     failures.add(fail(enrich, "ENRICH with remote policy can't be executed after STATS"));
                 }

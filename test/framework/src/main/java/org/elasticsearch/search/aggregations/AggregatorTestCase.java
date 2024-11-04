@@ -81,6 +81,7 @@ import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.cache.query.DisabledQueryCache;
 import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
@@ -749,6 +750,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                     new SortField(TimeSeriesIdFieldMapper.NAME, SortField.Type.STRING, false),
                     new SortedNumericSortField(DataStreamTimestampFieldMapper.DEFAULT_PATH, SortField.Type.LONG, true)
                 );
+                config.setParentField(Engine.ROOT_DOC_FIELD_NAME);
                 config.setIndexSort(sort);
             }
             RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory, config);

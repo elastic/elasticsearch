@@ -155,7 +155,7 @@ public class RestBulkAction extends BaseRestHandler {
         ChunkHandler(boolean allowExplicitIndex, RestRequest request, Supplier<IncrementalBulkService.Handler> handlerSupplier) {
             this.request = request;
             this.handlerSupplier = handlerSupplier;
-            this.parser = new BulkRequestParser(true, request.getRestApiVersion(), this::loadRequestContext).incrementalParser(
+            this.parser = new BulkRequestParser(true, request.getRestApiVersion()).incrementalParser(
                 request.param("index"),
                 request.param("routing"),
                 FetchSourceContext.parseFromRestRequest(request),
@@ -240,10 +240,6 @@ public class RestBulkAction extends BaseRestHandler {
         public void streamClose() {
             assert Transports.assertTransportThread();
             shortCircuit();
-        }
-
-        private Releasable loadRequestContext() {
-            return handler.loadRequestContext();
         }
 
         private void shortCircuit() {

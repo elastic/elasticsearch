@@ -9,6 +9,8 @@
 
 package org.elasticsearch.reservedstate.service;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
+
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
@@ -22,6 +24,10 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.Lifecycle;
+import org.elasticsearch.common.file.AbstractFileWatchingService;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
@@ -66,6 +72,7 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
+@Repeat(iterations = 100)
 public class FileSettingsServiceTests extends ESTestCase {
     private Environment env;
     private ClusterService clusterService;
@@ -76,6 +83,8 @@ public class FileSettingsServiceTests extends ESTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
+        // TODO remove me once https://github.com/elastic/elasticsearch/issues/115280 is closed
+        Loggers.setLevel(LogManager.getLogger(AbstractFileWatchingService.class), Level.DEBUG);
 
         threadpool = new TestThreadPool("file_settings_service_tests");
 
@@ -120,16 +129,21 @@ public class FileSettingsServiceTests extends ESTestCase {
 
     @After
     public void tearDown() throws Exception {
-        if (fileSettingsService.lifecycleState() == Lifecycle.State.STARTED) {
-            fileSettingsService.stop();
-        }
-        if (fileSettingsService.lifecycleState() == Lifecycle.State.STOPPED) {
-            fileSettingsService.close();
-        }
+        try {
+            if (fileSettingsService.lifecycleState() == Lifecycle.State.STARTED) {
+                fileSettingsService.stop();
+            }
+            if (fileSettingsService.lifecycleState() == Lifecycle.State.STOPPED) {
+                fileSettingsService.close();
+            }
 
-        super.tearDown();
-        clusterService.close();
-        threadpool.shutdownNow();
+            super.tearDown();
+            clusterService.close();
+            threadpool.shutdownNow();
+        } finally {
+            // TODO remove me once https://github.com/elastic/elasticsearch/issues/115280 is closed
+            Loggers.setLevel(LogManager.getLogger(AbstractFileWatchingService.class), Level.INFO);
+        }
     }
 
     public void testStartStop() {

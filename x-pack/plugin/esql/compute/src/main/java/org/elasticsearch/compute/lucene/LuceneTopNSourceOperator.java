@@ -276,7 +276,7 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
         if (sortAndFormats.isEmpty()) {
             throw new IllegalStateException("sorts must not be disabled in TopN");
         }
-        if (scoreMode.needsScores() == false){
+        if (scoreMode.needsScores() == false) {
             return new NonScoringPerShardCollector(shardContext, sortAndFormats.get(), limit);
         } else {
             var l = new ArrayList<>(Arrays.asList(sortAndFormats.get().sort.getSort()));
@@ -312,9 +312,7 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
     static final class NonScoringPerShardCollector extends PerShardCollector {
         NonScoringPerShardCollector(ShardContext shardContext, SortAndFormats sortAndFormats, int limit) {
             // We don't use CollectorManager here as we don't retrieve the total hits and sort by score.
-            super(
-                shardContext,
-                new TopFieldCollectorManager(sortAndFormats.sort, limit, null, 0, false).newCollector());
+            super(shardContext, new TopFieldCollectorManager(sortAndFormats.sort, limit, null, 0, false).newCollector());
         }
     }
 

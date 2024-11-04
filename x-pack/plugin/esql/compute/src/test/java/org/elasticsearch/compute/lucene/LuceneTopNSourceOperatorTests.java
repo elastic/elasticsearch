@@ -13,7 +13,6 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSelector;
@@ -107,19 +106,19 @@ public class LuceneTopNSourceOperatorTests extends AnyOperatorTestCase {
             maxPageSize,
             limit,
             sorts,
-            ScoreMode.TOP_DOCS
+            false // no scoring
         );
     }
 
     @Override
     protected Matcher<String> expectedToStringOfSimple() {
-        return matchesRegex("LuceneTopNSourceOperator\\[maxPageSize = \\d+, limit = 100, sorts = \\[\\{.+}]]");
+        return matchesRegex("LuceneTopNSourceOperator\\[maxPageSize = \\d+, limit = 100, scoreMode = TOP_DOCS, sorts = \\[\\{.+}]]");
     }
 
     @Override
     protected Matcher<String> expectedDescriptionOfSimple() {
         return matchesRegex(
-            "LuceneTopNSourceOperator\\[dataPartitioning = (DOC|SHARD|SEGMENT), maxPageSize = \\d+, limit = 100, sorts = \\[\\{.+}]]"
+            "LuceneTopNSourceOperator\\[dataPartitioning = (DOC|SHARD|SEGMENT), maxPageSize = \\d+, limit = 100, scoreMode = TOP_DOCS, sorts = \\[\\{.+}]]"
         );
     }
 

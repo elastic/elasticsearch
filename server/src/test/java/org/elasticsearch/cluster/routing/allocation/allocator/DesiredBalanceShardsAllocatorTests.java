@@ -341,7 +341,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
         }
     }
 
-    public void testIndexCreationDuringLongDesiredComputation() {
+    public void testIndexCreationDuringLongDesiredComputation() throws Exception {
         var discoveryNode = newNode("node-0");
         var initialState = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(DiscoveryNodes.builder().add(discoveryNode).localNodeId(discoveryNode.getId()).masterNodeId(discoveryNode.getId()))
@@ -445,6 +445,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
         }
 
         try {
+            assertThat(desiredBalanceShardsAllocator.getStats().computationExecuted(), equalTo(0L));
             MockLog.assertThatLogger(() -> {
                 clusterService.submitUnbatchedStateUpdateTask("test", new CreateIndexTask("index-1"));
                 safeAwait(rerouteFinished);
@@ -458,6 +459,8 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
                     "Desired balance computation for * interrupted * in order to not delay assignment of newly created index shards *"
                 )
             );
+            assertBusy(() -> assertFalse(desiredBalanceShardsAllocator.getStats().computationActive()));
+            assertThat(desiredBalanceShardsAllocator.getStats().computationExecuted(), equalTo(2L));
             // The computation should not get interrupted when the newly created index shard stays unassigned.
             MockLog.assertThatLogger(() -> {
                 clusterService.submitUnbatchedStateUpdateTask("test", new CreateIndexTask("index-ignored"));
@@ -472,6 +475,8 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
                     "Desired balance computation for * interrupted * in order to not delay assignment of newly created index shards *"
                 )
             );
+            assertBusy(() -> assertFalse(desiredBalanceShardsAllocator.getStats().computationActive()));
+            assertThat(desiredBalanceShardsAllocator.getStats().computationExecuted(), equalTo(3L));
         } finally {
             clusterService.close();
             terminate(threadPool);

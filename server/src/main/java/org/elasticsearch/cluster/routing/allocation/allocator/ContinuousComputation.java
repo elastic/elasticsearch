@@ -50,6 +50,14 @@ public abstract class ContinuousComputation<T> {
     }
 
     /**
+     * enqueues input if {@code expectedLatestKnownInput} is the latest known input
+     */
+    protected boolean compareAndEnqueue(T expectedLatestKnownInput, T input) {
+        assert expectedLatestKnownInput != null;
+        return enqueuedInput.compareAndSet(expectedLatestKnownInput, input);
+    }
+
+    /**
      * @return {@code false} iff there are no active/enqueued computations
      */
     // exposed for tests
@@ -67,7 +75,7 @@ public abstract class ContinuousComputation<T> {
     /**
      * Process the given input.
      *
-     * @param input the value that was last received by {@link #onNewInput} before invocation.
+     * @param input the value that was last received by {@link #onNewInput} or {@link #compareAndEnqueue} before invocation.
      */
     protected abstract void processInput(T input);
 

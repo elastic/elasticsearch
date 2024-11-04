@@ -124,19 +124,31 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
                 long index = desiredBalanceInput.index();
                 logger.debug("Starting desired balance computation for [{}]", index);
 
-                recordTime(
-                    cumulativeComputationTime,
-                    () -> setCurrentDesiredBalance(
-                        desiredBalanceComputer.compute(
-                            getInitialDesiredBalance(),
-                            desiredBalanceInput,
-                            pendingDesiredBalanceMoves,
-                            this::isFresh
-                        )
-                    )
-                );
+                DesiredBalance desiredBalance;
+                final long started = threadPool.relativeTimeInMillis();
+                try {
+                    desiredBalance = desiredBalanceComputer.compute(
+                        getInitialDesiredBalance(),
+                        desiredBalanceInput,
+                        pendingDesiredBalanceMoves,
+                        this::isFresh
+                    );
+                    setCurrentDesiredBalance(desiredBalance);
+                } finally {
+                    final long finished = threadPool.relativeTimeInMillis();
+                    cumulativeComputationTime.inc(finished - started);
+                }
                 computationsExecuted.inc();
-                if (isFresh(desiredBalanceInput)) {
+
+                if (desiredBalance.finishReason() == DesiredBalance.ComputationFinishReason.STOP_EARLY) {
+                    logger.debug(
+                        "Desired balance computation for [{}] terminated early with partial result, scheduling reconciliation",
+                        index
+                    );
+                    submitReconcileTask(currentDesiredBalance);
+                    var newInput = DesiredBalanceInput.create(indexGenerator.incrementAndGet(), desiredBalanceInput.routingAllocation());
+                    desiredBalanceComputation.compareAndEnqueue(desiredBalanceInput, newInput);
+                } else if (isFresh(desiredBalanceInput)) {
                     logger.debug("Desired balance computation for [{}] is completed, scheduling reconciliation", index);
                     computationsConverged.inc();
                     submitReconcileTask(currentDesiredBalance);

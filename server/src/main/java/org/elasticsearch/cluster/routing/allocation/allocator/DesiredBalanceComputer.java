@@ -113,9 +113,10 @@ public class DesiredBalanceComputer {
         final var changes = routingAllocation.changes();
         final var ignoredShards = getIgnoredShardsWithDiscardedAllocationStatus(desiredBalanceInput.ignoredShards());
         final var clusterInfoSimulator = new ClusterInfoSimulator(routingAllocation);
+        DesiredBalance.ComputationFinishReason finishReason = DesiredBalance.ComputationFinishReason.CONVERGED;
 
         if (routingNodes.size() == 0) {
-            return new DesiredBalance(desiredBalanceInput.index(), Map.of());
+            return new DesiredBalance(desiredBalanceInput.index(), Map.of(), finishReason);
         }
 
         // we assume that all ongoing recoveries will complete
@@ -353,6 +354,7 @@ public class DesiredBalanceComputer {
                     TimeValue.timeValueMillis(currentTime - computationStartedTime).toString(),
                     i
                 );
+                finishReason = DesiredBalance.ComputationFinishReason.YIELD_TO_NEW_INPUT;
                 break;
             }
 
@@ -377,6 +379,7 @@ public class DesiredBalanceComputer {
                     i,
                     TimeValue.timeValueMillis(maxBalanceComputationTimeDuringIndexCreationMillis).toString()
                 );
+                finishReason = DesiredBalance.ComputationFinishReason.STOP_EARLY;
                 break;
             }
         }
@@ -408,7 +411,7 @@ public class DesiredBalanceComputer {
         }
 
         long lastConvergedIndex = hasChanges ? previousDesiredBalance.lastConvergedIndex() : desiredBalanceInput.index();
-        return new DesiredBalance(lastConvergedIndex, assignments);
+        return new DesiredBalance(lastConvergedIndex, assignments, finishReason);
     }
 
     // visible for testing

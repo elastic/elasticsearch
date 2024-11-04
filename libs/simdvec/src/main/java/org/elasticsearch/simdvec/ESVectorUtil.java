@@ -14,17 +14,30 @@ import org.apache.lucene.util.Constants;
 import org.elasticsearch.simdvec.internal.vectorization.ESVectorUtilSupport;
 import org.elasticsearch.simdvec.internal.vectorization.ESVectorizationProvider;
 
+import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.MethodType;
+
 import static org.elasticsearch.simdvec.internal.vectorization.ESVectorUtilSupport.B_QUERY;
 
 public class ESVectorUtil {
 
-    /**
-     * For xorBitCount we stride over the values as either 64-bits (long) or 32-bits (int) at a time.
-     * On ARM Long::bitCount is not vectorized, and therefore produces less than optimal code, when
-     * compared to Integer::bitCount. While Long::bitCount is optimal on x64. See
-     * https://bugs.openjdk.org/browse/JDK-8336000
-     */
-    static final boolean XOR_BIT_COUNT_STRIDE_AS_INT = Constants.OS_ARCH.equals("aarch64");
+    private static final MethodHandle BIT_COUNT_MH;
+    static {
+        try {
+            // For xorBitCount we stride over the values as either 64-bits (long) or 32-bits (int) at a time.
+            // On ARM Long::bitCount is not vectorized, and therefore produces less than optimal code, when
+            // compared to Integer::bitCount. While Long::bitCount is optimal on x64. See
+            // https://bugs.openjdk.org/browse/JDK-8336000
+            BIT_COUNT_MH = Constants.OS_ARCH.equals("aarch64")
+                ? MethodHandles.lookup()
+                    .findStatic(ESVectorUtil.class, "andBitCountInt", MethodType.methodType(int.class, byte[].class, byte[].class))
+                : MethodHandles.lookup()
+                    .findStatic(ESVectorUtil.class, "andBitCountLong", MethodType.methodType(int.class, byte[].class, byte[].class));
+        } catch (NoSuchMethodException | IllegalAccessException e) {
+            throw new AssertionError(e);
+        }
+    }
 
     private static final ESVectorUtilSupport IMPL = ESVectorizationProvider.getInstance().getVectorUtilSupport();
 
@@ -84,7 +97,7 @@ public class ESVectorUtil {
 
     /**
      * AND bit count computed over signed bytes.
-     *
+     * Copied from Lucene's XOR implementation
      * @param a bytes containing a vector
      * @param b bytes containing another vector, of the same dimension
      * @return the value of the AND bit count of the two vectors
@@ -93,16 +106,23 @@ public class ESVectorUtil {
         if (a.length != b.length) {
             throw new IllegalArgumentException("vector dimensions differ: " + a.length + "!=" + b.length);
         }
-        if (XOR_BIT_COUNT_STRIDE_AS_INT) {
-            return andBitCountInt(a, b);
-        } else {
-            return andBitCountLong(a, b);
+        try {
+            return (int) BIT_COUNT_MH.invokeExact(a, b);
+        } catch (Throwable e) {
+            if (e instanceof Error err) {
+                throw err;
+            } else if (e instanceof RuntimeException re) {
+                throw re;
+            } else {
+                throw new RuntimeException(e);
+            }
         }
     }
 
     /** AND bit count striding over 4 bytes at a time. */
     static int andBitCountInt(byte[] a, byte[] b) {
         int distance = 0, i = 0;
+        // limit to number of int values in the array iterating by int byte views
         for (final int upperBound = a.length & -Integer.BYTES; i < upperBound; i += Integer.BYTES) {
             distance += Integer.bitCount((int) BitUtil.VH_NATIVE_INT.get(a, i) & (int) BitUtil.VH_NATIVE_INT.get(b, i));
         }
@@ -113,9 +133,10 @@ public class ESVectorUtil {
         return distance;
     }
 
-    /** AND bit count striding over 8 bytes at a time. */
+    /** AND bit count striding over 8 bytes at a time**/
     static int andBitCountLong(byte[] a, byte[] b) {
         int distance = 0, i = 0;
+        // limit to number of long values in the array iterating by long byte views
         for (final int upperBound = a.length & -Long.BYTES; i < upperBound; i += Long.BYTES) {
             distance += Long.bitCount((long) BitUtil.VH_NATIVE_LONG.get(a, i) & (long) BitUtil.VH_NATIVE_LONG.get(b, i));
         }

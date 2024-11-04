@@ -43,6 +43,7 @@ import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
+import org.elasticsearch.index.query.ExistsQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.NestedQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -510,7 +511,12 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             return fieldInfos.fieldInfo(getEmbeddingsFieldName(name())) != null;
         }
 
-        public QueryBuilder semanticQuery(InferenceResults inferenceResults, float boost, String queryName) {
+        public QueryBuilder semanticQuery(
+            InferenceResults inferenceResults,
+            SearchExecutionContext searchExecutionContext,
+            float boost,
+            String queryName
+        ) {
             String nestedFieldPath = getChunksFieldName(name());
             String inferenceResultsFieldName = getEmbeddingsFieldName(name());
             QueryBuilder childQueryBuilder;
@@ -552,6 +558,15 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                             throw new IllegalArgumentException(
                                 generateDimensionCountMismatchMessage(inference.length, modelSettings.dimensions())
                             );
+                        }
+
+                        final Integer requestSize = searchExecutionContext.requestSize();
+                        if (Objects.equals(requestSize, 0)) {
+                            // Rewrite to a query that will return all docs with a value for the queried field.
+                            // Size is often set to 0 when calculating aggregations and an unconstrained kNN query will return all docs
+                            // with an indexed vector for the queried field, so we rewrite to a query that achieves that as efficiently as
+                            // possible.
+                            yield new ExistsQueryBuilder(name());
                         }
 
                         yield new KnnVectorQueryBuilder(inferenceResultsFieldName, inference, null, null, null);

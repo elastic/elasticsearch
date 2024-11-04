@@ -170,7 +170,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
                 );
             }
 
-            return semanticTextFieldType.semanticQuery(inferenceResults, boost(), queryName());
+            return semanticTextFieldType.semanticQuery(inferenceResults, searchExecutionContext, boost(), queryName());
         } else {
             throw new IllegalArgumentException(
                 "Field [" + fieldName + "] of type [" + fieldType.typeName() + "] does not support " + NAME + " queries"

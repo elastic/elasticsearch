@@ -112,9 +112,63 @@ Otherwise, the query will fail with a validation error.
 Another limitation is that any <<esql-where>> command containing a full-text search function
 cannot also use disjunctions (`OR`).
 
-Because of <<esql-limitations-text-fields,the way {esql} treats `text` values>>,
-queries on `text` fields are like queries on `keyword` fields: they are
-case-sensitive and need to match the full string.
+For example, this query is valid:
+
+[source,esql]
+----
+FROM books
+| WHERE MATCH(author, "Faulkner") AND MATCH(author, "Tolkien")
+----
+
+But this query will fail due to the <<esql-stats-by, STATS>> command:
+
+[source,esql]
+----
+FROM books
+| STATS AVG(price) BY author
+| WHERE MATCH(author, "Faulkner")
+----
+
+And this query will fail due to the disjunction:
+
+[source,esql]
+----
+FROM books
+| WHERE MATCH(author, "Faulkner") OR author LIKE "Hemingway"
+----
+
+Note that, because of <<esql-limitations-text-fields,the way {esql} treats `text` values>>,
+any queries on `text` fields that do not explicitly use the full-text functions,
+<<esql-match>> or <<esql-qstr>>, will behave as if the fields are actually `keyword` fields:
+they are case-sensitive and need to match the full string.
+
+[discrete]
+[[esql-limitations-text-fields]]
+=== `text` fields behave like `keyword` fields
+
+While {esql} supports <<text,`text`>> fields, {esql} does not treat these fields
+like the Search API does. {esql} queries do not query or aggregate the
+<<analysis,analyzed string>>. Instead, an {esql} query will try to get a `text`
+field's subfield of the <<keyword,keyword family type>> and query/aggregate
+that. If it's not possible to retrieve a `keyword` subfield, {esql} will get the
+string from a document's `_source`. If the `_source` cannot be retrieved, for
+example when using synthetic source, `null` is returned.
+
+Once a `text` field is retrieved, if the query touches it in any way, for example passing
+it into a function, the type will be converted to `keyword`. In fact, functions that operate on both
+`text` and `keyword` fields will perform as if the `text` field was a `keyword` field all along.
+
+For example, the following query will return a column `greatest` of type `keyword` no matter
+whether any or all of `field1`, `field2`, and `field3` are of type `text`:
+[source,esql]
+----
+| FROM index
+| EVAL greatest = GREATEST(field1, field2, field3)
+----
+
+Note that {esql}'s retrieval of `keyword` subfields may have unexpected
+consequences. Other than when explicitly using the full-text functions, <<esql-match>> and <<esql-qstr>>,
+any {esql} query on a `text` field is case-sensitive.
 
 For example, after indexing a field of type `text` with the value `Elasticsearch
 query language`, the following `WHERE` clause does not match because the `LIKE`
@@ -137,27 +191,31 @@ As a workaround, use wildcards and regular expressions. For example:
 | WHERE field RLIKE "[Ee]lasticsearch.*"
 ----
 
-[discrete]
-[[esql-limitations-text-fields]]
-=== `text` fields behave like `keyword` fields
-
-While {esql} supports <<text,`text`>> fields, {esql} does not treat these fields
-like the Search API does. {esql} queries do not query or aggregate the
-<<analysis,analyzed string>>. Instead, an {esql} query will try to get a `text`
-field's subfield of the <<keyword,keyword family type>> and query/aggregate
-that. If it's not possible to retrieve a `keyword` subfield, {esql} will get the
-string from a document's `_source`. If the `_source` cannot be retrieved, for
-example when using synthetic source, `null` is returned.
-
-Note that {esql}'s retrieval of `keyword` subfields may have unexpected
-consequences. An {esql} query on a `text` field is case-sensitive. Furthermore,
-a subfield may have been mapped with a <<normalizer,normalizer>>, which can
+Furthermore, a subfield may have been mapped with a <<normalizer,normalizer>>, which can
 transform the original string. Or it may have been mapped with <<ignore-above>>,
 which can truncate the string. None of these mapping operations are applied to
 an {esql} query, which may lead to false positives or negatives.
 
 To avoid these issues, a best practice is to be explicit about the field that
 you query, and query `keyword` sub-fields instead of `text` fields.
+Or consider using one of the <<esql-search-functions,full-text search>> functions.
+
+[discrete]
+[[esql-multi-index-limitations]]
+=== Using {esql} to query multiple indices
+
+As discussed in more detail in <<esql-multi-index>>, {esql} can execute a single query across multiple indices,
+data streams, or aliases. However, there are some limitations to be aware of:
+
+* All underlying indexes and shards must be active. Using admin commands or UI,
+  it is possible to pause an index or shard, for example by disabling a frozen tier instance,
+  but then any {esql} query that includes that index or shard will fail, even if the query uses
+  <<esql-where>> to filter out the results from the paused index.
+  If you see an error of type `search_phase_execution_exception`,
+  with the message `Search rejected due to missing shards`, you likely have an index or shard in `UNASSIGNED` state.
+* The same field must have the same type across all indexes. If the same field is mapped to different types
+  it is still possible to query the indexes,
+  but the field must be <<esql-multi-index-union-types,explicitly converted to a single type>>.
 
 [discrete]
 [[esql-tsdb]]

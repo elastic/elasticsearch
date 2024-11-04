@@ -1,15 +1,16 @@
 setup:
   - requires:
-      cluster_features: ["gte_v8.5.0"]
-      reason: "synthetic source support added in 8.5.0"
+      cluster_features: [ "mapper.source.mode_from_index_setting" ]
+      reason: "Source mode configured through index setting"
 
   - do:
       indices.create:
         index:  test1
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               ver:
                 type: version
@@ -76,9 +77,10 @@ synthetic source with copy_to:
       indices.create:
         index: synthetic_source_test
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               ver:
                 type: version

@@ -1,0 +1,37 @@
+---
+logsdb usage:
+  - do:
+      indices.create:
+        index: test1
+        body:
+          settings:
+            index:
+              mode: logsdb
+
+  - do: {xpack.usage: {}}
+  - match: { logsdb.available: true }
+  - match: { logsdb.indices_count: 1 }
+  - match: { logsdb.indices_with_synthetic_source: 1 }
+
+  - do:
+      indices.create:
+        index: test2
+
+  - do: {xpack.usage: {}}
+  - match: { logsdb.available: true }
+  - match: { logsdb.indices_count: 1 }
+  - match: { logsdb.indices_with_synthetic_source: 1 }
+
+  - do:
+      indices.create:
+        index: test3
+        body:
+          settings:
+            index:
+              mode: logsdb
+              mapping.source.mode: stored
+
+  - do: {xpack.usage: {}}
+  - match: { logsdb.available: true }
+  - match: { logsdb.indices_count: 2 }
+  - match: { logsdb.indices_with_synthetic_source: 1 }

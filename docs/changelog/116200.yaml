@@ -1,0 +1,6 @@
+pr: 116200
+summary: Ignore warning on yaml test put template
+area: Data streams
+type: enhancement
+issues:
+ - 116158

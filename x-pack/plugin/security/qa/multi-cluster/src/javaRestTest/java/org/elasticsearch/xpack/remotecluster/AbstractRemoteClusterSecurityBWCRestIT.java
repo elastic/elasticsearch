@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.remotecluster;
 
+import org.apache.http.util.EntityUtils;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
@@ -16,6 +17,8 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.test.rest.ObjectPath;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -26,6 +29,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
@@ -50,6 +54,7 @@ public abstract class AbstractRemoteClusterSecurityBWCRestIT extends AbstractRem
         ensureRemoteFulfillingClusterIsConnected(useProxyMode);
         super.setUp();
     }
+
     public void testBwcCCSViaRCS1orRCS2() throws Exception {
 
         // Fulfilling cluster
@@ -167,38 +172,35 @@ public abstract class AbstractRemoteClusterSecurityBWCRestIT extends AbstractRem
 
             // Check that we can search the fulfilling cluster from the querying cluster
             final boolean alsoSearchLocally = randomBoolean();
+            final String remoteClusterName = randomFrom("my_remote_cluster", "*", "my_remote_*");
+            final String remoteIndexName = randomFrom("remote_index1", "*");
             final var searchRequest = new Request(
                 "GET",
                 String.format(
                     Locale.ROOT,
                     "/%s%s:%s/_search?ccs_minimize_roundtrips=%s",
                     alsoSearchLocally ? "local_index," : "",
-                    randomFrom("my_remote_cluster", "*", "my_remote_*"),
-                    randomFrom("remote_index1", "*"),
+                    remoteClusterName,
+                    remoteIndexName,
                     randomBoolean()
                 )
             );
-            final String sendRequestWith = randomFrom("user", "apikey");
-            final Response response = sendRequestWith.equals("user")
-                ? performRequestWithRemoteAccessUser(searchRequest)
-                : performRequestWithApiKey(searchRequest, apiKeyEncoded);
+            String esqlCommand = String.format(Locale.ROOT, "FROM %s,%s:%s | LIMIT 10", "local_index", remoteClusterName, remoteIndexName);
+            // send request with user
+            Response response = performRequestWithRemoteAccessUser(searchRequest);
             assertOK(response);
-            final SearchResponse searchResponse;
             try (var parser = responseAsParser(response)) {
-                searchResponse = SearchResponseUtils.parseSearchResponse(parser);
+                assertSearchResponse(SearchResponseUtils.parseSearchResponse(parser), alsoSearchLocally);
             }
-            try {
-                final List<String> actualIndices = Arrays.stream(searchResponse.getHits().getHits())
-                    .map(SearchHit::getIndex)
-                    .collect(Collectors.toList());
-                if (alsoSearchLocally) {
-                    assertThat(actualIndices, containsInAnyOrder("remote_index1", "local_index"));
-                } else {
-                    assertThat(actualIndices, containsInAnyOrder("remote_index1"));
-                }
-            } finally {
-                searchResponse.decRef();
+            assertEsqlResponse(performRequestWithRemoteAccessUser(esqlRequest(esqlCommand)));
+
+            // send request with apikey
+            response = performRequestWithApiKey(searchRequest, apiKeyEncoded);
+            assertOK(response);
+            try (var parser = responseAsParser(response)) {
+                assertSearchResponse(SearchResponseUtils.parseSearchResponse(parser), alsoSearchLocally);
             }
+            assertEsqlResponse(performRequestWithApiKey(esqlRequest(esqlCommand), apiKeyEncoded));
         }
     }
 
@@ -250,4 +252,37 @@ public abstract class AbstractRemoteClusterSecurityBWCRestIT extends AbstractRem
         updateClusterSettings(builder.build());
     }
 
+    private Request esqlRequest(String command) throws IOException {
+        XContentBuilder body = JsonXContent.contentBuilder();
+        body.startObject();
+        body.field("query", command);
+        body.field("include_ccs_metadata", true);
+        body.endObject();
+        Request request = new Request("POST", "_query");
+        request.setJsonEntity(org.elasticsearch.common.Strings.toString(body));
+        return request;
+    }
+
+    private void assertSearchResponse(SearchResponse searchResponse, boolean alsoSearchLocally) {
+        try {
+            final List<String> actualIndices = Arrays.stream(searchResponse.getHits().getHits())
+                .map(SearchHit::getIndex)
+                .collect(Collectors.toList());
+            if (alsoSearchLocally) {
+                assertThat(actualIndices, containsInAnyOrder("remote_index1", "local_index"));
+            } else {
+                assertThat(actualIndices, containsInAnyOrder("remote_index1"));
+            }
+        } finally {
+            searchResponse.decRef();
+        }
+    }
+
+    private void assertEsqlResponse(Response response) throws IOException {
+        assertOK(response);
+        String responseAsString = EntityUtils.toString(response.getEntity());
+        assertThat(responseAsString, containsString("\"my_remote_cluster\":{\"status\":\"successful\""));
+        assertThat(responseAsString, containsString("local_bar"));
+        assertThat(responseAsString, containsString("bar"));
+    }
 }

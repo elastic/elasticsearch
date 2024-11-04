@@ -41,7 +41,8 @@ public class RemoteClusterSecurityBWCToRCS1ClusterRestIT extends AbstractRemoteC
 
         queryCluster = ElasticsearchCluster.local()
             .version(Version.CURRENT)
-            .distribution(DistributionType.INTEG_TEST)
+            .distribution(DistributionType.DEFAULT)
+            .setting("xpack.ml.enabled", "false")
             .name("query-cluster")
             .apply(commonClusterConfig)
             .setting("xpack.security.remote_cluster_client.ssl.enabled", "true")

@@ -236,12 +236,4 @@ public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
             return "test";
         }
     }
-
-    // protected Matcher<String> expectedToStringOfSimple() {
-    // return matchesRegex("LuceneSourceOperator\\[maxPageSize = \\d+, remainingDocs = \\d+]");
-    // }
-
-    public void testStringWithScoring() {
-
-    }
 }

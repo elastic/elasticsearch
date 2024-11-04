@@ -101,7 +101,42 @@ setup:
 
   - match: {hits.hits.2._id: "3"}
   - close_to: {hits.hits.2._score: {value: 3.4641016, error: 0.01}}
-
+---
+"Dot Product is not supported":
+  - skip:
+      features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_search
+          capabilities: [ byte_float_bit_dot_product ]
+      reason: Capability required to run test
+  - do:
+      catch: bad_request
+      headers:
+        Content-Type: application/json
+      search:
+        body:
+          query:
+            script_score:
+              query: {match_all: {} }
+              script:
+                source: "dotProduct(params.query_vector, 'vector')"
+                params:
+                  query_vector: [0, 111, -13, 14, -124]
+  - do:
+      catch: bad_request
+      headers:
+        Content-Type: application/json
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query:
+            script_score:
+              query: {match_all: {} }
+              script:
+                source: "dotProduct(params.query_vector, 'vector')"
+                params:
+                  query_vector: "006ff30e84"
 ---
 "Cosine Similarity is not supported":
   - do:

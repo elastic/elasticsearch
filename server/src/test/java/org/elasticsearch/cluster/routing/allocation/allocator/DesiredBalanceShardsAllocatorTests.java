@@ -346,6 +346,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
         var initialState = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(DiscoveryNodes.builder().add(discoveryNode).localNodeId(discoveryNode.getId()).masterNodeId(discoveryNode.getId()))
             .build();
+        final var ignoredIndexName = "index-ignored";
 
         var threadPool = new TestThreadPool(getTestName());
         var time = new AtomicLong(threadPool.relativeTimeInMillis());
@@ -359,7 +360,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
         };
 
         var gatewayAllocator = createGatewayAllocator((shardRouting, allocation, unassignedAllocationHandler) -> {
-            if (shardRouting.getIndexName().equals("index-ignored")) {
+            if (shardRouting.getIndexName().equals(ignoredIndexName)) {
                 unassignedAllocationHandler.removeAndIgnore(UnassignedInfo.AllocationStatus.NO_ATTEMPT, allocation.changes());
             }
         });
@@ -385,7 +386,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
         var clusterSettings = createBuiltInClusterSettings(
             Settings.builder().put(DesiredBalanceComputer.MAX_BALANCE_COMPUTATION_TIME_DURING_INDEX_CREATION_SETTING.getKey(), "2s").build()
         );
-        // Make sure the computation takes at least a few iterations
+        // Make sure the computation takes at least a few iterations, where each iteration takes 1s (see {@code #shardsAllocator.allocate})
         final int minIterations = between(3, 10);
         var desiredBalanceShardsAllocator = new DesiredBalanceShardsAllocator(
             shardsAllocator,
@@ -444,6 +445,8 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             }
         }
 
+        final var computationInterruptedMessage =
+            "Desired balance computation for * interrupted * in order to not delay assignment of newly created index shards *";
         try {
             assertThat(desiredBalanceShardsAllocator.getStats().computationExecuted(), equalTo(0L));
             MockLog.assertThatLogger(() -> {
@@ -456,23 +459,23 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
                     "Should log interrupted computation",
                     DesiredBalanceComputer.class.getCanonicalName(),
                     Level.INFO,
-                    "Desired balance computation for * interrupted * in order to not delay assignment of newly created index shards *"
+                    computationInterruptedMessage
                 )
             );
             assertBusy(() -> assertFalse(desiredBalanceShardsAllocator.getStats().computationActive()));
             assertThat(desiredBalanceShardsAllocator.getStats().computationExecuted(), equalTo(2L));
             // The computation should not get interrupted when the newly created index shard stays unassigned.
             MockLog.assertThatLogger(() -> {
-                clusterService.submitUnbatchedStateUpdateTask("test", new CreateIndexTask("index-ignored"));
+                clusterService.submitUnbatchedStateUpdateTask("test", new CreateIndexTask(ignoredIndexName));
                 safeAwait(rerouteFinished);
-                assertThat(clusterService.state().getRoutingTable().index("index-ignored").primaryShardsUnassigned(), equalTo(1));
+                assertThat(clusterService.state().getRoutingTable().index(ignoredIndexName).primaryShardsUnassigned(), equalTo(1));
             },
                 DesiredBalanceComputer.class,
                 new MockLog.UnseenEventExpectation(
                     "Should log interrupted computation",
                     DesiredBalanceComputer.class.getCanonicalName(),
                     Level.INFO,
-                    "Desired balance computation for * interrupted * in order to not delay assignment of newly created index shards *"
+                    computationInterruptedMessage
                 )
             );
             assertBusy(() -> assertFalse(desiredBalanceShardsAllocator.getStats().computationActive()));
@@ -927,6 +930,10 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
         handler.initialize(allocation.nodes().getLocalNodeId(), null, 0L, allocation.changes());
     }
 
+    /**
+     * A helper interface to simplify creating a GatewayAllocator in the tests by only requiring
+     * an implementation for {@link org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator#allocateUnassigned}.
+     */
     interface AllocateUnassignedHandler {
         void handle(
             ShardRouting shardRouting,

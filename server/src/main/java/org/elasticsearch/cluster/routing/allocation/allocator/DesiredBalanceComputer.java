@@ -285,7 +285,7 @@ public class DesiredBalanceComputer {
 
         int i = 0;
         boolean hasChanges = false;
-        boolean assignedSomeNewlyCreatedShards = false;
+        boolean assignedNewlyCreatedPrimaryShards = false;
         while (true) {
             if (hasChanges) {
                 // Not the first iteration, so every remaining unassigned shard has been ignored, perhaps due to throttling. We must bring
@@ -318,7 +318,7 @@ public class DesiredBalanceComputer {
                             // computation. e.g.:
                             // - unassigned search replicas in case the shard has no assigned shard replicas
                             // - other reasons for an unassigned shard such as NEW_INDEX_RESTORED
-                            assignedSomeNewlyCreatedShards = true;
+                            assignedNewlyCreatedPrimaryShards = true;
                         }
                         clusterInfoSimulator.simulateShardStarted(shardRouting);
                         routingNodes.startShard(shardRouting, changes, 0L);
@@ -368,7 +368,7 @@ public class DesiredBalanceComputer {
                 )
             );
 
-            if (assignedSomeNewlyCreatedShards
+            if (assignedNewlyCreatedPrimaryShards
                 && currentTime - computationStartedTime >= maxBalanceComputationTimeDuringIndexCreationMillis) {
                 logger.info(
                     "Desired balance computation for [{}] interrupted after [{}] and [{}] iterations "

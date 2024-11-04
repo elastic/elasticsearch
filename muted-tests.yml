@@ -232,9 +232,6 @@ tests:
 - class: org.elasticsearch.search.functionscore.QueryRescorerIT
   method: testScoring
   issue: https://github.com/elastic/elasticsearch/issues/116050
-- class: org.elasticsearch.indexing.IndexActionIT
-  method: testAutoGenerateIdNoDuplicates
-  issue: https://github.com/elastic/elasticsearch/issues/115716
 - class: org.elasticsearch.xpack.application.connector.ConnectorIndexServiceTests
   issue: https://github.com/elastic/elasticsearch/issues/116087
 - class: org.elasticsearch.compute.operator.FilterOperatorTests

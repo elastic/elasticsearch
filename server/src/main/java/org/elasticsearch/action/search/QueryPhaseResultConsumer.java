@@ -480,7 +480,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                             onMergeFailure(t);
                             return;
                         }
-                        synchronized (QueryPhaseResultConsumer.this) {
+                        synchronized (QueryPhaseResultConsumer.PendingMerges.this) {
                             if (hasFailure()) {
                                 return;
                             }

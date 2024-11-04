@@ -18,7 +18,6 @@ import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelPromise;
 import io.netty.channel.DefaultChannelPromise;
 import io.netty.util.NettyRuntime;
-import io.netty.util.ReferenceCounted;
 import io.netty.util.concurrent.Future;
 import io.netty.util.concurrent.ImmediateEventExecutor;
 
@@ -139,38 +138,40 @@ public class Netty4Utils {
         return new ReleasableBytesReference(toBytesReference(buffer), toRefCounted(buffer));
     }
 
-    public static RefCounted toRefCounted(final ReferenceCounted ref) {
-        return new RefCounted() {
-            @Override
-            public int refCnt() {
-                return ref.refCnt();
-            }
+    public static RefCounted toRefCounted(final ByteBuf buf) {
+        return new ByteBufRefCounted(buf);
+    }
 
-            @Override
-            public void incRef() {
-                ref.retain();
-            }
+    private record ByteBufRefCounted(ByteBuf buffer) implements RefCounted {
 
-            @Override
-            public boolean tryIncRef() {
-                if (ref.refCnt() == 0) {
-                    return false;
-                } else {
-                    ref.retain();
-                    return true;
-                }
-            }
+        @Override
+        public void incRef() {
+            buffer.retain();
+        }
 
-            @Override
-            public boolean decRef() {
-                return ref.release();
+        @Override
+        public boolean tryIncRef() {
+            if (hasReferences() == false) {
+                return false;
             }
+            try {
+                buffer.retain();
+            } catch (RuntimeException e) {
+                assert hasReferences() == false;
+                return false;
+            }
+            return true;
+        }
 
-            @Override
-            public boolean hasReferences() {
-                return ref.refCnt() > 0;
-            }
-        };
+        @Override
+        public boolean decRef() {
+            return buffer.release();
+        }
+
+        @Override
+        public boolean hasReferences() {
+            return buffer.refCnt() > 0;
+        }
     }
 
     public static HttpBody.Full fullHttpBodyFrom(final ByteBuf buf) {

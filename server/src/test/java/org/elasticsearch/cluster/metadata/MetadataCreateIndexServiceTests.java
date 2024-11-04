@@ -1257,7 +1257,6 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
 
         Settings indexSettings = indexSettings(IndexVersion.current(), 1, 0).build();
         List<AliasMetadata> aliases = List.of(AliasMetadata.builder("alias1").build());
-        boolean isDataStream = randomBoolean();
         IndexMetadata indexMetadata = buildIndexMetadata(
             "test",
             aliases,
@@ -1266,7 +1265,6 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             4,
             sourceIndexMetadata,
             false,
-            isDataStream,
             TransportVersion.current()
         );
 
@@ -1275,7 +1273,6 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         assertThat("The source index primary term must be used", indexMetadata.primaryTerm(0), is(3L));
         assertThat(indexMetadata.getTimestampRange(), equalTo(IndexLongFieldRange.NO_SHARDS));
         assertThat(indexMetadata.getEventIngestedRange(), equalTo(IndexLongFieldRange.NO_SHARDS));
-        assertThat(isDataStream, Matchers.equalTo(indexMetadata.isDataStream()));
     }
 
     public void testBuildIndexMetadataWithTransportVersionBeforeEventIngestedRangeAdded() {
@@ -1288,7 +1285,6 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
 
         Settings indexSettings = indexSettings(IndexVersion.current(), 1, 0).build();
         List<AliasMetadata> aliases = List.of(AliasMetadata.builder("alias1").build());
-        boolean isDataStream = randomBoolean();
         IndexMetadata indexMetadata = buildIndexMetadata(
             "test",
             aliases,
@@ -1297,7 +1293,6 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             4,
             sourceIndexMetadata,
             false,
-            isDataStream,
             randomFrom(TransportVersions.V_7_0_0, TransportVersions.V_8_0_0)
         );
 
@@ -1307,7 +1302,6 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         assertThat(indexMetadata.getTimestampRange(), equalTo(IndexLongFieldRange.NO_SHARDS));
         // on versions before event.ingested was added to cluster state, it should default to UNKNOWN, not NO_SHARDS
         assertThat(indexMetadata.getEventIngestedRange(), equalTo(IndexLongFieldRange.UNKNOWN));
-        assertThat(isDataStream, Matchers.equalTo(indexMetadata.isDataStream()));
     }
 
     public void testGetIndexNumberOfRoutingShardsWithNullSourceIndex() {

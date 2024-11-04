@@ -517,7 +517,6 @@ public class MetadataCreateIndexService {
                     temporaryIndexMeta.getRoutingNumShards(),
                     sourceMetadata,
                     temporaryIndexMeta.isSystem(),
-                    request.dataStreamName() != null,
                     currentState.getMinTransportVersion()
                 );
             } catch (Exception e) {
@@ -1323,12 +1322,10 @@ public class MetadataCreateIndexService {
         int routingNumShards,
         @Nullable IndexMetadata sourceMetadata,
         boolean isSystem,
-        boolean isDataStream,
         TransportVersion minClusterTransportVersion
     ) {
         IndexMetadata.Builder indexMetadataBuilder = createIndexMetadataBuilder(indexName, sourceMetadata, indexSettings, routingNumShards);
         indexMetadataBuilder.system(isSystem);
-        indexMetadataBuilder.isDataStream(isDataStream);
         if (minClusterTransportVersion.before(TransportVersions.V_8_15_0)) {
             // promote to UNKNOWN for older versions since they don't know how to handle event.ingested in cluster state
             indexMetadataBuilder.eventIngestedRange(IndexLongFieldRange.UNKNOWN, minClusterTransportVersion);

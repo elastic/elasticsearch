@@ -747,7 +747,11 @@ public class StatelessClusterIntegrityStressIT extends AbstractStatelessIntegTes
                             return false;
                         }
                     });
-                    ensureStableCluster(nodes.size(), masterNodeName());
+                    assertBusy(
+                        () -> ensureStableCluster(nodes.size(), TimeValue.timeValueSeconds(10), false, masterNodeName()),
+                        1,
+                        TimeUnit.MINUTES
+                    );
                     logger.info("--> completed restarting {} node [{}]", restartIndexingNode ? "indexing" : "search", namedReleasable.name);
                 }
             });
@@ -764,7 +768,11 @@ public class StatelessClusterIntegrityStressIT extends AbstractStatelessIntegTes
                     }
                     logger.info("--> replacing indexing node [{}]", namedReleasable.name);
                     final String newNodeName = startMasterAndIndexNode(Settings.EMPTY, statelessMockRepositoryStrategy);
-                    ensureStableCluster(nodes.size() + 1, masterNodeName());
+                    assertBusy(
+                        () -> ensureStableCluster(nodes.size() + 1, TimeValue.timeValueSeconds(10), false, masterNodeName()),
+                        1,
+                        TimeUnit.MINUTES
+                    );
                     logger.info("--> added new indexing node [{}]", newNodeName);
                     final TrackedNode removed = nodes.remove(namedReleasable.name);
                     assertThat(removed.name, equalTo(namedReleasable.name));
@@ -772,7 +780,11 @@ public class StatelessClusterIntegrityStressIT extends AbstractStatelessIntegTes
                     nodes.put(newNodeName, new TrackedNode(newNodeName, false, true));
                     logger.info("--> stopping old indexing node [{}]", namedReleasable.name);
                     internalCluster().stopNode(namedReleasable.name);
-                    ensureStableCluster(nodes.size(), masterNodeName());
+                    assertBusy(
+                        () -> ensureStableCluster(nodes.size(), TimeValue.timeValueSeconds(10), false, masterNodeName()),
+                        1,
+                        TimeUnit.MINUTES
+                    );
                     assertThat(internalCluster().getNodeNames(), not(arrayContaining(removed.name)));
                     logger.info("--> completed replacing indexing node [{}] with [{}]", removed.name, newNodeName);
                 }

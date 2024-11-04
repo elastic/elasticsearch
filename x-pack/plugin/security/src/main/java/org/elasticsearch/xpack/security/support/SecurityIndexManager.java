@@ -676,7 +676,7 @@ public class SecurityIndexManager implements ClusterStateListener {
                     Settings filteredIndexSettings = descriptorForVersion.getSettings();
                     if (state.securityFeatures.contains(SECURITY_MAIN_INDEX_CREATED_ON_MIGRATION_VERSION) == false) {
                         filteredIndexSettings = descriptorForVersion.getSettings()
-                            .filter(key -> key.equals(SecuritySystemIndices.MAIN_INDEX_CREATED_ON_MIGRATION_VERSION.getKey()));
+                            .filter(key -> key.equals(SecuritySystemIndices.MAIN_INDEX_CREATED_ON_MIGRATION_VERSION.getKey()) == false);
                     }
 
                     // Although `TransportCreateIndexAction` is capable of automatically applying the right mappings, settings and aliases

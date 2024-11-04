@@ -84,7 +84,7 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
         assumeTrue("requires query pragmas", canUseQueryPragmas());
         nodeLevelReduction = randomBoolean();
         READ_DESCRIPTION = """
-            \\_LuceneSourceOperator[dataPartitioning = SHARD, maxPageSize = pageSize(), limit = 2147483647]
+            \\_LuceneSourceOperator[dataPartitioning = SHARD, maxPageSize = pageSize(), limit = 2147483647, scoreMode = COMPLETE_NO_SCORES]
             \\_ValuesSourceReaderOperator[fields = [pause_me]]
             \\_AggregationOperator[mode = INITIAL, aggs = sum of longs]
             \\_ExchangeSinkOperator""".replace("pageSize()", Integer.toString(pageSize()));

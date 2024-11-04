@@ -12,6 +12,9 @@ package org.elasticsearch.entitlement.bridge;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 
+/**
+ * Makes the {@link EntitlementChecker} available to injected bytecode.
+ */
 public class EntitlementCheckerHandle {
 
     /**

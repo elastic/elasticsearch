@@ -21,6 +21,13 @@ import java.lang.reflect.Method;
 import java.util.Map;
 import java.util.Set;
 
+/**
+ * Called by the agent during {@code agentmain} to configure the entitlement system,
+ * instantiate and configure an {@link EntitlementChecker},
+ * make it available to the bootstrap library via {@link #checker()},
+ * and then install the {@link org.elasticsearch.entitlement.instrumentation.Instrumenter}
+ * to begin injecting our instrumentation.
+ */
 public class EntitlementInitialization {
     private static ElasticsearchEntitlementManager manager;
 
@@ -33,7 +40,7 @@ public class EntitlementInitialization {
     public static void initialize(Instrumentation inst) throws Exception {
         manager = new ElasticsearchEntitlementManager();
 
-        // TODO: move this instrumentation code
+        // TODO: Configure actual entitlement grants instead of this hardcoded one
         Method targetMethod = System.class.getMethod("exit", int.class);
         Method instrumentationMethod = Class.forName("org.elasticsearch.entitlement.bridge.EntitlementChecker")
             .getMethod("checkSystemExit", Class.class, int.class);
@@ -51,6 +58,6 @@ public class EntitlementInitialization {
         "entitlement",
         InstrumentationService.class,
         "org.elasticsearch.entitlement.instrumentation",
-        Set.of("org.objectweb.nonexistent.asm")
+        Set.of()
     )).get();
 }

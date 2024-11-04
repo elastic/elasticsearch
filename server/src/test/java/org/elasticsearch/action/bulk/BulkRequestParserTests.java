@@ -33,6 +33,38 @@ public class BulkRequestParserTests extends ESTestCase {
         .filter(v -> v.compareTo(RestApiVersion.V_8) > 0)
         .toList();
 
+    public void testParserCannotBeReusedAfterFailure() {
+        BytesArray request = new BytesArray("""
+            { "index":{ }, "something": "unexpected" }
+            {}
+            """);
+
+        BulkRequestParser parser = new BulkRequestParser(randomBoolean(), RestApiVersion.current());
+        BulkRequestParser.IncrementalParser incrementalParser = parser.incrementalParser(
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            false,
+            XContentType.JSON,
+            (req, type) -> fail("expected failure before we got this far"),
+            req -> fail("expected failure before we got this far"),
+            req -> fail("expected failure before we got this far")
+        );
+
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> incrementalParser.parse(request, false));
+        assertEquals("Malformed action/metadata line [1], expected END_OBJECT but found [FIELD_NAME]", ex.getMessage());
+
+        BytesArray valid = new BytesArray("""
+            { "index":{ "_id": "bar" } }
+            {}
+            """);
+        expectThrows(AssertionError.class, () -> incrementalParser.parse(valid, false));
+    }
+
     public void testIncrementalParsing() throws IOException {
         ArrayList<DocWriteRequest<?>> indexRequests = new ArrayList<>();
         ArrayList<DocWriteRequest<?>> updateRequests = new ArrayList<>();

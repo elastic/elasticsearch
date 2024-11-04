@@ -210,6 +210,7 @@ public final class BulkRequestParser {
         private final Consumer<UpdateRequest> updateRequestConsumer;
         private final Consumer<DeleteRequest> deleteRequestConsumer;
 
+        private Exception failure = null;
         private int incrementalFromOffset = 0;
         private int line = 0;
 
@@ -249,6 +250,19 @@ public final class BulkRequestParser {
         }
 
         public int parse(BytesReference data, boolean lastData) throws IOException {
+            if (failure != null) {
+                assert false : failure.getMessage();
+                throw new IllegalStateException("Parser has already encountered exception", failure);
+            }
+            try {
+                return tryParse(data, lastData);
+            } catch (Exception e) {
+                failure = e;
+                throw e;
+            }
+        }
+
+        private int tryParse(BytesReference data, boolean lastData) throws IOException {
             int from = 0;
             int consumed = 0;
 

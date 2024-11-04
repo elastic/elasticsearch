@@ -64,33 +64,35 @@ public class Main {
         }
     }
 
+    private static final String SEPARATOR = "\t";
+
     private static String toString(String calleeName, SecurityCheckClassVisitor.CallerInfo callerInfo) {
-        var s = callerInfo.moduleName()
-            + ";"
-            + callerInfo.source()
-            + ";"
-            + callerInfo.line()
-            + ";"
-            + callerInfo.className()
-            + ";"
-            + callerInfo.methodName()
-            + ";"
-            + callerInfo.isPublic();
+        var s = callerInfo.moduleName() + SEPARATOR + callerInfo.source() + SEPARATOR + callerInfo.line() + SEPARATOR + callerInfo
+            .className() + SEPARATOR + callerInfo.methodName() + SEPARATOR + callerInfo.methodDescriptor() + SEPARATOR;
+
+        if (callerInfo.externalAccess().contains(SecurityCheckClassVisitor.ExternalAccess.METHOD)
+            && callerInfo.externalAccess().contains(SecurityCheckClassVisitor.ExternalAccess.CLASS)) {
+            s += "PUBLIC";
+        } else if (callerInfo.externalAccess().contains(SecurityCheckClassVisitor.ExternalAccess.METHOD)) {
+            s += "PUBLIC-METHOD";
+        } else {
+            s += "PRIVATE";
+        }
 
         if (callerInfo.runtimePermissionType() != null) {
-            s += ";" + callerInfo.runtimePermissionType();
+            s += SEPARATOR + callerInfo.runtimePermissionType();
         } else if (calleeName.equals("checkPermission")) {
-            s += ";MISSING"; // missing information
+            s += SEPARATOR + "MISSING"; // missing information
         } else {
-            s += ";" + calleeName;
+            s += SEPARATOR + calleeName;
         }
 
         if (callerInfo.permissionType() != null) {
-            s += ";" + callerInfo.permissionType();
+            s += SEPARATOR + callerInfo.permissionType();
         } else if (calleeName.equals("checkPermission")) {
-            s += ";MISSING"; // missing information
+            s += SEPARATOR + "MISSING"; // missing information
         } else {
-            s += ";";
+            s += SEPARATOR;
         }
         return s;
     }

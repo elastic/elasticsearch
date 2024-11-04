@@ -24,7 +24,7 @@ In order to run the tool, use:
 ```shell
 ./gradlew :libs:entitlement:tools:securitymanager-scanner:run
 ```
-The output of the tool is a CSV file, with one line for each entry-point, columns separated by `;`
+The output of the tool is a CSV file, with one line for each entry-point, columns separated by `TAB`
 
 The columns are:
 1. Module name
@@ -32,15 +32,16 @@ The columns are:
 3. Line number
 4. Fully qualified class name (ASM style, with `/` separators)
 5. Method name
-6. Public (visibility)
+6. Method descriptor (ASM signature)
+6. Visibility (PUBLIC/PUBLIC-METHOD/PRIVATE)
 7. Check detail 1 (method name, or in case of checkPermission, permission name. Might be `MISSING`)
 8. Check detail 2 (in case of checkPermission, the argument type (`Permission` subtype). Might be `MISSING`)
 
 Examples:
 ```
-java.base;sun/nio/ch/DatagramChannelImpl.java;1358;sun/nio/ch/DatagramChannelImpl;connect;false;checkMulticast;
+java.base       sun/nio/ch/DatagramChannelImpl.java     1360    sun/nio/ch/DatagramChannelImpl  connect (Ljava/net/SocketAddress;Z)Ljava/nio/channels/DatagramChannel;  PRIVATE checkConnect
 ```
 or
 ```
-java.base;java/net/ResponseCache.java;118;java/net/ResponseCache;setDefault;true;setResponseCache;java/net/NetPermission
+java.base       java/net/ResponseCache.java     118     java/net/ResponseCache  setDefault      (Ljava/net/ResponseCache;)V     PUBLIC  setResponseCache        java/net/NetPermission
 ```

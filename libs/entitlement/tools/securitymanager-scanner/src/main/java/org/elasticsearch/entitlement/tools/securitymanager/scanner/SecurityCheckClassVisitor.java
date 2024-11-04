@@ -22,6 +22,7 @@ import java.nio.file.Path;
 import java.security.Permission;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -41,13 +42,19 @@ class SecurityCheckClassVisitor extends ClassVisitor {
     static final String SECURITY_MANAGER_INTERNAL_NAME = "java/lang/SecurityManager";
     static final Set<String> excludedClasses = Set.of(SECURITY_MANAGER_INTERNAL_NAME);
 
+    enum ExternalAccess {
+        CLASS,
+        METHOD
+    }
+
     record CallerInfo(
         String moduleName,
         String source,
         int line,
         String className,
         String methodName,
-        boolean isPublic,
+        String methodDescriptor,
+        EnumSet<ExternalAccess> externalAccess,
         String permissionType,
         String runtimePermissionType
     ) {}
@@ -83,7 +90,7 @@ class SecurityCheckClassVisitor extends ClassVisitor {
         if (excludedClasses.contains(this.className)) {
             return super.visitMethod(access, name, descriptor, signature, exceptions);
         }
-        return new SecurityCheckMethodVisitor(super.visitMethod(access, name, descriptor, signature, exceptions), name, access);
+        return new SecurityCheckMethodVisitor(super.visitMethod(access, name, descriptor, signature, exceptions), name, access, descriptor);
     }
 
     public void setCurrentModule(String moduleName, Set<String> moduleExports) {
@@ -98,15 +105,17 @@ class SecurityCheckClassVisitor extends ClassVisitor {
     private class SecurityCheckMethodVisitor extends MethodVisitor {
 
         private final String methodName;
+        private final String methodDescriptor;
         private int line;
         private String permissionType;
         private String runtimePermissionType;
         private final int methodAccess;
 
-        protected SecurityCheckMethodVisitor(MethodVisitor mv, String methodName, int methodAccess) {
+        protected SecurityCheckMethodVisitor(MethodVisitor mv, String methodName, int methodAccess, String methodDescriptor) {
             super(ASM9, mv);
             this.methodName = methodName;
             this.methodAccess = methodAccess;
+            this.methodDescriptor = methodDescriptor;
         }
 
         private static final Set<String> KNOWN_PERMISSIONS = Set.of("jdk.vm.ci.services.JVMCIPermission");
@@ -199,9 +208,15 @@ class SecurityCheckClassVisitor extends ClassVisitor {
                 || opcode == INVOKEDYNAMIC) {
 
                 if (SECURITY_MANAGER_INTERNAL_NAME.equals(owner)) {
-                    boolean callerIsPublic = (methodAccess & ACC_PUBLIC) != 0
-                        && (classAccess & ACC_PUBLIC) != 0
-                        && moduleExports.contains(getPackageName(className));
+                    EnumSet<ExternalAccess> externalAccesses = EnumSet.noneOf(ExternalAccess.class);
+                    if (moduleExports.contains(getPackageName(className))) {
+                        if ((methodAccess & ACC_PUBLIC) != 0) {
+                            externalAccesses.add(ExternalAccess.METHOD);
+                        }
+                        if ((classAccess & ACC_PUBLIC) != 0) {
+                            externalAccesses.add(ExternalAccess.CLASS);
+                        }
+                    }
 
                     if (name.equals("checkPermission")) {
                         var callers = callerInfoByMethod.computeIfAbsent(name, ignored -> new ArrayList<>());
@@ -212,7 +227,8 @@ class SecurityCheckClassVisitor extends ClassVisitor {
                                 line,
                                 className,
                                 methodName,
-                                callerIsPublic,
+                                methodDescriptor,
+                                externalAccesses,
                                 permissionType,
                                 runtimePermissionType
                             )
@@ -229,7 +245,8 @@ class SecurityCheckClassVisitor extends ClassVisitor {
                                 line,
                                 className,
                                 methodName,
-                                callerIsPublic,
+                                methodDescriptor,
+                                externalAccesses,
                                 null,
                                 null
                             )

@@ -66,7 +66,6 @@ import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.snapshots.SnapshotsInfoService;
-import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -1215,7 +1214,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
         var reconciler = new DesiredBalanceReconciler(
             clusterSettings,
             new DeterministicTaskQueue().getThreadPool(),
-            mock(MeterRegistry.class)
+            DesiredBalanceMetrics.NOOP
         );
 
         var totalOutgoingMoves = new HashMap<String, AtomicInteger>();
@@ -1297,7 +1296,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
         final var timeInMillisSupplier = new AtomicLong();
         when(threadPool.relativeTimeInMillisSupplier()).thenReturn(timeInMillisSupplier::incrementAndGet);
 
-        var reconciler = new DesiredBalanceReconciler(createBuiltInClusterSettings(), threadPool, mock(MeterRegistry.class));
+        var reconciler = new DesiredBalanceReconciler(createBuiltInClusterSettings(), threadPool, DesiredBalanceMetrics.NOOP);
         final long initialDelayInMillis = TimeValue.timeValueMinutes(5).getMillis();
         timeInMillisSupplier.addAndGet(randomLongBetween(initialDelayInMillis, 2 * initialDelayInMillis));
 
@@ -1349,7 +1348,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
     private static void reconcile(RoutingAllocation routingAllocation, DesiredBalance desiredBalance) {
         final var threadPool = mock(ThreadPool.class);
         when(threadPool.relativeTimeInMillisSupplier()).thenReturn(new AtomicLong()::incrementAndGet);
-        new DesiredBalanceReconciler(createBuiltInClusterSettings(), threadPool, mock(MeterRegistry.class)).reconcile(
+        new DesiredBalanceReconciler(createBuiltInClusterSettings(), threadPool, DesiredBalanceMetrics.NOOP).reconcile(
             desiredBalance,
             routingAllocation
         );

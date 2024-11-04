@@ -22,7 +22,7 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.RestApiVersion;
-import org.elasticsearch.core.UpdateForV9;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -52,7 +52,7 @@ import static org.elasticsearch.rest.RestRequest.Method.HEAD;
 @ServerlessScope(Scope.PUBLIC)
 public class RestGetAliasesAction extends BaseRestHandler {
 
-    @UpdateForV9(owner = UpdateForV9.Owner.DATA_MANAGEMENT) // reject the deprecated ?local parameter
+    @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT) // remove the BWC support for the deprecated ?local parameter
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(RestGetAliasesAction.class);
 
     @Override
@@ -199,8 +199,7 @@ public class RestGetAliasesAction extends BaseRestHandler {
     }
 
     @Override
-    @UpdateForV9(owner = UpdateForV9.Owner.DATA_MANAGEMENT)
-    // v7 REST API no longer exists: eliminate ref to RestApiVersion.V_7; reject local parameter in v9 too?
+    @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT) // remove the BWC support for the deprecated ?local parameter
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         // The TransportGetAliasesAction was improved do the same post processing as is happening here.
         // We can't remove this logic yet to support mixed clusters. We should be able to remove this logic here
@@ -213,10 +212,10 @@ public class RestGetAliasesAction extends BaseRestHandler {
         getAliasesRequest.indices(indices);
         getAliasesRequest.indicesOptions(IndicesOptions.fromRequest(request, getAliasesRequest.indicesOptions()));
 
-        if (request.hasParam("local")) {
-            // consume this param just for validation
-            final var localParam = request.paramAsBoolean("local", false);
-            if (request.getRestApiVersion() != RestApiVersion.V_7) {
+        if (request.getRestApiVersion() == RestApiVersion.V_8) {
+            if (request.hasParam("local")) {
+                // consume this param just for validation when in BWC mode for V_8
+                final var localParam = request.paramAsBoolean("local", false);
                 DEPRECATION_LOGGER.critical(
                     DeprecationCategory.API,
                     "get-aliases-local",

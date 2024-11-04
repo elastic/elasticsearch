@@ -571,7 +571,7 @@ public class IndicesRequestIT extends ESIntegTestCase {
         SearchRequest searchRequest = new SearchRequest(randomIndicesOrAliases).searchType(SearchType.QUERY_THEN_FETCH);
         assertNoFailuresAndResponse(
             internalCluster().coordOnlyNodeClient().search(searchRequest),
-            searchResponse -> assertThat(searchResponse.getHits().getTotalHits().value, greaterThan(0L))
+            searchResponse -> assertThat(searchResponse.getHits().getTotalHits().value(), greaterThan(0L))
         );
 
         clearInterceptedActions();
@@ -601,7 +601,7 @@ public class IndicesRequestIT extends ESIntegTestCase {
         SearchRequest searchRequest = new SearchRequest(randomIndicesOrAliases).searchType(SearchType.DFS_QUERY_THEN_FETCH);
         assertNoFailuresAndResponse(
             internalCluster().coordOnlyNodeClient().search(searchRequest),
-            searchResponse -> assertThat(searchResponse.getHits().getTotalHits().value, greaterThan(0L))
+            searchResponse -> assertThat(searchResponse.getHits().getTotalHits().value(), greaterThan(0L))
         );
 
         clearInterceptedActions();

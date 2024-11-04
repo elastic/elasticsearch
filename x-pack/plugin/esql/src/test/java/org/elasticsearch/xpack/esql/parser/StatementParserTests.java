@@ -392,12 +392,16 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertEquals(
             new InlineStats(
                 EMPTY,
-                PROCESSING_CMD_INPUT,
-                List.of(attribute("c"), attribute("d.e")),
-                List.of(
-                    new Alias(EMPTY, "b", new UnresolvedFunction(EMPTY, "min", DEFAULT, List.of(attribute("a")))),
-                    attribute("c"),
-                    attribute("d.e")
+                new Aggregate(
+                    EMPTY,
+                    PROCESSING_CMD_INPUT,
+                    Aggregate.AggregateType.STANDARD,
+                    List.of(attribute("c"), attribute("d.e")),
+                    List.of(
+                        new Alias(EMPTY, "b", new UnresolvedFunction(EMPTY, "min", DEFAULT, List.of(attribute("a")))),
+                        attribute("c"),
+                        attribute("d.e")
+                    )
                 )
             ),
             processingCommand(query)
@@ -414,11 +418,15 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertEquals(
             new InlineStats(
                 EMPTY,
-                PROCESSING_CMD_INPUT,
-                List.of(),
-                List.of(
-                    new Alias(EMPTY, "min(a)", new UnresolvedFunction(EMPTY, "min", DEFAULT, List.of(attribute("a")))),
-                    new Alias(EMPTY, "c", integer(1))
+                new Aggregate(
+                    EMPTY,
+                    PROCESSING_CMD_INPUT,
+                    Aggregate.AggregateType.STANDARD,
+                    List.of(),
+                    List.of(
+                        new Alias(EMPTY, "min(a)", new UnresolvedFunction(EMPTY, "min", DEFAULT, List.of(attribute("a")))),
+                        new Alias(EMPTY, "c", integer(1))
+                    )
                 )
             ),
             processingCommand(query)
@@ -1564,7 +1572,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testParamForIdentifier() {
         assumeTrue(
             "named parameters for identifiers and patterns require snapshot build",
-            EsqlCapabilities.Cap.NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES.isEnabled()
+            EsqlCapabilities.Cap.NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES_SIMPLIFIED_SYNTAX.isEnabled()
         );
         // field names can appear in eval/where/stats/sort/keep/drop/rename/dissect/grok/enrich/mvexpand
         // eval, where
@@ -1677,7 +1685,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     List.of(new Order(EMPTY, attribute("f.11..f.12.*"), Order.OrderDirection.ASC, Order.NullsPosition.LAST))
                 ),
                 attribute("f.*.13.f.14*"),
-                attribute("f.*.13.f.14*")
+                attribute("f.*.13.f.14*"),
+                null
             ),
             statement(
                 """
@@ -1825,7 +1834,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testParamForIdentifierPattern() {
         assumeTrue(
             "named parameters for identifiers and patterns require snapshot build",
-            EsqlCapabilities.Cap.NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES.isEnabled()
+            EsqlCapabilities.Cap.NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES_SIMPLIFIED_SYNTAX.isEnabled()
         );
         // name patterns can appear in keep and drop
         // all patterns
@@ -1918,7 +1927,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testParamInInvalidPosition() {
         assumeTrue(
             "named parameters for identifiers and patterns require snapshot build",
-            EsqlCapabilities.Cap.NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES.isEnabled()
+            EsqlCapabilities.Cap.NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES_SIMPLIFIED_SYNTAX.isEnabled()
         );
         // param for pattern is not supported in eval/where/stats/sort/rename/dissect/grok/enrich/mvexpand
         // where/stats/sort/dissect/grok are covered in RestEsqlTestCase
@@ -1973,7 +1982,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testMissingParam() {
         assumeTrue(
             "named parameters for identifiers and patterns require snapshot build",
-            EsqlCapabilities.Cap.NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES.isEnabled()
+            EsqlCapabilities.Cap.NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES_SIMPLIFIED_SYNTAX.isEnabled()
         );
         // cover all processing commands eval/where/stats/sort/rename/dissect/grok/enrich/mvexpand/keep/drop
         String error = "Unknown query parameter [f1], did you mean [f4]?";

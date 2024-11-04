@@ -15,9 +15,12 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
@@ -25,6 +28,7 @@ import org.elasticsearch.inference.ChunkingOptions;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.InferenceResults;
+import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
@@ -34,6 +38,8 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.inference.ChunkingSettingsFeatureFlag;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
@@ -77,6 +83,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.elasticsearch.xpack.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettingsMap;
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService.MULTILINGUAL_E5_SMALL_MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService.MULTILINGUAL_E5_SMALL_MODEL_ID_LINUX_X86;
@@ -1561,9 +1569,126 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
 
     public void testIsDefaultId() {
         var service = createService(mock(Client.class));
-        assertTrue(service.isDefaultId(".elser-2"));
-        assertTrue(service.isDefaultId(".multi-e5-small"));
+        assertTrue(service.isDefaultId(".elser-2-elasticsearch"));
+        assertTrue(service.isDefaultId(".multilingual-e5-small-elasticsearch"));
         assertFalse(service.isDefaultId("foo"));
+    }
+
+    public void testGetConfiguration() throws Exception {
+        try (var service = createService(mock(Client.class))) {
+            String content = XContentHelper.stripWhitespace("""
+                {
+                       "provider": "elasticsearch",
+                       "task_types": [
+                            {
+                                "task_type": "text_embedding",
+                                "configuration": {}
+                            },
+                            {
+                                "task_type": "sparse_embedding",
+                                "configuration": {}
+                            },
+                            {
+                                "task_type": "rerank",
+                                "configuration": {
+                                    "return_documents": {
+                                        "default_value": null,
+                                        "depends_on": [],
+                                        "display": "toggle",
+                                        "label": "Return Documents",
+                                        "order": 1,
+                                        "required": false,
+                                        "sensitive": false,
+                                        "tooltip": "Returns the document instead of only the index.",
+                                        "type": "bool",
+                                        "ui_restrictions": [],
+                                        "validations": [],
+                                        "value": true
+                                    }
+                                }
+                            }
+                       ],
+                       "configuration": {
+                           "num_allocations": {
+                               "default_value": 1,
+                               "depends_on": [],
+                               "display": "numeric",
+                               "label": "Number Allocations",
+                               "order": 2,
+                               "required": true,
+                               "sensitive": false,
+                               "tooltip": "The total number of allocations this model is assigned across machine learning nodes.",
+                               "type": "int",
+                               "ui_restrictions": [],
+                               "validations": [],
+                               "value": null
+                           },
+                           "num_threads": {
+                               "default_value": 2,
+                               "depends_on": [],
+                               "display": "numeric",
+                               "label": "Number Threads",
+                               "order": 3,
+                               "required": true,
+                               "sensitive": false,
+                               "tooltip": "Sets the number of threads used by each model allocation during inference.",
+                               "type": "int",
+                               "ui_restrictions": [],
+                               "validations": [],
+                               "value": null
+                           },
+                           "model_id": {
+                               "default_value": ".multilingual-e5-small",
+                               "depends_on": [],
+                               "display": "dropdown",
+                               "label": "Model ID",
+                               "options": [
+                                   {
+                                       "label": ".elser_model_1",
+                                       "value": ".elser_model_1"
+                                   },
+                                   {
+                                       "label": ".elser_model_2",
+                                       "value": ".elser_model_2"
+                                   },
+                                   {
+                                       "label": ".elser_model_2_linux-x86_64",
+                                       "value": ".elser_model_2_linux-x86_64"
+                                   },
+                                   {
+                                       "label": ".multilingual-e5-small",
+                                       "value": ".multilingual-e5-small"
+                                   },
+                                   {
+                                       "label": ".multilingual-e5-small_linux-x86_64",
+                                       "value": ".multilingual-e5-small_linux-x86_64"
+                                   }
+                               ],
+                               "order": 1,
+                               "required": true,
+                               "sensitive": false,
+                               "tooltip": "The name of the model to use for the inference task.",
+                               "type": "str",
+                               "ui_restrictions": [],
+                               "validations": [],
+                               "value": null
+                           }
+                       }
+                   }
+                """);
+            InferenceServiceConfiguration configuration = InferenceServiceConfiguration.fromXContentBytes(
+                new BytesArray(content),
+                XContentType.JSON
+            );
+            boolean humanReadable = true;
+            BytesReference originalBytes = toShuffledXContent(configuration, XContentType.JSON, ToXContent.EMPTY_PARAMS, humanReadable);
+            InferenceServiceConfiguration serviceConfiguration = service.getConfiguration();
+            assertToXContentEquivalent(
+                originalBytes,
+                toXContent(serviceConfiguration, XContentType.JSON, humanReadable),
+                XContentType.JSON
+            );
+        }
     }
 
     private ElasticsearchInternalService createService(Client client) {

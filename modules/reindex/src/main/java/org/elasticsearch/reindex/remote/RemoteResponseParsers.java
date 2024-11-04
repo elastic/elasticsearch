@@ -97,8 +97,8 @@ final class RemoteResponseParsers {
         HITS_PARSER.declareField(constructorArg(), (p, c) -> {
             if (p.currentToken() == XContentParser.Token.START_OBJECT) {
                 final TotalHits totalHits = SearchHits.parseTotalHitsFragment(p);
-                assert totalHits.relation == TotalHits.Relation.EQUAL_TO;
-                return totalHits.value;
+                assert totalHits.relation() == TotalHits.Relation.EQUAL_TO;
+                return totalHits.value();
             } else {
                 // For BWC with nodes pre 7.0
                 return p.longValue();

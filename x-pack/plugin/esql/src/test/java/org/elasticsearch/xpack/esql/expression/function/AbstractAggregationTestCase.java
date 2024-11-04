@@ -163,15 +163,7 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
             result = extractResultFromAggregator(aggregator, PlannerUtils.toElementType(testCase.expectedType()));
         }
 
-        assertThat(result, not(equalTo(Double.NaN)));
-        assert testCase.getMatcher().matches(Double.POSITIVE_INFINITY) == false;
-        assertThat(result, not(equalTo(Double.POSITIVE_INFINITY)));
-        assert testCase.getMatcher().matches(Double.NEGATIVE_INFINITY) == false;
-        assertThat(result, not(equalTo(Double.NEGATIVE_INFINITY)));
-        assertThat(result, testCase.getMatcher());
-        if (testCase.getExpectedWarnings() != null) {
-            assertWarnings(testCase.getExpectedWarnings());
-        }
+        assertTestCaseResultAndWarnings(result);
     }
 
     private void aggregateGroupingSingleMode(Expression expression) {
@@ -263,15 +255,7 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
             result = extractResultFromAggregator(aggregator, PlannerUtils.toElementType(testCase.expectedType()));
         }
 
-        assertThat(result, not(equalTo(Double.NaN)));
-        assert testCase.getMatcher().matches(Double.POSITIVE_INFINITY) == false;
-        assertThat(result, not(equalTo(Double.POSITIVE_INFINITY)));
-        assert testCase.getMatcher().matches(Double.NEGATIVE_INFINITY) == false;
-        assertThat(result, not(equalTo(Double.NEGATIVE_INFINITY)));
-        assertThat(result, testCase.getMatcher());
-        if (testCase.getExpectedWarnings() != null) {
-            assertWarnings(testCase.getExpectedWarnings());
-        }
+        assertTestCaseResultAndWarnings(result);
     }
 
     private void evaluate(Expression evaluableExpression) {
@@ -288,15 +272,7 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
         if (testCase.expectedType() == DataType.UNSIGNED_LONG && result != null) {
             result = NumericUtils.unsignedLongAsBigInteger((Long) result);
         }
-        assertThat(result, not(equalTo(Double.NaN)));
-        assert testCase.getMatcher().matches(Double.POSITIVE_INFINITY) == false;
-        assertThat(result, not(equalTo(Double.POSITIVE_INFINITY)));
-        assert testCase.getMatcher().matches(Double.NEGATIVE_INFINITY) == false;
-        assertThat(result, not(equalTo(Double.NEGATIVE_INFINITY)));
-        assertThat(result, testCase.getMatcher());
-        if (testCase.getExpectedWarnings() != null) {
-            assertWarnings(testCase.getExpectedWarnings());
-        }
+        assertTestCaseResultAndWarnings(result);
     }
 
     private void resolveExpression(Expression expression, Consumer<Expression> onAggregator, Consumer<Expression> onEvaluableExpression) {

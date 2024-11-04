@@ -47,7 +47,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.matchesRegex;
 
-public class ScoringLuceneTopNSourceOperatorTests extends LuceneTopNSourceOperatorTests {
+public class LuceneTopNSourceOperatorScoringTests extends LuceneTopNSourceOperatorTests {
     private static final MappedFieldType S_FIELD = new NumberFieldMapper.NumberFieldType("s", NumberFieldMapper.NumberType.LONG);
     private Directory directory = newDirectory();
     private IndexReader reader;
@@ -58,11 +58,11 @@ public class ScoringLuceneTopNSourceOperatorTests extends LuceneTopNSourceOperat
     }
 
     @Override
-    protected ScoringLuceneTopNSourceOperator.Factory simple() {
+    protected LuceneTopNSourceOperator.Factory simple() {
         return simple(DataPartitioning.SHARD, 10_000, 100);
     }
 
-    private ScoringLuceneTopNSourceOperator.Factory simple(DataPartitioning dataPartitioning, int size, int limit) {
+    private LuceneTopNSourceOperator.Factory simple(DataPartitioning dataPartitioning, int size, int limit) {
         int commitEvery = Math.max(1, size / 10);
         try (
             RandomIndexWriter writer = new RandomIndexWriter(
@@ -95,32 +95,33 @@ public class ScoringLuceneTopNSourceOperatorTests extends LuceneTopNSourceOperat
         int taskConcurrency = 0;
         int maxPageSize = between(10, Math.max(10, size));
         List<SortBuilder<?>> sorts = List.of(new FieldSortBuilder("s"));
-        return new ScoringLuceneTopNSourceOperator.Factory(
+        return new LuceneTopNSourceOperator.Factory(
             List.of(ctx),
             queryFunction,
             dataPartitioning,
             taskConcurrency,
             maxPageSize,
             limit,
-            sorts
+            sorts,
+            true // scoring
         );
     }
 
     @Override
     protected Matcher<String> expectedToStringOfSimple() {
-        return matchesRegex("ScoringLuceneTopNSourceOperator\\[maxPageSize = \\d+, limit = 100, sorts = \\[\\{.+}]]");
+        return matchesRegex("LuceneTopNSourceOperator\\[maxPageSize = \\d+, limit = 100, scoreMode = COMPLETE, sorts = \\[\\{.+}]]");
     }
 
     @Override
     protected Matcher<String> expectedDescriptionOfSimple() {
         return matchesRegex(
-            "ScoringLuceneTopNSourceOperator\\[dataPartitioning = (DOC|SHARD|SEGMENT), maxPageSize = \\d+, limit = 100, sorts = \\[\\{.+}]]"
+            "LuceneTopNSourceOperator\\[dataPartitioning = (DOC|SHARD|SEGMENT), maxPageSize = \\d+, limit = 100, scoreMode = COMPLETE, sorts = \\[\\{.+}]]"
         );
     }
 
     @Override
     protected void testSimple(DriverContext ctx, int size, int limit) {
-        ScoringLuceneTopNSourceOperator.Factory factory = simple(DataPartitioning.SHARD, size, limit);
+        LuceneTopNSourceOperator.Factory factory = simple(DataPartitioning.SHARD, size, limit);
         Operator.OperatorFactory readS = ValuesSourceReaderOperatorTests.factory(reader, S_FIELD, ElementType.LONG);
 
         List<Page> results = new ArrayList<>();

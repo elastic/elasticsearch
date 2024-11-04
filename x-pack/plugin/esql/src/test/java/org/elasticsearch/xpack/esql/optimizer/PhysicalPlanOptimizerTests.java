@@ -217,7 +217,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     @Before
     public void init() {
         parser = new EsqlParser();
-        logicalOptimizer = new LogicalPlanOptimizer(new LogicalOptimizerContext(EsqlTestUtils.TEST_CFG));
+        logicalOptimizer = new LogicalPlanOptimizer(new LogicalOptimizerContext(config));
         physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(config));
         EsqlFunctionRegistry functionRegistry = new EsqlFunctionRegistry();
         mapper = new Mapper();
@@ -6588,7 +6588,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         // System.out.println("Logical\n" + logical);
         var physical = mapper.map(logical);
         // System.out.println(physical);
-        assertSerialization(physical);
+        assertSerialization(physical, config);
         return physical;
     }
 

@@ -224,6 +224,10 @@ public class Configuration implements Writeable {
         return profile;
     }
 
+    public Set<String> activeEsqlFeatures() {
+        return activeEsqlFeatures;
+    }
+
     public boolean clusterHasFeature(NodeFeature feature) {
         return activeEsqlFeatures.contains(feature.id());
     }

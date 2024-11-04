@@ -52,7 +52,7 @@ public class AggregateSerializationTests extends AbstractLogicalPlanSerializatio
                     new Literal(randomSource(), randomFrom("ASC", "DESC"), DataType.KEYWORD)
                 );
                 case 4 -> new Values(randomSource(), FieldAttributeTests.createFieldAttribute(1, true));
-                case 5 -> new Sum(randomSource(), FieldAttributeTests.createFieldAttribute(1, true), EsqlTestUtils.TEST_CFG);
+                case 5 -> new Sum(randomSource(), FieldAttributeTests.createFieldAttribute(1, true), configuration());
                 default -> throw new IllegalArgumentException();
             };
             result.add(new Alias(randomSource(), randomAlphaOfLength(5), agg));

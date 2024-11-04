@@ -35,7 +35,7 @@ public abstract class AbstractNodeSerializationTests<T extends Node<? super T>> 
      * We use a single random config for all serialization because it's pretty
      * heavy to build, especially in {@link #testConcurrentSerialization()}.
      */
-    private Configuration config;
+    private static Configuration config;
 
     public static Source randomSource() {
         int lineNumber = between(0, EXAMPLE_QUERY.length - 1);
@@ -77,7 +77,7 @@ public abstract class AbstractNodeSerializationTests<T extends Node<? super T>> 
         return false;
     }
 
-    public final Configuration configuration() {
+    public static final Configuration configuration() {
         return config;
     }
 

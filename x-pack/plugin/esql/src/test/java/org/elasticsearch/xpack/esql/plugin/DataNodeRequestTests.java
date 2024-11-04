@@ -11,6 +11,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.query.TermQueryBuilder;
@@ -33,15 +34,16 @@ import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomConfiguration;
 import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomTables;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyPolicyResolution;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
@@ -79,14 +81,15 @@ public class DataNodeRequestTests extends AbstractWireSerializingTestCase<DataNo
             | stats x = avg(salary)
             """);
         List<ShardId> shardIds = randomList(1, 10, () -> new ShardId("index-" + between(1, 10), "n/a", between(1, 10)));
-        PhysicalPlan physicalPlan = mapAndMaybeOptimize(parse(query));
+        Configuration configuration = randomLimitedConfiguration(query);
+        PhysicalPlan physicalPlan = mapAndMaybeOptimize(parse(query, configuration), configuration);
         Map<Index, AliasFilter> aliasFilters = Map.of(
             new Index("concrete-index", "n/a"),
             AliasFilter.of(new TermQueryBuilder("id", "1"), "alias-1")
         );
         DataNodeRequest request = new DataNodeRequest(
             sessionId,
-            randomConfiguration(query, randomTables()),
+            configuration,
             randomAlphaOfLength(10),
             shardIds,
             aliasFilters,
@@ -164,7 +167,7 @@ public class DataNodeRequestTests extends AbstractWireSerializingTestCase<DataNo
                     in.clusterAlias(),
                     in.shardIds(),
                     in.aliasFilters(),
-                    mapAndMaybeOptimize(parse(newQuery)),
+                    mapAndMaybeOptimize(parse(newQuery, in.configuration()), in.configuration()),
                     in.indices(),
                     in.indicesOptions()
                 );
@@ -260,20 +263,20 @@ public class DataNodeRequestTests extends AbstractWireSerializingTestCase<DataNo
         };
     }
 
-    static LogicalPlan parse(String query) {
+    static LogicalPlan parse(String query, Configuration configuration) {
         Map<String, EsField> mapping = loadMapping("mapping-basic.json");
         EsIndex test = new EsIndex("test", mapping, Map.of("test", IndexMode.STANDARD));
         IndexResolution getIndexResult = IndexResolution.valid(test);
-        var logicalOptimizer = new LogicalPlanOptimizer(new LogicalOptimizerContext(TEST_CFG));
+        var logicalOptimizer = new LogicalPlanOptimizer(new LogicalOptimizerContext(configuration));
         var analyzer = new Analyzer(
-            new AnalyzerContext(EsqlTestUtils.TEST_CFG, new EsqlFunctionRegistry(), getIndexResult, emptyPolicyResolution()),
+            new AnalyzerContext(configuration, new EsqlFunctionRegistry(), getIndexResult, emptyPolicyResolution()),
             TEST_VERIFIER
         );
         return logicalOptimizer.optimize(analyzer.analyze(new EsqlParser().createStatement(query)));
     }
 
-    static PhysicalPlan mapAndMaybeOptimize(LogicalPlan logicalPlan) {
-        var physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(TEST_CFG));
+    static PhysicalPlan mapAndMaybeOptimize(LogicalPlan logicalPlan, Configuration configuration) {
+        var physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(configuration));
         var mapper = new Mapper();
         var physical = mapper.map(logicalPlan);
         if (randomBoolean()) {
@@ -285,5 +288,30 @@ public class DataNodeRequestTests extends AbstractWireSerializingTestCase<DataNo
     @Override
     protected List<String> filteredWarnings() {
         return withDefaultLimitWarning(super.filteredWarnings());
+    }
+
+    /**
+     * Builds a configuration with a fixed limit of 10000 rows and 1000 bytes.
+     * <p>
+     *     Without this, warnings would be randomized, and hard to filter from the warnings.
+     * </p>
+     */
+    private Configuration randomLimitedConfiguration(String query) {
+        Configuration configuration = randomConfiguration(query, randomTables());
+
+        return new Configuration(
+            configuration.zoneId(),
+            configuration.locale(),
+            configuration.username(),
+            configuration.clusterName(),
+            configuration.pragmas(),
+            10000,
+            1000,
+            configuration.query(),
+            configuration.profile(),
+            configuration.tables(),
+            configuration.getQueryStartTimeNanos(),
+            configuration.activeEsqlFeatures()
+        );
     }
 }

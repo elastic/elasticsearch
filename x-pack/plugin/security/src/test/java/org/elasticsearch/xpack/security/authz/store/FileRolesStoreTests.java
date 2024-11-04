@@ -389,7 +389,7 @@ public class FileRolesStoreTests extends ESTestCase {
             startsWith(
                 "failed to parse remote_cluster for role [invalid_role_bad_priv_remote_clusters]. "
                     + "[monitor_enrich, monitor_stats] are the only values allowed for [privileges] within [remote_cluster]. "
-                    + "skipping role..."
+                    + "Found [junk]. skipping role..."
             )
         );
     }

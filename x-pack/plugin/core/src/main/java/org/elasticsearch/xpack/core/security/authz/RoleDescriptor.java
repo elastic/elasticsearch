@@ -50,7 +50,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.createParserNotCompressed;
 import static org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions.ROLE_REMOTE_CLUSTER_PRIVS;
@@ -834,17 +833,17 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
                     currentFieldName = parser.currentName();
                 } else if (Fields.PRIVILEGES.match(currentFieldName, parser.getDeprecationHandler())) {
                     privileges = readStringArray(roleName, parser, false);
-                    if (Collections.disjoint(
-                        RemoteClusterPermissions.getSupportedRemoteClusterPermissions(),
-                        Arrays.stream(privileges).map(s -> s.toLowerCase(Locale.ROOT)).collect(Collectors.toSet())
-                    )) {
+                    if (Arrays.stream(privileges)
+                        .map(s -> s.toLowerCase(Locale.ROOT))
+                        .allMatch(RemoteClusterPermissions.getSupportedRemoteClusterPermissions()::contains) == false) {
                         final String message = String.format(
                             Locale.ROOT,
                             "failed to parse remote_cluster for role [%s]. "
-                                + "%s are the only values allowed for [%s] within [remote_cluster]",
+                                + "%s are the only values allowed for [%s] within [remote_cluster]. Found %s",
                             roleName,
                             RemoteClusterPermissions.getSupportedRemoteClusterPermissions(),
-                            currentFieldName
+                            currentFieldName,
+                            Arrays.toString(privileges)
                         );
                         logger.warn(message);
                         throw new ElasticsearchParseException(message);

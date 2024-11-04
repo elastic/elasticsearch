@@ -174,7 +174,7 @@ GET /restaurants/_search
 <3> The entry point for defining the search query.
 <4> The `bool` object allows for combining multiple query clauses logically.
 <5> The `should` array indicates conditions under which a document will match.
-Documents matching these conditions will increase their relevancy score.
+Documents matching these conditions will have increased relevancy scores.
 <6> The `match` object finds documents where the `region` field contains the word "Austria."
 <7> The `filter` array provides filtering conditions that must be met but do not contribute to the relevancy score.
 <8> The `term` object is used for exact matches, in this case, filtering documents by the `year` field.

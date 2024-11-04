@@ -79,8 +79,12 @@ public class IndexResolver {
     /**
      * Resolves a pattern to one (potentially compound meaning that spawns multiple indices) mapping.
      */
-    public void resolveAsMergedMapping(String indexWildcard, Set<String> fieldNames, QueryBuilder requestFilter,
-                                       ActionListener<IndexResolution> listener) {
+    public void resolveAsMergedMapping(
+        String indexWildcard,
+        Set<String> fieldNames,
+        QueryBuilder requestFilter,
+        ActionListener<IndexResolution> listener
+    ) {
         client.execute(
             EsqlResolveFieldsAction.TYPE,
             createFieldCapsRequest(indexWildcard, fieldNames, requestFilter),

@@ -6,7 +6,8 @@
 ++++
 
 Schedule <<trigger,triggers>> define when the watch execution should start based
-on date and time. All times are specified in UTC time.
+on date and time. All times are in UTC time unless a timezone is explicitly specified
+in the schedule.
 
 {watcher} uses the system clock to determine the current time. To ensure schedules
 are triggered when expected, you should synchronize the clocks of all nodes in the

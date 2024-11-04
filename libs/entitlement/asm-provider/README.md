@@ -1,2 +1,2 @@
-This module implements the interfaces in `org.elasticsearch.entitlement.instrumentation`
-via the ASM library. It is loaded using the Embedded Provider Gradle plugin.
+This module uses the ASM library to implement various things, including bytecode instrumentation.
+It is loaded using the Embedded Provider Gradle plugin.

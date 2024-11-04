@@ -27,7 +27,6 @@ import org.elasticsearch.xpack.core.security.action.SetIndexMetadataPropertyActi
 import org.elasticsearch.xpack.core.security.action.SetIndexMetadataPropertyRequest;
 import org.elasticsearch.xpack.core.security.action.role.BulkRolesResponse;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
-import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.security.authz.store.QueryableRolesProvider.QueryableRoles;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
@@ -98,10 +97,10 @@ public class QueryableRolesSynchronizationExecutor implements ClusterStateListen
         }
         if (rolesSynchronizationInProgress.compareAndSet(false, true)) {
             executor.execute(() -> syncBuiltinRoles(indexedRolesVersions, roles, ActionListener.wrap(v -> {
-                logger.info("Successfully synced built-in roles to security index: {}", roles);
+                logger.info("Successfully synced built-in roles to security index");
                 rolesSynchronizationInProgress.set(false);
             }, e -> {
-                logger.warn("Failed to sync built-in roles to security index: {}", roles, e);
+                logger.warn("Failed to sync built-in roles to security index", e);
                 rolesSynchronizationInProgress.set(false);
             })));
         }
@@ -117,7 +116,7 @@ public class QueryableRolesSynchronizationExecutor implements ClusterStateListen
                 // we will first create new or update the existing roles in .security index
                 // then potentially delete the roles from .security index that have been removed
                 indexRoles(roles.roleDescriptors().values(), frozenSecurityIndex, ActionListener.wrap(onResponse -> {
-                    Set<String> rolesToDelete = Sets.difference(indexedRolesVersions.keySet(), ReservedRolesStore.names());
+                    Set<String> rolesToDelete = Sets.difference(indexedRolesVersions.keySet(), roles.roleVersions().keySet());
                     if (false == rolesToDelete.isEmpty()) {
                         deleteRoles(rolesToDelete, roles.roleVersions(), frozenSecurityIndex, indexedRolesVersions, listener);
                     } else {
@@ -204,7 +203,7 @@ public class QueryableRolesSynchronizationExecutor implements ClusterStateListen
     private Map<String, String> readIndexedRolesVersion(ClusterState state) {
         IndexMetadata indexMetadata = state.metadata().index(SECURITY_MAIN_ALIAS);
         if (indexMetadata == null) {
-            return null;
+            return Map.of();
         }
         Map<String, String> currentlyIndexedRoles = indexMetadata.getCustomData(METADATA_INDEXED_BUILT_IN_ROLES);
         return currentlyIndexedRoles == null ? Map.of() : currentlyIndexedRoles;

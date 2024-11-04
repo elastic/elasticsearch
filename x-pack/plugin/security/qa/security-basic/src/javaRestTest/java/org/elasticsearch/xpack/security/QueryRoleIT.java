@@ -49,9 +49,14 @@ public final class QueryRoleIT extends SecurityInBasicRestTestCase {
 
     private static final String READ_SECURITY_USER_AUTH_HEADER = "Basic cmVhZF9zZWN1cml0eV91c2VyOnJlYWQtc2VjdXJpdHktcGFzc3dvcmQ=";
 
+    @Override
+    protected boolean preserveClusterUponCompletion() {
+        return true;
+    }
+
     public void testSimpleQueryAllRoles() throws IOException {
-        // the index does not exist
-        assertQuery("", 0, roles -> assertThat(roles, emptyIterable()));
+        // when .security index does not exist, it should be created automatically with the reserved roles indexed
+        assertQuery("", 32, roles -> assertThat(roles, iterableWithSize(10)));
         createRandomRole();
         // 32 built-in reserved roles
         assertQuery("", 1 + 32, roles -> {

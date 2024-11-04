@@ -22,7 +22,7 @@ import static org.elasticsearch.entitlement.runtime.internals.EntitlementInterna
  * API methods for managing the checks.
  * The trampoline module loads this object via SPI.
  */
-public class ElasticsearchEntitlementManager implements EntitlementChecker {
+public class ElasticsearchEntitlementChecker implements EntitlementChecker {
     /**
      * Log level recommendations:
      * <dl>
@@ -51,7 +51,7 @@ public class ElasticsearchEntitlementManager implements EntitlementChecker {
      *     </dd>
      * </dl>
      */
-    private static final Logger logger = LogManager.getLogger(ElasticsearchEntitlementManager.class);
+    private static final Logger logger = LogManager.getLogger(ElasticsearchEntitlementChecker.class);
 
     /**
      * Causes entitlements to be enforced.

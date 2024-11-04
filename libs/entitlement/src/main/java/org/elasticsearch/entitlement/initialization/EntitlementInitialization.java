@@ -14,7 +14,7 @@ import org.elasticsearch.entitlement.bridge.EntitlementChecker;
 import org.elasticsearch.entitlement.instrumentation.InstrumentationService;
 import org.elasticsearch.entitlement.instrumentation.MethodKey;
 import org.elasticsearch.entitlement.instrumentation.Transformer;
-import org.elasticsearch.entitlement.runtime.api.ElasticsearchEntitlementManager;
+import org.elasticsearch.entitlement.runtime.api.ElasticsearchEntitlementChecker;
 
 import java.lang.instrument.Instrumentation;
 import java.lang.reflect.Method;
@@ -29,7 +29,7 @@ import java.util.Set;
  * to begin injecting our instrumentation.
  */
 public class EntitlementInitialization {
-    private static ElasticsearchEntitlementManager manager;
+    private static ElasticsearchEntitlementChecker manager;
 
     // Note: referenced by bridge reflectively
     public static EntitlementChecker checker() {
@@ -38,7 +38,7 @@ public class EntitlementInitialization {
 
     // Note: referenced by agent reflectively
     public static void initialize(Instrumentation inst) throws Exception {
-        manager = new ElasticsearchEntitlementManager();
+        manager = new ElasticsearchEntitlementChecker();
 
         // TODO: Configure actual entitlement grants instead of this hardcoded one
         Method targetMethod = System.class.getMethod("exit", int.class);

@@ -7,4 +7,4 @@
  # License v3.0 only", or the "Server Side Public License, v 1".
 #
 
-org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests$TestEntitlementManager
+org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests$TestEntitlementChecker

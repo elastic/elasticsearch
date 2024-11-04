@@ -38,15 +38,15 @@ import static org.objectweb.asm.Opcodes.INVOKESTATIC;
 public class InstrumenterTests extends ESTestCase {
     final InstrumentationService instrumentationService = new InstrumentationServiceImpl();
 
-    static volatile TestEntitlementManager testChecker;
+    static volatile TestEntitlementChecker testChecker;
 
-    public static TestEntitlementManager getTestEntitlementManager() {
+    public static TestEntitlementChecker getTestEntitlementChecker() {
         return testChecker;
     }
 
     @Before
     public void initialize() {
-        testChecker = new TestEntitlementManager();
+        testChecker = new TestEntitlementChecker();
     }
 
     /**
@@ -82,7 +82,7 @@ public class InstrumenterTests extends ESTestCase {
      * just to demonstrate that the injected bytecodes succeed in calling these methods.
      * It also asserts that the arguments are correct.
      */
-    public static class TestEntitlementManager implements EntitlementChecker {
+    public static class TestEntitlementChecker implements EntitlementChecker {
         /**
          * This allows us to test that the instrumentation is correct in both cases:
          * if the check throws, and if it doesn't.
@@ -121,12 +121,12 @@ public class InstrumenterTests extends ESTestCase {
             newBytecode
         );
 
-        getTestEntitlementManager().isActive = false;
+        getTestEntitlementChecker().isActive = false;
 
         // Before checking is active, nothing should throw
         callStaticMethod(newClass, "systemExit", 123);
 
-        getTestEntitlementManager().isActive = true;
+        getTestEntitlementChecker().isActive = true;
 
         // After checking is activated, everything should throw
         assertThrows(TestException.class, () -> callStaticMethod(newClass, "systemExit", 123));
@@ -150,11 +150,11 @@ public class InstrumenterTests extends ESTestCase {
             instrumentedTwiceBytecode
         );
 
-        getTestEntitlementManager().isActive = true;
-        getTestEntitlementManager().checkSystemExitCallCount = 0;
+        getTestEntitlementChecker().isActive = true;
+        getTestEntitlementChecker().checkSystemExitCallCount = 0;
 
         assertThrows(TestException.class, () -> callStaticMethod(newClass, "systemExit", 123));
-        assertThat(getTestEntitlementManager().checkSystemExitCallCount, is(1));
+        assertThat(getTestEntitlementChecker().checkSystemExitCallCount, is(1));
     }
 
     public void testClassAllMethodsAreInstrumentedFirstPass() throws Exception {
@@ -175,14 +175,14 @@ public class InstrumenterTests extends ESTestCase {
             instrumentedTwiceBytecode
         );
 
-        getTestEntitlementManager().isActive = true;
-        getTestEntitlementManager().checkSystemExitCallCount = 0;
+        getTestEntitlementChecker().isActive = true;
+        getTestEntitlementChecker().checkSystemExitCallCount = 0;
 
         assertThrows(TestException.class, () -> callStaticMethod(newClass, "systemExit", 123));
-        assertThat(getTestEntitlementManager().checkSystemExitCallCount, is(1));
+        assertThat(getTestEntitlementChecker().checkSystemExitCallCount, is(1));
 
         assertThrows(TestException.class, () -> callStaticMethod(newClass, "anotherSystemExit", 123));
-        assertThat(getTestEntitlementManager().checkSystemExitCallCount, is(2));
+        assertThat(getTestEntitlementChecker().checkSystemExitCallCount, is(2));
     }
 
     /** This test doesn't replace ClassToInstrument in-place but instead loads a separate
@@ -201,7 +201,7 @@ public class InstrumenterTests extends ESTestCase {
             }
         }).collect(Collectors.toUnmodifiableMap(name -> name, name -> v1));
 
-        Method getter = InstrumenterTests.class.getMethod("getTestEntitlementManager");
+        Method getter = InstrumenterTests.class.getMethod("getTestEntitlementChecker");
         return new InstrumenterImpl("_NEW", methods) {
             /**
              * We're not testing the bridge library here.

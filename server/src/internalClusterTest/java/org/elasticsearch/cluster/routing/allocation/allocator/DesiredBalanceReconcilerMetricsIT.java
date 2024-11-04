@@ -68,15 +68,43 @@ public class DesiredBalanceReconcilerMetricsIT extends ESIntegTestCase {
         assertThat(telemetryPlugin.getLongGaugeMeasurement(DesiredBalanceMetrics.TOTAL_SHARDS_METRIC_NAME), not(empty()));
         assertThat(telemetryPlugin.getLongGaugeMeasurement(DesiredBalanceMetrics.UNDESIRED_ALLOCATION_COUNT_METRIC_NAME), not(empty()));
         assertThat(telemetryPlugin.getDoubleGaugeMeasurement(DesiredBalanceMetrics.UNDESIRED_ALLOCATION_RATIO_METRIC_NAME), not(empty()));
-        final var weightsMetrics = telemetryPlugin.getDoubleGaugeMeasurement(DesiredBalanceMetrics.NODE_BALANCE_WEIGHT_STATS_METRIC_NAME);
-        assertThat(weightsMetrics.size(), equalTo(2));
+
         var nodeIds = internalCluster().clusterService().state().nodes().stream().map(DiscoveryNode::getId).collect(Collectors.toSet());
         var nodeNames = internalCluster().clusterService().state().nodes().stream().map(DiscoveryNode::getName).collect(Collectors.toSet());
-        for (var nodeStat : weightsMetrics) {
+
+        final var nodeWeightsMetrics = telemetryPlugin.getDoubleGaugeMeasurement(
+            DesiredBalanceMetrics.DESIRED_BALANCE_NODE_WEIGHT_METRIC_NAME
+        );
+        assertThat(nodeWeightsMetrics.size(), equalTo(2));
+        for (var nodeStat : nodeWeightsMetrics) {
             assertThat(nodeStat.value().doubleValue(), greaterThanOrEqualTo(0.0));
-            assertThat(nodeStat.attributes().get("shard_count"), equalTo(2));
-            assertThat((Double) nodeStat.attributes().get("disk_usage_in_bytes"), greaterThanOrEqualTo(0.0));
-            assertThat((Double) nodeStat.attributes().get("write_load"), greaterThanOrEqualTo(0.0));
+            assertThat((String) nodeStat.attributes().get("node_id"), is(in(nodeIds)));
+            assertThat((String) nodeStat.attributes().get("node_name"), is(in(nodeNames)));
+        }
+        final var nodeShardCountMetrics = telemetryPlugin.getLongGaugeMeasurement(
+            DesiredBalanceMetrics.DESIRED_BALANCE_NODE_SHARD_COUNT_METRIC_NAME
+        );
+        assertThat(nodeShardCountMetrics.size(), equalTo(2));
+        for (var nodeStat : nodeShardCountMetrics) {
+            assertThat(nodeStat.value().longValue(), equalTo(2L));
+            assertThat((String) nodeStat.attributes().get("node_id"), is(in(nodeIds)));
+            assertThat((String) nodeStat.attributes().get("node_name"), is(in(nodeNames)));
+        }
+        final var nodeWriteLoadMetrics = telemetryPlugin.getDoubleGaugeMeasurement(
+            DesiredBalanceMetrics.DESIRED_BALANCE_NODE_WRITE_LOAD_METRIC_NAME
+        );
+        assertThat(nodeWriteLoadMetrics.size(), equalTo(2));
+        for (var nodeStat : nodeWriteLoadMetrics) {
+            assertThat(nodeStat.value().doubleValue(), greaterThanOrEqualTo(0.0));
+            assertThat((String) nodeStat.attributes().get("node_id"), is(in(nodeIds)));
+            assertThat((String) nodeStat.attributes().get("node_name"), is(in(nodeNames)));
+        }
+        final var nodeDiskUsageMetrics = telemetryPlugin.getDoubleGaugeMeasurement(
+            DesiredBalanceMetrics.DESIRED_BALANCE_NODE_DISK_USAGE_METRIC_NAME
+        );
+        assertThat(nodeDiskUsageMetrics.size(), equalTo(2));
+        for (var nodeStat : nodeDiskUsageMetrics) {
+            assertThat(nodeStat.value().doubleValue(), greaterThanOrEqualTo(0.0));
             assertThat((String) nodeStat.attributes().get("node_id"), is(in(nodeIds)));
             assertThat((String) nodeStat.attributes().get("node_name"), is(in(nodeNames)));
         }
@@ -99,7 +127,19 @@ public class DesiredBalanceReconcilerMetricsIT extends ESIntegTestCase {
         assertThat(testTelemetryPlugin.getLongGaugeMeasurement(DesiredBalanceMetrics.TOTAL_SHARDS_METRIC_NAME), matcher);
         assertThat(testTelemetryPlugin.getLongGaugeMeasurement(DesiredBalanceMetrics.UNDESIRED_ALLOCATION_COUNT_METRIC_NAME), matcher);
         assertThat(testTelemetryPlugin.getDoubleGaugeMeasurement(DesiredBalanceMetrics.UNDESIRED_ALLOCATION_RATIO_METRIC_NAME), matcher);
-        assertThat(testTelemetryPlugin.getDoubleGaugeMeasurement(DesiredBalanceMetrics.NODE_BALANCE_WEIGHT_STATS_METRIC_NAME), matcher);
+        assertThat(testTelemetryPlugin.getDoubleGaugeMeasurement(DesiredBalanceMetrics.DESIRED_BALANCE_NODE_WEIGHT_METRIC_NAME), matcher);
+        assertThat(
+            testTelemetryPlugin.getDoubleGaugeMeasurement(DesiredBalanceMetrics.DESIRED_BALANCE_NODE_WRITE_LOAD_METRIC_NAME),
+            matcher
+        );
+        assertThat(
+            testTelemetryPlugin.getDoubleGaugeMeasurement(DesiredBalanceMetrics.DESIRED_BALANCE_NODE_DISK_USAGE_METRIC_NAME),
+            matcher
+        );
+        assertThat(
+            testTelemetryPlugin.getLongGaugeMeasurement(DesiredBalanceMetrics.DESIRED_BALANCE_NODE_SHARD_COUNT_METRIC_NAME),
+            matcher
+        );
     }
 
     private static TestTelemetryPlugin getTelemetryPlugin(String nodeName) {

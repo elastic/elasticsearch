@@ -23,14 +23,20 @@ public class DesiredBalanceMetrics {
 
     public record AllocationStats(long unassignedShards, long totalAllocations, long undesiredAllocationsExcludingShuttingDownNodes) {}
 
-    public record NodeWeightStats(int shardCount, double diskUsageInBytes, double writeLoad, float nodeWeight) {}
+    public record NodeWeightStats(long shardCount, double diskUsageInBytes, double writeLoad, double nodeWeight) {}
 
     public static final DesiredBalanceMetrics NOOP = new DesiredBalanceMetrics(MeterRegistry.NOOP);
     public static final String UNASSIGNED_SHARDS_METRIC_NAME = "es.allocator.desired_balance.shards.unassigned.current";
     public static final String TOTAL_SHARDS_METRIC_NAME = "es.allocator.desired_balance.shards.current";
     public static final String UNDESIRED_ALLOCATION_COUNT_METRIC_NAME = "es.allocator.desired_balance.allocations.undesired.current";
     public static final String UNDESIRED_ALLOCATION_RATIO_METRIC_NAME = "es.allocator.desired_balance.allocations.undesired.ratio";
-    public static final String NODE_BALANCE_WEIGHT_STATS_METRIC_NAME = "es.allocator.desired_balance.allocations.node_weight.current";
+    public static final String DESIRED_BALANCE_NODE_WEIGHT_METRIC_NAME = "es.allocator.desired_balance.allocations.node_weight.current";
+    public static final String DESIRED_BALANCE_NODE_SHARD_COUNT_METRIC_NAME =
+        "es.allocator.desired_balance.allocations.node_shard_count.current";
+    public static final String DESIRED_BALANCE_NODE_WRITE_LOAD_METRIC_NAME =
+        "es.allocator.desired_balance.allocations.node_write_load.current";
+    public static final String DESIRED_BALANCE_NODE_DISK_USAGE_METRIC_NAME =
+        "es.allocator.desired_balance.allocations.node_disk_usage_bytes.current";
     public static final AllocationStats EMPTY_ALLOCATION_STATS = new AllocationStats(-1, -1, -1);
 
     private volatile boolean nodeIsMaster = false;
@@ -83,10 +89,28 @@ public class DesiredBalanceMetrics {
             this::getUndesiredAllocationsRatioMetrics
         );
         meterRegistry.registerDoublesGauge(
-            NODE_BALANCE_WEIGHT_STATS_METRIC_NAME,
+            DESIRED_BALANCE_NODE_WEIGHT_METRIC_NAME,
             "Weight of nodes in the computed desired balance",
             "unit",
-            this::getNodeWeightStats
+            this::getDesiredBalanceNodeWeightMetrics
+        );
+        meterRegistry.registerDoublesGauge(
+            DESIRED_BALANCE_NODE_WRITE_LOAD_METRIC_NAME,
+            "Write load of nodes in the computed desired balance",
+            "threads",
+            this::getDesiredBalanceNodeWriteLoadMetrics
+        );
+        meterRegistry.registerDoublesGauge(
+            DESIRED_BALANCE_NODE_DISK_USAGE_METRIC_NAME,
+            "Disk usage of nodes in the computed desired balance",
+            "bytes",
+            this::getDesiredBalanceNodeDiskUsageMetrics
+        );
+        meterRegistry.registerLongsGauge(
+            DESIRED_BALANCE_NODE_SHARD_COUNT_METRIC_NAME,
+            "Shard count of nodes in the computed desired balance",
+            "unit",
+            this::getDesiredBalanceNodeShardCountMetrics
         );
     }
 
@@ -110,7 +134,7 @@ public class DesiredBalanceMetrics {
         return getIfPublishing(unassignedShards);
     }
 
-    private List<DoubleWithAttributes> getNodeWeightStats() {
+    private List<DoubleWithAttributes> getDesiredBalanceNodeWeightMetrics() {
         if (nodeIsMaster == false) {
             return List.of();
         }
@@ -118,25 +142,49 @@ public class DesiredBalanceMetrics {
         List<DoubleWithAttributes> doubles = new ArrayList<>(stats.size());
         for (var node : stats.keySet()) {
             var stat = stats.get(node);
-            doubles.add(
-                new DoubleWithAttributes(
-                    stat.nodeWeight(),
-                    Map.of(
-                        "node_id",
-                        node.getId(),
-                        "node_name",
-                        node.getName(),
-                        "shard_count",
-                        stat.shardCount(),
-                        "disk_usage_in_bytes",
-                        stat.diskUsageInBytes(),
-                        "write_load",
-                        stat.writeLoad()
-                    )
-                )
-            );
+            doubles.add(new DoubleWithAttributes(stat.nodeWeight(), getNodeAttributes(node)));
         }
         return doubles;
+    }
+
+    private List<DoubleWithAttributes> getDesiredBalanceNodeWriteLoadMetrics() {
+        if (nodeIsMaster == false) {
+            return List.of();
+        }
+        var stats = weightStatsPerNodeRef.get();
+        List<DoubleWithAttributes> doubles = new ArrayList<>(stats.size());
+        for (var node : stats.keySet()) {
+            doubles.add(new DoubleWithAttributes(stats.get(node).writeLoad(), getNodeAttributes(node)));
+        }
+        return doubles;
+    }
+
+    private List<DoubleWithAttributes> getDesiredBalanceNodeDiskUsageMetrics() {
+        if (nodeIsMaster == false) {
+            return List.of();
+        }
+        var stats = weightStatsPerNodeRef.get();
+        List<DoubleWithAttributes> doubles = new ArrayList<>(stats.size());
+        for (var node : stats.keySet()) {
+            doubles.add(new DoubleWithAttributes(stats.get(node).diskUsageInBytes(), getNodeAttributes(node)));
+        }
+        return doubles;
+    }
+
+    private List<LongWithAttributes> getDesiredBalanceNodeShardCountMetrics() {
+        if (nodeIsMaster == false) {
+            return List.of();
+        }
+        var stats = weightStatsPerNodeRef.get();
+        List<LongWithAttributes> values = new ArrayList<>(stats.size());
+        for (var node : stats.keySet()) {
+            values.add(new LongWithAttributes(stats.get(node).shardCount(), getNodeAttributes(node)));
+        }
+        return values;
+    }
+
+    private Map<String, Object> getNodeAttributes(DiscoveryNode node) {
+        return Map.of("node_id", node.getId(), "node_name", node.getName());
     }
 
     private List<LongWithAttributes> getTotalAllocationsMetrics() {

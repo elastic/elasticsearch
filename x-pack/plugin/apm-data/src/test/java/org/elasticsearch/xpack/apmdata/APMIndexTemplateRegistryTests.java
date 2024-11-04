@@ -44,6 +44,8 @@ import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
+import org.elasticsearch.xpack.core.ilm.action.ILMActions;
+import org.elasticsearch.xpack.core.ilm.action.PutLifecycleRequest;
 import org.elasticsearch.xpack.core.template.IngestPipelineConfig;
 import org.elasticsearch.xpack.stack.StackTemplateRegistry;
 import org.elasticsearch.xpack.stack.StackTemplateRegistryAccessor;
@@ -57,6 +59,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -133,6 +136,7 @@ public class APMIndexTemplateRegistryTests extends ESTestCase {
         assertThat(apmIndexTemplateRegistry.getComponentTemplateConfigs().entrySet(), hasSize(0));
         assertThat(apmIndexTemplateRegistry.getComposableTemplateConfigs().entrySet(), hasSize(0));
         assertThat(apmIndexTemplateRegistry.getIngestPipelines(), hasSize(0));
+        assertThat(apmIndexTemplateRegistry.getLifecyclePolicies(), hasSize(0));
 
         client.setVerifier((a, r, l) -> {
             fail("if the registry is disabled nothing should happen");
@@ -145,6 +149,7 @@ public class APMIndexTemplateRegistryTests extends ESTestCase {
         assertThat(apmIndexTemplateRegistry.getComponentTemplateConfigs().entrySet(), not(hasSize(0)));
         assertThat(apmIndexTemplateRegistry.getComposableTemplateConfigs().entrySet(), not(hasSize(0)));
         assertThat(apmIndexTemplateRegistry.getIngestPipelines(), not(hasSize(0)));
+        assertThat(apmIndexTemplateRegistry.getLifecyclePolicies(), not(hasSize(0)));
     }
 
     public void testThatIndependentTemplatesAreAddedImmediatelyIfMissing() throws Exception {
@@ -154,23 +159,26 @@ public class APMIndexTemplateRegistryTests extends ESTestCase {
         AtomicInteger actualInstalledIndexTemplates = new AtomicInteger(0);
         AtomicInteger actualInstalledComponentTemplates = new AtomicInteger(0);
         AtomicInteger actualInstalledIngestPipelines = new AtomicInteger(0);
+        AtomicInteger actualILMPolicies = new AtomicInteger(0);
 
         client.setVerifier(
             (action, request, listener) -> verifyActions(
                 actualInstalledIndexTemplates,
                 actualInstalledComponentTemplates,
                 actualInstalledIngestPipelines,
+                actualILMPolicies,
                 action,
                 request,
                 listener
             )
         );
-        apmIndexTemplateRegistry.clusterChanged(createClusterChangedEvent(Map.of(), Map.of(), nodes));
+        apmIndexTemplateRegistry.clusterChanged(createClusterChangedEvent(Map.of(), Map.of(), List.of(), Map.of(), nodes));
 
         assertBusy(() -> assertThat(actualInstalledIngestPipelines.get(), equalTo(getIndependentPipelineConfigs().size())));
         assertBusy(() -> assertThat(actualInstalledComponentTemplates.get(), equalTo(getIndependentComponentTemplateConfigs().size())));
+        assertBusy(() -> assertThat(actualILMPolicies.get(), equalTo(getIndependentLifecyclePolicies().size())));
 
-        // index templates should not be installed as they are dependent in component templates and ingest pipelines
+        // index templates should not be installed as they are dependent on component templates and ingest pipelines
         assertThat(actualInstalledIndexTemplates.get(), equalTo(0));
     }
 
@@ -201,6 +209,31 @@ public class APMIndexTemplateRegistryTests extends ESTestCase {
         });
     }
 
+    public void testILMLifecyclePolicies() throws Exception {
+        DiscoveryNode node = DiscoveryNodeUtils.create("node");
+        DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
+
+        final List<LifecyclePolicy> lifecyclePolicies = apmIndexTemplateRegistry.getLifecyclePolicies();
+        assertThat(lifecyclePolicies, is(not(empty())));
+
+        final Set<String> expectedILMPolicies = apmIndexTemplateRegistry.getLifecyclePolicies()
+            .stream()
+            .map(LifecyclePolicy::getName)
+            .collect(Collectors.toSet());
+        final Set<String> installedILMPolicies = ConcurrentHashMap.newKeySet(lifecyclePolicies.size());
+        client.setVerifier((a, r, l) -> {
+            if (a == ILMActions.PUT && r instanceof PutLifecycleRequest putLifecycleRequest) {
+                if (expectedILMPolicies.contains(putLifecycleRequest.getPolicy().getName())) {
+                    installedILMPolicies.add(putLifecycleRequest.getPolicy().getName());
+                }
+            }
+            return AcknowledgedResponse.TRUE;
+        });
+
+        apmIndexTemplateRegistry.clusterChanged(createClusterChangedEvent(Map.of(), Map.of(), List.of(), Map.of(), nodes));
+        assertBusy(() -> { assertThat(installedILMPolicies, equalTo(expectedILMPolicies)); });
+    }
+
     public void testComponentTemplates() throws Exception {
         DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
@@ -208,12 +241,14 @@ public class APMIndexTemplateRegistryTests extends ESTestCase {
         AtomicInteger actualInstalledIndexTemplates = new AtomicInteger(0);
         AtomicInteger actualInstalledComponentTemplates = new AtomicInteger(0);
         AtomicInteger actualInstalledIngestPipelines = new AtomicInteger(0);
+        AtomicInteger actualILMPolicies = new AtomicInteger(0);
 
         client.setVerifier(
             (action, request, listener) -> verifyActions(
                 actualInstalledIndexTemplates,
                 actualInstalledComponentTemplates,
                 actualInstalledIngestPipelines,
+                actualILMPolicies,
                 action,
                 request,
                 listener
@@ -224,6 +259,9 @@ public class APMIndexTemplateRegistryTests extends ESTestCase {
                 Map.of(),
                 Map.of(),
                 apmIndexTemplateRegistry.getIngestPipelines().stream().map(IngestPipelineConfig::getId).collect(Collectors.toList()),
+                apmIndexTemplateRegistry.getLifecyclePolicies()
+                    .stream()
+                    .collect(Collectors.toMap(LifecyclePolicy::getName, Function.identity())),
                 nodes
             )
         );
@@ -237,8 +275,10 @@ public class APMIndexTemplateRegistryTests extends ESTestCase {
 
         // ingest pipelines should not have been installed as we used a cluster state that includes them already
         assertThat(actualInstalledIngestPipelines.get(), equalTo(0));
-        // index templates should not be installed as they are dependent in component templates and ingest pipelines
+        // index templates should not be installed as they are dependent on component templates and ingest pipelines
         assertThat(actualInstalledIndexTemplates.get(), equalTo(0));
+        // ilm policies should not have been installed as we used a cluster state that includes them already
+        assertThat(actualILMPolicies.get(), equalTo(0));
     }
 
     public void testIndexTemplates() throws Exception {
@@ -248,12 +288,14 @@ public class APMIndexTemplateRegistryTests extends ESTestCase {
         AtomicInteger actualInstalledIndexTemplates = new AtomicInteger(0);
         AtomicInteger actualInstalledComponentTemplates = new AtomicInteger(0);
         AtomicInteger actualInstalledIngestPipelines = new AtomicInteger(0);
+        AtomicInteger actualILMPolicies = new AtomicInteger(0);
 
         client.setVerifier(
             (action, request, listener) -> verifyActions(
                 actualInstalledIndexTemplates,
                 actualInstalledComponentTemplates,
                 actualInstalledIngestPipelines,
+                actualILMPolicies,
                 action,
                 request,
                 listener
@@ -272,6 +314,9 @@ public class APMIndexTemplateRegistryTests extends ESTestCase {
                 componentTemplates,
                 Map.of(),
                 apmIndexTemplateRegistry.getIngestPipelines().stream().map(IngestPipelineConfig::getId).collect(Collectors.toList()),
+                apmIndexTemplateRegistry.getLifecyclePolicies()
+                    .stream()
+                    .collect(Collectors.toMap(LifecyclePolicy::getName, Function.identity())),
                 nodes
             )
         );
@@ -280,9 +325,11 @@ public class APMIndexTemplateRegistryTests extends ESTestCase {
             () -> assertThat(actualInstalledIndexTemplates.get(), equalTo(apmIndexTemplateRegistry.getComposableTemplateConfigs().size()))
         );
 
-        // ingest pipelines and component templates should not have been installed as we used a cluster state that includes them already
+        // ingest pipelines, component templates, and lifecycle policies should not have been installed as we used a cluster state that
+        // includes them already
         assertThat(actualInstalledComponentTemplates.get(), equalTo(0));
         assertThat(actualInstalledIngestPipelines.get(), equalTo(0));
+        assertThat(actualILMPolicies.get(), equalTo(0));
     }
 
     public void testIndexTemplateConventions() throws Exception {
@@ -408,10 +455,18 @@ public class APMIndexTemplateRegistryTests extends ESTestCase {
             .collect(Collectors.toList());
     }
 
+    private Map<String, LifecyclePolicy> getIndependentLifecyclePolicies() {
+        // All lifecycle policies are independent
+        return apmIndexTemplateRegistry.getLifecyclePolicies()
+            .stream()
+            .collect(Collectors.toMap(LifecyclePolicy::getName, Function.identity()));
+    }
+
     private ActionResponse verifyActions(
         AtomicInteger indexTemplatesCounter,
         AtomicInteger componentTemplatesCounter,
         AtomicInteger ingestPipelinesCounter,
+        AtomicInteger ilmPolicyCounter,
         ActionType<?> action,
         ActionRequest request,
         ActionListener<?> listener
@@ -430,8 +485,11 @@ public class APMIndexTemplateRegistryTests extends ESTestCase {
         } else if (action == PutPipelineTransportAction.TYPE) {
             ingestPipelinesCounter.incrementAndGet();
             return AcknowledgedResponse.TRUE;
+        } else if (action == ILMActions.PUT) {
+            ilmPolicyCounter.incrementAndGet();
+            return AcknowledgedResponse.TRUE;
         } else {
-            fail("client called with unexpected request:" + request.toString());
+            fail("client called with unexpected request:" + request.toString() + action.toString());
             return null;
         }
     }

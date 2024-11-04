@@ -25,6 +25,9 @@ import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
 
+/**
+ * Parameterized testing for {@link DateTrunc}.  See also {@link DateTruncRoundingTests} for non-parametrized tests.
+ */
 public class DateTruncTests extends AbstractScalarFunctionTestCase {
 
     public DateTruncTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {

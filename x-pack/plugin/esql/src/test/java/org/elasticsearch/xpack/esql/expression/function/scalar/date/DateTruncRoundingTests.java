@@ -18,7 +18,11 @@ import static org.elasticsearch.xpack.esql.expression.function.scalar.date.DateT
 import static org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc.process;
 import static org.hamcrest.Matchers.containsString;
 
-public class DateTruncNonParameterizedTests extends ESTestCase {
+/**
+ * This class supplements {@link DateTruncTests}.  The tests in this class are not run via the parametrized runner,
+ * and exercise specific helper functions within the class.
+ */
+public class DateTruncRoundingTests extends ESTestCase {
 
     public void testCreateRoundingDuration() {
         Rounding.Prepared rounding;

@@ -45,14 +45,10 @@ import static org.elasticsearch.xpack.security.support.SecurityIndexManager.Role
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SecurityMainIndexMappingVersion.ADD_MANAGE_ROLES_PRIVILEGE;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SecurityMainIndexMappingVersion.ADD_REMOTE_CLUSTER_AND_DESCRIPTION_FIELDS;
 
-/**
- * Interface for creating SecurityMigrations that will be automatically applied once to existing .security indices
- */
 public class SecurityMigrations {
 
     /**
      * Interface for creating SecurityMigrations that will be automatically applied once to existing .security indices
-     * IMPORTANT: A new index version needs to be added to {@link org.elasticsearch.index.IndexVersions} for the migration to be triggered
      */
     public interface SecurityMigration {
         /**

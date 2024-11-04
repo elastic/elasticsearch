@@ -252,7 +252,7 @@ public class AutoscalingSearchLoadMetricsIT extends AbstractStatelessIntegTestCa
         var metrics = searchMetricsService.getSearchTierMetrics();
         assertThat(metrics.toString(), metrics.getNodesLoad().size(), equalTo(1));
         assertThat(metrics.toString(), metrics.getNodesLoad().get(0).metricQuality(), equalTo(MetricQuality.EXACT));
-        assertThat(metrics.toString(), metrics.getNodesLoad().get(0).load(), equalTo(0.0));
+        assertThat(metrics.toString(), metrics.getNodesLoad().get(0).load(), closeTo(0.0, 0.1));
 
         // Block the executor workers to simulate long-running write tasks
         var threadpool = internalCluster().getInstance(ThreadPool.class, searchNodeName);

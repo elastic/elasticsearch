@@ -33,13 +33,6 @@ class KqlBaseBaseVisitor<T> extends AbstractParseTreeVisitor<T> implements KqlBa
      * <p>The default implementation returns the result of calling
      * {@link #visitChildren} on {@code ctx}.</p>
      */
-    @Override public T visitNotQuery(KqlBaseParser.NotQueryContext ctx) { return visitChildren(ctx); }
-    /**
-     * {@inheritDoc}
-     *
-     * <p>The default implementation returns the result of calling
-     * {@link #visitChildren} on {@code ctx}.</p>
-     */
     @Override public T visitBooleanQuery(KqlBaseParser.BooleanQueryContext ctx) { return visitChildren(ctx); }
     /**
      * {@inheritDoc}
@@ -55,6 +48,13 @@ class KqlBaseBaseVisitor<T> extends AbstractParseTreeVisitor<T> implements KqlBa
      * {@link #visitChildren} on {@code ctx}.</p>
      */
     @Override public T visitSimpleQuery(KqlBaseParser.SimpleQueryContext ctx) { return visitChildren(ctx); }
+    /**
+     * {@inheritDoc}
+     *
+     * <p>The default implementation returns the result of calling
+     * {@link #visitChildren} on {@code ctx}.</p>
+     */
+    @Override public T visitNotQuery(KqlBaseParser.NotQueryContext ctx) { return visitChildren(ctx); }
     /**
      * {@inheritDoc}
      *

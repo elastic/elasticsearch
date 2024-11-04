@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.core.CheckedRunnable;
 
 import java.util.Collection;
 import java.util.Set;
@@ -59,4 +60,19 @@ public interface ProjectResolver {
     default Collection<ProjectId> getProjectIds(ClusterState clusterState) {
         return Set.of(this.getProjectId(clusterState));
     }
+
+    /**
+     * Execute a block in the context of a specific project.
+     *
+     * This method: <ol>
+     *   <li> Configures the execution (thread) context so that any calls to resolve a project (e.g. {@link #getProjectId(ClusterState)}
+     *        or {@link #getProjectMetadata(Metadata)}) will return the project specified by {@code projectId}.</li>
+     *   <li>Executes the {@link CheckedRunnable#run()} method on the supplied {@code body}</li>
+     *   <li>Restores the context to its original state</li>
+     * </ol>
+     *
+     * @throws IllegalStateException If there is already a project-id set in the execution context.
+     *                               It is an error to attempt to override the active project-id
+     */
+    <E extends Exception> void executeOnProject(ProjectId projectId, CheckedRunnable<E> body) throws E;
 }

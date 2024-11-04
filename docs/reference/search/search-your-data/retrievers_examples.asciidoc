@@ -1,0 +1,312 @@
+[discrete]
+tag::basic-rrf-retriever-with-semantic-query[]
+===== Example#1
+
+First, let's say that we have 2 queries that we want to combine, a `kNN`  query, along with a `semantic` query. These two results could produce scores in different ranges, but we can use `rrf` to combine the results
+and generate a merged final result list. To translate this to the retriever framework, we'll start from the top-level element, i.e. our `rrf` retriever,
+that would operate on top of 2 other retrievers, a `knn` and a `standard`.  Our query in this case would look something like the following:
+
+[source,js]
+----
+GET /retrievers_example/_search
+{
+   "retriever":{
+       "rrf": {
+           "retrievers":[
+               {
+                   "standard":{
+                       "query":{
+                           "semantic":{
+                               "field": "inference_field",
+                               "query": "Can I use generative AI to identify user intent and improve search relevance?"
+                           }
+                       }
+                   }
+               },
+               {
+                   "knn": {
+                       "field": "vector",
+                       "query_vector": [0.23, 0.67, 0.89],
+                       "k": 3,
+                       "num_candidates": 5
+                   }
+               }
+           ],
+           "rank_window_size": 10,
+           "rank_constant": 1
+       }
+   },
+   "_source": ["text", "topic"]
+}
+----
+//NOTCONSOLE
+end::basic-rrf-retriever-with-semantic-query[]
+
+[discrete]
+tag::rrf-retriever-with-collapse[]
+===== Example#2
+Let's say that we have our results, but we get back many documents for the same `year`. We can now use `collapse` with retrievers, to group results based
+on a given value and pick just the top for each sub-group!
+
+[source,js]
+----
+GET /retrievers_example/_search
+{
+   "retriever":{
+       "rrf": {
+           "retrievers":[
+               {
+                   "standard":{
+                       "query":{
+                           "semantic":{
+                               "field": "inference_field",
+                               "query": "Can I use generative AI to identify user intent and improve search relevance?"
+                           }
+                       }
+                   }
+               },
+               {
+                   "knn": {
+                       "field": "vector",
+                       "query_vector": [0.23, 0.67, 0.89],
+                       "k": 3,
+                       "num_candidates": 5
+                   }
+               }
+           ],
+           "rank_window_size": 10,
+           "rank_constant": 1
+       }
+   },
+   "collapse": {
+       "field": "year",
+       "inner_hits": {
+           "name": "topic related documents",
+           "_source": ["text", "year"]
+       }
+   },
+   "_source": ["text", "topic"]
+}
+----
+//NOTCONSOLE
+end::rrf-retriever-with-collapse[]
+
+[discrete]
+tag::rrf-on-top-of-semantic-reranker[]
+===== Example#3
+For this scenario, let's say that we want to swap our semantic query with our `my-awesome-rerank-model` reranker that we
+have already setup. The main difference now is that, since this is a reranker, it will need an initial pool of docs to rerank!
+We know that we want to work with `ai` topics, so let's try to do just that!
+[source,js]
+----
+GET /retrievers_example/_search
+{
+    "retriever": {
+        "rrf": {
+            "retrievers": [
+                {
+                    "knn": {
+                        "field": "vector",
+                        "query_vector": [
+                            0.23,
+                            0.67,
+                            0.89
+                        ],
+                        "k": 3,
+                        "num_candidates": 5
+                    }
+                },
+                {
+                    "text_similarity_reranker": {
+                        "retriever": {
+                            "standard": {
+                                "query": {
+                                    "term": {
+                                        "topic": "ai"
+                                    }
+                                }
+                            }
+                        },
+                        "field": "text",
+                        "inference_id": "my-awesome-rerank-model",
+                        "inference_text": "Can I use generative AI to identify user intent and improve search relevance?"
+                    }
+                }
+            ],
+            "rank_window_size": 10,
+            "rank_constant": 1
+        }
+    },
+    "_source": [
+        "text",
+        "topic"
+    ]
+}
+
+----
+//NOTCONSOLE
+end::rrf-on-top-of-semantic-reranker[]
+
+[discrete]
+tag::text-similarity-reranker-on-top-of-rrf[]
+===== Example#4
+
+In the example above, we had a `text_similarity_reranker` retriever within an `rrf` one, but remember that retrievers support full
+composability, so we can rerank the results of an rrf retriever. Let's try to do this with the query from the first example above
+[source,js]
+----
+GET retrievers_example/_search
+{
+   "retriever": {
+       "text_similarity_reranker": {
+           "retriever": {
+               "rrf": {
+                   "retrievers": [
+                       {
+                           "standard": {
+                               "query": {
+                                   "semantic": {
+                                       "field": "inference_field",
+                                       "query": "Can I use generative AI to identify user intent and improve search relevance?"
+                                   }
+                               }
+                           }
+                       },
+                       {
+                           "knn": {
+                               "field": "vector",
+                               "query_vector": [
+                                   0.23,
+                                   0.67,
+                                   0.89
+                               ],
+                               "k": 3,
+                               "num_candidates": 5
+                           }
+                       }
+                   ],
+                   "rank_window_size": 10,
+                   "rank_constant": 1
+               }
+           },
+           "field": "text",
+           "inference_id": "my-awesome-rerank-model",
+           "inference_text": "What are the state of the art applications of AI in information retrieval?"
+       }
+   },
+   "_source": ["text", "topic"]
+}
+
+----
+//NOTCONSOLE
+end::text-similarity-reranker-on-top-of-rrf[]
+
+[discrete]
+tag::chaining-text-similarity-reranker-retrievers[]
+===== Example#5
+
+Full composability, means that we can also chain together multiple retrievers of the same type. Say that we have another
+very computationally expensive reranker that is more fine-grained for AI content. We can now also rerank the results of a `text_similarity_reranker`,
+using another `text_similarity_reranker` retriever, which could operate on different fields and/or inference services!
+
+[source,js]
+----
+GET retrievers_example/_search
+{
+   "retriever": {
+       "text_similarity_reranker": {
+           "retriever": {
+               "text_similarity_reranker": {
+                   "retriever": {
+                       "knn": {
+                           "field": "vector",
+                           "query_vector": [
+                               0.23,
+                               0.67,
+                               0.89
+                           ],
+                           "k": 3,
+                           "num_candidates": 5
+                       }
+                   },
+                   "rank_window_size": 100,
+                   "field": "text",
+                   "inference_id": "my-awesome-rerank-model",
+                   "inference_text": "What are the state of the art applications of AI in information retrieval?"
+               }
+           },
+           "rank_window_size": 10,
+           "field": "text",
+           "inference_id": "my-other-more-expensive-rerank-model",
+           "inference_text": "Applications of Large Language Models in technology and their impact on user satisfaction"
+       }
+   },
+   "_source": [
+       "text",
+       "topic"
+   ]
+}
+----
+//NOTCONSOLE
+
+
+Note that in the example above, we initially rerank the top 100 documents from the `knn` search using the `my-awesome-rerank-model` reranker,
+and then pick the top 10 results and rerank them using the more fine-grained `my-other-more-expensive-rerank-model`.
+
+end::chaining-text-similarity-reranker-retrievers[]
+
+[discrete]
+tag::rrf-retriever-with-aggs[]
+===== Example#6
+
+We have seen some examples with retrievers' composability, but we can also now support most of the standard search functionality!
+Let's say that we want to compute aggregations for the `rrf` retriever. Note that the aggregations
+in a compound retriever will be computed based on the nested retrievers it holds. So this means that for the following query
+
+[source,js]
+----
+GET retrievers_example/_search
+{
+    "retriever": {
+        "rrf": {
+            "retrievers": [
+                {
+                    "standard": {
+                        "query": {
+                            "range": {
+                                "year": {
+                                    "gt": 2023
+                                }
+                            }
+                        }
+                    }
+                },
+                {
+                    "standard": {
+                        "query": {
+                            "term": {
+                                "topic": "elastic"
+                            }
+                        }
+                    }
+                }
+            ],
+            "rank_window_size": 10,
+            "rank_constant": 1
+        }
+    },
+    "_source": [
+        "text",
+        "topic"
+    ],
+    "aggs": {
+        "topics": {
+            "terms": {
+                "field": "topic"
+            }
+        }
+    }
+}
+----
+//NOTCONSOLE
+end::rrf-retriever-with-aggs[]

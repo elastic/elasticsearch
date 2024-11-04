@@ -43,7 +43,7 @@ import java.util.TreeMap;
 import java.util.stream.Stream;
 
 public class ObjectMapper extends Mapper {
-    private static final Logger logger = LogManager.getLogger(FieldMapper.class);
+    private static final Logger logger = LogManager.getLogger(ObjectMapper.class);
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ObjectMapper.class);
     public static final FeatureFlag SUB_OBJECTS_AUTO_FEATURE_FLAG = new FeatureFlag("sub_objects_auto");
 

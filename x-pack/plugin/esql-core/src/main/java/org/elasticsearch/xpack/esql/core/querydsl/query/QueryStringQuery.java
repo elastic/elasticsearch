@@ -16,6 +16,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryStringQueryBuilder;
 import org.elasticsearch.xpack.esql.core.expression.predicate.fulltext.StringQueryPredicate;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.kql.parser.KqlParser;
 
 import java.util.Collections;
 import java.util.Map;
@@ -73,6 +74,7 @@ public class QueryStringQuery extends Query {
 
     @Override
     public QueryBuilder asBuilder() {
+        KqlParser kqlQueryBuilder = new KqlParser();
         final QueryStringQueryBuilder queryBuilder = QueryBuilders.queryStringQuery(query);
         queryBuilder.fields(fields);
         options.forEach((k, v) -> {

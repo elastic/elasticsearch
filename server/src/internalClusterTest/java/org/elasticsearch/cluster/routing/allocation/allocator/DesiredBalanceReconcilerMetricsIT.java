@@ -11,8 +11,6 @@ package org.elasticsearch.cluster.routing.allocation.allocator;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
@@ -31,8 +29,6 @@ import static org.hamcrest.Matchers.not;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class DesiredBalanceReconcilerMetricsIT extends ESIntegTestCase {
-
-    private static final Logger logger = LogManager.getLogger(DesiredBalanceReconcilerMetricsIT.class);
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {

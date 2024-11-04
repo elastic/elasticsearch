@@ -8,10 +8,10 @@ package org.elasticsearch.xpack.watcher.trigger.schedule;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.watcher.trigger.schedule.support.TimezoneUtils;
 
 import java.io.IOException;
 import java.time.DateTimeException;
-import java.time.ZoneId;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
@@ -72,7 +72,7 @@ public class ScheduleRegistry {
         if (token == XContentParser.Token.VALUE_STRING) {
             String text = parser.text();
             try {
-                timeZone = TimeZone.getTimeZone(ZoneId.of(text));
+                timeZone = TimezoneUtils.parse(text);
             } catch (DateTimeException e) {
                 throw new ElasticsearchParseException("could not parse schedule. invalid timezone [{}]", e, text);
             }

@@ -9,8 +9,9 @@
 
 package org.elasticsearch.reservedstate.service;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
-
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
@@ -25,8 +26,6 @@ import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.file.AbstractFileWatchingService;
-import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -72,8 +71,8 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
-@Repeat(iterations = 100)
 public class FileSettingsServiceTests extends ESTestCase {
+    private static final Logger logger = LogManager.getLogger(FileSettingsServiceTests.class);
     private Environment env;
     private ClusterService clusterService;
     private ReservedClusterStateService controller;
@@ -369,10 +368,13 @@ public class FileSettingsServiceTests extends ESTestCase {
     private static void writeTestFile(Path path, String contents) {
         Path tempFile = null;
         try {
+            logger.info("Creating settings temp file under [{}]", path.toAbsolutePath());
             tempFile = Files.createTempFile(path.getParent(), path.getFileName().toString(), "tmp");
+            logger.info("Created settings temp file [{}]", tempFile.getFileName());
             Files.writeString(tempFile, contents);
 
             try {
+                logger.info("Moving settings temp file to replace [{}]", tempFile.getFileName());
                 Files.move(tempFile, path, REPLACE_EXISTING, ATOMIC_MOVE);
             } catch (AtomicMoveNotSupportedException e) {
                 Files.move(tempFile, path, REPLACE_EXISTING);
@@ -380,6 +382,7 @@ public class FileSettingsServiceTests extends ESTestCase {
         } catch (final IOException e) {
             throw new UncheckedIOException(Strings.format("could not write file [%s]", path.toAbsolutePath()), e);
         } finally {
+            logger.info("Deleting settings temp file [{}]", tempFile != null ? tempFile.getFileName() : null);
             // we are ignoring exceptions here, so we do not need handle whether or not tempFile was initialized nor if the file exists
             IOUtils.deleteFilesIgnoringExceptions(tempFile);
         }

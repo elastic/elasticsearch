@@ -580,7 +580,7 @@ The maximum number of rulesets to specify is 10.
 `match_criteria`::
 (Required, `object`)
 +
-Defines the match criteria to apply to rules in the given query ruleset.
+Defines the match criteria to apply to rules in the given query ruleset(s).
 Match criteria should match the keys defined in the `criteria.metadata` field of the rule.
 
 `rank_window_size`::

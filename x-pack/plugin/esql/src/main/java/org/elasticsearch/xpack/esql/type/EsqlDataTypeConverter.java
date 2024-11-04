@@ -75,6 +75,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
+import static org.elasticsearch.xpack.esql.core.type.DataType.SEMANTIC_TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TIME_DURATION;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
@@ -398,6 +399,9 @@ public class EsqlDataTypeConverter {
             }
         }
         if (isString(left) && isString(right)) {
+            if (left == SEMANTIC_TEXT || right == SEMANTIC_TEXT) {
+                return KEYWORD;
+            }
             if (left == TEXT || right == TEXT) {
                 return TEXT;
             }

@@ -26,6 +26,8 @@ public class SafeClusterStateSupplier implements ClusterStateSupplier, ClusterSt
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
+        // In this default implementation, "ready" is really "is cluster state available", which after the initial recovery it should be.
+        // If you need a different condition, feel free to add a different implementation of ClusterStateSupplier
         if (isInitialized() || event.state().blocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK) == false) {
             currentClusterState = event.state();
         }

@@ -1,4 +1,5 @@
 sumWithOverflow
+required_capability: fn_sum_overflow_handling
 FROM employees
 | LIMIT 2
 | EVAL x = languages - languages + 9223372036854775807
@@ -12,3 +13,23 @@ warning:Line 4:40: java.lang.ArithmeticException: long overflow
 overflow:long | underflow:long
 null          | null
 ;
+
+sumWithOverflowGrouping
+required_capability: fn_sum_overflow_handling
+FROM employees
+| SORT emp_no
+| LIMIT 4
+| EVAL group = emp_no % 2, x = languages - languages + 9223372036854775807
+| STATS overflow = SUM(x), underflow = SUM(-x) by group
+| SORT group
+;
+warning:Line 5:20: evaluation of [SUM(x)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 5:20: java.lang.ArithmeticException: long overflow
+warning:Line 5:40: evaluation of [SUM(-x)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 5:40: java.lang.ArithmeticException: long overflow
+
+overflow:long | underflow:long | group:integer
+null          | null           | 0
+null          | null           | 1
+;
+

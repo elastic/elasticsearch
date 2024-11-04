@@ -807,13 +807,6 @@ public class VerifierTests extends ESTestCase {
                     + "\")]",
                 error("row to_timeduration(\"1 " + unit + "\") - now() ")
             );
-            assertEquals(
-                "1:5: [-] arguments are in unsupported order: cannot subtract a [DATETIME] value [now()] "
-                    + "from a [TIME_DURATION] amount [\"1 "
-                    + unit
-                    + "\"]",
-                error("row \"1 " + unit + "\" - now() ")
-            );
         }
         for (var unit : DATE_PERIODS) {
             assertEquals(
@@ -850,13 +843,6 @@ public class VerifierTests extends ESTestCase {
                     + unit
                     + "\")]",
                 error("row to_dateperiod(\"1 " + unit + "\") - now() ")
-            );
-            assertEquals(
-                "1:5: [-] arguments are in unsupported order: cannot subtract a [DATETIME] value [now()] "
-                    + "from a [DATE_PERIOD] amount [\"1 "
-                    + unit
-                    + "\"]",
-                error("row \"1 " + unit + "\" - now() ")
             );
         }
     }
@@ -1481,11 +1467,6 @@ public class VerifierTests extends ESTestCase {
         );
 
         assertEquals(
-            "1:39: EVAL does not support type [date_period] as the return data type of expression " + "[\"3 months\" + \"5 days\"]",
-            error("row x = \"2024-01-01\"::datetime | eval y = \"3 months\" + \"5 days\"")
-        );
-
-        assertEquals(
             "1:39: EVAL does not support type [time_duration] as the return data type of expression [3 hours + 5 minutes]",
             error("row x = \"2024-01-01\"::datetime | eval y = 3 hours + 5 minutes")
         );
@@ -1494,11 +1475,6 @@ public class VerifierTests extends ESTestCase {
             "1:39: EVAL does not support type [time_duration] as the return data type of expression "
                 + "[\"3 hours\"::time_duration + \"5 minutes\"::time_duration]",
             error("row x = \"2024-01-01\"::datetime | eval y = \"3 hours\"::time_duration + \"5 minutes\"::time_duration")
-        );
-
-        assertEquals(
-            "1:39: EVAL does not support type [time_duration] as the return data type of expression " + "[\"3 hours\" + \"5 minutes\"]",
-            error("row x = \"2024-01-01\"::datetime | eval y = \"3 hours\" + \"5 minutes\"")
         );
 
         // where
@@ -1628,40 +1604,6 @@ public class VerifierTests extends ESTestCase {
             "1:68: second argument of [bucket(y, \"1\")] must be [integral, date_period or time_duration], "
                 + "found value [\"1\"] type [keyword]",
             error("from test | eval x = emp_no, y = hire_date | stats max = max(x) by bucket(y, \"1\") | sort max ")
-        );
-
-        // Add, Subtract, Neg
-        assertEquals(
-            "1:22: Cannot convert string [1 dy] to any of [DATETIME, DATE_PERIOD, TIME_DURATION]",
-            error("from test | eval x = \"1 dy\" + \"2024-01-01\" - \"1 yare\"")
-        );
-        assertEquals(
-            "1:37: Cannot convert string [1 dy] to any of [DATETIME, DATE_PERIOD, TIME_DURATION]",
-            error("from test | eval x = \"2024-01-01\" + \"1 dy\" - \"1 yare\"")
-        );
-        assertEquals(
-            "1:37: Cannot convert string [1 dy] to any of [DATETIME, DATE_PERIOD, TIME_DURATION]",
-            error("from test | eval x = \"2024-01-01\" - \"1 dy\" + \"1 yare\"")
-        );
-        assertEquals(
-            "1:24: Cannot convert string [1 dy] to [DATE_PERIOD or TIME_DURATION], error [Unexpected time interval qualifier: 'dy']",
-            error("from test | eval x = - \"1 dy\" + \"2024-01-01\" + \"1 yare\"")
-        );
-        assertEquals(
-            "1:22: Cannot convert string [1] to any of [DATETIME, DATE_PERIOD, TIME_DURATION]",
-            error("from test | eval x = \"1\" + \"2024-01-01\" - \"10 year\"")
-        );
-        assertEquals(
-            "1:32: Cannot convert string [5] to any of [DATETIME, DATE_PERIOD, TIME_DURATION]",
-            error("from test | eval x = \"1 day\" + \"5\" - \"1 year\"")
-        );
-        assertEquals(
-            "1:22: [+] has arguments with incompatible types [date_period] and [integer]",
-            error("from test | eval x = \"1 day\" + 5 - \"1 year\"")
-        );
-        assertEquals(
-            "1:22: argument of [- \"1\"] must be [numeric, date_period or time_duration], found value [\"1\"] type [keyword]",
-            error("from test | eval x = - \"1\" + \"2024-01-01\" + \"1 year\"")
         );
     }
 

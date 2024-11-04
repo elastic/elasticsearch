@@ -163,20 +163,18 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_SHAPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
-import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
-import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TIME_DURATION;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
 import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
-import static org.elasticsearch.xpack.esql.core.type.DataType.isTemporalAmount;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isString;
 
 public class EsqlFunctionRegistry {
 
-    private static final Map<Class<? extends Function>, List<DataType>> dataTypesForStringLiteralConversion = new LinkedHashMap<>();
+    private static final Map<Class<? extends Function>, List<DataType>> DATA_TYPES_FOR_STRING_LITERAL_CONVERSIONS = new LinkedHashMap<>();
 
-    private static final Map<DataType, Integer> dataTypeCastingPriority;
+    private static final Map<DataType, Integer> DATA_TYPE_CASTING_PRIORITY;
 
     static {
         List<DataType> typePriorityList = Arrays.asList(
@@ -196,9 +194,9 @@ public class EsqlFunctionRegistry {
             UNSIGNED_LONG,
             UNSUPPORTED
         );
-        dataTypeCastingPriority = new HashMap<>();
+        DATA_TYPE_CASTING_PRIORITY = new HashMap<>();
         for (int i = 0; i < typePriorityList.size(); i++) {
-            dataTypeCastingPriority.put(typePriorityList.get(i), i);
+            DATA_TYPE_CASTING_PRIORITY.put(typePriorityList.get(i), i);
         }
     }
 
@@ -474,22 +472,24 @@ public class EsqlFunctionRegistry {
         }
     }
 
+    /**
+     * This is called by ImplicitCasting to convert string literals to a target data type.
+     */
     public static DataType getTargetType(String[] names) {
         List<DataType> types = new ArrayList<>();
         for (String name : names) {
             DataType type = DataType.fromTypeName(name);
-            if (isTemporalAmount(type)) { // DATE_PERIOD and TIME_DURATION are not ES types
+            if (type != null && type != UNSUPPORTED) { // A type should not be null or UNSUPPORTED, just a sanity check here
+                // If the function takes strings as input, there is no need to cast a string literal to it.
+                // Return UNSUPPORTED, so that ImplicitCasting doesn't process it.
+                if (isString(type)) {
+                    return UNSUPPORTED;
+                }
                 types.add(type);
-            } else {
-                types.add(DataType.fromEs(name));
             }
         }
-        if (types.contains(KEYWORD) || types.contains(TEXT)) {
-            return UNSUPPORTED;
-        }
-
         return types.stream()
-            .min((dt1, dt2) -> dataTypeCastingPriority.get(dt1).compareTo(dataTypeCastingPriority.get(dt2)))
+            .min((dt1, dt2) -> DATA_TYPE_CASTING_PRIORITY.get(dt1).compareTo(DATA_TYPE_CASTING_PRIORITY.get(dt2)))
             .orElse(UNSUPPORTED);
     }
 
@@ -561,7 +561,7 @@ public class EsqlFunctionRegistry {
         for (FunctionDefinition[] group : groupFunctions) {
             for (FunctionDefinition def : group) {
                 FunctionDescription signature = description(def);
-                dataTypesForStringLiteralConversion.put(
+                DATA_TYPES_FOR_STRING_LITERAL_CONVERSIONS.put(
                     def.clazz(),
                     signature.args().stream().map(EsqlFunctionRegistry.ArgSignature::targetDataType).collect(Collectors.toList())
                 );
@@ -570,26 +570,7 @@ public class EsqlFunctionRegistry {
     }
 
     public List<DataType> getDataTypeForStringLiteralConversion(Class<? extends Function> clazz) {
-        if (dataTypesForStringLiteralConversion.containsKey(clazz)) {
-            return dataTypesForStringLiteralConversion.get(clazz);
-        } else { // for unregistered EsqlScalarFunction, like Neg
-            Constructor<?> constructor = constructorFor(clazz);
-            if (constructor == null) {
-                return null;
-            }
-            var params = constructor.getParameters();
-            List<DataType> targetDataTypes = new ArrayList<>(params.length - 1);
-            for (int i = 1; i < params.length; i++) { // skipping 1st argument, the source
-                if (Configuration.class.isAssignableFrom(params[i].getType()) == false) {
-                    Param paramInfo = params[i].getAnnotation(Param.class);
-                    if (paramInfo != null) {
-                        DataType targetDataType = EsqlFunctionRegistry.getTargetType(paramInfo.type());
-                        targetDataTypes.add(targetDataType);
-                    }
-                }
-            }
-            return targetDataTypes.size() == params.length - 1 ? targetDataTypes : null;
-        }
+        return DATA_TYPES_FOR_STRING_LITERAL_CONVERSIONS.get(clazz);
     }
 
     private static class SnapshotFunctionRegistry extends EsqlFunctionRegistry {

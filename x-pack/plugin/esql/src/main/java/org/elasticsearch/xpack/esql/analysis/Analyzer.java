@@ -85,6 +85,8 @@ import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.stats.FeatureMetric;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
+import java.time.Duration;
+import java.time.temporal.TemporalAmount;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.BitSet;
@@ -120,7 +122,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.TIME_DURATION;
 import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isTemporalAmount;
 import static org.elasticsearch.xpack.esql.stats.FeatureMetric.LIMIT;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.parseTemporalAmount;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.maybeParseTemporalAmount;
 
 /**
  * This class is part of the planner. Resolves references (such as variable and index names) and performs implicit casting.
@@ -145,8 +147,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         var resolution = new Batch<>(
             "Resolution",
             /*
-             * Move ImplicitCasting before ResolveRefs. Because a ref is created for a Bucket in Aggregate's aggregates,
-             * resolving this ref before implicit casting may cause this ref to have customMessage=true, it prevents further
+             * ImplicitCasting must be before ResolveRefs. Because a reference is created for a Bucket in Aggregate's aggregates,
+             * resolving this reference before implicit casting may cause this reference to have customMessage=true, it prevents further
              * attempts to resolve this reference.
              */
             new ImplicitCasting(),
@@ -1055,32 +1057,32 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
             List<Expression> newChildren = new ArrayList<>(2);
             boolean childrenChanged = false;
-            String errorMessage = "Cannot convert string [{}] to any of [" + DATETIME + ", " + DATE_PERIOD + ", " + TIME_DURATION + "]";
+            DataType targetDataType = DataType.NULL;
+            Expression from = Literal.NULL;
 
-            if (o instanceof DateTimeArithmeticOperation) {
-                childrenChanged = processDateTimeArithmeticOperation(left, right, newChildren, errorMessage);
-            } else {
-                DataType targetDataType = DataType.NULL;
-                Expression from = Literal.NULL;
-
-                if (left.dataType() == KEYWORD && left.foldable() && (left instanceof EsqlScalarFunction == false)) {
-                    if (supportsStringImplicitCasting(right.dataType())) {
-                        targetDataType = right.dataType();
-                        from = left;
-                    }
+            if (left.dataType() == KEYWORD && left.foldable() && (left instanceof EsqlScalarFunction == false)) {
+                if (supportsStringImplicitCasting(right.dataType())) {
+                    targetDataType = right.dataType();
+                    from = left;
+                } else if (supportsImplicitTemporalCasting(right, o)) {
+                    targetDataType = DATETIME;
+                    from = left;
                 }
-                if (right.dataType() == KEYWORD && right.foldable() && (right instanceof EsqlScalarFunction == false)) {
-                    if (supportsStringImplicitCasting(left.dataType())) {
-                        targetDataType = left.dataType();
-                        from = right;
-                    }
+            }
+            if (right.dataType() == KEYWORD && right.foldable() && (right instanceof EsqlScalarFunction == false)) {
+                if (supportsStringImplicitCasting(left.dataType())) {
+                    targetDataType = left.dataType();
+                    from = right;
+                } else if (supportsImplicitTemporalCasting(left, o)) {
+                    targetDataType = DATETIME;
+                    from = right;
                 }
-                if (from != Literal.NULL) {
-                    Expression e = castStringLiteral(from, targetDataType);
-                    newChildren.add(from == left ? e : left);
-                    newChildren.add(from == right ? e : right);
-                    childrenChanged = true;
-                }
+            }
+            if (from != Literal.NULL) {
+                Expression e = castStringLiteral(from, targetDataType);
+                newChildren.add(from == left ? e : left);
+                newChildren.add(from == right ? e : right);
+                childrenChanged = true;
             }
             return childrenChanged ? o.replaceChildren(newChildren) : o;
         }
@@ -1108,48 +1110,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
             newChildren.add(left);
             return childrenChanged ? in.replaceChildren(newChildren) : in;
-        }
-
-        private static boolean processDateTimeArithmeticOperation(
-            Expression left,
-            Expression right,
-            List<Expression> newChildren,
-            String errorMessage
-        ) {
-            boolean childrenChanged = false;
-            Expression newLeft = left;
-            Expression newRight = right;
-            if (isStringLiteral(left)) {
-                newLeft = castToTemporalOrDateTime(left, errorMessage);
-            }
-            if (isStringLiteral(right)) {
-                newRight = castToTemporalOrDateTime(right, errorMessage);
-            }
-            if (newLeft != left || newRight != right) {
-                newChildren.add(newLeft);
-                newChildren.add(newRight);
-                childrenChanged = true;
-            }
-            return childrenChanged;
-        }
-
-        private static boolean isStringLiteral(Expression e) {
-            return e instanceof Literal l && l.dataType() == KEYWORD;
-        }
-
-        private static Expression castToTemporalOrDateTime(Expression e, String errorMessage) {
-            Expression result = castStringLiteralToTemporalAmount(e); // try casting it to temporal first
-            if (result instanceof Literal nr && isTemporalAmount(nr.dataType())) {
-                return result;
-            } else {
-                result = castStringLiteral(e, DATETIME); // rhs is not a temporal, try casting it to datetime
-                if (result instanceof Literal nr && nr.dataType() == DATETIME) {
-                    return result;
-                } else if (result instanceof UnresolvedAttribute ua) {
-                    return ua.withUnresolvedMessage(format(errorMessage, e.fold()));
-                }
-            }
-            return e;
         }
 
         private static boolean canCastMixedNumericTypes(org.elasticsearch.xpack.esql.core.expression.function.Function f) {
@@ -1191,8 +1151,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return childrenChanged ? f.replaceChildren(newChildren) : f;
         }
 
+        private static boolean supportsImplicitTemporalCasting(Expression e, BinaryOperator<?, ?, ?, ?> o) {
+            return isTemporalAmount(e.dataType()) && (o instanceof DateTimeArithmeticOperation);
+        }
+
         private static boolean supportsStringImplicitCasting(DataType type) {
-            return type == DATETIME || type == IP || type == VERSION || type == BOOLEAN || isTemporalAmount(type);
+            return type == DATETIME || type == IP || type == VERSION || type == BOOLEAN;
         }
 
         private static UnresolvedAttribute unresolvedAttribute(Expression value, String type, Exception e) {
@@ -1207,8 +1171,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         private static Expression castStringLiteralToTemporalAmount(Expression from) {
             try {
-                Literal result = parseTemporalAmount(from);
-                return result == null ? from : result;
+                TemporalAmount result = maybeParseTemporalAmount(from.fold().toString().strip());
+                if (result == null) {
+                    return from;
+                }
+                DataType target = result instanceof Duration ? TIME_DURATION : DATE_PERIOD;
+                return new Literal(from.source(), result, target);
             } catch (Exception e) {
                 return unresolvedAttribute(from, DATE_PERIOD + " or " + TIME_DURATION, e);
             }

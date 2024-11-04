@@ -266,7 +266,8 @@ public class Configuration implements Writeable {
             && Objects.equals(locale, that.locale)
             && Objects.equals(that.query, query)
             && profile == that.profile
-            && tables.equals(that.tables);
+            && tables.equals(that.tables)
+            && activeEsqlFeatures.equals(that.activeEsqlFeatures);
     }
 
     @Override
@@ -282,7 +283,8 @@ public class Configuration implements Writeable {
             locale,
             query,
             profile,
-            tables
+            tables,
+            activeEsqlFeatures
         );
     }
 
@@ -304,6 +306,8 @@ public class Configuration implements Writeable {
             + profile
             + ", tables="
             + tables
+            + ", activeEsqlFeatures="
+            + activeEsqlFeatures
             + '}';
     }
 }

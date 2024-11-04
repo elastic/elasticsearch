@@ -136,8 +136,6 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
 
     private static EsqlFunctionRegistry functionRegistry = new EsqlFunctionRegistry().snapshotRegistry();
 
-    private Configuration config;
-
     protected TestCaseSupplier.TestCase testCase;
 
     /**
@@ -1352,14 +1350,5 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             }
         }
         return false;
-    }
-
-    @Before
-    public void initConfig() {
-        config = randomConfiguration("FROM test", Map.of());
-    }
-
-    protected Configuration configuration() {
-        return config;
     }
 }

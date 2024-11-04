@@ -14,8 +14,10 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractAggregationTestCase;
+import org.elasticsearch.xpack.esql.expression.function.AbstractConfigurationAggregationTestCase;
 import org.elasticsearch.xpack.esql.expression.function.MultiRowTestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -25,7 +27,7 @@ import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class AvgTests extends AbstractAggregationTestCase {
+public class AvgTests extends AbstractConfigurationAggregationTestCase {
     public AvgTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
@@ -57,8 +59,8 @@ public class AvgTests extends AbstractAggregationTestCase {
     }
 
     @Override
-    protected Expression build(Source source, List<Expression> args) {
-        return new Avg(source, args.get(0), configuration());
+    protected Expression buildWithConfiguration(Source source, List<Expression> args, Configuration configuration) {
+        return new Avg(source, args.get(0), configuration);
     }
 
     private static TestCaseSupplier makeSupplier(TestCaseSupplier.TypedDataSupplier fieldSupplier) {

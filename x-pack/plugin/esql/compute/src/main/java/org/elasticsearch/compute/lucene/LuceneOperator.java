@@ -79,6 +79,7 @@ public abstract class LuceneOperator extends SourceOperator {
         protected final DataPartitioning dataPartitioning;
         protected final int taskConcurrency;
         protected final int limit;
+        protected final ScoreMode scoreMode;
         protected final LuceneSliceQueue sliceQueue;
 
         /**
@@ -95,6 +96,7 @@ public abstract class LuceneOperator extends SourceOperator {
             ScoreMode scoreMode
         ) {
             this.limit = limit;
+            this.scoreMode = scoreMode;
             this.dataPartitioning = dataPartitioning;
             var weightFunction = weightFunction(queryFunction, scoreMode);
             this.sliceQueue = LuceneSliceQueue.create(contexts, weightFunction, dataPartitioning, taskConcurrency);

@@ -17,6 +17,8 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.compute.data.DocBlock;
+import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
@@ -91,7 +93,8 @@ public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
         ShardContext ctx = new MockShardContext(reader, 0);
         Function<ShardContext, Query> queryFunction = c -> new MatchAllDocsQuery();
         int maxPageSize = between(10, Math.max(10, numDocs));
-        return new LuceneSourceOperator.Factory(List.of(ctx), queryFunction, dataPartitioning, 1, maxPageSize, limit);
+        boolean scoring = false; // TODO: randomize of something else to test scoring
+        return new LuceneSourceOperator.Factory(List.of(ctx), queryFunction, dataPartitioning, 1, maxPageSize, limit, scoring);
     }
 
     @Override
@@ -172,6 +175,20 @@ public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
         int maxPages = Math.min(size, limit);
         int minPages = (int) Math.ceil(maxPages / factory.maxPageSize());
         assertThat(results, hasSize(both(greaterThanOrEqualTo(minPages)).and(lessThanOrEqualTo(maxPages))));
+    }
+
+    // Scores are not interesting to this test, but enabled conditionally and effectively ignored just for coverage.
+    private final boolean scoring = randomBoolean();
+
+    // Returns the initial block index, ignoring the score block if scoring is enabled
+    private int initialBlockIndex(Page page) {
+        assert page.getBlock(0) instanceof DocBlock : "expected doc block at index 0";
+        if (scoring) {
+            assert page.getBlock(1) instanceof DoubleBlock : "expected double block at index 1";
+            return 2;
+        } else {
+            return 1;
+        }
     }
 
     /**

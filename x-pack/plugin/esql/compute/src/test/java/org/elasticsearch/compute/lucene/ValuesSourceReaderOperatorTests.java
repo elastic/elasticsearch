@@ -170,7 +170,8 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             DataPartitioning.SHARD,
             randomIntBetween(1, 10),
             pageSize,
-            LuceneOperator.NO_LIMIT
+            LuceneOperator.NO_LIMIT,
+            false // no scoring
         );
         return luceneFactory.get(context);
     }
@@ -1301,7 +1302,8 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             randomFrom(DataPartitioning.values()),
             randomIntBetween(1, 10),
             randomPageSize(),
-            LuceneOperator.NO_LIMIT
+            LuceneOperator.NO_LIMIT,
+            false // no scoring
         );
         try (
             Driver driver = new Driver(
@@ -1524,7 +1526,8 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 DataPartitioning.SHARD,
                 randomIntBetween(1, 10),
                 1000,
-                LuceneOperator.NO_LIMIT
+                LuceneOperator.NO_LIMIT,
+                false // no scoring
             );
             MappedFieldType ft = mapperService.fieldType("key");
             var readerFactory = new ValuesSourceReaderOperator.Factory(

@@ -1094,7 +1094,6 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
     public static class Builder {
 
         private final ImmutableOpenMap.Builder<String, IndexMetadata> indices;
-        private final ImmutableOpenMap.Builder<String, Set<Index>> aliasedIndices;
         private final ImmutableOpenMap.Builder<String, IndexTemplateMetadata> templates;
         private final ImmutableOpenMap.Builder<String, Metadata.ProjectCustom> customs;
 
@@ -1111,7 +1110,6 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
         Builder(ProjectMetadata projectMetadata) {
             this.id = projectMetadata.id;
             this.indices = ImmutableOpenMap.builder(projectMetadata.indices);
-            this.aliasedIndices = ImmutableOpenMap.builder(projectMetadata.aliasedIndices);
             this.templates = ImmutableOpenMap.builder(projectMetadata.templates);
             this.customs = ImmutableOpenMap.builder(projectMetadata.customs);
             this.previousIndicesLookup = projectMetadata.indicesLookup;
@@ -1125,7 +1123,6 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
 
         Builder(Map<String, MappingMetadata> mappingsByHash, int indexCountHint) {
             indices = ImmutableOpenMap.builder(indexCountHint);
-            aliasedIndices = ImmutableOpenMap.builder();
             templates = ImmutableOpenMap.builder();
             customs = ImmutableOpenMap.builder();
             previousIndicesLookup = null;
@@ -1149,7 +1146,6 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
             dedupeMapping(indexMetadataBuilder);
             IndexMetadata indexMetadata = indexMetadataBuilder.build();
             IndexMetadata previous = indices.put(indexMetadata.getIndex().getName(), indexMetadata);
-            updateAliases(previous, indexMetadata);
             if (unsetPreviousIndicesLookup(previous, indexMetadata)) {
                 previousIndicesLookup = null;
             }
@@ -1174,7 +1170,6 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
                     return this;
                 }
             }
-            updateAliases(previous, indexMetadata);
             if (unsetPreviousIndicesLookup(previous, indexMetadata)) {
                 previousIndicesLookup = null;
             }
@@ -1295,8 +1290,7 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
         public Builder remove(String index) {
             previousIndicesLookup = null;
             checkForUnusedMappings = true;
-            IndexMetadata previous = indices.remove(index);
-            updateAliases(previous, null);
+            indices.remove(index);
             return this;
         }
 
@@ -1306,69 +1300,7 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
 
             indices.clear();
             mappingsByHash.clear();
-            aliasedIndices.clear();
             return this;
-        }
-
-        private Builder putAlias(String alias, Index index) {
-            Objects.requireNonNull(alias);
-            Objects.requireNonNull(index);
-
-            Set<Index> indices = new HashSet<>(aliasedIndices.getOrDefault(alias, Set.of()));
-            if (indices.add(index) == false) {
-                return this; // indices already contained this index
-            }
-            aliasedIndices.put(alias, Collections.unmodifiableSet(indices));
-            return this;
-        }
-
-        private Builder removeAlias(String alias, Index index) {
-            Objects.requireNonNull(alias);
-            Objects.requireNonNull(index);
-
-            Set<Index> indices = aliasedIndices.get(alias);
-            if (indices == null || indices.isEmpty()) {
-                throw new IllegalStateException("Cannot remove non-existent alias [" + alias + "] for index [" + index.getName() + "]");
-            }
-
-            indices = new HashSet<>(indices);
-            if (indices.remove(index) == false) {
-                throw new IllegalStateException("Cannot remove non-existent alias [" + alias + "] for index [" + index.getName() + "]");
-            }
-
-            if (indices.isEmpty()) {
-                aliasedIndices.remove(alias); // for consistency, we don't store empty sets, so null it out
-            } else {
-                aliasedIndices.put(alias, Collections.unmodifiableSet(indices));
-            }
-            return this;
-        }
-
-        void updateAliases(IndexMetadata previous, IndexMetadata current) {
-            if (previous == null && current != null) {
-                for (var key : current.getAliases().keySet()) {
-                    putAlias(key, current.getIndex());
-                }
-            } else if (previous != null && current == null) {
-                for (var key : previous.getAliases().keySet()) {
-                    removeAlias(key, previous.getIndex());
-                }
-            } else if (previous != null && current != null) {
-                if (Objects.equals(previous.getAliases(), current.getAliases())) {
-                    return;
-                }
-
-                for (var key : current.getAliases().keySet()) {
-                    if (previous.getAliases().containsKey(key) == false) {
-                        putAlias(key, current.getIndex());
-                    }
-                }
-                for (var key : previous.getAliases().keySet()) {
-                    if (current.getAliases().containsKey(key) == false) {
-                        removeAlias(key, current.getIndex());
-                    }
-                }
-            }
         }
 
         public Builder put(IndexTemplateMetadata.Builder template) {
@@ -1592,26 +1524,27 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
             // 1) The datastructures will be rebuilt only when needed. Now during serializing we rebuild these datastructures
             // while these datastructures aren't even used.
             // 2) The aliasAndIndexLookup can be updated instead of rebuilding it all the time.
-            List<String> visibleIndices = new ArrayList<>();
-            List<String> allOpenIndices = new ArrayList<>();
-            List<String> visibleOpenIndices = new ArrayList<>();
-            List<String> allClosedIndices = new ArrayList<>();
-            List<String> visibleClosedIndices = new ArrayList<>();
-            ImmutableOpenMap<String, IndexMetadata> indicesMap = indices.build();
+            final List<String> visibleIndices = new ArrayList<>();
+            final List<String> allOpenIndices = new ArrayList<>();
+            final List<String> visibleOpenIndices = new ArrayList<>();
+            final List<String> allClosedIndices = new ArrayList<>();
+            final List<String> visibleClosedIndices = new ArrayList<>();
+            final ImmutableOpenMap<String, IndexMetadata> indicesMap = indices.build();
 
             int oldestIndexVersionId = IndexVersion.current().id();
             int totalNumberOfShards = 0;
             int totalOpenIndexShards = 0;
 
-            String[] allIndicesArray = new String[indicesMap.size()];
+            ImmutableOpenMap.Builder<String, Set<Index>> aliasedIndicesBuilder = ImmutableOpenMap.builder();
+            final String[] allIndicesArray = new String[indicesMap.size()];
             int i = 0;
-            Set<String> sha256HashesInUse = checkForUnusedMappings ? Sets.newHashSetWithExpectedSize(mappingsByHash.size()) : null;
+            final Set<String> sha256HashesInUse = checkForUnusedMappings ? Sets.newHashSetWithExpectedSize(mappingsByHash.size()) : null;
             for (var entry : indicesMap.entrySet()) {
                 allIndicesArray[i++] = entry.getKey();
-                IndexMetadata indexMetadata = entry.getValue();
+                final IndexMetadata indexMetadata = entry.getValue();
                 totalNumberOfShards += indexMetadata.getTotalNumberOfShards();
-                String name = indexMetadata.getIndex().getName();
-                boolean visible = indexMetadata.isHidden() == false;
+                final String name = indexMetadata.getIndex().getName();
+                final boolean visible = indexMetadata.isHidden() == false;
                 if (visible) {
                     visibleIndices.add(name);
                 }
@@ -1629,14 +1562,25 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
                 }
                 oldestIndexVersionId = Math.min(oldestIndexVersionId, indexMetadata.getCompatibilityVersion().id());
                 if (sha256HashesInUse != null) {
-                    var mapping = indexMetadata.mapping();
+                    final var mapping = indexMetadata.mapping();
                     if (mapping != null) {
                         sha256HashesInUse.add(mapping.getSha256());
                     }
                 }
+                for (var alias : indexMetadata.getAliases().keySet()) {
+                    var indices = aliasedIndicesBuilder.get(alias);
+                    if (indices == null) {
+                        indices = new HashSet<>();
+                        aliasedIndicesBuilder.put(alias, indices);
+                    }
+                    indices.add(indexMetadata.getIndex());
+                }
             }
 
-            var aliasedIndices = this.aliasedIndices.build();
+            for (String alias : aliasedIndicesBuilder.keys()) {
+                aliasedIndicesBuilder.put(alias, Collections.unmodifiableSet(aliasedIndicesBuilder.get(alias)));
+            }
+            var aliasedIndices = aliasedIndicesBuilder.build();
             for (var entry : aliasedIndices.entrySet()) {
                 List<IndexMetadata> aliasIndices = entry.getValue().stream().map(idx -> indicesMap.get(idx.getName())).toList();
                 validateAlias(entry.getKey(), aliasIndices);

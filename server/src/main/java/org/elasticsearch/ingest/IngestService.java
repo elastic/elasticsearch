@@ -282,26 +282,60 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         final Metadata metadata,
         final long epochMillis
     ) {
-        if (indexRequest.isPipelineResolved()) {
-            return;
+        if (indexRequest.isPipelineResolved() == false) {
+            var pipelines = resolvePipelines(originalRequest, indexRequest, metadata, epochMillis);
+            setPipelineOnRequest(indexRequest, pipelines);
         }
+    }
 
-        /*
-         * Here we look for the pipelines associated with the index if the index exists. If the index does not exist we fall back to using
-         * templates to find the pipelines.
-         */
-        final Pipelines pipelines = resolvePipelinesFromMetadata(originalRequest, indexRequest, metadata, epochMillis).or(
-            () -> resolvePipelinesFromIndexTemplates(indexRequest, metadata)
-        ).orElse(Pipelines.NO_PIPELINES_DEFINED);
+    static boolean isRolloverOnWrite(Metadata metadata, IndexRequest indexRequest) {
+        DataStream dataStream = metadata.dataStreams().get(indexRequest.index());
+        if (dataStream == null) {
+            return false;
+        }
+        return dataStream.getBackingIndices().isRolloverOnWrite();
+    }
 
+    /**
+     *  Resolve the default and final pipelines from the cluster state metadata or index templates.
+     *
+     * @param originalRequest initial request
+     * @param indexRequest the index request, which could be different from the initial request if rerouted
+     * @param metadata cluster data metadata
+     * @param epochMillis current time for index name resolution
+     * @return the resolved pipelines
+     */
+    public static Pipelines resolvePipelines(
+        final DocWriteRequest<?> originalRequest,
+        final IndexRequest indexRequest,
+        final Metadata metadata,
+        final long epochMillis
+    ) {
+        if (isRolloverOnWrite(metadata, indexRequest)) {
+            return resolvePipelinesFromIndexTemplates(indexRequest, metadata) //
+                .orElse(Pipelines.NO_PIPELINES_DEFINED);
+        } else {
+            return resolvePipelinesFromMetadata(originalRequest, indexRequest, metadata, epochMillis) //
+                .or(() -> resolvePipelinesFromIndexTemplates(indexRequest, metadata)) //
+                .orElse(Pipelines.NO_PIPELINES_DEFINED);
+        }
+    }
+
+    /**
+     *  Set the request pipeline on the index request if present, otherwise set the default pipeline.
+     *  Always set the final pipeline.
+     * @param indexRequest the index request
+     * @param resolvedPipelines default and final pipelines resolved from metadata and templates
+     */
+    public static void setPipelineOnRequest(IndexRequest indexRequest, Pipelines resolvedPipelines) {
         // The pipeline coming as part of the request always has priority over the resolved one from metadata or templates
         String requestPipeline = indexRequest.getPipeline();
         if (requestPipeline != null) {
             indexRequest.setPipeline(requestPipeline);
         } else {
-            indexRequest.setPipeline(pipelines.defaultPipeline);
+            indexRequest.setPipeline(resolvedPipelines.defaultPipeline);
         }
-        indexRequest.setFinalPipeline(pipelines.finalPipeline);
+        indexRequest.setFinalPipeline(resolvedPipelines.finalPipeline);
         indexRequest.isPipelineResolved(true);
     }
 
@@ -1507,7 +1541,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             || NOOP_PIPELINE_NAME.equals(indexRequest.getFinalPipeline()) == false;
     }
 
-    private record Pipelines(String defaultPipeline, String finalPipeline) {
+    public record Pipelines(String defaultPipeline, String finalPipeline) {
 
         private static final Pipelines NO_PIPELINES_DEFINED = new Pipelines(NOOP_PIPELINE_NAME, NOOP_PIPELINE_NAME);
 

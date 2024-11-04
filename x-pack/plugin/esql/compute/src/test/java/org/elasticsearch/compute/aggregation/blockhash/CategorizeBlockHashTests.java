@@ -26,6 +26,7 @@ import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CannedSourceOperator;
@@ -45,13 +46,14 @@ import org.elasticsearch.xpack.ml.aggs.categorization.TokenListCategorizer.Close
 import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzer;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.compute.operator.OperatorTestCase.runDriver;
-import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
@@ -244,24 +246,41 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
         DriverContext driverContext = new DriverContext(bigArrays, new BlockFactory(breaker, bigArrays));
 
         LocalSourceOperator.BlockSupplier input1 = () -> {
-            try (BytesRefVector.Builder textsBuilder = driverContext.blockFactory().newBytesRefVectorBuilder(10)) {
+            try (
+                BytesRefVector.Builder textsBuilder = driverContext.blockFactory().newBytesRefVectorBuilder(10);
+                LongVector.Builder countsBuilder = driverContext.blockFactory().newLongVectorBuilder(10)
+            ) {
                 textsBuilder.appendBytesRef(new BytesRef("a"));
                 textsBuilder.appendBytesRef(new BytesRef("b"));
                 textsBuilder.appendBytesRef(new BytesRef("words words words goodbye jan"));
                 textsBuilder.appendBytesRef(new BytesRef("words words words goodbye nik"));
                 textsBuilder.appendBytesRef(new BytesRef("words words words hello jan"));
                 textsBuilder.appendBytesRef(new BytesRef("c"));
-                return new Block[] { textsBuilder.build().asBlock() };
+                countsBuilder.appendLong(11);
+                countsBuilder.appendLong(22);
+                countsBuilder.appendLong(800);
+                countsBuilder.appendLong(80);
+                countsBuilder.appendLong(900);
+                countsBuilder.appendLong(30);
+                return new Block[] { textsBuilder.build().asBlock(), countsBuilder.build().asBlock() };
             }
         };
         LocalSourceOperator.BlockSupplier input2 = () -> {
-            try (BytesRefVector.Builder builder = driverContext.blockFactory().newBytesRefVectorBuilder(10)) {
-                builder.appendBytesRef(new BytesRef("words words words hello nik"));
-                builder.appendBytesRef(new BytesRef("c"));
-                builder.appendBytesRef(new BytesRef("words words words goodbye chris"));
-                builder.appendBytesRef(new BytesRef("d"));
-                builder.appendBytesRef(new BytesRef("e"));
-                return new Block[] { builder.build().asBlock() };
+            try (
+                BytesRefVector.Builder textsBuilder = driverContext.blockFactory().newBytesRefVectorBuilder(10);
+                LongVector.Builder countsBuilder = driverContext.blockFactory().newLongVectorBuilder(10)
+            ) {
+                textsBuilder.appendBytesRef(new BytesRef("words words words hello nik"));
+                textsBuilder.appendBytesRef(new BytesRef("c"));
+                textsBuilder.appendBytesRef(new BytesRef("words words words goodbye chris"));
+                textsBuilder.appendBytesRef(new BytesRef("d"));
+                textsBuilder.appendBytesRef(new BytesRef("e"));
+                countsBuilder.appendLong(99);
+                countsBuilder.appendLong(3);
+                countsBuilder.appendLong(8);
+                countsBuilder.appendLong(44);
+                countsBuilder.appendLong(55);
+                return new Block[] { textsBuilder.build().asBlock(), countsBuilder.build().asBlock() };
             }
         };
         List<Page> intermediateOutput = new ArrayList<>();
@@ -273,7 +292,7 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
             List.of(
                 new HashAggregationOperator.HashAggregationOperatorFactory(
                     List.of(new BlockHash.GroupSpec(0, ElementType.CATEGORY_RAW)),
-                    List.of(),
+                    List.of(new SumLongAggregatorFunctionSupplier(List.of(1)).groupingAggregatorFactory(AggregatorMode.INITIAL)),
                     16 * 1024
                 ).get(driverContext)
             ),
@@ -288,7 +307,7 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
             List.of(
                 new HashAggregationOperator.HashAggregationOperatorFactory(
                     List.of(new BlockHash.GroupSpec(0, ElementType.CATEGORY_RAW)),
-                    List.of(),
+                    List.of(new SumLongAggregatorFunctionSupplier(List.of(1)).groupingAggregatorFactory(AggregatorMode.INITIAL)),
                     16 * 1024
                 ).get(driverContext)
             ),
@@ -303,7 +322,7 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
             List.of(
                 new HashAggregationOperator.HashAggregationOperatorFactory(
                     List.of(new BlockHash.GroupSpec(0, ElementType.CATEGORY_INTERMEDIATE)),
-                    List.of(),
+                    List.of(new SumLongAggregatorFunctionSupplier(List.of(1)).groupingAggregatorFactory(AggregatorMode.INITIAL)),
                     16 * 1024
                 ).get(driverContext)
             ),
@@ -313,23 +332,32 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
         runDriver(driver);
 
         assertThat(finalOutput, hasSize(1));
-        assertThat(finalOutput.get(0).getBlockCount(), equalTo(1));
-        BytesRefBlock block = finalOutput.get(0).getBlock(0);
-        BytesRefVector vector = block.asVector();
-        List<String> values = new ArrayList<>();
-        for (int p = 0; p < vector.getPositionCount(); p++) {
-            values.add(vector.getBytesRef(p, new BytesRef()).utf8ToString());
+        assertThat(finalOutput.get(0).getBlockCount(), equalTo(3));
+        BytesRefVector textsVector = ((BytesRefBlock) finalOutput.get(0).getBlock(0)).asVector();
+        LongVector countsVector = ((LongBlock) finalOutput.get(0).getBlock(1)).asVector();
+        Map<String, Long> counts = new HashMap<>();
+        for (int i = 0; i < countsVector.getPositionCount(); i++) {
+            counts.put(textsVector.getBytesRef(i, new BytesRef()).utf8ToString(), countsVector.getLong(i));
         }
         assertThat(
-            values,
-            containsInAnyOrder(
-                ".*?a.*?",
-                ".*?b.*?",
-                ".*?c.*?",
-                ".*?d.*?",
-                ".*?e.*?",
-                ".*?words.+?words.+?words.+?goodbye.*?",
-                ".*?words.+?words.+?words.+?hello.*?"
+            counts,
+            equalTo(
+                Map.of(
+                    ".*?a.*?",
+                    11,
+                    ".*?b.*?",
+                    22,
+                    ".*?c.*?",
+                    33,
+                    ".*?d.*?",
+                    44,
+                    ".*?e.*?",
+                    55,
+                    ".*?words.+?words.+?words.+?goodbye.*?",
+                    888,
+                    ".*?words.+?words.+?words.+?hello.*?",
+                    999
+                )
             )
         );
         Releasables.close(() -> Iterators.map(finalOutput.iterator(), (Page p) -> p::releaseBlocks));

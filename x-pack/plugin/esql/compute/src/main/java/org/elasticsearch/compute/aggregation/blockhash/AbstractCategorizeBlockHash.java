@@ -73,10 +73,10 @@ public abstract class AbstractCategorizeBlockHash extends BlockHash {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             // TODO be more careful here.
             out.writeVInt(categorizer.getCategoryCount());
-            for (SerializableTokenListCategory category : categorizer.toCategories(categorizer.getCategoryCount())) {
+            for (SerializableTokenListCategory category : categorizer.toCategoriesById()) {
                 category.writeTo(out);
             }
-            return blockFactory.newConstantBytesRefBlockWith(out.bytes().toBytesRef(), 1);
+            return blockFactory.newConstantBytesRefBlockWith(out.bytes().toBytesRef(), categorizer.getCategoryCount());
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -85,7 +85,7 @@ public abstract class AbstractCategorizeBlockHash extends BlockHash {
     private Block buildFinalBlock() {
         try (BytesRefVector.Builder result = blockFactory.newBytesRefVectorBuilder(categorizer.getCategoryCount())) {
             BytesRefBuilder scratch = new BytesRefBuilder();
-            for (SerializableTokenListCategory category : categorizer.toCategories(categorizer.getCategoryCount())) {
+            for (SerializableTokenListCategory category : categorizer.toCategoriesById()) {
                 scratch.copyChars(category.getRegex());
                 result.appendBytesRef(scratch.get());
                 scratch.clear();

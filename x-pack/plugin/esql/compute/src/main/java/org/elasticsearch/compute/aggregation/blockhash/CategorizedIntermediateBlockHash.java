@@ -52,6 +52,7 @@ public class CategorizedIntermediateBlockHash extends AbstractCategorizeBlockHas
         this.hash = new IntBlockHash(channel, blockFactory);
     }
 
+    @Override
     public void add(Page page, GroupingAggregatorFunction.AddInput addInput) {
         BytesRefBlock categorizerState = page.getBlock(channel());
         Map<Integer, Integer> idMap;
@@ -60,6 +61,8 @@ public class CategorizedIntermediateBlockHash extends AbstractCategorizeBlockHas
         } else {
             idMap = Collections.emptyMap();
         }
+        // TODO: when there are aggregators running, this renumbering doesn't work.
+        // This should renumber the destination IDs only, but it also renumbers the source IDs.
         try (IntBlock.Builder newIdsBuilder = blockFactory.newIntBlockBuilder(idMap.size())) {
             for (int i = 0; i < idMap.size(); i++) {
                 newIdsBuilder.appendInt(idMap.get(i));

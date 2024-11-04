@@ -84,6 +84,8 @@ public class TokenListCategorizer implements Accountable {
     @Nullable
     private final CategorizationPartOfSpeechDictionary partOfSpeechDictionary;
 
+    private final List<TokenListCategory> categoriesById;
+
     /**
      * Categories stored in such a way that the most common are accessed first.
      * This is implemented as an {@link ArrayList} with bespoke ordering rather
@@ -109,6 +111,7 @@ public class TokenListCategorizer implements Accountable {
         this.lowerThreshold = threshold;
         this.upperThreshold = (1.0f + threshold) / 2.0f;
         this.categoriesByNumMatches = new ArrayList<>();
+        this.categoriesById = new ArrayList<>();
         cacheRamUsage(0);
     }
 
@@ -310,6 +313,7 @@ public class TokenListCategorizer implements Accountable {
             maxUnfilteredStringLen,
             numDocs
         );
+        categoriesById.add(newCategory);
         categoriesByNumMatches.add(newCategory);
         cacheRamUsage(newCategory.ramBytesUsed());
         return repositionCategory(newCategory, newIndex);
@@ -426,6 +430,10 @@ public class TokenListCategorizer implements Accountable {
             .limit(size)
             .map(category -> new SerializableTokenListCategory(category, bytesRefHash))
             .toList();
+    }
+
+    public List<SerializableTokenListCategory> toCategoriesById() {
+        return categoriesById.stream().map(category -> new SerializableTokenListCategory(category, bytesRefHash)).toList();
     }
 
     public InternalCategorizationAggregation.Bucket[] toOrderedBuckets(int size) {

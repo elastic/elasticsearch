@@ -6,9 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.session;
 
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesIndexResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
@@ -20,7 +18,6 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsAction;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.DateEsField;
@@ -159,23 +156,8 @@ public class IndexResolver {
         for (FieldCapabilitiesIndexResponse ir : fieldCapsResponse.getIndexResponses()) {
             concreteIndices.put(ir.getIndexName(), ir.getIndexMode());
         }
-        Map<String, FieldCapabilitiesFailure> unavailableRemotes = determineUnavailableRemoteClusters(fieldCapsResponse.getFailures());
-        return IndexResolution.valid(new EsIndex(indexPattern, rootFields, concreteIndices), unavailableRemotes);
-    }
-
-    // visible for testing
-    static Map<String, FieldCapabilitiesFailure> determineUnavailableRemoteClusters(List<FieldCapabilitiesFailure> failures) {
-        Map<String, FieldCapabilitiesFailure> unavailableRemotes = new HashMap<>();
-        for (FieldCapabilitiesFailure failure : failures) {
-            if (ExceptionsHelper.isRemoteUnavailableException(failure.getException())) {
-                for (String indexExpression : failure.getIndices()) {
-                    if (indexExpression.indexOf(RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR) > 0) {
-                        unavailableRemotes.put(RemoteClusterAware.parseClusterAlias(indexExpression), failure);
-                    }
-                }
-            }
-        }
-        return unavailableRemotes;
+        EsIndex esIndex = new EsIndex(indexPattern, rootFields, concreteIndices);
+        return IndexResolution.valid(esIndex, EsqlSessionCCSUtils.determineUnavailableRemoteClusters(fieldCapsResponse.getFailures()));
     }
 
     private boolean allNested(List<IndexFieldCapabilities> caps) {

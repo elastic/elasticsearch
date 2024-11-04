@@ -1,0 +1,6 @@
+pr: 116170
+summary: "ESQL: Prevent overflow on SUM using multiple aggregators"
+area: ES|QL
+type: bug
+issues:
+ - 110443

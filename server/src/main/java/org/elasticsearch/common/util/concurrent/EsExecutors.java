@@ -376,9 +376,10 @@ public class EsExecutors {
 
     public static class EsThread extends Thread {
         private final boolean isSystem;
+        @Nullable
         private final String pool;
 
-        EsThread(ThreadGroup group, Runnable target, String name, long stackSize, final String pool, boolean isSystem) {
+        EsThread(ThreadGroup group, Runnable target, String name, long stackSize, @Nullable String pool, boolean isSystem) {
             super(group, target, name, stackSize);
             this.isSystem = isSystem;
             this.pool = pool;

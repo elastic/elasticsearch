@@ -11,6 +11,7 @@ import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
@@ -53,7 +54,8 @@ public class DateTrunc extends EsqlScalarFunction {
     }
 
     private static final Map<DataType, DateTruncFactoryProvider> evaluatorMap = Map.ofEntries(
-        Map.entry(DATETIME, DateTruncDatetimeEvaluator.Factory::new)
+        Map.entry(DATETIME, DateTruncDatetimeEvaluator.Factory::new),
+        Map.entry(DATE_NANOS, DateTruncDateNanosEvaluator.Factory::new)
     );
     private final Expression interval;
     private final Expression timestampField;
@@ -132,6 +134,12 @@ public class DateTrunc extends EsqlScalarFunction {
     @Evaluator(extraName = "Datetime")
     static long processDatetime(long fieldVal, @Fixed Rounding.Prepared rounding) {
         return rounding.round(fieldVal);
+    }
+
+    @Evaluator(extraName = "DateNanos")
+    static long processDateNanos(long fieldVal, @Fixed Rounding.Prepared rounding) {
+        // Currently, ES|QL doesn't support rounding to sub-millisecond values, so it's safe to cast before rounding.
+        return DateUtils.toNanoSeconds(rounding.round(DateUtils.toMilliSeconds(fieldVal)));
     }
 
     @Override

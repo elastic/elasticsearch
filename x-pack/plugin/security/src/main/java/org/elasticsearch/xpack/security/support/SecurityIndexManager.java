@@ -34,6 +34,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.features.FeatureService;
@@ -70,6 +71,7 @@ import static org.elasticsearch.xpack.core.security.action.UpdateIndexMigrationV
 import static org.elasticsearch.xpack.core.security.action.UpdateIndexMigrationVersionAction.MIGRATION_VERSION_CUSTOM_KEY;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.State.UNRECOVERED_STATE;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MIGRATION_FRAMEWORK;
+import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_INDEX_CREATED_ON_MIGRATION_VERSION;
 
 /**
  * Manages the lifecycle, mapping and data upgrades/migrations of the {@code RestrictedIndicesNames#SECURITY_MAIN_ALIAS}
@@ -669,11 +671,19 @@ public class SecurityIndexManager implements ClusterStateListener {
                         state.concreteIndexName,
                         descriptorForVersion.getAliasName()
                     );
+
+                    // If not all nodes support the MAIN_INDEX_CREATED_ON_MIGRATION_VERSION index settings, don't include it
+                    Settings filteredIndexSettings = descriptorForVersion.getSettings();
+                    if (state.securityFeatures.contains(SECURITY_MAIN_INDEX_CREATED_ON_MIGRATION_VERSION) == false) {
+                        filteredIndexSettings = descriptorForVersion.getSettings()
+                            .filter(key -> key.equals(SecuritySystemIndices.MAIN_INDEX_CREATED_ON_MIGRATION_VERSION.getKey()));
+                    }
+
                     // Although `TransportCreateIndexAction` is capable of automatically applying the right mappings, settings and aliases
                     // for system indices, we nonetheless specify them here so that the values from `descriptorForVersion` are used.
                     CreateIndexRequest request = new CreateIndexRequest(state.concreteIndexName).origin(descriptorForVersion.getOrigin())
                         .mapping(descriptorForVersion.getMappings())
-                        .settings(descriptorForVersion.getSettings())
+                        .settings(filteredIndexSettings)
                         .alias(new Alias(descriptorForVersion.getAliasName()))
                         .waitForActiveShards(ActiveShardCount.ALL);
 

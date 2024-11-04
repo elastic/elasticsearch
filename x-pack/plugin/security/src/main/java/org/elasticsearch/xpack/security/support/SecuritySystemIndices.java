@@ -62,6 +62,9 @@ public class SecuritySystemIndices {
     public static final NodeFeature SECURITY_PROFILE_ORIGIN_FEATURE = new NodeFeature("security.security_profile_origin");
     public static final NodeFeature SECURITY_MIGRATION_FRAMEWORK = new NodeFeature("security.migration_framework");
     public static final NodeFeature SECURITY_ROLES_METADATA_FLATTENED = new NodeFeature("security.roles_metadata_flattened");
+    public static final NodeFeature SECURITY_MAIN_INDEX_CREATED_ON_MIGRATION_VERSION = new NodeFeature(
+        "security.main_index_created_on_migration_version"
+    );
     public static final NodeFeature SECURITY_ROLE_MAPPING_CLEANUP = new NodeFeature("security.role_mapping_cleanup");
 
     /**

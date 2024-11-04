@@ -26,6 +26,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping.READ_ONLY_ROLE_MAPPING_METADATA_FLAG;
 
 /**
  * Request object for adding/updating a role-mapping to the native store
@@ -77,10 +78,19 @@ public class PutRoleMappingRequest extends ActionRequest implements WriteRequest
             validationException = addValidationError("role-mapping rules are missing", validationException);
         }
         if (validateMetadata && MetadataUtils.containsReservedMetadata(metadata)) {
-            validationException = addValidationError(
-                "metadata keys may not start with [" + MetadataUtils.RESERVED_PREFIX + "]",
-                validationException
-            );
+            if (metadata.containsKey(READ_ONLY_ROLE_MAPPING_METADATA_FLAG)) {
+                validationException = addValidationError(
+                    "metadata contains ["
+                        + READ_ONLY_ROLE_MAPPING_METADATA_FLAG
+                        + "] flag. You cannot create or update role-mappings with a read-only flag",
+                    validationException
+                );
+            } else {
+                validationException = addValidationError(
+                    "metadata keys may not start with [" + MetadataUtils.RESERVED_PREFIX + "]",
+                    validationException
+                );
+            }
         }
         return validationException;
     }

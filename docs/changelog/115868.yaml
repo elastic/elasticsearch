@@ -1,0 +1,5 @@
+pr: 115868
+summary: Forward bedrock connection errors to user
+area: Machine Learning
+type: bug
+issues: []

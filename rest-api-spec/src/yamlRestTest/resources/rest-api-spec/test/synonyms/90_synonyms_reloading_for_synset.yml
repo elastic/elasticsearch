@@ -106,8 +106,9 @@
             - synonyms: "hello, salute"
             - synonyms: "ciao => goodbye"
   - match: { result: "updated" }
-  - gte: { reload_analyzers_details._shards.total: 2 } # shard requests are still sent to 2 indices
-  - gte: { reload_analyzers_details._shards.successful: 2 }
+  - set: { reload_analyzers_details._shards.total: total_shards }
+  - gte: { reload_analyzers_details._shards.total: 2 } # Shards for all indices were reloaded. On serverless this may be more as there are more replicas
+  - match: { reload_analyzers_details._shards.successful: $total_shards }
   - length: { reload_analyzers_details.reload_details: 1 } # reload details contain only a single index
   - match: { reload_analyzers_details.reload_details.0.index: "my_index1" }
   - match: { reload_analyzers_details.reload_details.0.reloaded_analyzers.0: "my_analyzer1" }

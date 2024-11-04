@@ -22,6 +22,7 @@ import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xpack.core.security.action.UpdateIndexMigrationVersionAction;
 import org.elasticsearch.xpack.core.security.support.SecurityMigrationTaskParams;
 
+import java.util.Arrays;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.concurrent.Executor;
@@ -60,10 +61,10 @@ public class SecurityMigrationExecutor extends PersistentTasksExecutor<SecurityM
             updateMigrationVersion(
                 params.getMigrationVersion(),
                 securityIndexManager.getConcreteIndexName(),
-                ActionListener.wrap(response -> {
+                listener.delegateFailureAndWrap((l, response) -> {
                     logger.info("Security migration not needed. Setting current version to: [" + params.getMigrationVersion() + "]");
-                    listener.onResponse(response);
-                }, listener::onFailure)
+                    l.onResponse(response);
+                })
             );
             return;
         }
@@ -71,17 +72,18 @@ public class SecurityMigrationExecutor extends PersistentTasksExecutor<SecurityM
         refreshSecurityIndex(
             new ThreadedActionListener<>(
                 this.getExecutor(),
-                ActionListener.wrap(
-                    refreshResponse -> applyOutstandingMigrations(task, params.getMigrationVersion(), listener),
-                    listener::onFailure
-                )
+                listener.delegateFailureAndWrap((l, response) -> applyOutstandingMigrations(task, params.getMigrationVersion(), l))
             )
         );
     }
 
-    private void applyOutstandingMigrations(AllocatedPersistentTask task, int currentMigrationVersion, ActionListener<Void> listener) {
+    private void applyOutstandingMigrations(
+        AllocatedPersistentTask task,
+        int currentMigrationVersion,
+        ActionListener<Void> migrationsListener
+    ) {
         if (task.isCancelled()) {
-            listener.onFailure(new TaskCancelledException("Security migration task cancelled"));
+            migrationsListener.onFailure(new TaskCancelledException("Security migration task cancelled"));
             return;
         }
         Map.Entry<Integer, SecurityMigrations.SecurityMigration> migrationEntry = migrationByVersion.higherEntry(currentMigrationVersion);
@@ -92,28 +94,29 @@ public class SecurityMigrationExecutor extends PersistentTasksExecutor<SecurityM
                 .migrate(
                     securityIndexManager,
                     client,
-                    ActionListener.wrap(
-                        response -> updateMigrationVersion(
+                    migrationsListener.delegateFailureAndWrap(
+                        (updateVersionListener, response) -> updateMigrationVersion(
                             migrationEntry.getKey(),
                             securityIndexManager.getConcreteIndexName(),
-                            new ThreadedActionListener<>(this.getExecutor(), ActionListener.wrap(updateResponse -> {
-                                refreshSecurityIndex(
-                                    new ThreadedActionListener<>(
-                                        this.getExecutor(),
-                                        ActionListener.wrap(
-                                            refreshResponse -> applyOutstandingMigrations(task, migrationEntry.getKey(), listener),
-                                            listener::onFailure
+                            new ThreadedActionListener<>(
+                                this.getExecutor(),
+                                updateVersionListener.delegateFailureAndWrap((refreshListener, updateResponse) -> {
+                                    refreshSecurityIndex(
+                                        new ThreadedActionListener<>(
+                                            this.getExecutor(),
+                                            refreshListener.delegateFailureAndWrap(
+                                                (l, refreshResponse) -> applyOutstandingMigrations(task, migrationEntry.getKey(), l)
+                                            )
                                         )
-                                    )
-                                );
-                            }, listener::onFailure))
-                        ),
-                        listener::onFailure
+                                    );
+                                })
+                            )
+                        )
                     )
                 );
         } else {
             logger.info("Security migrations applied until version: [" + currentMigrationVersion + "]");
-            listener.onResponse(null);
+            migrationsListener.onResponse(null);
         }
     }
 
@@ -123,22 +126,24 @@ public class SecurityMigrationExecutor extends PersistentTasksExecutor<SecurityM
      */
     private void refreshSecurityIndex(ActionListener<Void> listener) {
         RefreshRequest refreshRequest = new RefreshRequest(securityIndexManager.getConcreteIndexName());
-        executeAsyncWithOrigin(
-            client,
-            SECURITY_ORIGIN,
-            RefreshAction.INSTANCE,
-            refreshRequest,
-            ActionListener.wrap(response -> listener.onResponse(null), listener::onFailure)
-        );
+        executeAsyncWithOrigin(client, SECURITY_ORIGIN, RefreshAction.INSTANCE, refreshRequest, ActionListener.wrap(response -> {
+            if (response.getFailedShards() != 0) {
+                // Log a warning but do not stop migration, since this is not a critical operation
+                logger.warn("Failed to refresh security index during security migration {}", Arrays.toString(response.getShardFailures()));
+            }
+            listener.onResponse(null);
+        }, exception -> {
+            // Log a warning but do not stop migration, since this is not a critical operation
+            logger.warn("Failed to refresh security index during security migration", exception);
+            listener.onResponse(null);
+        }));
     }
 
     private void updateMigrationVersion(int migrationVersion, String indexName, ActionListener<Void> listener) {
         client.execute(
             UpdateIndexMigrationVersionAction.INSTANCE,
             new UpdateIndexMigrationVersionAction.Request(TimeValue.MAX_VALUE, migrationVersion, indexName),
-            ActionListener.wrap((response) -> {
-                listener.onResponse(null);
-            }, listener::onFailure)
+            listener.delegateFailureAndWrap((l, response) -> l.onResponse(null))
         );
     }
 }

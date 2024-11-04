@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.remotecluster;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.Version;
+import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
@@ -24,7 +25,7 @@ import java.util.concurrent.atomic.AtomicReference;
  * All new RCS 2.0 config should be effectively ignored when sending to older RCS 2.0. For example, a new privilege
  * sent to an old cluster should be ignored.
  */
-public class RemoteClusterSecurityBWCToRCS2ClusterRestIT extends AbstractRemoteClusterSecurityBWCTest {
+public class RemoteClusterSecurityBWCToRCS2ClusterRestIT extends AbstractRemoteClusterSecurityBWCRestIT {
 
     private static final Version OLD_CLUSTER_VERSION = Version.fromString(System.getProperty("tests.old_cluster_version"));
     private static final AtomicReference<Map<String, Object>> API_KEY_MAP_REF = new AtomicReference<>();
@@ -73,8 +74,14 @@ public class RemoteClusterSecurityBWCToRCS2ClusterRestIT extends AbstractRemoteC
     // Use a RuleChain to ensure that fulfilling cluster is started before query cluster
     public static TestRule clusterRule = RuleChain.outerRule(fulfillingCluster).around(queryCluster);
 
-    public void testBwcCCSViaRCS2() throws Exception {
-        testBwcCCSViaRCS1orRCS2(true);
+    @Override
+    protected boolean isRCS2() {
+        return true;
     }
 
+    @Before
+    @Override
+    public void setUp() throws Exception {
+        super.setUp();
+    }
 }

@@ -16,6 +16,7 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.test.rest.ObjectPath;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -34,17 +35,22 @@ import static org.hamcrest.Matchers.nullValue;
 /**
  * A set of BWC tests that can be executed with either RCS 1 or RCS 2 against an older fulfilling cluster.
  */
-public class AbstractRemoteClusterSecurityBWCTest extends AbstractRemoteClusterSecurityTestCase {
+public abstract class AbstractRemoteClusterSecurityBWCRestIT extends AbstractRemoteClusterSecurityTestCase {
 
-    protected void testBwcCCSViaRCS1orRCS2(boolean rcs2) throws Exception {
+    protected abstract boolean isRCS2();
+
+    @Before
+    public void setUp() throws Exception {
         final boolean useProxyMode = randomBoolean();
-        if (rcs2) {
+        if (isRCS2()) {
             configureRemoteCluster(useProxyMode);
         } else {
             setupQueryClusterRCS1(useProxyMode);
         }
-
-        ensureRemoteFulfillingClusterIsConnected(useProxyMode, rcs2);
+        ensureRemoteFulfillingClusterIsConnected(useProxyMode);
+        super.setUp();
+    }
+    public void testBwcCCSViaRCS1orRCS2() throws Exception {
 
         // Fulfilling cluster
         {
@@ -93,7 +99,7 @@ public class AbstractRemoteClusterSecurityBWCTest extends AbstractRemoteClusterS
                   ]
                 }""");
             assertOK(adminClient().performRequest(putRoleRequest));
-            if (rcs2 == false) {
+            if (isRCS2() == false) {
                 // We need to define the same role on QC and FC in order for CCS to work.
                 final var putRoleRequestFulfilling = new Request("PUT", "/_security/role/" + REMOTE_SEARCH_ROLE);
                 putRoleRequestFulfilling.setJsonEntity("""
@@ -196,7 +202,7 @@ public class AbstractRemoteClusterSecurityBWCTest extends AbstractRemoteClusterS
         }
     }
 
-    private void ensureRemoteFulfillingClusterIsConnected(boolean useProxyMode, boolean rcs2) throws Exception {
+    private void ensureRemoteFulfillingClusterIsConnected(boolean useProxyMode) throws Exception {
         final int numberOfFcNodes = fulfillingCluster.getHttpAddresses().split(",").length;
         final Request remoteInfoRequest = new Request("GET", "/_remote/info");
         assertBusy(() -> {
@@ -205,7 +211,7 @@ public class AbstractRemoteClusterSecurityBWCTest extends AbstractRemoteClusterS
             final Map<String, Object> remoteInfoMap = responseAsMap(remoteInfoResponse);
             assertThat(remoteInfoMap, hasKey("my_remote_cluster"));
             assertThat(org.elasticsearch.xcontent.ObjectPath.eval("my_remote_cluster.connected", remoteInfoMap), is(true));
-            if (rcs2) {
+            if (isRCS2()) {
                 assertThat(
                     org.elasticsearch.xcontent.ObjectPath.eval("my_remote_cluster.cluster_credentials", remoteInfoMap),
                     is("::es_redacted::") // RCS 2.0

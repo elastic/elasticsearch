@@ -11,6 +11,7 @@ import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.Version;
 import org.elasticsearch.test.cluster.util.resource.Resource;
+import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
@@ -23,7 +24,7 @@ import org.junit.rules.TestRule;
  * newly introduced RCS 2.0 artifacts are forward compatible from the perspective of the old cluster. For example, a new privilege
  * sent to an old cluster should be ignored.
  */
-public class RemoteClusterSecurityBWCToRCS1ClusterRestIT extends AbstractRemoteClusterSecurityBWCTest {
+public class RemoteClusterSecurityBWCToRCS1ClusterRestIT extends AbstractRemoteClusterSecurityBWCRestIT {
 
     private static final Version OLD_CLUSTER_VERSION = Version.fromString(System.getProperty("tests.old_cluster_version"));
 
@@ -53,7 +54,14 @@ public class RemoteClusterSecurityBWCToRCS1ClusterRestIT extends AbstractRemoteC
     // Use a RuleChain to ensure that fulfilling cluster is started before query cluster
     public static TestRule clusterRule = RuleChain.outerRule(fulfillingCluster).around(queryCluster);
 
-    public void testBwcCCSViaRCS1() throws Exception {
-        testBwcCCSViaRCS1orRCS2(false);
+    @Override
+    protected boolean isRCS2() {
+        return false;
+    }
+
+    @Before
+    @Override
+    public void setUp() throws Exception {
+        super.setUp();
     }
 }

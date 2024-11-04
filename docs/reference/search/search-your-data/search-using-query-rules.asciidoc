@@ -191,8 +191,8 @@ You can use the <<get-query-ruleset>> call to retrieve the ruleset you just crea
 [[rule-query-search]]
 ==== Search using query rules
 
-Once you have defined one or more query rulesets, you can search these rulesets using the <<rule-retriever, rule retriever>> or the <<query-dsl-rule-query, rule query>>.
-Retrievers are the recommended method to use rule queries, as they will work out of the box with other reranking retrievers such as <<rrf>>.
+Once you have defined one or more query rulesets, you can search using these rulesets using the <<rule-retriever, rule retriever>> or the <<query-dsl-rule-query, rule query>>.
+Retrievers are the recommended way to use rule queries, as they will work out of the box with other reranking retrievers such as <<rrf>>.
 
 Rulesets are evaluated in order, so rules in the first ruleset you specify will be applied before any subsequent rulesets.
 

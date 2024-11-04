@@ -202,7 +202,7 @@ POST /_component_template/destination_template
 POST /_index_template/2
 {
   "index_patterns": [
-    "k8s*"
+    "k9s*"
   ],
   "composed_of": [
     "destination_template"

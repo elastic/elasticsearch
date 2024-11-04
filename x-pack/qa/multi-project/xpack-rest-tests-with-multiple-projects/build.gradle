@@ -39,6 +39,7 @@ tasks.named("yamlRestTest").configure {
     'esql/*/*',
     'graph/*/*',
     'health/*/*',
+    'logsdb/*/*',
     'ml/3rd_party_deployment/*',
     'ml/bucket_correlation_agg/*',
     'ml/bucket_count_ks_test_agg/*',

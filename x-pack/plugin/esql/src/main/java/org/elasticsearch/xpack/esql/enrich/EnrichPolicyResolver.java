@@ -289,24 +289,17 @@ public class EnrichPolicyResolver {
                                 RESOLVE_ACTION_NAME,
                                 new LookupRequest(cluster, remotePolicies),
                                 TransportRequestOptions.EMPTY,
-                                new ActionListenerResponseHandler<>(lookupListener.delegateResponse((l, e) -> {
-                                    if (ExceptionsHelper.isRemoteUnavailableException(e)
-                                        && remoteClusterService.isSkipUnavailable(cluster)) {
-                                        l.onResponse(new LookupResponse(e));
-                                    } else {
-                                        l.onFailure(e);
-                                    }
-                                }), LookupResponse::new, threadPool.executor(ThreadPool.Names.SEARCH))
+                                new ActionListenerResponseHandler<>(
+                                    lookupListener.delegateResponse((l, e) -> failIfSkipUnavailableFalse(e, cluster, l)),
+                                    LookupResponse::new,
+                                    threadPool.executor(ThreadPool.Names.SEARCH)
+                                )
                             );
                         }
 
                         @Override
                         public void onFailure(Exception e) {
-                            if (ExceptionsHelper.isRemoteUnavailableException(e) && remoteClusterService.isSkipUnavailable(cluster)) {
-                                lookupListener.onResponse(new LookupResponse(e));
-                            } else {
-                                lookupListener.onFailure(e);
-                            }
+                            failIfSkipUnavailableFalse(e, cluster, lookupListener);
                         }
                     });
                 }
@@ -328,6 +321,14 @@ public class EnrichPolicyResolver {
                     )
                 );
             }
+        }
+    }
+
+    private void failIfSkipUnavailableFalse(Exception e, String cluster, ActionListener<LookupResponse> lookupListener) {
+        if (ExceptionsHelper.isRemoteUnavailableException(e) && remoteClusterService.isSkipUnavailable(cluster)) {
+            lookupListener.onResponse(new LookupResponse(e));
+        } else {
+            lookupListener.onFailure(e);
         }
     }
 

@@ -12,6 +12,7 @@ package org.elasticsearch.action.bulk;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.hamcrest.Matchers;
@@ -20,8 +21,14 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Stream;
 
 public class BulkRequestParserTests extends ESTestCase {
+
+    @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT) // Replace with just RestApiVersion.values() when V8 no longer exists
+    public static final List<RestApiVersion> REST_API_VERSIONS_POST_V8 = Stream.of(RestApiVersion.values())
+        .filter(v -> v.compareTo(RestApiVersion.V_8) > 0)
+        .toList();
 
     public void testIndexRequest() throws IOException {
         BytesArray request = new BytesArray("""
@@ -258,6 +265,90 @@ public class BulkRequestParserTests extends ESTestCase {
             "Malformed action/metadata line [1], expected field [create], [delete], [index] or [update] but found [invalidaction]",
             ex.getMessage()
         );
+    }
+
+    public void testFailMissingCloseBrace() {
+        BytesArray request = new BytesArray("""
+            { "index":{ }
+            {}
+            """);
+        BulkRequestParser parser = new BulkRequestParser(randomBoolean(), randomFrom(REST_API_VERSIONS_POST_V8));
+
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> parser.parse(
+                request,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                false,
+                XContentType.JSON,
+                (req, type) -> fail("expected failure before we got this far"),
+                req -> fail("expected failure before we got this far"),
+                req -> fail("expected failure before we got this far")
+            )
+        );
+        assertEquals("[1:14] Unexpected end of file", ex.getMessage());
+    }
+
+    public void testFailExtraKeys() {
+        BytesArray request = new BytesArray("""
+            { "index":{ }, "something": "unexpected" }
+            {}
+            """);
+        BulkRequestParser parser = new BulkRequestParser(randomBoolean(), randomFrom(REST_API_VERSIONS_POST_V8));
+
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> parser.parse(
+                request,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                false,
+                XContentType.JSON,
+                (req, type) -> fail("expected failure before we got this far"),
+                req -> fail("expected failure before we got this far"),
+                req -> fail("expected failure before we got this far")
+            )
+        );
+        assertEquals("Malformed action/metadata line [1], expected END_OBJECT but found [FIELD_NAME]", ex.getMessage());
+    }
+
+    public void testFailContentAfterClosingBrace() {
+        BytesArray request = new BytesArray("""
+            { "index":{ } } { "something": "unexpected" }
+            {}
+            """);
+        BulkRequestParser parser = new BulkRequestParser(randomBoolean(), randomFrom(REST_API_VERSIONS_POST_V8));
+
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> parser.parse(
+                request,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                false,
+                XContentType.JSON,
+                (req, type) -> fail("expected failure before we got this far"),
+                req -> fail("expected failure before we got this far"),
+                req -> fail("expected failure before we got this far")
+            )
+        );
+        assertEquals("Malformed action/metadata line [1], unexpected data after the closing brace", ex.getMessage());
     }
 
     public void testListExecutedPipelines() throws IOException {

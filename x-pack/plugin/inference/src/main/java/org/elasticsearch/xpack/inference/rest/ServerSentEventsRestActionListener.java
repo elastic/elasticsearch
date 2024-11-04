@@ -223,7 +223,7 @@ public class ServerSentEventsRestActionListener implements ActionListener<Infere
         @Override
         public void onError(Throwable throwable) {
             if (isLastPart.compareAndSet(false, true)) {
-                logger.error("A failure occurred in ElasticSearch while streaming the response.", throwable);
+                logger.warn("A failure occurred in ElasticSearch while streaming the response.", throwable);
                 nextBodyPartListener().onResponse(new ServerSentEventResponseBodyPart(ServerSentEvents.ERROR, errorChunk(throwable)));
             }
         }

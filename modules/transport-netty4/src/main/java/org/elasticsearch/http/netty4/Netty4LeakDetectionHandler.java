@@ -18,8 +18,9 @@ import org.elasticsearch.tasks.Task;
 
 /**
  * Inbound channel handler that enrich leaking buffers information from HTTP request.
- * It helps to detect which test is leaking buffers.
- * It's common to see leaking exceptions not in broken test, but in following tests.
+ * It helps to detect which handler is leaking buffers. Especially integration tests that run with
+ * paranoid leak detector that samples all buffers for leaking. Supplying informative opaque-id in
+ * integ test helps to narrow down problem (for example test name).
  */
 public class Netty4LeakDetectionHandler extends ChannelInboundHandlerAdapter {
 

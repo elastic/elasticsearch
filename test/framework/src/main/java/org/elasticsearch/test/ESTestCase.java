@@ -378,7 +378,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         JAVA_ZONE_IDS = ZoneId.getAvailableZoneIds().stream().filter(unsupportedZoneIdsPredicate.negate()).sorted().toList();
     }
 
-    static Random initTestSeed() {
+    protected static Random initTestSeed() {
         String inputSeed = System.getProperty("tests.seed");
         long seed;
         if (inputSeed == null) {

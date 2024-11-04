@@ -272,7 +272,7 @@ public class CsvTestsDataLoader {
 
     public static void deleteInferenceEndpoint(RestClient client) throws IOException {
         try {
-            client.performRequest(new Request("DELETE", "_inference/test_sparse_inference"));
+            client.performRequest(new Request("DELETE", "_inference/sparse_embedding/test_sparse_inference"));
         } catch (ResponseException e) {
             // 404 here means the endpoint was not created
             if (e.getResponse().getStatusLine().getStatusCode() != 404) {

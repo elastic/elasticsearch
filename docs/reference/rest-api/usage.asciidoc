@@ -518,6 +518,12 @@ GET /_xpack/usage
   "universal_profiling" : {
     "available" : true,
     "enabled" : true
+  },
+  "logsdb": {
+    "available": true,
+    "enabled": false,
+    "indices_count": 0,
+    "indices_with_synthetic_source": 0
   }
 }
 ------------------------------------------------------------

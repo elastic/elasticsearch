@@ -824,7 +824,7 @@ public class SecurityTests extends ESTestCase {
                 null,
                 List.of(),
                 RestExtension.allowAll(),
-                new IncrementalBulkService(null, null, new ThreadContext(Settings.EMPTY))
+                new IncrementalBulkService(null, null)
             );
             actionModule.initRestHandlers(null, null);
 

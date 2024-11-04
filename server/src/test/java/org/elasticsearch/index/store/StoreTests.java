@@ -732,6 +732,15 @@ public class StoreTests extends ESTestCase {
         IOUtils.close(store);
     }
 
+    public void testCleanupEmptyStore() throws IOException {
+        final ShardId shardId = new ShardId("index", "_na_", 1);
+        Store store = new Store(shardId, INDEX_SETTINGS, StoreTests.newDirectory(random()), new DummyShardLock(shardId));
+
+        store.cleanupAndVerify("test", Store.MetadataSnapshot.EMPTY);
+
+        IOUtils.close(store);
+    }
+
     public void testOnCloseCallback() throws IOException {
         final ShardId shardId = new ShardId(
             new Index(randomRealisticUnicodeOfCodepointLengthBetween(1, 10), "_na_"),

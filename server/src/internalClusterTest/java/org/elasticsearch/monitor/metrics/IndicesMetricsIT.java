@@ -9,7 +9,6 @@
 
 package org.elasticsearch.monitor.metrics;
 
-import org.elasticsearch.action.admin.cluster.node.stats.IndexModeStatsActionType;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;

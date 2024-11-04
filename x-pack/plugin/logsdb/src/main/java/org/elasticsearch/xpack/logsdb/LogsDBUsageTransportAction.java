@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.logsdb;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.node.stats.IndexModeStatsActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -19,6 +18,7 @@ import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.monitor.metrics.IndexModeStatsActionType;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -91,7 +91,7 @@ public class LogsDBUsageTransportAction extends XPackUsageFeatureTransportAction
                         finalNumIndices,
                         finalNumIndicesWithSyntheticSources,
                         indexStats.numDocs(),
-                        indexStats.sizeInBytes()
+                        indexStats.numBytes()
                     )
                 );
             }));

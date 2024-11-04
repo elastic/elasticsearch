@@ -7,9 +7,8 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.action.admin.cluster.node.stats;
+package org.elasticsearch.monitor.metrics;
 
-import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
@@ -19,16 +18,10 @@ import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.IndexMode;
-import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.shard.DocsStats;
-import org.elasticsearch.index.shard.IllegalIndexShardStateException;
-import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
@@ -48,7 +41,7 @@ public final class IndexModeStatsActionType extends ActionType<IndexModeStatsAct
         super("cluster:monitor/nodes/index_mode_stats");
     }
 
-    public static class StatsRequest extends BaseNodesRequest {
+    public static final class StatsRequest extends BaseNodesRequest {
         public StatsRequest(String[] nodesIds) {
             super(nodesIds);
         }
@@ -58,43 +51,7 @@ public final class IndexModeStatsActionType extends ActionType<IndexModeStatsAct
         }
     }
 
-    public static class IndexStats implements Writeable {
-        private long numDocs;
-        private long sizeInBytes;
-
-        public IndexStats() {}
-
-        IndexStats(StreamInput in) throws IOException {
-            this.numDocs = in.readVLong();
-            this.sizeInBytes = in.readVLong();
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeVLong(numDocs);
-            out.writeVLong(sizeInBytes);
-        }
-
-        public long numDocs() {
-            return numDocs;
-        }
-
-        public long sizeInBytes() {
-            return sizeInBytes;
-        }
-
-        public void add(IndexStats other) {
-            this.numDocs += other.numDocs;
-            this.sizeInBytes += other.sizeInBytes;
-        }
-
-        @Override
-        public String toString() {
-            return "IndexStats{" + "numDocs=" + numDocs + ", sizeInBytes=" + sizeInBytes + '}';
-        }
-    }
-
-    public static class StatsResponse extends BaseNodesResponse<NodeResponse> {
+    public static final class StatsResponse extends BaseNodesResponse<NodeResponse> {
         StatsResponse(ClusterName clusterName, List<NodeResponse> nodes, List<FailedNodeException> failures) {
             super(clusterName, nodes, failures);
         }
@@ -131,7 +88,7 @@ public final class IndexModeStatsActionType extends ActionType<IndexModeStatsAct
         }
     }
 
-    public static class NodeRequest extends TransportRequest {
+    public static final class NodeRequest extends TransportRequest {
         NodeRequest() {
 
         }
@@ -162,15 +119,14 @@ public final class IndexModeStatsActionType extends ActionType<IndexModeStatsAct
     }
 
     public static class TransportAction extends TransportNodesAction<StatsRequest, StatsResponse, NodeRequest, NodeResponse, Void> {
-        private final ClusterService clusterService;
         private final IndicesService indicesService;
 
         @Inject
         public TransportAction(
             ClusterService clusterService,
             TransportService transportService,
-            IndicesService indicesService,
-            ActionFilters actionFilters
+            ActionFilters actionFilters,
+            IndicesService indicesService
         ) {
             super(
                 TYPE.name(),
@@ -180,7 +136,6 @@ public final class IndexModeStatsActionType extends ActionType<IndexModeStatsAct
                 NodeRequest::new,
                 transportService.getThreadPool().executor(ThreadPool.Names.MANAGEMENT)
             );
-            this.clusterService = clusterService;
             this.indicesService = indicesService;
         }
 
@@ -201,30 +156,7 @@ public final class IndexModeStatsActionType extends ActionType<IndexModeStatsAct
 
         @Override
         protected NodeResponse nodeOperation(NodeRequest request, Task task) {
-            final Map<IndexMode, IndexStats> stats = new EnumMap<>(IndexMode.class);
-            for (IndexMode mode : IndexMode.values()) {
-                stats.put(mode, new IndexStats());
-            }
-            for (IndexService indexService : indicesService) {
-                for (IndexShard indexShard : indexService) {
-                    if (indexShard.isSystem()) {
-                        continue; // skip system indices
-                    }
-                    final ShardRouting shardRouting = indexShard.routingEntry();
-                    final IndexMode indexMode = indexShard.indexSettings().getMode();
-                    final IndexStats indexStats = stats.get(indexMode);
-                    try {
-                        if (shardRouting.primary() && shardRouting.recoverySource() == null) {
-                            final DocsStats docStats = indexShard.docStats();
-                            indexStats.numDocs += docStats.getCount();
-                            indexStats.sizeInBytes += docStats.getTotalSizeInBytes();
-                        }
-                    } catch (IllegalIndexShardStateException | AlreadyClosedException ignored) {
-                        // ignored
-                    }
-                }
-            }
-            return new NodeResponse(clusterService.localNode(), stats);
+            return new NodeResponse(clusterService.localNode(), IndicesMetrics.getStatsWithoutCache(indicesService));
         }
     }
 }

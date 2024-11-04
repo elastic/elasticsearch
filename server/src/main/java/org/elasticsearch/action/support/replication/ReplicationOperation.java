@@ -115,28 +115,25 @@ public class ReplicationOperation<
             );
             resultListener.onResponse(primaryResult);
         }, resultListener::onFailure))) {
-            final String activeShardCountFailure = checkActiveShardCount();
-            final ShardRouting primaryRouting = primary.routingEntry();
-            final ShardId primaryId = primaryRouting.shardId();
-            if (activeShardCountFailure != null) {
-                pendingActionsListener.acquire()
-                    .onFailure(
-                        new UnavailableShardsException(
-                            primaryId,
-                            "{} Timeout: [{}], request: [{}]",
-                            activeShardCountFailure,
-                            request.timeout(),
-                            request
-                        )
+            ActionListener.run(pendingActionsListener.acquire(), (primaryCoordinationListener) -> { // triggered when we finish coordination
+                final String activeShardCountFailure = checkActiveShardCount();
+                final ShardRouting primaryRouting = primary.routingEntry();
+                final ShardId primaryId = primaryRouting.shardId();
+                if (activeShardCountFailure != null) {
+                    throw new UnavailableShardsException(
+                        primaryId,
+                        "{} Timeout: [{}], request: [{}]",
+                        activeShardCountFailure,
+                        request.timeout(),
+                        request
                     );
-                return;
-            }
+                }
 
-            totalShards.incrementAndGet();
-            var primaryCoordinationPendingActionListener = pendingActionsListener.acquire(); // triggered when we finish all coordination
-            primary.perform(request, primaryCoordinationPendingActionListener.delegateFailureAndWrap((l, primaryResult) -> {
-                handlePrimaryResult(primaryResult, l, pendingActionsListener);
-            }));
+                totalShards.incrementAndGet();
+                primary.perform(request, primaryCoordinationListener.delegateFailureAndWrap((l, primaryResult) -> {
+                    handlePrimaryResult(primaryResult, l, pendingActionsListener);
+                }));
+            });
         }
     }
 
@@ -153,24 +150,25 @@ public class ReplicationOperation<
             }
             final ReplicationGroup replicationGroup = primary.getReplicationGroup();
 
-            var primaryOperationPendingActionListener = pendingActionsListener.acquire();
-            replicasProxy.onPrimaryOperationComplete(
-                replicaRequest,
-                replicationGroup.getRoutingTable(),
-                ActionListener.wrap(ignored -> primaryOperationPendingActionListener.onResponse(null), exception -> {
-                    totalShards.incrementAndGet();
-                    shardReplicaFailures.add(
-                        new ReplicationResponse.ShardInfo.Failure(
-                            primary.routingEntry().shardId(),
-                            null,
-                            exception,
-                            ExceptionsHelper.status(exception),
-                            false
-                        )
-                    );
-                    primaryOperationPendingActionListener.onResponse(null);
-                })
-            );
+            ActionListener.run(pendingActionsListener.acquire(), primaryOperationPendingActionListener -> {
+                replicasProxy.onPrimaryOperationComplete(
+                    replicaRequest,
+                    replicationGroup.getRoutingTable(),
+                    ActionListener.wrap(ignored -> primaryOperationPendingActionListener.onResponse(null), exception -> {
+                        totalShards.incrementAndGet();
+                        shardReplicaFailures.add(
+                            new ReplicationResponse.ShardInfo.Failure(
+                                primary.routingEntry().shardId(),
+                                null,
+                                exception,
+                                ExceptionsHelper.status(exception),
+                                false
+                            )
+                        );
+                        primaryOperationPendingActionListener.onResponse(null);
+                    })
+                );
+            });
 
             // we have to get the replication group after successfully indexing into the primary in order to honour recovery semantics.
             // we have to make sure that every operation indexed into the primary after recovery start will also be replicated
@@ -234,13 +232,14 @@ public class ReplicationOperation<
     ) {
         // if inSyncAllocationIds contains allocation ids of shards that don't exist in RoutingTable, mark copies as stale
         for (String allocationId : replicationGroup.getUnavailableInSyncShards()) {
-            var staleCopyPendingActionListener = pendingActionsListener.acquire();
-            replicasProxy.markShardCopyAsStaleIfNeeded(
-                replicaRequest.shardId(),
-                allocationId,
-                primaryTerm,
-                staleCopyPendingActionListener.delegateResponse((l, e) -> onNoLongerPrimary(e, l))
-            );
+            ActionListener.run(pendingActionsListener.acquire(), (staleCopyPendingActionListener) -> {
+                replicasProxy.markShardCopyAsStaleIfNeeded(
+                    replicaRequest.shardId(),
+                    allocationId,
+                    primaryTerm,
+                    staleCopyPendingActionListener.delegateResponse((l, e) -> onNoLongerPrimary(e, l))
+                );
+            });
         }
     }
 
@@ -285,13 +284,17 @@ public class ReplicationOperation<
             logger.trace("[{}] sending op [{}] to replica {} for request [{}]", shard.shardId(), opType, shard, replicaRequest);
         }
         totalShards.incrementAndGet();
-        var replicationPendingActionListener = pendingActionsListener.acquire();
-        ActionListener.run(replicationPendingActionListener, (listener) -> {
+        ActionListener.run(pendingActionsListener.acquire(), (replicationPendingActionListener) -> {
             final ActionListener<ReplicaResponse> replicationListener = new ActionListener<>() {
                 @Override
                 public void onResponse(ReplicaResponse response) {
                     successfulShards.incrementAndGet();
-                    updateCheckPoints(shard, response::localCheckpoint, response::globalCheckpoint, () -> listener.onResponse(null));
+                    updateCheckPoints(
+                        shard,
+                        response::localCheckpoint,
+                        response::globalCheckpoint,
+                        () -> replicationPendingActionListener.onResponse(null)
+                    );
                 }
 
                 @Override
@@ -325,7 +328,7 @@ public class ReplicationOperation<
                         primaryTerm,
                         message,
                         replicaException,
-                        listener.delegateResponse((l, e) -> onNoLongerPrimary(e, l))
+                        replicationPendingActionListener.delegateResponse((l, e) -> onNoLongerPrimary(e, l))
                     );
                 }
 

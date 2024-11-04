@@ -36,8 +36,6 @@ import static org.elasticsearch.ingest.ConfigurationUtils.readStringProperty;
 public final class GeoIpProcessor extends AbstractProcessor {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(GeoIpProcessor.class);
-    static final String DEFAULT_DATABASES_DEPRECATION_MESSAGE = "the [fallback_to_default_databases] has been deprecated, because "
-        + "Elasticsearch no longer includes the default Maxmind geoip databases. This setting will be removed in Elasticsearch 9.0";
     static final String UNSUPPORTED_DATABASE_DEPRECATION_MESSAGE = "the geoip processor will no longer support database type [{}] "
         + "in a future version of Elasticsearch"; // TODO add a message about migration?
 

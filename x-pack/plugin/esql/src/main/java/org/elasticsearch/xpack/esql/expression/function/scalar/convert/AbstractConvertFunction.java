@@ -21,6 +21,7 @@ import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -80,10 +81,11 @@ public abstract class AbstractConvertFunction extends UnaryScalarFunction {
     public Set<DataType> supportedTypes() {
         Set<DataType> supportedTypes = new HashSet<>();
         for (DataType dataType : factories().keySet()) {
-            if (DataType.UNDER_CONSTRUCTION.containsKey(dataType) == false
-                || DataType.UNDER_CONSTRUCTION.get(dataType).isEnabled() == true) {
-                supportedTypes.add(dataType);
+            // TODO: this should use DataType.UNDER_CONSTRUCTION but we would need to fix the failures for date_nanos
+            if (dataType == DataType.SEMANTIC_TEXT && EsqlCapabilities.Cap.SEMANTIC_TEXT_TYPE.isEnabled() == false) {
+                continue;
             }
+            supportedTypes.add(dataType);
         }
         return supportedTypes;
     }

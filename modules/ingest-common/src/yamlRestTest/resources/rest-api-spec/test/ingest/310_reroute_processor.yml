@@ -328,7 +328,7 @@ teardown:
       allowed_warnings:
         - "index template [template-3] has index patterns [data-stream-3] matching patterns from existing older templates [global] with patterns (global => [*]); this template [template-3] will take precedence during new index creation"
       indices.put_index_template:
-        name: template_3
+        name: template-3
         body:
           index_patterns: [ "data-stream-3" ]
           priority: 1
@@ -372,7 +372,7 @@ teardown:
       allowed_warnings:
         - "index template [template-4] has index patterns [data-stream-1] matching patterns from existing older templates [global] with patterns (global => [*]); this template [template-4] will take precedence during new index creation"
       indices.put_index_template:
-        name: template_4
+        name: template-4
         body:
           index_patterns: [ "data-stream-1" ]
           priority: 2 # higher priority
@@ -382,7 +382,7 @@ teardown:
       allowed_warnings:
         - "index template [template-5] has index patterns [data-stream-2] matching patterns from existing older templates [global] with patterns (global => [*]); this template [template-5] will take precedence during new index creation"
       indices.put_index_template:
-        name: template_5
+        name: template-5
         body:
           index_patterns: [ "data-stream-2" ]
           priority: 2 # higher priority
@@ -491,7 +491,7 @@ teardown:
       allowed_warnings:
         - "index template [template-2] has index patterns [data-stream-2] matching patterns from existing older templates [global] with patterns (global => [*]); this template [template-2] will take precedence during new index creation"
       indices.put_index_template:
-        name: template_2
+        name: template-2
         body:
           index_patterns: [ "data-stream-2" ]
           priority: 1
@@ -531,7 +531,7 @@ teardown:
       allowed_warnings:
         - "index template [template-3] has index patterns [data-stream-1] matching patterns from existing older templates [global] with patterns (global => [*]); this template [template-3] will take precedence during new index creation"
       indices.put_index_template:
-        name: template_3
+        name: template-3
         body:
           index_patterns: [ "data-stream-1" ]
           priority: 2 # higher priority

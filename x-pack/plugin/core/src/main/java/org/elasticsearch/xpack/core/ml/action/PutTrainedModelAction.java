@@ -32,6 +32,7 @@ public class PutTrainedModelAction extends ActionType<PutTrainedModelAction.Resp
     public static final String NAME = "cluster:admin/xpack/ml/inference/put";
     public static final String MODEL_ALREADY_EXISTS_ERROR_MESSAGE_FRAGMENT =
         "the model id is the same as the deployment id of a current model deployment";
+    public static final String LICENSE_NON_COMPLIANT_ERROR_MESSAGE_FRAGMENT = "current license is non-compliant";
 
     private PutTrainedModelAction() {
         super(NAME);

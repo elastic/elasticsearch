@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.services.elasticsearch;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
@@ -23,7 +24,9 @@ import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnparsedModel;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.core.inference.action.DeleteInferenceEndpointAction;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
@@ -155,9 +158,14 @@ public abstract class BaseElasticsearchInternalService implements InferenceServi
             listener.onFailure(notElasticsearchModelException(model));
             return;
         } else if (model instanceof MultilingualE5SmallModel e5Model) {
-            putBuiltInModel(e5Model.getServiceSettings().modelId(), listener);
+            putBuiltInModel(e5Model.getServiceSettings().modelId(), e5Model.getInferenceEntityId(), e5Model.getTaskType(), listener);
         } else if (model instanceof ElserInternalModel elserModel) {
-            putBuiltInModel(elserModel.getServiceSettings().modelId(), listener);
+            putBuiltInModel(
+                elserModel.getServiceSettings().modelId(),
+                elserModel.getInferenceEntityId(),
+                elserModel.getTaskType(),
+                listener
+            );
         } else if (model instanceof CustomElandModel) {
             logger.info("Custom eland model detected, model must have been already loaded into the cluster with eland.");
             listener.onResponse(Boolean.TRUE);
@@ -173,7 +181,7 @@ public abstract class BaseElasticsearchInternalService implements InferenceServi
         }
     }
 
-    protected void putBuiltInModel(String modelId, ActionListener<Boolean> listener) {
+    protected void putBuiltInModel(String modelId, String inferenceId, TaskType taskType, ActionListener<Boolean> listener) {
         var input = new TrainedModelInput(List.<String>of("text_field")); // by convention text_field is used
         var config = TrainedModelConfig.builder().setInput(input).setModelId(modelId).validate(true).build();
         PutTrainedModelAction.Request putRequest = new PutTrainedModelAction.Request(config, false, true);
@@ -186,9 +194,26 @@ public abstract class BaseElasticsearchInternalService implements InferenceServi
                 if (e instanceof ElasticsearchStatusException esException
                     && esException.getMessage().contains(PutTrainedModelAction.MODEL_ALREADY_EXISTS_ERROR_MESSAGE_FRAGMENT)) {
                     listener.onResponse(Boolean.TRUE);
-                } else {
-                    listener.onFailure(e);
-                }
+                } else if (e instanceof ElasticsearchSecurityException esException
+                    && esException.getMessage().contains(PutTrainedModelAction.LICENSE_NON_COMPLIANT_ERROR_MESSAGE_FRAGMENT)) {
+                        var deleteRequest = new DeleteInferenceEndpointAction.Request(inferenceId, taskType, true, false);
+                        client.execute(
+                            DeleteInferenceEndpointAction.INSTANCE,
+                            deleteRequest,
+                            ActionListener.wrap(
+                                r -> listener.onFailure(e),
+                                e1 -> listener.onFailure(
+                                    new ElasticsearchStatusException(
+                                        "Failed to delete the inference endpoint after failing to start the trained model due to "
+                                            + "non-compliant license",
+                                        RestStatus.FORBIDDEN
+                                    )
+                                )
+                            )
+                        );
+                    } else {
+                        listener.onFailure(e);
+                    }
             })
         );
     }

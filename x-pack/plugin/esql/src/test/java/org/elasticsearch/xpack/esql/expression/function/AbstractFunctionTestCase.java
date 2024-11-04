@@ -69,7 +69,6 @@ import org.elasticsearch.xpack.esql.session.Configuration;
 import org.hamcrest.Matcher;
 import org.junit.After;
 import org.junit.AfterClass;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.lang.reflect.Constructor;
@@ -95,7 +94,6 @@ import java.util.stream.Stream;
 
 import static java.util.Map.entry;
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
-import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomConfiguration;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomLiteral;
 import static org.elasticsearch.xpack.esql.SerializationTestUtils.assertSerialization;
 import static org.hamcrest.Matchers.either;

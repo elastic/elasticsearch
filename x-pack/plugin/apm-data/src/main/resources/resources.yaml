@@ -1,14 +1,14 @@
 # "version" holds the version of the templates and ingest pipelines installed
 # by xpack-plugin apm-data. This must be increased whenever an existing template or
 # pipeline is changed, in order for it to be updated on Elasticsearch upgrade.
-version: 10
+version: 11
 
 component-templates:
   # Data lifecycle.
-  - apm-10d@lifecycle
-  - apm-90d@lifecycle
-  - apm-180d@lifecycle
-  - apm-390d@lifecycle
+  - apm-10d-default_policy
+  - apm-90d-default_policy
+  - apm-180d-default_policy
+  - apm-390d-default_policy
   # Common mappings and settings.
   # - *-apm* data streams compose apm@*
   # - metrics-apm* data streams additionally compose metrics-apm@*
@@ -99,22 +99,22 @@ ingest-pipelines:
         - apm@pipeline
 
 lifecycle-policies:
-  - logs-apm.app_logs@lifecycle
-  - logs-apm.error_logs@lifecycle
-  - metrics-apm.app_metrics@lifecycle
-  - metrics-apm.internal_metrics@lifecycle
-  - metrics-apm.service_destination_10m_metrics@lifecycle
-  - metrics-apm.service_destination_1m_metrics@lifecycle
-  - metrics-apm.service_destination_60m_metrics@lifecycle
-  - metrics-apm.service_summary_10m_metrics@lifecycle
-  - metrics-apm.service_summary_1m_metrics@lifecycle
-  - metrics-apm.service_summary_60m_metrics@lifecycle
-  - metrics-apm.service_transaction_10m_metrics@lifecycle
-  - metrics-apm.service_transaction_1m_metrics@lifecycle
-  - metrics-apm.service_transaction_60m_metrics@lifecycle
-  - metrics-apm.transaction_10m_metrics@lifecycle
-  - metrics-apm.transaction_1m_metrics@lifecycle
-  - metrics-apm.transaction_60m_metrics@lifecycle
-  - traces-apm.rum_traces@lifecycle
-  - traces-apm.sampled_traces@lifecycle
-  - traces-apm.traces@lifecycle
+  - logs-apm.app_logs-default_policy
+  - logs-apm.error_logs-default_policy
+  - metrics-apm.app_metrics-default_policy
+  - metrics-apm.internal_metrics-default_policy
+  - metrics-apm.service_destination_10m_metrics-default_policy
+  - metrics-apm.service_destination_1m_metrics-default_policy
+  - metrics-apm.service_destination_60m_metrics-default_policy
+  - metrics-apm.service_summary_10m_metrics-default_policy
+  - metrics-apm.service_summary_1m_metrics-default_policy
+  - metrics-apm.service_summary_60m_metrics-default_policy
+  - metrics-apm.service_transaction_10m_metrics-default_policy
+  - metrics-apm.service_transaction_1m_metrics-default_policy
+  - metrics-apm.service_transaction_60m_metrics-default_policy
+  - metrics-apm.transaction_10m_metrics-default_policy
+  - metrics-apm.transaction_1m_metrics-default_policy
+  - metrics-apm.transaction_60m_metrics-default_policy
+  - traces-apm.rum_traces-default_policy
+  - traces-apm.sampled_traces-default_policy
+  - traces-apm.traces-default_policy

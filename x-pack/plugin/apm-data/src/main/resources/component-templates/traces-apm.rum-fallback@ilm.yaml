@@ -7,5 +7,5 @@ template:
   settings:
     index:
       lifecycle:
-        name: traces-apm.rum_traces@lifecycle
+        name: traces-apm.rum_traces-default_policy
         prefer_ilm: true

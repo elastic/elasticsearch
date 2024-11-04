@@ -10,42 +10,62 @@ package org.elasticsearch.xpack.remotecluster;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.Version;
-import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
+
 /**
  * BWC test which ensures that users and API keys with defined {@code remote_indices}/{@code remote_cluster} privileges can be used
- * to query legacy remote clusters when using RCS 1.0. We send the request the to an older fulfilling cluster using RCS 1.0 with a user/role
+ * to query older remote clusters when using RCS 2.0. We send the request the to an older fulfilling cluster using RCS 2.0 with a user/role
  * and API key where the {@code remote_indices}/{@code remote_cluster} are defined in the newer query cluster.
- * All RCS 2.0 config should be effectively ignored when using RCS 1 for CCS. We send to an elder fulfil cluster to help ensure that
- * newly introduced RCS 2.0 artifacts are forward compatible from the perspective of the old cluster. For example, a new privilege
+ * All new RCS 2.0 config should be effectively ignored when sending to older RCS 2.0. For example, a new privilege
  * sent to an old cluster should be ignored.
  */
-public class RemoteClusterSecurityBWCToRCS1ClusterRestIT extends AbstractRemoteClusterSecurityBWCTest {
+public class RemoteClusterSecurityBWCToRCS2ClusterRestIT extends AbstractRemoteClusterSecurityBWCTest {
 
     private static final Version OLD_CLUSTER_VERSION = Version.fromString(System.getProperty("tests.old_cluster_version"));
+    private static final AtomicReference<Map<String, Object>> API_KEY_MAP_REF = new AtomicReference<>();
 
     static {
+
         fulfillingCluster = ElasticsearchCluster.local()
+            .name("fulfilling-cluster")
             .version(OLD_CLUSTER_VERSION)
             .distribution(DistributionType.DEFAULT)
-            .name("fulfilling-cluster")
             .apply(commonClusterConfig)
             .setting("xpack.ml.enabled", "false")
+            .setting("remote_cluster_server.enabled", "true")
+            .setting("remote_cluster.port", "0")
+            .setting("xpack.security.remote_cluster_server.ssl.enabled", "true")
+            .setting("xpack.security.remote_cluster_server.ssl.key", "remote-cluster.key")
+            .setting("xpack.security.remote_cluster_server.ssl.certificate", "remote-cluster.crt")
+            .keystore("xpack.security.remote_cluster_server.ssl.secure_key_passphrase", "remote-cluster-password")
             // .setting("logger.org.elasticsearch.xpack.core", "trace") //useful for human debugging
             // .setting("logger.org.elasticsearch.xpack.security", "trace") //useful for human debugging
             .build();
 
         queryCluster = ElasticsearchCluster.local()
-            .version(Version.CURRENT)
-            .distribution(DistributionType.INTEG_TEST)
             .name("query-cluster")
             .apply(commonClusterConfig)
             .setting("xpack.security.remote_cluster_client.ssl.enabled", "true")
             .setting("xpack.security.remote_cluster_client.ssl.certificate_authorities", "remote-cluster-ca.crt")
-            .rolesFile(Resource.fromClasspath("roles.yml"))
+            .keystore("cluster.remote.my_remote_cluster.credentials", () -> {
+                if (API_KEY_MAP_REF.get() == null) {
+                    final Map<String, Object> apiKeyMap = createCrossClusterAccessApiKey("""
+                        {
+                            "search": [
+                              {
+                                "names": ["*"]
+                              }
+                            ]
+                        }""");
+                    API_KEY_MAP_REF.set(apiKeyMap);
+                }
+                return (String) API_KEY_MAP_REF.get().get("encoded");
+            })
             .build();
     }
 
@@ -53,7 +73,8 @@ public class RemoteClusterSecurityBWCToRCS1ClusterRestIT extends AbstractRemoteC
     // Use a RuleChain to ensure that fulfilling cluster is started before query cluster
     public static TestRule clusterRule = RuleChain.outerRule(fulfillingCluster).around(queryCluster);
 
-    public void testBwcCCSViaRCS1() throws Exception {
-        testBwcCCSViaRCS1orRCS2(false);
+    public void testBwcCCSViaRCS2() throws Exception {
+        testBwcCCSViaRCS1orRCS2(true);
     }
+
 }

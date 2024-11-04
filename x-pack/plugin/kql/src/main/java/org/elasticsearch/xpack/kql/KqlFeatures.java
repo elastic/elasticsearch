@@ -11,12 +11,14 @@ import org.elasticsearch.Build;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.features.NodeFeature;
-import org.elasticsearch.xpack.kql.query.KqlQueryBuilder;
 
 import java.util.Collections;
 import java.util.Set;
 
 public class KqlFeatures implements FeatureSpecification {
+
+    public static final NodeFeature KQL_QUERY_SUPPORTED = new NodeFeature("kql_query_supported");
+
     @Override
     public Set<NodeFeature> getFeatures() {
         Set<NodeFeature> features = Set.of();
@@ -29,6 +31,6 @@ public class KqlFeatures implements FeatureSpecification {
     }
 
     private Set<NodeFeature> snapshotFeatures() {
-        return Set.of(KqlQueryBuilder.KQL_QUERY_SUPPORTED);
+        return Set.of(KQL_QUERY_SUPPORTED);
     }
 }

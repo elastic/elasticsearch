@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.kql;
 
-import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
@@ -17,13 +15,12 @@ import org.elasticsearch.xpack.kql.query.KqlQueryBuilder;
 import java.util.Collection;
 import java.util.List;
 
-public class KqlPlugin extends Plugin implements SearchPlugin, ExtensiblePlugin {
+import static org.elasticsearch.xpack.kql.KqlFeatures.KQL_QUERY_SUPPORTED;
 
-    private SetOnce<FeatureService> kqlFeatureService;
+public class KqlPlugin extends Plugin implements SearchPlugin, ExtensiblePlugin {
 
     @Override
     public Collection<?> createComponents(PluginServices services) {
-        kqlFeatureService.set(new FeatureService(List.of(new KqlFeatures())));
         return super.createComponents(services);
     }
 
@@ -37,6 +34,6 @@ public class KqlPlugin extends Plugin implements SearchPlugin, ExtensiblePlugin 
     }
 
     private boolean hasKqlQueryFeature() {
-        return kqlFeatureService.get().getNodeFeatures().containsKey(KqlQueryBuilder.KQL_QUERY_SUPPORTED.id());
+        return new KqlFeatures().getFeatures().contains(KQL_QUERY_SUPPORTED);
     }
 }

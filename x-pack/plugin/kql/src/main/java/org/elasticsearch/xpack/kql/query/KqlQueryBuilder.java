@@ -7,18 +7,17 @@
 
 package org.elasticsearch.xpack.kql.query;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -31,7 +30,6 @@ import java.util.Objects;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 public class KqlQueryBuilder extends AbstractQueryBuilder<KqlQueryBuilder> {
-    public static final NodeFeature KQL_QUERY_SUPPORTED = new NodeFeature("kql_query_supported");
     public static final String NAME = "kql";
     public static final ParseField QUERY_FIELD = new ParseField("query");
     private static final Logger log = LogManager.getLogger(KqlQueryBuilder.class);

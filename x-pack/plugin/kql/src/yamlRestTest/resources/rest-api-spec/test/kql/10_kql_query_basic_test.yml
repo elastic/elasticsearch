@@ -1,0 +1,50 @@
+setup:
+  - requires:
+      cluster_features: "kql_query_supported"
+      reason: KQL query is not available
+
+  - requires:
+      "test_runner_features": "headers"
+
+  - do:
+      indices.create:
+        index: test-index
+        body:
+          mappings:
+            properties:
+              product:
+                type: text
+              cost:
+                type: double
+
+  - do:
+      headers:
+        Content-Type: application/json
+      bulk:
+        index: test-index
+        refresh: true
+        body: |
+          { "index": { "_id": 1 } }
+          { "product": "TV", "cost": 300 }
+          { "index": { "_id": 2 } }
+          { "product": "TV", "cost": 400 }
+
+---
+"Empty KQL search":
+  - requires:
+      cluster_features: "kql_query_supported"
+      reason: KQL query is not available
+
+  - requires:
+      "test_runner_features": "headers"
+
+  # Checks mapping is not updated until first doc arrives
+  - do:
+      search:
+        index: test-index
+        body: >
+          {
+            "query": { "kql": { "query": "" } }
+          }
+  - match: { hits.hits.0._id: 1 }
+  - match: { hits.hits.1._id: 2 }

@@ -184,7 +184,6 @@ public class TransportStats implements Writeable, ChunkedToXContent {
             assert inboundHandlingTimeBucketFrequencies.length > 0;
             histogramToXContent(builder, inboundHandlingTimeBucketFrequencies, Fields.INBOUND_HANDLING_TIME_HISTOGRAM);
             histogramToXContent(builder, outboundHandlingTimeBucketFrequencies, Fields.OUTBOUND_HANDLING_TIME_HISTOGRAM);
-            assert transportActionStats.isEmpty() == false;
             builder.startObject(Fields.ACTIONS);
             return builder;
         }),

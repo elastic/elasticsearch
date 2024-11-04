@@ -91,6 +91,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
     public static final NodeFeature SEMANTIC_TEXT_SEARCH_INFERENCE_ID = new NodeFeature("semantic_text.search_inference_id");
     public static final NodeFeature SEMANTIC_TEXT_DEFAULT_ELSER_2 = new NodeFeature("semantic_text.default_elser_2");
     public static final NodeFeature SEMANTIC_TEXT_IN_OBJECT_FIELD_FIX = new NodeFeature("semantic_text.in_object_field_fix");
+    public static final NodeFeature SEMANTIC_TEXT_ZERO_SIZE_FIX = new NodeFeature("semantic_text.zero_size_fix");
 
     public static final String CONTENT_TYPE = "semantic_text";
     public static final String DEFAULT_ELSER_2_INFERENCE_ID = DEFAULT_ELSER_ID;
@@ -562,11 +563,11 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
 
                         final Integer requestSize = searchExecutionContext.requestSize();
                         if (Objects.equals(requestSize, 0)) {
-                            // Rewrite to a query that will return all docs with a value for the queried field.
+                            // Rewrite to a query that will return all docs with indexed embeddings for the queried field.
                             // Size is often set to 0 when calculating aggregations and an unconstrained kNN query will return all docs
-                            // with an indexed vector for the queried field, so we rewrite to a query that achieves that as efficiently as
+                            // with indexed embeddings for the queried field, so we rewrite to a query that achieves that as efficiently as
                             // possible.
-                            yield new ExistsQueryBuilder(name());
+                            yield new ExistsQueryBuilder(inferenceResultsFieldName);
                         }
 
                         yield new KnnVectorQueryBuilder(inferenceResultsFieldName, inference, null, null, null);

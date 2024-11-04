@@ -5,14 +5,14 @@
 ++++
 
 
-Defines a <<trigger-schedule, `schedule`>> using a <<api-cron-expressions, cron expression>> 
+Defines a <<trigger-schedule, `schedule`>> using a <<api-cron-expressions, cron expression>>
 that specifiues when to execute a watch.
 
 
-TIP:  While cron expressions are powerful, a regularly occurring schedule 
-is easier to configure with the other schedule types. 
-If you must use a cron schedule, make sure you verify it with 
-<<elasticsearch-croneval, `elasticsearch-croneval`>> . 
+TIP:  While cron expressions are powerful, a regularly occurring schedule
+is easier to configure with the other schedule types.
+If you must use a cron schedule, make sure you verify it with
+<<elasticsearch-croneval, `elasticsearch-croneval`>> .
 
 
 ===== Configure a cron schedule with one time
@@ -60,16 +60,40 @@ minute during the weekend:
 --------------------------------------------------
 // NOTCONSOLE
 
+[[configue_cron_time-zone]]
+==== Use a different time zone for a cron schedule
+By default, cron expressions are evaluated in the UTC time zone. To use a different time zone,
+you can specify the `timezone` parameter in the schedule. For example, the following
+`cron` schedule triggers at 6:00 AM and 6:00 PM during weekends in the `America/Los_Angeles` time zone:
+
+
+[source,js]
+--------------------------------------------------
+{
+  ...
+  "trigger" : {
+    "schedule" : {
+      "timezone" : "America/Los_Angeles",
+      "cron" : [
+        "0 6,18 * * * SAT-SUN",
+      ]
+    }
+  }
+  ...
+}
+--------------------------------------------------
+// NOTCONSOLE
+
 [[croneval]]
 ===== Use croneval to validate cron expressions
 
-{es} provides a <<elasticsearch-croneval, `elasticsearch-croneval`>> command line tool 
-in the `$ES_HOME/bin` directory that you can use to check that your cron expressions 
+{es} provides a <<elasticsearch-croneval, `elasticsearch-croneval`>> command line tool
+in the `$ES_HOME/bin` directory that you can use to check that your cron expressions
 are valid and produce the expected results.
 
-To validate a cron expression, pass it in as a parameter to `elasticsearch-croneval`:	
+To validate a cron expression, pass it in as a parameter to `elasticsearch-croneval`:
 
 [source,bash]
 --------------------------------------------------
 bin/elasticsearch-croneval "0 0/1 * * * ?"
---------------------------------------------------	
+--------------------------------------------------

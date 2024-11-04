@@ -75,3 +75,25 @@ schedule triggers at 12:00 AM and 12:00 PM on the 10th and 20th of each month.
 }
 --------------------------------------------------
 // NOTCONSOLE
+
+==== Configuring time zones for monthly schedules
+By default, monthly schedules are evaluated in the UTC time zone. To use a different
+time zone, you can specify the `timezone` parameter in the schedule. For example,
+the following `monthly` schedule triggers at 6:00 AM and 6:00 PM on the 15th of each month in
+the `Asia/Tokyo` time zone:
+
+[source,js]
+--------------------------------------------------
+{
+  "trigger" : {
+    "schedule" : {
+      "timezone" : "Asia/Tokyo",
+      "monthly" : {
+        "on" : [ 15 ],
+        "at" : [ 6:00, 18:00 ]
+      }
+    }
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE

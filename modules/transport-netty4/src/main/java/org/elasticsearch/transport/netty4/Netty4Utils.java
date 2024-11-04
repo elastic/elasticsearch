@@ -145,6 +145,11 @@ public class Netty4Utils {
     private record ByteBufRefCounted(ByteBuf buffer) implements RefCounted {
 
         @Override
+        public int refCnt() {
+            return buffer.refCnt();
+        }
+
+        @Override
         public void incRef() {
             buffer.retain();
         }

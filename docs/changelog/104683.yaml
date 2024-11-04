@@ -1,5 +1,5 @@
 pr: 104683
-summary: "Feature: re-arrange document id bytes to take advantage of shared prefixes"
+summary: "Feature: re-structure document ID generation favoring _id inverted index compression"
 area: Logs
 type: enhancement
 issues: []

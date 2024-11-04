@@ -370,6 +370,9 @@ public enum DataType {
     }
 
     public static boolean isString(DataType t) {
+        if (EsqlCorePlugin.SEMANTIC_TEXT_FEATURE_FLAG.isEnabled() && t == SEMANTIC_TEXT) {
+            return true;
+        }
         return t == KEYWORD || t == TEXT;
     }
 
@@ -585,7 +588,7 @@ public enum DataType {
     }
 
     public DataType noText() {
-        return this == TEXT ? KEYWORD : this;
+        return isString(this) ? KEYWORD : this;
     }
 
     /**

@@ -13,6 +13,16 @@ import java.lang.instrument.Instrumentation;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 
+/**
+ * A Java Agent that sets up the bytecode instrumentation for the entitlement system.
+ * <p>
+ * Agents are loaded into the unnamed module, which makes module exports awkward.
+ * To work around this, we keep minimal code in the agent itself, and
+ * instead use reflection to call into the main entitlement library,
+ * which bootstraps by using {@link Module#addExports} to make a single {@code initialize}
+ * method available for us to call from here.
+ * That method does the rest.
+ */
 public class EntitlementAgent {
 
     public static void agentmain(String agentArgs, Instrumentation inst) {

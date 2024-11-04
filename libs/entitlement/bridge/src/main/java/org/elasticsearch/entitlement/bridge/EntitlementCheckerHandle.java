@@ -25,6 +25,11 @@ public class EntitlementCheckerHandle {
         return Holder.instance;
     }
 
+    /**
+     * Having a separate inner {@code Holder} class ensures that the field is initialized
+     * the first time {@link #instance()} is called, rather than the first time anyone anywhere
+     * references the {@link EntitlementCheckerHandle} class.
+     */
     private static class Holder {
         /**
          * The {@code EntitlementInitialization} class is what actually instantiates it and makes it available;

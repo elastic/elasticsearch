@@ -54,10 +54,10 @@ public class EntitlementInitialization {
         return c.getName().replace('.', '/');
     }
 
-    private static final InstrumentationService INSTRUMENTER_FACTORY = (new ProviderLocator<>(
+    private static final InstrumentationService INSTRUMENTER_FACTORY = new ProviderLocator<>(
         "entitlement",
         InstrumentationService.class,
         "org.elasticsearch.entitlement.instrumentation",
         Set.of()
-    )).get();
+    ).get();
 }

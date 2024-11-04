@@ -29,6 +29,10 @@ package org.elasticsearch.core;
  */
 public interface RefCounted {
 
+    default int refCnt() {
+        throw new IllegalStateException("not implemented");
+    }
+
     /**
      * Increments the refCount of this instance.
      *

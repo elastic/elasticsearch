@@ -311,14 +311,15 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
                         final var relocationDuration = getTimeSince(beforeRelocation);
 
                         logger.debug("[{}] primary context handoff succeeded", request.shardId());
-                        if (relocationDuration.getMillis() >= slowRelocationWarningThreshold.getMillis()) {
+                        boolean aboveThreshold = relocationDuration.getMillis() >= slowRelocationWarningThreshold.getMillis();
+                        if (aboveThreshold || logger.isDebugEnabled()) {
 
                             final TimeValue secondFlushDuration = getTimeBetween(beforeFinalFlush, beforeSendingContext.get());
                             final TimeValue handOffDuration = getTimeSince(beforeSendingContext.get());
                             final var message = new ESLogMessage(
                                 "[{}] primary shard relocation took [{}] (shutting down={})"
                                     + "(including [{}] to flush, [{}] to acquire permits, [{}] to flush again and [{}] to handoff context) "
-                                    + "which is above the warn threshold of [{}]",
+                                    + "which is {} the warn threshold of [{}]",
                                 request.shardId(),
                                 relocationDuration,
                                 isShuttingDown(),
@@ -326,6 +327,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
                                 acquirePermitsDuration,
                                 secondFlushDuration,
                                 handOffDuration,
+                                aboveThreshold ? "above" : "below",
                                 slowRelocationWarningThreshold
                             ).withFields(
                                 Map.of(

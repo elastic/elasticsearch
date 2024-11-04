@@ -228,10 +228,18 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
             metadata = clusterService.state().getMetadata();
         }
 
+        Map<String, IngestService.Pipelines> resolvedPipelineCache = new HashMap<>();
         for (DocWriteRequest<?> actionRequest : bulkRequest.requests) {
             IndexRequest indexRequest = getIndexWriteRequest(actionRequest);
             if (indexRequest != null) {
-                IngestService.resolvePipelinesAndUpdateIndexRequest(actionRequest, indexRequest, metadata);
+                if (indexRequest.isPipelineResolved() == false) {
+                    var pipeline = resolvedPipelineCache.computeIfAbsent(
+                        indexRequest.index(),
+                        // TODO perhaps this should use `threadPool.absoluteTimeInMillis()`, but leaving as is for now.
+                        (index) -> IngestService.resolvePipelines(actionRequest, indexRequest, metadata, System.currentTimeMillis())
+                    );
+                    IngestService.setPipelineOnRequest(indexRequest, pipeline);
+                }
                 hasIndexRequestsWithPipelines |= IngestService.hasPipeline(indexRequest);
             }
 

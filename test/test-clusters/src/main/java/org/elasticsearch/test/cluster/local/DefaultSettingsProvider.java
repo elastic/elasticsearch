@@ -95,9 +95,6 @@ public class DefaultSettingsProvider implements SettingsProvider {
 
     private boolean isMultiNodeCluster(LocalClusterSpec cluster) {
         return cluster.getNodes().size() > 1
-            || cluster.getNodes()
-                .getFirst()
-                .getSetting(DISCOVERY_TYPE_SETTING, MULTI_NODE_DISCOVERY_TYPE)
-                .equals(MULTI_NODE_DISCOVERY_TYPE);
+            || cluster.getNodes().get(0).getSetting(DISCOVERY_TYPE_SETTING, MULTI_NODE_DISCOVERY_TYPE).equals(MULTI_NODE_DISCOVERY_TYPE);
     }
 }

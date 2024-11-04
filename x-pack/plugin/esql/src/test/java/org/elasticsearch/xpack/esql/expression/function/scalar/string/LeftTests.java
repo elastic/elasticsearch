@@ -13,6 +13,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -167,19 +168,21 @@ public class LeftTests extends AbstractScalarFunctionTestCase {
             );
         }));
 
-        suppliers.add(new TestCaseSupplier("semantic_text as input", List.of(DataType.SEMANTIC_TEXT, DataType.INTEGER), () -> {
-            String text = randomUnicodeOfLengthBetween(1, 64);
-            int length = between(1, text.length());
-            return new TestCaseSupplier.TestCase(
-                List.of(
-                    new TestCaseSupplier.TypedData(new BytesRef(text), DataType.SEMANTIC_TEXT, "str"),
-                    new TestCaseSupplier.TypedData(length, DataType.INTEGER, "length")
-                ),
-                "LeftEvaluator[str=Attribute[channel=0], length=Attribute[channel=1]]",
-                DataType.KEYWORD,
-                equalTo(new BytesRef(unicodeLeftSubstring(text, length)))
-            );
-        }));
+        if (EsqlCapabilities.Cap.SEMANTIC_TEXT_TYPE.isEnabled()) {
+            suppliers.add(new TestCaseSupplier("semantic_text as input", List.of(DataType.SEMANTIC_TEXT, DataType.INTEGER), () -> {
+                String text = randomUnicodeOfLengthBetween(1, 64);
+                int length = between(1, text.length());
+                return new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(new BytesRef(text), DataType.SEMANTIC_TEXT, "str"),
+                        new TestCaseSupplier.TypedData(length, DataType.INTEGER, "length")
+                    ),
+                    "LeftEvaluator[str=Attribute[channel=0], length=Attribute[channel=1]]",
+                    DataType.KEYWORD,
+                    equalTo(new BytesRef(unicodeLeftSubstring(text, length)))
+                );
+            }));
+        }
 
         return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers, (v, p) -> switch (p) {
             case 0 -> "string";

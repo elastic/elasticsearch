@@ -53,38 +53,22 @@ public class LengthTests extends AbstractScalarFunctionTestCase {
     }
 
     private static List<TestCaseSupplier> makeTestCases(String title, Supplier<String> text, int expectedLength) {
-        return List.of(
-            new TestCaseSupplier(
-                title + " with keyword",
-                List.of(DataType.KEYWORD),
-                () -> new TestCaseSupplier.TestCase(
-                    List.of(new TestCaseSupplier.TypedData(new BytesRef(text.get()), DataType.KEYWORD, "f")),
-                    "LengthEvaluator[val=Attribute[channel=0]]",
-                    DataType.INTEGER,
-                    equalTo(expectedLength)
+        List<TestCaseSupplier> testCases = new ArrayList<>();
+        for (DataType dataType : DataType.stringTypes()) {
+            testCases.add(
+                new TestCaseSupplier(
+                    title + " with " + dataType.typeName(),
+                    List.of(dataType),
+                    () -> new TestCaseSupplier.TestCase(
+                        List.of(new TestCaseSupplier.TypedData(new BytesRef(text.get()), dataType, "f")),
+                        "LengthEvaluator[val=Attribute[channel=0]]",
+                        DataType.INTEGER,
+                        equalTo(expectedLength)
+                    )
                 )
-            ),
-            new TestCaseSupplier(
-                title + " with text",
-                List.of(DataType.TEXT),
-                () -> new TestCaseSupplier.TestCase(
-                    List.of(new TestCaseSupplier.TypedData(new BytesRef(text.get()), DataType.TEXT, "f")),
-                    "LengthEvaluator[val=Attribute[channel=0]]",
-                    DataType.INTEGER,
-                    equalTo(expectedLength)
-                )
-            ),
-            new TestCaseSupplier(
-                title + " with semantic_text",
-                List.of(DataType.SEMANTIC_TEXT),
-                () -> new TestCaseSupplier.TestCase(
-                    List.of(new TestCaseSupplier.TypedData(new BytesRef(text.get()), DataType.SEMANTIC_TEXT, "f")),
-                    "LengthEvaluator[val=Attribute[channel=0]]",
-                    DataType.INTEGER,
-                    equalTo(expectedLength)
-                )
-            )
-        );
+            );
+        }
+        return testCases;
     }
 
     private Matcher<Object> resultsMatcher(List<TestCaseSupplier.TypedData> typedData) {

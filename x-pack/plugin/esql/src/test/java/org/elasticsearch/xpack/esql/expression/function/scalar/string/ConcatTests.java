@@ -14,6 +14,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.EsqlClientException;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -23,6 +24,7 @@ import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -48,7 +50,7 @@ public class ConcatTests extends AbstractScalarFunctionTestCase {
         for (int length = 4; length < 100; length++) {
             suppliers(suppliers, length);
         }
-        Set<DataType> supported = Set.of(DataType.NULL, DataType.KEYWORD, DataType.TEXT, DataType.SEMANTIC_TEXT);
+        Set<DataType> supported = new HashSet<>(DataType.stringTypes());
         List<Set<DataType>> supportedPerPosition = List.of(supported, supported);
         for (DataType lhs : DataType.types()) {
             if (lhs == DataType.NULL || DataType.isRepresentable(lhs) == false) {
@@ -72,7 +74,9 @@ public class ConcatTests extends AbstractScalarFunctionTestCase {
         if (length > 3) {
             suppliers.add(supplier("ascii", DataType.KEYWORD, length, () -> randomAlphaOfLengthBetween(1, 10)));
             suppliers.add(supplier("unicode", DataType.TEXT, length, () -> randomRealisticUnicodeOfLengthBetween(1, 10)));
-            suppliers.add(supplier("unicode", DataType.SEMANTIC_TEXT, length, () -> randomRealisticUnicodeOfLengthBetween(1, 10)));
+            if (EsqlCapabilities.Cap.SEMANTIC_TEXT_TYPE.isEnabled()) {
+                suppliers.add(supplier("unicode", DataType.SEMANTIC_TEXT, length, () -> randomRealisticUnicodeOfLengthBetween(1, 10)));
+            }
         } else {
             add(suppliers, "ascii", length, () -> randomAlphaOfLengthBetween(1, 10));
             add(suppliers, "unicode", length, () -> randomRealisticUnicodeOfLengthBetween(1, 10));

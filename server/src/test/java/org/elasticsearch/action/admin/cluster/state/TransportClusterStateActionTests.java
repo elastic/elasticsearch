@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.cluster.project.DefaultProjectResolver;
 import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.routing.GlobalRoutingTableTestHelper;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -108,7 +109,7 @@ public class TransportClusterStateActionTests extends ESTestCase {
         final Set<String> indexNames = randomSet(1, 8, () -> randomAlphaOfLengthBetween(4, 12));
         final ProjectId projectId = new ProjectId(randomUUID());
 
-        final ProjectResolver projectResolver = metadata -> metadata.getProject(projectId);
+        final ProjectResolver projectResolver = TestProjectResolvers.singleProject(projectId);
         final ClusterStateRequest request = buildRandomRequest(indexNames);
         final String[] expectedIndices = getExpectedIndices(request, indexNames);
 
@@ -137,18 +138,7 @@ public class TransportClusterStateActionTests extends ESTestCase {
         }
         final ClusterState state = buildClusterState(projects);
 
-        final ProjectResolver projectResolver = new ProjectResolver() {
-            @Override
-            public Collection<ProjectId> getProjectIds(ClusterState clusterState) {
-                return clusterState.metadata().projects().keySet();
-            }
-
-            @Override
-            public ProjectMetadata getProjectMetadata(Metadata metadata) {
-                throw new UnsupportedOperationException("Multiple projects are active");
-            }
-        };
-
+        final ProjectResolver projectResolver = TestProjectResolvers.allProjects();
         final ClusterStateRequest request = buildRandomRequest(indexNames);
         final Set<String> requestedIndices = Set.of(getExpectedIndices(request, indexNames));
 

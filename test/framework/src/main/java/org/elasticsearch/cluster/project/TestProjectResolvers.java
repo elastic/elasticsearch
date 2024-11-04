@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.tasks.Task;
 
 import java.util.Collection;
@@ -36,15 +37,60 @@ public final class TestProjectResolvers {
             public Collection<ProjectId> getProjectIds(ClusterState clusterState) {
                 return clusterState.metadata().projects().keySet();
             }
+
+            @Override
+            public <E extends Exception> void executeOnProject(ProjectId projectId, CheckedRunnable<E> body) throws E {
+                throw new UnsupportedOperationException("Cannot execute on a specific project when using the 'allProjects' resolver");
+            }
         };
     }
 
     public static ProjectResolver singleProjectOnly() {
-        return TestProjectResolvers::singleProjectMetadata;
+        return new ProjectResolver() {
+
+            private ProjectId enforceProjectId = null;
+
+            @Override
+            public ProjectMetadata getProjectMetadata(Metadata metadata) {
+                final ProjectMetadata project = TestProjectResolvers.singleProjectMetadata(metadata);
+                if (enforceProjectId == null || enforceProjectId.equals(project.id())) {
+                    return project;
+                } else {
+                    throw new IllegalArgumentException("Expected project-id [" + enforceProjectId + "] but was [" + project.id() + "]");
+                }
+            }
+
+            @Override
+            public <E extends Exception> void executeOnProject(ProjectId projectId, CheckedRunnable<E> body) throws E {
+                if (enforceProjectId != null) {
+                    throw new IllegalStateException("Cannot nest calls to executeOnProject");
+                }
+                try {
+                    enforceProjectId = projectId;
+                    body.run();
+                } finally {
+                    enforceProjectId = null;
+                }
+            }
+        };
     }
 
     public static ProjectResolver singleProject(ProjectId projectId) {
-        return metadata -> metadata.getProject(projectId);
+        return new ProjectResolver() {
+            @Override
+            public ProjectMetadata getProjectMetadata(Metadata metadata) {
+                return metadata.getProject(projectId);
+            }
+
+            @Override
+            public <E extends Exception> void executeOnProject(ProjectId otherProjectId, CheckedRunnable<E> body) throws E {
+                if (projectId.equals(otherProjectId)) {
+                    body.run();
+                } else {
+                    throw new IllegalArgumentException("Cannot set project id to " + otherProjectId);
+                }
+            }
+        };
     }
 
     public static ProjectResolver projects(Set<ProjectId> allowedProjectIds) {
@@ -83,6 +129,11 @@ public final class TestProjectResolvers {
             private Set<ProjectId> getMatchingProjectIds(Metadata metadata) {
                 return Sets.intersection(metadata.projects().keySet(), allowedProjectIds);
             }
+
+            @Override
+            public <E extends Exception> void executeOnProject(ProjectId projectId, CheckedRunnable<E> body) throws E {
+                throw new UnsupportedOperationException("Cannot execute on a specific project when using a resolver with multiple ids");
+            }
         };
     }
 
@@ -97,6 +148,14 @@ public final class TestProjectResolvers {
                     throw new IllegalArgumentException("Could not find project with id [" + headerValue + "]");
                 }
                 return project;
+            }
+
+            @Override
+            public <E extends Exception> void executeOnProject(ProjectId projectId, CheckedRunnable<E> body) throws E {
+                try (var ignore = threadContext.newStoredContext()) {
+                    threadContext.putHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER, projectId.id());
+                    body.run();
+                }
             }
         };
     }

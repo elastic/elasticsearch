@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.tasks.Task;
@@ -25,6 +26,8 @@ import org.junit.Before;
 
 import java.util.Map;
 
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -99,6 +102,69 @@ public class MultiProjectResolverTests extends ESTestCase {
         var actualProjects = resolver.getProjectIds(state);
         assertEquals(1, actualProjects.size());
         assertEquals(expectedProject.id(), actualProjects.iterator().next());
+    }
+
+    public void testExecuteOnProject() {
+        final ProjectId projectId1 = new ProjectId("1-" + randomAlphaOfLength(4));
+        final ProjectId projectId2 = new ProjectId("2-" + randomAlphaOfLength(4));
+
+        final Map<ProjectId, ProjectMetadata> projects = createProjects();
+        projects.put(projectId1, ProjectMetadata.builder(projectId1).build());
+        projects.put(projectId2, ProjectMetadata.builder(projectId2).build());
+
+        final ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder().projectMetadata(projects)).build();
+
+        final ThreadContext threadContext = threadPool.getThreadContext();
+
+        final String opaqueId = randomAlphaOfLengthBetween(4, 8);
+        threadContext.putHeader(Task.X_OPAQUE_ID_HTTP_HEADER, opaqueId);
+
+        final String randomHeaderName = randomAlphaOfLength(10);
+        final String randomHeaderValue = randomAlphaOfLength(16);
+        threadContext.putHeader(randomHeaderName, randomHeaderValue);
+
+        // This means that no header was set
+        assertThat(resolver.getProjectIds(state), equalTo(projects.keySet()));
+        assertThat(threadContext.getHeader(Task.X_OPAQUE_ID_HTTP_HEADER), equalTo(opaqueId));
+        assertThat(threadContext.getHeader(randomHeaderName), equalTo(randomHeaderValue));
+
+        resolver.executeOnProject(projectId1, () -> {
+            assertThat(resolver.getProjectMetadata(state).id(), equalTo(projectId1));
+            assertThat(resolver.getProjectId(state), equalTo(projectId1));
+            assertThat(threadContext.getHeader(Task.X_OPAQUE_ID_HTTP_HEADER), equalTo(opaqueId));
+            assertThat(threadContext.getHeader(randomHeaderName), equalTo(randomHeaderValue));
+
+            // Cannot change the project-id
+            IllegalStateException ex = expectThrows(IllegalStateException.class, () -> resolver.executeOnProject(projectId2, () -> {}));
+            assertThat(ex.getMessage(), containsString("project-id [" + projectId1 + "] in the thread-context"));
+            assertThat(ex.getMessage(), containsString("[" + projectId2 + "]"));
+
+            // Also cannot set it to itself (this is almost certainly an error, and we prevent it
+            ex = expectThrows(IllegalStateException.class, () -> resolver.executeOnProject(projectId1, () -> {}));
+            assertThat(ex.getMessage(), containsString("project-id [" + projectId1 + "] in the thread-context"));
+        });
+
+        // Project id has been cleared
+        assertThat(resolver.getProjectIds(state), equalTo(projects.keySet()));
+        assertThat(threadContext.getHeader(Task.X_OPAQUE_ID_HTTP_HEADER), equalTo(opaqueId));
+        assertThat(threadContext.getHeader(randomHeaderName), equalTo(randomHeaderValue));
+
+        // Can set a new project id, after the previous one has been cleared
+        resolver.executeOnProject(projectId2, () -> {
+            assertThat(resolver.getProjectMetadata(state).id(), equalTo(projectId2));
+            assertThat(resolver.getProjectId(state), equalTo(projectId2));
+            assertThat(threadContext.getHeader(Task.X_OPAQUE_ID_HTTP_HEADER), equalTo(opaqueId));
+            assertThat(threadContext.getHeader(randomHeaderName), equalTo(randomHeaderValue));
+
+            // Cannot change the project-id
+            IllegalStateException ex = expectThrows(IllegalStateException.class, () -> resolver.executeOnProject(projectId1, () -> {}));
+            assertThat(ex.getMessage(), containsString("project-id [" + projectId2 + "] in the thread-context"));
+            assertThat(ex.getMessage(), containsString("[" + projectId2 + "]"));
+        });
+
+        assertThat(resolver.getProjectIds(state), equalTo(projects.keySet()));
+        assertThat(threadContext.getHeader(Task.X_OPAQUE_ID_HTTP_HEADER), equalTo(opaqueId));
+        assertThat(threadContext.getHeader(randomHeaderName), equalTo(randomHeaderValue));
     }
 
     private static Map<ProjectId, ProjectMetadata> createProjects() {

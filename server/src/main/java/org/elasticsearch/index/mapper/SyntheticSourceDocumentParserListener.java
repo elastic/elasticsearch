@@ -19,14 +19,17 @@ import java.util.Stack;
 
 public class SyntheticSourceDocumentParserListener implements DocumentParserListener {
     private final MappingLookup mappingLookup;
+    private final XContentType xContentType;
+
     private final List<IgnoredSourceFieldMapper.NameValue> valuesToStore;
 
     private State state;
 
-    public SyntheticSourceDocumentParserListener(MappingLookup mappingLookup) {
+    public SyntheticSourceDocumentParserListener(MappingLookup mappingLookup, XContentType xContentType) {
         this.mappingLookup = mappingLookup;
-        this.valuesToStore = new ArrayList<>();
+        this.xContentType = xContentType;
 
+        this.valuesToStore = new ArrayList<>();
         this.state = new Watching(mappingLookup.getMapping().getRoot());
     }
 
@@ -76,8 +79,7 @@ public class SyntheticSourceDocumentParserListener implements DocumentParserList
             this.parentMapper = parentMapper;
             this.document = document;
 
-            // TODO use actual value from initial parser (add a "document start" token with metadata?)
-            this.data = XContentBuilder.builder(XContentType.JSON.xContent());
+            this.data = XContentBuilder.builder(xContentType.xContent());
 
             this.depth = 0;
 
@@ -147,7 +149,6 @@ public class SyntheticSourceDocumentParserListener implements DocumentParserList
         private final Stack<Parent> parents;
         private final Stack<Document> documents;
 
-        private String fullPath;
         private Mapper currentMapper;
         private int depth;
 
@@ -159,7 +160,6 @@ public class SyntheticSourceDocumentParserListener implements DocumentParserList
             };
             this.documents = new Stack<>();
 
-            this.fullPath = MapperService.SINGLE_MAPPING_NAME;
             this.currentMapper = rootMapper;
             this.depth = 0;
         }
@@ -168,22 +168,19 @@ public class SyntheticSourceDocumentParserListener implements DocumentParserList
             switch (token) {
                 case Token.StartObject startObject -> {
                     if (currentMapper instanceof ObjectMapper om && om.isEnabled() == false) {
-                        var storingState = new Storing(
-                            this,
-                            startObject,
-                            fullPath,
-                            parents.peek().parentMapper(),
-                            documents.peek().document()
-                        );
-                        // TODO should we some cleaner "reset()" method on Watching or something?
-                        currentMapper = null;
-                        fullPath = null;
-                        return storingState;
+                        ObjectMapper parentMapper = parents.peek().parentMapper();
+                        String fullPath = parentMapper.isRoot()
+                            ? currentMapper.leafName()
+                            : parentMapper.fullPath() + "." + currentMapper.leafName();
+
+                        prepare();
+
+                        return new Storing(this, startObject, fullPath, parents.peek().parentMapper(), documents.peek().document());
                     }
 
                     if (currentMapper instanceof ObjectMapper om) {
                         parents.push(new Parent(om, depth));
-                        currentMapper = null;
+                        prepare();
                     }
                     depth += 1;
                 }
@@ -203,7 +200,7 @@ public class SyntheticSourceDocumentParserListener implements DocumentParserList
                 case Token.StartArray startArray -> {
                     if (currentMapper instanceof ObjectMapper om) {
                         parents.push(new Parent(om, depth));
-                        currentMapper = null;
+                        prepare();
                     }
                     depth += 1;
                 }
@@ -217,7 +214,6 @@ public class SyntheticSourceDocumentParserListener implements DocumentParserList
                 }
                 case Token.FieldName fieldName -> {
                     ObjectMapper parentMapper = parents.peek().parentMapper();
-                    fullPath = parentMapper.isRoot() ? fieldName.name() : parentMapper.fullPath() + "." + fieldName.name();
                     currentMapper = parentMapper.getMapper(fieldName.name());
                 }
                 default -> {
@@ -225,6 +221,13 @@ public class SyntheticSourceDocumentParserListener implements DocumentParserList
             }
 
             return this;
+        }
+
+        /**
+         * Resets the state to prepare for new part of the document (e.g. descend into an object).
+         */
+        private void prepare() {
+            currentMapper = null;
         }
 
         public State consume(Event event) {

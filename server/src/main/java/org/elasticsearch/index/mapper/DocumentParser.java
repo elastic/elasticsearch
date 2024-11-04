@@ -81,7 +81,7 @@ public final class DocumentParser {
 
         Listeners listeners = Listeners.NOOP;
         if (mappingLookup.isSourceSynthetic() && mappingParserContext.getIndexSettings().getSkipIgnoredSourceWrite() == false) {
-            listeners = new Listeners.ListenerCollection(List.of(new SyntheticSourceDocumentParserListener(mappingLookup)));
+            listeners = new Listeners.ListenerCollection(List.of(new SyntheticSourceDocumentParserListener(mappingLookup, xContentType)));
         }
 
         XContentMeteringParserDecorator meteringParserDecorator = source.getMeteringParserDecorator();

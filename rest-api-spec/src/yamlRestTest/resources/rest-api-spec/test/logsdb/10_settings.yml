@@ -704,6 +704,7 @@ logsdb with default ignore dynamic beyond limit and default sorting:
         body:
           query:
             match_all: {}
+          sort: "@timestamp"
 
   - match: { hits.total.value: 2 }
   - match: { hits.hits.0._source.name: "bar" }
@@ -765,15 +766,16 @@ logsdb with default ignore dynamic beyond limit and non-default sorting:
         body:
           query:
             match_all: {}
+          sort: "@timestamp"
 
   - match: { hits.total.value: 2 }
-  - match: { hits.hits.0._source.name: "foo" }
-  - match: { hits.hits.0._source.value: 10 }
-  - match: { hits.hits.0._source.message: "the quick brown fox" }
+  - match: { hits.hits.0._source.name: "bar" }
+  - match: { hits.hits.0._source.value: 20 }
+  - match: { hits.hits.0._source.message: "jumps over the lazy dog" }
   - match: { hits.hits.0._ignored: [ "host", "message", "pid", "region", "value" ] }
-  - match: { hits.hits.1._source.name: "bar" }
-  - match: { hits.hits.1._source.value: 20 }
-  - match: { hits.hits.1._source.message: "jumps over the lazy dog" }
+  - match: { hits.hits.1._source.name: "foo" }
+  - match: { hits.hits.1._source.value: 10 }
+  - match: { hits.hits.1._source.message: "the quick brown fox" }
   - match: { hits.hits.1._ignored: [ "host", "message", "pid", "region", "value" ] }
 
 ---
@@ -870,6 +872,7 @@ logsdb with default ignore dynamic beyond limit and subobjects false:
         body:
           query:
             match_all: {}
+          sort: "@timestamp"
 
   - match: { hits.total.value: 2 }
   - match: { hits.hits.0._source.name: "bar" }

@@ -14,6 +14,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Processors;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.node.Node;
 
@@ -326,7 +327,7 @@ public class EsExecutors {
     }
 
     public static ThreadFactory daemonThreadFactory(Settings settings, String namePrefix) {
-        return createDaemonThreadFactory(threadName(settings, namePrefix), false);
+        return createDaemonThreadFactory(threadName(settings, namePrefix), null, false);
     }
 
     public static ThreadFactory daemonThreadFactory(String nodeName, String namePrefix) {
@@ -335,16 +336,16 @@ public class EsExecutors {
 
     public static ThreadFactory daemonThreadFactory(String nodeName, String namePrefix, boolean isSystemThread) {
         assert nodeName != null && false == nodeName.isEmpty();
-        return createDaemonThreadFactory(threadName(nodeName, namePrefix), isSystemThread);
+        return createDaemonThreadFactory(threadName(nodeName, namePrefix), namePrefix, isSystemThread);
     }
 
     public static ThreadFactory daemonThreadFactory(String name) {
         assert name != null && name.isEmpty() == false;
-        return createDaemonThreadFactory(name, false);
+        return createDaemonThreadFactory(name, null, false);
     }
 
-    private static ThreadFactory createDaemonThreadFactory(String namePrefix, boolean isSystemThread) {
-        return new EsThreadFactory(namePrefix, isSystemThread);
+    private static ThreadFactory createDaemonThreadFactory(String namePrefix, @Nullable String pool, boolean isSystemThread) {
+        return new EsThreadFactory(namePrefix, pool, isSystemThread);
     }
 
     static class EsThreadFactory implements ThreadFactory {
@@ -353,18 +354,20 @@ public class EsExecutors {
         final AtomicInteger threadNumber = new AtomicInteger(1);
         final String namePrefix;
         final boolean isSystem;
+        final String pool;
 
-        EsThreadFactory(String namePrefix, boolean isSystem) {
+        EsThreadFactory(String namePrefix, @Nullable String pool, boolean isSystem) {
             this.namePrefix = namePrefix;
             SecurityManager s = System.getSecurityManager();
             group = (s != null) ? s.getThreadGroup() : Thread.currentThread().getThreadGroup();
             this.isSystem = isSystem;
+            this.pool = pool;
         }
 
         @Override
         public Thread newThread(Runnable r) {
             return AccessController.doPrivileged((PrivilegedAction<Thread>) () -> {
-                Thread t = new EsThread(group, r, namePrefix + "[T#" + threadNumber.getAndIncrement() + "]", 0, isSystem);
+                Thread t = new EsThread(group, r, namePrefix + "[T#" + threadNumber.getAndIncrement() + "]", 0, pool, isSystem);
                 t.setDaemon(true);
                 return t;
             });
@@ -373,14 +376,21 @@ public class EsExecutors {
 
     public static class EsThread extends Thread {
         private final boolean isSystem;
+        private final String pool;
 
-        EsThread(ThreadGroup group, Runnable target, String name, long stackSize, boolean isSystem) {
+        EsThread(ThreadGroup group, Runnable target, String name, long stackSize, final String pool, boolean isSystem) {
             super(group, target, name, stackSize);
             this.isSystem = isSystem;
+            this.pool = pool;
         }
 
         public boolean isSystem() {
             return isSystem;
+        }
+
+        @Nullable
+        public String pool() {
+            return pool;
         }
     }
 

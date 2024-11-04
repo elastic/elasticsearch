@@ -501,7 +501,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                             }
                         }
                         Runnable r = mergeTask.consumeListener();
-                        synchronized (QueryPhaseResultConsumer.this) {
+                        synchronized (QueryPhaseResultConsumer.PendingMerges.this) {
                             while (true) {
                                 mergeTask = queue.poll();
                                 runningTask.set(mergeTask);

@@ -23,6 +23,7 @@ import software.amazon.awssdk.services.bedrockruntime.model.InvokeModelRequest;
 import software.amazon.awssdk.services.bedrockruntime.model.InvokeModelResponse;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
@@ -93,11 +94,15 @@ public class AmazonBedrockInferenceClient extends AmazonBedrockBaseClient {
         internalClient.converseStream(
             request,
             ConverseStreamResponseHandler.builder().subscriber(() -> FlowAdapters.toSubscriber(awsResponseProcessor)).build()
-        );
+        ).exceptionally(e -> {
+            awsResponseProcessor.onError(e);
+            return null; // Void
+        });
         return awsResponseProcessor;
     }
 
     private void onFailure(ActionListener<?> listener, Throwable t, String method) {
+        ExceptionsHelper.maybeDieOnAnotherThread(t);
         var unwrappedException = t;
         if (t instanceof CompletionException || t instanceof ExecutionException) {
             unwrappedException = t.getCause() != null ? t.getCause() : t;

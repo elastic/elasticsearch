@@ -105,9 +105,11 @@ final class SyntheticSourceIndexSettingsProvider implements IndexSettingProvider
             if (SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.exists(tmpIndexMetadata.getSettings())
                 || indexMode == IndexMode.LOGSDB
                 || indexMode == IndexMode.TIME_SERIES) {
-                // in case when index mode is either tsdb or logsdb and only _source.mode attribute is specified, then the default could
-                // be wrong. However, it doesn't really matter, because if it is set to stored, then adding index.mapping.source.mode has
-                // no effect. And _source.mode can't be set to disabled, because that isn't allowed with logsdb/tsdb.
+                // in case when index mode is either tsdb or logsdb and only _source.mode mapping attribute is specified, then the default
+                // could be wrong. However, it doesn't really matter, because if the _source.mode mapping attribute is set to stored,
+                // then configuring the index.mapping.source.mode setting to stored has no effect. Additionally _source.mode can't be set
+                // to disabled, because that isn't allowed with logsdb/tsdb. In other words setting index.mapping.source.mode setting to
+                // stored when _source.mode mapping attribute if stored is okay as it has no effect, but avoids creating MapperService.
                 var sourceMode = SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.get(tmpIndexMetadata.getSettings());
                 return sourceMode == SourceFieldMapper.Mode.SYNTHETIC;
             }

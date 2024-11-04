@@ -923,6 +923,6 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
 
     @Override
     public Expression visitMatchBooleanExpression(EsqlBaseParser.MatchBooleanExpressionContext ctx) {
-        return Match.operator(source(ctx), expression(ctx.fieldExp), expression(ctx.queryString));
+        return new Match(source(ctx), expression(ctx.fieldExp), expression(ctx.queryString));
     }
 }

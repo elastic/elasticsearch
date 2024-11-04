@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.expression.function.fulltext;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -27,6 +26,7 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Locale;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
@@ -41,7 +41,8 @@ public class Match extends FullTextFunction implements Validatable {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Match", Match::readFrom);
 
     private final Expression field;
-    private final boolean isOperator;
+
+    private transient Boolean isOperator;
 
     @FunctionInfo(
         returnType = "boolean",
@@ -58,30 +59,15 @@ public class Match extends FullTextFunction implements Validatable {
             description = "Text you wish to find in the provided field."
         ) Expression matchQuery
     ) {
-        this(source, field, matchQuery, false);
-    }
-
-    private Match(Source source, Expression field, Expression matchQuery, boolean isOperator) {
         super(source, matchQuery, List.of(field, matchQuery));
         this.field = field;
-        this.isOperator = isOperator;
-    }
-
-    public static Match operator(Source source, Expression field, Expression matchQuery) {
-        return new Match(source, field, matchQuery, true);
     }
 
     private static Match readFrom(StreamInput in) throws IOException {
         Source source = Source.readFrom((PlanStreamInput) in);
         Expression field = in.readNamedWriteable(Expression.class);
         Expression query = in.readNamedWriteable(Expression.class);
-        boolean isOperator = false;
-        Expression boost = null;
-        Expression fuzziness = null;
-        if (in.getTransportVersion().onOrAfter(TransportVersions.MATCH_OPERATOR_COLON)) {
-            isOperator = in.readBoolean();
-        }
-        return new Match(source, field, query, isOperator);
+        return new Match(source, field, query);
     }
 
     @Override
@@ -89,9 +75,6 @@ public class Match extends FullTextFunction implements Validatable {
         source().writeTo(out);
         out.writeNamedWriteable(field());
         out.writeNamedWriteable(query());
-        if (out.getTransportVersion().onOrAfter(TransportVersions.MATCH_OPERATOR_COLON)) {
-            out.writeBoolean(isOperator);
-        }
     }
 
     @Override
@@ -121,7 +104,7 @@ public class Match extends FullTextFunction implements Validatable {
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new Match(source(), newChildren.get(0), newChildren.get(1), isOperator);
+        return new Match(source(), newChildren.get(0), newChildren.get(1));
     }
 
     @Override
@@ -139,11 +122,18 @@ public class Match extends FullTextFunction implements Validatable {
 
     @Override
     public String functionType() {
-        return isOperator ? "operator" : super.functionType();
+        return isOperator() ? "operator" : super.functionType();
     }
 
     @Override
     public String functionName() {
-        return isOperator ? ":" : super.functionName();
+        return isOperator() ? ":" : super.functionName();
+    }
+
+    private boolean isOperator() {
+        if (isOperator == null) {
+            isOperator = source().text().toUpperCase(Locale.ROOT).startsWith(super.functionName()) == false;
+        }
+        return isOperator;
     }
 }

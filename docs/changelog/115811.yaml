@@ -1,0 +1,5 @@
+pr: 115811
+summary: "Prohibit changes to index mode, source, and sort settings during restore"
+area: Logs
+type: bug
+issues: []

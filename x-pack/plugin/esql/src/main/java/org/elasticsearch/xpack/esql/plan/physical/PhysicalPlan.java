@@ -43,6 +43,7 @@ public abstract class PhysicalPlan extends QueryPlan<PhysicalPlan> {
             ProjectExec.ENTRY,
             RowExec.ENTRY,
             ShowExec.ENTRY,
+            SubqueryExec.ENTRY,
             TopNExec.ENTRY
         );
     }

@@ -26,6 +26,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.env.BuildVersion;
+import org.elasticsearch.env.BuildVersionTests;
 import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
 import org.elasticsearch.reservedstate.TransformState;
 import org.elasticsearch.reservedstate.action.ReservedClusterSettingsAction;
@@ -519,7 +520,7 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
 
         task = new ReservedStateUpdateTask(
             "test",
-            new ReservedStateChunk(Map.of(), new ReservedStateVersion(124L, BuildVersion.fromVersionId(BuildVersion.current().id() + 1))),
+            new ReservedStateChunk(Map.of(), new ReservedStateVersion(124L, BuildVersionTests.increment(BuildVersion.current()))),
             ReservedStateVersionCheck.HIGHER_VERSION_ONLY,
             Map.of(),
             List.of(),
@@ -529,7 +530,7 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
         assertThat("Cluster state should not be modified", task.execute(state), sameInstance(state));
         task = new ReservedStateUpdateTask(
             "test",
-            new ReservedStateChunk(Map.of(), new ReservedStateVersion(124L, BuildVersion.fromVersionId(BuildVersion.current().id() + 1))),
+            new ReservedStateChunk(Map.of(), new ReservedStateVersion(124L, BuildVersionTests.increment(BuildVersion.current()))),
             ReservedStateVersionCheck.HIGHER_OR_SAME_VERSION,
             Map.of(),
             List.of(),

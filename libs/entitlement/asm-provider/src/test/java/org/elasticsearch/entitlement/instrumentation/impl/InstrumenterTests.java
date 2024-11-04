@@ -11,7 +11,6 @@ package org.elasticsearch.entitlement.instrumentation.impl;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.entitlement.bridge.EntitlementChecker;
-import org.elasticsearch.entitlement.bridge.EntitlementCheckerHandle;
 import org.elasticsearch.entitlement.instrumentation.InstrumentationService;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -20,7 +19,6 @@ import org.junit.Before;
 import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Type;
 
-import java.lang.invoke.MethodHandles;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.Arrays;
@@ -38,14 +36,6 @@ import static org.objectweb.asm.Opcodes.INVOKESTATIC;
  */
 @ESTestCase.WithoutSecurityManager
 public class InstrumenterTests extends ESTestCase {
-    static {
-        try {
-            MethodHandles.lookup().ensureInitialized(EntitlementCheckerHandle.class);
-        } catch (IllegalAccessException e) {
-            throw new IllegalStateException(e);
-        }
-    }
-
     final InstrumentationService instrumentationService = new InstrumentationServiceImpl();
 
     static volatile TestEntitlementManager testChecker;

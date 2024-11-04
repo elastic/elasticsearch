@@ -341,7 +341,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
         }
     }
 
-    public void testIndexCreationDuringLongDesiredComputation() throws Exception {
+    public void testIndexCreationInterruptsLongDesiredBalanceComputation() throws Exception {
         var discoveryNode = newNode("node-0");
         var initialState = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(DiscoveryNodes.builder().add(discoveryNode).localNodeId(discoveryNode.getId()).masterNodeId(discoveryNode.getId()))

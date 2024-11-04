@@ -26,18 +26,6 @@ interface KqlBaseListener extends ParseTreeListener {
      */
     void exitTopLevelQuery(KqlBaseParser.TopLevelQueryContext ctx);
     /**
-     * Enter a parse tree produced by the {@code notQuery}
-     * labeled alternative in {@link KqlBaseParser#query}.
-     * @param ctx the parse tree
-     */
-    void enterNotQuery(KqlBaseParser.NotQueryContext ctx);
-    /**
-     * Exit a parse tree produced by the {@code notQuery}
-     * labeled alternative in {@link KqlBaseParser#query}.
-     * @param ctx the parse tree
-     */
-    void exitNotQuery(KqlBaseParser.NotQueryContext ctx);
-    /**
      * Enter a parse tree produced by the {@code booleanQuery}
      * labeled alternative in {@link KqlBaseParser#query}.
      * @param ctx the parse tree
@@ -71,6 +59,16 @@ interface KqlBaseListener extends ParseTreeListener {
      * @param ctx the parse tree
      */
     void exitSimpleQuery(KqlBaseParser.SimpleQueryContext ctx);
+    /**
+     * Enter a parse tree produced by {@link KqlBaseParser#notQuery}.
+     * @param ctx the parse tree
+     */
+    void enterNotQuery(KqlBaseParser.NotQueryContext ctx);
+    /**
+     * Exit a parse tree produced by {@link KqlBaseParser#notQuery}.
+     * @param ctx the parse tree
+     */
+    void exitNotQuery(KqlBaseParser.NotQueryContext ctx);
     /**
      * Enter a parse tree produced by {@link KqlBaseParser#nestedQuery}.
      * @param ctx the parse tree

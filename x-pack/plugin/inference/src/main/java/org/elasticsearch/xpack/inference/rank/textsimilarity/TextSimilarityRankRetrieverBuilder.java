@@ -81,7 +81,7 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
             throw new ParsingException(parser.getTokenLocation(), "unknown retriever [" + TextSimilarityRankBuilder.NAME + "]");
         }
         if (context.clusterSupportsFeature(TEXT_SIMILARITY_RERANKER_COMPOSITION_SUPPORTED) == false) {
-            throw new UnsupportedOperationException(
+            throw new IllegalArgumentException(
                 "[text_similarity_reranker] retriever composition feature is not supported by all nodes in the cluster"
             );
         }

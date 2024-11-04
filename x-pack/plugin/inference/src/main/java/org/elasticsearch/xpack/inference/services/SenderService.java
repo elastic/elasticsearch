@@ -25,13 +25,14 @@ import org.elasticsearch.xpack.inference.external.http.sender.QueryAndDocsInputs
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 
 import java.io.IOException;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
 public abstract class SenderService implements InferenceService {
-    protected static final Set<TaskType> COMPLETION_ONLY = Set.of(TaskType.COMPLETION);
+    protected static final Set<TaskType> COMPLETION_ONLY = EnumSet.of(TaskType.COMPLETION, TaskType.ANY);
     private final Sender sender;
     private final ServiceComponents serviceComponents;
 

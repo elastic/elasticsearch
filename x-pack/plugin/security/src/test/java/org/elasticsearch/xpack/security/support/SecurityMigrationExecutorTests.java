@@ -46,7 +46,9 @@ public class SecurityMigrationExecutorTests extends ESTestCase {
     private int updateIndexMigrationVersionActionInvocations;
     private int refreshActionInvocations;
 
-    private boolean clientShouldThrowException = false;
+    private boolean updateVersionShouldThrowException = false;
+
+    private boolean refreshIndexShouldThrowException = false;
 
     private AllocatedPersistentTask mockTask = mock(AllocatedPersistentTask.class);
 
@@ -65,16 +67,24 @@ public class SecurityMigrationExecutorTests extends ESTestCase {
                 Request request,
                 ActionListener<Response> listener
             ) {
-                if (clientShouldThrowException) {
-                    listener.onFailure(new IllegalStateException("Bad client"));
-                    return;
-                }
                 if (request instanceof RefreshRequest) {
-                    refreshActionInvocations++;
-                    listener.onResponse((Response) new BroadcastResponse(1, 1, 0, List.of()));
+                    if (refreshIndexShouldThrowException) {
+                        if (randomBoolean()) {
+                            listener.onFailure(new IllegalStateException("Refresh index failed"));
+                        } else {
+                            listener.onResponse((Response) new BroadcastResponse(1, 0, 1, List.of()));
+                        }
+                    } else {
+                        refreshActionInvocations++;
+                        listener.onResponse((Response) new BroadcastResponse(1, 1, 0, List.of()));
+                    }
                 } else if (request instanceof UpdateIndexMigrationVersionAction.Request) {
-                    updateIndexMigrationVersionActionInvocations++;
-                    listener.onResponse((Response) new UpdateIndexMigrationVersionResponse());
+                    if (updateVersionShouldThrowException) {
+                        listener.onFailure(new IllegalStateException("Update version failed"));
+                    } else {
+                        updateIndexMigrationVersionActionInvocations++;
+                        listener.onResponse((Response) new UpdateIndexMigrationVersionResponse());
+                    }
                 } else {
                     fail("Unexpected client request");
                 }
@@ -221,10 +231,25 @@ public class SecurityMigrationExecutorTests extends ESTestCase {
             client,
             new TreeMap<>(Map.of(1, generateMigration(migrateInvocations, true), 2, generateMigration(migrateInvocations, true)))
         );
-        clientShouldThrowException = true;
+        updateVersionShouldThrowException = true;
         securityMigrationExecutor.nodeOperation(mockTask, new SecurityMigrationTaskParams(0, true), mock(PersistentTaskState.class));
         verify(mockTask, times(1)).markAsFailed(any());
         verify(mockTask, times(0)).markAsCompleted();
+    }
+
+    public void testRefreshSecurityIndexThrowsException() {
+        final int[] migrateInvocations = new int[1];
+        SecurityMigrationExecutor securityMigrationExecutor = new SecurityMigrationExecutor(
+            "test-task",
+            threadPool.generic(),
+            securityIndexManager,
+            client,
+            new TreeMap<>(Map.of(1, generateMigration(migrateInvocations, true), 2, generateMigration(migrateInvocations, true)))
+        );
+        refreshIndexShouldThrowException = true;
+        securityMigrationExecutor.nodeOperation(mockTask, new SecurityMigrationTaskParams(0, true), mock(PersistentTaskState.class));
+        verify(mockTask, times(0)).markAsFailed(any());
+        verify(mockTask, times(1)).markAsCompleted();
     }
 
     private SecurityMigrations.SecurityMigration generateMigration(int[] migrateInvocationsCounter, boolean isEligible) {

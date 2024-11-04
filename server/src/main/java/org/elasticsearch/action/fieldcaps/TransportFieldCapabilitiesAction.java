@@ -35,6 +35,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.logging.LogManager;
@@ -149,9 +150,13 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             // in the case we have one or more remote indices but no local we don't expand to all local indices and just do remote indices
             concreteIndices = Strings.EMPTY_ARRAY;
         } else {
+            boolean ignoreUnavailable = request.indicesOptions().ignoreUnavailable();
             concreteIndices = Arrays.stream(indexNameExpressionResolver.concreteIndexNames(clusterState, localIndices)).filter(index -> {
                 IndexMetadata metadata = clusterState.getMetadata().getIndices().get(index);
-                return metadata != null && metadata.getState() == IndexMetadata.State.OPEN;
+                if (metadata != null && metadata.getState() == IndexMetadata.State.CLOSE) {
+                    if (ignoreUnavailable) return false;
+                    else throw new IndexClosedException(metadata.getIndex());
+                } else return true;
             }).toArray(String[]::new);
         }
 

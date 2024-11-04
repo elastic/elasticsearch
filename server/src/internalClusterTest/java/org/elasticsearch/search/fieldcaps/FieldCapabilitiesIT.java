@@ -47,6 +47,7 @@ import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.FieldPredicate;
 import org.elasticsearch.plugins.MapperPlugin;
@@ -321,63 +322,61 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
         assertEquals(response1, response2);
     }
 
-    public void testClosedIndexNoIndices() {
-        boolean ignoreUnavailable = true;
+    public void testNoIndices() {
+        boolean ignoreUnavailable = false;
         IndicesOptions options = IndicesOptions.fromOptions(ignoreUnavailable, true, true, false);
-
-        // No indices in request
-        FieldCapabilitiesResponse response = client().prepareFieldCaps().setFields("*").setIndicesOptions(options).get();
-        assertIndices(response, "old_index", "new_index");
-
         client().admin().indices().close(new CloseIndexRequest("old_index")).actionGet();
-
-        response = client().prepareFieldCaps().setFields("*").setIndicesOptions(options).get();
+        FieldCapabilitiesResponse response = client().prepareFieldCaps().setFields("*").setIndicesOptions(options).get();
         assertIndices(response, "new_index");
     }
 
-    public void testClosedIndexOneIndex() {
+    public void testNoIndicesIgnoreUnavailable() {
         boolean ignoreUnavailable = true;
         IndicesOptions options = IndicesOptions.fromOptions(ignoreUnavailable, true, true, false);
-
-        FieldCapabilitiesResponse response = client().prepareFieldCaps("old_index").setFields("*").setIndicesOptions(options).get();
-        assertIndices(response, "old_index");
-
         client().admin().indices().close(new CloseIndexRequest("old_index")).actionGet();
+        FieldCapabilitiesResponse response = client().prepareFieldCaps().setFields("*").setIndicesOptions(options).get();
+        assertIndices(response, "new_index");
+    }
 
-        response = client().prepareFieldCaps("old_index").setFields("*").setIndicesOptions(options).get();
+    public void testOneClosedIndex() {
+        boolean ignoreUnavailable = false;
+        IndicesOptions options = IndicesOptions.fromOptions(ignoreUnavailable, true, true, false);
+        client().admin().indices().close(new CloseIndexRequest("old_index")).actionGet();
+        IndexClosedException ex = expectThrows(
+            IndexClosedException.class,
+            client().prepareFieldCaps("old_index").setFields("*").setIndicesOptions(options)
+        );
+        assertEquals("closed", ex.getMessage());
+    }
+
+    public void testOneClosedIndexIgnoreUnavailable() {
+        boolean ignoreUnavailable = true;
+        IndicesOptions options = IndicesOptions.fromOptions(ignoreUnavailable, true, true, false);
+        client().admin().indices().close(new CloseIndexRequest("old_index")).actionGet();
+        FieldCapabilitiesResponse response = client().prepareFieldCaps("old_index").setFields("*").setIndicesOptions(options).get();
         assertIndices(response);
     }
 
-    public void testClosedIndexTwoIndices() {
+    public void testTwoIndicesOneClosed() {
+        boolean ignoreUnavailable = false;
+        IndicesOptions options = IndicesOptions.fromOptions(ignoreUnavailable, true, true, false);
+        client().admin().indices().close(new CloseIndexRequest("old_index")).actionGet();
+        IndexClosedException ex = expectThrows(
+            IndexClosedException.class,
+            client().prepareFieldCaps("old_index", "new_index").setFields("*").setIndicesOptions(options)
+        );
+        assertEquals("closed", ex.getMessage());
+    }
+
+    public void testTwoIndicesOneClosedIgnoreUnavailable() {
         boolean ignoreUnavailable = true;
         IndicesOptions options = IndicesOptions.fromOptions(ignoreUnavailable, true, true, false);
-
+        client().admin().indices().close(new CloseIndexRequest("old_index")).actionGet();
         FieldCapabilitiesResponse response = client().prepareFieldCaps("old_index", "new_index")
             .setFields("*")
             .setIndicesOptions(options)
             .get();
-        assertIndices(response, "old_index", "new_index");
-
-        client().admin().indices().close(new CloseIndexRequest("old_index")).actionGet();
-
-        response = client().prepareFieldCaps("old_index", "new_index").setFields("*").setIndicesOptions(options).get();
         assertIndices(response, "new_index");
-    }
-
-    public void testClosedIndexTwoIndicesOneNotExisting() {
-        boolean ignoreUnavailable = true;
-        IndicesOptions options = IndicesOptions.fromOptions(ignoreUnavailable, true, true, false);
-
-        FieldCapabilitiesResponse response = client().prepareFieldCaps("old_index", "not_existing")
-            .setFields("*")
-            .setIndicesOptions(options)
-            .get();
-        assertIndices(response, "old_index");
-
-        client().admin().indices().close(new CloseIndexRequest("old_index")).actionGet();
-
-        response = client().prepareFieldCaps("old_index", "not_existing").setFields("*").setIndicesOptions(options).get();
-        assertIndices(response);
     }
 
     public void testWithIndexFilter() throws InterruptedException {

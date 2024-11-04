@@ -54,7 +54,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.IntFunction;
-import java.util.regex.Pattern;
 
 import static java.util.Collections.emptySet;
 import static java.util.Map.entry;

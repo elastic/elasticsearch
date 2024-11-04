@@ -97,7 +97,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.jar.JarInputStream;
-import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
 
 import static java.util.Collections.emptyList;
@@ -118,8 +117,6 @@ import static org.elasticsearch.test.ESTestCase.randomLongBetween;
 import static org.elasticsearch.test.ESTestCase.randomMillisUpToYear9999;
 import static org.elasticsearch.test.ESTestCase.randomShort;
 import static org.elasticsearch.test.ESTestCase.randomZone;
-import static org.elasticsearch.test.ListMatcher.matchesList;
-import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
@@ -129,7 +126,6 @@ import static org.elasticsearch.xpack.esql.parser.ParserUtils.ParamClassificatio
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.ParamClassification.PATTERN;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.ParamClassification.VALUE;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.junit.Assert.assertTrue;
 
 public final class EsqlTestUtils {
 

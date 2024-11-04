@@ -133,6 +133,7 @@ import org.elasticsearch.xpack.core.security.SecuritySettings;
 import org.elasticsearch.xpack.core.security.action.ActionTypes;
 import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheAction;
 import org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationAction;
+import org.elasticsearch.xpack.core.security.action.SetIndexMetadataPropertyAction;
 import org.elasticsearch.xpack.core.security.action.UpdateIndexMigrationVersionAction;
 import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyRequestTranslator;
@@ -337,6 +338,9 @@ import org.elasticsearch.xpack.security.authz.store.DeprecationRoleDescriptorCon
 import org.elasticsearch.xpack.security.authz.store.FileRolesStore;
 import org.elasticsearch.xpack.security.authz.store.NativePrivilegeStore;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
+import org.elasticsearch.xpack.security.authz.store.QueryableReservedRolesProvider;
+import org.elasticsearch.xpack.security.authz.store.QueryableRolesProvider;
+import org.elasticsearch.xpack.security.authz.store.QueryableRolesSynchronizationExecutor;
 import org.elasticsearch.xpack.security.authz.store.RoleProviders;
 import org.elasticsearch.xpack.security.ingest.SetSecurityUserProcessor;
 import org.elasticsearch.xpack.security.operator.DefaultOperatorOnlyRegistry;
@@ -1171,6 +1175,17 @@ public class Security extends Plugin
         DestructiveOperations destructiveOperations = new DestructiveOperations(settings, clusterService.getClusterSettings());
         crossClusterAccessAuthcService.set(new CrossClusterAccessAuthenticationService(clusterService, apiKeyService, authcService.get()));
         components.add(crossClusterAccessAuthcService.get());
+        QueryableRolesProvider queryableRolesProvider = new QueryableReservedRolesProvider(reservedRolesStore); // TODO: Make this
+                                                                                                                // injectable
+        QueryableRolesSynchronizationExecutor queryableRolesSynchronizationExecutor = new QueryableRolesSynchronizationExecutor(
+            queryableRolesProvider,
+            nativeRolesStore,
+            systemIndices.getMainIndexManager(),
+            client,
+            threadPool
+        );
+        clusterService.addListener(queryableRolesSynchronizationExecutor);
+        components.add(queryableRolesSynchronizationExecutor);
         securityInterceptor.set(
             new SecurityServerTransportInterceptor(
                 settings,
@@ -1624,6 +1639,7 @@ public class Security extends Plugin
             new ActionHandler<>(UpdateSecuritySettingsAction.INSTANCE, TransportUpdateSecuritySettingsAction.class),
             new ActionHandler<>(ActionTypes.RELOAD_REMOTE_CLUSTER_CREDENTIALS_ACTION, TransportReloadRemoteClusterCredentialsAction.class),
             new ActionHandler<>(UpdateIndexMigrationVersionAction.INSTANCE, UpdateIndexMigrationVersionAction.TransportAction.class),
+            new ActionHandler<>(SetIndexMetadataPropertyAction.INSTANCE, SetIndexMetadataPropertyAction.TransportAction.class),
             usageAction,
             infoAction
         ).filter(Objects::nonNull).toList();

@@ -992,6 +992,10 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
         return RESERVED_ROLES.keySet();
     }
 
+    public static Map<String, RoleDescriptor> roleDescriptorsMap() {
+        return RESERVED_ROLES;
+    }
+
     @Override
     public void accept(Set<String> roleNames, ActionListener<RoleRetrievalResult> listener) {
         final Set<RoleDescriptor> descriptors = roleNames.stream()

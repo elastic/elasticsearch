@@ -174,7 +174,7 @@ public class InstrumenterImpl implements Instrumenter {
         }
     }
 
-    static class EntitlementMethodVisitor extends MethodVisitor {
+    class EntitlementMethodVisitor extends MethodVisitor {
         private final boolean instrumentedMethodIsStatic;
         private final String instrumentedMethodDescriptor;
         private final Method instrumentationMethod;
@@ -211,13 +211,7 @@ public class InstrumenterImpl implements Instrumenter {
         }
 
         private void pushEntitlementChecker() {
-            mv.visitMethodInsn(
-                INVOKESTATIC,
-                "org/elasticsearch/entitlement/bridge/EntitlementCheckerHandle",
-                "instance",
-                "()Lorg/elasticsearch/entitlement/bridge/EntitlementChecker;",
-                false
-            );
+            InstrumenterImpl.this.pushEntitlementChecker(mv);
         }
 
         private void pushCallerClass() {
@@ -276,7 +270,15 @@ public class InstrumenterImpl implements Instrumenter {
         }
     }
 
-    // private static final Logger LOGGER = LogManager.getLogger(Instrumenter.class);
+    protected void pushEntitlementChecker(MethodVisitor mv) {
+        mv.visitMethodInsn(
+            INVOKESTATIC,
+            "org/elasticsearch/entitlement/bridge/EntitlementCheckerHandle",
+            "instance",
+            "()Lorg/elasticsearch/entitlement/bridge/EntitlementChecker;",
+            false
+        );
+    }
 
     public record ClassFileInfo(String fileName, byte[] bytecodes) {}
 }

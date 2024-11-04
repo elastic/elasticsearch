@@ -17,6 +17,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
+import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Type;
 
 import java.lang.invoke.MethodHandles;
@@ -28,6 +29,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.entitlement.instrumentation.impl.ASMUtils.bytecode2text;
 import static org.elasticsearch.entitlement.instrumentation.impl.InstrumenterImpl.getClassFileInfo;
 import static org.hamcrest.Matchers.is;
+import static org.objectweb.asm.Opcodes.INVOKESTATIC;
 
 /**
  * This tests {@link InstrumenterImpl} in isolation, without a java agent.
@@ -46,13 +48,15 @@ public class InstrumenterTests extends ESTestCase {
 
     final InstrumentationService instrumentationService = new InstrumentationServiceImpl();
 
-    private static TestEntitlementManager getTestChecks() {
-        return (TestEntitlementManager) EntitlementCheckerHandle.instance();
+    static volatile TestEntitlementManager testChecker;
+
+    public static TestEntitlementManager getTestEntitlementManager() {
+        return testChecker;
     }
 
     @Before
     public void initialize() {
-        getTestChecks().isActive = false;
+        testChecker = new TestEntitlementManager();
     }
 
     /**
@@ -125,12 +129,12 @@ public class InstrumenterTests extends ESTestCase {
             newBytecode
         );
 
-        getTestChecks().isActive = false;
+        getTestEntitlementManager().isActive = false;
 
         // Before checking is active, nothing should throw
         callStaticMethod(newClass, "systemExit", 123);
 
-        getTestChecks().isActive = true;
+        getTestEntitlementManager().isActive = true;
 
         // After checking is activated, everything should throw
         assertThrows(TestException.class, () -> callStaticMethod(newClass, "systemExit", 123));
@@ -154,11 +158,11 @@ public class InstrumenterTests extends ESTestCase {
             instrumentedTwiceBytecode
         );
 
-        getTestChecks().isActive = true;
-        getTestChecks().checkSystemExitCallCount = 0;
+        getTestEntitlementManager().isActive = true;
+        getTestEntitlementManager().checkSystemExitCallCount = 0;
 
         assertThrows(TestException.class, () -> callStaticMethod(newClass, "systemExit", 123));
-        assertThat(getTestChecks().checkSystemExitCallCount, is(1));
+        assertThat(getTestEntitlementManager().checkSystemExitCallCount, is(1));
     }
 
     public void testClassAllMethodsAreInstrumentedFirstPass() throws Exception {
@@ -179,14 +183,14 @@ public class InstrumenterTests extends ESTestCase {
             instrumentedTwiceBytecode
         );
 
-        getTestChecks().isActive = true;
-        getTestChecks().checkSystemExitCallCount = 0;
+        getTestEntitlementManager().isActive = true;
+        getTestEntitlementManager().checkSystemExitCallCount = 0;
 
         assertThrows(TestException.class, () -> callStaticMethod(newClass, "systemExit", 123));
-        assertThat(getTestChecks().checkSystemExitCallCount, is(1));
+        assertThat(getTestEntitlementManager().checkSystemExitCallCount, is(1));
 
         assertThrows(TestException.class, () -> callStaticMethod(newClass, "anotherSystemExit", 123));
-        assertThat(getTestChecks().checkSystemExitCallCount, is(2));
+        assertThat(getTestEntitlementManager().checkSystemExitCallCount, is(2));
     }
 
     /** This test doesn't replace ClassToInstrument in-place but instead loads a separate
@@ -205,7 +209,19 @@ public class InstrumenterTests extends ESTestCase {
             }
         }).collect(Collectors.toUnmodifiableMap(name -> name, name -> v1));
 
-        return new InstrumenterImpl("_NEW", methods);
+        Method m = InstrumenterTests.class.getMethod("getTestEntitlementManager");
+        return new InstrumenterImpl("_NEW", methods) {
+            @Override
+            protected void pushEntitlementChecker(MethodVisitor mv) {
+                mv.visitMethodInsn(
+                    INVOKESTATIC,
+                    Type.getInternalName(m.getDeclaringClass()),
+                    m.getName(),
+                    Type.getMethodDescriptor(m),
+                    false
+                );
+            }
+        };
     }
 
     /**

@@ -120,9 +120,7 @@ public abstract class DocumentParserContext {
     private final List<DocumentParserListener> listeners;
 
     private final Set<String> ignoredFields;
-    public final List<IgnoredSourceFieldMapper.NameValue> ignoredFieldValues;
-    private final List<IgnoredSourceFieldMapper.NameValue> ignoredFieldsMissingValues;
-    private boolean inArrayScopeEnabled;
+    private final List<IgnoredSourceFieldMapper.NameValue> ignoredFieldValues;
     private Scope currentScope;
 
     private final Map<String, List<Mapper>> dynamicMappers;
@@ -155,8 +153,6 @@ public abstract class DocumentParserContext {
         List<DocumentParserListener> listeners,
         Set<String> ignoreFields,
         List<IgnoredSourceFieldMapper.NameValue> ignoredFieldValues,
-        List<IgnoredSourceFieldMapper.NameValue> ignoredFieldsWithNoSource,
-        boolean inArrayScopeEnabled,
         Scope currentScope,
         Map<String, List<Mapper>> dynamicMappers,
         Map<String, ObjectMapper> dynamicObjectMappers,
@@ -178,8 +174,6 @@ public abstract class DocumentParserContext {
         this.listeners = listeners;
         this.ignoredFields = ignoreFields;
         this.ignoredFieldValues = ignoredFieldValues;
-        this.ignoredFieldsMissingValues = ignoredFieldsWithNoSource;
-        this.inArrayScopeEnabled = inArrayScopeEnabled;
         this.currentScope = currentScope;
         this.dynamicMappers = dynamicMappers;
         this.dynamicObjectMappers = dynamicObjectMappers;
@@ -204,8 +198,6 @@ public abstract class DocumentParserContext {
             in.listeners,
             in.ignoredFields,
             in.ignoredFieldValues,
-            in.ignoredFieldsMissingValues,
-            in.inArrayScopeEnabled,
             in.currentScope,
             in.dynamicMappers,
             in.dynamicObjectMappers,
@@ -238,8 +230,6 @@ public abstract class DocumentParserContext {
             listeners,
             new HashSet<>(),
             new ArrayList<>(),
-            new ArrayList<>(),
-            mappingParserContext.getIndexSettings().isSyntheticSourceSecondDocParsingPassEnabled(),
             Scope.SINGLETON,
             new HashMap<>(),
             new HashMap<>(),
@@ -331,13 +321,6 @@ public abstract class DocumentParserContext {
     }
 
     /**
-     * Remove duplicate ignored values, using the passed set of field names as reference
-     */
-    public final void deduplicateIgnoredFieldValues(final Set<String> fullNames) {
-        ignoredFieldValues.removeIf(nv -> fullNames.contains(nv.name()));
-    }
-
-    /**
      * Adds an ignored field from the parser context, capturing an object or an array.
      *
      * In case of nested arrays, i.e. capturing an array within an array, elements tracked as ignored fields may interfere with
@@ -351,17 +334,11 @@ public abstract class DocumentParserContext {
     public final DocumentParserContext addIgnoredFieldFromContext(IgnoredSourceFieldMapper.NameValue ignoredFieldWithNoSource)
         throws IOException {
         if (canAddIgnoredField()) {
-            if (currentScope == Scope.ARRAY) {
-                // The field is an array within an array, store all sub-array elements.
-                ignoredFieldsMissingValues.add(ignoredFieldWithNoSource);
-                return cloneWithRecordedSource();
-            } else {
-                assert ignoredFieldWithNoSource != null;
-                assert ignoredFieldWithNoSource.value() == null;
-                Tuple<DocumentParserContext, XContentBuilder> tuple = XContentDataHelper.cloneSubContext(this);
-                addIgnoredField(ignoredFieldWithNoSource.cloneWithValue(XContentDataHelper.encodeXContentBuilder(tuple.v2())));
-                return tuple.v1();
-            }
+            assert ignoredFieldWithNoSource != null;
+            assert ignoredFieldWithNoSource.value() == null;
+            Tuple<DocumentParserContext, XContentBuilder> tuple = XContentDataHelper.cloneSubContext(this);
+            addIgnoredField(ignoredFieldWithNoSource.cloneWithValue(XContentDataHelper.encodeXContentBuilder(tuple.v2())));
+            return tuple.v1();
         }
         return this;
     }
@@ -381,13 +358,6 @@ public abstract class DocumentParserContext {
     }
 
     /**
-     * Return the collection of fields that are missing their source values.
-     */
-    public final Collection<IgnoredSourceFieldMapper.NameValue> getIgnoredFieldsMissingValues() {
-        return Collections.unmodifiableCollection(ignoredFieldsMissingValues);
-    }
-
-    /**
      * Clones the current context to mark it as an array, if it's not already marked, or restore it if it's within a nested object.
      * Applies to synthetic source only.
      */
@@ -395,8 +365,7 @@ public abstract class DocumentParserContext {
         if (canAddIgnoredField()
             && mapper instanceof ObjectMapper
             && mapper instanceof NestedObjectMapper == false
-            && currentScope != Scope.ARRAY
-            && inArrayScopeEnabled) {
+            && currentScope != Scope.ARRAY) {
             DocumentParserContext subcontext = switchParser(parser());
             subcontext.currentScope = Scope.ARRAY;
             return subcontext;
@@ -685,8 +654,8 @@ public abstract class DocumentParserContext {
         return false;
     }
 
-    public boolean inNestedScope() {
-        return currentScope == Scope.NESTED;
+    boolean inArrayScope() {
+        return currentScope == Scope.ARRAY;
     }
 
     public final DocumentParserContext createChildContext(ObjectMapper parent) {
@@ -736,10 +705,6 @@ public abstract class DocumentParserContext {
         };
 
         cloned.currentScope = Scope.NESTED;
-        // Disable using second parsing pass since it currently can not determine which parts
-        // of source belong to which nested document.
-        // See #115261.
-        cloned.inArrayScopeEnabled = false;
         return cloned;
     }
 

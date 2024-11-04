@@ -73,6 +73,7 @@ import org.elasticsearch.xpack.esql.stats.PlanningMetrics;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -275,33 +276,6 @@ public class EsqlSession {
             return;
         }
 
-        preAnalyze(parsed, executionInfo, (indices, policies) -> {
-            planningMetrics.gatherPreAnalysisMetrics(parsed);
-            Analyzer analyzer = new Analyzer(new AnalyzerContext(configuration, functionRegistry, indices, policies), verifier);
-
-           LogicalPlan plan;
-            /*if (requestFilter != null) {
-                try {*/
-                    plan = analyzer.analyze(parsed);
-            /*    } catch (VerificationException ve) {
-
-                }
-            } else {
-                plan = analyzer.analyze(parsed);
-            }*/
-            plan.setAnalyzed();
-            LOGGER.debug("Analyzed plan:\n{}", plan);
-            return plan;
-        }, listener, requestFilter);
-    }
-
-    private <T> void preAnalyze(
-        LogicalPlan parsed,
-        EsqlExecutionInfo executionInfo,
-        BiFunction<IndexResolution, EnrichResolution, T> action,
-        ActionListener<T> listener,
-        QueryBuilder requestFilter
-    ) {
         PreAnalyzer.PreAnalysis preAnalysis = preAnalyzer.preAnalyze(parsed);
         var unresolvedPolicies = preAnalysis.enriches.stream()
             .map(e -> new EnrichPolicyResolver.UnresolvedPolicy((String) e.policyName().fold(), e.mode()))
@@ -311,7 +285,28 @@ public class EsqlSession {
                 .flatMap(t -> Arrays.stream(Strings.commaDelimitedListToStringArray(t.id().index())))
                 .toArray(String[]::new)
         ).keySet();
-        enrichPolicyResolver.resolvePolicies(targetClusters, unresolvedPolicies, listener.delegateFailureAndWrap((l, enrichResolution) -> {
+
+        preAnalyze(parsed, executionInfo, (indices, policies) -> {
+            planningMetrics.gatherPreAnalysisMetrics(parsed);
+            Analyzer analyzer = new Analyzer(new AnalyzerContext(configuration, functionRegistry, indices, policies), verifier);
+
+            LogicalPlan plan = analyzer.analyze(parsed);
+            plan.setAnalyzed();
+            LOGGER.debug("Analyzed plan (first phase):\n{}", plan);
+            return plan;
+        }, listener, requestFilter, targetClusters, unresolvedPolicies);
+    }
+
+    private <T> void preAnalyze(
+        LogicalPlan parsed,
+        EsqlExecutionInfo executionInfo,
+        BiFunction<IndexResolution, EnrichResolution, T> action,
+        ActionListener<T> listener,
+        QueryBuilder requestFilter,
+        Collection<String> targetClusters,
+        Collection<EnrichPolicyResolver.UnresolvedPolicy> unresolvedPolicies
+    ) {
+        enrichPolicyResolver.resolvePolicies(targetClusters, unresolvedPolicies, requestFilter, listener.delegateFailureAndWrap((l, enrichResolution) -> {
             // first we need the match_fields names from enrich policies and THEN, with an updated list of fields, we call field_caps API
             var matchFields = enrichResolution.resolvedEnrichPolicies()
                 .stream()
@@ -344,12 +339,41 @@ public class EsqlSession {
                         enrichPolicyResolver.resolvePolicies(
                             newClusters,
                             unresolvedPolicies,
+                            requestFilter,
                             ll.map(newEnrichResolution -> action.apply(indexResolution, newEnrichResolution))
                         );
                         return;
                     }
                 }
-                ll.onResponse(action.apply(indexResolution, enrichResolution));
+
+                if (requestFilter == null) {
+                    // we are not interested in any kind of failures if the request doesn't have a filter, because:
+                    // 1. either this is the second attempt to make Analysis work by excluding any potential filter
+                    // 2. the ES|QL query didn't have a filter in the first place and there was no second try
+                    ll.onResponse(action.apply(indexResolution, enrichResolution));
+                } else {
+                    // "reset" execution information for all ccs or non-ccs (local) clusters, since we are performing the indices
+                    // resolving one more time
+                    for (String clusterAlias : executionInfo.clusterAliases()) {
+                        executionInfo.swapCluster(clusterAlias, (k, v) -> null);
+                    }
+
+                    T plan = null;
+                    try {
+                        plan = action.apply(indexResolution, enrichResolution);
+                    } catch (VerificationException ve) {
+                        // interested only in a VerificationException, but this time we are taking out the index filter
+                        // to try and make the index resolution work without any index filtering
+                        preAnalyzeIndices(parsed,
+                            executionInfo,
+                            unavailableClusters,
+                            ll.map(ir -> action.apply(ir, enrichResolution)),
+                            matchFields,
+                            null);
+                        return;
+                    }
+                    ll.onResponse(plan);
+                }
             }), matchFields, requestFilter);
         }));
     }

@@ -23,6 +23,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
@@ -105,6 +106,7 @@ public class EnrichPolicyResolver {
     public void resolvePolicies(
         Collection<String> targetClusters,
         Collection<UnresolvedPolicy> unresolvedPolicies,
+        QueryBuilder requestFilter,
         ActionListener<EnrichResolution> listener
     ) {
         if (unresolvedPolicies.isEmpty() || targetClusters.isEmpty()) {
@@ -113,7 +115,7 @@ public class EnrichPolicyResolver {
         }
         final Set<String> remoteClusters = new HashSet<>(targetClusters);
         final boolean includeLocal = remoteClusters.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
-        lookupPolicies(remoteClusters, includeLocal, unresolvedPolicies, listener.map(lookupResponses -> {
+        lookupPolicies(remoteClusters, includeLocal, unresolvedPolicies, requestFilter, listener.map(lookupResponses -> {
             final EnrichResolution enrichResolution = new EnrichResolution();
 
             Map<String, LookupResponse> lookupResponsesToProcess = new HashMap<>();
@@ -269,6 +271,7 @@ public class EnrichPolicyResolver {
         Collection<String> remoteClusters,
         boolean includeLocal,
         Collection<UnresolvedPolicy> unresolvedPolicies,
+        QueryBuilder requestFilter,
         ActionListener<Map<String, LookupResponse>> listener
     ) {
         final Map<String, LookupResponse> lookupResponses = ConcurrentCollections.newConcurrentMap();
@@ -287,7 +290,7 @@ public class EnrichPolicyResolver {
                             transportService.sendRequest(
                                 connection,
                                 RESOLVE_ACTION_NAME,
-                                new LookupRequest(cluster, remotePolicies),
+                                new LookupRequest(cluster, remotePolicies, requestFilter),
                                 TransportRequestOptions.EMPTY,
                                 new ActionListenerResponseHandler<>(lookupListener.delegateResponse((l, e) -> {
                                     if (ExceptionsHelper.isRemoteUnavailableException(e)
@@ -320,7 +323,7 @@ public class EnrichPolicyResolver {
                 transportService.sendRequest(
                     transportService.getLocalNode(),
                     RESOLVE_ACTION_NAME,
-                    new LookupRequest(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, localPolicies),
+                    new LookupRequest(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, localPolicies, requestFilter),
                     new ActionListenerResponseHandler<>(
                         refs.acquire(resp -> lookupResponses.put(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, resp)),
                         LookupResponse::new,
@@ -334,21 +337,25 @@ public class EnrichPolicyResolver {
     private static class LookupRequest extends TransportRequest {
         private final String clusterAlias;
         private final Collection<String> policyNames;
+        private final QueryBuilder requestFilter;
 
-        LookupRequest(String clusterAlias, Collection<String> policyNames) {
+        LookupRequest(String clusterAlias, Collection<String> policyNames, QueryBuilder requestFilter) {
             this.clusterAlias = clusterAlias;
             this.policyNames = policyNames;
+            this.requestFilter = requestFilter;
         }
 
         LookupRequest(StreamInput in) throws IOException {
             this.clusterAlias = in.readString();
             this.policyNames = in.readStringCollectionAsList();
+            this.requestFilter = in.readNamedWriteable(QueryBuilder.class);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(clusterAlias);
             out.writeStringCollection(policyNames);
+            out.writeNamedWriteable(requestFilter);
         }
     }
 
@@ -410,7 +417,7 @@ public class EnrichPolicyResolver {
                     }
                     try (ThreadContext.StoredContext ignored = threadContext.stashWithOrigin(ClientHelper.ENRICH_ORIGIN)) {
                         String indexName = EnrichPolicy.getBaseName(policyName);
-                        indexResolver.resolveAsMergedMapping(indexName, IndexResolver.ALL_FIELDS, null, refs.acquire(indexResult -> {
+                        indexResolver.resolveAsMergedMapping(indexName, IndexResolver.ALL_FIELDS, request.requestFilter, refs.acquire(indexResult -> {
                             if (indexResult.isValid() && indexResult.get().concreteIndices().size() == 1) {
                                 EsIndex esIndex = indexResult.get();
                                 var concreteIndices = Map.of(request.clusterAlias, Iterables.get(esIndex.concreteIndices(), 0));

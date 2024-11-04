@@ -53,7 +53,7 @@ public class WildcardLikeTests extends AbstractScalarFunctionTestCase {
     }
 
     private static void addCases(List<TestCaseSupplier> suppliers) {
-        for (DataType type : new DataType[] { DataType.KEYWORD, DataType.TEXT }) {
+        for (DataType type : new DataType[] { DataType.KEYWORD, DataType.TEXT, DataType.SEMANTIC_TEXT }) {
             suppliers.add(new TestCaseSupplier(" with " + type.esType(), List.of(type, type), () -> {
                 BytesRef str = new BytesRef(randomAlphaOfLength(5));
                 String patternString = randomAlphaOfLength(2);

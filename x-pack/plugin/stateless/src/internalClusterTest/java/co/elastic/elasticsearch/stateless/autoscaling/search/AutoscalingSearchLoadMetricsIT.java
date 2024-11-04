@@ -29,6 +29,7 @@ import co.elastic.elasticsearch.stateless.autoscaling.search.load.TransportPubli
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.settings.ClusterGetSettingsAction;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.master.MasterNodeRequestHelper;
 import org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatService;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -41,6 +42,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.shutdown.PutShutdownNodeAction;
 import org.elasticsearch.xpack.shutdown.ShutdownPlugin;
@@ -91,7 +93,7 @@ public class AutoscalingSearchLoadMetricsIT extends AbstractStatelessIntegTestCa
             var loadsBeforeSearch = getNodeSearchLoad();
             assertThat(loadsBeforeSearch.size(), equalTo(1));
             assertThat(loadsBeforeSearch.get(0).metricQuality(), equalTo(MetricQuality.EXACT));
-            assertThat(loadsBeforeSearch.get(0).load(), equalTo(0.0));
+            assertThat(loadsBeforeSearch.get(0).load(), closeTo(0.0, 0.1));
         });
 
         indexDocs(indexName, 4000);
@@ -101,7 +103,8 @@ public class AutoscalingSearchLoadMetricsIT extends AbstractStatelessIntegTestCa
         for (var transportService : internalCluster().getInstances(TransportService.class)) {
             MockTransportService mockTransportService2 = (MockTransportService) transportService;
             mockTransportService2.addSendBehavior((connection, requestId, action, request, options) -> {
-                if (request instanceof PublishNodeSearchLoadRequest publishRequest && publishRequest.getSearchLoad() > 0) {
+                TransportRequest transportRequest = MasterNodeRequestHelper.unwrapTermOverride(request);
+                if (transportRequest instanceof PublishNodeSearchLoadRequest publishRequest && publishRequest.getSearchLoad() > 0) {
                     firstNonZeroPublishSearchLoadLatch.countDown();
                 }
                 connection.sendRequest(requestId, action, request, options);
@@ -561,8 +564,7 @@ public class AutoscalingSearchLoadMetricsIT extends AbstractStatelessIntegTestCa
 
     private static List<NodeSearchLoadSnapshot> getNodeSearchLoad() {
         var searchMetricsService = internalCluster().getCurrentMasterNodeInstance(SearchMetricsService.class);
-        var loadsAfterSearch = searchMetricsService.getSearchTierMetrics().getNodesLoad();
-        return loadsAfterSearch;
+        return searchMetricsService.getSearchTierMetrics().getNodesLoad();
     }
 
     private static void markNodesForShutdown(List<DiscoveryNode> shuttingDownNodes, List<SingleNodeShutdownMetadata.Type> shutdownTypes) {

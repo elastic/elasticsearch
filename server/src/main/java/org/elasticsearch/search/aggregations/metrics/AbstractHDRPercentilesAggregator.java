@@ -74,8 +74,12 @@ abstract class AbstractHDRPercentilesAggregator extends NumericMetricsAggregator
             @Override
             public void collect(int doc, long bucket) throws IOException {
                 if (values.advanceExact(doc)) {
+                    final double value = values.doubleValue();
+                    if (value < 0) {
+                        throw new IllegalArgumentException("Negative value [" + value + "] not supported by HDR aggregation");
+                    }
                     final DoubleHistogram state = getExistingOrNewHistogram(bigArrays(), bucket);
-                    state.recordValue(values.doubleValue());
+                    state.recordValue(value);
                 }
             }
         };

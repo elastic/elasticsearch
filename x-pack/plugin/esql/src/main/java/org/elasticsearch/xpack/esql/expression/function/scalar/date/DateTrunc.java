@@ -31,6 +31,7 @@ import java.time.Period;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
@@ -46,6 +47,14 @@ public class DateTrunc extends EsqlScalarFunction {
         DateTrunc::new
     );
 
+    @FunctionalInterface
+    public interface DateTruncFactoryProvider {
+        ExpressionEvaluator.Factory apply(Source source, ExpressionEvaluator.Factory lhs, Rounding.Prepared rounding);
+    }
+
+    private static final Map<DataType, DateTruncFactoryProvider> evaluatorMap = Map.ofEntries(
+        Map.entry(DATETIME, DateTruncDatetimeEvaluator.Factory::new)
+    );
     private final Expression interval;
     private final Expression timestampField;
     protected static final ZoneId DEFAULT_TZ = ZoneOffset.UTC;
@@ -111,16 +120,17 @@ public class DateTrunc extends EsqlScalarFunction {
 
         String operationName = sourceText();
         return isType(interval, DataType::isTemporalAmount, sourceText(), FIRST, "dateperiod", "timeduration").and(
-            isType(timestampField, dt -> dt == DATETIME || dt == DATE_NANOS, operationName, SECOND, "date_nanos or datetime")
+            isType(timestampField, evaluatorMap::containsKey, operationName, SECOND, "date_nanos or datetime")
         );
     }
 
     public DataType dataType() {
-        return DataType.DATETIME;
+        // Default to DATETIME in the case of nulls.  This mimics the behavior before DATE_NANOS support
+        return timestampField.dataType() == DataType.NULL ? DATETIME : timestampField.dataType();
     }
 
-    @Evaluator
-    static long process(long fieldVal, @Fixed Rounding.Prepared rounding) {
+    @Evaluator(extraName = "Datetime")
+    static long processDatetime(long fieldVal, @Fixed Rounding.Prepared rounding) {
         return rounding.round(fieldVal);
     }
 
@@ -216,14 +226,15 @@ public class DateTrunc extends EsqlScalarFunction {
                 "Function [" + sourceText() + "] has invalid interval [" + interval.sourceText() + "]. " + e.getMessage()
             );
         }
-        return evaluator(source(), fieldEvaluator, DateTrunc.createRounding(foldedInterval, DEFAULT_TZ));
+        return evaluator(dataType(), source(), fieldEvaluator, DateTrunc.createRounding(foldedInterval, DEFAULT_TZ));
     }
 
     public static ExpressionEvaluator.Factory evaluator(
+        DataType forType,
         Source source,
         ExpressionEvaluator.Factory fieldEvaluator,
         Rounding.Prepared rounding
     ) {
-        return new DateTruncEvaluator.Factory(source, fieldEvaluator, rounding);
+        return evaluatorMap.get(forType).apply(source, fieldEvaluator, rounding);
     }
 }

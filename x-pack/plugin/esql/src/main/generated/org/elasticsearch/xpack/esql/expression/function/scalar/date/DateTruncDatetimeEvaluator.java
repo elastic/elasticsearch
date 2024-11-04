@@ -22,7 +22,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link DateTrunc}.
  * This class is generated. Do not edit it.
  */
-public final class DateTruncEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class DateTruncDatetimeEvaluator implements EvalOperator.ExpressionEvaluator {
   private final Source source;
 
   private final EvalOperator.ExpressionEvaluator fieldVal;
@@ -33,7 +33,7 @@ public final class DateTruncEvaluator implements EvalOperator.ExpressionEvaluato
 
   private Warnings warnings;
 
-  public DateTruncEvaluator(Source source, EvalOperator.ExpressionEvaluator fieldVal,
+  public DateTruncDatetimeEvaluator(Source source, EvalOperator.ExpressionEvaluator fieldVal,
       Rounding.Prepared rounding, DriverContext driverContext) {
     this.source = source;
     this.fieldVal = fieldVal;
@@ -66,7 +66,7 @@ public final class DateTruncEvaluator implements EvalOperator.ExpressionEvaluato
           result.appendNull();
           continue position;
         }
-        result.appendLong(DateTrunc.process(fieldValBlock.getLong(fieldValBlock.getFirstValueIndex(p)), this.rounding));
+        result.appendLong(DateTrunc.processDatetime(fieldValBlock.getLong(fieldValBlock.getFirstValueIndex(p)), this.rounding));
       }
       return result.build();
     }
@@ -75,7 +75,7 @@ public final class DateTruncEvaluator implements EvalOperator.ExpressionEvaluato
   public LongVector eval(int positionCount, LongVector fieldValVector) {
     try(LongVector.FixedBuilder result = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendLong(p, DateTrunc.process(fieldValVector.getLong(p), this.rounding));
+        result.appendLong(p, DateTrunc.processDatetime(fieldValVector.getLong(p), this.rounding));
       }
       return result.build();
     }
@@ -83,7 +83,7 @@ public final class DateTruncEvaluator implements EvalOperator.ExpressionEvaluato
 
   @Override
   public String toString() {
-    return "DateTruncEvaluator[" + "fieldVal=" + fieldVal + ", rounding=" + rounding + "]";
+    return "DateTruncDatetimeEvaluator[" + "fieldVal=" + fieldVal + ", rounding=" + rounding + "]";
   }
 
   @Override
@@ -118,13 +118,13 @@ public final class DateTruncEvaluator implements EvalOperator.ExpressionEvaluato
     }
 
     @Override
-    public DateTruncEvaluator get(DriverContext context) {
-      return new DateTruncEvaluator(source, fieldVal.get(context), rounding, context);
+    public DateTruncDatetimeEvaluator get(DriverContext context) {
+      return new DateTruncDatetimeEvaluator(source, fieldVal.get(context), rounding, context);
     }
 
     @Override
     public String toString() {
-      return "DateTruncEvaluator[" + "fieldVal=" + fieldVal + ", rounding=" + rounding + "]";
+      return "DateTruncDatetimeEvaluator[" + "fieldVal=" + fieldVal + ", rounding=" + rounding + "]";
     }
   }
 }

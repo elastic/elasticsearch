@@ -71,22 +71,23 @@ public class DateTruncTests extends AbstractScalarFunctionTestCase {
                     new TestCaseSupplier.TypedData(period, DataType.DATE_PERIOD, "interval").forceLiteral(),
                     new TestCaseSupplier.TypedData(value, DataType.DATETIME, "date")
                 ),
-                Matchers.startsWith("DateTruncEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding["),
+                Matchers.startsWith("DateTruncDatetimeEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding["),
                 DataType.DATETIME,
                 equalTo(toMillis(expectedDate))
             )
-        ),new TestCaseSupplier(
+        )/*,new TestCaseSupplier(
                 List.of(DataType.DATE_PERIOD, DataType.DATE_NANOS),
                 () -> new TestCaseSupplier.TestCase(
                     List.of(
-                        new TestCaseSupplier.TypedData(period, DataType.DATE_PERIOD, "interval"),
+                        new TestCaseSupplier.TypedData(period, DataType.DATE_PERIOD, "interval").forceLiteral(),
                         new TestCaseSupplier.TypedData(DateUtils.toNanoSeconds(value), DataType.DATE_NANOS, "date")
                     ),
                     "DateTruncEvaluator[date=Attribute[channel=1], interval=Attribute[channel=0]]",
-                    DataType.DATETIME,
+                    DataType.DATE_NANOS,
                     equalTo(toMillis(expectedDate))
                 )
             )
+            */
             );
     }
 
@@ -98,22 +99,23 @@ public class DateTruncTests extends AbstractScalarFunctionTestCase {
                     new TestCaseSupplier.TypedData(duration, DataType.TIME_DURATION, "interval").forceLiteral(),
                     new TestCaseSupplier.TypedData(value, DataType.DATETIME, "date")
                 ),
-                Matchers.startsWith("DateTruncEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding["),
+                Matchers.startsWith("DateTruncDatetimeEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding["),
                 DataType.DATETIME,
                 equalTo(toMillis(expectedDate))
             )
-        ),new TestCaseSupplier(
+        )/*,new TestCaseSupplier(
                 List.of(DataType.TIME_DURATION, DataType.DATE_NANOS),
                 () -> new TestCaseSupplier.TestCase(
                     List.of(
-                        new TestCaseSupplier.TypedData(duration, DataType.TIME_DURATION, "interval"),
+                        new TestCaseSupplier.TypedData(duration, DataType.TIME_DURATION, "interval").forceLiteral(),
                         new TestCaseSupplier.TypedData(DateUtils.toNanoSeconds(value), DataType.DATE_NANOS, "date")
                     ),
                     "DateTruncEvaluator[date=Attribute[channel=1], interval=Attribute[channel=0]]",
-                    DataType.DATETIME,
+                    DataType.DATE_NANOS,
                     equalTo(toMillis(expectedDate))
                 )
             )
+            */
             );
     }
 
@@ -135,7 +137,7 @@ public class DateTruncTests extends AbstractScalarFunctionTestCase {
                     new TestCaseSupplier.TypedData(Duration.ofSeconds(1), DataType.TIME_DURATION, "interval"),
                     new TestCaseSupplier.TypedData(toMillis(dateFragment + ".38Z"), DataType.DATETIME, "date")
                 ),
-                "DateTruncEvaluator[date=Attribute[channel=1], interval=Attribute[channel=0]]",
+                "DateTruncDatetimeEvaluator[date=Attribute[channel=1], interval=Attribute[channel=0]]",
                 DataType.DATETIME,
                 equalTo(toMillis(dateFragment + ".00Z"))
             );

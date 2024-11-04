@@ -30,6 +30,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 
 /**
  * SearchPhaseContext for tests
@@ -132,7 +133,8 @@ public final class MockSearchPhaseContext implements SearchPhaseContext {
     }
 
     @Override
-    public void executeNextPhase(SearchPhase currentPhase, SearchPhase nextPhase) {
+    public void executeNextPhase(SearchPhase currentPhase, Supplier<SearchPhase> nextPhaseSupplier) {
+        var nextPhase = nextPhaseSupplier.get();
         try {
             nextPhase.run();
         } catch (Exception e) {

@@ -296,6 +296,8 @@ teardown:
 
   # set pipelines in templates
   - do:
+      allowed_warnings:
+        - "index template [template-1] has index patterns [data-stream-1] matching patterns from existing older templates [global] with patterns (global => [*]); this template [template-1] will take precedence during new index creation"
       indices.put_index_template:
         name: template-1
         body:
@@ -307,6 +309,8 @@ teardown:
               index.default_pipeline: "reroute-1"
   - match: { acknowledged: true }
   - do:
+      allowed_warnings:
+        - "index template [template-2] has index patterns [data-stream-2] matching patterns from existing older templates [global] with patterns (global => [*]); this template [template-2] will take precedence during new index creation"
       indices.put_index_template:
         name: template-2
         body:
@@ -318,6 +322,8 @@ teardown:
               index.default_pipeline: "reroute-2"
   - match: { acknowledged: true }
   - do:
+      allowed_warnings:
+        - "index template [template-3] has index patterns [data-stream-3] matching patterns from existing older templates [global] with patterns (global => [*]); this template [template-3] will take precedence during new index creation"
       indices.put_index_template:
         name: template_3
         body:
@@ -360,6 +366,8 @@ teardown:
 
   # add higher priority templates without reroute processors
   - do:
+      allowed_warnings:
+        - "index template [template-4] has index patterns [data-stream-1] matching patterns from existing older templates [global] with patterns (global => [*]); this template [template-4] will take precedence during new index creation"
       indices.put_index_template:
         name: template_4
         body:
@@ -368,6 +376,8 @@ teardown:
           data_stream: { }
   - match: { acknowledged: true }
   - do:
+      allowed_warnings:
+        - "index template [template-5] has index patterns [data-stream-2] matching patterns from existing older templates [global] with patterns (global => [*]); this template [template-5] will take precedence during new index creation"
       indices.put_index_template:
         name: template_5
         body:
@@ -462,6 +472,8 @@ teardown:
 
  # set pipelines in templates
   - do:
+      allowed_warnings:
+        - "index template [template-1] has index patterns [data-stream-1] matching patterns from existing older templates [global] with patterns (global => [*]); this template [template-1] will take precedence during new index creation"
       indices.put_index_template:
         name: template-1
         body:
@@ -473,6 +485,8 @@ teardown:
               index.default_pipeline: "reroute-1"
   - match: { acknowledged: true }
   - do:
+      allowed_warnings:
+        - "index template [template-2] has index patterns [data-stream-2] matching patterns from existing older templates [global] with patterns (global => [*]); this template [template-2] will take precedence during new index creation"
       indices.put_index_template:
         name: template_2
         body:
@@ -511,6 +525,8 @@ teardown:
 
   # add higher priority templates without reroute processors
   - do:
+      allowed_warnings:
+        - "index template [template-3] has index patterns [data-stream-1] matching patterns from existing older templates [global] with patterns (global => [*]); this template [template-3] will take precedence during new index creation"
       indices.put_index_template:
         name: template_3
         body:
@@ -545,6 +561,8 @@ teardown:
 
   # add another higher priority templates with reroute processors
   - do:
+      allowed_warnings:
+        - "index template [template-3] has index patterns [data-stream-1] matching patterns from existing older templates [global] with patterns (global => [*]); this template [template-3] will take precedence during new index creation"
       indices.put_index_template:
         name: template-3
         body:

@@ -568,8 +568,8 @@ public final class BulkRequestParser {
             if (config.restApiVersion() == RestApiVersion.V_8) {
                 deprecationLogger.compatibleCritical(
                     STRICT_ACTION_PARSING_WARNING_KEY,
-                    "A bulk action object contained multiple keys. Additional keys are currently ignored but will be rejected in a "
-                        + "future version."
+                    "A bulk action object contained multiple keys. Additional keys are currently ignored but will be rejected in a future"
+                        + " version."
                 );
                 return;
             } else {
@@ -607,8 +607,7 @@ public final class BulkRequestParser {
         }
     }
 
-    // Create an efficient parser of the given bytes, trying to directly parse a byte array if possible and falling back to stream
-    // wrapping
+    // Create an efficient parser of the given bytes, trying to directly parse a byte array if possible and falling back to stream wrapping
     // otherwise.
     private XContentParser createParser(XContent xContent, BytesReference data, int from, int nextMarker) throws IOException {
         if (data.hasArray()) {

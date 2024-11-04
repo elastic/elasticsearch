@@ -72,5 +72,11 @@ public interface DocumentParserListener {
         }
     }
 
+    sealed interface Event permits Event.DocumentSwitch {
+        record DocumentSwitch(LuceneDocument document) implements Event {}
+    }
+
     void consume(Token token) throws IOException;
+
+    void consume(Event event);
 }

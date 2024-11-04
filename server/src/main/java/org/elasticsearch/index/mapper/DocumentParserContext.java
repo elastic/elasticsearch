@@ -117,6 +117,7 @@ public abstract class DocumentParserContext {
     private final MappingLookup mappingLookup;
     private final MappingParserContext mappingParserContext;
     private final SourceToParse sourceToParse;
+    private final List<DocumentParserListener> listeners;
 
     private final Set<String> ignoredFields;
     public final List<IgnoredSourceFieldMapper.NameValue> ignoredFieldValues;
@@ -151,6 +152,7 @@ public abstract class DocumentParserContext {
         MappingLookup mappingLookup,
         MappingParserContext mappingParserContext,
         SourceToParse sourceToParse,
+        List<DocumentParserListener> listeners,
         Set<String> ignoreFields,
         List<IgnoredSourceFieldMapper.NameValue> ignoredFieldValues,
         List<IgnoredSourceFieldMapper.NameValue> ignoredFieldsWithNoSource,
@@ -173,6 +175,7 @@ public abstract class DocumentParserContext {
         this.mappingLookup = mappingLookup;
         this.mappingParserContext = mappingParserContext;
         this.sourceToParse = sourceToParse;
+        this.listeners = listeners;
         this.ignoredFields = ignoreFields;
         this.ignoredFieldValues = ignoredFieldValues;
         this.ignoredFieldsMissingValues = ignoredFieldsWithNoSource;
@@ -198,6 +201,7 @@ public abstract class DocumentParserContext {
             in.mappingLookup,
             in.mappingParserContext,
             in.sourceToParse,
+            in.listeners,
             in.ignoredFields,
             in.ignoredFieldValues,
             in.ignoredFieldsMissingValues,
@@ -223,6 +227,7 @@ public abstract class DocumentParserContext {
         MappingLookup mappingLookup,
         MappingParserContext mappingParserContext,
         SourceToParse source,
+        List<DocumentParserListener> listeners,
         ObjectMapper parent,
         ObjectMapper.Dynamic dynamic
     ) {
@@ -230,6 +235,7 @@ public abstract class DocumentParserContext {
             mappingLookup,
             mappingParserContext,
             source,
+            listeners,
             new HashSet<>(),
             new ArrayList<>(),
             new ArrayList<>(),
@@ -720,6 +726,8 @@ public abstract class DocumentParserContext {
      * Return a new context that has the provided document as the current document.
      */
     public final DocumentParserContext switchDoc(final LuceneDocument document) {
+        listeners.forEach(l -> l.consume(new DocumentParserListener.Event.DocumentSwitch(document)));
+
         DocumentParserContext cloned = new Wrapper(this.parent, this) {
             @Override
             public LuceneDocument doc() {

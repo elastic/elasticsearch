@@ -21,25 +21,13 @@ public class SyntheticSourceDocumentParserListener implements DocumentParserList
     private final MappingLookup mappingLookup;
     private final List<IgnoredSourceFieldMapper.NameValue> valuesToStore;
 
-    // TODO support switching documents
-    private LuceneDocument document;
-
     private State state;
 
-    public SyntheticSourceDocumentParserListener(MappingLookup mappingLookup, LuceneDocument document) {
+    public SyntheticSourceDocumentParserListener(MappingLookup mappingLookup) {
         this.mappingLookup = mappingLookup;
-
         this.valuesToStore = new ArrayList<>();
 
-        this.document = document;
-
-        var rootMapper = mappingLookup.getMapping().getRoot();
-        var parents = new Stack<Watching.Parent>() {
-            {
-                push(new Watching.Parent(rootMapper, 0));
-            }
-        };
-        this.state = new Watching(MapperService.SINGLE_MAPPING_NAME, parents, rootMapper, 0);
+        this.state = new Watching(mappingLookup.getMapping().getRoot());
     }
 
     @Override
@@ -51,12 +39,23 @@ public class SyntheticSourceDocumentParserListener implements DocumentParserList
         this.state = state.consume(token);
     }
 
+    @Override
+    public void consume(Event event) {
+        if (event == null) {
+            return;
+        }
+
+        this.state = state.consume(event);
+    }
+
     public List<IgnoredSourceFieldMapper.NameValue> getValuesToStore() {
         return valuesToStore;
     }
 
     interface State {
         State consume(Token token) throws IOException;
+
+        State consume(Event event);
     }
 
     class Storing implements State {
@@ -64,16 +63,19 @@ public class SyntheticSourceDocumentParserListener implements DocumentParserList
         private final Token startingToken;
         private final String fullPath;
         private final ObjectMapper parentMapper;
+        private final LuceneDocument document;
 
         private final XContentBuilder data;
 
         private int depth;
 
-        Storing(State returnState, Token startingToken, String fullPath, ObjectMapper parentMapper) throws IOException {
-            this.startingToken = startingToken;
+        Storing(State returnState, Token startingToken, String fullPath, ObjectMapper parentMapper, LuceneDocument document)
+            throws IOException {
             this.returnState = returnState;
+            this.startingToken = startingToken;
             this.fullPath = fullPath;
             this.parentMapper = parentMapper;
+            this.document = document;
 
             // TODO use actual value from initial parser (add a "document start" token with metadata?)
             this.data = XContentBuilder.builder(XContentType.JSON.xContent());
@@ -85,59 +87,26 @@ public class SyntheticSourceDocumentParserListener implements DocumentParserList
 
         public State consume(Token token) throws IOException {
             switch (token) {
-                case Token.StartObject ignored -> {
+                case Token.StartObject startObject -> {
                     data.startObject();
-                    if (startingToken instanceof Token.StartObject) {
-                        depth += 1;
-                    }
+                    depth += 1;
                 }
-                case Token.EndObject ignored -> {
+                case Token.EndObject endObject -> {
                     data.endObject();
 
-                    if (startingToken instanceof Token.StartObject) {
-                        depth -= 1;
-                        if (depth == 0) {
-                            var parentOffset = parentMapper.isRoot() ? 0 : parentMapper.fullPath().length() + 1;
-                            // TODO the way we store values is not final, maybe we should put them directly in DocumentParserContext ?
-                            // does not feel great though
-                            valuesToStore.add(
-                                new IgnoredSourceFieldMapper.NameValue(
-                                    fullPath,
-                                    parentOffset,
-                                    XContentDataHelper.encodeXContentBuilder(data),
-                                    document
-                                )
-                            );
-                            return returnState;
-                        }
-
+                    if (processEndObjectOrArray()) {
+                        return returnState;
                     }
                 }
-                case Token.StartArray ignored -> {
+                case Token.StartArray startArray -> {
                     data.startArray();
-                    if (startingToken instanceof Token.StartArray) {
-                        depth += 1;
-                    }
+                    depth += 1;
                 }
-                case Token.EndArray ignored -> {
+                case Token.EndArray endArray -> {
                     data.endArray();
 
-                    if (startingToken instanceof Token.StartArray) {
-                        // TODO extract function
-                        depth -= 1;
-                        if (depth == 0) {
-                            var parentOffset = parentMapper.fullPath().length() + 1;
-                            // does not feel great though
-                            valuesToStore.add(
-                                new IgnoredSourceFieldMapper.NameValue(
-                                    fullPath,
-                                    parentOffset,
-                                    XContentDataHelper.encodeXContentBuilder(data),
-                                    document
-                                )
-                            );
-                            return returnState;
-                        }
+                    if (processEndObjectOrArray()) {
+                        return returnState;
                     }
                 }
                 case Token.FieldName fieldName -> data.field(fieldName.name());
@@ -148,31 +117,67 @@ public class SyntheticSourceDocumentParserListener implements DocumentParserList
                 case Token.BigIntegerValue bigIntegerValue -> data.value(bigIntegerValue.value());
                 case Token.DoubleValue doubleValue -> data.value(doubleValue.value());
                 case Token.FloatValue floatValue -> data.value(floatValue.value());
-                case Token.NullValue ignored -> data.nullValue();
+                case Token.NullValue nullValue -> data.nullValue();
             }
 
             return this;
         }
+
+        public State consume(Event event) {
+            // We don't expect ignored source values to span multiple documents
+            assert event instanceof Event.DocumentSwitch == false : "Lucene document was changed while storing ignored source value";
+            return this;
+        }
+
+        private boolean processEndObjectOrArray() throws IOException {
+            depth -= 1;
+            if (depth == 0) {
+                var parentOffset = parentMapper.isRoot() ? 0 : parentMapper.fullPath().length() + 1;
+                // TODO the way we store values is not final, maybe we should put them directly in DocumentParserContext ?
+                // does not feel great though
+                valuesToStore.add(
+                    new IgnoredSourceFieldMapper.NameValue(fullPath, parentOffset, XContentDataHelper.encodeXContentBuilder(data), document)
+                );
+
+                return true;
+            }
+
+            return false;
+        }
     }
 
     class Watching implements State {
+        private final Stack<Parent> parents;
+        private final Stack<Document> documents;
+
         private String fullPath;
-        private Stack<Parent> parents;
         private Mapper currentMapper;
         private int depth;
 
-        Watching(String fullPath, Stack<Parent> parents, Mapper currentMapper, int depth) {
-            this.fullPath = fullPath;
-            this.parents = parents;
-            this.currentMapper = currentMapper;
-            this.depth = depth;
+        Watching(RootObjectMapper rootMapper) {
+            this.parents = new Stack<>() {
+                {
+                    push(new Watching.Parent(rootMapper, 0));
+                }
+            };
+            this.documents = new Stack<>();
+
+            this.fullPath = MapperService.SINGLE_MAPPING_NAME;
+            this.currentMapper = rootMapper;
+            this.depth = 0;
         }
 
         public State consume(Token token) throws IOException {
             switch (token) {
                 case Token.StartObject startObject -> {
                     if (currentMapper instanceof ObjectMapper om && om.isEnabled() == false) {
-                        var storingState = new Storing(this, startObject, fullPath, parents.peek().parentMapper());
+                        var storingState = new Storing(
+                            this,
+                            startObject,
+                            fullPath,
+                            parents.peek().parentMapper(),
+                            documents.peek().document()
+                        );
                         // TODO should we some cleaner "reset()" method on Watching or something?
                         currentMapper = null;
                         fullPath = null;
@@ -187,7 +192,13 @@ public class SyntheticSourceDocumentParserListener implements DocumentParserList
                 }
                 case Token.EndObject endObject -> {
                     assert depth > 0;
+
+                    if (documents.peek().depth == depth) {
+                        documents.pop();
+                    }
+
                     depth -= 1;
+
                     if (parents.peek().depth() == depth) {
                         parents.pop();
                     }
@@ -219,6 +230,16 @@ public class SyntheticSourceDocumentParserListener implements DocumentParserList
             return this;
         }
 
+        public State consume(Event event) {
+            switch (event) {
+                case Event.DocumentSwitch ds -> documents.push(new Document(ds.document(), depth));
+            }
+
+            return this;
+        }
+
         record Parent(ObjectMapper parentMapper, int depth) {}
+
+        record Document(LuceneDocument document, int depth) {}
     }
 }

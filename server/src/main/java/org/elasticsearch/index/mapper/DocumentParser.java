@@ -61,8 +61,6 @@ public final class DocumentParser {
     private final XContentParserConfiguration parserConfiguration;
     private final MappingParserContext mappingParserContext;
 
-    private List<DocumentParserListener> listeners;
-
     DocumentParser(XContentParserConfiguration parserConfiguration, MappingParserContext mappingParserContext) {
         this.mappingParserContext = mappingParserContext;
         this.parserConfiguration = parserConfiguration;
@@ -83,57 +81,18 @@ public final class DocumentParser {
         final RootDocumentParserContext context;
         final XContentType xContentType = source.getXContentType();
 
+        List<DocumentParserListener> listeners = List.of(new SyntheticSourceDocumentParserListener(mappingLookup));
+
         XContentMeteringParserDecorator meteringParserDecorator = source.getMeteringParserDecorator();
-        try (
-            XContentParser parser = meteringParserDecorator.decorate(
-                // Also notify all listeners about tokens being parsed
-                new FilterXContentParserWrapper(XContentHelper.createParser(parserConfiguration, source.source(), xContentType)) {
-                    @Override
-                    public Token nextToken() throws IOException {
-                        var token = delegate().nextToken();
-
-                        var listenerToken = DocumentParserListener.Token.current(delegate());
-                        for (var l : listeners) {
-                            l.consume(listenerToken);
-                        }
-
-                        return token;
-                    }
-
-                    @Override
-                    public void skipChildren() throws IOException {
-                        // We can not use "native" implementation because some listeners may want to see
-                        // skipped parts.
-                        Token token = currentToken();
-                        if (token != Token.START_OBJECT && token != Token.START_ARRAY) {
-                            return;
-                        }
-
-                        int depth = 0;
-                        while (token != null) {
-                            if (token == Token.START_OBJECT || token == Token.START_ARRAY) {
-                                depth += 1;
-                            }
-                            if (token == Token.END_OBJECT || token == Token.END_ARRAY) {
-                                depth -= 1;
-                                if (depth == 0) {
-                                    return;
-                                }
-                            }
-
-                            token = nextToken();
-                        }
-                    }
-                }
-            )
-        ) {
-            context = new RootDocumentParserContext(mappingLookup, mappingParserContext, source, parser);
-
-            this.listeners = List.of(new SyntheticSourceDocumentParserListener(mappingLookup, context.doc()));
+        try (XContentParser parser = meteringParserDecorator.decorate(createParser(source, xContentType, listeners))) {
+            context = new RootDocumentParserContext(mappingLookup, mappingParserContext, source, listeners, parser);
+            listeners.forEach(l -> l.consume(new DocumentParserListener.Event.DocumentSwitch(context.doc())));
 
             validateStart(context.parser());
+
             MetadataFieldMapper[] metadataFieldsMappers = mappingLookup.getMapping().getSortedMetadataMappers();
-            internalParseDocument(metadataFieldsMappers, context);
+            internalParseDocument(metadataFieldsMappers, context, listeners);
+
             validateEnd(context.parser());
         } catch (XContentParseException e) {
             throw new DocumentParsingException(e.getLocation(), e.getMessage(), e);
@@ -164,7 +123,64 @@ public final class DocumentParser {
         };
     }
 
-    private void internalParseDocument(MetadataFieldMapper[] metadataFieldsMappers, DocumentParserContext context) {
+    private XContentParser createParser(SourceToParse sourceToParse, XContentType xContentType, List<DocumentParserListener> listeners)
+        throws IOException {
+        XContentParser plainParser = XContentHelper.createParser(parserConfiguration, sourceToParse.source(), xContentType);
+        // TODO only do this if source is synthetic
+        return new ListenerAwareXContentParser(plainParser, listeners);
+    }
+
+    static class ListenerAwareXContentParser extends FilterXContentParserWrapper {
+        private final List<DocumentParserListener> listeners;
+
+        ListenerAwareXContentParser(XContentParser parser, List<DocumentParserListener> listeners) {
+            super(parser);
+            this.listeners = listeners;
+        }
+
+        @Override
+        public Token nextToken() throws IOException {
+            var token = delegate().nextToken();
+
+            var listenerToken = DocumentParserListener.Token.current(delegate());
+            for (var l : listeners) {
+                l.consume(listenerToken);
+            }
+
+            return token;
+        }
+
+        @Override
+        public void skipChildren() throws IOException {
+            // We can not use "native" implementation because some listeners may want to see
+            // skipped parts.
+            Token token = currentToken();
+            if (token != Token.START_OBJECT && token != Token.START_ARRAY) {
+                return;
+            }
+
+            int depth = 0;
+            while (token != null) {
+                if (token == Token.START_OBJECT || token == Token.START_ARRAY) {
+                    depth += 1;
+                }
+                if (token == Token.END_OBJECT || token == Token.END_ARRAY) {
+                    depth -= 1;
+                    if (depth == 0) {
+                        return;
+                    }
+                }
+
+                token = nextToken();
+            }
+        }
+    }
+
+    private void internalParseDocument(
+        MetadataFieldMapper[] metadataFieldsMappers,
+        DocumentParserContext context,
+        List<DocumentParserListener> listeners
+    ) {
         try {
             final boolean emptyDoc = isEmptyDoc(context.root(), context.parser());
 
@@ -181,7 +197,7 @@ public final class DocumentParser {
 
             executeIndexTimeScripts(context);
 
-            context.ignoredFieldValues.addAll(((SyntheticSourceDocumentParserListener) this.listeners.get(0)).getValuesToStore());
+            context.ignoredFieldValues.addAll(((SyntheticSourceDocumentParserListener) listeners.get(0)).getValuesToStore());
 
             // Record additional entries for {@link IgnoredSourceFieldMapper} before calling #postParse, so that they get stored.
             addIgnoredSourceMissingValues(context);
@@ -219,6 +235,7 @@ public final class DocumentParser {
                 context.mappingLookup(),
                 mappingParserContext,
                 context.sourceToParse(),
+                List.of(),
                 parser
             );
             var nameValues = parseDocForMissingValues(newContext, fields);
@@ -1191,12 +1208,14 @@ public final class DocumentParser {
             MappingLookup mappingLookup,
             MappingParserContext mappingParserContext,
             SourceToParse source,
+            List<DocumentParserListener> listeners,
             XContentParser parser
         ) throws IOException {
             super(
                 mappingLookup,
                 mappingParserContext,
                 source,
+                listeners,
                 mappingLookup.getMapping().getRoot(),
                 ObjectMapper.Dynamic.getRootDynamic(mappingLookup)
             );

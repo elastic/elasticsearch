@@ -48,8 +48,9 @@ public class SyntheticSourceDocumentParserListener implements DocumentParserList
         this.state = state.consume(event);
     }
 
-    public List<IgnoredSourceFieldMapper.NameValue> getValuesToStore() {
-        return valuesToStore;
+    @Override
+    public Output finish() {
+        return new Output(valuesToStore);
     }
 
     interface State {
@@ -60,7 +61,6 @@ public class SyntheticSourceDocumentParserListener implements DocumentParserList
 
     class Storing implements State {
         private final State returnState;
-        private final Token startingToken;
         private final String fullPath;
         private final ObjectMapper parentMapper;
         private final LuceneDocument document;
@@ -72,7 +72,6 @@ public class SyntheticSourceDocumentParserListener implements DocumentParserList
         Storing(State returnState, Token startingToken, String fullPath, ObjectMapper parentMapper, LuceneDocument document)
             throws IOException {
             this.returnState = returnState;
-            this.startingToken = startingToken;
             this.fullPath = fullPath;
             this.parentMapper = parentMapper;
             this.document = document;
@@ -133,8 +132,6 @@ public class SyntheticSourceDocumentParserListener implements DocumentParserList
             depth -= 1;
             if (depth == 0) {
                 var parentOffset = parentMapper.isRoot() ? 0 : parentMapper.fullPath().length() + 1;
-                // TODO the way we store values is not final, maybe we should put them directly in DocumentParserContext ?
-                // does not feel great though
                 valuesToStore.add(
                     new IgnoredSourceFieldMapper.NameValue(fullPath, parentOffset, XContentDataHelper.encodeXContentBuilder(data), document)
                 );

@@ -36,6 +36,7 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -78,17 +79,20 @@ public final class DocumentParser {
         final RootDocumentParserContext context;
         final XContentType xContentType = source.getXContentType();
 
-        List<DocumentParserListener> listeners = List.of(new SyntheticSourceDocumentParserListener(mappingLookup));
+        Listeners listeners = Listeners.NOOP;
+        if (mappingLookup.isSourceSynthetic() && mappingParserContext.getIndexSettings().getSkipIgnoredSourceWrite() == false) {
+            listeners = new Listeners.ListenerCollection(List.of(new SyntheticSourceDocumentParserListener(mappingLookup)));
+        }
 
         XContentMeteringParserDecorator meteringParserDecorator = source.getMeteringParserDecorator();
         try (XContentParser parser = meteringParserDecorator.decorate(createParser(source, xContentType, listeners))) {
             context = new RootDocumentParserContext(mappingLookup, mappingParserContext, source, listeners, parser);
-            listeners.forEach(l -> l.consume(new DocumentParserListener.Event.DocumentSwitch(context.doc())));
+            context.initListeners();
 
             validateStart(context.parser());
 
             MetadataFieldMapper[] metadataFieldsMappers = mappingLookup.getMapping().getSortedMetadataMappers();
-            internalParseDocument(metadataFieldsMappers, context, listeners);
+            internalParseDocument(metadataFieldsMappers, context);
 
             validateEnd(context.parser());
         } catch (XContentParseException e) {
@@ -120,17 +124,20 @@ public final class DocumentParser {
         };
     }
 
-    private XContentParser createParser(SourceToParse sourceToParse, XContentType xContentType, List<DocumentParserListener> listeners)
-        throws IOException {
+    private XContentParser createParser(SourceToParse sourceToParse, XContentType xContentType, Listeners listeners) throws IOException {
         XContentParser plainParser = XContentHelper.createParser(parserConfiguration, sourceToParse.source(), xContentType);
-        // TODO only do this if source is synthetic
+
+        if (listeners.isNoop()) {
+            return plainParser;
+        }
+
         return new ListenerAwareXContentParser(plainParser, listeners);
     }
 
     static class ListenerAwareXContentParser extends FilterXContentParserWrapper {
-        private final List<DocumentParserListener> listeners;
+        private final Listeners listeners;
 
-        ListenerAwareXContentParser(XContentParser parser, List<DocumentParserListener> listeners) {
+        ListenerAwareXContentParser(XContentParser parser, Listeners listeners) {
             super(parser);
             this.listeners = listeners;
         }
@@ -140,9 +147,7 @@ public final class DocumentParser {
             var token = delegate().nextToken();
 
             var listenerToken = DocumentParserListener.Token.current(delegate());
-            for (var l : listeners) {
-                l.consume(listenerToken);
-            }
+            listeners.publish(listenerToken);
 
             return token;
         }
@@ -173,11 +178,76 @@ public final class DocumentParser {
         }
     }
 
-    private void internalParseDocument(
-        MetadataFieldMapper[] metadataFieldsMappers,
-        DocumentParserContext context,
-        List<DocumentParserListener> listeners
-    ) {
+    public interface Listeners {
+        void publish(DocumentParserListener.Event event);
+
+        void publish(DocumentParserListener.Token token) throws IOException;
+
+        DocumentParserListener.Output finish();
+
+        boolean isNoop();
+
+        Listeners NOOP = new Listeners() {
+            @Override
+            public void publish(DocumentParserListener.Event event) {
+
+            }
+
+            @Override
+            public void publish(DocumentParserListener.Token token) {
+
+            }
+
+            @Override
+            public DocumentParserListener.Output finish() {
+                return DocumentParserListener.Output.empty();
+            }
+
+            @Override
+            public boolean isNoop() {
+                return true;
+            }
+        };
+
+        class ListenerCollection implements Listeners {
+            private final Collection<DocumentParserListener> listeners;
+
+            public ListenerCollection(Collection<DocumentParserListener> listeners) {
+                this.listeners = listeners;
+            }
+
+            @Override
+            public void publish(DocumentParserListener.Event event) {
+                listeners.forEach(l -> l.consume(event));
+            }
+
+            @Override
+            public void publish(DocumentParserListener.Token token) throws IOException {
+                for (DocumentParserListener l : listeners) {
+                    l.consume(token);
+                }
+            }
+
+            @Override
+            public DocumentParserListener.Output finish() {
+                var output = DocumentParserListener.Output.empty();
+
+                for (DocumentParserListener l : listeners) {
+                    var part = l.finish();
+                    output.merge(part);
+                }
+
+                return output;
+            }
+
+            @Override
+            public boolean isNoop() {
+                return false;
+            }
+        }
+    }
+
+    private void internalParseDocument(MetadataFieldMapper[] metadataFieldsMappers, DocumentParserContext context) {
         try {
             final boolean emptyDoc = isEmptyDoc(context.root(), context.parser());
 
@@ -194,7 +264,7 @@ public final class DocumentParser {
 
             executeIndexTimeScripts(context);
 
-            context.ignoredFieldValues.addAll(((SyntheticSourceDocumentParserListener) listeners.get(0)).getValuesToStore());
+            context.finishListeners();
 
             for (MetadataFieldMapper metadataMapper : metadataFieldsMappers) {
                 metadataMapper.postParse(context);
@@ -1082,7 +1152,7 @@ public final class DocumentParser {
             MappingLookup mappingLookup,
             MappingParserContext mappingParserContext,
             SourceToParse source,
-            List<DocumentParserListener> listeners,
+            Listeners listeners,
             XContentParser parser
         ) throws IOException {
             super(

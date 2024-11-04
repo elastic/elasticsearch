@@ -117,7 +117,7 @@ public abstract class DocumentParserContext {
     private final MappingLookup mappingLookup;
     private final MappingParserContext mappingParserContext;
     private final SourceToParse sourceToParse;
-    private final List<DocumentParserListener> listeners;
+    private final DocumentParser.Listeners listeners;
 
     private final Set<String> ignoredFields;
     private final List<IgnoredSourceFieldMapper.NameValue> ignoredFieldValues;
@@ -150,7 +150,7 @@ public abstract class DocumentParserContext {
         MappingLookup mappingLookup,
         MappingParserContext mappingParserContext,
         SourceToParse sourceToParse,
-        List<DocumentParserListener> listeners,
+        DocumentParser.Listeners listeners,
         Set<String> ignoreFields,
         List<IgnoredSourceFieldMapper.NameValue> ignoredFieldValues,
         Scope currentScope,
@@ -219,7 +219,7 @@ public abstract class DocumentParserContext {
         MappingLookup mappingLookup,
         MappingParserContext mappingParserContext,
         SourceToParse source,
-        List<DocumentParserListener> listeners,
+        DocumentParser.Listeners listeners,
         ObjectMapper parent,
         ObjectMapper.Dynamic dynamic
     ) {
@@ -476,6 +476,15 @@ public abstract class DocumentParserContext {
         return copyToFields;
     }
 
+    public void initListeners() {
+        listeners.publish(new DocumentParserListener.Event.DocumentSwitch(doc()));
+    }
+
+    public void finishListeners() {
+        var output = listeners.finish();
+        ignoredFieldValues.addAll(output.ignoredSourceValues());
+    }
+
     /**
      * Add a new mapper dynamically created while parsing.
      *
@@ -695,7 +704,7 @@ public abstract class DocumentParserContext {
      * Return a new context that has the provided document as the current document.
      */
     public final DocumentParserContext switchDoc(final LuceneDocument document) {
-        listeners.forEach(l -> l.consume(new DocumentParserListener.Event.DocumentSwitch(document)));
+        listeners.publish(new DocumentParserListener.Event.DocumentSwitch(document));
 
         DocumentParserContext cloned = new Wrapper(this.parent, this) {
             @Override

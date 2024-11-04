@@ -13,6 +13,8 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.math.BigInteger;
+import java.util.ArrayList;
+import java.util.List;
 
 public interface DocumentParserListener {
     sealed interface Token permits Token.FieldName, Token.StartObject, Token.EndObject, Token.StartArray, Token.EndArray, Token.StringValue,
@@ -76,7 +78,19 @@ public interface DocumentParserListener {
         record DocumentSwitch(LuceneDocument document) implements Event {}
     }
 
+    record Output(List<IgnoredSourceFieldMapper.NameValue> ignoredSourceValues) {
+        static Output empty() {
+            return new Output(new ArrayList<>());
+        }
+
+        void merge(Output part) {
+            this.ignoredSourceValues.addAll(part.ignoredSourceValues);
+        }
+    }
+
     void consume(Token token) throws IOException;
 
     void consume(Event event);
+
+    Output finish();
 }

@@ -76,9 +76,11 @@ public class InstrumenterTests extends ESTestCase {
     static final class TestException extends RuntimeException {}
 
     /**
-     * We're not testing the permission checking logic here.
+     * We're not testing the permission checking logic here;
+     * only that the instrumented methods are calling the correct check methods with the correct arguments.
      * This is a trivial implementation of {@link EntitlementChecker} that just always throws,
      * just to demonstrate that the injected bytecodes succeed in calling these methods.
+     * It also asserts that the arguments are correct.
      */
     public static class TestEntitlementManager implements EntitlementChecker {
         /**
@@ -199,15 +201,19 @@ public class InstrumenterTests extends ESTestCase {
             }
         }).collect(Collectors.toUnmodifiableMap(name -> name, name -> v1));
 
-        Method m = InstrumenterTests.class.getMethod("getTestEntitlementManager");
+        Method getter = InstrumenterTests.class.getMethod("getTestEntitlementManager");
         return new InstrumenterImpl("_NEW", methods) {
+            /**
+             * We're not testing the bridge library here.
+             * Just call our own getter instead.
+             */
             @Override
             protected void pushEntitlementChecker(MethodVisitor mv) {
                 mv.visitMethodInsn(
                     INVOKESTATIC,
-                    Type.getInternalName(m.getDeclaringClass()),
-                    m.getName(),
-                    Type.getMethodDescriptor(m),
+                    Type.getInternalName(getter.getDeclaringClass()),
+                    getter.getName(),
+                    Type.getMethodDescriptor(getter),
                     false
                 );
             }

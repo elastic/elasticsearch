@@ -14,11 +14,19 @@ import java.lang.reflect.Method;
 
 public class EntitlementCheckerHandle {
 
+    /**
+     * This is how the bytecodes injected by our instrumentation access the {@link EntitlementChecker}
+     * so they can call the appropriate check method.
+     */
     public static EntitlementChecker instance() {
         return Holder.instance;
     }
 
     private static class Holder {
+        /**
+         * The {@code EntitlementInitialization} class is what actually instantiates it and makes it available;
+         * here, we copy it into a static final variable for maximum performance.
+         */
         private static final EntitlementChecker instance;
         static {
             String initClazz = "org.elasticsearch.entitlement.initialization.EntitlementInitialization";

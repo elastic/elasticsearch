@@ -25,6 +25,7 @@ import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.hamcrest.CoreMatchers.containsString;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 
 public class QueryStringIT extends AbstractEsqlIntegTestCase {
@@ -173,6 +174,33 @@ public class QueryStringIT extends AbstractEsqlIntegTestCase {
                     .item(List.of(3, 0.3028995096683502))
                     .item(List.of(4, 0.2547692656517029))
                     .item(List.of(5, 0.28161853551864624))
+            );
+        }
+    }
+
+    public void testWhereQstrWithScoringNoSort() {
+        assumeTrue("'METADATA _score' is disabled", EsqlCapabilities.Cap.METADATA_SCORE.isEnabled());
+        var query = """
+            FROM test
+            METADATA _score
+            | WHERE qstr("content: fox")
+            | KEEP id, _score
+            """;
+
+        try (var resp = run(query)) {
+            assertThat(resp.columns().stream().map(ColumnInfoImpl::name).toList(), equalTo(List.of("id", "_score")));
+            assertThat(
+                resp.columns().stream().map(ColumnInfoImpl::type).map(DataType::toString).toList(),
+                equalTo(List.of("INTEGER", "DOUBLE"))
+            );
+            assertMap(
+                getValuesList(resp),
+                containsInAnyOrder(
+                    List.of(2, 0.3028995096683502),
+                    List.of(3, 0.3028995096683502),
+                    List.of(4, 0.2547692656517029),
+                    List.of(5, 0.28161853551864624)
+                )
             );
         }
     }

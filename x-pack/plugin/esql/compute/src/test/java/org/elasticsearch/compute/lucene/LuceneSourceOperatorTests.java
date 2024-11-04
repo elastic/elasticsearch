@@ -65,10 +65,10 @@ public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
 
     @Override
     protected LuceneSourceOperator.Factory simple() {
-        return simple(randomFrom(DataPartitioning.values()), between(1, 10_000), 100);
+        return simple(randomFrom(DataPartitioning.values()), between(1, 10_000), 100, scoring);
     }
 
-    private LuceneSourceOperator.Factory simple(DataPartitioning dataPartitioning, int numDocs, int limit) {
+    private LuceneSourceOperator.Factory simple(DataPartitioning dataPartitioning, int numDocs, int limit, boolean scoring) {
         int commitEvery = Math.max(1, numDocs / 10);
         try (
             RandomIndexWriter writer = new RandomIndexWriter(
@@ -93,7 +93,6 @@ public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
         ShardContext ctx = new MockShardContext(reader, 0);
         Function<ShardContext, Query> queryFunction = c -> new MatchAllDocsQuery();
         int maxPageSize = between(10, Math.max(10, numDocs));
-        boolean scoring = false; // TODO: randomize of something else to test scoring
         return new LuceneSourceOperator.Factory(List.of(ctx), queryFunction, dataPartitioning, 1, maxPageSize, limit, scoring);
     }
 
@@ -106,7 +105,7 @@ public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
     protected Matcher<String> expectedDescriptionOfSimple() {
         return matchesRegex(
             "LuceneSourceOperator"
-                + "\\[dataPartitioning = (DOC|SHARD|SEGMENT), maxPageSize = \\d+, limit = 100, scoreMode = COMPLETE_NO_SCORES]"
+                + "\\[dataPartitioning = (DOC|SHARD|SEGMENT), maxPageSize = \\d+, limit = 100, scoreMode = (COMPLETE|COMPLETE_NO_SCORES)]"
         );
     }
 
@@ -155,7 +154,7 @@ public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
     }
 
     private void testSimple(DriverContext ctx, int size, int limit) {
-        LuceneSourceOperator.Factory factory = simple(DataPartitioning.SHARD, size, limit);
+        LuceneSourceOperator.Factory factory = simple(DataPartitioning.SHARD, size, limit, scoring);
         Operator.OperatorFactory readS = ValuesSourceReaderOperatorTests.factory(reader, S_FIELD, ElementType.LONG);
 
         List<Page> results = new ArrayList<>();
@@ -170,7 +169,7 @@ public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
         }
 
         for (Page page : results) {
-            LongBlock sBlock = page.getBlock(1);
+            LongBlock sBlock = page.getBlock(initialBlockIndex(page));
             for (int p = 0; p < page.getPositionCount(); p++) {
                 assertThat(sBlock.getLong(sBlock.getFirstValueIndex(p)), both(greaterThanOrEqualTo(0L)).and(lessThan((long) size)));
             }
@@ -236,5 +235,13 @@ public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
         public String shardIdentifier() {
             return "test";
         }
+    }
+
+    // protected Matcher<String> expectedToStringOfSimple() {
+    // return matchesRegex("LuceneSourceOperator\\[maxPageSize = \\d+, remainingDocs = \\d+]");
+    // }
+
+    public void testStringWithScoring() {
+
     }
 }

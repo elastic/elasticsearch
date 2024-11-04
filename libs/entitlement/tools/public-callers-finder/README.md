@@ -1,0 +1,41 @@
+This tool scans the JDK on which it is running. It takes a list of methods (compatible with the output of the `securitymanager-scanner` tool), and looks for the "public surface" of these methods (i.e. any class/method accessible from regular Java code that calls into the original list, directly or transitively).
+
+It acts basically as a recursive "Find Usages" in Intellij, stopping at the first fully accessible point (public method on a public class).
+
+In order to run the tool, use:
+```shell
+./gradlew :libs:entitlement:tools:public-callers-finder:run <input-file> [<bubble-up-from-public>]
+```
+Where `input-file` is a CSV file (columns separated by `TAB`) that contains the following columns:
+Module name
+1. unused
+2. unused
+3. unused
+4. Fully qualified class name (ASM style, with `/` separators)
+5. Method name
+6. Method descriptor (ASM signature)
+7. Visibility (PUBLIC/PUBLIC-METHOD/PRIVATE)
+
+And `bubble-up-from-public` is a boolean (`true|false`) indicating if the code should stop at the first public method (`false`: default, recommended) or continue to find usages recursively even after reaching the "public surface".
+
+The output of the tool is another CSV file, with one line for each entry-point, columns separated by `TAB`
+
+1. Module name
+2. File name (from source root)
+3. Line number
+4. Fully qualified class name (ASM style, with `/` separators)
+5. Method name
+6. Method descriptor (ASM signature)
+7. Visibility (PUBLIC/PUBLIC-METHOD/PRIVATE)
+8. Original caller Module name
+9. Original caller Class name (ASM style, with `/` separators)
+10. Original caller Method name
+
+Examples:
+```
+
+```
+or
+```
+
+```

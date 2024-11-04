@@ -9,12 +9,12 @@
 
 package org.elasticsearch.entitlement.tools.publiccallersfinder;
 
+import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.entitlement.tools.ExternalAccess;
+import org.elasticsearch.entitlement.tools.Utils;
 import org.objectweb.asm.ClassReader;
 
 import java.io.IOException;
-import java.net.URI;
-import java.nio.file.FileSystem;
-import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayDeque;
@@ -23,11 +23,10 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 public class Main {
 
-    static final Set<String> excludedModules = Set.of("java.desktop");
+    private static final String SEPARATOR = "\t";
 
     record CallChain(FindUsagesClassVisitor.EntryPoint entryPoint, CallChain next) {}
 
@@ -42,8 +41,8 @@ public class Main {
         boolean bubbleUpFromPublic,
         UsageConsumer usageConsumer
     ) {
-        for (var oc : firstLevelCallers) {
-            var methodsToCheck = new ArrayDeque<>(Set.of(oc));
+        for (var caller : firstLevelCallers) {
+            var methodsToCheck = new ArrayDeque<>(Set.of(caller));
             var methodsSeen = new HashSet<>();
 
             while (methodsToCheck.isEmpty() == false) {
@@ -52,7 +51,7 @@ public class Main {
                 var visitor2 = new FindUsagesClassVisitor(
                     moduleExports,
                     new FindUsagesClassVisitor.MethodDescriptor(m.className(), m.methodName(), m.methodDescriptor()),
-                    (source, line, className, methodName, methodDescriptor, isPublic) -> {
+                    (source, line, className, methodName, methodDescriptor, access) -> {
                         var newMethod = new CallChain(
                             new FindUsagesClassVisitor.EntryPoint(
                                 m.moduleName(),
@@ -61,15 +60,16 @@ public class Main {
                                 className,
                                 methodName,
                                 methodDescriptor,
-                                isPublic
+                                access
                             ),
                             methodToCheck
                         );
 
                         var notSeenBefore = methodsSeen.add(newMethod.entryPoint());
                         if (notSeenBefore) {
+                            var isPublic = ExternalAccess.isPublic(access);
                             if (isPublic) {
-                                usageConsumer.usageFound(oc.next(), newMethod);
+                                usageConsumer.usageFound(caller.next(), newMethod);
                             }
                             if (isPublic == false || bubbleUpFromPublic) {
                                 methodsToCheck.add(newMethod);
@@ -78,9 +78,9 @@ public class Main {
                     }
                 );
 
-                for (var x : classesToScan) {
+                for (var classFile : classesToScan) {
                     try {
-                        ClassReader cr = new ClassReader(Files.newInputStream(x));
+                        ClassReader cr = new ClassReader(Files.newInputStream(classFile));
                         cr.accept(visitor2, 0);
                     } catch (IOException e) {
                         throw new RuntimeException(e);
@@ -92,89 +92,76 @@ public class Main {
 
     private static void identifyTopLevelEntryPoints(FindUsagesClassVisitor.MethodDescriptor methodToFind, boolean bubbleUpFromPublic)
         throws IOException {
-        FileSystem fs = FileSystems.getFileSystem(URI.create("jrt:/"));
 
-        var moduleExports = findModuleExports(fs);
-        final var separator = '\t';
+        Utils.walkJdkModules((moduleName, moduleClasses, moduleExports) -> {
+            var originalCallers = new ArrayList<CallChain>();
+            var visitor = new FindUsagesClassVisitor(
+                moduleExports,
+                methodToFind,
+                (source, line, className, methodName, methodDescriptor, access) -> originalCallers.add(
+                    new CallChain(
+                        new FindUsagesClassVisitor.EntryPoint(moduleName, source, line, className, methodName, methodDescriptor, access),
+                        new CallChain(
+                            new FindUsagesClassVisitor.EntryPoint(
+                                moduleName,
+                                "",
+                                0,
+                                methodToFind.className(),
+                                methodToFind.methodName(),
+                                methodToFind.methodDescriptor(),
+                                ExternalAccess.fromPermissions(true, true, true)
+                            ),
+                            null
+                        )
+                    )
+                )
+            );
 
-        try (var stream = Files.walk(fs.getPath("modules"))) {
-            var modules = stream.filter(x -> x.toString().endsWith(".class"))
-                .collect(Collectors.groupingBy(x -> x.subpath(1, 2).toString()));
-
-            for (var kv : modules.entrySet()) {
-                var moduleName = kv.getKey();
-                if (excludedModules.contains(moduleName) == false) {
-                    var thisModuleExports = moduleExports.get(moduleName);
-                    var originalCallers = new ArrayList<CallChain>();
-                    var visitor = new FindUsagesClassVisitor(
-                        thisModuleExports,
-                        methodToFind,
-                        (source, line, className, methodName, methodDescriptor, isPublic) -> {
-                            originalCallers.add(
-                                new CallChain(
-                                    new FindUsagesClassVisitor.EntryPoint(
-                                        moduleName,
-                                        source,
-                                        line,
-                                        className,
-                                        methodName,
-                                        methodDescriptor,
-                                        isPublic
-                                    ),
-                                    new CallChain(
-                                        new FindUsagesClassVisitor.EntryPoint(
-                                            moduleName,
-                                            "",
-                                            0,
-                                            methodToFind.className(),
-                                            methodToFind.methodName(),
-                                            methodToFind.methodDescriptor(),
-                                            true
-                                        ),
-                                        null
-                                    )
-                                )
-                            );
-                        }
-                    );
-
-                    for (var x : kv.getValue()) {
-                        try {
-                            ClassReader cr = new ClassReader(Files.newInputStream(x));
-                            cr.accept(visitor, 0);
-                        } catch (IOException e) {
-                            throw new RuntimeException(e);
-                        }
-                    }
-
-                    originalCallers.stream().filter(c -> c.entryPoint().isPublic()).forEach(c -> {
-                        var oc = c.next();
-                        var originalEntryPoint = oc.entryPoint().moduleName() + separator + oc.entryPoint().className() + separator + oc
-                            .entryPoint()
-                            .methodName();
-                        var e = c.entryPoint();
-                        var entryPoint = e.moduleName() + separator + e.source() + separator + e.line() + separator + e.className()
-                            + separator + e.methodName() + separator + e.methodDescriptor();
-                        System.out.println(entryPoint + separator + originalEntryPoint);
-                    });
-                    var firstLevelCallers = bubbleUpFromPublic
-                        ? originalCallers
-                        : originalCallers.stream().filter(c -> c.entryPoint().isPublic() == false).toList();
-
-                    if (firstLevelCallers.isEmpty() == false) {
-                        findTransitiveUsages(firstLevelCallers, kv.getValue(), thisModuleExports, bubbleUpFromPublic, (oc, callChain) -> {
-                            var originalEntryPoint = oc.entryPoint().moduleName() + separator + oc.entryPoint().className() + separator + oc
-                                .entryPoint()
-                                .methodName();
-                            var s = moduleName + separator + callChain.entryPoint().source() + separator + callChain.entryPoint().line()
-                                + separator + callChain.entryPoint().className() + separator + callChain.entryPoint().methodName()
-                                + separator + callChain.entryPoint().methodDescriptor();
-                            System.out.println(s + separator + originalEntryPoint);
-                        });
-                    }
+            for (var classFile : moduleClasses) {
+                try {
+                    ClassReader cr = new ClassReader(Files.newInputStream(classFile));
+                    cr.accept(visitor, 0);
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
                 }
             }
-        }
+
+            originalCallers.stream().filter(c -> ExternalAccess.isPublic(c.entryPoint().access())).forEach(c -> {
+                var originalCaller = c.next();
+                printRow(getEntryPointString(c.entryPoint().moduleName(), c.entryPoint()), getOriginalEntryPointString(originalCaller));
+            });
+            var firstLevelCallers = bubbleUpFromPublic
+                ? originalCallers
+                : originalCallers.stream().filter(c -> ExternalAccess.isPublic(c.entryPoint().access()) == false).toList();
+
+            if (firstLevelCallers.isEmpty() == false) {
+                findTransitiveUsages(
+                    firstLevelCallers,
+                    moduleClasses,
+                    moduleExports,
+                    bubbleUpFromPublic,
+                    (originalEntryPoint, newMethod) -> printRow(
+                        getEntryPointString(moduleName, newMethod.entryPoint()),
+                        getOriginalEntryPointString(originalEntryPoint)
+                    )
+                );
+            }
+        });
+    }
+
+    @SuppressForbidden(reason = "This tool prints the CSV to stdout")
+    private static void printRow(String entryPointString, String originalEntryPoint) {
+        System.out.println(entryPointString + SEPARATOR + originalEntryPoint);
+    }
+
+    private static String getEntryPointString(String moduleName, FindUsagesClassVisitor.EntryPoint e) {
+        return moduleName + SEPARATOR + e.source() + SEPARATOR + e.line() + SEPARATOR + e.className() + SEPARATOR + e.methodName()
+            + SEPARATOR + e.methodDescriptor();
+    }
+
+    private static String getOriginalEntryPointString(CallChain originalCallChain) {
+        return originalCallChain.entryPoint().moduleName() + SEPARATOR + originalCallChain.entryPoint().className() + SEPARATOR
+            + originalCallChain.entryPoint().methodName();
     }
 
     interface MethodDescriptorConsumer {
@@ -184,12 +171,13 @@ public class Main {
     private static void parseCsv(Path csvPath, boolean bubbleUpFromPublic, MethodDescriptorConsumer methodConsumer) throws IOException {
         var lines = Files.readAllLines(csvPath);
         for (var l : lines) {
-            var tokens = l.split(";");
+            var tokens = l.split(SEPARATOR);
             var className = tokens[3];
             var methodName = tokens[4];
-            var isPublic = Boolean.parseBoolean(tokens[5]);
-            if (isPublic == false || bubbleUpFromPublic) {
-                methodConsumer.accept(new FindUsagesClassVisitor.MethodDescriptor(className, methodName, null));
+            var methodDescriptor = tokens[5];
+            var access = ExternalAccess.fromString(tokens[6]);
+            if (bubbleUpFromPublic || ExternalAccess.isPublic(access)) {
+                methodConsumer.accept(new FindUsagesClassVisitor.MethodDescriptor(className, methodName, methodDescriptor));
             }
         }
     }

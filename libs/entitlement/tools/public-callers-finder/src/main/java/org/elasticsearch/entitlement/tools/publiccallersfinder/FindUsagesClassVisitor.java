@@ -9,11 +9,13 @@
 
 package org.elasticsearch.entitlement.tools.publiccallersfinder;
 
+import org.elasticsearch.entitlement.tools.ExternalAccess;
 import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.MethodVisitor;
 
 import java.lang.constant.ClassDesc;
+import java.util.EnumSet;
 import java.util.Set;
 
 import static org.objectweb.asm.Opcodes.ACC_PUBLIC;
@@ -32,11 +34,11 @@ class FindUsagesClassVisitor extends ClassVisitor {
         String className,
         String methodName,
         String methodDescriptor,
-        boolean isPublic
+        EnumSet<ExternalAccess> access
     ) {}
 
     interface CallerConsumer {
-        void accept(String source, int line, String className, String methodName, String methodDescriptor, boolean isPublic);
+        void accept(String source, int line, String className, String methodName, String methodDescriptor, EnumSet<ExternalAccess> access);
     }
 
     private final Set<String> moduleExports;
@@ -91,10 +93,12 @@ class FindUsagesClassVisitor extends ClassVisitor {
             if (methodToFind.className.equals(owner)) {
                 if (methodToFind.methodName.equals(name)) {
                     if (methodToFind.methodDescriptor == null || methodToFind.methodDescriptor.equals(descriptor)) {
-                        boolean isPublic = (methodAccess & ACC_PUBLIC) != 0
-                            && (classAccess & ACC_PUBLIC) != 0
-                            && moduleExports.contains(getPackageName(className));
-                        callers.accept(source, line, className, methodName, methodDescriptor, isPublic);
+                        EnumSet<ExternalAccess> externalAccess = ExternalAccess.fromPermissions(
+                            moduleExports.contains(getPackageName(className)),
+                            (classAccess & ACC_PUBLIC) != 0,
+                            (methodAccess & ACC_PUBLIC) != 0
+                        );
+                        callers.accept(source, line, className, methodName, methodDescriptor, externalAccess);
                     }
                 }
             }

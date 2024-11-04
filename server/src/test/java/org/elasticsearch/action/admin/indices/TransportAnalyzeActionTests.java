@@ -41,6 +41,7 @@ import org.elasticsearch.test.IndexSettingsModule;
 
 import java.io.IOException;
 import java.io.Reader;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -249,36 +250,30 @@ public class TransportAnalyzeActionTests extends ESTestCase {
         assertEquals("<ALPHANUM>", tokens.get(3).getType());
     }
 
-    public void testMultiPhraseRequest() throws IOException {
+    public void testMultiTextRequest() throws IOException {
         AnalyzeAction.Request request = new AnalyzeAction.Request();
-        request.analyzer("standard");
-        request.text("first thing", "second try");
-        AnalyzeAction.Response analyze = TransportAnalyzeAction.analyze(request, registry, null, maxTokenCount);
-        List<AnalyzeAction.AnalyzeToken> tokens = analyze.getTokens();
-        assertEquals(4, tokens.size());
-        assertEquals("first", tokens.get(0).getTerm());
-        assertEquals(0, tokens.get(0).getStartOffset());
-        assertEquals(5, tokens.get(0).getEndOffset());
-        assertEquals(0, tokens.get(0).getPosition());
-        assertEquals("<ALPHANUM>", tokens.get(0).getType());
 
-        assertEquals("thing", tokens.get(1).getTerm());
-        assertEquals(6, tokens.get(1).getStartOffset());
-        assertEquals(11, tokens.get(1).getEndOffset());
-        assertEquals(1, tokens.get(1).getPosition());
-        assertEquals("<ALPHANUM>", tokens.get(1).getType());
+        for (String analyzer : Arrays.asList("standard", "simple", "stop", "keyword", "whitespace", "classic")) {
+            request.analyzer(analyzer);
+            request.text("a a", "b b");
 
-        assertEquals("second", tokens.get(2).getTerm());
-        assertEquals(12, tokens.get(2).getStartOffset());
-        assertEquals(18, tokens.get(2).getEndOffset());
-        assertEquals(102, tokens.get(2).getPosition());
-        assertEquals("<ALPHANUM>", tokens.get(2).getType());
+            AnalyzeAction.Response analyzeIndex = TransportAnalyzeAction.analyze(request, registry, mockIndexService(), maxTokenCount);
+            List<AnalyzeAction.AnalyzeToken> tokensIndex = analyzeIndex.getTokens();
 
-        assertEquals("try", tokens.get(3).getTerm());
-        assertEquals(19, tokens.get(3).getStartOffset());
-        assertEquals(22, tokens.get(3).getEndOffset());
-        assertEquals(103, tokens.get(3).getPosition());
-        assertEquals("<ALPHANUM>", tokens.get(3).getType());
+            AnalyzeAction.Response analyzeNoIndex = TransportAnalyzeAction.analyze(request, registry, null, maxTokenCount);
+            List<AnalyzeAction.AnalyzeToken> tokensNoIndex = analyzeNoIndex.getTokens();
+
+            assertEquals(tokensIndex.size(), tokensNoIndex.size());
+            for (int i = 0; i < tokensIndex.size(); i++) {
+                AnalyzeAction.AnalyzeToken withIndex = tokensIndex.get(i);
+                AnalyzeAction.AnalyzeToken withNoIndex = tokensNoIndex.get(i);
+
+                assertEquals(withIndex.getStartOffset(), withNoIndex.getStartOffset());
+                assertEquals(withIndex.getEndOffset(), withNoIndex.getEndOffset());
+                assertEquals(withIndex.getPosition(), withNoIndex.getPosition());
+                assertEquals(withIndex.getType(), withNoIndex.getType());
+            }
+        }
     }
 
     public void testWithIndexAnalyzers() throws IOException {

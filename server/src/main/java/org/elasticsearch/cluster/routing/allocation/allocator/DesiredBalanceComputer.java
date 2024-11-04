@@ -116,7 +116,7 @@ public class DesiredBalanceComputer {
         DesiredBalance.ComputationFinishReason finishReason = DesiredBalance.ComputationFinishReason.CONVERGED;
 
         if (routingNodes.size() == 0) {
-            return new DesiredBalance(desiredBalanceInput.index(), Map.of(), finishReason);
+            return new DesiredBalance(desiredBalanceInput.index(), Map.of(), Map.of(), finishReason);
         }
 
         // we assume that all ongoing recoveries will complete
@@ -411,7 +411,7 @@ public class DesiredBalanceComputer {
         }
 
         long lastConvergedIndex = hasChanges ? previousDesiredBalance.lastConvergedIndex() : desiredBalanceInput.index();
-        return new DesiredBalance(lastConvergedIndex, assignments, finishReason);
+        return new DesiredBalance(lastConvergedIndex, assignments, routingNodes.getBalanceWeightStatsPerNode(), finishReason);
     }
 
     // visible for testing

@@ -12,7 +12,7 @@ apply plugin: 'elasticsearch.publish'
 apply plugin: 'elasticsearch.embedded-providers'
 
 embeddedProviders {
-  impl 'entitlement', project(':libs:entitlement:instrumentation-impl')
+  impl 'entitlement', project(':libs:entitlement:asm-provider')
 }
 
 configurations {

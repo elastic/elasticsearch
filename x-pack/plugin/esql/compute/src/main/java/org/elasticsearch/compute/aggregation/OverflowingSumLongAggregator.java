@@ -17,7 +17,7 @@ import org.elasticsearch.compute.ann.IntermediateState;
  *     Replaced by {@link org.elasticsearch.compute.aggregation.SumLongAggregator} since {@code EsqlFeatures#FN_SUM_OVERFLOW_HANDLING}.
  * </p>
  * <p>
- *     Can't be removed, as the new aggregator's layout is different.
+ *     Should be kept for as long as we need compatibility with the version this was added on, as the new aggregator's layout is different.
  * </p>
  */
 @Aggregator(value = { @IntermediateState(name = "sum", type = "LONG"), @IntermediateState(name = "seen", type = "BOOLEAN") })

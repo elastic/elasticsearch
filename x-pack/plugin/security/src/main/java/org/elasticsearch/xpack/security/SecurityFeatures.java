@@ -25,7 +25,12 @@ public class SecurityFeatures implements FeatureSpecification {
 
     @Override
     public Set<NodeFeature> getFeatures() {
-        return Set.of(SECURITY_MAIN_INDEX_CREATED_ON_MIGRATION_VERSION, SECURITY_ROLE_MAPPING_CLEANUP, SECURITY_ROLES_METADATA_FLATTENED, SECURITY_MIGRATION_FRAMEWORK);
+        return Set.of(
+            SECURITY_MAIN_INDEX_CREATED_ON_MIGRATION_VERSION,
+            SECURITY_ROLE_MAPPING_CLEANUP,
+            SECURITY_ROLES_METADATA_FLATTENED,
+            SECURITY_MIGRATION_FRAMEWORK
+        );
     }
 
     @Override

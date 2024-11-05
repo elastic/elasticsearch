@@ -50,11 +50,13 @@ public abstract class ContinuousComputation<T> {
     }
 
     /**
-     * enqueues input if {@code expectedLatestKnownInput} is the latest known input
+     * enqueues {@code input} if {@code expectedLatestKnownInput} is the latest known input.
+     * Neither of the parameters can be null.
      */
     protected boolean compareAndEnqueue(T expectedLatestKnownInput, T input) {
         assert expectedLatestKnownInput != null;
-        return enqueuedInput.compareAndSet(expectedLatestKnownInput, input);
+        assert input != null;
+        return enqueuedInput.compareAndSet(Objects.requireNonNull(expectedLatestKnownInput), Objects.requireNonNull(input));
     }
 
     /**

@@ -316,7 +316,7 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
                 if (prior.primaryIndex.equals(primaryIndex) == false) {
                     throw new IllegalArgumentException("primary index must be the same");
                 }
-                if (prior.aliasName.equals(aliasName) == false) {
+                if (Objects.equals(prior.aliasName, aliasName) == false) {
                     throw new IllegalArgumentException("alias name must be the same");
                 }
             }
@@ -512,16 +512,21 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
      * @param cause the action being attempted that triggered the check. Used in the error message.
      * @return the standardized error message
      */
-    public String getMinimumMappingsVersionMessage(String cause) {
+    public String getMinimumMappingsVersionMessage(String cause, MappingsVersion requiredMinimumMappingVersion) {
         Objects.requireNonNull(cause);
         final MappingsVersion actualMinimumMappingsVersion = priorSystemIndexDescriptors.isEmpty()
             ? getMappingsVersion()
             : priorSystemIndexDescriptors.get(priorSystemIndexDescriptors.size() - 1).mappingsVersion;
         return Strings.format(
-            "[%s] failed - system index [%s] requires all data and master nodes to have mappings versions at least of version [%s]",
+            "[%s] failed - requested creation of system index [%s] with version [%s], while this cluster minimum supported version is "
+                + "[%s]. For the cluster to support version [%s], ensure that the system index descriptor for [%s] includes a prior "
+                + "definition for that version.",
             cause,
             this.getPrimaryIndex(),
-            actualMinimumMappingsVersion
+            requiredMinimumMappingVersion,
+            actualMinimumMappingsVersion,
+            requiredMinimumMappingVersion,
+            this.getPrimaryIndex()
         );
     }
 

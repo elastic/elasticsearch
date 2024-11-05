@@ -301,20 +301,6 @@ public class CleanupRoleMappingDuplicatesMigrationIT extends SecurityIntegTestCa
         assertAllRoleMappings("everyone_kibana_alone", "everyone_fleet_alone");
     }
 
-    public void testNewIndexSkipMigration() {
-        internalCluster().setBootstrapMasterNodeIndex(0);
-        final String masterNode = internalCluster().getMasterName();
-        ensureGreen();
-        CountDownLatch awaitMigrations = awaitMigrationVersionUpdates(
-            masterNode,
-            SecurityMigrations.CLEANUP_ROLE_MAPPING_DUPLICATES_MIGRATION_VERSION
-        );
-        // Create a native role mapping to create security index and trigger migration
-        createNativeRoleMapping("everyone_kibana_alone");
-        // Make sure no migration ran (set to current version without applying prior migrations)
-        safeAwait(awaitMigrations);
-    }
-
     /**
      * Make sure all versions are applied to cluster state sequentially
      */

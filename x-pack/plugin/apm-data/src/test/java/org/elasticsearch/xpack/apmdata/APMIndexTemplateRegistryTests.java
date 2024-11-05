@@ -489,7 +489,7 @@ public class APMIndexTemplateRegistryTests extends ESTestCase {
             ilmPolicyCounter.incrementAndGet();
             return AcknowledgedResponse.TRUE;
         } else {
-            fail("client called with unexpected request:" + request.toString() + action.toString());
+            fail("client called with unexpected request:" + request.toString());
             return null;
         }
     }

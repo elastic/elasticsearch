@@ -1782,8 +1782,8 @@ public class IndexNameExpressionResolver {
         }
 
         /**
-         * Checks if any system indices that should not have been accessible according to the {@link Context#getSystemIndexAccessPredicate()}
-         * are accessed, and it performs the following actions:
+         * Checks if any system indices that should not have been accessible according to the
+         * {@link Context#getSystemIndexAccessPredicate()} are accessed, and it performs the following actions:
          * - if there are historic (aka not net-new) system indices, then it adds a deprecation warning
          * - if it contains net-new system indices or system data streams, it throws an exception.
          */

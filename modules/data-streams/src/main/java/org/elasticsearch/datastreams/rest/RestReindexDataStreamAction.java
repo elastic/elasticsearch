@@ -18,7 +18,6 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -43,33 +42,11 @@ public class RestReindexDataStreamAction extends BaseRestHandler {
         ReindexDataStreamAction.ReindexDataStreamRequest reindexRequest = new ReindexDataStreamAction.ReindexDataStreamRequest(
             request.param("source")
         );
-
-        // final SubscribableListener<ReindexDataStreamResponse> responseListener = new SubscribableListener<>();
-        // final Task task = client.executeLocally(ReindexDataStreamAction.INSTANCE, reindexRequest, responseListener);
-        //
-        //
-        //
-        //
-        // client.execute(ReindexDataStreamAction.INSTANCE, reindexRequest, responseListener);
-        // responseListener.addListener(new LoggingTaskListener<>(task));
-        // return sendTask(client.getLocalNodeId(), task);
-
         return channel -> client.execute(
             ReindexDataStreamAction.INSTANCE,
             reindexRequest,
             new RestReindexDataStreamAction.SimulateIngestRestToXContentListener(channel)
         );
-    }
-
-    private static RestChannelConsumer sendTask(String localNodeId, Task task) {
-        return channel -> {
-            try (XContentBuilder builder = channel.newBuilder()) {
-                builder.startObject();
-                builder.field("task", localNodeId + ":" + task.getId());
-                builder.endObject();
-                channel.sendResponse(new RestResponse(RestStatus.OK, builder));
-            }
-        };
     }
 
     static class SimulateIngestRestToXContentListener extends RestBuilderListener<ReindexDataStreamResponse> {

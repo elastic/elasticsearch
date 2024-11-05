@@ -23,34 +23,6 @@ import static org.elasticsearch.entitlement.runtime.internals.EntitlementInterna
  * The trampoline module loads this object via SPI.
  */
 public class ElasticsearchEntitlementChecker implements EntitlementChecker {
-    /**
-     * Log level recommendations:
-     * <dl>
-     *     <dt>{@code INFO}</dt>
-     *     <dd>Summary events that typically happen once per Elasticsearch run, such as "agent loaded" or "policies initialized"</dd>
-     *     <dt>{@code DEBUG}</dt>
-     *     <dd>
-     *         <ul>
-     *             <li>
-     *                 Events that happen once per "decision", such as permitting an operation to proceed
-     *             </li>
-     *             <li>
-     *                 Events that happen once per instrumented method
-     *             </li>
-     *             <li>
-     *                 Finer-grained events that happen once per Elasticsearch run, such as looking for a jar in a particular directory
-     *             </li>
-     *         </ul>
-     *     </dd>
-     *     <dt>{@code TRACE}</dt>
-     *     <dd>
-     *         <ul>
-     *             <li>Events that happen in loops</li>
-     *             <li>Logs to help comprehend control flow</li>
-     *         </ul>
-     *     </dd>
-     * </dl>
-     */
     private static final Logger logger = LogManager.getLogger(ElasticsearchEntitlementChecker.class);
 
     /**

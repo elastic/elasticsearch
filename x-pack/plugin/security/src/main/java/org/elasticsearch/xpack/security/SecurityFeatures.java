@@ -14,8 +14,8 @@ import org.elasticsearch.features.NodeFeature;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MIGRATION_FRAMEWORK;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_INDEX_CREATED_ON_MIGRATION_VERSION;
+import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MIGRATION_FRAMEWORK;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_PROFILE_ORIGIN_FEATURE;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_ROLES_METADATA_FLATTENED;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_ROLE_MAPPING_CLEANUP;

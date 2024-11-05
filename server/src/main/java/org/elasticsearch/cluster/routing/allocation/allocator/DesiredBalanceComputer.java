@@ -358,16 +358,6 @@ public class DesiredBalanceComputer {
                 break;
             }
 
-            logger.log(
-                reportByIterationCount || reportByTime ? Level.INFO : i % 100 == 0 ? Level.DEBUG : Level.TRACE,
-                () -> Strings.format(
-                    "Desired balance computation for [%d] is still not converged after [%s] and [%d] iterations",
-                    desiredBalanceInput.index(),
-                    TimeValue.timeValueMillis(currentTime - computationStartedTime).toString(),
-                    iterations
-                )
-            );
-
             if (assignedNewlyCreatedPrimaryShards
                 && currentTime - computationStartedTime >= maxBalanceComputationTimeDuringIndexCreationMillis) {
                 logger.info(
@@ -382,6 +372,16 @@ public class DesiredBalanceComputer {
                 finishReason = DesiredBalance.ComputationFinishReason.STOP_EARLY;
                 break;
             }
+
+            logger.log(
+                reportByIterationCount || reportByTime ? Level.INFO : i % 100 == 0 ? Level.DEBUG : Level.TRACE,
+                () -> Strings.format(
+                    "Desired balance computation for [%d] is still not converged after [%s] and [%d] iterations",
+                    desiredBalanceInput.index(),
+                    TimeValue.timeValueMillis(currentTime - computationStartedTime).toString(),
+                    iterations
+                )
+            );
         }
         iterations.inc(i);
 

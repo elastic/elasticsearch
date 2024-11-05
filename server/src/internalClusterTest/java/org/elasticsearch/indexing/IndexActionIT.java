@@ -17,7 +17,6 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -28,7 +27,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicIntegerArray;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -38,11 +37,9 @@ public class IndexActionIT extends ESIntegTestCase {
      * This test tries to simulate load while creating an index and indexing documents
      * while the index is being created.
      */
-
     public void testAutoGenerateIdNoDuplicates() throws Exception {
         int numberOfIterations = scaledRandomIntBetween(10, 50);
         for (int i = 0; i < numberOfIterations; i++) {
-            Exception firstError = null;
             createIndex("test");
             int numOfDocs = randomIntBetween(10, 100);
             logger.info("indexing [{}] docs", numOfDocs);
@@ -52,51 +49,9 @@ public class IndexActionIT extends ESIntegTestCase {
             }
             indexRandom(true, builders);
             logger.info("verifying indexed content");
-            int numOfChecks = randomIntBetween(8, 12);
+            int numOfChecks = randomIntBetween(16, 24);
             for (int j = 0; j < numOfChecks; j++) {
-                try {
-                    logger.debug("running search with all types");
-                    assertResponse(prepareSearch("test"), response -> {
-                        if (response.getHits().getTotalHits().value() != numOfDocs) {
-                            final String message = "Count is "
-                                + response.getHits().getTotalHits().value()
-                                + " but "
-                                + numOfDocs
-                                + " was expected. "
-                                + ElasticsearchAssertions.formatShardStatus(response);
-                            logger.error("{}. search response: \n{}", message, response);
-                            fail(message);
-                        }
-                    });
-                } catch (Exception e) {
-                    logger.error("search for all docs types failed", e);
-                    if (firstError == null) {
-                        firstError = e;
-                    }
-                }
-                try {
-                    logger.debug("running search with a specific type");
-                    assertResponse(prepareSearch("test"), response -> {
-                        if (response.getHits().getTotalHits().value() != numOfDocs) {
-                            final String message = "Count is "
-                                + response.getHits().getTotalHits().value()
-                                + " but "
-                                + numOfDocs
-                                + " was expected. "
-                                + ElasticsearchAssertions.formatShardStatus(response);
-                            logger.error("{}. search response: \n{}", message, response);
-                            fail(message);
-                        }
-                    });
-                } catch (Exception e) {
-                    logger.error("search for all docs of a specific type failed", e);
-                    if (firstError == null) {
-                        firstError = e;
-                    }
-                }
-            }
-            if (firstError != null) {
-                fail(firstError.getMessage());
+                assertHitCount(prepareSearch("test"), numOfDocs);
             }
             internalCluster().wipeIndices("test");
         }

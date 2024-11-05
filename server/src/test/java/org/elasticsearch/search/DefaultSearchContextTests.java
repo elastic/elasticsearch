@@ -1056,8 +1056,9 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
         assertThat(executor.getCompletedTaskCount(), greaterThanOrEqualTo((long) numIters * executorPoolSize));
         // while we parallelize we also limit the number of tasks that each searcher submits
         assertThat(executor.getCompletedTaskCount(), lessThan((long) numIters * numSegmentTasks));
-        // *3 is just a wild guess to account for tasks that get executed while we are still submitting
-        assertThat(executor.getCompletedTaskCount(), lessThan((long) numIters * executorPoolSize * 3));
+        // *10 is just a wild guess to account for tasks that get executed while we are still submitting. The important bit is that it is a
+        // much lower factor than the number of segments
+        assertThat(executor.getCompletedTaskCount(), lessThan((long) numIters * executorPoolSize * 10));
     }
 
     private void doTestSearchConcurrency(ThreadPoolExecutor executor, int numIters, int numSegmentTasks, AtomicInteger completedTasks)

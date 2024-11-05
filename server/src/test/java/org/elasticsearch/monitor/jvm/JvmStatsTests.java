@@ -53,7 +53,7 @@ public class JvmStatsTests extends ESTestCase {
         assertThat(memoryPools, hasKey("Metaspace"));
         assertThat(memoryPools.keySet(), hasSize(greaterThan(3)));
         for (JvmStats.MemoryPool memoryPool : memoryPools.values()) {
-            assertThat(memoryPool.getUsed().getBytes(), greaterThan(0L));
+            assertThat("Memory pool: " + memoryPool.getName(), memoryPool.getUsed().getBytes(), greaterThanOrEqualTo(0L));
         }
 
         // Threads

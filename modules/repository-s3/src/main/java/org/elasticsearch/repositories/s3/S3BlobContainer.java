@@ -897,8 +897,13 @@ class S3BlobContainer extends AbstractBlobContainer {
         final var clientReference = blobStore.clientReference();
         ActionListener.run(ActionListener.releaseAfter(listener.delegateResponse((delegate, e) -> {
             logger.trace(() -> Strings.format("[%s]: compareAndExchangeRegister failed", key), e);
-            if (e instanceof AmazonS3Exception amazonS3Exception && amazonS3Exception.getStatusCode() == 404) {
-                // an uncaught 404 means that our multipart upload was aborted by a concurrent operation before we could complete it
+            if (e instanceof AmazonS3Exception amazonS3Exception
+                && (amazonS3Exception.getStatusCode() == 404
+                    || amazonS3Exception.getStatusCode() == 0 && "NoSuchUpload".equals(amazonS3Exception.getErrorCode()))) {
+                // An uncaught 404 means that our multipart upload was aborted by a concurrent operation before we could complete it.
+                // Also (rarely) S3 can start processing the request during a concurrent abort and this can result in a 200 OK with an
+                // <Error><Code>NoSuchUpload</Code>... in the response, which the SDK translates to status code 0. Either way, this means
+                // that our write encountered contention:
                 delegate.onResponse(OptionalBytesReference.MISSING);
             } else {
                 delegate.onFailure(e);

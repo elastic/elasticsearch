@@ -2440,11 +2440,11 @@ count_distinct:long |count:long |values:keyword |job_positions:keyword |is_rehir
 0                   |2          |null           |Accountant            |false
 0                   |2          |null           |Accountant            |true
 0                   |2          |null           |Accountant            |null
-0                   |2          |null           |Architect             |null
-0                   |2          |null           |Architect             |true
 0                   |2          |null           |Architect             |false
-0                   |2          |null           |Business Analyst      |true
+0                   |2          |null           |Architect             |true
+0                   |2          |null           |Architect             |null
 0                   |2          |null           |Business Analyst      |false
+0                   |2          |null           |Business Analyst      |true
 0                   |2          |null           |Business Analyst      |null
 0                   |2          |null           |Data Scientist        |false
 ;
@@ -2454,17 +2454,17 @@ required_capability: per_agg_filtering
 from employees
 | eval my_length = length(concat(first_name, null))
 | stats count = count(my_length) where false,
-        values = mv_sort(mv_slice(values(first_name), 0, 1))
+        values = mv_slice(mv_sort(values(first_name)), 0, 1)
   by job_positions
 | sort job_positions
 | limit 4
 ;
 
-count:long     |values:keyword    |job_positions:keyword
-0              |[Georgi, Patricio]|Accountant
-0              |[Duangkaew, Mary] |Architect
-0              |[Basil, Magy]     |Business Analyst
-0              |[Berni, Cristinel]|Data Scientist
+count:long     |values:keyword        |job_positions:keyword
+0              |[Arumugam, Bojan]     |Accountant
+0              |[Alejandro, Charlene] |Architect
+0              |[Basil, Breannda]     |Business Analyst
+0              |[Berni, Breannda]     |Data Scientist
 ;
 
 prunedStatsFollowedByStats

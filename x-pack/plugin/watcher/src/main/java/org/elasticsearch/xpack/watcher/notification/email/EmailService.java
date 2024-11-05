@@ -34,6 +34,7 @@ import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
 import javax.mail.MessagingException;
 import javax.mail.internet.InternetAddress;
 import javax.net.ssl.SSLSocketFactory;
@@ -365,8 +366,8 @@ public class EmailService extends NotificationService<Account> {
         }
 
         final Set<String> recipients = getRecipients(email, false);
-        final Predicate<String> matchesAnyAllowedRecipient = recipient -> recipients.stream()
-            .anyMatch(allowedDomain -> Regex.simpleMatch(allowedDomain, recipient, true));
+        final Predicate<String> matchesAnyAllowedRecipient = recipient -> allowedRecipientPatterns.stream()
+            .anyMatch(pattern -> Regex.simpleMatch(pattern, recipient, true));
         return recipients.stream().allMatch(matchesAnyAllowedRecipient);
     }
 

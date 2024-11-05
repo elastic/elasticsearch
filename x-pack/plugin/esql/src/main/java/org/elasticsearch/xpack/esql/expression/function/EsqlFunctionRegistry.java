@@ -257,7 +257,7 @@ public class EsqlFunctionRegistry {
             .collect(toList());
     }
 
-    private FunctionDefinition[][] functions() {
+    private static FunctionDefinition[][] functions() {
         return new FunctionDefinition[][] {
             // grouping functions
             new FunctionDefinition[] { def(Bucket.class, Bucket::new, "bucket", "bin"), },

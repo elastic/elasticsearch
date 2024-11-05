@@ -315,6 +315,9 @@ tests:
 - class: org.elasticsearch.ingest.common.IngestCommonClientYamlTestSuiteIT
   method: test {yaml=ingest/310_reroute_processor/Test data stream with lazy rollover obtains pipeline from template}
   issue: https://github.com/elastic/elasticsearch/issues/116157
+- class: org.elasticsearch.ingest.geoip.EnterpriseGeoIpDownloaderIT
+  method: testEnterpriseDownloaderTask
+  issue: https://github.com/elastic/elasticsearch/issues/115163
 
 # Examples:
 #

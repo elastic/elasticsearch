@@ -21,7 +21,6 @@ public class KqlRestIT extends ESClientYamlSuiteTestCase {
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .setting("xpack.security.enabled", "false")
         .setting("xpack.security.http.ssl.enabled", "false")
-        .setting("xpack.license.self_generated.type", "trial")
         .distribution(DistributionType.DEFAULT)
         .build();
 

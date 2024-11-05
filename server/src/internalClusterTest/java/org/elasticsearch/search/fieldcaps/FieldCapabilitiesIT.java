@@ -324,7 +324,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
 
     public void testNoIndices() {
         boolean ignoreUnavailable = false;
-        IndicesOptions options = IndicesOptions.fromOptions(ignoreUnavailable, true, true, false);
+        IndicesOptions options = IndicesOptions.fromOptions(ignoreUnavailable, true, true, false, true, true, false, false);
         client().admin().indices().close(new CloseIndexRequest("old_index")).actionGet();
         FieldCapabilitiesResponse response = client().prepareFieldCaps().setFields("*").setIndicesOptions(options).get();
         assertIndices(response, "new_index");
@@ -332,7 +332,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
 
     public void testNoIndicesIgnoreUnavailable() {
         boolean ignoreUnavailable = true;
-        IndicesOptions options = IndicesOptions.fromOptions(ignoreUnavailable, true, true, false);
+        IndicesOptions options = IndicesOptions.fromOptions(ignoreUnavailable, true, true, false, true, true, false, false);
         client().admin().indices().close(new CloseIndexRequest("old_index")).actionGet();
         FieldCapabilitiesResponse response = client().prepareFieldCaps().setFields("*").setIndicesOptions(options).get();
         assertIndices(response, "new_index");
@@ -340,7 +340,9 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
 
     public void testOneClosedIndex() {
         boolean ignoreUnavailable = false;
-        IndicesOptions options = IndicesOptions.fromOptions(ignoreUnavailable, true, true, false);
+        IndicesOptions options = IndicesOptions.fromOptions(ignoreUnavailable, true, true, false, true, true, false, false);
+
+        // IndicesOptions options = IndicesOptions.fromOptions(ignoreUnavailable, true, true, false);
         client().admin().indices().close(new CloseIndexRequest("old_index")).actionGet();
         IndexClosedException ex = expectThrows(
             IndexClosedException.class,
@@ -351,7 +353,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
 
     public void testOneClosedIndexIgnoreUnavailable() {
         boolean ignoreUnavailable = true;
-        IndicesOptions options = IndicesOptions.fromOptions(ignoreUnavailable, true, true, false);
+        IndicesOptions options = IndicesOptions.fromOptions(ignoreUnavailable, true, true, false, true, true, false, false);
         client().admin().indices().close(new CloseIndexRequest("old_index")).actionGet();
         FieldCapabilitiesResponse response = client().prepareFieldCaps("old_index").setFields("*").setIndicesOptions(options).get();
         assertIndices(response);
@@ -359,7 +361,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
 
     public void testTwoIndicesOneClosed() {
         boolean ignoreUnavailable = false;
-        IndicesOptions options = IndicesOptions.fromOptions(ignoreUnavailable, true, true, false);
+        IndicesOptions options = IndicesOptions.fromOptions(ignoreUnavailable, true, true, false, true, true, false, false);
         client().admin().indices().close(new CloseIndexRequest("old_index")).actionGet();
         IndexClosedException ex = expectThrows(
             IndexClosedException.class,
@@ -370,7 +372,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
 
     public void testTwoIndicesOneClosedIgnoreUnavailable() {
         boolean ignoreUnavailable = true;
-        IndicesOptions options = IndicesOptions.fromOptions(ignoreUnavailable, true, true, false);
+        IndicesOptions options = IndicesOptions.fromOptions(ignoreUnavailable, true, true, false, true, true, false, false);
         client().admin().indices().close(new CloseIndexRequest("old_index")).actionGet();
         FieldCapabilitiesResponse response = client().prepareFieldCaps("old_index", "new_index")
             .setFields("*")

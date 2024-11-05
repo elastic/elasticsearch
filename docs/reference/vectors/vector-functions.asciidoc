@@ -371,6 +371,7 @@ PUT my-index-bit-vectors/_doc/3
 
 POST my-index-bit-vectors/_refresh
 --------------------------------------------------
+// TEST[continued]
 <1> The number of dimensions or bits for the `bit` vector.
 <2> This vector represents 5 bytes, or `5 * 8 = 40` bits, which equals the configured dimensions
 
@@ -393,6 +394,7 @@ GET my-index-bit-vectors/_search
   }
 }
 --------------------------------------------------
+// TEST[continued]
 <1> This vector is 40 bits, and thus will compute a bitwise `&` operation with the stored vectors.
 
 [source,console]
@@ -414,6 +416,7 @@ GET my-index-bit-vectors/_search
   }
 }
 --------------------------------------------------
+// TEST[continued]
 <1> This vector is 40 individual dimensions, and thus will sum the floating point values using the stored `bit` vector as a mask.
 
 Currently, the `cosineSimilarity` function is not supported for `bit` vectors.

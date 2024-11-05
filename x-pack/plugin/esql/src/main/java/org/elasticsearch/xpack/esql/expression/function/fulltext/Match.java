@@ -132,7 +132,7 @@ public class Match extends FullTextFunction implements Validatable {
 
     private boolean isOperator() {
         if (isOperator == null) {
-            isOperator = source().text().toUpperCase(Locale.ROOT).startsWith(super.functionName()) == false;
+            isOperator = source().text().toUpperCase(Locale.ROOT).matches("^" + super.functionName() + "\\s*\\(.*\\)") == false;
         }
         return isOperator;
     }

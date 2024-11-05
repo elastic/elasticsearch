@@ -1145,6 +1145,19 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
+    public void testMatchFunctionAndOperatorHaveCorrectErrorMessages() throws Exception {
+        assertEquals(
+            "1:24: [MATCH] function cannot be used after LIMIT",
+            error("from test | limit 10 | where match(first_name, \"Anna\")")
+        );
+        assertEquals(
+            "1:24: [MATCH] function cannot be used after LIMIT",
+            error("from test | limit 10 | where match ( first_name, \"Anna\" ) ")
+        );
+        assertEquals("1:24: [:] operator cannot be used after LIMIT", error("from test | limit 10 | where first_name:\"Anna\""));
+        assertEquals("1:24: [:] operator cannot be used after LIMIT", error("from test | limit 10 | where first_name : \"Anna\""));
+    }
+
     public void testQueryStringFunctionsNotAllowedAfterCommands() throws Exception {
         // Source commands
         assertEquals("1:13: [QSTR] function cannot be used after SHOW", error("show info | where qstr(\"8.16.0\")"));

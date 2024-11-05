@@ -19,7 +19,7 @@ base {
 
 dependencies {
   compileOnly project(path: xpackModule('core'))
-  api "org.antlr:antlr4-runtime:${versions.antlr4}"
+  implementation "org.antlr:antlr4-runtime:${versions.antlr4}"
 
   testImplementation "org.antlr:antlr4-runtime:${versions.antlr4}"
   testImplementation project(':test:framework')

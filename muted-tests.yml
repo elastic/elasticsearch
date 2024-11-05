@@ -14,12 +14,6 @@ tests:
 - class: "org.elasticsearch.xpack.searchablesnapshots.FrozenSearchableSnapshotsIntegTests"
   issue: "https://github.com/elastic/elasticsearch/issues/110408"
   method: "testCreateAndRestorePartialSearchableSnapshot"
-- class: org.elasticsearch.xpack.security.authc.oidc.OpenIdConnectAuthIT
-  method: testAuthenticateWithImplicitFlow
-  issue: https://github.com/elastic/elasticsearch/issues/111191
-- class: org.elasticsearch.xpack.security.authc.oidc.OpenIdConnectAuthIT
-  method: testAuthenticateWithCodeFlowAndClientPost
-  issue: https://github.com/elastic/elasticsearch/issues/111396
 - class: org.elasticsearch.xpack.restart.FullClusterRestartIT
   method: testSingleDoc {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/111434
@@ -181,9 +175,6 @@ tests:
 - class: org.elasticsearch.xpack.spatial.search.GeoGridAggAndQueryConsistencyIT
   method: testGeoShapeGeoHex
   issue: https://github.com/elastic/elasticsearch/issues/115705
-- class: org.elasticsearch.xpack.core.ml.calendars.ScheduledEventTests
-  method: testBuild_SucceedsWithDefaultSkipResultAndSkipModelUpdatesValues
-  issue: https://github.com/elastic/elasticsearch/issues/115476
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=transform/transforms_start_stop/Verify start transform reuses destination index}
   issue: https://github.com/elastic/elasticsearch/issues/115808
@@ -232,14 +223,8 @@ tests:
 - class: org.elasticsearch.search.functionscore.QueryRescorerIT
   method: testScoring
   issue: https://github.com/elastic/elasticsearch/issues/116050
-- class: org.elasticsearch.indexing.IndexActionIT
-  method: testAutoGenerateIdNoDuplicates
-  issue: https://github.com/elastic/elasticsearch/issues/115716
 - class: org.elasticsearch.xpack.application.connector.ConnectorIndexServiceTests
   issue: https://github.com/elastic/elasticsearch/issues/116087
-- class: org.elasticsearch.compute.operator.FilterOperatorTests
-  method: testSimpleDescription
-  issue: https://github.com/elastic/elasticsearch/issues/116094
 - class: org.elasticsearch.xpack.searchbusinessrules.PinnedQueryBuilderIT
   method: testPinnedPromotions
   issue: https://github.com/elastic/elasticsearch/issues/116097
@@ -288,6 +273,18 @@ tests:
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=ml/forecast/Test forecast unknown job}
   issue: https://github.com/elastic/elasticsearch/issues/116150
+- class: org.elasticsearch.xpack.test.rest.XPackRestIT
+  method: test {p0=terms_enum/10_basic/Test security}
+  issue: https://github.com/elastic/elasticsearch/issues/116178
+- class: org.elasticsearch.search.basic.SearchWithRandomDisconnectsIT
+  method: testSearchWithRandomDisconnects
+  issue: https://github.com/elastic/elasticsearch/issues/116175
+- class: org.elasticsearch.indexing.IndexActionIT
+  method: testAutoGenerateIdNoDuplicates
+  issue: https://github.com/elastic/elasticsearch/issues/115716
+- class: org.elasticsearch.xpack.test.rest.XPackRestIT
+  method: test {p0=ml/start_stop_datafeed/Test start datafeed given index pattern with no matching indices}
+  issue: https://github.com/elastic/elasticsearch/issues/116220
 
 # Examples:
 #

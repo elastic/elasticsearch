@@ -209,7 +209,6 @@ import org.elasticsearch.xpack.core.rollup.action.GetRollupIndexCapsAction;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -304,6 +303,7 @@ public class Stateless extends Plugin
     private final SetOnce<DocumentParsingProvider> documentParsingProvider = new SetOnce<>();
     private final SetOnce<BlobCacheMetrics> blobCacheMetrics = new SetOnce<>();
     private final SetOnce<IndicesService> indicesService = new SetOnce<>();
+    private final SetOnce<Predicate<ShardId>> skipMerges = new SetOnce<>();
     private final boolean sharedCachedSettingExplicitlySet;
 
     private final boolean sharedCacheMmapExplicitlySet;
@@ -614,6 +614,7 @@ public class Stateless extends Plugin
         );
         components.add(setAndGet(recoveryMetricsCollector, new RecoveryMetricsCollector(services.telemetryProvider())));
         documentParsingProvider.set(services.documentParsingProvider());
+        skipMerges.set(new ShouldSkipMerges(indicesService));
         return components;
     }
 
@@ -1074,7 +1075,8 @@ public class Stateless extends Plugin
             statelessCommitService.getIndexEngineLocalReaderListenerForShard(engineConfig.getShardId()),
             statelessCommitService.getCommitBCCResolverForShard(engineConfig.getShardId()),
             documentParsingProvider,
-            engineMetrics
+            engineMetrics,
+            skipMerges.get()
         );
     }
 
@@ -1471,12 +1473,17 @@ public class Stateless extends Plugin
         }
     }
 
-    protected Clock getClock() {
-        return Clock.systemUTC();
-    }
-
     private boolean isInitializingNoSearchShards(IndexShard shard) {
         ShardRouting shardRouting = shard.routingEntry();
         return shardRouting.initializing() && shardRouting.recoverySource().getType() != RecoverySource.Type.PEER;
+    }
+
+    private record ShouldSkipMerges(IndicesService indicesService) implements Predicate<ShardId> {
+
+        @Override
+        public boolean test(ShardId shardId) {
+            IndexShard indexShard = indicesService.getShardOrNull(shardId);
+            return indexShard == null || indexShard.routingEntry().relocating();
+        }
     }
 }

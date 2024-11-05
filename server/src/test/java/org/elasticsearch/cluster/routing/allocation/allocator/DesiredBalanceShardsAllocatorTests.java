@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing.allocation.allocator;
@@ -11,7 +12,6 @@ package org.elasticsearch.cluster.routing.allocation.allocator;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionTestUtils;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -808,6 +808,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
                     unassignedIterator.next();
                     unassignedIterator.initialize(dataNodeId, null, 0L, allocation.changes());
                 }
+                allocation.routingNodes().setBalanceWeightStatsPerNode(Map.of());
             }
 
             @Override
@@ -818,6 +819,6 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
     }
 
     private static void rerouteAndWait(AllocationService service, ClusterState clusterState, String reason) {
-        PlainActionFuture.<Void, RuntimeException>get(f -> service.reroute(clusterState, reason, f), 10, TimeUnit.SECONDS);
+        safeAwait((ActionListener<Void> listener) -> service.reroute(clusterState, reason, listener));
     }
 }

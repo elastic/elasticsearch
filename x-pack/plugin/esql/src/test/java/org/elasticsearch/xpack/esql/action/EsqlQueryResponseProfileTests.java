@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.operator.AbstractPageMappingOperator;
 import org.elasticsearch.compute.operator.DriverProfile;
+import org.elasticsearch.compute.operator.DriverSleeps;
 import org.elasticsearch.compute.operator.DriverStatus;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
@@ -51,7 +52,10 @@ public class EsqlQueryResponseProfileTests extends AbstractWireSerializingTestCa
             randomNonNegativeLong(),
             randomNonNegativeLong(),
             randomNonNegativeLong(),
-            randomList(10, this::randomOperatorStatus)
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomList(10, this::randomOperatorStatus),
+            DriverSleeps.empty()
         );
     }
 

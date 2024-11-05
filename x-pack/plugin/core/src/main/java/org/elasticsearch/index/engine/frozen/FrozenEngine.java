@@ -63,8 +63,6 @@ public final class FrozenEngine extends ReadOnlyEngine {
     );
     private final SegmentsStats segmentsStats;
     private final DocsStats docsStats;
-    private final DenseVectorStats denseVectorStats;
-    private final SparseVectorStats sparseVectorStats;
     private volatile ElasticsearchDirectoryReader lastOpenedReader;
     private final ElasticsearchDirectoryReader canMatchReader;
     private final Object cacheIdentity = new Object();
@@ -95,8 +93,6 @@ public final class FrozenEngine extends ReadOnlyEngine {
                 fillSegmentStats(segmentReader, true, segmentsStats);
             }
             this.docsStats = docsStats(reader);
-            this.denseVectorStats = denseVectorStats(reader);
-            this.sparseVectorStats = sparseVectorStats(reader, null);
             canMatchReader = ElasticsearchDirectoryReader.wrap(
                 new RewriteCachingDirectoryReader(directory, reader.leaves(), null),
                 config.getShardId()
@@ -334,13 +330,17 @@ public final class FrozenEngine extends ReadOnlyEngine {
     }
 
     @Override
-    public DenseVectorStats denseVectorStats() {
-        return denseVectorStats;
+    public DenseVectorStats denseVectorStats(MappingLookup mappingLookup) {
+        // We could cache the result on first call but dense vectors on frozen tier
+        // are very unlikely, so we just don't count them in the stats.
+        return new DenseVectorStats(0);
     }
 
     @Override
     public SparseVectorStats sparseVectorStats(MappingLookup mappingLookup) {
-        return sparseVectorStats;
+        // We could cache the result on first call but sparse vectors on frozen tier
+        // are very unlikely, so we just don't count them in the stats.
+        return new SparseVectorStats(0);
     }
 
     synchronized boolean isReaderOpen() {

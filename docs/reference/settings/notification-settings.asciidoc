@@ -42,6 +42,11 @@ Specifies the path to a file that contains a key for encrypting sensitive data.
 If `xpack.watcher.encrypt_sensitive_data` is set to `true`, this setting is
 required. For more information, see <<encrypting-data>>.
 
+`xpack.watcher.max.history.record.size`::
+(<<static-cluster-setting,Static>>)
+The maximum size watcher history record that can be written into the watcher history index. Any larger history record will have some of
+its larger fields removed. Defaults to 10mb.
+
 `xpack.http.proxy.host`::
 (<<static-cluster-setting,Static>>)
 Specifies the address of the proxy server to use to connect to HTTP services.

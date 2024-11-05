@@ -1,9 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 import org.elasticsearch.gradle.Version
@@ -19,9 +18,8 @@ dependencies {
 }
 
 def supportedVersion = bwcVersion -> {
-  // This test is less restricted than the actual CCS compatibility matrix that we are supporting.
-  // CCQ is available on 8.13 or later
-  return bwcVersion.onOrAfter(Version.fromString("8.13.0"));
+  // ESQL requires its own resolve_fields API
+  return bwcVersion.onOrAfter(Version.fromString("8.16.0"));
 }
 
 BuildParams.bwcVersions.withWireCompatible(supportedVersion) { bwcVersion, baseName ->

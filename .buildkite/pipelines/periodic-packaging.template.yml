@@ -3,12 +3,10 @@ steps:
     steps:
       - label: "{{matrix.image}} / packaging-tests-unix"
         command: ./.ci/scripts/packaging-test.sh destructivePackagingTest
-        timeout_in_minutes: 300
+        timeout_in_minutes: 420
         matrix:
           setup:
             image:
-              - centos-7
-              - debian-10
               - debian-11
               - opensuse-leap-15
               - oraclelinux-7
@@ -29,7 +27,8 @@ steps:
           image: family/elasticsearch-{{matrix.image}}
           diskSizeGb: 350
           machineType: n1-standard-8
-        env: {}
+        env:
+          USE_PROD_DOCKER_CREDENTIALS: "true"
   - group: packaging-tests-upgrade
     steps: $BWC_STEPS
   - group: packaging-tests-windows

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
@@ -221,7 +222,7 @@ public class InternalHistogram extends InternalMultiBucketAggregation<InternalHi
         keyed = in.readBoolean();
         buckets = in.readCollectionAsList(stream -> Bucket.readFrom(stream, keyed, format));
         // we changed the order format in 8.13 for partial reduce, therefore we need to order them to perform merge sort
-        if (in.getTransportVersion().between(TransportVersions.V_8_13_0, TransportVersions.HISTOGRAM_AGGS_KEY_SORTED)) {
+        if (in.getTransportVersion().between(TransportVersions.V_8_13_0, TransportVersions.V_8_14_0)) {
             // list is mutable by #readCollectionAsList contract
             buckets.sort(Comparator.comparingDouble(b -> b.key));
         }
@@ -259,17 +260,11 @@ public class InternalHistogram extends InternalMultiBucketAggregation<InternalHi
 
     @Override
     public InternalHistogram create(List<Bucket> buckets) {
-        if (this.buckets.equals(buckets)) {
-            return this;
-        }
         return new InternalHistogram(name, buckets, order, minDocCount, emptyBucketInfo, format, keyed, metadata);
     }
 
     @Override
     public Bucket createBucket(InternalAggregations aggregations, Bucket prototype) {
-        if (prototype.aggregations.equals(aggregations)) {
-            return prototype;
-        }
         return new Bucket(prototype.key, prototype.docCount, prototype.keyed, prototype.format, aggregations);
     }
 
@@ -448,18 +443,13 @@ public class InternalHistogram extends InternalMultiBucketAggregation<InternalHi
                     }
                     if (InternalOrder.isKeyDesc(order)) {
                         // we just need to reverse here...
-                        List<Bucket> reverse = new ArrayList<>(reducedBuckets);
-                        Collections.reverse(reverse);
-                        reducedBuckets = reverse;
+                        Collections.reverse(reducedBuckets);
                     } else if (InternalOrder.isKeyAsc(order) == false) {
                         // nothing to do when sorting by key ascending, as data is already sorted since shards return
                         // sorted buckets and the merge-sort performed by reduceBuckets maintains order.
                         // otherwise, sorted by compound order or sub-aggregation, we need to fall back to a costly n*log(n) sort
                         CollectionUtil.introSort(reducedBuckets, order.comparator());
                     }
-                }
-                if (reducedBuckets.equals(buckets)) {
-                    return InternalHistogram.this;
                 }
                 return new InternalHistogram(getName(), reducedBuckets, order, minDocCount, emptyBucketInfo, format, keyed, getMetadata());
             }
@@ -506,9 +496,14 @@ public class InternalHistogram extends InternalMultiBucketAggregation<InternalHi
     }
 
     @Override
-    @SuppressWarnings({ "rawtypes", "unchecked" })
     public InternalAggregation createAggregation(List<MultiBucketsAggregation.Bucket> buckets) {
-        return new InternalHistogram(name, (List) buckets, order, minDocCount, emptyBucketInfo, format, keyed, getMetadata());
+        // convert buckets to the right type
+        List<Bucket> buckets2 = new ArrayList<>(buckets.size());
+        for (Object b : buckets) {
+            buckets2.add((Bucket) b);
+        }
+        buckets2 = Collections.unmodifiableList(buckets2);
+        return new InternalHistogram(name, buckets2, order, minDocCount, emptyBucketInfo, format, keyed, getMetadata());
     }
 
     @Override

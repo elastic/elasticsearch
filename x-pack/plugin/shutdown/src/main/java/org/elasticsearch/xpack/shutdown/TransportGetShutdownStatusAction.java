@@ -32,8 +32,8 @@ import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.shutdown.PluginShutdownService;
 import org.elasticsearch.snapshots.SnapshotsInfoService;
 import org.elasticsearch.tasks.CancellableTask;
@@ -88,7 +88,7 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
             clusterService,
             threadPool,
             actionFilters,
-            GetShutdownStatusAction.Request::readFrom,
+            GetShutdownStatusAction.Request::new,
             indexNameExpressionResolver,
             GetShutdownStatusAction.Response::new,
             threadPool.executor(ThreadPool.Names.MANAGEMENT)

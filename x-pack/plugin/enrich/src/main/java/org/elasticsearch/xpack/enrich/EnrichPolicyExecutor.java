@@ -13,6 +13,7 @@ import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskResponse;
 import org.elasticsearch.client.internal.Client;
@@ -126,8 +127,9 @@ public class EnrichPolicyExecutor {
             }
 
             task.setStatus(new ExecuteEnrichPolicyStatus(ExecuteEnrichPolicyStatus.PolicyPhases.SCHEDULED));
-            Runnable runnable = createPolicyRunner(policyName, policy, enrichIndexName, task, listener);
-            threadPool.executor(ThreadPool.Names.GENERIC).execute(runnable);
+            var policyRunner = createPolicyRunner(policyName, policy, enrichIndexName, task);
+            threadPool.executor(ThreadPool.Names.GENERIC)
+                .execute(ActionRunnable.wrap(ActionListener.assertOnce(listener), policyRunner::run));
         } catch (Exception e) {
             task.setStatus(new ExecuteEnrichPolicyStatus(ExecuteEnrichPolicyStatus.PolicyPhases.FAILED));
             throw e;
@@ -206,18 +208,16 @@ public class EnrichPolicyExecutor {
         });
     }
 
-    private Runnable createPolicyRunner(
+    private EnrichPolicyRunner createPolicyRunner(
         String policyName,
         EnrichPolicy policy,
         String enrichIndexName,
-        ExecuteEnrichPolicyTask task,
-        ActionListener<ExecuteEnrichPolicyStatus> listener
+        ExecuteEnrichPolicyTask task
     ) {
         return new EnrichPolicyRunner(
             policyName,
             policy,
             task,
-            listener,
             clusterService,
             indicesService,
             client,

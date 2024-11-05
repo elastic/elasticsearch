@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.services.mistral.embeddings;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -26,14 +27,12 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.TransportVersions.ADD_MISTRAL_EMBEDDINGS_INFERENCE;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSIONS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT_TOKENS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARITY;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractSimilarity;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeAsType;
 import static org.elasticsearch.xpack.inference.services.mistral.MistralConstants.MODEL_FIELD;
 
 public class MistralEmbeddingsServiceSettings extends FilteredXContentObject implements ServiceSettings {
@@ -67,7 +66,7 @@ public class MistralEmbeddingsServiceSettings extends FilteredXContentObject imp
             MistralService.NAME,
             context
         );
-        Integer dims = removeAsType(map, DIMENSIONS, Integer.class);
+        Integer dims = extractOptionalPositiveInteger(map, DIMENSIONS, ModelConfigurations.SERVICE_SETTINGS, validationException);
 
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;
@@ -105,10 +104,11 @@ public class MistralEmbeddingsServiceSettings extends FilteredXContentObject imp
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return ADD_MISTRAL_EMBEDDINGS_INFERENCE;
+        return TransportVersions.V_8_15_0;
     }
 
-    public String model() {
+    @Override
+    public String modelId() {
         return this.model;
     }
 

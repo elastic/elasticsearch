@@ -34,7 +34,7 @@ Each rule must have the following information:
 
 - `rule_id` (Required, string) A unique identifier for this rule.
 - `type` (Required, string) The type of rule.
-At this time only `pinned` query rule types are allowed.
+At this time only `pinned` and `exclude` query rule types are allowed.
 - `criteria` (Required, array of objects) The criteria that must be met for the rule to be applied.
 If multiple criteria are specified for a rule, all criteria must be met for the rule to be applied.
 - `actions` (Required, object) The actions to take when the rule is matched.
@@ -78,19 +78,19 @@ Matches all queries, regardless of input.
 --
 - `metadata` (Optional, string) The metadata field to match against.
 This metadata will be used to match against `match_criteria` sent in the <<query-dsl-rule-query>>.
-Required for all criteria types except `global`.
+Required for all criteria types except `always`.
 - `values` (Optional, array of strings) The values to match against the metadata field.
 Only one value must match for the criteria to be met.
-Required for all criteria types except `global`.
+Required for all criteria types except `always`.
 
 Actions depend on the rule type.
-For `pinned` rules, actions follow the format specified by the <<query-dsl-pinned-query,Pinned Query>>.
-The following actions are allowed:
+The following actions are allowed for `pinned` or `exclude` rules:
 
-- `ids` (Optional, array of strings) The unique <<mapping-id-field, document IDs>> of the documents to pin.
+- `ids` (Optional, array of strings) The unique <<mapping-id-field, document IDs>> of the documents to apply the rule to.
 Only one of `ids` or `docs` may be specified, and at least one must be specified.
-- `docs` (Optional, array of objects) The documents to pin.
+- `docs` (Optional, array of objects) The documents to apply the rule to.
 Only one of `ids` or `docs` may be specified, and at least one must be specified.
+There is a maximum value of 100 documents in a rule.
 You can specify the following attributes for each document:
 +
 --
@@ -98,7 +98,7 @@ You can specify the following attributes for each document:
 - `_id` (Required, string) The unique <<mapping-id-field, document ID>>.
 --
 
-IMPORTANT: Due to limitations within <<query-dsl-pinned-query,Pinned queries>>, you can only pin documents using `ids` or `docs`, but cannot use both in single rule.
+IMPORTANT: Due to limitations within <<query-dsl-pinned-query,Pinned queries>>, you can only select documents using `ids` or `docs`, but cannot use both in single rule.
 It is advised to use one or the other in query rulesets, to avoid errors.
 Additionally, pinned queries have a maximum limit of 100 pinned hits.
 If multiple matching rules pin more than 100 documents, only the first 100 documents are pinned in the order they are specified in the ruleset.
@@ -111,7 +111,7 @@ The following example creates a new query ruleset called `my-ruleset`.
 Two rules are associated with `my-ruleset`:
 
 - `my-rule1` will pin documents with IDs `id1` and `id2` when `user_query` contains `pugs` _or_ `puggles` **and** `user_country` exactly matches `us`.
-- `my-rule2` will pin documents from different, specified indices with IDs `id3` and `id4` when the `query_string` fuzzily matches `rescue dogs`.
+- `my-rule2` will exclude documents from different, specified indices with IDs `id3` and `id4` when the `query_string` fuzzily matches `rescue dogs`.
 
 [source,console]
 ----
@@ -142,7 +142,7 @@ PUT _query_rules/my-ruleset
         },
         {
             "rule_id": "my-rule2",
-            "type": "pinned",
+            "type": "exclude",
             "criteria": [
                 {
                     "type": "fuzzy",

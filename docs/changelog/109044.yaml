@@ -1,5 +1,0 @@
-pr: 109044
-summary: Enable fallback synthetic source for `token_count`
-area: Mapping
-type: feature
-issues: []

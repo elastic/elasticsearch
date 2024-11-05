@@ -1,6 +1,0 @@
-pr: 107579
-summary: Adding `hits_time_in_millis` and `misses_time_in_millis` to enrich cache
-  stats
-area: Ingest Node
-type: enhancement
-issues: []

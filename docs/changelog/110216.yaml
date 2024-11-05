@@ -1,0 +1,5 @@
+pr: 110216
+summary: Register SLM run before snapshotting to save stats
+area: ILM+SLM
+type: enhancement
+issues: []

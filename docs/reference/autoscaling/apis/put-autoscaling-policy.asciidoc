@@ -7,7 +7,7 @@
 
 NOTE: {cloud-only}
 
-Creates or updates an autoscaling policy.
+Creates or updates an {cloud}/ec-autoscaling.html[autoscaling] policy.
 
 [[autoscaling-put-autoscaling-policy-request]]
 ==== {api-request-title}

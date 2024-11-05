@@ -170,6 +170,92 @@ public class AzureAiStudioEmbeddingsServiceSettingsTests extends AbstractBWCWire
         );
     }
 
+    public void testFromMap_ThrowsException_WhenDimensionsAreZero() {
+        var target = "http://sometarget.local";
+        var provider = "openai";
+        var endpointType = "token";
+        var dimensions = 0;
+
+        var settingsMap = createRequestSettingsMap(target, provider, endpointType, dimensions, true, null, SimilarityMeasure.COSINE);
+
+        var thrownException = expectThrows(
+            ValidationException.class,
+            () -> AzureAiStudioEmbeddingsServiceSettings.fromMap(settingsMap, ConfigurationParseContext.REQUEST)
+        );
+
+        assertThat(
+            thrownException.getMessage(),
+            containsString("Validation Failed: 1: [service_settings] Invalid value [0]. [dimensions] must be a positive integer;")
+        );
+    }
+
+    public void testFromMap_ThrowsException_WhenDimensionsAreNegative() {
+        var target = "http://sometarget.local";
+        var provider = "openai";
+        var endpointType = "token";
+        var dimensions = randomNegativeInt();
+
+        var settingsMap = createRequestSettingsMap(target, provider, endpointType, dimensions, true, null, SimilarityMeasure.COSINE);
+
+        var thrownException = expectThrows(
+            ValidationException.class,
+            () -> AzureAiStudioEmbeddingsServiceSettings.fromMap(settingsMap, ConfigurationParseContext.REQUEST)
+        );
+
+        assertThat(
+            thrownException.getMessage(),
+            containsString(
+                Strings.format(
+                    "Validation Failed: 1: [service_settings] Invalid value [%d]. [dimensions] must be a positive integer;",
+                    dimensions
+                )
+            )
+        );
+    }
+
+    public void testFromMap_ThrowsException_WhenMaxInputTokensAreZero() {
+        var target = "http://sometarget.local";
+        var provider = "openai";
+        var endpointType = "token";
+        var maxInputTokens = 0;
+
+        var settingsMap = createRequestSettingsMap(target, provider, endpointType, null, true, maxInputTokens, SimilarityMeasure.COSINE);
+
+        var thrownException = expectThrows(
+            ValidationException.class,
+            () -> AzureAiStudioEmbeddingsServiceSettings.fromMap(settingsMap, ConfigurationParseContext.REQUEST)
+        );
+
+        assertThat(
+            thrownException.getMessage(),
+            containsString("Validation Failed: 1: [service_settings] Invalid value [0]. [max_input_tokens] must be a positive integer;")
+        );
+    }
+
+    public void testFromMap_ThrowsException_WhenMaxInputTokensAreNegative() {
+        var target = "http://sometarget.local";
+        var provider = "openai";
+        var endpointType = "token";
+        var maxInputTokens = randomNegativeInt();
+
+        var settingsMap = createRequestSettingsMap(target, provider, endpointType, null, true, maxInputTokens, SimilarityMeasure.COSINE);
+
+        var thrownException = expectThrows(
+            ValidationException.class,
+            () -> AzureAiStudioEmbeddingsServiceSettings.fromMap(settingsMap, ConfigurationParseContext.REQUEST)
+        );
+
+        assertThat(
+            thrownException.getMessage(),
+            containsString(
+                Strings.format(
+                    "Validation Failed: 1: [service_settings] Invalid value [%d]. [max_input_tokens] must be a positive integer;",
+                    maxInputTokens
+                )
+            )
+        );
+    }
+
     public void testFromMap_PersistentContext_DoesNotThrowException_WhenDimensionsIsNull() {
         var target = "http://sometarget.local";
         var provider = "openai";

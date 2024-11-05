@@ -47,7 +47,7 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
 
     // The stack template registry version. This number must be incremented when we make changes
     // to built-in templates.
-    public static final int REGISTRY_VERSION = 11;
+    public static final int REGISTRY_VERSION = 14;
 
     public static final String TEMPLATE_VERSION_VARIABLE = "xpack.stack.template.version";
     public static final Setting<Boolean> STACK_TEMPLATES_ENABLED = Setting.boolSetting(
@@ -55,15 +55,6 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
         true,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
-    );
-
-    /**
-     * if index.mode "logs" is applied by default in logs@settings for 'logs-*-*'
-     */
-    public static final Setting<Boolean> CLUSTER_LOGSDB_ENABLED = Setting.boolSetting(
-        "cluster.logsdb.enabled",
-        false,
-        Setting.Property.NodeScope
     );
 
     private final ClusterService clusterService;
@@ -106,6 +97,12 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
     public static final String METRICS_INDEX_TEMPLATE_NAME = "metrics";
 
     //////////////////////////////////////////////////////////
+    // Base traces components
+    //////////////////////////////////////////////////////////
+    public static final String TRACES_MAPPINGS_COMPONENT_TEMPLATE_NAME = "traces@mappings";
+    public static final String TRACES_SETTINGS_COMPONENT_TEMPLATE_NAME = "traces@settings";
+
+    //////////////////////////////////////////////////////////
     // Synthetics components (for matching synthetics-*-* indices)
     //////////////////////////////////////////////////////////
     public static final String SYNTHETICS_MAPPINGS_COMPONENT_TEMPLATE_NAME = "synthetics@mappings";
@@ -131,10 +128,10 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
         this.clusterService = clusterService;
         this.featureService = featureService;
         this.stackTemplateEnabled = STACK_TEMPLATES_ENABLED.get(nodeSettings);
-        this.componentTemplateConfigs = loadComponentTemplateConfigs(CLUSTER_LOGSDB_ENABLED.get(nodeSettings));
+        this.componentTemplateConfigs = loadComponentTemplateConfigs();
     }
 
-    private Map<String, ComponentTemplate> loadComponentTemplateConfigs(boolean logsDbEnabled) {
+    private Map<String, ComponentTemplate> loadComponentTemplateConfigs() {
         final Map<String, ComponentTemplate> componentTemplates = new HashMap<>();
         for (IndexTemplateConfig config : List.of(
             new IndexTemplateConfig(
@@ -146,7 +143,7 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
             ),
             new IndexTemplateConfig(
                 LOGS_MAPPINGS_COMPONENT_TEMPLATE_NAME,
-                logsDbEnabled ? "/logs@mappings-logsdb.json" : "/logs@mappings.json",
+                "/logs@mappings.json",
                 REGISTRY_VERSION,
                 TEMPLATE_VERSION_VARIABLE,
                 ADDITIONAL_TEMPLATE_VARIABLES
@@ -163,12 +160,7 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
                 "/logs@settings.json",
                 REGISTRY_VERSION,
                 TEMPLATE_VERSION_VARIABLE,
-                Map.of(
-                    "xpack.stack.template.deprecated",
-                    "false",
-                    "xpack.stack.template.logs.index.mode",
-                    logsDbEnabled ? "logs" : "standard"
-                )
+                Map.of("xpack.stack.template.deprecated", "false")
             ),
             new IndexTemplateConfig(
                 METRICS_MAPPINGS_COMPONENT_TEMPLATE_NAME,
@@ -187,6 +179,20 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
             new IndexTemplateConfig(
                 METRICS_TSDB_SETTINGS_COMPONENT_TEMPLATE_NAME,
                 "/metrics@tsdb-settings.json",
+                REGISTRY_VERSION,
+                TEMPLATE_VERSION_VARIABLE,
+                ADDITIONAL_TEMPLATE_VARIABLES
+            ),
+            new IndexTemplateConfig(
+                TRACES_SETTINGS_COMPONENT_TEMPLATE_NAME,
+                "/traces@settings.json",
+                REGISTRY_VERSION,
+                TEMPLATE_VERSION_VARIABLE,
+                ADDITIONAL_TEMPLATE_VARIABLES
+            ),
+            new IndexTemplateConfig(
+                TRACES_MAPPINGS_COMPONENT_TEMPLATE_NAME,
+                "/traces@mappings.json",
                 REGISTRY_VERSION,
                 TEMPLATE_VERSION_VARIABLE,
                 ADDITIONAL_TEMPLATE_VARIABLES

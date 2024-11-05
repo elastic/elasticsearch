@@ -223,7 +223,11 @@ setup:
 
 ---
 "Test kibana reporting index auto creation":
+  - requires:
+      test_runner_features: ["headers"]
+
   - do:
+      headers: { X-elastic-product-origin: kibana }
       index:
         index: .kibana-reporting-foo
         body:

@@ -60,7 +60,7 @@ public final class MlProcessors {
         return answer;
     }
 
-    public static Processors getTotalMlNodeProcessors(DiscoveryNodes nodes, Integer allocatedProcessorScale) {
+    public static Processors getTotalMlNodeProcessors(Iterable<DiscoveryNode> nodes, Integer allocatedProcessorScale) {
         int total = 0;
         for (DiscoveryNode node : nodes) {
             if (node.getRoles().contains(DiscoveryNodeRole.ML_ROLE)) {

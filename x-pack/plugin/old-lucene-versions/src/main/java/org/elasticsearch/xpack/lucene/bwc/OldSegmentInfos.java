@@ -196,7 +196,7 @@ public class OldSegmentInfos implements Cloneable, Iterable<SegmentCommitInfo> {
 
         long generation = generationFromSegmentsFileName(segmentFileName);
         // System.out.println(Thread.currentThread() + ": SegmentInfos.readCommit " + segmentFileName);
-        try (ChecksumIndexInput input = directory.openChecksumInput(segmentFileName, IOContext.READ)) {
+        try (ChecksumIndexInput input = directory.openChecksumInput(segmentFileName)) {
             try {
                 return readCommit(directory, input, generation, minSupportedMajorVersion);
             } catch (EOFException | NoSuchFileException | FileNotFoundException e) {
@@ -305,7 +305,7 @@ public class OldSegmentInfos implements Cloneable, Iterable<SegmentCommitInfo> {
             byte[] segmentID = new byte[StringHelper.ID_LENGTH];
             input.readBytes(segmentID, 0, segmentID.length);
             Codec codec = readCodec(input);
-            SegmentInfo info = codec.segmentInfoFormat().read(directory, segName, segmentID, IOContext.READ);
+            SegmentInfo info = codec.segmentInfoFormat().read(directory, segName, segmentID, IOContext.DEFAULT);
             info.setCodec(codec);
             totalDocs += info.maxDoc();
             long delGen = CodecUtil.readBELong(input);

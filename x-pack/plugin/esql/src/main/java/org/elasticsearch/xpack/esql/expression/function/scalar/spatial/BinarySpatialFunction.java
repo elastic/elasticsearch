@@ -20,14 +20,16 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
 import org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_POINT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_SHAPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_SHAPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isNull;
@@ -43,7 +45,7 @@ public abstract class BinarySpatialFunction extends BinaryScalarFunction impleme
     }
 
     private final SpatialTypeResolver spatialTypeResolver;
-    protected SpatialCrsType crsType;
+    private SpatialCrsType crsType;
     protected final boolean leftDocValues;
     protected final boolean rightDocValues;
 
@@ -62,6 +64,7 @@ public abstract class BinarySpatialFunction extends BinaryScalarFunction impleme
     }
 
     protected BinarySpatialFunction(StreamInput in, boolean leftDocValues, boolean rightDocValues, boolean pointsOnly) throws IOException {
+        // The doc-values fields are only used on data nodes local planning, and therefor never serialized
         this(
             Source.EMPTY,
             in.readNamedWriteable(Expression.class),
@@ -76,6 +79,31 @@ public abstract class BinarySpatialFunction extends BinaryScalarFunction impleme
     public void writeTo(StreamOutput out) throws IOException {
         out.writeNamedWriteable(left());
         out.writeNamedWriteable(right());
+        // The doc-values fields are only used on data nodes local planning, and therefor never serialized
+        // The CRS type is re-resolved from the combination of left and right fields, and also not necessary to serialize
+    }
+
+    /**
+     * Mark the function as expecting the specified fields to arrive as doc-values.
+     */
+    public abstract BinarySpatialFunction withDocValues(boolean foundLeft, boolean foundRight);
+
+    @Override
+    public int hashCode() {
+        // NB: the hashcode is currently used for key generation so
+        // to avoid clashes between aggs with the same arguments, add the class name as variation
+        return Objects.hash(getClass(), children(), leftDocValues, rightDocValues);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (super.equals(obj)) {
+            BinarySpatialFunction other = (BinarySpatialFunction) obj;
+            return Objects.equals(other.children(), children())
+                && Objects.equals(other.leftDocValues, leftDocValues)
+                && Objects.equals(other.rightDocValues, rightDocValues);
+        }
+        return false;
     }
 
     @Override
@@ -163,7 +191,7 @@ public abstract class BinarySpatialFunction extends BinaryScalarFunction impleme
                 ? isType(expression, dt -> dt == spatialDataType, operationName, paramOrd, compatibleTypeNames(spatialDataType))
                 : isType(
                     expression,
-                    dt -> EsqlDataTypes.isSpatial(dt) && spatialCRSCompatible(spatialDataType, dt),
+                    dt -> DataType.isSpatial(dt) && spatialCRSCompatible(spatialDataType, dt),
                     operationName,
                     paramOrd,
                     compatibleTypeNames(spatialDataType)
@@ -177,15 +205,15 @@ public abstract class BinarySpatialFunction extends BinaryScalarFunction impleme
     }
 
     private static final String[] GEO_TYPE_NAMES = new String[] { GEO_POINT.typeName(), GEO_SHAPE.typeName() };
-    private static final String[] CARTESIAN_TYPE_NAMES = new String[] { GEO_POINT.typeName(), GEO_SHAPE.typeName() };
+    private static final String[] CARTESIAN_TYPE_NAMES = new String[] { CARTESIAN_POINT.typeName(), CARTESIAN_SHAPE.typeName() };
 
     protected static boolean spatialCRSCompatible(DataType spatialDataType, DataType otherDataType) {
-        return EsqlDataTypes.isSpatialGeo(spatialDataType) && EsqlDataTypes.isSpatialGeo(otherDataType)
-            || EsqlDataTypes.isSpatialGeo(spatialDataType) == false && EsqlDataTypes.isSpatialGeo(otherDataType) == false;
+        return DataType.isSpatialGeo(spatialDataType) && DataType.isSpatialGeo(otherDataType)
+            || DataType.isSpatialGeo(spatialDataType) == false && DataType.isSpatialGeo(otherDataType) == false;
     }
 
     static String[] compatibleTypeNames(DataType spatialDataType) {
-        return EsqlDataTypes.isSpatialGeo(spatialDataType) ? GEO_TYPE_NAMES : CARTESIAN_TYPE_NAMES;
+        return DataType.isSpatialGeo(spatialDataType) ? GEO_TYPE_NAMES : CARTESIAN_TYPE_NAMES;
     }
 
     @Override
@@ -214,8 +242,8 @@ public abstract class BinarySpatialFunction extends BinaryScalarFunction impleme
         UNSPECIFIED;
 
         public static SpatialCrsType fromDataType(DataType dataType) {
-            return EsqlDataTypes.isSpatialGeo(dataType) ? SpatialCrsType.GEO
-                : EsqlDataTypes.isSpatial(dataType) ? SpatialCrsType.CARTESIAN
+            return DataType.isSpatialGeo(dataType) ? SpatialCrsType.GEO
+                : DataType.isSpatial(dataType) ? SpatialCrsType.CARTESIAN
                 : SpatialCrsType.UNSPECIFIED;
         }
     }

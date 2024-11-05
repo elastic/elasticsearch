@@ -153,7 +153,7 @@ public class HttpClientManager implements Closeable {
         return new IdleConnectionEvictor(threadPool, connectionManager, evictionInterval, connectionMaxIdle);
     }
 
-    public static List<Setting<?>> getSettings() {
+    public static List<Setting<?>> getSettingsDefinitions() {
         return List.of(
             MAX_TOTAL_CONNECTIONS,
             MAX_ROUTE_CONNECTIONS,

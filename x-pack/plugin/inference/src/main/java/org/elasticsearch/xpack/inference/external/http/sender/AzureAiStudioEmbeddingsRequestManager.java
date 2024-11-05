@@ -41,13 +41,13 @@ public class AzureAiStudioEmbeddingsRequestManager extends AzureAiStudioRequestM
 
     @Override
     public void execute(
-        String query,
-        List<String> input,
+        InferenceInputs inferenceInputs,
         RequestSender requestSender,
         Supplier<Boolean> hasRequestCompletedFunction,
         ActionListener<InferenceServiceResults> listener
     ) {
-        var truncatedInput = truncate(input, model.getServiceSettings().maxInputTokens());
+        List<String> docsInput = DocumentsOnlyInput.of(inferenceInputs).getInputs();
+        var truncatedInput = truncate(docsInput, model.getServiceSettings().maxInputTokens());
         AzureAiStudioEmbeddingsRequest request = new AzureAiStudioEmbeddingsRequest(truncator, truncatedInput, model);
         execute(new ExecutableInferenceRequest(requestSender, logger, request, HANDLER, hasRequestCompletedFunction, listener));
     }
@@ -56,7 +56,8 @@ public class AzureAiStudioEmbeddingsRequestManager extends AzureAiStudioRequestM
         return new AzureMistralOpenAiExternalResponseHandler(
             "azure ai studio text embedding",
             new AzureAiStudioEmbeddingsResponseEntity(),
-            ErrorMessageResponseEntity::fromResponse
+            ErrorMessageResponseEntity::fromResponse,
+            false
         );
     }
 

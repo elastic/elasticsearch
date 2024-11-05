@@ -1,18 +1,23 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.env;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.internal.BuildExtension;
 import org.elasticsearch.plugins.ExtensionLoader;
+import org.elasticsearch.xcontent.ToXContentFragment;
 
+import java.io.IOException;
 import java.util.ServiceLoader;
 
 /**
@@ -30,7 +35,7 @@ import java.util.ServiceLoader;
  * provide versions that accommodate different release models or versioning
  * schemes.</p>
  */
-public abstract class BuildVersion {
+public abstract class BuildVersion implements ToXContentFragment, Writeable {
 
     /**
      * Check whether this version is on or after a minimum threshold.
@@ -57,13 +62,10 @@ public abstract class BuildVersion {
      */
     public abstract boolean isFutureVersion();
 
-    // temporary
-    // TODO[wrb]: remove from PersistedClusterStateService
-    // TODO[wrb]: remove from security bootstrap checks
-    @Deprecated
-    public Version toVersion() {
-        return null;
-    }
+    /**
+     * Returns this build version in a form suitable for storing in node metadata
+     */
+    public abstract String toNodeMetadata();
 
     /**
      * Create a {@link BuildVersion} from a version ID number.
@@ -80,6 +82,36 @@ public abstract class BuildVersion {
     }
 
     /**
+     * Create a {@link BuildVersion} from a version in node metadata
+     *
+     * @param version The string stored in node metadata
+     * @return a version representing a build or release of Elasticsearch
+     */
+    public static BuildVersion fromNodeMetadata(String version) {
+        return CurrentExtensionHolder.BUILD_EXTENSION.fromNodeMetadata(version);
+    }
+
+    /**
+     * Create a {@link BuildVersion} from a version string.
+     *
+     * @param version A string representation of a version
+     * @return a version representing a build or release of Elasticsearch
+     */
+    public static BuildVersion fromString(String version) {
+        return CurrentExtensionHolder.BUILD_EXTENSION.fromString(version);
+    }
+
+    /**
+     * Read a {@link BuildVersion} from an input stream
+     *
+     * @param input The stream to read
+     * @return a version representing a build or release of Elasticsearch
+     */
+    public static BuildVersion fromStream(StreamInput input) throws IOException {
+        return CurrentExtensionHolder.BUILD_EXTENSION.fromStream(input);
+    }
+
+    /**
      * Get the current build version.
      *
      * <p>By default, this value will be different for every public release of Elasticsearch,
@@ -90,9 +122,6 @@ public abstract class BuildVersion {
     public static BuildVersion current() {
         return CurrentExtensionHolder.BUILD_EXTENSION.currentBuildVersion();
     }
-
-    // only exists for NodeMetadata#toXContent
-    public abstract int id();
 
     private static class CurrentExtensionHolder {
         private static final BuildExtension BUILD_EXTENSION = findExtension();
@@ -117,6 +146,15 @@ public abstract class BuildVersion {
         public BuildVersion fromVersionId(int versionId) {
             return new DefaultBuildVersion(versionId);
         }
-    }
 
+        @Override
+        public BuildVersion fromString(String version) {
+            return new DefaultBuildVersion(version);
+        }
+
+        @Override
+        public BuildVersion fromStream(StreamInput in) throws IOException {
+            return new DefaultBuildVersion(in);
+        }
+    }
 }

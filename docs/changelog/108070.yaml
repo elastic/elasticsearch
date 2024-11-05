@@ -1,5 +1,0 @@
-pr: 108070
-summary: Redirect `VersionConflict` to reset code
-area: Transform
-type: bug
-issues: []

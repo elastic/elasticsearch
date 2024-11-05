@@ -51,7 +51,15 @@ public class FromPartialGroupingAggregatorFunction implements GroupingAggregator
             public void add(int positionOffset, IntVector groupIds) {
                 addIntermediateInput(positionOffset, groupIds, page);
             }
+
+            @Override
+            public void close() {}
         };
+    }
+
+    @Override
+    public void selectedMayContainUnseenGroups(SeenGroupIds seenGroupIds) {
+        delegate.selectedMayContainUnseenGroups(seenGroupIds);
     }
 
     @Override

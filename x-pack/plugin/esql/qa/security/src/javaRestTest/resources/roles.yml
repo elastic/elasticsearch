@@ -40,6 +40,20 @@ metadata1_read2:
     - names: [ 'index-user2' ]
       privileges: [ 'read' ]
 
+alias_user1:
+  cluster: []
+  indices:
+    - names: [ 'first-alias' ]
+      privileges:
+        - read
+
+alias_user2:
+  cluster: []
+  indices:
+    - names: [ 'second-alias' ]
+      privileges:
+        - read
+
 user3:
   cluster: []
   indices:

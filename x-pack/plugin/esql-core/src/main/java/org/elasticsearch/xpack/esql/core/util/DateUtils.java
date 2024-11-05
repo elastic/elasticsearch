@@ -12,6 +12,7 @@ import org.elasticsearch.common.time.DateFormatters;
 
 import java.sql.Timestamp;
 import java.time.Duration;
+import java.time.Instant;
 import java.time.OffsetTime;
 import java.time.Period;
 import java.time.ZoneId;
@@ -23,6 +24,7 @@ import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
 import static java.time.format.DateTimeFormatter.ISO_LOCAL_DATE;
+import static java.time.format.DateTimeFormatter.ISO_LOCAL_TIME;
 import static java.time.temporal.ChronoField.HOUR_OF_DAY;
 import static java.time.temporal.ChronoField.MINUTE_OF_HOUR;
 import static java.time.temporal.ChronoField.NANO_OF_SECOND;
@@ -34,6 +36,24 @@ import static java.time.temporal.ChronoField.SECOND_OF_MINUTE;
 public class DateUtils {
 
     public static final ZoneId UTC = ZoneId.of("Z");
+    private static final DateTimeFormatter DATE_OPTIONAL_TIME_FORMATTER_T_LITERAL = new DateTimeFormatterBuilder().append(ISO_LOCAL_DATE)
+        .optionalStart()
+        .appendLiteral('T')
+        .append(ISO_LOCAL_TIME)
+        .optionalStart()
+        .appendZoneOrOffsetId()
+        .optionalEnd()
+        .toFormatter(Locale.ROOT)
+        .withZone(UTC);
+    private static final DateTimeFormatter DATE_OPTIONAL_TIME_FORMATTER_WHITESPACE = new DateTimeFormatterBuilder().append(ISO_LOCAL_DATE)
+        .optionalStart()
+        .appendLiteral(' ')
+        .append(ISO_LOCAL_TIME)
+        .optionalStart()
+        .appendZoneOrOffsetId()
+        .optionalEnd()
+        .toFormatter(Locale.ROOT)
+        .withZone(UTC);
 
     public static final String EMPTY = "";
 
@@ -145,5 +165,42 @@ public class DateUtils {
 
     private static String indent(long timeUnit) {
         return timeUnit < 10 ? "0" + timeUnit : Long.toString(timeUnit);
+    }
+
+    /**
+     * Creates a datetime from the millis since epoch (thus the time-zone is UTC).
+     */
+    public static ZonedDateTime asDateTime(long millis) {
+        return ZonedDateTime.ofInstant(Instant.ofEpochMilli(millis), UTC);
+    }
+
+    public static long asMillis(ZonedDateTime zonedDateTime) {
+        return zonedDateTime.toInstant().toEpochMilli();
+    }
+
+    /**
+     * Parses the given string into a DateTime using UTC as a default timezone.
+     */
+    public static ZonedDateTime asDateTime(String dateFormat) {
+        int separatorIdx = dateFormat.indexOf('-'); // Find the first `-` date separator
+        if (separatorIdx == 0) { // first char = `-` denotes a negative year
+            separatorIdx = dateFormat.indexOf('-', 1); // Find the first `-` date separator past the negative year
+        }
+        // Find the second `-` date separator and move 3 places past the dayOfYear to find the time separator
+        // e.g. 2020-06-01T10:20:30....
+        // ^
+        // +3 = ^
+        separatorIdx = dateFormat.indexOf('-', separatorIdx + 1) + 3;
+
+        // Avoid index out of bounds - it will lead to DateTimeParseException anyways
+        if (separatorIdx >= dateFormat.length() || dateFormat.charAt(separatorIdx) == 'T') {
+            return DateFormatters.from(DATE_OPTIONAL_TIME_FORMATTER_T_LITERAL.parse(dateFormat)).withZoneSameInstant(UTC);
+        } else {
+            return DateFormatters.from(DATE_OPTIONAL_TIME_FORMATTER_WHITESPACE.parse(dateFormat)).withZoneSameInstant(UTC);
+        }
+    }
+
+    public static String toString(ZonedDateTime dateTime) {
+        return org.elasticsearch.xpack.esql.core.type.StringUtils.toString(dateTime);
     }
 }

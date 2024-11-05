@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.metrics;
@@ -154,7 +155,7 @@ public abstract class SpatialBoundsAggregationTestBase<T extends SpatialPoint> e
         assertNoFailuresAndResponse(
             client().prepareSearch(EMPTY_IDX_NAME).setQuery(matchAllQuery()).addAggregation(boundsAgg(aggName(), SINGLE_VALUED_FIELD_NAME)),
             response -> {
-                assertThat(response.getHits().getTotalHits().value, equalTo(0L));
+                assertThat(response.getHits().getTotalHits().value(), equalTo(0L));
                 SpatialBounds<T> geoBounds = response.getAggregations().get(aggName());
                 assertThat(geoBounds, notNullValue());
                 assertThat(geoBounds.getName(), equalTo(aggName()));

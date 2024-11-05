@@ -11,7 +11,6 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
@@ -54,7 +53,7 @@ public class WildcardLikeTests extends AbstractScalarFunctionTestCase {
     }
 
     private static void addCases(List<TestCaseSupplier> suppliers) {
-        for (DataType type : new DataType[] { DataType.KEYWORD, DataType.TEXT }) {
+        for (DataType type : new DataType[] { DataType.KEYWORD, DataType.TEXT, DataType.SEMANTIC_TEXT }) {
             suppliers.add(new TestCaseSupplier(" with " + type.esType(), List.of(type, type), () -> {
                 BytesRef str = new BytesRef(randomAlphaOfLength(5));
                 String patternString = randomAlphaOfLength(2);
@@ -71,11 +70,6 @@ public class WildcardLikeTests extends AbstractScalarFunctionTestCase {
                 );
             }));
         }
-    }
-
-    @Override
-    protected void assertSimpleWithNulls(List<Object> data, Block value, int nullBlock) {
-        assumeFalse("generated test cases containing nulls by hand", true);
     }
 
     @Override

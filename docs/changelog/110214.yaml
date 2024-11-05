@@ -1,5 +1,0 @@
-pr: 110214
-summary: Handle `ignore_above` in synthetic source for flattened fields
-area: Mapping
-type: enhancement
-issues: []

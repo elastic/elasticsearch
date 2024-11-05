@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index;
@@ -13,8 +14,6 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.SortedSetSortField;
 import org.elasticsearch.cluster.metadata.DataStream;
-import org.elasticsearch.common.logging.DeprecationCategory;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -54,8 +53,6 @@ import java.util.function.Supplier;
  *
 **/
 public final class IndexSortConfig {
-
-    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(IndexSortConfig.class);
 
     /**
      * The list of field names
@@ -146,14 +143,10 @@ public final class IndexSortConfig {
 
     // visible for tests
     final FieldSortSpec[] sortSpecs;
-    private final IndexVersion indexCreatedVersion;
-    private final String indexName;
     private final IndexMode indexMode;
 
     public IndexSortConfig(IndexSettings indexSettings) {
         final Settings settings = indexSettings.getSettings();
-        this.indexCreatedVersion = indexSettings.getIndexVersionCreated();
-        this.indexName = indexSettings.getIndex().getName();
         this.indexMode = indexSettings.getMode();
 
         if (indexSettings.usesRoutingPath()) {
@@ -169,14 +162,14 @@ public final class IndexSortConfig {
         }
 
         List<String> fields = INDEX_SORT_FIELD_SETTING.get(settings);
-        if (this.indexMode == IndexMode.LOGS && fields.isEmpty()) {
+        if (this.indexMode == IndexMode.LOGSDB && fields.isEmpty()) {
             fields = List.of("host.name", DataStream.TIMESTAMP_FIELD_NAME);
         }
         this.sortSpecs = fields.stream().map(FieldSortSpec::new).toArray(FieldSortSpec[]::new);
 
         if (INDEX_SORT_ORDER_SETTING.exists(settings)) {
             List<SortOrder> orders = INDEX_SORT_ORDER_SETTING.get(settings);
-            if (this.indexMode == IndexMode.LOGS && orders.isEmpty()) {
+            if (this.indexMode == IndexMode.LOGSDB && orders.isEmpty()) {
                 orders = List.of(SortOrder.DESC, SortOrder.DESC);
             }
             if (orders.size() != sortSpecs.length) {
@@ -191,7 +184,7 @@ public final class IndexSortConfig {
 
         if (INDEX_SORT_MODE_SETTING.exists(settings)) {
             List<MultiValueMode> modes = INDEX_SORT_MODE_SETTING.get(settings);
-            if (this.indexMode == IndexMode.LOGS && modes.isEmpty()) {
+            if (this.indexMode == IndexMode.LOGSDB && modes.isEmpty()) {
                 modes = List.of(MultiValueMode.MIN, MultiValueMode.MIN);
             }
             if (modes.size() != sortSpecs.length) {
@@ -204,7 +197,7 @@ public final class IndexSortConfig {
 
         if (INDEX_SORT_MISSING_SETTING.exists(settings)) {
             List<String> missingValues = INDEX_SORT_MISSING_SETTING.get(settings);
-            if (this.indexMode == IndexMode.LOGS && missingValues.isEmpty()) {
+            if (this.indexMode == IndexMode.LOGSDB && missingValues.isEmpty()) {
                 missingValues = List.of("_first", "_first");
             }
             if (missingValues.size() != sortSpecs.length) {
@@ -251,22 +244,7 @@ public final class IndexSortConfig {
                 );
             }
             if (Objects.equals(ft.name(), sortSpec.field) == false) {
-                if (this.indexCreatedVersion.onOrAfter(IndexVersions.V_7_13_0)) {
-                    throw new IllegalArgumentException("Cannot use alias [" + sortSpec.field + "] as an index sort field");
-                } else {
-                    DEPRECATION_LOGGER.warn(
-                        DeprecationCategory.MAPPINGS,
-                        "index-sort-aliases",
-                        "Index sort for index ["
-                            + indexName
-                            + "] defined on field ["
-                            + sortSpec.field
-                            + "] which resolves to field ["
-                            + ft.name()
-                            + "]. "
-                            + "You will not be able to define an index sort over aliased fields in new indexes"
-                    );
-                }
+                throw new IllegalArgumentException("Cannot use alias [" + sortSpec.field + "] as an index sort field");
             }
             boolean reverse = sortSpec.order == null ? false : (sortSpec.order == SortOrder.DESC);
             MultiValueMode mode = sortSpec.mode;

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing.allocation.allocator;
@@ -63,6 +64,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
     private volatile DesiredBalance currentDesiredBalance = DesiredBalance.INITIAL;
     private volatile boolean resetCurrentDesiredBalance = false;
     private final Set<String> processedNodeShutdowns = new HashSet<>();
+    private final DesiredBalanceMetrics desiredBalanceMetrics;
 
     // stats
     protected final CounterMetric computationsSubmitted = new CounterMetric();
@@ -103,6 +105,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         DesiredBalanceReconcilerAction reconciler,
         TelemetryProvider telemetryProvider
     ) {
+        this.desiredBalanceMetrics = new DesiredBalanceMetrics(telemetryProvider.getMeterRegistry());
         this.delegateAllocator = delegateAllocator;
         this.threadPool = threadPool;
         this.reconciler = reconciler;
@@ -110,7 +113,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         this.desiredBalanceReconciler = new DesiredBalanceReconciler(
             clusterService.getClusterSettings(),
             threadPool,
-            telemetryProvider.getMeterRegistry()
+            desiredBalanceMetrics
         );
         this.desiredBalanceComputation = new ContinuousComputation<>(threadPool.generic()) {
 
@@ -166,6 +169,10 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         clusterService.addListener(event -> {
             if (event.localNodeMaster() == false) {
                 onNoLongerMaster();
+            }
+            // Only update on change, to minimise volatile writes
+            if (event.localNodeMaster() != event.previousState().nodes().isLocalNodeElectedMaster()) {
+                desiredBalanceMetrics.setNodeIsMaster(event.localNodeMaster());
             }
         });
     }
@@ -305,9 +312,9 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
             computedShardMovements.sum(),
             cumulativeComputationTime.count(),
             cumulativeReconciliationTime.count(),
-            desiredBalanceReconciler.unassignedShards.get(),
-            desiredBalanceReconciler.totalAllocations.get(),
-            desiredBalanceReconciler.undesiredAllocations.get()
+            desiredBalanceMetrics.unassignedShards(),
+            desiredBalanceMetrics.totalAllocations(),
+            desiredBalanceMetrics.undesiredAllocations()
         );
     }
 
@@ -317,10 +324,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
             queue.completeAllAsNotMaster();
             pendingDesiredBalanceMoves.clear();
             desiredBalanceReconciler.clear();
-
-            desiredBalanceReconciler.unassignedShards.set(0);
-            desiredBalanceReconciler.totalAllocations.set(0);
-            desiredBalanceReconciler.undesiredAllocations.set(0);
+            desiredBalanceMetrics.zeroAllMetrics();
         }
     }
 

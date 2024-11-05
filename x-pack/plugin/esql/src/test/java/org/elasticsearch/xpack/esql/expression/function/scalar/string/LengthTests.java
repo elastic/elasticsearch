@@ -49,7 +49,7 @@ public class LengthTests extends AbstractScalarFunctionTestCase {
         cases.addAll(makeTestCases("6 bytes, 2 code points", () -> "❗️", 2));
         cases.addAll(makeTestCases("100 random alpha", () -> randomAlphaOfLength(100), 100));
         cases.addAll(makeTestCases("100 random code points", () -> randomUnicodeOfCodepointLength(100), 100));
-        return parameterSuppliersFromTypedDataWithDefaultChecks(true, cases);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(true, cases, (v, p) -> "string");
     }
 
     private static List<TestCaseSupplier> makeTestCases(String title, Supplier<String> text, int expectedLength) {
@@ -69,6 +69,16 @@ public class LengthTests extends AbstractScalarFunctionTestCase {
                 List.of(DataType.TEXT),
                 () -> new TestCaseSupplier.TestCase(
                     List.of(new TestCaseSupplier.TypedData(new BytesRef(text.get()), DataType.TEXT, "f")),
+                    "LengthEvaluator[val=Attribute[channel=0]]",
+                    DataType.INTEGER,
+                    equalTo(expectedLength)
+                )
+            ),
+            new TestCaseSupplier(
+                title + " with semantic_text",
+                List.of(DataType.SEMANTIC_TEXT),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(new TestCaseSupplier.TypedData(new BytesRef(text.get()), DataType.SEMANTIC_TEXT, "f")),
                     "LengthEvaluator[val=Attribute[channel=0]]",
                     DataType.INTEGER,
                     equalTo(expectedLength)

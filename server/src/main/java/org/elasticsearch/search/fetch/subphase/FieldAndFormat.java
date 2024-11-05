@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.fetch.subphase;
@@ -14,9 +15,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
-import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContent;
@@ -25,9 +24,6 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
-
-import static org.elasticsearch.core.RestApiVersion.equalTo;
-import static org.elasticsearch.core.RestApiVersion.onOrAfter;
 
 /**
  * Wrapper around a field name and the format that should be used to
@@ -48,16 +44,7 @@ public final class FieldAndFormat implements Writeable, ToXContentObject {
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), FIELD_FIELD);
-        PARSER.declareStringOrNull(
-            ConstructingObjectParser.optionalConstructorArg(),
-            FORMAT_FIELD.forRestApiVersion(onOrAfter(RestApiVersion.V_8))
-        );
-        PARSER.declareField(
-            ConstructingObjectParser.optionalConstructorArg(),
-            ignoreUseFieldMappingStringParser(),
-            FORMAT_FIELD.forRestApiVersion(equalTo(RestApiVersion.V_7)),
-            ObjectParser.ValueType.STRING_OR_NULL
-        );
+        PARSER.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), FORMAT_FIELD);
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), INCLUDE_UNMAPPED_FIELD);
     }
 

@@ -17,6 +17,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.junit.RunnableTestRuleAdapter;
@@ -33,9 +34,12 @@ import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -55,11 +59,14 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
         fulfillingCluster = ElasticsearchCluster.local()
             .name("fulfilling-cluster")
             .nodes(3)
+            .module("x-pack-autoscaling")
             .module("x-pack-esql")
             .module("x-pack-enrich")
+            .module("x-pack-ml")
             .module("ingest-common")
             .apply(commonClusterConfig)
             .setting("remote_cluster.port", "0")
+            .setting("xpack.ml.enabled", "false")
             .setting("xpack.security.remote_cluster_server.ssl.enabled", () -> String.valueOf(SSL_ENABLED_REF.get()))
             .setting("xpack.security.remote_cluster_server.ssl.key", "remote-cluster.key")
             .setting("xpack.security.remote_cluster_server.ssl.certificate", "remote-cluster.crt")
@@ -72,10 +79,13 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
 
         queryCluster = ElasticsearchCluster.local()
             .name("query-cluster")
+            .module("x-pack-autoscaling")
             .module("x-pack-esql")
             .module("x-pack-enrich")
+            .module("x-pack-ml")
             .module("ingest-common")
             .apply(commonClusterConfig)
+            .setting("xpack.ml.enabled", "false")
             .setting("xpack.security.remote_cluster_client.ssl.enabled", () -> String.valueOf(SSL_ENABLED_REF.get()))
             .setting("xpack.security.remote_cluster_client.ssl.certificate_authorities", "remote-cluster-ca.crt")
             .setting("xpack.security.authc.token.enabled", "true")
@@ -85,7 +95,7 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
                         {
                           "search": [
                             {
-                                "names": ["index*", "not_found_index", "employees", "employees2"]
+                                "names": ["index*", "alias*", "not_found_index", "employees", "employees2"]
                             },
                             {
                                 "names": ["employees3"],
@@ -347,21 +357,6 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
             | LIMIT 10"""));
         assertRemoteAndLocalResults(response);
 
-        // query remote cluster only - but also include employees2 which the user does not have access to
-        response = performRequestWithRemoteSearchUser(esqlRequest("""
-            FROM my_remote_cluster:employees,my_remote_cluster:employees2
-            | SORT emp_id ASC
-            | LIMIT 2
-            | KEEP emp_id, department"""));
-        assertRemoteOnlyResults(response); // same as above since the user only has access to employees
-
-        // query remote and local cluster - but also include employees2 which the user does not have access to
-        response = performRequestWithRemoteSearchUser(esqlRequest("""
-            FROM my_remote_cluster:employees,my_remote_cluster:employees2,employees,employees2
-            | SORT emp_id ASC
-            | LIMIT 10"""));
-        assertRemoteAndLocalResults(response); // same as above since the user only has access to employees
-
         // update role to include both employees and employees2 for the remote cluster
         final var putRoleRequest = new Request("PUT", "/_security/role/" + REMOTE_SEARCH_ROLE);
         putRoleRequest.setJsonEntity("""
@@ -499,6 +494,10 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
         assertThat(flatList, containsInAnyOrder("engineering"));
     }
 
+    /**
+     * Note: invalid_remote is "invalid" because it has a bogus API key and the cluster does not exist (cannot be connected to)
+     */
+    @SuppressWarnings("unchecked")
     public void testCrossClusterQueryAgainstInvalidRemote() throws Exception {
         configureRemoteCluster();
         populateData();
@@ -520,22 +519,53 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
         );
 
         // invalid remote with local index should return local results
-        var q = "FROM invalid_remote:employees,employees |  SORT emp_id DESC | LIMIT 10";
-        Response response = performRequestWithRemoteSearchUser(esqlRequest(q));
-        assertLocalOnlyResults(response);
+        {
+            var q = "FROM invalid_remote:employees,employees | SORT emp_id DESC | LIMIT 10";
+            Response response = performRequestWithRemoteSearchUser(esqlRequest(q));
+            // TODO: when skip_unavailable=false for invalid_remote, a fatal exception should be thrown
+            // this does not yet happen because field-caps returns nothing for this cluster, rather
+            // than an error, so the current code cannot detect that error. Follow on PR will handle this.
+            assertLocalOnlyResults(response);
+        }
 
-        // only calling an invalid remote should error
-        ResponseException error = expectThrows(ResponseException.class, () -> {
-            var q2 = "FROM invalid_remote:employees |  SORT emp_id DESC | LIMIT 10";
-            performRequestWithRemoteSearchUser(esqlRequest(q2));
-        });
+        {
+            var q = "FROM invalid_remote:employees | SORT emp_id DESC | LIMIT 10";
+            // errors from invalid remote should be ignored if the cluster is marked with skip_unavailable=true
+            if (skipUnavailable) {
+                // expected response:
+                // {"took":1,"columns":[],"values":[],"_clusters":{"total":1,"successful":0,"running":0,"skipped":1,"partial":0,
+                // "failed":0,"details":{"invalid_remote":{"status":"skipped","indices":"employees","took":1,"_shards":
+                // {"total":0,"successful":0,"skipped":0,"failed":0},"failures":[{"shard":-1,"index":null,"reason":
+                // {"type":"remote_transport_exception",
+                // "reason":"[connect_transport_exception - unable to connect to remote cluster]"}}]}}}}
+                Response response = performRequestWithRemoteSearchUser(esqlRequest(q));
+                assertOK(response);
+                Map<String, Object> responseAsMap = entityAsMap(response);
+                List<?> columns = (List<?>) responseAsMap.get("columns");
+                List<?> values = (List<?>) responseAsMap.get("values");
+                assertThat(columns.size(), equalTo(1));
+                Map<String, ?> column1 = (Map<String, ?>) columns.get(0);
+                assertThat(column1.get("name").toString(), equalTo("<no-fields>"));
+                assertThat(values.size(), equalTo(0));
+                Map<String, ?> clusters = (Map<String, ?>) responseAsMap.get("_clusters");
+                Map<String, ?> details = (Map<String, ?>) clusters.get("details");
+                Map<String, ?> invalidRemoteEntry = (Map<String, ?>) details.get("invalid_remote");
+                assertThat(invalidRemoteEntry.get("status").toString(), equalTo("skipped"));
+                List<?> failures = (List<?>) invalidRemoteEntry.get("failures");
+                assertThat(failures.size(), equalTo(1));
+                Map<String, ?> failuresMap = (Map<String, ?>) failures.get(0);
+                Map<String, ?> reason = (Map<String, ?>) failuresMap.get("reason");
+                assertThat(reason.get("type").toString(), equalTo("remote_transport_exception"));
+                assertThat(reason.get("reason").toString(), containsString("unable to connect to remote cluster"));
 
-        if (skipUnavailable == false) {
-            assertThat(error.getResponse().getStatusLine().getStatusCode(), equalTo(401));
-            assertThat(error.getMessage(), containsString("unable to find apikey"));
-        } else {
-            assertThat(error.getResponse().getStatusLine().getStatusCode(), equalTo(500));
-            assertThat(error.getMessage(), containsString("Unable to connect to [invalid_remote]"));
+            } else {
+                // errors from invalid remote should throw an exception if the cluster is marked with skip_unavailable=false
+                ResponseException error = expectThrows(ResponseException.class, () -> {
+                    final Response response1 = performRequestWithRemoteSearchUser(esqlRequest(q));
+                });
+                assertThat(error.getResponse().getStatusLine().getStatusCode(), equalTo(401));
+                assertThat(error.getMessage(), containsString("unable to find apikey"));
+            }
         }
     }
 
@@ -616,6 +646,37 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
             containsString(
                 "action [indices:data/read/esql] is unauthorized for user [remote_search_user] with effective roles [remote_search], "
                     + "this action is granted by the index privileges [read,read_cross_cluster,all]"
+            )
+        );
+
+        // query remote cluster only - but also include employees2 which the user does not have access to
+        error = expectThrows(ResponseException.class, () -> { performRequestWithRemoteSearchUser(esqlRequest("""
+            FROM my_remote_cluster:employees,my_remote_cluster:employees2
+            | SORT emp_id ASC
+            | LIMIT 2
+            | KEEP emp_id, department""")); });
+
+        assertThat(error.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+        assertThat(
+            error.getMessage(),
+            containsString(
+                "action [indices:data/read/esql] is unauthorized for user [remote_search_user] with effective roles "
+                    + "[remote_search], this action is granted by the index privileges [read,read_cross_cluster,all]"
+            )
+        );
+
+        // query remote and local cluster - but also include employees2 which the user does not have access to
+        error = expectThrows(ResponseException.class, () -> { performRequestWithRemoteSearchUser(esqlRequest("""
+            FROM my_remote_cluster:employees,my_remote_cluster:employees2,employees,employees2
+            | SORT emp_id ASC
+            | LIMIT 10""")); });
+
+        assertThat(error.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+        assertThat(
+            error.getMessage(),
+            containsString(
+                "action [indices:data/read/esql] is unauthorized for user [remote_search_user] with effective roles "
+                    + "[remote_search], this action is granted by the index privileges [read,read_cross_cluster,all]"
             )
         );
     }
@@ -740,10 +801,173 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
         assertThat(flatList, containsInAnyOrder(1, 3, "usa", "germany"));
     }
 
+    private void createAliases() throws Exception {
+        Request createAlias = new Request("POST", "_aliases");
+        createAlias.setJsonEntity("""
+            {
+                "actions": [
+                    {
+                        "add": {
+                            "index": "employees",
+                            "alias": "alias-employees"
+                        }
+                    },
+                    {
+                        "add": {
+                            "index": "employees",
+                            "alias": "alias-engineering",
+                            "filter": { "match": { "department": "engineering" }}
+                        }
+                    },
+                    {
+                        "add": {
+                            "index": "employees",
+                            "alias": "alias-management",
+                            "filter": { "match": { "department": "management" }}
+                        }
+                    },
+                    {
+                        "add": {
+                           "index": "employees2",
+                           "alias": "alias-employees2"
+                        }
+                    }
+                ]
+            }
+            """);
+        assertOK(performRequestAgainstFulfillingCluster(createAlias));
+    }
+
+    private void removeAliases() throws Exception {
+        var removeAlias = new Request("POST", "/_aliases/");
+        removeAlias.setJsonEntity("""
+            {
+                "actions": [
+                    {
+                        "remove": {
+                            "index": "employees",
+                            "alias": "alias-employees"
+                        }
+                    },
+                    {
+                        "remove": {
+                            "index": "employees",
+                            "alias": "alias-engineering"
+                        }
+                    },
+                    {
+                        "remove": {
+                            "index": "employees",
+                            "alias": "alias-management"
+                        }
+                    },
+                    {
+                        "remove": {
+                           "index": "employees2",
+                           "alias": "alias-employees2"
+                        }
+                    }
+                ]
+            }
+            """);
+        assertOK(performRequestAgainstFulfillingCluster(removeAlias));
+    }
+
+    public void testAlias() throws Exception {
+        configureRemoteCluster();
+        populateData();
+        createAliases();
+        var putRoleRequest = new Request("PUT", "/_security/role/" + REMOTE_SEARCH_ROLE);
+        putRoleRequest.setJsonEntity("""
+            {
+              "indices": [{"names": [""], "privileges": ["read"]}],
+              "cluster": ["cross_cluster_search"],
+              "remote_indices": [
+                {
+                  "names": ["alias-engineering"],
+                  "privileges": ["read"],
+                  "clusters": ["my_remote_cluster"]
+                },
+                {
+                  "names": ["employees2"],
+                  "privileges": ["read"],
+                  "clusters": ["my_remote_cluster"]
+                },
+                {
+                  "names": ["employees3"],
+                  "privileges": ["view_index_metadata", "read_cross_cluster"],
+                  "clusters": ["my_remote_cluster"]
+                }
+              ]
+            }""");
+        assertOK(adminClient().performRequest(putRoleRequest));
+        // query `employees2`
+        for (String index : List.of("*:employees2", "*:employee*")) {
+            Request request = esqlRequest("FROM " + index + " | KEEP emp_id | SORT emp_id | LIMIT 100");
+            Response response = performRequestWithRemoteSearchUser(request);
+            assertOK(response);
+            Map<String, Object> responseAsMap = entityAsMap(response);
+            List<?> ids = (List<?>) responseAsMap.get("values");
+            assertThat(ids, equalTo(List.of(List.of("11"), List.of("13"))));
+        }
+
+        // query `employees2` and `alias-engineering`
+        for (var index : List.of("*:employees2,*:alias-engineering", "*:emp*,*:alias-engineering", "*:emp*,my*:alias*")) {
+            Request request = esqlRequest("FROM " + index + " | KEEP emp_id | SORT emp_id | LIMIT 100");
+            Response response = performRequestWithRemoteSearchUser(request);
+            assertOK(response);
+            Map<String, Object> responseAsMap = entityAsMap(response);
+            List<?> ids = (List<?>) responseAsMap.get("values");
+            assertThat(ids, equalTo(List.of(List.of("1"), List.of("11"), List.of("13"), List.of("7"))));
+        }
+        // none
+        for (var index : List.of("*:employees1", "*:employees3", "*:employees1,employees3", "*:alias-employees,*:alias-management")) {
+            Request request = esqlRequest("FROM " + index + " | KEEP emp_id | SORT emp_id | LIMIT 100");
+            ResponseException error = expectThrows(ResponseException.class, () -> performRequestWithRemoteSearchUser(request));
+            assertThat(error.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+            String expectedIndexExpressionInError = index.replace("*", "my_remote_cluster");
+            Pattern p = Pattern.compile("Unknown index \\[([^\\]]+)\\]");
+            Matcher m = p.matcher(error.getMessage());
+            assertTrue("Pattern matcher to parse error message did not find matching string: " + error.getMessage(), m.find());
+            String unknownIndexExpressionInErrorMessage = m.group(1);
+            Set<String> actualUnknownIndexes = org.elasticsearch.common.Strings.commaDelimitedListToSet(
+                unknownIndexExpressionInErrorMessage
+            );
+            Set<String> expectedUnknownIndexes = org.elasticsearch.common.Strings.commaDelimitedListToSet(expectedIndexExpressionInError);
+            assertThat(actualUnknownIndexes, equalTo(expectedUnknownIndexes));
+        }
+
+        for (var index : List.of(
+            Tuple.tuple("*:employee*,*:alias-employees,*:employees3", "alias-employees,employees3"),
+            Tuple.tuple("*:alias*,my*:employees1", "employees1"),
+            Tuple.tuple("*:alias*,my*:employees3", "employees3")
+        )) {
+            Request request = esqlRequest("FROM " + index.v1() + " | KEEP emp_id | SORT emp_id | LIMIT 100");
+            ResponseException error = expectThrows(ResponseException.class, () -> performRequestWithRemoteSearchUser(request));
+            assertThat(error.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+            assertThat(
+                error.getMessage(),
+                containsString("unauthorized for user [remote_search_user] with assigned roles [remote_search]")
+            );
+            assertThat(error.getMessage(), containsString("user [test_user] on indices [" + index.v2() + "]"));
+        }
+
+        // query `alias-engineering`
+        Request request = esqlRequest("FROM *:alias* | KEEP emp_id | SORT emp_id | LIMIT 100");
+        Response response = performRequestWithRemoteSearchUser(request);
+        assertOK(response);
+        Map<String, Object> responseAsMap = entityAsMap(response);
+        List<?> ids = (List<?>) responseAsMap.get("values");
+        assertThat(ids, equalTo(List.of(List.of("1"), List.of("7"))));
+
+        removeAliases();
+    }
+
     protected Request esqlRequest(String command) throws IOException {
         XContentBuilder body = JsonXContent.contentBuilder();
         body.startObject();
         body.field("query", command);
+        body.field("include_ccs_metadata", true);
         if (Build.current().isSnapshot() && randomBoolean()) {
             Settings.Builder settings = Settings.builder();
             if (randomBoolean()) {

@@ -8,31 +8,31 @@
 The <<esql-stats-by>> command supports these aggregate functions:
 
 // tag::agg_list[]
-* <<esql-agg-avg>>
-* <<esql-agg-count>>
-* <<esql-agg-count-distinct>>
-* <<esql-agg-max>>
-* <<esql-agg-median>>
-* <<esql-agg-median-absolute-deviation>>
-* <<esql-agg-min>>
-* <<esql-agg-percentile>>
-* experimental:[] <<esql-agg-st-centroid>>
-* <<esql-agg-sum>>
+* <<esql-avg>>
+* <<esql-count>>
+* <<esql-count_distinct>>
+* <<esql-max>>
+* <<esql-median>>
+* <<esql-median_absolute_deviation>>
+* <<esql-min>>
+* <<esql-percentile>>
+* experimental:[] <<esql-st_centroid_agg>>
+* <<esql-sum>>
 * <<esql-top>>
-* <<esql-agg-values>>
-* experimental:[] <<esql-agg-weighted-avg>>
+* <<esql-values>>
+* experimental:[] <<esql-weighted_avg>>
 // end::agg_list[]
 
-include::avg.asciidoc[]
-include::count.asciidoc[]
-include::count-distinct.asciidoc[]
-include::max.asciidoc[]
-include::median.asciidoc[]
-include::median-absolute-deviation.asciidoc[]
-include::min.asciidoc[]
-include::percentile.asciidoc[]
-include::st_centroid_agg.asciidoc[]
-include::sum.asciidoc[]
+include::layout/avg.asciidoc[]
+include::layout/count.asciidoc[]
+include::layout/count_distinct.asciidoc[]
+include::layout/max.asciidoc[]
+include::layout/median.asciidoc[]
+include::layout/median_absolute_deviation.asciidoc[]
+include::layout/min.asciidoc[]
+include::layout/percentile.asciidoc[]
+include::layout/st_centroid_agg.asciidoc[]
+include::layout/sum.asciidoc[]
 include::layout/top.asciidoc[]
-include::values.asciidoc[]
-include::weighted-avg.asciidoc[]
+include::layout/values.asciidoc[]
+include::layout/weighted_avg.asciidoc[]

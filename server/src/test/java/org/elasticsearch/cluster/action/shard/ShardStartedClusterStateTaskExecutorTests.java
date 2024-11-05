@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.action.shard;
@@ -423,7 +424,7 @@ public class ShardStartedClusterStateTaskExecutorTests extends ESAllocationTestC
         }
 
         final var eventIngestedRange = resultingState.metadata().index(indexName).getEventIngestedRange();
-        if (clusterState.getMinTransportVersion().before(TransportVersions.EVENT_INGESTED_RANGE_IN_CLUSTER_STATE)) {
+        if (clusterState.getMinTransportVersion().before(TransportVersions.V_8_15_0)) {
             assertThat(eventIngestedRange, sameInstance(IndexLongFieldRange.UNKNOWN));
         } else {
             if (shardEventIngestedRange == ShardLongFieldRange.UNKNOWN) {

@@ -1,0 +1,7 @@
+pr: 113570
+summary: Fix `ignore_above` handling in synthetic source when index level setting
+  is used
+area: Logs
+type: bug
+issues:
+ - 113538

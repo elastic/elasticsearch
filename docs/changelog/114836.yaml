@@ -1,0 +1,6 @@
+pr: 114836
+summary: Support multi-valued fields in compute engine for ST_DISTANCE
+area: ES|QL
+type: enhancement
+issues:
+ - 112910

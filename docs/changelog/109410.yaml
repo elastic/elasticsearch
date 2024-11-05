@@ -1,5 +1,0 @@
-pr: 109410
-summary: Support synthetic source for date fields when `ignore_malformed` is used
-area: Mapping
-type: enhancement
-issues: []

@@ -1,5 +1,0 @@
-pr: 109781
-summary: ES|QL Add primitive float variants of all aggregators to the compute engine
-area: ES|QL
-type: enhancement
-issues: []

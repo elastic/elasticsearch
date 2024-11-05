@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.cluster.coordination;
 
@@ -11,7 +12,6 @@ import org.apache.logging.log4j.Level;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionTestUtils;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NotMasterException;
@@ -814,16 +814,14 @@ public class NodeJoinExecutorTests extends ESTestCase {
                 )
             );
             assertNull(
-                PlainActionFuture.<Void, RuntimeException>get(
-                    future -> clusterService.getMasterService()
+                safeAwait(
+                    (ActionListener<Void> listener) -> clusterService.getMasterService()
                         .createTaskQueue("test", Priority.NORMAL, executor)
                         .submitTask(
                             "test",
-                            JoinTask.singleNode(node1, CompatibilityVersionsUtils.staticCurrent(), Set.of(), TEST_REASON, future, 0L),
+                            JoinTask.singleNode(node1, CompatibilityVersionsUtils.staticCurrent(), Set.of(), TEST_REASON, listener, 0L),
                             null
-                        ),
-                    10,
-                    TimeUnit.SECONDS
+                        )
                 )
             );
             mockLog.assertAllExpectationsMatched();
@@ -843,8 +841,8 @@ public class NodeJoinExecutorTests extends ESTestCase {
                 )
             );
             assertNull(
-                PlainActionFuture.<Void, RuntimeException>get(
-                    future -> clusterService.getMasterService()
+                safeAwait(
+                    (ActionListener<Void> listener) -> clusterService.getMasterService()
                         .createTaskQueue("test", Priority.NORMAL, executor)
                         .submitTask(
                             "test",
@@ -853,13 +851,11 @@ public class NodeJoinExecutorTests extends ESTestCase {
                                 CompatibilityVersionsUtils.staticCurrent(),
                                 Set.of(),
                                 testReasonWithLink,
-                                future,
+                                listener,
                                 0L
                             ),
                             null
-                        ),
-                    10,
-                    TimeUnit.SECONDS
+                        )
                 )
             );
             mockLog.assertAllExpectationsMatched();

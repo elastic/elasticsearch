@@ -10,9 +10,14 @@ package org.elasticsearch.xpack.esql.stats;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
+import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyzer;
@@ -24,7 +29,6 @@ import static org.elasticsearch.xpack.esql.stats.FeatureMetric.FROM;
 import static org.elasticsearch.xpack.esql.stats.FeatureMetric.GROK;
 import static org.elasticsearch.xpack.esql.stats.FeatureMetric.KEEP;
 import static org.elasticsearch.xpack.esql.stats.FeatureMetric.LIMIT;
-import static org.elasticsearch.xpack.esql.stats.FeatureMetric.META;
 import static org.elasticsearch.xpack.esql.stats.FeatureMetric.MV_EXPAND;
 import static org.elasticsearch.xpack.esql.stats.FeatureMetric.RENAME;
 import static org.elasticsearch.xpack.esql.stats.FeatureMetric.ROW;
@@ -33,6 +37,7 @@ import static org.elasticsearch.xpack.esql.stats.FeatureMetric.SORT;
 import static org.elasticsearch.xpack.esql.stats.FeatureMetric.STATS;
 import static org.elasticsearch.xpack.esql.stats.FeatureMetric.WHERE;
 import static org.elasticsearch.xpack.esql.stats.Metrics.FPREFIX;
+import static org.elasticsearch.xpack.esql.stats.Metrics.FUNC_PREFIX;
 
 public class VerifierMetricsTests extends ESTestCase {
 
@@ -55,7 +60,8 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, drop(c));
         assertEquals(0, keep(c));
         assertEquals(0, rename(c));
-        assertEquals(0, meta(c));
+
+        assertEquals(1, function("concat", c));
     }
 
     public void testEvalQuery() {
@@ -75,7 +81,8 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, drop(c));
         assertEquals(0, keep(c));
         assertEquals(0, rename(c));
-        assertEquals(0, meta(c));
+
+        assertEquals(1, function("length", c));
     }
 
     public void testGrokQuery() {
@@ -95,7 +102,8 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, drop(c));
         assertEquals(0, keep(c));
         assertEquals(0, rename(c));
-        assertEquals(0, meta(c));
+
+        assertEquals(1, function("concat", c));
     }
 
     public void testLimitQuery() {
@@ -115,7 +123,6 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, drop(c));
         assertEquals(0, keep(c));
         assertEquals(0, rename(c));
-        assertEquals(0, meta(c));
     }
 
     public void testSortQuery() {
@@ -135,7 +142,6 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, drop(c));
         assertEquals(0, keep(c));
         assertEquals(0, rename(c));
-        assertEquals(0, meta(c));
     }
 
     public void testStatsQuery() {
@@ -155,7 +161,8 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, drop(c));
         assertEquals(0, keep(c));
         assertEquals(0, rename(c));
-        assertEquals(0, meta(c));
+
+        assertEquals(1, function("max", c));
     }
 
     public void testWhereQuery() {
@@ -175,7 +182,6 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, drop(c));
         assertEquals(0, keep(c));
         assertEquals(0, rename(c));
-        assertEquals(0, meta(c));
     }
 
     public void testTwoWhereQuery() {
@@ -195,11 +201,10 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, drop(c));
         assertEquals(0, keep(c));
         assertEquals(0, rename(c));
-        assertEquals(0, meta(c));
     }
 
     public void testTwoQueriesExecuted() {
-        Metrics metrics = new Metrics();
+        Metrics metrics = new Metrics(new EsqlFunctionRegistry());
         Verifier verifier = new Verifier(metrics);
         esqlWithVerifier("""
                from employees
@@ -235,7 +240,64 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, drop(c));
         assertEquals(0, keep(c));
         assertEquals(0, rename(c));
-        assertEquals(0, meta(c));
+
+        assertEquals(1, function("length", c));
+        assertEquals(1, function("concat", c));
+        assertEquals(1, function("max", c));
+        assertEquals(1, function("min", c));
+
+        assertEquals(0, function("sin", c));
+        assertEquals(0, function("cos", c));
+    }
+
+    public void testMultipleFunctions() {
+        Metrics metrics = new Metrics(new EsqlFunctionRegistry());
+        Verifier verifier = new Verifier(metrics);
+        esqlWithVerifier("""
+               from employees
+               | where languages > 2
+               | limit 5
+               | eval name_len = length(first_name), surname_len = length(last_name)
+               | sort length(first_name)
+               | limit 3
+            """, verifier);
+
+        Counters c = metrics.stats();
+        assertEquals(1, function("length", c));
+        assertEquals(0, function("concat", c));
+
+        esqlWithVerifier("""
+              from employees
+              | where languages > 2
+              | sort first_name desc nulls first
+              | dissect concat(first_name, " ", last_name) "%{a} %{b}"
+              | grok concat(first_name, " ", last_name) "%{WORD:a} %{WORD:b}"
+              | eval name_len = length(first_name), surname_len = length(last_name)
+              | stats x = max(languages)
+              | sort x
+              | stats y = min(x) by x
+            """, verifier);
+        c = metrics.stats();
+
+        assertEquals(2, function("length", c));
+        assertEquals(1, function("concat", c));
+        assertEquals(1, function("max", c));
+        assertEquals(1, function("min", c));
+
+        EsqlFunctionRegistry fr = new EsqlFunctionRegistry().snapshotRegistry();
+        Map<Class<?>, String> functions = new HashMap<>();
+        for (FunctionDefinition func : fr.listFunctions()) {
+            if (functions.containsKey(func.clazz()) == false) {
+                functions.put(func.clazz(), func.name());
+            }
+        }
+        for (String value : functions.values()) {
+            if (Set.of("length", "concat", "max", "min").contains(value) == false) {
+                assertEquals(0, function(value, c));
+            }
+        }
+        Map<?, ?> map = (Map<?, ?>) c.toNestedMap().get("functions");
+        assertEquals(functions.size(), map.size());
     }
 
     public void testEnrich() {
@@ -261,7 +323,8 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, drop(c));
         assertEquals(1L, keep(c));
         assertEquals(0, rename(c));
-        assertEquals(0, meta(c));
+
+        assertEquals(1, function("to_string", c));
     }
 
     public void testMvExpand() {
@@ -290,27 +353,6 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, drop(c));
         assertEquals(1L, keep(c));
         assertEquals(0, rename(c));
-        assertEquals(0, meta(c));
-    }
-
-    public void testMetaFunctions() {
-        Counters c = esql("meta functions |  stats  a = count(*) |  mv_expand a");
-        assertEquals(0, dissect(c));
-        assertEquals(0, eval(c));
-        assertEquals(0, grok(c));
-        assertEquals(0, limit(c));
-        assertEquals(0, sort(c));
-        assertEquals(1L, stats(c));
-        assertEquals(0, where(c));
-        assertEquals(0, enrich(c));
-        assertEquals(1L, mvExpand(c));
-        assertEquals(0, show(c));
-        assertEquals(0, row(c));
-        assertEquals(0, from(c));
-        assertEquals(0, drop(c));
-        assertEquals(0, keep(c));
-        assertEquals(0, rename(c));
-        assertEquals(1L, meta(c));
     }
 
     public void testShowInfo() {
@@ -330,7 +372,8 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, drop(c));
         assertEquals(0, keep(c));
         assertEquals(0, rename(c));
-        assertEquals(0, meta(c));
+
+        assertEquals(1, function("count", c));
     }
 
     public void testRow() {
@@ -350,7 +393,6 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, drop(c));
         assertEquals(0, keep(c));
         assertEquals(0, rename(c));
-        assertEquals(0, meta(c));
     }
 
     public void testDropAndRename() {
@@ -370,7 +412,8 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(1L, drop(c));
         assertEquals(0, keep(c));
         assertEquals(1L, rename(c));
-        assertEquals(0, meta(c));
+
+        assertEquals(1, function("count", c));
     }
 
     public void testKeep() {
@@ -395,7 +438,6 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, drop(c));
         assertEquals(1L, keep(c));
         assertEquals(0, rename(c));
-        assertEquals(0, meta(c));
     }
 
     private long dissect(Counters c) {
@@ -458,8 +500,17 @@ public class VerifierMetricsTests extends ESTestCase {
         return c.get(FPREFIX + RENAME);
     }
 
-    private long meta(Counters c) {
-        return c.get(FPREFIX + META);
+    private long function(String function, Counters c) {
+        return c.get(FUNC_PREFIX + function);
+    }
+
+    private void assertNullFunction(String function, Counters c) {
+        try {
+            c.get(FUNC_PREFIX + function);
+            fail();
+        } catch (NullPointerException npe) {
+
+        }
     }
 
     private Counters esql(String esql) {
@@ -474,7 +525,7 @@ public class VerifierMetricsTests extends ESTestCase {
         Verifier verifier = v;
         Metrics metrics = null;
         if (v == null) {
-            metrics = new Metrics();
+            metrics = new Metrics(new EsqlFunctionRegistry());
             verifier = new Verifier(metrics);
         }
         analyzer(verifier).analyze(parser.createStatement(esql));

@@ -1,6 +1,0 @@
-pr: 108089
-summary: "ES|QL: limit query depth to 500 levels"
-area: ES|QL
-type: bug
-issues:
- - 107752

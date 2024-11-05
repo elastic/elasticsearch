@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.fetch.subphase;
@@ -75,7 +76,7 @@ public class UnmappedFieldFetcher {
         for (String child : nestedChildren) {
             automata.add(Operations.concatenate(Automata.makeString(child + "."), Automata.makeAnyString()));
         }
-        return new CharacterRunAutomaton(Operations.union(automata));
+        return new CharacterRunAutomaton(Operations.determinize(Operations.union(automata), AUTOMATON_MAX_DETERMINIZED_STATES));
     }
 
     // Builds an automaton that will match any field that conforms to one of the input patterns
@@ -83,7 +84,11 @@ public class UnmappedFieldFetcher {
         if (patterns.isEmpty()) {
             return null;
         }
-        return new CharacterRunAutomaton(Regex.simpleMatchToAutomaton(patterns.toArray(String[]::new)), AUTOMATON_MAX_DETERMINIZED_STATES);
+        Automaton a = Operations.determinize(
+            Regex.simpleMatchToAutomaton(patterns.toArray(String[]::new)),
+            AUTOMATON_MAX_DETERMINIZED_STATES
+        );
+        return new CharacterRunAutomaton(a);
     }
 
     /**

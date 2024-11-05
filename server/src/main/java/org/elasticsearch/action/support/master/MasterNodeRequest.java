@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.support.master;
@@ -31,14 +32,18 @@ public abstract class MasterNodeRequest<Request extends MasterNodeRequest<Reques
      * For requests which originate in the REST layer, use {@link org.elasticsearch.rest.RestUtils#getMasterNodeTimeout} to determine the
      * timeout.
      * <p>
-     * For internally-generated requests, choose an appropriate timeout. Often this will be {@link TimeValue#MAX_VALUE} (or {@link
-     * TimeValue#MINUS_ONE} which means an infinite timeout in 8.15.0 onwards) since usually we want internal requests to wait for as long
-     * as necessary to complete.
+     * For internally-generated requests, choose an appropriate timeout. Often this will be {@link #INFINITE_MASTER_NODE_TIMEOUT}, since
+     * usually we want internal requests to wait for as long as necessary to complete.
      *
      * @deprecated all requests should specify a timeout, see <a href="https://github.com/elastic/elasticsearch/issues/107984">#107984</a>.
      */
     @Deprecated(forRemoval = true)
     public static final TimeValue TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT = TimeValue.timeValueSeconds(30);
+
+    /**
+     * Indicates the request will wait forever while trying to find the master node.
+     */
+    public static final TimeValue INFINITE_MASTER_NODE_TIMEOUT = TimeValue.MINUS_ONE;
 
     private TimeValue masterNodeTimeout;
 
@@ -51,15 +56,20 @@ public abstract class MasterNodeRequest<Request extends MasterNodeRequest<Reques
 
     /**
      * @param masterNodeTimeout Specifies how long to wait when the master has not been discovered yet, or is disconnected, or is busy
-     *                          processing other tasks. The value {@link TimeValue#MINUS_ONE} means to wait forever in 8.15.0 onwards.
-     *                          <p>
-     *                          For requests which originate in the REST layer, use {@link
-     *                          org.elasticsearch.rest.RestUtils#getMasterNodeTimeout} to determine the timeout.
-     *                          <p>
-     *                          For internally-generated requests, choose an appropriate timeout. Often this will be {@link
-     *                          TimeValue#MAX_VALUE} (or {@link TimeValue#MINUS_ONE} which means an infinite timeout in 8.15.0 onwards)
-     *                          since usually we want internal requests to wait for as long as necessary to complete.
+     *                          processing other tasks:
+     *                          <ul>
+     *                          <li>
+     *                              For requests which originate in the REST layer, use
+     *                              {@link org.elasticsearch.rest.RestUtils#getMasterNodeTimeout} to determine the timeout.
+     *                          </li>
+     *                          <li>
+     *                              For internally-generated requests, choose an appropriate timeout. Often this will be an infinite
+     *                              timeout, {@link #INFINITE_MASTER_NODE_TIMEOUT}, since it is reasonable to wait for as long as necessary
+     *                              for internal requests to complete.
+     *                          </li>
+     *                          </ul>
      */
+    // TODO forbid TimeValue#MAX_VALUE once support for version prior to 8.14 dropped
     protected MasterNodeRequest(TimeValue masterNodeTimeout) {
         this.masterNodeTimeout = Objects.requireNonNull(masterNodeTimeout);
         this.masterTerm = 0L;
@@ -68,7 +78,7 @@ public abstract class MasterNodeRequest<Request extends MasterNodeRequest<Reques
     protected MasterNodeRequest(StreamInput in) throws IOException {
         super(in);
         masterNodeTimeout = in.readTimeValue();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.VERSIONED_MASTER_NODE_REQUESTS)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
             masterTerm = in.readVLong();
         } else {
             masterTerm = 0L;
@@ -82,7 +92,7 @@ public abstract class MasterNodeRequest<Request extends MasterNodeRequest<Reques
         assert masterTerm <= newMasterTerm : masterTerm + " vs " + newMasterTerm;
         super.writeTo(out);
         out.writeTimeValue(masterNodeTimeout);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.VERSIONED_MASTER_NODE_REQUESTS)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
             out.writeVLong(newMasterTerm);
         } // else no protection against routing loops in older versions
     }
@@ -97,14 +107,13 @@ public abstract class MasterNodeRequest<Request extends MasterNodeRequest<Reques
 
     /**
      * Specifies how long to wait when the master has not been discovered yet, or is disconnected, or is busy processing other tasks. The
-     * value {@link TimeValue#MINUS_ONE} means to wait forever in 8.15.0 onwards.
+     * value {@link #INFINITE_MASTER_NODE_TIMEOUT} means to wait forever.
      * <p>
      * For requests which originate in the REST layer, use {@link org.elasticsearch.rest.RestUtils#getMasterNodeTimeout} to determine the
      * timeout.
      * <p>
-     * For internally-generated requests, choose an appropriate timeout. Often this will be {@link TimeValue#MAX_VALUE} (or {@link
-     * TimeValue#MINUS_ONE} which means an infinite timeout in 8.15.0 onwards) since usually we want internal requests to wait for as long
-     * as necessary to complete.
+     * For internally-generated requests, choose an appropriate timeout. Often this will be {@link #INFINITE_MASTER_NODE_TIMEOUT} since
+     * usually we want internal requests to wait for as long as necessary to complete.
      */
     @SuppressWarnings("unchecked")
     public final Request masterNodeTimeout(TimeValue timeout) {
@@ -114,7 +123,7 @@ public abstract class MasterNodeRequest<Request extends MasterNodeRequest<Reques
 
     /**
      * @return how long to wait when the master has not been discovered yet, or is disconnected, or is busy processing other tasks. The
-     * value {@link TimeValue#MINUS_ONE} means to wait forever.
+     * value {@link #INFINITE_MASTER_NODE_TIMEOUT} means to wait forever.
      */
     public final TimeValue masterNodeTimeout() {
         return this.masterNodeTimeout;

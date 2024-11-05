@@ -12,6 +12,7 @@ import java.util.List;
 import org.elasticsearch.compute.aggregation.AggregatorFunction;
 import org.elasticsearch.compute.aggregation.IntermediateStateDesc;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.ElementType;
@@ -60,13 +61,29 @@ public final class SpatialCentroidCartesianPointDocValuesAggregatorFunction impl
   }
 
   @Override
-  public void addRawInput(Page page) {
+  public void addRawInput(Page page, BooleanVector mask) {
+    if (mask.allFalse()) {
+      // Entire page masked away
+      return;
+    }
+    if (mask.allTrue()) {
+      // No masking
+      LongBlock block = page.getBlock(channels.get(0));
+      LongVector vector = block.asVector();
+      if (vector != null) {
+        addRawVector(vector);
+      } else {
+        addRawBlock(block);
+      }
+      return;
+    }
+    // Some positions masked away, others kept
     LongBlock block = page.getBlock(channels.get(0));
     LongVector vector = block.asVector();
     if (vector != null) {
-      addRawVector(vector);
+      addRawVector(vector, mask);
     } else {
-      addRawBlock(block);
+      addRawBlock(block, mask);
     }
   }
 
@@ -76,8 +93,33 @@ public final class SpatialCentroidCartesianPointDocValuesAggregatorFunction impl
     }
   }
 
+  private void addRawVector(LongVector vector, BooleanVector mask) {
+    for (int i = 0; i < vector.getPositionCount(); i++) {
+      if (mask.getBoolean(i) == false) {
+        continue;
+      }
+      SpatialCentroidCartesianPointDocValuesAggregator.combine(state, vector.getLong(i));
+    }
+  }
+
   private void addRawBlock(LongBlock block) {
     for (int p = 0; p < block.getPositionCount(); p++) {
+      if (block.isNull(p)) {
+        continue;
+      }
+      int start = block.getFirstValueIndex(p);
+      int end = start + block.getValueCount(p);
+      for (int i = start; i < end; i++) {
+        SpatialCentroidCartesianPointDocValuesAggregator.combine(state, block.getLong(i));
+      }
+    }
+  }
+
+  private void addRawBlock(LongBlock block, BooleanVector mask) {
+    for (int p = 0; p < block.getPositionCount(); p++) {
+      if (mask.getBoolean(p) == false) {
+        continue;
+      }
       if (block.isNull(p)) {
         continue;
       }

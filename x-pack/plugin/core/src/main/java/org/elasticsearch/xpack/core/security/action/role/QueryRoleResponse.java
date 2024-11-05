@@ -86,7 +86,7 @@ public final class QueryRoleResponse extends ActionResponse implements ToXConten
             // other details of the role descriptor (in the same object).
             assert Strings.isNullOrEmpty(roleDescriptor.getName()) == false;
             builder.field("name", roleDescriptor.getName());
-            roleDescriptor.innerToXContent(builder, params, false, false);
+            roleDescriptor.innerToXContent(builder, params, false);
             if (sortValues != null && sortValues.length > 0) {
                 builder.array("_sort", sortValues);
             }

@@ -4,6 +4,7 @@
 // 2.0.
 package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 
+import java.lang.ArithmeticException;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
@@ -13,16 +14,16 @@ import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.expression.function.Warnings;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Add}.
  * This class is generated. Do not edit it.
  */
 public final class AddDoublesEvaluator implements EvalOperator.ExpressionEvaluator {
-  private final Warnings warnings;
+  private final Source source;
 
   private final EvalOperator.ExpressionEvaluator lhs;
 
@@ -30,12 +31,14 @@ public final class AddDoublesEvaluator implements EvalOperator.ExpressionEvaluat
 
   private final DriverContext driverContext;
 
+  private Warnings warnings;
+
   public AddDoublesEvaluator(Source source, EvalOperator.ExpressionEvaluator lhs,
       EvalOperator.ExpressionEvaluator rhs, DriverContext driverContext) {
+    this.source = source;
     this.lhs = lhs;
     this.rhs = rhs;
     this.driverContext = driverContext;
-    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override
@@ -50,7 +53,7 @@ public final class AddDoublesEvaluator implements EvalOperator.ExpressionEvaluat
         if (rhsVector == null) {
           return eval(page.getPositionCount(), lhsBlock, rhsBlock);
         }
-        return eval(page.getPositionCount(), lhsVector, rhsVector).asBlock();
+        return eval(page.getPositionCount(), lhsVector, rhsVector);
       }
     }
   }
@@ -64,7 +67,7 @@ public final class AddDoublesEvaluator implements EvalOperator.ExpressionEvaluat
         }
         if (lhsBlock.getValueCount(p) != 1) {
           if (lhsBlock.getValueCount(p) > 1) {
-            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
           }
           result.appendNull();
           continue position;
@@ -75,21 +78,31 @@ public final class AddDoublesEvaluator implements EvalOperator.ExpressionEvaluat
         }
         if (rhsBlock.getValueCount(p) != 1) {
           if (rhsBlock.getValueCount(p) > 1) {
-            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
           }
           result.appendNull();
           continue position;
         }
-        result.appendDouble(Add.processDoubles(lhsBlock.getDouble(lhsBlock.getFirstValueIndex(p)), rhsBlock.getDouble(rhsBlock.getFirstValueIndex(p))));
+        try {
+          result.appendDouble(Add.processDoubles(lhsBlock.getDouble(lhsBlock.getFirstValueIndex(p)), rhsBlock.getDouble(rhsBlock.getFirstValueIndex(p))));
+        } catch (ArithmeticException e) {
+          warnings().registerException(e);
+          result.appendNull();
+        }
       }
       return result.build();
     }
   }
 
-  public DoubleVector eval(int positionCount, DoubleVector lhsVector, DoubleVector rhsVector) {
-    try(DoubleVector.FixedBuilder result = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
+  public DoubleBlock eval(int positionCount, DoubleVector lhsVector, DoubleVector rhsVector) {
+    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendDouble(p, Add.processDoubles(lhsVector.getDouble(p), rhsVector.getDouble(p)));
+        try {
+          result.appendDouble(Add.processDoubles(lhsVector.getDouble(p), rhsVector.getDouble(p)));
+        } catch (ArithmeticException e) {
+          warnings().registerException(e);
+          result.appendNull();
+        }
       }
       return result.build();
     }
@@ -103,6 +116,18 @@ public final class AddDoublesEvaluator implements EvalOperator.ExpressionEvaluat
   @Override
   public void close() {
     Releasables.closeExpectNoException(lhs, rhs);
+  }
+
+  private Warnings warnings() {
+    if (warnings == null) {
+      this.warnings = Warnings.createWarnings(
+              driverContext.warningsMode(),
+              source.source().getLineNumber(),
+              source.source().getColumnNumber(),
+              source.text()
+          );
+    }
+    return warnings;
   }
 
   static class Factory implements EvalOperator.ExpressionEvaluator.Factory {

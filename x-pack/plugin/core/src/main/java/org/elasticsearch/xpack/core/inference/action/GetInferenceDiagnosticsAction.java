@@ -36,7 +36,7 @@ public class GetInferenceDiagnosticsAction extends ActionType<GetInferenceDiagno
         super(NAME);
     }
 
-    public static class Request extends BaseNodesRequest<Request> {
+    public static class Request extends BaseNodesRequest {
 
         public Request() {
             super((String[]) null);

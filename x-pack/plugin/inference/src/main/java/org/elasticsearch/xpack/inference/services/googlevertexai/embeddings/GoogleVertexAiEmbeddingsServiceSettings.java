@@ -155,6 +155,7 @@ public class GoogleVertexAiEmbeddingsServiceSettings extends FilteredXContentObj
         this.rateLimitSettings = new RateLimitSettings(in);
     }
 
+    @Override
     public String projectId() {
         return projectId;
     }
@@ -214,7 +215,7 @@ public class GoogleVertexAiEmbeddingsServiceSettings extends FilteredXContentObj
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ML_INFERENCE_GOOGLE_VERTEX_AI_EMBEDDINGS_ADDED;
+        return TransportVersions.V_8_15_0;
     }
 
     @Override

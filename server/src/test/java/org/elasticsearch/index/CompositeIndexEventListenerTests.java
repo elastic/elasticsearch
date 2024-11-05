@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index;
@@ -12,16 +13,14 @@ import org.apache.logging.log4j.Level;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
-import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.test.MockLog;
 import org.hamcrest.Matchers;
 
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -72,16 +71,14 @@ public class CompositeIndexEventListenerTests extends IndexShardTestCase {
                 }).collect(Collectors.toList())
             );
 
-            final CheckedRunnable<Exception> beforeIndexShardRecoveryRunner = () -> assertNull(
-                PlainActionFuture.<Void, Exception>get(
-                    fut -> indexEventListener.beforeIndexShardRecovery(shard, shard.indexSettings(), fut),
-                    10,
-                    TimeUnit.SECONDS
-                )
+            final Consumer<ActionListener<Void>> beforeIndexShardRecoveryRunner = l -> indexEventListener.beforeIndexShardRecovery(
+                shard,
+                shard.indexSettings(),
+                l
             );
 
             failAtStep.set(stepCount);
-            beforeIndexShardRecoveryRunner.run();
+            assertNull(safeAwait(beforeIndexShardRecoveryRunner::accept));
             assertEquals(stepCount, stepNumber.getAndSet(0));
 
             if (stepCount > 0) {
@@ -95,7 +92,9 @@ public class CompositeIndexEventListenerTests extends IndexShardTestCase {
                 );
 
                 failAtStep.set(between(0, stepCount - 1));
-                final var rootCause = getRootCause(expectThrows(ElasticsearchException.class, beforeIndexShardRecoveryRunner::run));
+                final var rootCause = getRootCause(
+                    asInstanceOf(ElasticsearchException.class, safeAwaitFailure(beforeIndexShardRecoveryRunner))
+                );
                 assertEquals("simulated failure at step " + failAtStep.get(), rootCause.getMessage());
                 assertEquals(failAtStep.get() + 1, stepNumber.getAndSet(0));
                 mockLog.assertAllExpectationsMatched();
@@ -138,12 +137,10 @@ public class CompositeIndexEventListenerTests extends IndexShardTestCase {
                 }).collect(Collectors.toList())
             );
 
-            final CheckedRunnable<Exception> afterIndexShardRecoveryRunner = () -> assertNull(
-                PlainActionFuture.<Void, Exception>get(fut -> indexEventListener.afterIndexShardRecovery(shard, fut), 10, TimeUnit.SECONDS)
-            );
+            final Consumer<ActionListener<Void>> afterIndexShardRecoveryRunner = l -> indexEventListener.afterIndexShardRecovery(shard, l);
 
             failAtStep.set(stepCount);
-            afterIndexShardRecoveryRunner.run();
+            assertNull(safeAwait(afterIndexShardRecoveryRunner::accept));
             assertEquals(stepCount, stepNumber.getAndSet(0));
 
             if (stepCount > 0) {
@@ -157,7 +154,9 @@ public class CompositeIndexEventListenerTests extends IndexShardTestCase {
                 );
 
                 failAtStep.set(between(0, stepCount - 1));
-                final var rootCause = getRootCause(expectThrows(ElasticsearchException.class, afterIndexShardRecoveryRunner::run));
+                final var rootCause = getRootCause(
+                    asInstanceOf(ElasticsearchException.class, safeAwaitFailure(afterIndexShardRecoveryRunner))
+                );
                 assertEquals("simulated failure at step " + failAtStep.get(), rootCause.getMessage());
                 assertEquals(failAtStep.get() + 1, stepNumber.getAndSet(0));
                 mockLog.assertAllExpectationsMatched();

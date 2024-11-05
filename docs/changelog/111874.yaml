@@ -1,0 +1,8 @@
+pr: 111874
+summary: "ESQL: BUCKET: allow numerical spans as whole numbers"
+area: ES|QL
+type: enhancement
+issues:
+ - 104646
+ - 109340
+ - 105375

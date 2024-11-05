@@ -33,6 +33,7 @@ import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.OrdinalsGroupingOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -51,15 +52,15 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
-import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec.FieldSort;
+import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec.Sort;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.DriverParallelism;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.LocalExecutionPlannerContext;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.PhysicalOperation;
-import org.elasticsearch.xpack.esql.type.MultiTypeEsField;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -116,7 +117,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             DataType dataType = attr.dataType();
             MappedFieldType.FieldExtractPreference fieldExtractPreference = PlannerUtils.extractPreference(docValuesAttrs.contains(attr));
             ElementType elementType = PlannerUtils.toElementType(dataType, fieldExtractPreference);
-            String fieldName = attr.name();
+            // Do not use the field attribute name, this can deviate from the field name for union types.
+            String fieldName = attr instanceof FieldAttribute fa ? fa.fieldName() : attr.name();
             boolean isUnsupported = dataType == DataType.UNSUPPORTED;
             IntFunction<BlockLoader> loader = s -> getBlockLoaderFor(s, fieldName, isUnsupported, fieldExtractPreference, unionTypes);
             fields.add(new ValuesSourceReaderOperator.FieldInfo(fieldName, elementType, loader));
@@ -136,7 +138,9 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         if (unionTypes != null) {
             String indexName = shardContext.ctx.index().getName();
             Expression conversion = unionTypes.getConversionExpressionForIndex(indexName);
-            return new TypeConvertingBlockLoader(blockLoader, (AbstractConvertFunction) conversion);
+            return conversion == null
+                ? BlockLoader.CONSTANT_NULLS
+                : new TypeConvertingBlockLoader(blockLoader, (AbstractConvertFunction) conversion);
         }
         return blockLoader;
     }
@@ -157,15 +161,14 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
     public final PhysicalOperation sourcePhysicalOperation(EsQueryExec esQueryExec, LocalExecutionPlannerContext context) {
         final LuceneOperator.Factory luceneFactory;
 
-        List<FieldSort> sorts = esQueryExec.sorts();
-        List<SortBuilder<?>> fieldSorts = null;
+        List<Sort> sorts = esQueryExec.sorts();
         assert esQueryExec.estimatedRowSize() != null : "estimated row size not initialized";
         int rowEstimatedSize = esQueryExec.estimatedRowSize();
         int limit = esQueryExec.limit() != null ? (Integer) esQueryExec.limit().fold() : NO_LIMIT;
         if (sorts != null && sorts.isEmpty() == false) {
-            fieldSorts = new ArrayList<>(sorts.size());
-            for (FieldSort sort : sorts) {
-                fieldSorts.add(sort.fieldSortBuilder());
+            List<SortBuilder<?>> sortBuilders = new ArrayList<>(sorts.size());
+            for (Sort sort : sorts) {
+                sortBuilders.add(sort.sortBuilder());
             }
             luceneFactory = new LuceneTopNSourceOperator.Factory(
                 shardContexts,
@@ -174,7 +177,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 context.queryPragmas().taskConcurrency(),
                 context.pageSize(rowEstimatedSize),
                 limit,
-                fieldSorts
+                sortBuilders
             );
         } else {
             if (esQueryExec.indexMode() == IndexMode.TIME_SERIES) {
@@ -233,8 +236,11 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         // The grouping-by values are ready, let's group on them directly.
         // Costin: why are they ready and not already exposed in the layout?
         boolean isUnsupported = attrSource.dataType() == DataType.UNSUPPORTED;
+        var unionTypes = findUnionTypes(attrSource);
+        // Do not use the field attribute name, this can deviate from the field name for union types.
+        String fieldName = attrSource instanceof FieldAttribute fa ? fa.fieldName() : attrSource.name();
         return new OrdinalsGroupingOperator.OrdinalsGroupingOperatorFactory(
-            shardIdx -> shardContexts.get(shardIdx).blockLoader(attrSource.name(), isUnsupported, NONE),
+            shardIdx -> getBlockLoaderFor(shardIdx, fieldName, isUnsupported, NONE, unionTypes),
             vsShardContexts,
             groupElementType,
             docChannel,
@@ -320,6 +326,11 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 @Override
                 public String indexName() {
                     return ctx.getFullyQualifiedIndex().getName();
+                }
+
+                @Override
+                public IndexSettings indexSettings() {
+                    return ctx.getIndexSettings();
                 }
 
                 @Override
@@ -434,12 +445,13 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
 
         @Override
         public boolean supportsOrdinals() {
-            return delegate.supportsOrdinals();
+            // Fields with mismatching types cannot use ordinals for uniqueness determination, but must convert the values first
+            return false;
         }
 
         @Override
-        public SortedSetDocValues ordinals(LeafReaderContext context) throws IOException {
-            return delegate.ordinals(context);
+        public SortedSetDocValues ordinals(LeafReaderContext context) {
+            throw new IllegalArgumentException("Ordinals are not supported for type conversion");
         }
 
         @Override

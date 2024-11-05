@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.fetch.subphase.highlight;
 
@@ -2177,6 +2178,15 @@ public class HighlighterSearchIT extends ESIntegTestCase {
 
         field.highlighterType("unified");
         assertNotHighlighted(prepareSearch("test").highlighter(new HighlightBuilder().field(field)), 0, "text");
+
+        // Check when the requested fragment size equals the size of the string
+        var anotherText = "I am unusual and don't end with your regular )token)";
+        indexDoc("test", "1", "text", anotherText);
+        refresh();
+        for (String type : new String[] { "plain", "unified", "fvh" }) {
+            field.highlighterType(type).noMatchSize(anotherText.length()).numOfFragments(0);
+            assertHighlight(prepareSearch("test").highlighter(new HighlightBuilder().field(field)), 0, "text", 0, 1, equalTo(anotherText));
+        }
     }
 
     public void testHighlightNoMatchSizeWithMultivaluedFields() throws IOException {
@@ -3330,7 +3340,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                 new SearchSourceBuilder().query(query).highlighter(new HighlightBuilder().field("*").highlighterType(highlighterType))
             ),
             response -> {
-                assertThat(response.getHits().getTotalHits().value, equalTo(1L));
+                assertThat(response.getHits().getTotalHits().value(), equalTo(1L));
                 assertThat(response.getHits().getAt(0).getHighlightFields().get("text").fragments().length, equalTo(1));
             }
         );
@@ -3402,7 +3412,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                     .highlighter(new HighlightBuilder().field("*"))
             ),
             response -> {
-                assertThat(response.getHits().getTotalHits().value, equalTo(1L));
+                assertThat(response.getHits().getTotalHits().value(), equalTo(1L));
                 HighlightField highlightField = response.getHits().getAt(0).getHighlightFields().get("keyword_field");
                 assertThat(highlightField.fragments()[0].string(), equalTo("<em>some text</em>"));
             }
@@ -3559,7 +3569,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                             .should(QueryBuilders.termQuery("field", "hello"))
                     ),
                 response -> {
-                    assertThat(response.getHits().getTotalHits().value, equalTo(1L));
+                    assertThat(response.getHits().getTotalHits().value(), equalTo(1L));
                     assertHighlight(response, 0, "field", 0, 1, equalTo("<x>hello</x> world"));
                 }
             );

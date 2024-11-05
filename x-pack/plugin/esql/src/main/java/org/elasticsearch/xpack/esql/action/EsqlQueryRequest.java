@@ -42,6 +42,7 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
     private String query;
     private boolean columnar;
     private boolean profile;
+    private boolean includeCCSMetadata;
     private Locale locale;
     private QueryBuilder filter;
     private QueryPragmas pragmas = new QueryPragmas(Settings.EMPTY);
@@ -50,6 +51,7 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
     private TimeValue keepAlive = DEFAULT_KEEP_ALIVE;
     private boolean keepOnCompletion;
     private boolean onSnapshotBuild = Build.current().isSnapshot();
+    private boolean acceptedPragmaRisks = false;
 
     /**
      * "Tables" provided in the request for use with things like {@code LOOKUP}.
@@ -78,8 +80,9 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
         if (Strings.hasText(query) == false) {
             validationException = addValidationError("[" + RequestXContent.QUERY_FIELD + "] is required", validationException);
         }
+
         if (onSnapshotBuild == false) {
-            if (pragmas.isEmpty() == false) {
+            if (pragmas.isEmpty() == false && acceptedPragmaRisks == false) {
                 validationException = addValidationError(
                     "[" + RequestXContent.PRAGMA_FIELD + "] only allowed in snapshot builds",
                     validationException
@@ -124,6 +127,14 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
      */
     public void profile(boolean profile) {
         this.profile = profile;
+    }
+
+    public void includeCCSMetadata(boolean include) {
+        this.includeCCSMetadata = include;
+    }
+
+    public boolean includeCCSMetadata() {
+        return includeCCSMetadata;
     }
 
     /**
@@ -229,5 +240,9 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
     // Setter for tests
     void onSnapshotBuild(boolean onSnapshotBuild) {
         this.onSnapshotBuild = onSnapshotBuild;
+    }
+
+    void acceptedPragmaRisks(boolean accepted) {
+        this.acceptedPragmaRisks = accepted;
     }
 }

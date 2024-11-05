@@ -319,6 +319,12 @@
         },
         "namespaces": {
           "type": "keyword"
+        },
+        "audit_unenrolled_time": {
+          "type": "date"
+        },
+        "audit_unenrolled_reason": {
+          "type": "keyword"
         }
       }
     }

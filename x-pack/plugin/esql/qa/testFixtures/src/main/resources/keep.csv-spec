@@ -539,3 +539,63 @@ c:i
 1
 1
 ;
+
+shadowingInternal#[skip:-8.13.3,reason:fixed in 8.13]
+FROM employees
+| SORT emp_no ASC
+| KEEP last_name, emp_no, last_name
+| LIMIT 2
+;
+
+emp_no:integer | last_name:keyword
+         10001 | Facello
+         10002 | Simmel
+;
+
+shadowingInternalWildcard#[skip:-8.13.3,reason:fixed in 8.13]
+FROM employees
+| SORT emp_no ASC
+| KEEP last*name, emp_no, last*name, first_name, last*, gender, last*
+| LIMIT 2
+;
+
+emp_no:integer | first_name:keyword | gender:keyword | last_name:keyword
+         10001 | Georgi             | M              | Facello
+         10002 | Bezalel            | F              | Simmel
+;
+
+shadowingInternalWildcardAndExplicit#[skip:-8.13.3,reason:fixed in 8.13]
+FROM employees
+| SORT emp_no ASC
+| KEEP last*name, emp_no, last_name, first_name, last*, languages, last_name, gender, last*name
+| LIMIT 2
+;
+
+emp_no:integer | first_name:keyword | languages:integer | last_name:keyword | gender:keyword
+         10001 | Georgi             | 2                 | Facello           | M
+         10002 | Bezalel            | 5                 | Simmel            | F
+;
+
+shadowingSubfields#[skip:-8.13.3,reason:fixed in 8.13]
+FROM addresses
+| KEEP city.country.continent.planet.name, city.country.continent.name, city.country.name, city.name, city.country.continent.planet.name
+| SORT city.name
+;
+
+city.country.continent.name:keyword | city.country.name:keyword | city.name:keyword | city.country.continent.planet.name:keyword
+Europe                              | Netherlands               | Amsterdam         | Earth
+North America                       | United States of America  | San Francisco     | Earth
+Asia                                | Japan                     | Tokyo             | Earth
+;
+
+shadowingSubfieldsWildcard#[skip:-8.13.3,reason:fixed in 8.13]
+FROM addresses
+| KEEP *name, city.country.continent.planet.name
+| SORT city.name
+;
+
+city.country.continent.name:keyword | city.country.name:keyword | city.name:keyword | city.country.continent.planet.name:keyword
+Europe                              | Netherlands               | Amsterdam         | Earth
+North America                       | United States of America  | San Francisco     | Earth
+Asia                                | Japan                     | Tokyo             | Earth
+;

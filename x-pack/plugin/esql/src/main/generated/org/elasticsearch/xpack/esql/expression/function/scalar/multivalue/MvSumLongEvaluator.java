@@ -11,20 +11,22 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.expression.function.Warnings;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link MvSum}.
  * This class is generated. Do not edit it.
  */
 public final class MvSumLongEvaluator extends AbstractMultivalueFunction.AbstractNullableEvaluator {
-  private final Warnings warnings;
+  private final Source source;
+
+  private Warnings warnings;
 
   public MvSumLongEvaluator(Source source, EvalOperator.ExpressionEvaluator field,
       DriverContext driverContext) {
     super(driverContext, field);
-    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
+    this.source = source;
   }
 
   @Override
@@ -57,12 +59,24 @@ public final class MvSumLongEvaluator extends AbstractMultivalueFunction.Abstrac
           long result = value;
           builder.appendLong(result);
         } catch (ArithmeticException e) {
-          warnings.registerException(e);
+          warnings().registerException(e);
           builder.appendNull();
         }
       }
       return builder.build();
     }
+  }
+
+  private Warnings warnings() {
+    if (warnings == null) {
+      this.warnings = Warnings.createWarnings(
+              driverContext.warningsMode(),
+              source.source().getLineNumber(),
+              source.source().getColumnNumber(),
+              source.text()
+          );
+    }
+    return warnings;
   }
 
   public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {

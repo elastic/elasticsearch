@@ -16,7 +16,7 @@ import java.io.IOException;
 /**
  * The Request to get the watcher stats
  */
-public class WatcherStatsRequest extends BaseNodesRequest<WatcherStatsRequest> {
+public class WatcherStatsRequest extends BaseNodesRequest {
 
     private boolean includeCurrentWatches;
     private boolean includeQueuedWatches;

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.env;
 
@@ -29,6 +30,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.index.Index;
@@ -357,46 +359,23 @@ public class NodeEnvironmentTests extends ESTestCase {
             flipFlop[i] = new AtomicInteger();
         }
 
-        Thread[] threads = new Thread[randomIntBetween(2, 5)];
-        final CountDownLatch latch = new CountDownLatch(1);
+        final int threads = randomIntBetween(2, 5);
         final int iters = scaledRandomIntBetween(10000, 100000);
-        for (int i = 0; i < threads.length; i++) {
-            threads[i] = new Thread() {
-                @Override
-                public void run() {
-                    try {
-                        latch.await();
-                    } catch (InterruptedException e) {
-                        fail(e.getMessage());
+        startInParallel(threads, tid -> {
+            for (int i = 0; i < iters; i++) {
+                int shard = randomIntBetween(0, counts.length - 1);
+                try {
+                    try (ShardLock autoCloses = env.shardLock(new ShardId("foo", "fooUUID", shard), "1", scaledRandomIntBetween(0, 10))) {
+                        counts[shard].value++;
+                        countsAtomic[shard].incrementAndGet();
+                        assertEquals(flipFlop[shard].incrementAndGet(), 1);
+                        assertEquals(flipFlop[shard].decrementAndGet(), 0);
                     }
-                    for (int i = 0; i < iters; i++) {
-                        int shard = randomIntBetween(0, counts.length - 1);
-                        try {
-                            try (
-                                ShardLock autoCloses = env.shardLock(
-                                    new ShardId("foo", "fooUUID", shard),
-                                    "1",
-                                    scaledRandomIntBetween(0, 10)
-                                )
-                            ) {
-                                counts[shard].value++;
-                                countsAtomic[shard].incrementAndGet();
-                                assertEquals(flipFlop[shard].incrementAndGet(), 1);
-                                assertEquals(flipFlop[shard].decrementAndGet(), 0);
-                            }
-                        } catch (ShardLockObtainFailedException ex) {
-                            // ok
-                        }
-                    }
+                } catch (ShardLockObtainFailedException ex) {
+                    // ok
                 }
-            };
-            threads[i].start();
-        }
-        latch.countDown(); // fire the threads up
-        for (int i = 0; i < threads.length; i++) {
-            threads[i].join();
-        }
-
+            }
+        });
         assertTrue("LockedShards: " + env.lockedShards(), env.lockedShards().isEmpty());
         for (int i = 0; i < counts.length; i++) {
             assertTrue(counts[i].value > 0);
@@ -560,6 +539,8 @@ public class NodeEnvironmentTests extends ESTestCase {
         }
     }
 
+    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA)
+    @AwaitsFix(bugUrl = "test won't work until we remove and bump minimum index versions")
     public void testIndexCompatibilityChecks() throws IOException {
         final Settings settings = buildEnvSettings(Settings.EMPTY);
 
@@ -657,6 +638,8 @@ public class NodeEnvironmentTests extends ESTestCase {
         env.close();
     }
 
+    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA)
+    @AwaitsFix(bugUrl = "test won't work until we remove and bump minimum index versions")
     public void testGetBestDowngradeVersion() {
         assertThat(NodeEnvironment.getBestDowngradeVersion("7.17.0"), Matchers.equalTo("7.17.0"));
         assertThat(NodeEnvironment.getBestDowngradeVersion("7.17.5"), Matchers.equalTo("7.17.5"));

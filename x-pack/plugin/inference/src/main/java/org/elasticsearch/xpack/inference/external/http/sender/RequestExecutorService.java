@@ -413,7 +413,7 @@ class RequestExecutorService implements RequestExecutor {
             assert shouldExecuteImmediately(reserveRes) : "Reserving request tokens required a sleep when it should not have";
 
             task.getRequestManager()
-                .execute(task.getQuery(), task.getInput(), requestSender, task.getRequestCompletedFunction(), task.getListener());
+                .execute(task.getInferenceInputs(), requestSender, task.getRequestCompletedFunction(), task.getListener());
             return EXECUTED_A_TASK;
         }
 
@@ -423,7 +423,7 @@ class RequestExecutorService implements RequestExecutor {
 
         private static boolean isNoopRequest(InferenceRequest inferenceRequest) {
             return inferenceRequest.getRequestManager() == null
-                || inferenceRequest.getInput() == null
+                || inferenceRequest.getInferenceInputs() == null
                 || inferenceRequest.getListener() == null;
         }
 

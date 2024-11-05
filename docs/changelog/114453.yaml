@@ -1,0 +1,5 @@
+pr: 114453
+summary: Switch default chunking strategy to sentence
+area: Machine Learning
+type: enhancement
+issues: []

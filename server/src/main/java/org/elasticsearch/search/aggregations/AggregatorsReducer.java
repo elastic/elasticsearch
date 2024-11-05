@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations;
@@ -19,13 +20,21 @@ import java.util.Map;
  */
 public final class AggregatorsReducer implements Releasable {
 
-    private final Map<String, AggregatorReducer> aggByName = new HashMap<>();
+    private final Map<String, AggregatorReducer> aggByName;
     private final AggregationReduceContext context;
     private final int size;
 
-    public AggregatorsReducer(AggregationReduceContext context, int size) {
+    /**
+     * Solo constructor
+     *
+     * @param proto The prototype {@link InternalAggregations} we are aggregating.
+     * @param context The aggregation context
+     * @param size The number of {@link InternalAggregations} we are aggregating.
+     */
+    public AggregatorsReducer(InternalAggregations proto, AggregationReduceContext context, int size) {
         this.context = context;
         this.size = size;
+        aggByName = new HashMap<>(proto.asList().size());
     }
 
     /**

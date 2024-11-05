@@ -140,19 +140,41 @@ documentation].
 [[configuring-logging-levels]]
 === Configuring logging levels
 
-Each Java package in the {es-repo}[{es} source code] has a related logger. For
-example, the `org.elasticsearch.discovery` package has
-`logger.org.elasticsearch.discovery` for logs related to the
-<<discovery-hosts-providers,discovery>> process.
+Log4J 2 log messages include a _level_ field, which is one of the following (in
+order of increasing verbosity):
 
-To get more or less verbose logs, use the <<cluster-update-settings,cluster
-update settings API>> to change the related logger's log level. Each logger
-accepts Log4j 2's built-in log levels, from least to most verbose: `OFF`,
-`FATAL`, `ERROR`, `WARN`, `INFO`, `DEBUG`, and `TRACE`. The default log level is
-`INFO`. Messages logged at higher verbosity levels (`DEBUG` and `TRACE`) are
-only intended for expert use. To prevent leaking sensitive information in logs,
-{es} will reject setting certain loggers to higher verbosity levels unless
-<<http-rest-request-tracer,insecure network trace logging>> is enabled.
+* `FATAL`
+* `ERROR`
+* `WARN`
+* `INFO`
+* `DEBUG`
+* `TRACE`
+
+By default {es} includes all messages at levels `INFO`, `WARN`, `ERROR` and
+`FATAL` in its logs, but filters out messages at levels `DEBUG` and `TRACE`.
+This is the recommended configuration. Do not filter out messages at `INFO` or
+higher log levels or else you may not be able to understand your cluster's
+behaviour or troubleshoot common problems. Do not enable logging at levels
+`DEBUG` or `TRACE` unless you are following instructions elsewhere in this
+manual which call for more detailed logging, or you are an expert user who will
+be reading the {es} source code to determine the meaning of the logs.
+
+Messages are logged by a hierarchy of loggers which matches the hierarchy of
+Java packages and classes in the {es-repo}[{es} source code]. Every logger has
+a corresponding <<cluster-update-settings,dynamic setting>> which can be used
+to control the verbosity of its logs. The setting's name is the fully-qualified
+name of the package or class, prefixed with `logger.`.
+
+You may set each logger's verbosity to the name of a log level, for instance
+`DEBUG`, which means that messages from this logger at levels up to the
+specified one will be included in the logs. You may also use the value `OFF` to
+suppress all messages from the logger.
+
+For example, the `org.elasticsearch.discovery` package contains functionality
+related to the <<discovery-hosts-providers,discovery>> process, and you can
+control the verbosity of its logs with the `logger.org.elasticsearch.discovery`
+setting. To enable `DEBUG` logging for this package, use the
+<<cluster-update-settings,Cluster update settings API>> as follows:
 
 [source,console]
 ----
@@ -164,8 +186,8 @@ PUT /_cluster/settings
 }
 ----
 
-To reset a logger's verbosity to its default level, set the logger setting to
-`null`:
+To reset this package's log verbosity to its default level, set the logger
+setting to `null`:
 
 [source,console]
 ----
@@ -210,6 +232,14 @@ different ways, perhaps adding extra detail, removing unnecessary information,
 formatting the same information in different ways, renaming the logger or
 adjusting the log level for specific messages. Do not rely on the contents of
 the application logs remaining precisely the same between versions.
+
+NOTE: To prevent leaking sensitive information in logs, {es} suppresses certain
+log messages by default even at the highest verbosity levels. To disable this
+protection on a node, set the Java system property
+`es.insecure_network_trace_enabled` to `true`. This feature is primarily
+intended for test systems which do not contain any sensitive information. If you
+set this property on a system which contains sensitive information, you must
+protect your logs from unauthorized access.
 
 [discrete]
 [[deprecation-logging]]

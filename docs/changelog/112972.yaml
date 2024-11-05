@@ -1,0 +1,6 @@
+pr: 112972
+summary: "ILM: Add `total_shards_per_node` setting to searchable snapshot"
+area: ILM+SLM
+type: enhancement
+issues:
+ - 112261

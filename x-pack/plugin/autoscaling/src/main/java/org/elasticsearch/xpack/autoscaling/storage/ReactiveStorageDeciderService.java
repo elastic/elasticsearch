@@ -823,7 +823,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                 stream = stream.unsafeRollover(
                     new Index(rolledDataStreamInfo.v1(), uuid),
                     rolledDataStreamInfo.v2(),
-                    false,
+                    null,
                     stream.getAutoShardingEvent()
                 );
 

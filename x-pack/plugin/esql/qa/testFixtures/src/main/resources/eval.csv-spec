@@ -15,6 +15,19 @@ left:keyword | right:keyword | x:integer
 left         | right         | 1
 ;
 
+shadowingSubfields#[skip:-8.13.3,reason:fixed in 8.13]
+FROM addresses
+| KEEP city.country.continent.planet.name, city.country.name, city.name
+| EVAL city.country.continent.planet.name = to_upper(city.country.continent.planet.name)
+| SORT city.name
+;
+
+city.country.name:keyword | city.name:keyword | city.country.continent.planet.name:keyword 
+Netherlands               | Amsterdam         | EARTH
+United States of America  | San Francisco     | EARTH
+Japan                     | Tokyo             | EARTH
+;
+
 shadowingSelf
 ROW left = "left", x = 10000 , right = "right"
 | EVAL x = x + 1
@@ -32,6 +45,55 @@ ROW left = "left", x = 0, middle = "middle", y = -1, right = "right"
 left:keyword | middle:keyword | right:keyword | x:integer | y:integer
 left         | middle         | right         | 9         | 10
 ;
+
+shadowingInternal
+ROW x = 10000
+| EVAL x = x + 1, x = x - 2
+;
+
+x:integer
+9999
+;
+
+shadowingWhenPushedDownPastRename
+required_capability: fixed_pushdown_past_project
+FROM employees
+| WHERE emp_no < 10002
+| KEEP emp_no, languages
+| RENAME emp_no AS z
+| EVAL emp_no = 3
+;
+
+z:integer | languages:integer | emp_no:integer
+    10001 |                 2 |              3
+;
+
+shadowingWhenPushedDownPastRename2
+required_capability: fixed_pushdown_past_project
+FROM employees
+| WHERE emp_no < 10002
+| KEEP emp_no, languages
+| RENAME emp_no AS z
+| EVAL emp_no = z + 1, emp_no = emp_no + languages, a = 0, languages = -1
+;
+
+z:integer | emp_no:integer | a:integer | languages:integer
+    10001 |          10004 |         0 |                -1
+;
+
+shadowingWhenPushedDownPastRename3
+required_capability: fixed_pushdown_past_project
+FROM employees
+| WHERE emp_no < 10002
+| KEEP emp_no, languages
+| RENAME emp_no AS z
+| EVAL emp_no = z + 1
+;
+
+z:integer | languages:integer | emp_no:integer
+    10001 |                 2 |          10002
+;
+
 
 withMath
 row a = 1 | eval b = 2 + 3;

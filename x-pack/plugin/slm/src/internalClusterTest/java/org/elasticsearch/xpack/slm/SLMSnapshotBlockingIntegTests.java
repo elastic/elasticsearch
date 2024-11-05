@@ -281,7 +281,7 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
                             completedSnapshotName,
                             Strings.arrayToCommaDelimitedString(resp.getHits().getHits())
                         );
-                        assertThat(resp.getHits().getTotalHits().value, equalTo(2L));
+                        assertThat(resp.getHits().getTotalHits().value(), equalTo(2L));
                     }
                 );
             });
@@ -355,7 +355,7 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
                 logger.info("-->  stopping random data node, which should cause shards to go missing");
                 internalCluster().stopRandomDataNode();
                 assertBusy(
-                    () -> assertEquals(ClusterHealthStatus.RED, clusterAdmin().prepareHealth().get().getStatus()),
+                    () -> assertEquals(ClusterHealthStatus.RED, clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).get().getStatus()),
                     30,
                     TimeUnit.SECONDS
                 );

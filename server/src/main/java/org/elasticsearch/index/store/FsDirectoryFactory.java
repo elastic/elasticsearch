@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.store;
@@ -21,7 +22,6 @@ import org.apache.lucene.store.NativeFSLockFactory;
 import org.apache.lucene.store.SimpleFSLockFactory;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
@@ -33,10 +33,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.function.BiPredicate;
 
 public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
-
-    private static final FeatureFlag MADV_RANDOM_FEATURE_FLAG = new FeatureFlag("madv_random");
 
     public static final Setting<LockFactory> INDEX_LOCK_FACTOR_SETTING = new Setting<>("index.store.fs.fs_lock", "native", (s) -> {
         return switch (s) {
@@ -69,20 +68,12 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
                 // Use Lucene defaults
                 final FSDirectory primaryDirectory = FSDirectory.open(location, lockFactory);
                 if (primaryDirectory instanceof MMapDirectory mMapDirectory) {
-                    Directory dir = new HybridDirectory(lockFactory, setPreload(mMapDirectory, lockFactory, preLoadExtensions));
-                    if (MADV_RANDOM_FEATURE_FLAG.isEnabled() == false) {
-                        dir = disableRandomAdvice(dir);
-                    }
-                    return dir;
+                    return new HybridDirectory(lockFactory, setPreload(mMapDirectory, preLoadExtensions));
                 } else {
                     return primaryDirectory;
                 }
             case MMAPFS:
-                Directory dir = setPreload(new MMapDirectory(location, lockFactory), lockFactory, preLoadExtensions);
-                if (MADV_RANDOM_FEATURE_FLAG.isEnabled() == false) {
-                    dir = disableRandomAdvice(dir);
-                }
-                return dir;
+                return setPreload(new MMapDirectory(location, lockFactory), preLoadExtensions);
             case SIMPLEFS:
             case NIOFS:
                 return new NIOFSDirectory(location, lockFactory);
@@ -91,34 +82,23 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
         }
     }
 
-    public static MMapDirectory setPreload(MMapDirectory mMapDirectory, LockFactory lockFactory, Set<String> preLoadExtensions)
-        throws IOException {
-        assert mMapDirectory.getPreload() == false;
-        if (preLoadExtensions.isEmpty() == false) {
-            if (preLoadExtensions.contains("*")) {
-                mMapDirectory.setPreload(true);
-            } else {
-                return new PreLoadMMapDirectory(mMapDirectory, lockFactory, preLoadExtensions);
-            }
-        }
+    /** Sets the preload, if any, on the given directory based on the extensions. Returns the same directory instance. */
+    // visibility and extensibility for testing
+    public MMapDirectory setPreload(MMapDirectory mMapDirectory, Set<String> preLoadExtensions) {
+        mMapDirectory.setPreload(getPreloadFunc(preLoadExtensions));
         return mMapDirectory;
     }
 
-    /**
-     * Return a {@link FilterDirectory} around the provided {@link Directory} that forcefully disables {@link IOContext#RANDOM random
-     * access}.
-     */
-    static Directory disableRandomAdvice(Directory dir) {
-        return new FilterDirectory(dir) {
-            @Override
-            public IndexInput openInput(String name, IOContext context) throws IOException {
-                if (context.randomAccess) {
-                    context = IOContext.READ;
-                }
-                assert context.randomAccess == false;
-                return super.openInput(name, context);
+    /** Gets a preload function based on the given preLoadExtensions. */
+    static BiPredicate<String, IOContext> getPreloadFunc(Set<String> preLoadExtensions) {
+        if (preLoadExtensions.isEmpty() == false) {
+            if (preLoadExtensions.contains("*")) {
+                return MMapDirectory.ALL_FILES;
+            } else {
+                return (name, context) -> preLoadExtensions.contains(FileSwitchDirectory.getExtension(name));
             }
-        };
+        }
+        return MMapDirectory.NO_FILES;
     }
 
     /**
@@ -143,6 +123,8 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
                 // we need to do these checks on the outer directory since the inner doesn't know about pending deletes
                 ensureOpen();
                 ensureCanRead(name);
+                // we switch the context here since mmap checks for the READONCE context by identity
+                context = context == Store.READONCE_CHECKSUM ? IOContext.READONCE : context;
                 // we only use the mmap to open inputs. Everything else is managed by the NIOFSDirectory otherwise
                 // we might run into trouble with files that are pendingDelete in one directory but still
                 // listed in listAll() from the other. We on the other hand don't want to list files from both dirs
@@ -183,52 +165,6 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
                 return false;
             }
             return true;
-        }
-
-        MMapDirectory getDelegate() {
-            return delegate;
-        }
-    }
-
-    // TODO it would be nice to share code between PreLoadMMapDirectory and HybridDirectory but due to the nesting aspect of
-    // directories here makes it tricky. It would be nice to allow MMAPDirectory to pre-load on a per IndexInput basis.
-    static final class PreLoadMMapDirectory extends MMapDirectory {
-        private final MMapDirectory delegate;
-        private final Set<String> preloadExtensions;
-
-        PreLoadMMapDirectory(MMapDirectory delegate, LockFactory lockFactory, Set<String> preload) throws IOException {
-            super(delegate.getDirectory(), lockFactory);
-            super.setPreload(false);
-            this.delegate = delegate;
-            this.delegate.setPreload(true);
-            this.preloadExtensions = preload;
-            assert getPreload() == false;
-        }
-
-        @Override
-        public void setPreload(boolean preload) {
-            throw new IllegalArgumentException("can't set preload on a preload-wrapper");
-        }
-
-        @Override
-        public IndexInput openInput(String name, IOContext context) throws IOException {
-            if (useDelegate(name)) {
-                // we need to do these checks on the outer directory since the inner doesn't know about pending deletes
-                ensureOpen();
-                ensureCanRead(name);
-                return delegate.openInput(name, context);
-            }
-            return super.openInput(name, context);
-        }
-
-        @Override
-        public synchronized void close() throws IOException {
-            IOUtils.close(super::close, delegate);
-        }
-
-        boolean useDelegate(String name) {
-            final String extension = FileSwitchDirectory.getExtension(name);
-            return preloadExtensions.contains(extension);
         }
 
         MMapDirectory getDelegate() {

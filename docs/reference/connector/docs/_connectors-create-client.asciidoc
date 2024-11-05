@@ -1,0 +1,76 @@
+[discrete#es-connectors-{service-name-stub}-client-create-use-the-ui]
+==== Use the UI
+
+To create a new {service-name} connector:
+
+. Navigate to the *Search -> Connectors* page in the Kibana UI.
+. Follow the instructions to create a new  *{service-name}* self-managed connector.
+
+[discrete#es-connectors-{service-name-stub}-client-create-use-the-api]
+==== Use the API
+
+You can use the {es} {ref}/connector-apis.html[Create connector API] to create a new self-managed {service-name} self-managed connector.
+
+For example:
+
+[source, console,subs="+attributes"]
+----
+PUT _connector/my-{service-name-stub}-connector
+{
+  "index_name": "my-elasticsearch-index",
+  "name": "Content synced from {service-name}",
+  "service_type": "{service-name-stub}"
+}
+----
+// TEST[skip:can't test in isolation]
+
+
+.You'll also need to *create an API key* for the connector to use.
+
+
+[%collapsible]
+===================================
+
+[NOTE]
+====
+The user needs the cluster privileges `manage_api_key`, `manage_connector` and `write_connector_secrets` to generate API keys programmatically.
+====
+
+To create an API key for the connector:
+
+. Run the following command, replacing values where indicated.
+Note the `encoded` return values from the response:
++
+[source, console,subs="+attributes"]
+----
+POST /_security/api_key
+{
+  "name": "connector_name-connector-api-key",
+  "role_descriptors": {
+    "connector_name-connector-role": {
+      "cluster": [
+        "monitor",
+        "manage_connector"
+      ],
+      "indices": [
+        {
+          "names": [
+            "index_name",
+            ".search-acl-filter-index_name",
+            ".elastic-connectors*"
+          ],
+          "privileges": [
+            "all"
+          ],
+          "allow_restricted_indices": false
+        }
+      ]
+    }
+  }
+}
+----
++
+. Update your `config.yml` file with the API key `encoded` value.
+===================================
+
+Refer to the {ref}/connector-apis.html[{es} API documentation] for details of all available Connector APIs.

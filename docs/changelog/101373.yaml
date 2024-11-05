@@ -1,6 +1,0 @@
-pr: 101373
-summary: Adding aggregations support for the `_ignored` field
-area: Search
-type: feature
-issues:
- - 59946

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.action;
 
@@ -23,7 +24,6 @@ import org.hamcrest.Matcher;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -308,25 +308,13 @@ public class ActionListenerTests extends ESTestCase {
         });
         assertThat(listener.toString(), equalTo("notifyOnce[inner-listener]"));
 
-        final var threads = new Thread[between(1, 10)];
-        final var startBarrier = new CyclicBarrier(threads.length);
-        for (int i = 0; i < threads.length; i++) {
-            threads[i] = new Thread(() -> {
-                safeAwait(startBarrier);
-                if (randomBoolean()) {
-                    listener.onResponse(null);
-                } else {
-                    listener.onFailure(new RuntimeException("test"));
-                }
-            });
-        }
-
-        for (Thread thread : threads) {
-            thread.start();
-        }
-        for (Thread thread : threads) {
-            thread.join();
-        }
+        startInParallel(between(1, 10), i -> {
+            if (randomBoolean()) {
+                listener.onResponse(null);
+            } else {
+                listener.onFailure(new RuntimeException("test"));
+            }
+        });
 
         assertTrue(completed.get());
     }

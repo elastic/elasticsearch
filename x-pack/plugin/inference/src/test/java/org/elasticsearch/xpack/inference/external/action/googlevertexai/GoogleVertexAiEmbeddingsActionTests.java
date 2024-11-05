@@ -17,8 +17,12 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.inference.common.TruncatorTests;
+import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
+import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
+import org.elasticsearch.xpack.inference.external.http.sender.GoogleVertexAiEmbeddingsRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.junit.After;
@@ -31,8 +35,8 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
+import static org.elasticsearch.xpack.inference.external.action.ActionUtils.constructFailedToSendRequestMessage;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
-import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsModelTests.createModel;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
@@ -118,10 +122,11 @@ public class GoogleVertexAiEmbeddingsActionTests extends ESTestCase {
         );
     }
 
-    private GoogleVertexAiEmbeddingsAction createAction(String url, String location, String projectId, String modelName, Sender sender) {
+    private ExecutableAction createAction(String url, String location, String projectId, String modelName, Sender sender) {
         var model = createModel(location, projectId, modelName, url, "{}");
-
-        return new GoogleVertexAiEmbeddingsAction(sender, model, createWithEmptySettings(threadPool));
+        var requestManager = new GoogleVertexAiEmbeddingsRequestManager(model, TruncatorTests.createTruncator(), threadPool);
+        var failedToSendRequestErrorMessage = constructFailedToSendRequestMessage(model.uri(), "Google Vertex AI embeddings");
+        return new SenderExecutableAction(sender, requestManager, failedToSendRequestErrorMessage);
     }
 
 }

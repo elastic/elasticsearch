@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -11,8 +12,11 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.ByteUtils;
+import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -67,6 +71,13 @@ public class DimensionRoutingHashFieldMapper extends MetadataFieldMapper {
                 return Uid.decodeId(value.bytes, value.offset, value.length);
             }
 
+            @Override
+            public BytesRef parseBytesRef(Object value) {
+                if (value instanceof BytesRef valueAsBytesRef) {
+                    return valueAsBytesRef;
+                }
+                return Uid.encodeId(value.toString());
+            }
         };
 
         private DimensionRoutingHashFieldType() {
@@ -118,9 +129,9 @@ public class DimensionRoutingHashFieldMapper extends MetadataFieldMapper {
             String routingHash = context.sourceToParse().routing();
             if (routingHash == null) {
                 assert context.sourceToParse().id() != null;
-                routingHash = Base64.getUrlEncoder()
-                    .withoutPadding()
-                    .encodeToString(Arrays.copyOf(Base64.getUrlDecoder().decode(context.sourceToParse().id()), 4));
+                routingHash = Strings.BASE_64_NO_PADDING_URL_ENCODER.encodeToString(
+                    Arrays.copyOf(Base64.getUrlDecoder().decode(context.sourceToParse().id()), 4)
+                );
             }
             var field = new SortedDocValuesField(NAME, Uid.encodeId(routingHash));
             context.rootDoc().add(field);
@@ -132,15 +143,10 @@ public class DimensionRoutingHashFieldMapper extends MetadataFieldMapper {
         return NAME;
     }
 
-    @Override
-    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-        return SourceLoader.SyntheticFieldLoader.NOTHING;
-    }
-
     public static String encode(int routingId) {
         byte[] bytes = new byte[4];
         ByteUtils.writeIntLE(routingId, bytes, 0);
-        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+        return Strings.BASE_64_NO_PADDING_URL_ENCODER.encodeToString(bytes);
     }
 
     public static final String DUMMY_ENCODED_VALUE = encode(0);

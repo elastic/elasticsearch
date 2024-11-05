@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.fieldcaps;
@@ -12,7 +13,6 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -45,7 +45,7 @@ public class TransportFieldCapabilitiesActionTests extends ESTestCase {
         ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
     }
 
-    public void testCCSCompatibilityCheck() throws Exception {
+    public void testCCSCompatibilityCheck() {
         Settings settings = Settings.builder()
             .put("node.name", TransportFieldCapabilitiesActionTests.class.getSimpleName())
             .put(SearchService.CCS_VERSION_CHECK_SETTING.getKey(), "true")
@@ -87,13 +87,10 @@ public class TransportFieldCapabilitiesActionTests extends ESTestCase {
                 null
             );
 
-            IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException ex = safeAwaitFailure(
                 IllegalArgumentException.class,
-                () -> PlainActionFuture.<FieldCapabilitiesResponse, RuntimeException>get(
-                    future -> action.doExecute(null, fieldCapsRequest, future),
-                    10,
-                    TimeUnit.SECONDS
-                )
+                FieldCapabilitiesResponse.class,
+                l -> action.doExecute(null, fieldCapsRequest, l)
             );
 
             assertThat(

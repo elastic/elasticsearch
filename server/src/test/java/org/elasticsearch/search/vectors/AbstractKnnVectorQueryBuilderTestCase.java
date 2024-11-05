@@ -1,15 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.vectors;
 
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
@@ -21,10 +23,12 @@ import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.index.query.InnerHitsRewriteContext;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryRewriteContext;
+import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
@@ -157,8 +161,16 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
     public void testNonexistentField() {
         SearchExecutionContext context = createSearchExecutionContext();
         KnnVectorQueryBuilder query = new KnnVectorQueryBuilder("nonexistent", new float[] { 1.0f, 1.0f, 1.0f }, 5, 10, null);
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> query.doToQuery(context));
-        assertThat(e.getMessage(), containsString("field [nonexistent] does not exist in the mapping"));
+        context.setAllowUnmappedFields(false);
+        QueryShardException e = expectThrows(QueryShardException.class, () -> query.doToQuery(context));
+        assertThat(e.getMessage(), containsString("No field mapping can be found for the field with name [nonexistent]"));
+    }
+
+    public void testNonexistentFieldReturnEmpty() throws IOException {
+        SearchExecutionContext context = createSearchExecutionContext();
+        KnnVectorQueryBuilder query = new KnnVectorQueryBuilder("nonexistent", new float[] { 1.0f, 1.0f, 1.0f }, 5, 10, null);
+        Query queryNone = query.doToQuery(context);
+        assertThat(queryNone, instanceOf(MatchNoDocsQuery.class));
     }
 
     public void testWrongFieldType() {
@@ -294,6 +306,22 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
                 assertEquals(bwcQuery.hashCode(), deserializedQuery.hashCode());
             }
         }
+    }
+
+    public void testRewriteForInnerHits() throws IOException {
+        SearchExecutionContext context = createSearchExecutionContext();
+        InnerHitsRewriteContext innerHitsRewriteContext = new InnerHitsRewriteContext(context.getParserConfig(), System::currentTimeMillis);
+        KnnVectorQueryBuilder queryBuilder = createTestQueryBuilder();
+        queryBuilder.boost(randomFloat());
+        queryBuilder.queryName(randomAlphaOfLength(10));
+        QueryBuilder rewritten = queryBuilder.rewrite(innerHitsRewriteContext);
+        assertTrue(rewritten instanceof ExactKnnQueryBuilder);
+        ExactKnnQueryBuilder exactKnnQueryBuilder = (ExactKnnQueryBuilder) rewritten;
+        assertEquals(queryBuilder.queryVector(), exactKnnQueryBuilder.getQuery());
+        assertEquals(queryBuilder.getFieldName(), exactKnnQueryBuilder.getField());
+        assertEquals(queryBuilder.boost(), exactKnnQueryBuilder.boost(), 0.0001f);
+        assertEquals(queryBuilder.queryName(), exactKnnQueryBuilder.queryName());
+        assertEquals(queryBuilder.getVectorSimilarity(), exactKnnQueryBuilder.vectorSimilarity());
     }
 
     public void testRewriteWithQueryVectorBuilder() throws Exception {

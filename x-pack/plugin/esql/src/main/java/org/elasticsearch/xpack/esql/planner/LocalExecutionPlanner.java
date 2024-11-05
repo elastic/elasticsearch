@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.planner;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.Describable;
+import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
@@ -57,12 +58,14 @@ import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
-import org.elasticsearch.xpack.esql.core.expression.Order;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupOperator;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.evaluator.command.GrokEvaluatorExtracter;
+import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
 import org.elasticsearch.xpack.esql.plan.physical.EnrichExec;
@@ -86,7 +89,7 @@ import org.elasticsearch.xpack.esql.plan.physical.RowExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
-import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -118,7 +121,7 @@ public class LocalExecutionPlanner {
     private final BigArrays bigArrays;
     private final BlockFactory blockFactory;
     private final Settings settings;
-    private final EsqlConfiguration configuration;
+    private final Configuration configuration;
     private final ExchangeSourceHandler exchangeSourceHandler;
     private final ExchangeSinkHandler exchangeSinkHandler;
     private final EnrichLookupService enrichLookupService;
@@ -131,7 +134,7 @@ public class LocalExecutionPlanner {
         BigArrays bigArrays,
         BlockFactory blockFactory,
         Settings settings,
-        EsqlConfiguration configuration,
+        Configuration configuration,
         ExchangeSourceHandler exchangeSourceHandler,
         ExchangeSinkHandler exchangeSinkHandler,
         EnrichLookupService enrichLookupService,
@@ -166,7 +169,7 @@ public class LocalExecutionPlanner {
         // workaround for https://github.com/elastic/elasticsearch/issues/99782
         localPhysicalPlan = localPhysicalPlan.transformUp(
             AggregateExec.class,
-            a -> a.getMode() == AggregateExec.Mode.FINAL ? new ProjectExec(a.source(), a, Expressions.asAttributes(a.aggregates())) : a
+            a -> a.getMode() == AggregatorMode.FINAL ? new ProjectExec(a.source(), a, Expressions.asAttributes(a.aggregates())) : a
         );
         PhysicalOperation physicalOperation = plan(localPhysicalPlan, context);
 
@@ -346,10 +349,10 @@ public class LocalExecutionPlanner {
             elementTypes[channel] = PlannerUtils.toElementType(inverse.get(channel).type());
             encoders[channel] = switch (inverse.get(channel).type()) {
                 case IP -> TopNEncoder.IP;
-                case TEXT, KEYWORD -> TopNEncoder.UTF8;
+                case TEXT, KEYWORD, SEMANTIC_TEXT -> TopNEncoder.UTF8;
                 case VERSION -> TopNEncoder.VERSION;
-                case BOOLEAN, NULL, BYTE, SHORT, INTEGER, LONG, DOUBLE, FLOAT, HALF_FLOAT, DATETIME, DATE_PERIOD, TIME_DURATION, OBJECT,
-                    NESTED, SCALED_FLOAT, UNSIGNED_LONG, DOC_DATA_TYPE, TSID_DATA_TYPE -> TopNEncoder.DEFAULT_SORTABLE;
+                case BOOLEAN, NULL, BYTE, SHORT, INTEGER, LONG, DOUBLE, FLOAT, HALF_FLOAT, DATETIME, DATE_NANOS, DATE_PERIOD, TIME_DURATION,
+                    OBJECT, SCALED_FLOAT, UNSIGNED_LONG, DOC_DATA_TYPE, TSID_DATA_TYPE -> TopNEncoder.DEFAULT_SORTABLE;
                 case GEO_POINT, CARTESIAN_POINT, GEO_SHAPE, CARTESIAN_SHAPE, COUNTER_LONG, COUNTER_INTEGER, COUNTER_DOUBLE ->
                     TopNEncoder.DEFAULT_UNSORTABLE;
                 // unsupported fields are encoded as BytesRef, we'll use the same encoder; all values should be null at this point
@@ -417,12 +420,14 @@ public class LocalExecutionPlanner {
         Layout.Builder layoutBuilder = source.layout.builder();
         layoutBuilder.append(dissect.extractedFields());
         final Expression expr = dissect.inputExpression();
-        String[] attributeNames = Expressions.names(dissect.extractedFields()).toArray(new String[0]);
+        // Names in the pattern and layout can differ.
+        // Attributes need to be rename-able to avoid problems with shadowing - see GeneratingPlan resp. PushDownRegexExtract.
+        String[] patternNames = Expressions.names(dissect.parser().keyAttributes(Source.EMPTY)).toArray(new String[0]);
 
         Layout layout = layoutBuilder.build();
         source = source.with(
             new StringExtractOperator.StringExtractOperatorFactory(
-                attributeNames,
+                patternNames,
                 EvalMapper.toEvaluator(expr, layout),
                 () -> (input) -> dissect.parser().parser().parse(input)
             ),
@@ -439,11 +444,15 @@ public class LocalExecutionPlanner {
         Map<String, Integer> fieldToPos = new HashMap<>(extractedFields.size());
         Map<String, ElementType> fieldToType = new HashMap<>(extractedFields.size());
         ElementType[] types = new ElementType[extractedFields.size()];
+        List<Attribute> extractedFieldsFromPattern = grok.pattern().extractedFields();
         for (int i = 0; i < extractedFields.size(); i++) {
-            Attribute extractedField = extractedFields.get(i);
-            ElementType type = PlannerUtils.toElementType(extractedField.dataType());
-            fieldToPos.put(extractedField.name(), i);
-            fieldToType.put(extractedField.name(), type);
+            DataType extractedFieldType = extractedFields.get(i).dataType();
+            // Names in pattern and layout can differ.
+            // Attributes need to be rename-able to avoid problems with shadowing - see GeneratingPlan resp. PushDownRegexExtract.
+            String patternName = extractedFieldsFromPattern.get(i).name();
+            ElementType type = PlannerUtils.toElementType(extractedFieldType);
+            fieldToPos.put(patternName, i);
+            fieldToType.put(patternName, type);
             types[i] = type;
         }
 
@@ -487,18 +496,19 @@ public class LocalExecutionPlanner {
     }
 
     private PhysicalOperation planHashJoin(HashJoinExec join, LocalExecutionPlannerContext context) {
-        PhysicalOperation source = plan(join.child(), context);
+        PhysicalOperation source = plan(join.left(), context);
         int positionsChannel = source.layout.numberOfChannels();
 
         Layout.Builder layoutBuilder = source.layout.builder();
         for (Attribute f : join.output()) {
-            if (join.child().outputSet().contains(f)) {
+            if (join.left().outputSet().contains(f)) {
                 continue;
             }
             layoutBuilder.append(f);
         }
         Layout layout = layoutBuilder.build();
-        Block[] localData = join.joinData().supplier().get();
+        LocalSourceExec localSourceExec = (LocalSourceExec) join.joinData();
+        Block[] localData = localSourceExec.supplier().get();
 
         RowInTableLookupOperator.Key[] keys = new RowInTableLookupOperator.Key[join.leftFields().size()];
         int[] blockMapping = new int[join.leftFields().size()];
@@ -506,8 +516,9 @@ public class LocalExecutionPlanner {
             Attribute left = join.leftFields().get(k);
             Attribute right = join.rightFields().get(k);
             Block localField = null;
-            for (int l = 0; l < join.joinData().output().size(); l++) {
-                if (join.joinData().output().get(l).name().equals((((NamedExpression) right).name()))) {
+            List<Attribute> output = join.joinData().output();
+            for (int l = 0; l < output.size(); l++) {
+                if (output.get(l).name().equals(right.name())) {
                     localField = localData[l];
                 }
             }

@@ -2,7 +2,10 @@
 [[esql-lookup]]
 === `LOOKUP`
 
-experimental::["LOOKUP is a highly experimental and only available in SNAPSHOT versions."]
+experimental::["LOOKUP is highly experimental and only available in SNAPSHOT versions."]
+
+`LOOKUP` matches values from the input against a `table` provided in the request,
+adding the other fields from the `table` to the output.
 
 **Syntax**
 
@@ -15,14 +18,10 @@ LOOKUP table ON match_field1[, match_field2, ...]
 
 `table`::
 The name of the `table` provided in the request to match.
+If the table's column names conflict with existing columns, the existing columns will be dropped.
 
 `match_field`::
 The fields in the input to match against the table.
-
-*Description*
-
-`LOOKUP` matches values from the input against a `table` provided in the request,
-adding the other fields from the `table` to the output.
 
 *Examples*
 

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.stats;
@@ -157,11 +158,15 @@ public class FieldUsageStatsIT extends ESIntegTestCase {
 
         assertTrue(stats.hasField("date_field"));
         assertEquals(Set.of(UsageContext.POINTS), stats.get("date_field").keySet());
-        // can_match does not enter search stats
-        // there is a special case though where we have no hit but we need to get at least one search response in order
-        // to produce a valid search result with all the aggs etc., so we hit one of the two shards
+
+        long expectedShards = 2L * numShards;
+        if (numShards == 1) {
+            // with 1 shard and setPreFilterShardSize(1) we don't perform can_match phase but instead directly query the shard
+            expectedShards += 1;
+        }
+
         assertEquals(
-            (2 * numShards) + 1,
+            expectedShards,
             indicesAdmin().prepareStats("test")
                 .clear()
                 .setSearch(true)

@@ -258,7 +258,11 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
         builder.field(ID.getPreferredName(), id);
         if (params.paramAsBoolean(EXCLUDE_GENERATED, false) == false) {
             if (createTime != null) {
-                builder.timeField(CREATE_TIME.getPreferredName(), CREATE_TIME.getPreferredName() + "_string", createTime.toEpochMilli());
+                builder.timestampFieldsFromUnixEpochMillis(
+                    CREATE_TIME.getPreferredName(),
+                    CREATE_TIME.getPreferredName() + "_string",
+                    createTime.toEpochMilli()
+                );
             }
             if (version != null) {
                 builder.field(VERSION.getPreferredName(), version);

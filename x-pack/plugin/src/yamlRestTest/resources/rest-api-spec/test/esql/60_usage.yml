@@ -1,8 +1,13 @@
 ---
 setup:
   - requires:
-      cluster_features: ["gte_v8.14.0"]
-      reason: "Introduction of META tracking in 8.14+"
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ method, path, parameters, capabilities ]
+          capabilities: [ function_stats ]
+      reason: "META command removed which changes the count of the data returned"
+      test_runner_features: [capabilities]
 
   - do:
       indices.create:
@@ -18,12 +23,20 @@ setup:
                 type: integer
 
 ---
-"Basic ESQL usage output (telemetry)":
+"Basic ESQL usage output (telemetry) snapshot version":
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [ snapshot_test_for_telemetry ]
+      reason: "Test that should only be executed on snapshot versions"
 
   - do: {xpack.usage: {}}
   - match: { esql.available: true }
   - match: { esql.enabled: true }
-  - length: { esql.features: 16 }
+  - length: { esql.features: 15 }
   - set: {esql.features.dissect: dissect_counter}
   - set: {esql.features.drop: drop_counter}
   - set: {esql.features.eval: eval_counter}
@@ -32,7 +45,6 @@ setup:
   - set: {esql.features.grok: grok_counter}
   - set: {esql.features.keep: keep_counter}
   - set: {esql.features.limit: limit_counter}
-  - set: {esql.features.meta: meta_counter}
   - set: {esql.features.mv_expand: mv_expand_counter}
   - set: {esql.features.rename: rename_counter}
   - set: {esql.features.row: row_counter}
@@ -47,11 +59,16 @@ setup:
   - set: {esql.queries.kibana.failed: kibana_failed_counter}
   - set: {esql.queries._all.total: all_total_counter}
   - set: {esql.queries._all.failed: all_failed_counter}
+  - set: {esql.functions.max: functions_max}
+  - set: {esql.functions.min: functions_min}
+  - set: {esql.functions.cos: functions_cos}
+  - set: {esql.functions.to_long: functions_to_long}
+  - set: {esql.functions.coalesce: functions_coalesce}
 
   - do:
       esql.query:
         body:
-          query: 'from test | where data > 2 | sort count desc | limit 5 | stats m = max(data)'
+          query: 'from test | where data > 2 and to_long(data) > 2 | sort count desc | limit 5 | stats m = max(data)'
 
   - do: {xpack.usage: {}}
   - match: { esql.available: true }
@@ -69,3 +86,80 @@ setup:
   - match: {esql.queries.kibana.failed: $kibana_failed_counter}
   - gt: {esql.queries._all.total: $all_total_counter}
   - match: {esql.queries._all.failed: $all_failed_counter}
+  - gt: {esql.functions.max: $functions_max}
+  - match: {esql.functions.min: $functions_min}
+  - match: {esql.functions.cos: $functions_cos}
+  - gt: {esql.functions.to_long: $functions_to_long}
+  - match: {esql.functions.coalesce: $functions_coalesce}
+  - length: {esql.functions: 117} # check the "sister" test below for a likely update to the same esql.functions length check
+
+---
+"Basic ESQL usage output (telemetry) non-snapshot version":
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [ non_snapshot_test_for_telemetry ]
+      reason: "Test that should only be executed on release versions"
+
+  - do: {xpack.usage: {}}
+  - match: { esql.available: true }
+  - match: { esql.enabled: true }
+  - length: { esql.features: 15 }
+  - set: {esql.features.dissect: dissect_counter}
+  - set: {esql.features.drop: drop_counter}
+  - set: {esql.features.eval: eval_counter}
+  - set: {esql.features.enrich: enrich_counter}
+  - set: {esql.features.from: from_counter}
+  - set: {esql.features.grok: grok_counter}
+  - set: {esql.features.keep: keep_counter}
+  - set: {esql.features.limit: limit_counter}
+  - set: {esql.features.mv_expand: mv_expand_counter}
+  - set: {esql.features.rename: rename_counter}
+  - set: {esql.features.row: row_counter}
+  - set: {esql.features.show: show_counter}
+  - set: {esql.features.sort: sort_counter}
+  - set: {esql.features.stats: stats_counter}
+  - set: {esql.features.where: where_counter}
+  - length: { esql.queries: 3 }
+  - set: {esql.queries.rest.total: rest_total_counter}
+  - set: {esql.queries.rest.failed: rest_failed_counter}
+  - set: {esql.queries.kibana.total: kibana_total_counter}
+  - set: {esql.queries.kibana.failed: kibana_failed_counter}
+  - set: {esql.queries._all.total: all_total_counter}
+  - set: {esql.queries._all.failed: all_failed_counter}
+  - set: {esql.functions.max: functions_max}
+  - set: {esql.functions.min: functions_min}
+  - set: {esql.functions.cos: functions_cos}
+  - set: {esql.functions.to_long: functions_to_long}
+  - set: {esql.functions.coalesce: functions_coalesce}
+
+  - do:
+      esql.query:
+        body:
+          query: 'from test | where data > 2 and to_long(data) > 2 | sort count desc | limit 5 | stats m = max(data)'
+
+  - do: {xpack.usage: {}}
+  - match: { esql.available: true }
+  - match: { esql.enabled: true }
+  - match: {esql.features.dissect: $dissect_counter}
+  - match: {esql.features.eval: $eval_counter}
+  - match: {esql.features.grok: $grok_counter}
+  - gt: {esql.features.limit: $limit_counter}
+  - gt: {esql.features.sort: $sort_counter}
+  - gt: {esql.features.stats: $stats_counter}
+  - gt: {esql.features.where: $where_counter}
+  - gt: {esql.queries.rest.total: $rest_total_counter}
+  - match: {esql.queries.rest.failed: $rest_failed_counter}
+  - match: {esql.queries.kibana.total: $kibana_total_counter}
+  - match: {esql.queries.kibana.failed: $kibana_failed_counter}
+  - gt: {esql.queries._all.total: $all_total_counter}
+  - match: {esql.queries._all.failed: $all_failed_counter}
+  - gt: {esql.functions.max: $functions_max}
+  - match: {esql.functions.min: $functions_min}
+  - match: {esql.functions.cos: $functions_cos}
+  - gt: {esql.functions.to_long: $functions_to_long}
+  - match: {esql.functions.coalesce: $functions_coalesce}
+  - length: {esql.functions: 115} # check the "sister" test above for a likely update to the same esql.functions length check

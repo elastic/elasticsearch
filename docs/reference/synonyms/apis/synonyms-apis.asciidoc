@@ -21,6 +21,23 @@ These filters are applied as part of the <<analysis,analysis>> process by the <<
 NOTE: Synonyms sets are limited to a maximum of 10,000 synonym rules per set.
 If you need to manage more synonym rules, you can create multiple synonyms sets.
 
+WARNING: Synonyms sets must exist before they can be added to indices.
+If an index is created referencing a nonexistent synonyms set, the index will remain in a partially created and inoperable state.
+The only way to recover from this scenario is to ensure the synonyms set exists then either delete and re-create the index, or close and re-open the index.
+
+[WARNING]
+====
+Invalid synonym rules can cause errors when applying analyzer changes.
+For reloadable analyzers, this prevents reloading and applying changes.
+You must correct errors in the synonym rules and reload the analyzer.
+
+An index with invalid synonym rules cannot be reopened, making it inoperable when:
+
+* A node containing the index starts
+* The index is opened from a closed state
+* A node restart occurs (which reopens the node assigned shards)
+====
+
 [discrete]
 [[synonyms-sets-apis]]
 === Synonyms sets APIs

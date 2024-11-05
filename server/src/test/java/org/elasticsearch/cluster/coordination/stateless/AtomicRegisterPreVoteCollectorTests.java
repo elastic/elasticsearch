@@ -1,16 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.coordination.stateless;
 
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.core.TimeValue;
@@ -66,7 +66,7 @@ public class AtomicRegisterPreVoteCollectorTests extends ESTestCase {
 
         // Either there's no heartbeat or is stale
         if (randomBoolean()) {
-            PlainActionFuture.<Void, Exception>get(f -> heartbeatStore.writeHeartbeat(new Heartbeat(1, fakeClock.get()), f));
+            safeAwait((ActionListener<Void> l) -> heartbeatStore.writeHeartbeat(new Heartbeat(1, fakeClock.get()), l));
             fakeClock.set(maxTimeSinceLastHeartbeat.millis() + randomLongBetween(0, 1000));
         }
 
@@ -107,7 +107,7 @@ public class AtomicRegisterPreVoteCollectorTests extends ESTestCase {
                 }
             };
 
-            PlainActionFuture.<Void, Exception>get(f -> heartbeatStore.writeHeartbeat(new Heartbeat(1, fakeClock.get()), f));
+            safeAwait((ActionListener<Void> l) -> heartbeatStore.writeHeartbeat(new Heartbeat(1, fakeClock.get()), l));
             fakeClock.addAndGet(randomLongBetween(0L, maxTimeSinceLastHeartbeat.millis() - 1));
 
             var startElection = new AtomicBoolean();
@@ -141,7 +141,7 @@ public class AtomicRegisterPreVoteCollectorTests extends ESTestCase {
             }
         };
 
-        PlainActionFuture.<Void, Exception>get(f -> heartbeatStore.writeHeartbeat(new Heartbeat(1, fakeClock.get()), f));
+        safeAwait((ActionListener<Void> l) -> heartbeatStore.writeHeartbeat(new Heartbeat(1, fakeClock.get()), l));
 
         var startElection = new AtomicBoolean();
         var preVoteCollector = new AtomicRegisterPreVoteCollector(heartbeatService, () -> startElection.set(true));

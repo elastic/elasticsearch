@@ -31,12 +31,12 @@ import java.util.Arrays;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isRepresentable;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.bigIntegerToUnsignedLong;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.unsignedLongToBigInteger;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isRepresentable;
 
 /**
- * Reduce a multivalued field to a single valued field containing the average value.
+ * Reduce a multivalued field to a single valued field containing the median of the values.
  */
 public class MvMedian extends AbstractMultivalueFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "MvMedian", MvMedian::new);
@@ -106,7 +106,7 @@ public class MvMedian extends AbstractMultivalueFunction {
         public int count;
     }
 
-    @MvEvaluator(extraName = "Double", finish = "finish")
+    @MvEvaluator(extraName = "Double", finish = "finish", ascending = "ascending")
     static void process(Doubles doubles, double v) {
         if (doubles.values.length < doubles.count + 1) {
             doubles.values = ArrayUtil.grow(doubles.values, doubles.count + 1);

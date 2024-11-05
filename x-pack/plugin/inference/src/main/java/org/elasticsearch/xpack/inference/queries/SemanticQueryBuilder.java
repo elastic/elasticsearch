@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
@@ -49,6 +50,9 @@ import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
 public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuilder> {
+    // **** THE semantic_text.inner_hits CLUSTER FEATURE IS DEFUNCT, NEVER USE IT ****
+    public static final NodeFeature SEMANTIC_TEXT_INNER_HITS = new NodeFeature("semantic_text.inner_hits");
+
     public static final String NAME = "semantic";
 
     private static final ParseField FIELD_FIELD = new ParseField("field");
@@ -128,7 +132,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.SEMANTIC_QUERY;
+        return TransportVersions.V_8_15_0;
     }
 
     public static SemanticQueryBuilder fromXContent(XContentParser parser) throws IOException {
@@ -204,7 +208,8 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
                 List.of(query),
                 Map.of(),
                 InputType.SEARCH,
-                InferModelAction.Request.DEFAULT_TIMEOUT_FOR_API
+                InferModelAction.Request.DEFAULT_TIMEOUT_FOR_API,
+                false
             );
 
             queryRewriteContext.registerAsyncAction(
@@ -283,7 +288,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         String inferenceId = null;
         for (IndexMetadata indexMetadata : indexMetadataCollection) {
             InferenceFieldMetadata inferenceFieldMetadata = indexMetadata.getInferenceFields().get(fieldName);
-            String indexInferenceId = inferenceFieldMetadata != null ? inferenceFieldMetadata.getInferenceId() : null;
+            String indexInferenceId = inferenceFieldMetadata != null ? inferenceFieldMetadata.getSearchInferenceId() : null;
             if (indexInferenceId != null) {
                 if (inferenceId != null && inferenceId.equals(indexInferenceId) == false) {
                     throw new IllegalArgumentException("Field [" + fieldName + "] has multiple inference IDs associated with it");

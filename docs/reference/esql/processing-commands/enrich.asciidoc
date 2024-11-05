@@ -2,6 +2,9 @@
 [[esql-enrich]]
 === `ENRICH`
 
+`ENRICH` enables you to add data from existing indices as new columns using an
+enrich policy.
+
 **Syntax**
 
 [source,esql]
@@ -28,11 +31,16 @@ name as the `match_field` defined in the <<esql-enrich-policy,enrich policy>>.
 The enrich fields from the enrich index that are added to the result as new
 columns. If a column with the same name as the enrich field already exists, the
 existing column will be replaced by the new column. If not specified, each of
-the enrich fields defined in the policy is added
+the enrich fields defined in the policy is added.
+A column with the same name as the enrich field will be dropped unless the
+enrich field is renamed.
 
 `new_nameX`::
 Enables you to change the name of the column that's added for each of the enrich
 fields. Defaults to the enrich field name.
+If a column has the same name as the new name, it will be discarded.
+If a name (new or original) occurs more than once, only the rightmost duplicate
+creates a new column.
 
 *Description*
 

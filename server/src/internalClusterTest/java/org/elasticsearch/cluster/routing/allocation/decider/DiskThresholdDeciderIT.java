@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing.allocation.decider;
@@ -231,7 +232,7 @@ public class DiskThresholdDeciderIT extends DiskUsageIntegTestCase {
 
     private Set<ShardId> getShardIds(final String nodeId, final String indexName) {
         final Set<ShardId> shardIds = new HashSet<>();
-        final IndexRoutingTable indexRoutingTable = clusterAdmin().prepareState()
+        final IndexRoutingTable indexRoutingTable = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
             .clear()
             .setRoutingTable(true)
             .get()
@@ -252,35 +253,17 @@ public class DiskThresholdDeciderIT extends DiskUsageIntegTestCase {
     }
 
     /**
-     * Index documents until all the shards are at least WATERMARK_BYTES in size, and return the one with the smallest size
+     * Index documents until all the shards are at least WATERMARK_BYTES in size.
+     * @return the shard sizes.
      */
-    private ShardSizes createReasonableSizedShards(final String indexName) throws InterruptedException {
-        while (true) {
-            indexRandom(true, indexName, scaledRandomIntBetween(100, 10000));
-            forceMerge();
-            refresh();
-
-            final ShardStats[] shardStates = indicesAdmin().prepareStats(indexName)
-                .clear()
-                .setStore(true)
-                .setTranslog(true)
-                .get()
-                .getShards();
-
-            var smallestShardSize = Arrays.stream(shardStates)
-                .mapToLong(it -> it.getStats().getStore().sizeInBytes())
-                .min()
-                .orElseThrow(() -> new AssertionError("no shards"));
-
-            if (smallestShardSize > WATERMARK_BYTES) {
-                var shardSizes = Arrays.stream(shardStates)
-                    .map(it -> new ShardSize(removeIndexUUID(it.getShardRouting().shardId()), it.getStats().getStore().sizeInBytes()))
-                    .sorted(Comparator.comparing(ShardSize::size))
-                    .toList();
-                logger.info("Created shards with sizes {}", shardSizes);
-                return new ShardSizes(shardSizes);
-            }
-        }
+    private ShardSizes createReasonableSizedShards(final String indexName) {
+        ShardStats[] shardStats = indexAllShardsToAnEqualOrGreaterMinimumSize(indexName, WATERMARK_BYTES);
+        var shardSizes = Arrays.stream(shardStats)
+            .map(it -> new ShardSize(removeIndexUUID(it.getShardRouting().shardId()), it.getStats().getStore().sizeInBytes()))
+            .sorted(Comparator.comparing(ShardSize::size))
+            .toList();
+        logger.info("Created shards with sizes {}", shardSizes);
+        return new ShardSizes(shardSizes);
     }
 
     private record ShardSizes(List<ShardSize> sizes) {
@@ -319,7 +302,7 @@ public class DiskThresholdDeciderIT extends DiskUsageIntegTestCase {
         }
 
         assertFalse(
-            clusterAdmin().prepareHealth()
+            clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
                 .setWaitForEvents(Priority.LANGUID)
                 .setWaitForNoRelocatingShards(true)
                 .setWaitForNoInitializingShards(true)

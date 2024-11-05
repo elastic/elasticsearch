@@ -8,12 +8,10 @@
 package org.elasticsearch.xpack.inference.external.http.sender;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
 import org.elasticsearch.xpack.inference.external.ratelimit.RateLimitable;
 
-import java.util.List;
 import java.util.function.Supplier;
 
 /**
@@ -21,8 +19,7 @@ import java.util.function.Supplier;
  */
 public interface RequestManager extends RateLimitable {
     void execute(
-        @Nullable String query,
-        List<String> input,
+        InferenceInputs inferenceInputs,
         RequestSender requestSender,
         Supplier<Boolean> hasRequestCompletedFunction,
         ActionListener<InferenceServiceResults> listener

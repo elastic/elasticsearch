@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal;
@@ -26,7 +27,6 @@ import org.gradle.api.provider.ValueSourceParameters;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.jvm.toolchain.JavaLanguageVersion;
 import org.gradle.jvm.toolchain.JavaToolchainService;
-import org.gradle.jvm.toolchain.JvmVendorSpec;
 
 import java.io.File;
 import java.io.IOException;
@@ -161,10 +161,8 @@ public class BwcSetupExtension {
     /** A convenience method for getting java home for a version of java and requiring that version for the given task to execute */
     private static Provider<String> getJavaHome(ObjectFactory objectFactory, JavaToolchainService toolChainService, final int version) {
         Property<JavaLanguageVersion> value = objectFactory.property(JavaLanguageVersion.class).value(JavaLanguageVersion.of(version));
-        return toolChainService.launcherFor(javaToolchainSpec -> {
-            javaToolchainSpec.getLanguageVersion().value(value);
-            javaToolchainSpec.getVendor().set(JvmVendorSpec.ORACLE);
-        }).map(launcher -> launcher.getMetadata().getInstallationPath().getAsFile().getAbsolutePath());
+        return toolChainService.launcherFor(javaToolchainSpec -> { javaToolchainSpec.getLanguageVersion().value(value); })
+            .map(launcher -> launcher.getMetadata().getInstallationPath().getAsFile().getAbsolutePath());
     }
 
     private static String readFromFile(File file) {

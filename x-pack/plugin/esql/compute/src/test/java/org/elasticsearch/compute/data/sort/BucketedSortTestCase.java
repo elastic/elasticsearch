@@ -25,113 +25,119 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public abstract class BucketedSortTestCase<T extends Releasable> extends ESTestCase {
+public abstract class BucketedSortTestCase<T extends Releasable, V extends Comparable<V>> extends ESTestCase {
     /**
      * Build a {@link T} to test. Sorts built by this method shouldn't need scores.
      */
     protected abstract T build(SortOrder sortOrder, int bucketSize);
 
     /**
-     * Build the expected correctly typed value for a value.
-     */
-    protected abstract Object expectedValue(double v);
-
-    /**
      * A random value for testing, with the appropriate precision for the type we're testing.
      */
-    protected abstract double randomValue();
+    protected abstract V randomValue();
+
+    /**
+     * Returns a list of 3 values, in ascending order.
+     */
+    protected abstract List<V> threeSortedValues();
 
     /**
      * Collect a value into the sort.
      * @param value value to collect, always sent as double just to have
      *        a number to test. Subclasses should cast to their favorite types
      */
-    protected abstract void collect(T sort, double value, int bucket);
+    protected abstract void collect(T sort, V value, int bucket);
 
     protected abstract void merge(T sort, int groupId, T other, int otherGroupId);
 
     protected abstract Block toBlock(T sort, BlockFactory blockFactory, IntVector selected);
 
-    protected abstract void assertBlockTypeAndValues(Block block, Object... values);
+    protected abstract void assertBlockTypeAndValues(Block block, List<V> values);
 
     public final void testNeverCalled() {
         SortOrder order = randomFrom(SortOrder.values());
         try (T sort = build(order, 1)) {
-            assertBlock(sort, randomNonNegativeInt());
+            assertBlock(sort, randomNonNegativeInt(), List.of());
         }
     }
 
     public final void testSingleDoc() {
         try (T sort = build(randomFrom(SortOrder.values()), 1)) {
-            collect(sort, 1, 0);
+            var values = threeSortedValues();
 
-            assertBlock(sort, 0, expectedValue(1));
+            collect(sort, values.get(0), 0);
+
+            assertBlock(sort, 0, List.of(values.get(0)));
         }
     }
 
     public final void testNonCompetitive() {
         try (T sort = build(SortOrder.DESC, 1)) {
-            collect(sort, 2, 0);
-            collect(sort, 1, 0);
+            var values = threeSortedValues();
 
-            assertBlock(sort, 0, expectedValue(2));
+            collect(sort, values.get(1), 0);
+            collect(sort, values.get(0), 0);
+
+            assertBlock(sort, 0, List.of(values.get(1)));
         }
     }
 
     public final void testCompetitive() {
         try (T sort = build(SortOrder.DESC, 1)) {
-            collect(sort, 1, 0);
-            collect(sort, 2, 0);
+            var values = threeSortedValues();
 
-            assertBlock(sort, 0, expectedValue(2));
-        }
-    }
+            collect(sort, values.get(0), 0);
+            collect(sort, values.get(1), 0);
 
-    public final void testNegativeValue() {
-        try (T sort = build(SortOrder.DESC, 1)) {
-            collect(sort, -1, 0);
-            assertBlock(sort, 0, expectedValue(-1));
+            assertBlock(sort, 0, List.of(values.get(1)));
         }
     }
 
     public final void testSomeBuckets() {
         try (T sort = build(SortOrder.DESC, 1)) {
-            collect(sort, 2, 0);
-            collect(sort, 2, 1);
-            collect(sort, 2, 2);
-            collect(sort, 3, 0);
+            var values = threeSortedValues();
 
-            assertBlock(sort, 0, expectedValue(3));
-            assertBlock(sort, 1, expectedValue(2));
-            assertBlock(sort, 2, expectedValue(2));
-            assertBlock(sort, 3);
+            collect(sort, values.get(1), 0);
+            collect(sort, values.get(1), 1);
+            collect(sort, values.get(1), 2);
+            collect(sort, values.get(2), 0);
+
+            assertBlock(sort, 0, List.of(values.get(2)));
+            assertBlock(sort, 1, List.of(values.get(1)));
+            assertBlock(sort, 2, List.of(values.get(1)));
+            assertBlock(sort, 3, List.of());
         }
     }
 
     public final void testBucketGaps() {
         try (T sort = build(SortOrder.DESC, 1)) {
-            collect(sort, 2, 0);
-            collect(sort, 2, 2);
+            var values = threeSortedValues();
 
-            assertBlock(sort, 0, expectedValue(2));
-            assertBlock(sort, 1);
-            assertBlock(sort, 2, expectedValue(2));
-            assertBlock(sort, 3);
+            collect(sort, values.get(1), 0);
+            collect(sort, values.get(1), 2);
+
+            assertBlock(sort, 0, List.of(values.get(1)));
+            assertBlock(sort, 1, List.of());
+            assertBlock(sort, 2, List.of(values.get(1)));
+            assertBlock(sort, 3, List.of());
         }
     }
 
     public final void testBucketsOutOfOrder() {
         try (T sort = build(SortOrder.DESC, 1)) {
-            collect(sort, 2, 1);
-            collect(sort, 2, 0);
+            var values = threeSortedValues();
 
-            assertBlock(sort, 0, expectedValue(2.0));
-            assertBlock(sort, 1, expectedValue(2.0));
-            assertBlock(sort, 2);
+            collect(sort, values.get(1), 1);
+            collect(sort, values.get(1), 0);
+
+            assertBlock(sort, 0, List.of(values.get(1)));
+            assertBlock(sort, 1, List.of(values.get(1)));
+            assertBlock(sort, 2, List.of());
         }
     }
 
@@ -143,194 +149,207 @@ public abstract class BucketedSortTestCase<T extends Releasable> extends ESTestC
         }
         Collections.shuffle(Arrays.asList(buckets), random());
 
-        double[] maxes = new double[buckets.length];
+        var values = threeSortedValues();
+        List<V> maxes = new ArrayList<V>(Collections.nCopies(buckets.length, null));
 
         try (T sort = build(SortOrder.DESC, 1)) {
             for (int b : buckets) {
-                maxes[b] = 2;
-                collect(sort, 2, b);
+                maxes.set(b, values.get(1));
+                collect(sort, values.get(1), b);
                 if (randomBoolean()) {
-                    maxes[b] = 3;
-                    collect(sort, 3, b);
+                    maxes.set(b, values.get(2));
+                    collect(sort, values.get(2), b);
                 }
                 if (randomBoolean()) {
-                    collect(sort, -1, b);
+                    collect(sort, values.get(0), b);
                 }
             }
             for (int b = 0; b < buckets.length; b++) {
-                assertBlock(sort, b, expectedValue(maxes[b]));
+                assertBlock(sort, b, List.of(maxes.get(b)));
             }
-            assertBlock(sort, buckets.length);
+            assertBlock(sort, buckets.length, List.of());
         }
     }
 
     public final void testTwoHitsDesc() {
         try (T sort = build(SortOrder.DESC, 2)) {
-            collect(sort, 1, 0);
-            collect(sort, 2, 0);
-            collect(sort, 3, 0);
+            var values = threeSortedValues();
 
-            assertBlock(sort, 0, expectedValue(3), expectedValue(2));
+            collect(sort, values.get(0), 0);
+            collect(sort, values.get(1), 0);
+            collect(sort, values.get(2), 0);
+
+            assertBlock(sort, 0, List.of(values.get(2), values.get(1)));
         }
     }
 
     public final void testTwoHitsAsc() {
         try (T sort = build(SortOrder.ASC, 2)) {
-            collect(sort, 1, 0);
-            collect(sort, 2, 0);
-            collect(sort, 3, 0);
+            var values = threeSortedValues();
 
-            assertBlock(sort, 0, expectedValue(1), expectedValue(2));
+            collect(sort, values.get(0), 0);
+            collect(sort, values.get(1), 0);
+            collect(sort, values.get(2), 0);
+
+            assertBlock(sort, 0, List.of(values.get(0), values.get(1)));
         }
     }
 
     public final void testTwoHitsTwoBucket() {
         try (T sort = build(SortOrder.DESC, 2)) {
-            collect(sort, 1, 0);
-            collect(sort, 1, 1);
-            collect(sort, 2, 0);
-            collect(sort, 2, 1);
-            collect(sort, 3, 0);
-            collect(sort, 3, 1);
-            collect(sort, 4, 1);
+            var values = threeSortedValues();
 
-            assertBlock(sort, 0, expectedValue(3), expectedValue(2));
-            assertBlock(sort, 1, expectedValue(4), expectedValue(3));
+            collect(sort, values.get(0), 0);
+            collect(sort, values.get(0), 1);
+            collect(sort, values.get(1), 0);
+            collect(sort, values.get(1), 1);
+            collect(sort, values.get(2), 0);
+
+            assertBlock(sort, 0, List.of(values.get(2), values.get(1)));
+            assertBlock(sort, 1, List.of(values.get(1), values.get(0)));
         }
     }
 
     public final void testManyBucketsManyHits() {
         // Set the values in random order
-        double[] values = new double[10000];
-        for (int v = 0; v < values.length; v++) {
-            values[v] = randomValue();
+        List<V> values = new ArrayList<V>();
+        for (int v = 0; v < 10000; v++) {
+            values.add(randomValue());
         }
-        Collections.shuffle(Arrays.asList(values), random());
+        Collections.shuffle(values, random());
 
         int buckets = between(2, 100);
         int bucketSize = between(2, 100);
         try (T sort = build(SortOrder.DESC, bucketSize)) {
             BitArray[] bucketUsed = new BitArray[buckets];
-            Arrays.setAll(bucketUsed, i -> new BitArray(values.length, bigArrays()));
-            for (int doc = 0; doc < values.length; doc++) {
+            Arrays.setAll(bucketUsed, i -> new BitArray(values.size(), bigArrays()));
+            for (int doc = 0; doc < values.size(); doc++) {
                 for (int bucket = 0; bucket < buckets; bucket++) {
                     if (randomBoolean()) {
                         bucketUsed[bucket].set(doc);
-                        collect(sort, values[doc], bucket);
+                        collect(sort, values.get(doc), bucket);
                     }
                 }
             }
             for (int bucket = 0; bucket < buckets; bucket++) {
-                List<Double> bucketValues = new ArrayList<>(values.length);
-                for (int doc = 0; doc < values.length; doc++) {
+                List<V> bucketValues = new ArrayList<>(values.size());
+                for (int doc = 0; doc < values.size(); doc++) {
                     if (bucketUsed[bucket].get(doc)) {
-                        bucketValues.add(values[doc]);
+                        bucketValues.add(values.get(doc));
                     }
                 }
                 bucketUsed[bucket].close();
-                assertBlock(
-                    sort,
-                    bucket,
-                    bucketValues.stream().sorted((lhs, rhs) -> rhs.compareTo(lhs)).limit(bucketSize).map(this::expectedValue).toArray()
-                );
+                assertBlock(sort, bucket, bucketValues.stream().sorted(Comparator.reverseOrder()).limit(bucketSize).toList());
             }
-            assertBlock(sort, buckets);
+            assertBlock(sort, buckets, List.of());
         }
     }
 
     public final void testMergeHeapToHeap() {
         try (T sort = build(SortOrder.ASC, 3)) {
-            collect(sort, 1, 0);
-            collect(sort, 2, 0);
-            collect(sort, 3, 0);
+            var values = threeSortedValues();
+
+            collect(sort, values.get(0), 0);
+            collect(sort, values.get(1), 0);
+            collect(sort, values.get(2), 0);
 
             try (T other = build(SortOrder.ASC, 3)) {
-                collect(other, 1, 0);
-                collect(other, 2, 0);
-                collect(other, 3, 0);
+                collect(other, values.get(0), 0);
+                collect(other, values.get(1), 0);
+                collect(other, values.get(2), 0);
 
                 merge(sort, 0, other, 0);
             }
 
-            assertBlock(sort, 0, expectedValue(1), expectedValue(1), expectedValue(2));
+            assertBlock(sort, 0, List.of(values.get(0), values.get(0), values.get(1)));
         }
     }
 
     public final void testMergeNoHeapToNoHeap() {
         try (T sort = build(SortOrder.ASC, 3)) {
-            collect(sort, 1, 0);
-            collect(sort, 2, 0);
+            var values = threeSortedValues();
+
+            collect(sort, values.get(0), 0);
+            collect(sort, values.get(1), 0);
 
             try (T other = build(SortOrder.ASC, 3)) {
-                collect(other, 1, 0);
-                collect(other, 2, 0);
+                collect(other, values.get(0), 0);
+                collect(other, values.get(1), 0);
 
                 merge(sort, 0, other, 0);
             }
 
-            assertBlock(sort, 0, expectedValue(1), expectedValue(1), expectedValue(2));
+            assertBlock(sort, 0, List.of(values.get(0), values.get(0), values.get(1)));
         }
     }
 
     public final void testMergeHeapToNoHeap() {
         try (T sort = build(SortOrder.ASC, 3)) {
-            collect(sort, 1, 0);
-            collect(sort, 2, 0);
+            var values = threeSortedValues();
+
+            collect(sort, values.get(0), 0);
+            collect(sort, values.get(1), 0);
 
             try (T other = build(SortOrder.ASC, 3)) {
-                collect(other, 1, 0);
-                collect(other, 2, 0);
-                collect(other, 3, 0);
+                collect(other, values.get(0), 0);
+                collect(other, values.get(1), 0);
+                collect(other, values.get(2), 0);
 
                 merge(sort, 0, other, 0);
             }
 
-            assertBlock(sort, 0, expectedValue(1), expectedValue(1), expectedValue(2));
+            assertBlock(sort, 0, List.of(values.get(0), values.get(0), values.get(1)));
         }
     }
 
     public final void testMergeNoHeapToHeap() {
         try (T sort = build(SortOrder.ASC, 3)) {
-            collect(sort, 1, 0);
-            collect(sort, 2, 0);
-            collect(sort, 3, 0);
+            var values = threeSortedValues();
+
+            collect(sort, values.get(0), 0);
+            collect(sort, values.get(1), 0);
+            collect(sort, values.get(2), 0);
 
             try (T other = build(SortOrder.ASC, 3)) {
-                collect(sort, 1, 0);
-                collect(sort, 2, 0);
+                collect(sort, values.get(0), 0);
+                collect(sort, values.get(1), 0);
 
                 merge(sort, 0, other, 0);
             }
 
-            assertBlock(sort, 0, expectedValue(1), expectedValue(1), expectedValue(2));
+            assertBlock(sort, 0, List.of(values.get(0), values.get(0), values.get(1)));
         }
     }
 
     public final void testMergeHeapToEmpty() {
         try (T sort = build(SortOrder.ASC, 3)) {
+            var values = threeSortedValues();
+
             try (T other = build(SortOrder.ASC, 3)) {
-                collect(other, 1, 0);
-                collect(other, 2, 0);
-                collect(other, 3, 0);
+                collect(other, values.get(0), 0);
+                collect(other, values.get(1), 0);
+                collect(other, values.get(2), 0);
 
                 merge(sort, 0, other, 0);
             }
 
-            assertBlock(sort, 0, expectedValue(1), expectedValue(2), expectedValue(3));
+            assertBlock(sort, 0, List.of(values.get(0), values.get(1), values.get(2)));
         }
     }
 
     public final void testMergeEmptyToHeap() {
         try (T sort = build(SortOrder.ASC, 3)) {
-            collect(sort, 1, 0);
-            collect(sort, 2, 0);
-            collect(sort, 3, 0);
+            var values = threeSortedValues();
+
+            collect(sort, values.get(0), 0);
+            collect(sort, values.get(1), 0);
+            collect(sort, values.get(2), 0);
 
             try (T other = build(SortOrder.ASC, 3)) {
                 merge(sort, 0, other, 0);
             }
 
-            assertBlock(sort, 0, expectedValue(1), expectedValue(2), expectedValue(3));
+            assertBlock(sort, 0, List.of(values.get(0), values.get(1), values.get(2)));
         }
     }
 
@@ -340,20 +359,20 @@ public abstract class BucketedSortTestCase<T extends Releasable> extends ESTestC
                 merge(sort, 0, other, randomNonNegativeInt());
             }
 
-            assertBlock(sort, 0);
+            assertBlock(sort, 0, List.of());
         }
     }
 
-    private void assertBlock(T sort, int groupId, Object... values) {
+    protected void assertBlock(T sort, int groupId, List<V> values) {
         var blockFactory = TestBlockFactory.getNonBreakingInstance();
 
         try (var intVector = blockFactory.newConstantIntVector(groupId, 1)) {
             var block = toBlock(sort, blockFactory, intVector);
 
             assertThat(block.getPositionCount(), equalTo(1));
-            assertThat(block.getTotalValueCount(), equalTo(values.length));
+            assertThat(block.getTotalValueCount(), equalTo(values.size()));
 
-            if (values.length == 0) {
+            if (values.isEmpty()) {
                 assertThat(block.elementType(), equalTo(ElementType.NULL));
                 assertThat(block.isNull(0), equalTo(true));
             } else {

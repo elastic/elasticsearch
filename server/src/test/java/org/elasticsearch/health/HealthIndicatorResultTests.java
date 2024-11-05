@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.health;
@@ -197,8 +198,8 @@ public class HealthIndicatorResultTests extends ESTestCase {
         diagnosisList.add(diagnosis2);
         HealthIndicatorResult result = new HealthIndicatorResult(name, status, symptom, details, impacts, diagnosisList);
 
-        // -> each Diagnosis yields 5 chunks => 10 chunks from both diagnosis
-        // -> HealthIndicatorResult surrounds the diagnosis list by 2 chunks
-        AbstractChunkedSerializingTestCase.assertChunkCount(result, ignored -> 12);
+        // -> each Diagnosis yields 6 chunks => 12 chunks from both diagnosis
+        // -> HealthIndicatorResult surrounds the diagnosis list by 5 chunks
+        AbstractChunkedSerializingTestCase.assertChunkCount(result, ignored -> (6 * 2) + 5);
     }
 }

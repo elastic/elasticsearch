@@ -41,11 +41,11 @@ public class HuggingFaceResponseHandler extends BaseResponseHandler {
      * @throws RetryException thrown if status code is {@code >= 300 or < 200}
      */
     void checkForFailureStatusCode(Request request, HttpResult result) throws RetryException {
-        int statusCode = result.response().getStatusLine().getStatusCode();
-        if (statusCode >= 200 && statusCode < 300) {
+        if (result.isSuccessfulResponse()) {
             return;
         }
 
+        int statusCode = result.response().getStatusLine().getStatusCode();
         if (statusCode == 503 || statusCode == 502 || statusCode == 429) {
             throw new RetryException(true, buildError(RATE_LIMIT, request, result));
         } else if (statusCode >= 500) {

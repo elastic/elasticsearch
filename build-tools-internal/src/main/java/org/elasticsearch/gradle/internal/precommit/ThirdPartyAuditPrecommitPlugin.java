@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal.precommit;
@@ -26,7 +27,7 @@ import static org.elasticsearch.gradle.internal.util.DependenciesUtils.createFil
 public class ThirdPartyAuditPrecommitPlugin extends PrecommitPlugin {
 
     public static final String JDK_JAR_HELL_CONFIG_NAME = "jdkJarHell";
-    public static final String LIBS_ELASTICSEARCH_CORE_PROJECT_PATH = ":libs:elasticsearch-core";
+    public static final String LIBS_ELASTICSEARCH_CORE_PROJECT_PATH = ":libs:core";
 
     @Override
     public TaskProvider<? extends Task> createTask(Project project) {
@@ -66,10 +67,8 @@ public class ThirdPartyAuditPrecommitPlugin extends PrecommitPlugin {
                     )
                 );
             t.dependsOn(resourcesTask);
-            if (BuildParams.getIsRuntimeJavaHomeSet()) {
-                t.getJavaHome().set(project.provider(BuildParams::getRuntimeJavaHome).map(File::getPath));
-            }
             t.getTargetCompatibility().set(project.provider(BuildParams::getRuntimeJavaVersion));
+            t.getJavaHome().set(project.provider(BuildParams::getRuntimeJavaHome).map(File::getPath));
             t.setSignatureFile(resourcesDir.resolve("forbidden/third-party-audit.txt").toFile());
             t.getJdkJarHellClasspath().from(jdkJarHellConfig);
             t.getForbiddenAPIsClasspath().from(project.getConfigurations().getByName("forbiddenApisCliJar").plus(compileOnly));

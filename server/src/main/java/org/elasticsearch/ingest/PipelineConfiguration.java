@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest;
@@ -98,18 +99,13 @@ public final class PipelineConfiguration implements SimpleDiffable<PipelineConfi
     }
 
     public Integer getVersion() {
-        var configMap = getConfigAsMap();
-        if (configMap.containsKey("version")) {
-            Object o = configMap.get("version");
-            if (o == null) {
-                return null;
-            } else if (o instanceof Number number) {
-                return number.intValue();
-            } else {
-                throw new IllegalStateException("unexpected version type [" + o.getClass().getName() + "]");
-            }
-        } else {
+        Object o = getConfigAsMap().get("version");
+        if (o == null) {
             return null;
+        } else if (o instanceof Number number) {
+            return number.intValue();
+        } else {
+            throw new IllegalStateException("unexpected version type [" + o.getClass().getName() + "]");
         }
     }
 

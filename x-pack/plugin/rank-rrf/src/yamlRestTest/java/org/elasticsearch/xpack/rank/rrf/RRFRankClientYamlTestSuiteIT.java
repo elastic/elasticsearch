@@ -23,7 +23,9 @@ public class RRFRankClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         .nodes(2)
         .module("rank-rrf")
         .module("lang-painless")
+        .module("x-pack-inference")
         .setting("xpack.license.self_generated.type", "trial")
+        .plugin("inference-service-test")
         .build();
 
     public RRFRankClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {

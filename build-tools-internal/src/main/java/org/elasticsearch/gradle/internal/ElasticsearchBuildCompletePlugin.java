@@ -1,19 +1,21 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal;
 
-import com.gradle.scan.plugin.BuildScanExtension;
+import com.gradle.develocity.agent.gradle.DevelocityConfiguration;
 
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
 import org.apache.commons.compress.archivers.tar.TarArchiveOutputStream;
 import org.apache.commons.compress.compressors.bzip2.BZip2CompressorOutputStream;
 import org.apache.commons.io.IOUtils;
+import org.elasticsearch.gradle.OS;
 import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
@@ -60,11 +62,11 @@ public abstract class ElasticsearchBuildCompletePlugin implements Plugin<Project
             ? System.getenv("BUILD_NUMBER")
             : System.getenv("BUILDKITE_BUILD_NUMBER");
         String performanceTest = System.getenv("BUILD_PERFORMANCE_TEST");
-        if (buildNumber != null && performanceTest == null && GradleUtils.isIncludedBuild(target) == false) {
-            File targetFile = target.file("build/" + buildNumber + ".tar.bz2");
+        if (buildNumber != null && performanceTest == null && GradleUtils.isIncludedBuild(target) == false && OS.current() != OS.WINDOWS) {
+            File targetFile = calculateTargetFile(target, buildNumber);
             File projectDir = target.getProjectDir();
             File gradleWorkersDir = new File(target.getGradle().getGradleUserHomeDir(), "workers/");
-            BuildScanExtension extension = target.getExtensions().getByType(BuildScanExtension.class);
+            DevelocityConfiguration extension = target.getExtensions().getByType(DevelocityConfiguration.class);
             File daemonsLogDir = new File(target.getGradle().getGradleUserHomeDir(), "daemon/" + target.getGradle().getGradleVersion());
 
             getFlowScope().always(BuildFinishedFlowAction.class, spec -> {
@@ -86,9 +88,19 @@ public abstract class ElasticsearchBuildCompletePlugin implements Plugin<Project
         }
     }
 
+    private File calculateTargetFile(Project target, String buildNumber) {
+        File uploadFile = target.file("build/" + buildNumber + ".tar.bz2");
+        int artifactIndex = 1;
+        while (uploadFile.exists()) {
+            uploadFile = target.file("build/" + buildNumber + "-" + artifactIndex++ + ".tar.bz2");
+        }
+        return uploadFile;
+    }
+
     private List<File> resolveProjectLogs(File projectDir) {
         var projectDirFiles = getFileOperations().fileTree(projectDir);
         projectDirFiles.include("**/*.hprof");
+        projectDirFiles.include("**/build/reports/configuration-cache/**");
         projectDirFiles.include("**/build/test-results/**/*.xml");
         projectDirFiles.include("**/build/testclusters/**");
         projectDirFiles.include("**/build/testrun/*/temp/**");
@@ -125,7 +137,7 @@ public abstract class ElasticsearchBuildCompletePlugin implements Plugin<Project
             ListProperty<File> getFilteredFiles();
 
             @Input
-            Property<BuildScanExtension> getBuildScan();
+            Property<DevelocityConfiguration> getBuildScan();
 
         }
 
@@ -152,7 +164,13 @@ public abstract class ElasticsearchBuildCompletePlugin implements Plugin<Project
                     // So, if you change this such that the artifact will have a slash/directory in it, you'll need to update the logic
                     // below as well
                     pb.directory(uploadFileDir);
-                    pb.start().waitFor();
+                    try {
+                        // we are very generious here, as the upload can take
+                        // a long time depending on its size
+                        pb.start().waitFor(30, java.util.concurrent.TimeUnit.MINUTES);
+                    } catch (InterruptedException e) {
+                        System.out.println("Failed to upload buildkite artifact " + e.getMessage());
+                    }
 
                     System.out.println("Generating buildscan link for artifact...");
 
@@ -198,7 +216,7 @@ public abstract class ElasticsearchBuildCompletePlugin implements Plugin<Project
                             + System.getenv("BUILDKITE_JOB_ID")
                             + "/artifacts/"
                             + artifactUuid;
-                        parameters.getBuildScan().get().link("Artifact Upload", targetLink);
+                        parameters.getBuildScan().get().getBuildScan().link("Artifact Upload", targetLink);
                     }
                 } catch (Exception e) {
                     System.out.println("Failed to upload buildkite artifact " + e.getMessage());

@@ -472,6 +472,15 @@ You can run a group of YAML test by using wildcards:
   --tests "org.elasticsearch.test.rest.ClientYamlTestSuiteIT.test {yaml=index/*/*}"
 ---------------------------------------------------------------------------
 
+or 
+
+---------------------------------------------------------------------------
+./gradlew :rest-api-spec:yamlRestTest \
+  --tests org.elasticsearch.test.rest.ClientYamlTestSuiteIT -Dtests.method="test {yaml=cat.segments/10_basic/*}"
+---------------------------------------------------------------------------
+
+The latter method is preferable when the YAML suite name contains `.` (period).
+
 Note that if the selected test via the `--tests` filter is not a valid test, i.e., the YAML test
 runner is not able to parse and load it, you might get an error message indicating that the test
 was not found. In such cases, running the whole suite without using the `--tests` could show more

@@ -156,6 +156,7 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
                                         stats.getDeploymentStats().getModelId(),
                                         stats.getDeploymentStats().getThreadsPerAllocation(),
                                         stats.getDeploymentStats().getNumberOfAllocations(),
+                                        null,
                                         stats.getDeploymentStats().getQueueCapacity(),
                                         null,
                                         stats.getDeploymentStats().getStartTime(),
@@ -228,6 +229,7 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
                                         stats.getDeploymentStats().getModelId(),
                                         stats.getDeploymentStats().getThreadsPerAllocation(),
                                         stats.getDeploymentStats().getNumberOfAllocations(),
+                                        null,
                                         stats.getDeploymentStats().getQueueCapacity(),
                                         null,
                                         stats.getDeploymentStats().getStartTime(),
@@ -300,6 +302,7 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
                                         stats.getDeploymentStats().getModelId(),
                                         stats.getDeploymentStats().getThreadsPerAllocation(),
                                         stats.getDeploymentStats().getNumberOfAllocations(),
+                                        null,
                                         stats.getDeploymentStats().getQueueCapacity(),
                                         null,
                                         stats.getDeploymentStats().getStartTime(),
@@ -372,6 +375,7 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
                                         stats.getDeploymentStats().getModelId(),
                                         stats.getDeploymentStats().getThreadsPerAllocation(),
                                         stats.getDeploymentStats().getNumberOfAllocations(),
+                                        null,
                                         stats.getDeploymentStats().getQueueCapacity(),
                                         stats.getDeploymentStats().getCacheSize(),
                                         stats.getDeploymentStats().getStartTime(),
@@ -445,6 +449,7 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
                                         stats.getDeploymentStats().getModelId(),
                                         stats.getDeploymentStats().getThreadsPerAllocation(),
                                         stats.getDeploymentStats().getNumberOfAllocations(),
+                                        null,
                                         stats.getDeploymentStats().getQueueCapacity(),
                                         stats.getDeploymentStats().getCacheSize(),
                                         stats.getDeploymentStats().getStartTime(),
@@ -518,6 +523,7 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
                                         stats.getDeploymentStats().getModelId(),
                                         stats.getDeploymentStats().getThreadsPerAllocation(),
                                         stats.getDeploymentStats().getNumberOfAllocations(),
+                                        null,
                                         stats.getDeploymentStats().getQueueCapacity(),
                                         stats.getDeploymentStats().getCacheSize(),
                                         stats.getDeploymentStats().getStartTime(),
@@ -556,7 +562,7 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
                     RESULTS_FIELD
                 )
             );
-        } else if (version.before(TransportVersions.NODE_STATS_INGEST_BYTES)) {
+        } else if (version.before(TransportVersions.V_8_15_0)) {
             // added ByteStats to IngestStats.PipelineStat
             return new Response(
                 new QueryPage<>(
@@ -591,6 +597,7 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
                                         stats.getDeploymentStats().getModelId(),
                                         stats.getDeploymentStats().getThreadsPerAllocation(),
                                         stats.getDeploymentStats().getNumberOfAllocations(),
+                                        null,
                                         stats.getDeploymentStats().getQueueCapacity(),
                                         stats.getDeploymentStats().getCacheSize(),
                                         stats.getDeploymentStats().getStartTime(),

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.action.search;
 
@@ -11,6 +12,7 @@ import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.tests.store.MockDirectoryWrapper;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
@@ -114,7 +116,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
             mockSearchPhaseContext.assertNoFailure();
             SearchResponse searchResponse = mockSearchPhaseContext.searchResponse.get();
             assertNotNull(searchResponse);
-            assertEquals(numHits, searchResponse.getHits().getTotalHits().value);
+            assertEquals(numHits, searchResponse.getHits().getTotalHits().value());
             if (numHits != 0) {
                 assertEquals(42, searchResponse.getHits().getAt(0).docId());
             }
@@ -201,7 +203,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
                     Transport.Connection connection,
                     ShardFetchSearchRequest request,
                     SearchTask task,
-                    SearchActionListener<FetchSearchResult> listener
+                    ActionListener<FetchSearchResult> listener
                 ) {
                     FetchSearchResult fetchResult = new FetchSearchResult();
                     try {
@@ -242,7 +244,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
             mockSearchPhaseContext.assertNoFailure();
             SearchResponse searchResponse = mockSearchPhaseContext.searchResponse.get();
             assertNotNull(searchResponse);
-            assertEquals(2, searchResponse.getHits().getTotalHits().value);
+            assertEquals(2, searchResponse.getHits().getTotalHits().value());
             assertEquals(84, searchResponse.getHits().getAt(0).docId());
             assertEquals(42, searchResponse.getHits().getAt(1).docId());
             assertEquals(0, searchResponse.getFailedShards());
@@ -317,7 +319,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
                     Transport.Connection connection,
                     ShardFetchSearchRequest request,
                     SearchTask task,
-                    SearchActionListener<FetchSearchResult> listener
+                    ActionListener<FetchSearchResult> listener
                 ) {
                     if (request.contextId().getId() == 321) {
                         FetchSearchResult fetchResult = new FetchSearchResult();
@@ -351,7 +353,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
             mockSearchPhaseContext.assertNoFailure();
             SearchResponse searchResponse = mockSearchPhaseContext.searchResponse.get();
             assertNotNull(searchResponse);
-            assertEquals(2, searchResponse.getHits().getTotalHits().value);
+            assertEquals(2, searchResponse.getHits().getTotalHits().value());
             assertEquals(84, searchResponse.getHits().getAt(0).docId());
             assertEquals(1, searchResponse.getFailedShards());
             assertEquals(1, searchResponse.getSuccessfulShards());
@@ -426,7 +428,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
                     Transport.Connection connection,
                     ShardFetchSearchRequest request,
                     SearchTask task,
-                    SearchActionListener<FetchSearchResult> listener
+                    ActionListener<FetchSearchResult> listener
                 ) {
                     new Thread(() -> {
                         FetchSearchResult fetchResult = new FetchSearchResult();
@@ -466,7 +468,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
             mockSearchPhaseContext.assertNoFailure();
             SearchResponse searchResponse = mockSearchPhaseContext.searchResponse.get();
             assertNotNull(searchResponse);
-            assertEquals(numHits, searchResponse.getHits().getTotalHits().value);
+            assertEquals(numHits, searchResponse.getHits().getTotalHits().value());
             assertEquals(Math.min(numHits, resultSetSize), searchResponse.getHits().getHits().length);
             SearchHit[] hits = searchResponse.getHits().getHits();
             for (int i = 0; i < hits.length; i++) {
@@ -562,7 +564,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
                     Transport.Connection connection,
                     ShardFetchSearchRequest request,
                     SearchTask task,
-                    SearchActionListener<FetchSearchResult> listener
+                    ActionListener<FetchSearchResult> listener
                 ) {
                     FetchSearchResult fetchResult = new FetchSearchResult();
                     try {
@@ -667,7 +669,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
                     Transport.Connection connection,
                     ShardFetchSearchRequest request,
                     SearchTask task,
-                    SearchActionListener<FetchSearchResult> listener
+                    ActionListener<FetchSearchResult> listener
                 ) {
                     FetchSearchResult fetchResult = new FetchSearchResult();
                     try {
@@ -701,7 +703,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
             mockSearchPhaseContext.assertNoFailure();
             SearchResponse searchResponse = mockSearchPhaseContext.searchResponse.get();
             assertNotNull(searchResponse);
-            assertEquals(2, searchResponse.getHits().getTotalHits().value);
+            assertEquals(2, searchResponse.getHits().getTotalHits().value());
             assertEquals(1, searchResponse.getHits().getHits().length);
             assertEquals(84, searchResponse.getHits().getAt(0).docId());
             assertEquals(0, searchResponse.getFailedShards());

@@ -1,14 +1,24 @@
-
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-
 parser grammar EsqlBaseParser;
 
-options {tokenVocab=EsqlBaseLexer;}
+@header {
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+}
+
+options {
+  superClass=ParserConfig;
+  tokenVocab=EsqlBaseLexer;
+}
 
 singleStatement
     : query EOF
@@ -23,26 +33,27 @@ sourceCommand
     : explainCommand
     | fromCommand
     | rowCommand
-    | metricsCommand
     | showCommand
-    | metaCommand
+    // in development
+    | {this.isDevVersion()}? metricsCommand
     ;
 
 processingCommand
     : evalCommand
-    | inlinestatsCommand
-    | limitCommand
-    | lookupCommand
-    | keepCommand
-    | sortCommand
-    | statsCommand
     | whereCommand
+    | keepCommand
+    | limitCommand
+    | statsCommand
+    | sortCommand
     | dropCommand
     | renameCommand
     | dissectCommand
     | grokCommand
     | enrichCommand
     | mvExpandCommand
+    // in development
+    | {this.isDevVersion()}? inlinestatsCommand
+    | {this.isDevVersion()}? lookupCommand
     ;
 
 whereCommand
@@ -57,11 +68,16 @@ booleanExpression
     | left=booleanExpression operator=OR right=booleanExpression                 #logicalBinary
     | valueExpression (NOT)? IN LP valueExpression (COMMA valueExpression)* RP   #logicalIn
     | valueExpression IS NOT? NULL                                               #isNull
+    | {this.isDevVersion()}? matchBooleanExpression                              #matchExpression
     ;
 
 regexBooleanExpression
     : valueExpression (NOT)? kind=LIKE pattern=string
     | valueExpression (NOT)? kind=RLIKE pattern=string
+    ;
+
+matchBooleanExpression
+    : valueExpression MATCH queryString=string
     ;
 
 valueExpression
@@ -85,7 +101,13 @@ primaryExpression
     ;
 
 functionExpression
-    : identifier LP (ASTERISK | (booleanExpression (COMMA booleanExpression)*))? RP
+    : functionName LP (ASTERISK | (booleanExpression (COMMA booleanExpression)*))? RP
+    ;
+
+functionName
+    // Additional function identifiers that are already a reserved word in the language
+    : MATCH
+    | identifierOrParameter
     ;
 
 dataType
@@ -101,8 +123,7 @@ fields
     ;
 
 field
-    : booleanExpression
-    | qualifiedName ASSIGN booleanExpression
+    : (qualifiedName ASSIGN)? booleanExpression
     ;
 
 fromCommand
@@ -110,8 +131,7 @@ fromCommand
     ;
 
 indexPattern
-    : clusterString COLON indexString
-    | indexString
+    : (clusterString COLON)? indexString
     ;
 
 clusterString
@@ -137,7 +157,7 @@ deprecated_metadata
     ;
 
 metricsCommand
-    : METRICS indexPattern (COMMA indexPattern)* aggregates=fields? (BY grouping=fields)?
+    : DEV_METRICS indexPattern (COMMA indexPattern)* aggregates=aggFields? (BY grouping=fields)?
     ;
 
 evalCommand
@@ -145,16 +165,19 @@ evalCommand
     ;
 
 statsCommand
-    : STATS stats=fields? (BY grouping=fields)?
+    : STATS stats=aggFields? (BY grouping=fields)?
     ;
 
-inlinestatsCommand
-    : INLINESTATS stats=fields (BY grouping=fields)?
+aggFields
+    : aggField (COMMA aggField)*
     ;
 
+aggField
+    : field (WHERE booleanExpression)?
+    ;
 
 qualifiedName
-    : identifier (DOT identifier)*
+    : identifierOrParameter (DOT identifierOrParameter)*
     ;
 
 qualifiedNamePattern
@@ -172,6 +195,7 @@ identifier
 
 identifierPattern
     : ID_PATTERN
+    | {this.isDevVersion()}? parameter
     ;
 
 constant
@@ -180,16 +204,21 @@ constant
     | decimalValue                                                                      #decimalLiteral
     | integerValue                                                                      #integerLiteral
     | booleanValue                                                                      #booleanLiteral
-    | params                                                                            #inputParams
+    | parameter                                                                         #inputParameter
     | string                                                                            #stringLiteral
     | OPENING_BRACKET numericValue (COMMA numericValue)* CLOSING_BRACKET                #numericArrayLiteral
     | OPENING_BRACKET booleanValue (COMMA booleanValue)* CLOSING_BRACKET                #booleanArrayLiteral
     | OPENING_BRACKET string (COMMA string)* CLOSING_BRACKET                            #stringArrayLiteral
     ;
 
-params
+parameter
     : PARAM                        #inputParam
     | NAMED_OR_POSITIONAL_PARAM    #inputNamedOrPositionalParam
+    ;
+
+identifierOrParameter
+    : identifier
+    | {this.isDevVersion()}? parameter
     ;
 
 limitCommand
@@ -277,10 +306,6 @@ showCommand
     : SHOW INFO                                                           #showInfo
     ;
 
-metaCommand
-    : META FUNCTIONS                                                      #metaFunctions
-    ;
-
 enrichCommand
     : ENRICH policyName=ENRICH_POLICY_NAME (ON matchField=qualifiedNamePattern)? (WITH enrichWithClause (COMMA enrichWithClause)*)?
     ;
@@ -289,6 +314,13 @@ enrichWithClause
     : (newName=qualifiedNamePattern ASSIGN)? enrichField=qualifiedNamePattern
     ;
 
+//
+// In development
+//
 lookupCommand
-    : LOOKUP tableName=indexPattern ON matchFields=qualifiedNamePatterns
+    : DEV_LOOKUP tableName=indexPattern ON matchFields=qualifiedNamePatterns
+    ;
+
+inlinestatsCommand
+    : DEV_INLINESTATS stats=aggFields (BY grouping=fields)?
     ;

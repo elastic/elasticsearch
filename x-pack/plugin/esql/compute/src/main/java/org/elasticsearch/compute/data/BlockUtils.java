@@ -87,6 +87,8 @@ public final class BlockUtils {
                             } else {
                                 wrapper.builder.mvOrdering(Block.MvOrdering.DEDUPLICATED_UNORDERD);
                             }
+                        } else if (isAscending(listVal) && random.nextBoolean()) {
+                            wrapper.builder.mvOrdering(Block.MvOrdering.SORTED_ASCENDING);
                         }
                         blocks[i] = wrapper.builder.build();
                     }

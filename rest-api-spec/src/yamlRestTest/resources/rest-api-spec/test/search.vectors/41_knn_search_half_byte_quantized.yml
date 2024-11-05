@@ -428,7 +428,7 @@ setup:
         index: hnsw_byte_quantized_merge_cosine
         id: "1"
         body:
-          embedding: [1.0, 1.0, 1.0, 1.0]
+          embedding: [0.5, 0.5, 0.5, 0.5, 0.5, 1.0]
 
   # Flush in order to provoke a merge later
   - do:
@@ -439,7 +439,7 @@ setup:
         index: hnsw_byte_quantized_merge_cosine
         id: "2"
         body:
-          embedding: [1.0, 1.0, 1.0, 2.0]
+          embedding: [0.0, 0.0, 0.0, 1.0, 1.0, 0.5]
 
   # Flush in order to provoke a merge later
   - do:
@@ -450,7 +450,7 @@ setup:
         index: hnsw_byte_quantized_merge_cosine
         id: "3"
         body:
-          embedding: [1.0, 1.0, 1.0, 3.0]
+          embedding: [0.0, 0.0, 0.0, 0.0, 0.0, 10.5]
 
   - do:
       indices.forcemerge:
@@ -468,7 +468,7 @@ setup:
           query:
             knn:
               field: embedding
-              query_vector: [1.0, 1.0, 1.0, 1.0]
+              query_vector: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
               num_candidates: 10
 
   - length: { hits.hits: 3 }

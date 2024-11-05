@@ -111,6 +111,7 @@ PUT my-index-000001/_doc/metric_1
 
 The `subobjects` setting for existing fields and the top-level mapping definition cannot be updated.
 
+[[subobjects-auto-flattening]]
 ==== Auto-flattening object mappings
 
 It is generally recommended to define the properties of an object that is configured with `subobjects: false` with dotted field names

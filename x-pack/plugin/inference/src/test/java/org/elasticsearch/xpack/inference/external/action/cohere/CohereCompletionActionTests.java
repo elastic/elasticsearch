@@ -23,7 +23,10 @@ import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
+import org.elasticsearch.xpack.inference.external.action.SingleInputSenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
+import org.elasticsearch.xpack.inference.external.http.sender.CohereCompletionRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
@@ -41,6 +44,7 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
+import static org.elasticsearch.xpack.inference.external.action.ActionUtils.constructFailedToSendRequestMessage;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.results.ChatCompletionResultsTests.buildExpectationCompletion;
@@ -339,9 +343,10 @@ public class CohereCompletionActionTests extends ESTestCase {
         }
     }
 
-    private CohereCompletionAction createAction(String url, String apiKey, @Nullable String modelName, Sender sender) {
+    private ExecutableAction createAction(String url, String apiKey, @Nullable String modelName, Sender sender) {
         var model = CohereCompletionModelTests.createModel(url, apiKey, modelName);
-
-        return new CohereCompletionAction(sender, model, threadPool);
+        var requestManager = CohereCompletionRequestManager.of(model, threadPool);
+        var failedToSendRequestErrorMessage = constructFailedToSendRequestMessage(model.getServiceSettings().uri(), "Cohere completion");
+        return new SingleInputSenderExecutableAction(sender, requestManager, failedToSendRequestErrorMessage, "Cohere completion");
     }
 }

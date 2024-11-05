@@ -26,10 +26,10 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.TestFeatureService;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
 import org.elasticsearch.xpack.esql.CsvTestUtils;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
-import org.elasticsearch.xpack.esql.core.CsvSpecReader.CsvTestCase;
-import org.elasticsearch.xpack.esql.core.SpecReader;
+import org.elasticsearch.xpack.esql.SpecReader;
 import org.elasticsearch.xpack.esql.plugin.EsqlFeatures;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.RequestObjectBuilder;
 import org.junit.After;
@@ -61,13 +61,16 @@ import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.elasticsearch.xpack.esql.CsvAssert.assertData;
 import static org.elasticsearch.xpack.esql.CsvAssert.assertMetadata;
+import static org.elasticsearch.xpack.esql.CsvSpecReader.specParser;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.ExpectedResults;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.loadCsvSpecValues;
-import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.CSV_DATASET_MAP;
+import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.availableDatasetsForEs;
+import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.clusterHasInferenceEndpoint;
+import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.createInferenceEndpoint;
+import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.deleteInferenceEndpoint;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.loadDataSetIntoEs;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResources;
-import static org.elasticsearch.xpack.esql.core.CsvSpecReader.specParser;
 
 // This test can run very long in serverless configurations
 @TimeoutSuite(millis = 30 * TimeUnits.MINUTE)
@@ -82,6 +85,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     private final String testName;
     private final Integer lineNumber;
     protected final CsvTestCase testCase;
+    protected final String instructions;
     protected final Mode mode;
 
     public enum Mode {
@@ -89,7 +93,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         ASYNC
     }
 
-    @ParametersFactory(argumentFormatting = "%2$s.%3$s %6$s")
+    @ParametersFactory(argumentFormatting = "%2$s.%3$s %7$s")
     public static List<Object[]> readScriptSpec() throws Exception {
         List<URL> urls = classpathResources("/*.csv-spec");
         assertTrue("Not enough specs found " + urls, urls.size() > 0);
@@ -108,18 +112,31 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         return testcases;
     }
 
-    protected EsqlSpecTestCase(String fileName, String groupName, String testName, Integer lineNumber, CsvTestCase testCase, Mode mode) {
+    protected EsqlSpecTestCase(
+        String fileName,
+        String groupName,
+        String testName,
+        Integer lineNumber,
+        CsvTestCase testCase,
+        String instructions,
+        Mode mode
+    ) {
         this.fileName = fileName;
         this.groupName = groupName;
         this.testName = testName;
         this.lineNumber = lineNumber;
         this.testCase = testCase;
+        this.instructions = instructions;
         this.mode = mode;
     }
 
     @Before
     public void setup() throws IOException {
-        if (indexExists(CSV_DATASET_MAP.keySet().iterator().next()) == false) {
+        if (supportsInferenceTestService() && clusterHasInferenceEndpoint(client()) == false) {
+            createInferenceEndpoint(client());
+        }
+
+        if (indexExists(availableDatasetsForEs(client()).iterator().next().indexName()) == false) {
             loadDataSetIntoEs(client());
         }
     }
@@ -138,6 +155,8 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
                 throw e;
             }
         }
+
+        deleteInferenceEndpoint(client());
     }
 
     public boolean logResults() {
@@ -154,8 +173,11 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     }
 
     protected void shouldSkipTest(String testName) throws IOException {
+        if (testCase.requiredCapabilities.contains("semantic_text_type")) {
+            assumeTrue("Inference test service needs to be supported for semantic_text", supportsInferenceTestService());
+        }
         checkCapabilities(adminClient(), testFeatureService, testName, testCase);
-        assumeTrue("Test " + testName + " is not enabled", isEnabled(testName, Version.CURRENT));
+        assumeTrue("Test " + testName + " is not enabled", isEnabled(testName, instructions, Version.CURRENT));
     }
 
     protected static void checkCapabilities(RestClient client, TestFeatureService testFeatureService, String testName, CsvTestCase testCase)
@@ -197,6 +219,10 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         }
     }
 
+    protected boolean supportsInferenceTestService() {
+        return true;
+    }
+
     protected final void doTest() throws Throwable {
         RequestObjectBuilder builder = new RequestObjectBuilder(randomFrom(XContentType.values()));
 
@@ -204,11 +230,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
             builder.tables(tables());
         }
 
-        Map<String, Object> answer = runEsql(
-            builder.query(testCase.query),
-            testCase.expectedWarnings(false),
-            testCase.expectedWarningsRegex()
-        );
+        Map<String, Object> answer = runEsql(builder.query(testCase.query), testCase.expectedWarnings(), testCase.expectedWarningsRegex());
 
         var expectedColumnsWithValues = loadCsvSpecValues(testCase.expectedResults);
 
@@ -273,9 +295,9 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
                 }
                 return values;
             } else if (value instanceof Double d) {
-                return new BigDecimal(d).round(new MathContext(10, RoundingMode.DOWN)).doubleValue();
+                return new BigDecimal(d).round(new MathContext(7, RoundingMode.DOWN)).doubleValue();
             } else if (value instanceof String s) {
-                return new BigDecimal(s).round(new MathContext(10, RoundingMode.DOWN)).doubleValue();
+                return new BigDecimal(s).round(new MathContext(7, RoundingMode.DOWN)).doubleValue();
             }
         }
         return value.toString();

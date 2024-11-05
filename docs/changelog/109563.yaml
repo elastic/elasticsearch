@@ -1,5 +1,0 @@
-pr: 109563
-summary: Add allocation explain output for THROTTLING shards
-area: Infra/Core
-type: enhancement
-issues: []

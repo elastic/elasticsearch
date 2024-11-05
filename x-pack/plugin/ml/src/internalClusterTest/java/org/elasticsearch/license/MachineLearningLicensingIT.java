@@ -9,8 +9,6 @@ package org.elasticsearch.license;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.ingest.PutPipelineRequest;
-import org.elasticsearch.action.ingest.PutPipelineTransportAction;
 import org.elasticsearch.action.ingest.SimulateDocumentBaseResult;
 import org.elasticsearch.action.ingest.SimulatePipelineAction;
 import org.elasticsearch.action.ingest.SimulatePipelineRequest;
@@ -251,7 +249,7 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
             DatafeedState datafeedState = getDatafeedStats(datafeedId).getDatafeedState();
             assertEquals(DatafeedState.STOPPED, datafeedState);
 
-            ClusterState state = clusterAdmin().prepareState().get().getState();
+            ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
             List<PersistentTasksCustomMetadata.PersistentTask<?>> tasks = findTasks(state, RELATED_TASKS);
             assertEquals(0, tasks.size());
         });
@@ -276,7 +274,7 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
             DatafeedState datafeedState = getDatafeedStats(datafeedId).getDatafeedState();
             assertEquals(DatafeedState.STARTED, datafeedState);
 
-            ClusterState state = clusterAdmin().prepareState().get().getState();
+            ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
             List<PersistentTasksCustomMetadata.PersistentTask<?>> tasks = findTasks(state, RELATED_TASKS);
             assertEquals(2, tasks.size());
         });
@@ -296,7 +294,7 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
             DatafeedState datafeedState = getDatafeedStats(datafeedId).getDatafeedState();
             assertEquals(DatafeedState.STOPPED, datafeedState);
 
-            ClusterState state = clusterAdmin().prepareState().get().getState();
+            ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
             List<PersistentTasksCustomMetadata.PersistentTask<?>> tasks = findTasks(state, RELATED_TASKS);
             assertEquals(0, tasks.size());
         });
@@ -336,7 +334,7 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
         assertBusy(() -> {
             JobState jobState = getJobStats(jobId).getState();
             assertEquals(JobState.CLOSED, jobState);
-            ClusterState state = clusterAdmin().prepareState().get().getState();
+            ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
             List<PersistentTasksCustomMetadata.PersistentTask<?>> tasks = findTasks(state, RELATED_TASKS);
             assertEquals(0, tasks.size());
         });
@@ -527,18 +525,7 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
                   }]}
             """;
         // Creating a pipeline should work
-        PlainActionFuture<AcknowledgedResponse> putPipelineListener = new PlainActionFuture<>();
-        client().execute(
-            PutPipelineTransportAction.TYPE,
-            new PutPipelineRequest(
-                "test_infer_license_pipeline",
-                new BytesArray(pipeline.getBytes(StandardCharsets.UTF_8)),
-                XContentType.JSON
-            ),
-            putPipelineListener
-        );
-        AcknowledgedResponse putPipelineResponse = putPipelineListener.actionGet();
-        assertTrue(putPipelineResponse.isAcknowledged());
+        putJsonPipeline("test_infer_license_pipeline", pipeline);
 
         prepareIndex("infer_license_test").setPipeline("test_infer_license_pipeline").setSource("{}", XContentType.JSON).get();
 
@@ -575,18 +562,7 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
         }
 
         // Creating a new pipeline with an inference processor should work
-        putPipelineListener = new PlainActionFuture<>();
-        client().execute(
-            PutPipelineTransportAction.TYPE,
-            new PutPipelineRequest(
-                "test_infer_license_pipeline_again",
-                new BytesArray(pipeline.getBytes(StandardCharsets.UTF_8)),
-                XContentType.JSON
-            ),
-            putPipelineListener
-        );
-        putPipelineResponse = putPipelineListener.actionGet();
-        assertTrue(putPipelineResponse.isAcknowledged());
+        putJsonPipeline("test_infer_license_pipeline_again", pipeline);
 
         // Inference against the new pipeline should fail since it has never previously succeeded
         ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, () -> {
@@ -609,18 +585,7 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
         enableLicensing(mode);
         assertMLAllowed(true);
         // test that license restricted apis do now work
-        PlainActionFuture<AcknowledgedResponse> putPipelineListenerNewLicense = new PlainActionFuture<>();
-        client().execute(
-            PutPipelineTransportAction.TYPE,
-            new PutPipelineRequest(
-                "test_infer_license_pipeline",
-                new BytesArray(pipeline.getBytes(StandardCharsets.UTF_8)),
-                XContentType.JSON
-            ),
-            putPipelineListenerNewLicense
-        );
-        AcknowledgedResponse putPipelineResponseNewLicense = putPipelineListenerNewLicense.actionGet();
-        assertTrue(putPipelineResponseNewLicense.isAcknowledged());
+        putJsonPipeline("test_infer_license_pipeline", pipeline);
 
         PlainActionFuture<SimulatePipelineResponse> simulatePipelineListenerNewLicense = new PlainActionFuture<>();
         client().execute(

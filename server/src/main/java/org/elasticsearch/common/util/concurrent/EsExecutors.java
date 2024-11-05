@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.util.concurrent;
@@ -325,16 +326,25 @@ public class EsExecutors {
     }
 
     public static ThreadFactory daemonThreadFactory(Settings settings, String namePrefix) {
-        return daemonThreadFactory(threadName(settings, namePrefix));
+        return createDaemonThreadFactory(threadName(settings, namePrefix), false);
     }
 
     public static ThreadFactory daemonThreadFactory(String nodeName, String namePrefix) {
-        assert nodeName != null && false == nodeName.isEmpty();
-        return daemonThreadFactory(threadName(nodeName, namePrefix));
+        return daemonThreadFactory(nodeName, namePrefix, false);
     }
 
-    public static ThreadFactory daemonThreadFactory(String namePrefix) {
-        return new EsThreadFactory(namePrefix);
+    public static ThreadFactory daemonThreadFactory(String nodeName, String namePrefix, boolean isSystemThread) {
+        assert nodeName != null && false == nodeName.isEmpty();
+        return createDaemonThreadFactory(threadName(nodeName, namePrefix), isSystemThread);
+    }
+
+    public static ThreadFactory daemonThreadFactory(String name) {
+        assert name != null && name.isEmpty() == false;
+        return createDaemonThreadFactory(name, false);
+    }
+
+    private static ThreadFactory createDaemonThreadFactory(String namePrefix, boolean isSystemThread) {
+        return new EsThreadFactory(namePrefix, isSystemThread);
     }
 
     static class EsThreadFactory implements ThreadFactory {
@@ -342,22 +352,36 @@ public class EsExecutors {
         final ThreadGroup group;
         final AtomicInteger threadNumber = new AtomicInteger(1);
         final String namePrefix;
+        final boolean isSystem;
 
-        EsThreadFactory(String namePrefix) {
+        EsThreadFactory(String namePrefix, boolean isSystem) {
             this.namePrefix = namePrefix;
             SecurityManager s = System.getSecurityManager();
             group = (s != null) ? s.getThreadGroup() : Thread.currentThread().getThreadGroup();
+            this.isSystem = isSystem;
         }
 
         @Override
         public Thread newThread(Runnable r) {
             return AccessController.doPrivileged((PrivilegedAction<Thread>) () -> {
-                Thread t = new Thread(group, r, namePrefix + "[T#" + threadNumber.getAndIncrement() + "]", 0);
+                Thread t = new EsThread(group, r, namePrefix + "[T#" + threadNumber.getAndIncrement() + "]", 0, isSystem);
                 t.setDaemon(true);
                 return t;
             });
         }
+    }
 
+    public static class EsThread extends Thread {
+        private final boolean isSystem;
+
+        EsThread(ThreadGroup group, Runnable target, String name, long stackSize, boolean isSystem) {
+            super(group, target, name, stackSize);
+            this.isSystem = isSystem;
+        }
+
+        public boolean isSystem() {
+            return isSystem;
+        }
     }
 
     /**

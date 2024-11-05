@@ -15,8 +15,12 @@ import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
+import org.elasticsearch.xpack.inference.DefaultElserFeatureFlag;
 
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.xpack.inference.rest.Paths.INFERENCE_ID;
@@ -26,6 +30,7 @@ import static org.elasticsearch.xpack.inference.rest.Paths.TASK_TYPE_OR_INFERENC
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestGetInferenceModelAction extends BaseRestHandler {
+    public static final String DEFAULT_ELSER_2_CAPABILITY = "default_elser_2";
 
     @Override
     public String getName() {
@@ -60,5 +65,15 @@ public class RestGetInferenceModelAction extends BaseRestHandler {
 
         var request = new GetInferenceModelAction.Request(inferenceEntityId, taskType);
         return channel -> client.execute(GetInferenceModelAction.INSTANCE, request, new RestToXContentListener<>(channel));
+    }
+
+    @Override
+    public Set<String> supportedCapabilities() {
+        Set<String> capabilities = new HashSet<>();
+        if (DefaultElserFeatureFlag.isEnabled()) {
+            capabilities.add(DEFAULT_ELSER_2_CAPABILITY);
+        }
+
+        return Collections.unmodifiableSet(capabilities);
     }
 }

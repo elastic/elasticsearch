@@ -270,6 +270,9 @@ tests:
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=ml/get_datafeeds/Test explicit get all datafeeds}
   issue: https://github.com/elastic/elasticsearch/issues/116284
+- class: org.elasticsearch.xpack.deprecation.DeprecationHttpIT
+  method: testDeprecatedSettingsReturnWarnings
+  issue: https://github.com/elastic/elasticsearch/issues/108628
 
 # Examples:
 #

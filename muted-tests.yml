@@ -311,6 +311,9 @@ tests:
 - class: org.elasticsearch.search.basic.SearchWhileRelocatingIT
   method: testSearchAndRelocateConcurrentlyRandomReplicas
   issue: https://github.com/elastic/elasticsearch/issues/116145
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {categorize.Categorize ASYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/113055
 
 # Examples:
 #

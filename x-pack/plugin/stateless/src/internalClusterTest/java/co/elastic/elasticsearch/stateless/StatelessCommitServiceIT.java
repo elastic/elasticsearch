@@ -38,10 +38,12 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.hamcrest.Matchers;
 
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static co.elastic.elasticsearch.stateless.Stateless.CLEAR_BLOB_CACHE_ACTION;
@@ -49,6 +51,7 @@ import static co.elastic.elasticsearch.stateless.commits.StatelessCommitService.
 import static co.elastic.elasticsearch.stateless.commits.StatelessCommitService.SHARD_INACTIVITY_MONITOR_INTERVAL_TIME_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.instanceOf;
@@ -60,7 +63,7 @@ public class StatelessCommitServiceIT extends AbstractStatelessIntegTestCase {
     /**
      * Moves all the index's shards away from searchNodeA and onto searchNodeB.
      */
-    public void moveShardsFromNodeAToNodeB(String indexName, String searchNodeA, String searchNodeB) throws Exception {
+    private void moveShardsFromNodeAToNodeB(String indexName, String searchNodeA, String searchNodeB) throws Exception {
         // Move shard away from searchNodeWithShard to the other node searchNodeWithoutShard.
         logger.info("--> moving shards in index [{}] away from node [{}]", indexName, searchNodeA);
         updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", searchNodeA), indexName);
@@ -68,6 +71,36 @@ public class StatelessCommitServiceIT extends AbstractStatelessIntegTestCase {
         assertThat(internalCluster().nodesInclude(indexName), not(hasItem(searchNodeA)));
         assertThat(internalCluster().nodesInclude(indexName), hasItem(searchNodeB));
         logger.info("--> shards in index [{}] have been moved off of node [{}]", indexName, searchNodeA);
+    }
+
+    /**
+     * Cycles the StatelessCommitService machinery to update search node tracking and ensure commits are uploaded to the blob store and any
+     * unused VBCCs get deleted from the blob store. The VBCC vs commit distinction is important, since a commit cannot be deleted until all
+     * of a VBCC's commits are unused. Assertions that the files are deleted must also be done in an assertBusy() loop, even after calling
+     * this method, because a small amount of asynchronous behavior remains to complete blob store file deletions after the
+     * StatelessClusterConsistencyService confirms the master state is unchanged.
+     */
+    private void flushAndUpdateCommitServiceTrackingAndBlobStoreFiles(String indexNode, String indexName) throws ExecutionException,
+        InterruptedException {
+        // Ensure all the latest data is committed.
+        flush(indexName);
+
+        // Force the StatelessCommitService to update search nodes tracking for each shard commit.
+        StatelessCommitServiceTestUtils.updateCommitUseTrackingForInactiveShards(
+            internalCluster().getInstance(StatelessCommitService.class, indexNode),
+            () -> Long.MAX_VALUE
+        );
+
+        // The index node will not perform any file deletions until it has verified that the cluster state in the blob store has not
+        // changed. The StatelessClusterConsistencyService doesn't run immediately, so we set a Listener and wait for it to run here.
+        var sync = new SubscribableListener<Void>();
+        internalCluster().getInstance(StatelessClusterConsistencyService.class, indexNode)
+            .ensureClusterStateConsistentWithRootBlob(sync, TimeValue.MAX_VALUE);
+        safeAwait(sync);
+
+        // Evict data from all node blob caches. This will force nodes to refresh their data caches from whatever remains on the remote blob
+        // store.
+        client().execute(CLEAR_BLOB_CACHE_ACTION, new ClearBlobCacheNodesRequest()).get();
     }
 
     /**
@@ -82,11 +115,9 @@ public class StatelessCommitServiceIT extends AbstractStatelessIntegTestCase {
     ) throws Exception {
         final String indexNode = startMasterAndIndexNode(
             Settings.builder()
-                // Put SHARD_INACTIVITY_MONITOR_INTERVAL_TIME_SETTING at a large value so the ShardInactivityMonitor will not run, but set
-                // SHARD_INACTIVITY_DURATION_TIME_SETTING to a small time window. This way we can invoke the ShardInactivityMonitor logic
-                // deliberately, without it running on its own.
+                // Put SHARD_INACTIVITY_MONITOR_INTERVAL_TIME_SETTING at a large value so the ShardInactivityMonitor will not run. This way
+                // we can invoke the ShardInactivityMonitor logic deliberately, without it running on its own.
                 .put(SHARD_INACTIVITY_MONITOR_INTERVAL_TIME_SETTING.getKey(), TimeValue.timeValueMinutes(30))
-                .put(SHARD_INACTIVITY_DURATION_TIME_SETTING.getKey(), TimeValue.timeValueMillis(10))
                 .build()
         );
         final String searchNodeA = startSearchNode();
@@ -108,6 +139,7 @@ public class StatelessCommitServiceIT extends AbstractStatelessIntegTestCase {
         // Set up some data to be read.
         final int numDocsToIndex = randomIntBetween(5, 100);
         indexDocsAndRefresh(indexName, numDocsToIndex);
+        flushAndUpdateCommitServiceTrackingAndBlobStoreFiles(indexNode, indexName);
 
         final ShardId shardId = findSearchShard(indexName).shardId();
         final Set<PrimaryTermAndGeneration> commitsBeforeForceMerge;
@@ -126,7 +158,7 @@ public class StatelessCommitServiceIT extends AbstractStatelessIntegTestCase {
             // Save this information to check that the current commits of the indexing shard are later deleted, after a force merge, and
             // the search ends and finally releases any retained commit references.
             commitsBeforeForceMerge = listBlobsTermAndGenerations(shardId);
-            logger.info("--> Blob store shard commit generations during search on current search node: " + commitsBeforeForceMerge);
+            logger.info("--> Blob store shard commit generations for search: " + commitsBeforeForceMerge);
 
             removeSearchShardFromSearchNodeA.apply(indexName, searchNodeA, searchNodeB);
 
@@ -134,16 +166,17 @@ public class StatelessCommitServiceIT extends AbstractStatelessIntegTestCase {
             // can reference information in older commit, rather than copying everything: force merge will ensure older commits are not
             // retained for this reason.
             indexDocsAndRefresh(indexName, numDocsToIndex);
+            flushAndUpdateCommitServiceTrackingAndBlobStoreFiles(indexNode, indexName);
+
+            logger.info("--> Blob store shard commit generations before force-merge: " + listBlobsTermAndGenerations(shardId));
+
             client().admin().indices().forceMerge(new ForceMergeRequest(indexName).maxNumSegments(1)).actionGet();
             flush(indexName);
-            // The indexNode should retain at least one older commit than the force merge commit, even though searchNodeB is not using
-            // older commits, because the old searchNodeA is still using an older commit. Refresh the tracking to ensure the old commit,
-            // which the old search node searchNodeA is still using, is not removed.
-            StatelessCommitServiceTestUtils.updateCommitUseTrackingForInactiveShards(
-                internalCluster().getInstance(StatelessCommitService.class, indexNode),
-                () -> Long.MAX_VALUE
-            );
 
+            // The indexNode should retain at least one older commit than the force merge commit, even though searchNodeB is not using
+            // older commits, because the old searchNodeA is still using an older commit. Cycle the tracking and ensure the old commit,
+            // which the old search node searchNodeA is still using, is not removed.
+            flushAndUpdateCommitServiceTrackingAndBlobStoreFiles(indexNode, indexName);
             Set<String> trackingSearchNodes = StatelessCommitServiceTestUtils.getAllSearchNodesRetainingCommitsForShard(
                 indexNodeCommitService,
                 shardId
@@ -159,20 +192,12 @@ public class StatelessCommitServiceIT extends AbstractStatelessIntegTestCase {
                 trackingSearchNodes.contains(getNodeId(searchNodeA))
             );
 
-            // The index node will not perform any file deletions until it has verified that the cluster state in the blob store has not
-            // changed. The StatelessClusterConsistencyService doesn't run immediately, so we set a Listener and wait for it to run here.
-            // This ensures that any unused commits would be deleted from the blob store. We expect the commits used by the search to _not_
-            // be deleted, so this will deterministically ensure the test doesn't race with delayed file/commit deletions.
-            var sync = new SubscribableListener<Void>();
-            internalCluster().getInstance(StatelessClusterConsistencyService.class, indexNode)
-                .ensureClusterStateConsistentWithRootBlob(sync, TimeValue.MAX_VALUE);
-            safeAwait(sync);
-
-            // Evict data from all node blob caches. This should force the scroll on searchNodeA to fetch data from the remote blob store.
-            client().execute(CLEAR_BLOB_CACHE_ACTION, new ClearBlobCacheNodesRequest()).get();
-
-            final Set<PrimaryTermAndGeneration> commitsRemaining = listBlobsTermAndGenerations(shardId);
-            logger.info("--> Blob store shard commit generations right before old search node scroll access: " + commitsRemaining);
+            final Set<PrimaryTermAndGeneration> commitsAfterForceMerge = listBlobsTermAndGenerations(shardId);
+            var maxCommitAfterMerge = commitsAfterForceMerge.stream().max(PrimaryTermAndGeneration::compareTo).get();
+            var maxCommitBeforeMerge = commitsBeforeForceMerge.stream().max(PrimaryTermAndGeneration::compareTo).get();
+            logger.info("--> Blob store shard commit generations after force-merge: " + commitsAfterForceMerge);
+            logger.info("--> Max commit gen before merge {}, max commit gen after merge {}", maxCommitBeforeMerge, maxCommitAfterMerge);
+            assertThat(maxCommitAfterMerge, greaterThan(maxCommitBeforeMerge));
 
             // Try to fetch more data from the scroll using the old commit on the old search node (SearchNodeA). This should succeed because
             // the commit has not yet been deleted, since the index node tracks old search nodes until they release use of the old commits.
@@ -184,26 +209,32 @@ public class StatelessCommitServiceIT extends AbstractStatelessIntegTestCase {
 
         // Force the ShardInactivityMonitor to run on the indexing node, to fetch all the commits currently in use by search shards. Then we
         // can verify that the pre-merge commits are finally deleted once old searchNodeA reports that it no longer uses any commits.
-        StatelessCommitServiceTestUtils.updateCommitUseTrackingForInactiveShards(
-            internalCluster().getInstance(StatelessCommitService.class, indexNode),
-            () -> Long.MAX_VALUE
-        );
+        flushAndUpdateCommitServiceTrackingAndBlobStoreFiles(indexNode, indexName);
+
+        Set<PrimaryTermAndGeneration> afterScrollReleaseCommitBlobs = listBlobsTermAndGenerations(shardId);
+        logger.info("--> Blob store shard commit generations after search scroll release: " + afterScrollReleaseCommitBlobs);
         logger.info(
-            "--> Blob store shard commit generations immediately after old search node scroll closes and tracking update: "
-                + listBlobsTermAndGenerations(shardId)
+            "--> Index shard's tracked search nodes: {}",
+            StatelessCommitServiceTestUtils.getAllSearchNodesRetainingCommitsForShard(indexNodeCommitService, shardId)
         );
+        // There is still a little race with blob store file deletion after cycling the StatelessCommitService machinery above.
         assertBusy(() -> {
             Set<PrimaryTermAndGeneration> shardCommitBlobs = listBlobsTermAndGenerations(shardId);
             for (PrimaryTermAndGeneration generation : commitsBeforeForceMerge) {
                 assertThat(shardCommitBlobs, not(hasItem(generation)));
             }
         });
+
     }
 
     /**
      * Runs {@link #runTestIndexShardRetainsCommitsForOpenReadersAfterSearchShardIsRemoved} with search shard removal done by moving the
      * search shard to another node, leveraging "index.routing.allocation.exclude._name".
      */
+    @TestLogging(
+        value = "co.elastic.elasticsearch.stateless.commits.StatelessCommitService:TRACE",
+        reason = "This doesn't add a lot of logging and it's extremely useful for debugging"
+    )
     public void testRetainCommitForReadersAfterShardMovedAway() throws Exception {
         runTestIndexShardRetainsCommitsForOpenReadersAfterSearchShardIsRemoved((indexName, searchNodeWithShard, searchNodeWithoutShard) -> {
             try {
@@ -218,6 +249,10 @@ public class StatelessCommitServiceIT extends AbstractStatelessIntegTestCase {
      * Runs {@link #runTestIndexShardRetainsCommitsForOpenReadersAfterSearchShardIsRemoved} with search shard removal done by updating the
      * index settings to 0 replicas.
      */
+    @TestLogging(
+        value = "co.elastic.elasticsearch.stateless.commits.StatelessCommitService:TRACE",
+        reason = "This doesn't add a lot of logging and it's extremely useful for debugging"
+    )
     public void testRetainCommitForReadersAfterShardReplicasSetToZero() throws Exception {
         runTestIndexShardRetainsCommitsForOpenReadersAfterSearchShardIsRemoved((indexName, searchNodeWithShard, searchNodeWithoutShard) -> {
             try {

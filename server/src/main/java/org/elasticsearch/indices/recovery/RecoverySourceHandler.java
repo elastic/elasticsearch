@@ -534,56 +534,30 @@ public class RecoverySourceHandler {
                     );
                 }
             }
-            // When sync ids were used we could use them to check if two shard copies were equivalent,
-            // if that's the case we can skip sending files from the source shard to the target shard.
             // If the shard uses the current replication mechanism, we have to compute the recovery plan,
             // and it is still possible to skip the sending files from the source shard to the target shard
             // using a different mechanism to determine it.
-            // TODO: is this still relevant today?
-            if (hasSameLegacySyncId(recoverySourceMetadata, request.metadataSnapshot()) == false) {
-                cancellableThreads.checkForCancel();
-                SubscribableListener
-                    // compute the plan
-                    .<ShardRecoveryPlan>newForked(
-                        l -> recoveryPlannerService.computeRecoveryPlan(
-                            shard.shardId(),
-                            shardStateIdentifier,
-                            recoverySourceMetadata,
-                            request.metadataSnapshot(),
-                            startingSeqNo,
-                            translogOps.getAsInt(),
-                            getRequest().targetNode().getMaxIndexVersion(),
-                            canUseSnapshots(),
-                            request.isPrimaryRelocation(),
-                            l
-                        )
+            cancellableThreads.checkForCancel();
+            SubscribableListener
+                // compute the plan
+                .<ShardRecoveryPlan>newForked(
+                    l -> recoveryPlannerService.computeRecoveryPlan(
+                        shard.shardId(),
+                        shardStateIdentifier,
+                        recoverySourceMetadata,
+                        request.metadataSnapshot(),
+                        startingSeqNo,
+                        translogOps.getAsInt(),
+                        getRequest().targetNode().getMaxIndexVersion(),
+                        canUseSnapshots(),
+                        request.isPrimaryRelocation(),
+                        l
                     )
-                    // perform the file recovery
-                    .<SendFileResult>andThen((l, plan) -> recoverFilesFromSourceAndSnapshot(plan, store, stopWatch, l))
-                    // and respond
-                    .addListener(listener);
-            } else {
-                logger.trace("skipping [phase1] since source and target have identical sync id [{}]", recoverySourceMetadata.getSyncId());
-                SubscribableListener
-                    // but we must still create a retention lease
-                    .<RetentionLease>newForked(leaseListener -> createRetentionLease(startingSeqNo, leaseListener))
-                    // and then compute the result of sending no files
-                    .andThenApply(ignored -> {
-                        final TimeValue took = stopWatch.totalTime();
-                        logger.trace("recovery [phase1]: took [{}]", took);
-                        return new SendFileResult(
-                            Collections.emptyList(),
-                            Collections.emptyList(),
-                            0L,
-                            Collections.emptyList(),
-                            Collections.emptyList(),
-                            0L,
-                            took
-                        );
-                    })
-                    // and finally respond
-                    .addListener(listener);
-            }
+                )
+                // perform the file recovery
+                .<SendFileResult>andThen((l, plan) -> recoverFilesFromSourceAndSnapshot(plan, store, stopWatch, l))
+                // and respond
+                .addListener(listener);
         } catch (Exception e) {
             throw new RecoverFilesRecoveryException(request.shardId(), 0, ByteSizeValue.ZERO, e);
         }
@@ -1028,43 +1002,6 @@ public class RecoverySourceHandler {
      */
     private ActionListener<ReplicationResponse> wrapLeaseSyncListener(ActionListener<Void> listener) {
         return new ThreadedActionListener<>(shard.getThreadPool().generic(), listener).map(ignored -> null);
-    }
-
-    boolean hasSameLegacySyncId(Store.MetadataSnapshot source, Store.MetadataSnapshot target) {
-        if (source.getSyncId() == null || source.getSyncId().equals(target.getSyncId()) == false) {
-            return false;
-        }
-        if (source.numDocs() != target.numDocs()) {
-            throw new IllegalStateException(
-                "try to recover "
-                    + request.shardId()
-                    + " from primary shard with sync id but number "
-                    + "of docs differ: "
-                    + source.numDocs()
-                    + " ("
-                    + request.sourceNode().getName()
-                    + ", primary) vs "
-                    + target.numDocs()
-                    + "("
-                    + request.targetNode().getName()
-                    + ")"
-            );
-        }
-        SequenceNumbers.CommitInfo sourceSeqNos = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(source.commitUserData().entrySet());
-        SequenceNumbers.CommitInfo targetSeqNos = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(target.commitUserData().entrySet());
-        if (sourceSeqNos.localCheckpoint() != targetSeqNos.localCheckpoint() || targetSeqNos.maxSeqNo() != sourceSeqNos.maxSeqNo()) {
-            final String message = "try to recover "
-                + request.shardId()
-                + " with sync id but "
-                + "seq_no stats are mismatched: ["
-                + source.commitUserData()
-                + "] vs ["
-                + target.commitUserData()
-                + "]";
-            assert false : message;
-            throw new IllegalStateException(message);
-        }
-        return true;
     }
 
     void prepareTargetForTranslog(int totalTranslogOps, ActionListener<TimeValue> listener) {

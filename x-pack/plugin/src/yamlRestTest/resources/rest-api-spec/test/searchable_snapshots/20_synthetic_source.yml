@@ -1,8 +1,8 @@
 ---
 setup:
   - requires:
-      cluster_features: ["gte_v8.5.0"]
-      reason:  added in 8.5
+      cluster_features: [ "mapper.source.mode_from_index_setting" ]
+      reason: "Source mode configured through index setting"
 
   - do:
       indices.create:

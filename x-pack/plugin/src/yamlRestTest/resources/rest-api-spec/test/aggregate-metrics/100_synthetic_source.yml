@@ -1,3 +1,9 @@
+setup:
+  - requires:
+      cluster_features: [ "mapper.source.mode_from_index_setting" ]
+      reason: "Source mode configured through index setting"
+
+---
 aggregate_metric_double:
   - requires:
       cluster_features: ["gte_v8.5.0"]

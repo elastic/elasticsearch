@@ -13,8 +13,8 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DocVector;
-import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
@@ -83,18 +83,27 @@ public class LuceneSourceOperator extends LuceneOperator {
         }
     }
 
+    @SuppressWarnings("this-escape")
     public LuceneSourceOperator(BlockFactory blockFactory, int maxPageSize, LuceneSliceQueue sliceQueue, int limit, ScoreMode scoreMode) {
         super(blockFactory, maxPageSize, sliceQueue);
         this.minPageSize = Math.max(1, maxPageSize / 2);
         this.remainingDocs = limit;
         int estimatedSize = Math.min(limit, maxPageSize);
-        this.docsBuilder = blockFactory.newIntVectorBuilder(estimatedSize);
-        if (scoreMode.needsScores()) {
-            scoreBuilder = blockFactory.newDoubleVectorBuilder(estimatedSize);
-            this.leafCollector = new ScoringCollector();
-        } else {
-            scoreBuilder = null;
-            this.leafCollector = new LimitingCollector();
+        boolean success = false;
+        try {
+            this.docsBuilder = blockFactory.newIntVectorBuilder(estimatedSize);
+            if (scoreMode.needsScores()) {
+                scoreBuilder = blockFactory.newDoubleVectorBuilder(estimatedSize);
+                this.leafCollector = new ScoringCollector();
+            } else {
+                scoreBuilder = null;
+                this.leafCollector = new LimitingCollector();
+            }
+            success = true;
+        } finally {
+            if (success == false) {
+                close();
+            }
         }
     }
 
@@ -170,23 +179,27 @@ public class LuceneSourceOperator extends LuceneOperator {
                 IntBlock shard = null;
                 IntBlock leaf = null;
                 IntVector docs = null;
-                DoubleBlock scores = null;
+                DoubleVector scores = null;
+                DocBlock docBlock = null;
                 try {
                     shard = blockFactory.newConstantIntBlockWith(scorer.shardContext().index(), currentPagePos);
                     leaf = blockFactory.newConstantIntBlockWith(scorer.leafReaderContext().ord, currentPagePos);
                     docs = docsBuilder.build();
                     docsBuilder = blockFactory.newIntVectorBuilder(Math.min(remainingDocs, maxPageSize));
-                    var docBlock = new DocVector(shard.asVector(), leaf.asVector(), docs, true).asBlock();
+                    docBlock = new DocVector(shard.asVector(), leaf.asVector(), docs, true).asBlock();
+                    shard = null;
+                    leaf = null;
+                    docs = null;
                     if (scoreBuilder == null) {
                         page = new Page(currentPagePos, docBlock);
                     } else {
-                        scores = scoreBuilder.build().asBlock();
+                        scores = scoreBuilder.build();
                         scoreBuilder = blockFactory.newDoubleVectorBuilder(Math.min(remainingDocs, maxPageSize));
-                        page = new Page(currentPagePos, docBlock, scores);
+                        page = new Page(currentPagePos, docBlock, scores.asBlock());
                     }
                 } finally {
                     if (page == null) {
-                        Releasables.closeExpectNoException(shard, leaf, docs, scores);
+                        Releasables.closeExpectNoException(shard, leaf, docs, docBlock, scores);
                     }
                 }
                 currentPagePos = 0;
@@ -199,8 +212,7 @@ public class LuceneSourceOperator extends LuceneOperator {
 
     @Override
     public void close() {
-        docsBuilder.close();
-        if (scoreBuilder != null) scoreBuilder.close();
+        Releasables.close(docsBuilder, scoreBuilder);
     }
 
     @Override

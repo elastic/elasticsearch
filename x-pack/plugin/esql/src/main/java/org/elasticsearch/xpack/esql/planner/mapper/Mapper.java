@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinType;
+import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 import org.elasticsearch.xpack.esql.plan.physical.EnrichExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
@@ -178,7 +179,7 @@ public class Mapper {
     private PhysicalPlan mapBinary(BinaryPlan bp) {
         if (bp instanceof Join join) {
             JoinConfig config = join.config();
-            if (config.type() != JoinType.LEFT) {
+            if (config.type() != JoinTypes.LEFT) {
                 throw new EsqlIllegalArgumentException("unsupported join type [" + config.type() + "]");
             }
 

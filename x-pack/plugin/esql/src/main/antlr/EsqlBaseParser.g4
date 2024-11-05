@@ -331,7 +331,7 @@ joinCommand
     ;
 
 joinTarget
-    : index=identifierOrParameter (AS alias=identifier)?
+    : index=identifier (AS alias=identifier)?
     ;
 
 joinCondition

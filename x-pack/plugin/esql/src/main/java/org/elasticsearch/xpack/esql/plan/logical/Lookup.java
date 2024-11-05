@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinType;
+import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 
 import java.io.IOException;
@@ -114,7 +115,7 @@ public class Lookup extends UnaryPlan implements SurrogateLogicalPlan {
                 }
             }
         }
-        return new JoinConfig(JoinType.LEFT, matchFields, leftFields, rightFields);
+        return new JoinConfig(JoinTypes.LEFT, matchFields, leftFields, rightFields);
     }
 
     @Override

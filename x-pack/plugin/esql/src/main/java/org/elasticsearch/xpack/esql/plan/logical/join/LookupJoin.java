@@ -7,31 +7,87 @@
 
 package org.elasticsearch.xpack.esql.plan.logical.join;
 
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.SurrogateLogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes.UsingJoinType;
 
-import java.io.IOException;
 import java.util.List;
+import java.util.Objects;
+
+import static java.util.Collections.emptyList;
+import static org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes.LEFT;
 
 /**
  * Lookup join - specialized LEFT (OUTER) JOIN between the main left side and a lookup index (index_mode = lookup) on the right.
- * In the future, as the join capabilities of the engine will evolve, a regular LEFT JOIN will be used instead, letting the planner decide on the
- * strategy at runtime.
+ * In the future, as the join capabilities of the engine will evolve, a regular LEFT JOIN will be used instead, letting the planner decide
+ * the strategy at runtime.
  */
-public class LookupJoin extends Join {
+public class LookupJoin extends Join implements SurrogateLogicalPlan {
 
-    public LookupJoin(StreamInput in) throws IOException {
-        super(in);
-    }
+    private final List<Attribute> output;
 
     public LookupJoin(Source source,
                       LogicalPlan left,
                       LogicalPlan right,
                       List<Attribute> joinFields) {
-        super(source, left, right, new JoinConfig(JoinType.LEFT, joinFields, joinFields, joinFields));
+        this(source, left, right, new JoinConfig(new UsingJoinType(LEFT, joinFields), emptyList(), emptyList(), emptyList()), emptyList());
+    }
+
+    public LookupJoin(Source source, LogicalPlan left, LogicalPlan right, JoinConfig joinConfig, List<Attribute> output) {
+        super(source, left, right, joinConfig);
+        this.output = output;
+    }
+
+    /**
+     * Translate the expression into a regular join with a Projection on top, to deal with serialization & co.
+     */
+    @Override
+    public LogicalPlan surrogate() {
+        JoinConfig cfg = config();
+        JoinConfig newConfig = new JoinConfig(LEFT, cfg.matchFields(), cfg.leftFields(), cfg.rightFields());
+        Join normalized = new Join(source(), left(), right(), newConfig);
+        return new Project(source(), normalized, output);
+    }
+
+    public List<Attribute> output() {
+        return output;
+    }
+
+    @Override
+    public Join replaceChildren(LogicalPlan left, LogicalPlan right) {
+        return new LookupJoin(source(), left, right, config(), output);
+    }
+
+    @Override
+    protected NodeInfo<Join> info() {
+        // Do not just add the JoinConfig as a whole - this would prevent correctly registering the
+        // expressions and references.
+        return NodeInfo.create(
+            this,
+            LookupJoin::new,
+            left(),
+            right(),
+            config(),
+            output
+        );
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), output);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (super.equals(obj) == false) {
+            return false;
+        }
+
+        LookupJoin other = (LookupJoin) obj;
+        return Objects.equals(output, other.output);
     }
 }

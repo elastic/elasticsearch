@@ -86,6 +86,8 @@ public class CsvTestsDataLoader {
     private static final TestsDataset BOOKS = new TestsDataset("books");
     private static final TestsDataset SEMANTIC_TEXT = new TestsDataset("semantic_text").withInferenceEndpoint(true);
 
+    private static final String LOOKUP_INDEX_SUFFIX = "_lookup";
+
     public static final Map<String, TestsDataset> CSV_DATASET_MAP = Map.ofEntries(
         Map.entry(EMPLOYEES.indexName, EMPLOYEES),
         Map.entry(HOSTS.indexName, HOSTS),
@@ -117,8 +119,12 @@ public class CsvTestsDataLoader {
         Map.entry(DISTANCES.indexName, DISTANCES),
         Map.entry(ADDRESSES.indexName, ADDRESSES),
         Map.entry(BOOKS.indexName, BOOKS),
-        Map.entry(SEMANTIC_TEXT.indexName, SEMANTIC_TEXT)
-    );
+        Map.entry(SEMANTIC_TEXT.indexName, SEMANTIC_TEXT),
+        // JOIN LOOKUP alias
+        Map.entry(LANGUAGES.indexName + LOOKUP_INDEX_SUFFIX, LANGUAGES),
+        Map.entry(CLIENT_IPS.indexName + LOOKUP_INDEX_SUFFIX, CLIENT_IPS),
+        Map.entry("cities" + LOOKUP_INDEX_SUFFIX, AIRPORT_CITY_BOUNDARIES)
+        );
 
     private static final EnrichConfig LANGUAGES_ENRICH = new EnrichConfig("languages_policy", "enrich-policy-languages.json");
     private static final EnrichConfig CLIENT_IPS_ENRICH = new EnrichConfig("clientip_policy", "enrich-policy-clientips.json");

@@ -1,0 +1,30 @@
+//
+// CSV spec for LOOKUP JOIN command
+// Reuses the sample dataset and commands from enrich.csv-spec
+// 
+
+simpleNoLoad
+from employees | lookup join languages_lookup using y | where x > 1 | keep emp_no, language_name | limit 1;
+
+emp_no:integer | language_name:keyword
+;
+
+simple
+required_capability: join_lookup
+
+ROW language_code = "1"  
+| lookup join languages_lookup USING language_code
+;
+
+language_code:keyword  | language_name:keyword 
+1                      | English 
+;
+
+simpleUsing
+required_capability: join_lookup
+
+from employees  | sort emp_no | limit 1 | eval x = to_string(languages) | lookup join languages_lookup using x | keep emp_no, language_name;
+
+emp_no:integer | language_name:keyword
+10001          | French
+;

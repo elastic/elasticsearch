@@ -51,7 +51,7 @@ public class EsqlBaseParser extends ParserConfig {
     LOOKUP_FIELD_WS=118, USING=119, JOIN_LINE_COMMENT=120, JOIN_MULTILINE_COMMENT=121, 
     JOIN_WS=122, METRICS_LINE_COMMENT=123, METRICS_MULTILINE_COMMENT=124, 
     METRICS_WS=125, CLOSING_METRICS_LINE_COMMENT=126, CLOSING_METRICS_MULTILINE_COMMENT=127, 
-    CLOSING_METRICS_WS=128, JOIN_AS=129;
+    CLOSING_METRICS_WS=128;
   public static final int
     RULE_singleStatement = 0, RULE_query = 1, RULE_sourceCommand = 2, RULE_processingCommand = 3, 
     RULE_whereCommand = 4, RULE_booleanExpression = 5, RULE_regexBooleanExpression = 6, 
@@ -108,8 +108,7 @@ public class EsqlBaseParser extends ParserConfig {
       null, null, null, null, null, null, null, null, "'as'", null, null, null, 
       "'on'", "'with'", null, null, null, null, null, null, null, null, null, 
       null, "'info'", null, null, null, "':'", null, null, null, null, null, 
-      null, null, null, null, null, "'USING'", null, null, null, null, null, 
-      null, null, null, null, "'AS'"
+      null, null, null, null, null, "'USING'"
     };
   }
   private static final String[] _LITERAL_NAMES = makeLiteralNames();
@@ -140,7 +139,7 @@ public class EsqlBaseParser extends ParserConfig {
       "LOOKUP_FIELD_WS", "USING", "JOIN_LINE_COMMENT", "JOIN_MULTILINE_COMMENT", 
       "JOIN_WS", "METRICS_LINE_COMMENT", "METRICS_MULTILINE_COMMENT", "METRICS_WS", 
       "CLOSING_METRICS_LINE_COMMENT", "CLOSING_METRICS_MULTILINE_COMMENT", 
-      "CLOSING_METRICS_WS", "JOIN_AS"
+      "CLOSING_METRICS_WS"
     };
   }
   private static final String[] _SYMBOLIC_NAMES = makeSymbolicNames();
@@ -5501,15 +5500,15 @@ public class EsqlBaseParser extends ParserConfig {
 
   @SuppressWarnings("CheckReturnValue")
   public static class JoinTargetContext extends ParserRuleContext {
-    public IdentifierOrParameterContext index;
+    public IdentifierContext index;
     public IdentifierContext alias;
-    public IdentifierOrParameterContext identifierOrParameter() {
-      return getRuleContext(IdentifierOrParameterContext.class,0);
+    public List<IdentifierContext> identifier() {
+      return getRuleContexts(IdentifierContext.class);
+    }
+    public IdentifierContext identifier(int i) {
+      return getRuleContext(IdentifierContext.class,i);
     }
     public TerminalNode AS() { return getToken(EsqlBaseParser.AS, 0); }
-    public IdentifierContext identifier() {
-      return getRuleContext(IdentifierContext.class,0);
-    }
     @SuppressWarnings("this-escape")
     public JoinTargetContext(ParserRuleContext parent, int invokingState) {
       super(parent, invokingState);
@@ -5538,7 +5537,7 @@ public class EsqlBaseParser extends ParserConfig {
       enterOuterAlt(_localctx, 1);
       {
       setState(621);
-      ((JoinTargetContext)_localctx).index = identifierOrParameter();
+      ((JoinTargetContext)_localctx).index = identifier();
       setState(624);
       _errHandler.sync(this);
       _la = _input.LA(1);
@@ -5816,7 +5815,7 @@ public class EsqlBaseParser extends ParserConfig {
   }
 
   public static final String _serializedATN =
-    "\u0004\u0001\u0081\u0289\u0002\u0000\u0007\u0000\u0002\u0001\u0007\u0001"+
+    "\u0004\u0001\u0080\u0289\u0002\u0000\u0007\u0000\u0002\u0001\u0007\u0001"+
     "\u0002\u0002\u0007\u0002\u0002\u0003\u0007\u0003\u0002\u0004\u0007\u0004"+
     "\u0002\u0005\u0007\u0005\u0002\u0006\u0007\u0006\u0002\u0007\u0007\u0007"+
     "\u0002\b\u0007\b\u0002\t\u0007\t\u0002\n\u0007\n\u0002\u000b\u0007\u000b"+
@@ -6204,7 +6203,7 @@ public class EsqlBaseParser extends ParserConfig {
     "\u0268\u0007\b\u0000\u0000\u0267\u0266\u0001\u0000\u0000\u0000\u0267\u0268"+
     "\u0001\u0000\u0000\u0000\u0268\u0269\u0001\u0000\u0000\u0000\u0269\u026a"+
     "\u0005\u0014\u0000\u0000\u026a\u026b\u0003~?\u0000\u026b\u026c\u0003\u0080"+
-    "@\u0000\u026c}\u0001\u0000\u0000\u0000\u026d\u0270\u0003H$\u0000\u026e"+
+    "@\u0000\u026c}\u0001\u0000\u0000\u0000\u026d\u0270\u0003@ \u0000\u026e"+
     "\u026f\u0005X\u0000\u0000\u026f\u0271\u0003@ \u0000\u0270\u026e\u0001"+
     "\u0000\u0000\u0000\u0270\u0271\u0001\u0000\u0000\u0000\u0271\u007f\u0001"+
     "\u0000\u0000\u0000\u0272\u0273\u0005\\\u0000\u0000\u0273\u0278\u0003\u0082"+

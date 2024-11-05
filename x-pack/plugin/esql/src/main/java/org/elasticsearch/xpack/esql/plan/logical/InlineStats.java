@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinType;
+import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -118,7 +119,7 @@ public class InlineStats extends UnaryPlan implements NamedWriteable, SurrogateL
                 }
             }
         }
-        return new JoinConfig(JoinType.LEFT, namedGroupings, leftFields, rightFields);
+        return new JoinConfig(JoinTypes.LEFT, namedGroupings, leftFields, rightFields);
     }
 
     @Override

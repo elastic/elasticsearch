@@ -541,7 +541,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         var target = ctx.joinTarget();
         UnresolvedRelation right = new UnresolvedRelation(
             source(target),
-            new TableIdentifier(source(target.index), null, visitIdentifierOrParameter(target.index)),
+            new TableIdentifier(source(target.index), null, visitIdentifier(target.index)),
             false,
             emptyList(),
             IndexMode.LOOKUP,

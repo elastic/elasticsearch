@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plan.logical.join;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -17,9 +18,11 @@ import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes.UsingJoinType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -28,7 +31,8 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
-import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
+import static org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes.LEFT;
+import static org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes.RIGHT;
 
 public class Join extends BinaryPlan {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Join", Join::new);
@@ -93,11 +97,6 @@ public class Join extends BinaryPlan {
     }
 
     @Override
-    public Join replaceChildren(LogicalPlan left, LogicalPlan right) {
-        return new Join(source(), left, right, config);
-    }
-
-    @Override
     public List<Attribute> output() {
         if (lazyOutput == null) {
             lazyOutput = computeOutput(left().output(), right().output(), config);
@@ -106,29 +105,32 @@ public class Join extends BinaryPlan {
     }
 
     /**
-     * Merge output fields.
-     * Currently only implemented for LEFT JOINs; the rightOutput shadows the leftOutput, except for any attributes that
-     * occur in the join's matchFields.
+     * Combine the two lists of attributes into one.
+     * In case of (name) conflicts, specify which sides wins, that is overrides the other column - the left or the right.
      */
     public static List<Attribute> computeOutput(List<Attribute> leftOutput, List<Attribute> rightOutput, JoinConfig config) {
         AttributeSet matchFieldSet = new AttributeSet(config.matchFields());
         Set<String> matchFieldNames = new HashSet<>(Expressions.names(config.matchFields()));
-        return switch (config.type()) {
-            case LEFT -> {
-                // Right side becomes nullable.
-                List<Attribute> fieldsAddedFromRight = removeCollisionsWithMatchFields(rightOutput, matchFieldSet, matchFieldNames);
-                yield mergeOutputAttributes(fieldsAddedFromRight, leftOutput);
-            }
-            default -> throw new UnsupportedOperationException("Other JOINs than LEFT not supported");
-        };
+        JoinType joinType = config.type();
+        List<Attribute> output;
+        if (LEFT.equals(joinType)) {
+            // Left side wins, right side becomes nullable.
+            output = CollectionUtils.combine(leftOutput, makeNullable(removeDuplicateNames(rightOutput, matchFieldSet, matchFieldNames)));
+        } else if (RIGHT.equals(joinType)) {
+            // right side wins, left side becomes nullable.
+            output = CollectionUtils.combine(makeNullable(removeDuplicateNames(leftOutput, matchFieldSet, matchFieldNames)), rightOutput);
+        } else {
+            throw new IllegalArgumentException(joinType.joinName() + " unsupported");
+        }
+        return output;
     }
 
-    private static List<Attribute> removeCollisionsWithMatchFields(
+    private static List<Attribute> removeDuplicateNames(
         List<Attribute> attributes,
         AttributeSet matchFields,
         Set<String> matchFieldNames
     ) {
-        List<Attribute> result = new ArrayList<>();
+        List<Attribute> result = new ArrayList<>(attributes.size());
         for (Attribute attr : attributes) {
             if ((matchFields.contains(attr) || matchFieldNames.contains(attr.name())) == false) {
                 result.add(attr);
@@ -160,7 +162,7 @@ public class Join extends BinaryPlan {
         return out;
     }
 
-    public static List<Attribute> makeNullable(List<Attribute> output) {
+    private static List<Attribute> makeNullable(List<Attribute> output) {
         List<Attribute> out = new ArrayList<>(output.size());
         for (Attribute a : output) {
             out.add(a.withNullability(Nullability.TRUE));
@@ -179,6 +181,15 @@ public class Join extends BinaryPlan {
         // - the children are resolved
         // - the condition (if present) is resolved to a boolean
         return childrenResolved() && expressionsResolved();
+    }
+
+    public Join withConfig(JoinConfig config) {
+        return new Join(source(), left(), right(), config);
+    }
+
+    @Override
+    public Join replaceChildren(LogicalPlan left, LogicalPlan right) {
+        return new Join(source(), left, right, config);
     }
 
     @Override

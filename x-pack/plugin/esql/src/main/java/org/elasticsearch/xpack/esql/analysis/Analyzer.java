@@ -74,6 +74,12 @@ import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.join.Join;
+import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
+import org.elasticsearch.xpack.esql.plan.logical.join.JoinType;
+import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
+import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes.UsingJoinType;
+import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
@@ -101,6 +107,7 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
+import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.GEO_MATCH_TYPE;
@@ -437,6 +444,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return resolveLookup(l, childrenOutput);
             }
 
+            if (plan instanceof LookupJoin j) {
+                return resolveLookupJoin(j);
+            }
+
             return plan.transformExpressionsOnly(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, childrenOutput));
         }
 
@@ -575,6 +586,70 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return new Lookup(l.source(), l.child(), l.tableName(), matchFields, l.localRelation());
             }
             return l;
+        }
+
+        private Join resolveLookupJoin(LookupJoin join) {
+            JoinConfig config = join.config();
+            // for now, support only (LEFT) USING clauses
+            JoinType type = config.type();
+            // rewrite the join into a equi-join between the field with the same name between left and right
+            // per SQL standard, the USING columns are placed first in the output, followed by the rest of left, then right
+            if (type instanceof UsingJoinType using) {
+                List<Attribute> cols = using.columns();
+                JoinType coreJoin = using.coreJoin();
+                // verify the join type
+                if (coreJoin != JoinTypes.LEFT) {
+                    String name = cols.get(0).name();
+                    UnresolvedAttribute errorAttribute = new UnresolvedAttribute(
+                        join.source(),
+                        name,
+                        "Only LEFT join is supported with USING"
+                    );
+                    return join.withConfig(new JoinConfig(type, singletonList(errorAttribute), emptyList(), emptyList()));
+                }
+                // resolve the using columns against the left and the right side then assemble the new join config
+                List<Attribute> leftKeys = resolveUsingColumns(cols, join.left().output(), "left");
+                List<Attribute> rightKeys = resolveUsingColumns(cols, join.right().output(), "right");
+                List<Attribute> output = new ArrayList<>(leftKeys);
+
+                // update the config - pick the left keys as those in the output
+                type = new UsingJoinType(coreJoin, leftKeys);
+                config = new JoinConfig(type, leftKeys, leftKeys, rightKeys);
+                join = new LookupJoin(join.source(), join.left(), join.right(), config, output);
+            }
+            // everything else is unsupported for now
+            else {
+                UnresolvedAttribute errorAttribute = new UnresolvedAttribute(join.source(), "unsupported", "Unsupported join type");
+                // add error message
+                return join.withConfig(new JoinConfig(type, singletonList(errorAttribute), emptyList(), emptyList()));
+            }
+            return join;
+        }
+
+        private List<Attribute> resolveUsingColumns(List<Attribute> cols, List<Attribute> output, String side) {
+            List<Attribute> resolved = new ArrayList<>(cols.size());
+            for (Attribute col : cols) {
+                if (col instanceof UnresolvedAttribute ua) {
+                    Attribute resolvedCol = maybeResolveAttribute(ua, output);
+                    if (resolvedCol instanceof UnresolvedAttribute ucol) {
+                        String message = ua.unresolvedMessage();
+                        String match = "column [" + ucol.name() + "]";
+                        resolvedCol = ucol.withUnresolvedMessage(message.replace(match, match + "in " + side + " side of join"));
+                    }
+                    resolved.add(resolvedCol);
+                }
+                // columns are expected to be unresolved - if that's not the case return an error
+                else {
+                    return singletonList(
+                        new UnresolvedAttribute(
+                            col.source(),
+                            col.name(),
+                            "Surprised to discover column [ " + col.name() + "] already resolved"
+                        )
+                    );
+                }
+            }
+            return resolved;
         }
 
         private Attribute maybeResolveAttribute(UnresolvedAttribute ua, List<Attribute> childrenOutput) {

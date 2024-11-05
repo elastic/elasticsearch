@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinType;
+import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 import org.elasticsearch.xpack.esql.plan.physical.EsSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.HashJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
@@ -98,7 +99,7 @@ public class LocalMapper {
         // special handling for inlinejoin - join + subquery which has to be executed first (async) and replaced by its result
         if (binary instanceof Join join) {
             JoinConfig config = join.config();
-            if (config.type() != JoinType.LEFT) {
+            if (config.type() != JoinTypes.LEFT) {
                 throw new EsqlIllegalArgumentException("unsupported join type [" + config.type() + "]");
             }
 

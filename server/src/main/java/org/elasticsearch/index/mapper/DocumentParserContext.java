@@ -638,6 +638,10 @@ public abstract class DocumentParserContext {
         return false;
     }
 
+    boolean inArrayScope() {
+        return currentScope == Scope.ARRAY;
+    }
+
     public final DocumentParserContext createChildContext(ObjectMapper parent) {
         return new Wrapper(parent, this);
     }

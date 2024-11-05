@@ -71,6 +71,7 @@ import java.util.stream.Stream;
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
+import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 import static org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushFiltersToSource.canPushToSource;
 
 /**
@@ -318,6 +319,10 @@ public class Verifier {
             if (e.anyMatch(AggregateFunction.class::isInstance) == false) {
                 Expression filter = fe.filter();
                 failures.add(fail(filter, "WHERE clause allowed only for aggregate functions, none found in [{}]", fe.sourceText()));
+            }
+            Expression f = fe.filter(); // check the filter has to be a boolean term, similar as checkFilterConditionType
+            if (f.dataType() != NULL && f.dataType() != BOOLEAN) {
+                failures.add(fail(f, "Condition expression needs to be boolean, found [{}]", f.dataType()));
             }
             // but that the filter doesn't use grouping or aggregate functions
             fe.filter().forEachDown(c -> {

@@ -130,9 +130,11 @@ public class FileSettingsServiceTests extends ESTestCase {
     public void tearDown() throws Exception {
         try {
             if (fileSettingsService.lifecycleState() == Lifecycle.State.STARTED) {
+                logger.info("Stopping file settings service");
                 fileSettingsService.stop();
             }
             if (fileSettingsService.lifecycleState() == Lifecycle.State.STOPPED) {
+                logger.info("Closing file settings service");
                 fileSettingsService.close();
             }
 
@@ -377,6 +379,10 @@ public class FileSettingsServiceTests extends ESTestCase {
                 logger.info("Moving settings temp file to replace [{}]", tempFile.getFileName());
                 Files.move(tempFile, path, REPLACE_EXISTING, ATOMIC_MOVE);
             } catch (AtomicMoveNotSupportedException e) {
+                logger.info(
+                    "Atomic move was not available. Falling back on non-atomic move for settings temp file to replace [{}]",
+                    tempFile.getFileName()
+                );
                 Files.move(tempFile, path, REPLACE_EXISTING);
             }
         } catch (final IOException e) {

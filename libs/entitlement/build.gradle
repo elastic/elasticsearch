@@ -15,10 +15,6 @@ embeddedProviders {
   impl 'entitlement', project(':libs:entitlement:asm-provider')
 }
 
-configurations {
-  entitlementBridge
-}
-
 dependencies {
   compileOnly project(':libs:core') // For @SuppressForbidden
   compileOnly project(':libs:logging')
@@ -27,7 +23,6 @@ dependencies {
   testImplementation(project(":test:framework")) {
     exclude group: 'org.elasticsearch', module: 'entitlement'
   }
-  entitlementBridge project(':libs:entitlement:bridge')
 }
 
 tasks.named('forbiddenApisMain').configure {

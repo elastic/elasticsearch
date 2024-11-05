@@ -199,7 +199,7 @@ class Elasticsearch {
             VectorUtil.class
         );
 
-        if (Boolean.parseBoolean(System.getProperty("es.entitlements.enabled", "false"))) {
+        if (Boolean.getBoolean("es.entitlements.enabled")) {
             EntitlementBootstrap.bootstrap();
         } else {
             // install SM after natives, shutdown hooks, etc.

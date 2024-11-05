@@ -37,8 +37,6 @@ final class SystemJvmOptions {
                  * networkaddress.cache.negative ttl; set to -1 to cache forever.
                  */
                 "-Des.networkaddress.cache.negative.ttl=10",
-                // Allow to set the security manager.
-                "-Djava.security.manager=allow",
                 // pre-touch JVM emory pages during initialization
                 "-XX:+AlwaysPreTouch",
                 // explicitly set the stack size
@@ -71,6 +69,7 @@ final class SystemJvmOptions {
             maybeSetActiveProcessorCount(nodeSettings),
             maybeSetReplayFile(distroType, isHotspot),
             maybeWorkaroundG1Bug(),
+            maybeAllowSecurityManager(),
             maybeAttachEntitlementAgent(useEntitlements)
         ).flatMap(s -> s).toList();
     }
@@ -136,6 +135,11 @@ final class SystemJvmOptions {
             return Stream.of("-XX:+UnlockDiagnosticVMOptions", "-XX:G1NumCollectionsKeepPinned=10000000");
         }
         return Stream.of();
+    }
+
+    private static Stream<String> maybeAllowSecurityManager() {
+        // Will become conditional on useEntitlements once entitlements can run without SM
+        return Stream.of("-Djava.security.manager=allow");
     }
 
     private static Stream<String> maybeAttachEntitlementAgent(boolean useEntitlements) {

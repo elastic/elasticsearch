@@ -43,6 +43,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.ElasticsearchMergeScheduler;
@@ -72,9 +73,11 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongConsumer;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.IndexSettings.INDEX_FAST_REFRESH_SETTING;
@@ -101,6 +104,7 @@ public class IndexEngine extends InternalEngine {
     private final TranslogRecoveryMetrics translogRecoveryMetrics;
     private final MergeMetrics mergeMetrics;
     private final SharedBlobCacheWarmingService cacheWarmingService;
+    private final Predicate<ShardId> shouldSkipMerges;
     // This is written and then accessed on the same thread under the flush lock. So not need for volatile
     private long translogStartFileForNextCommit = 0;
 
@@ -108,6 +112,7 @@ public class IndexEngine extends InternalEngine {
     private final Map<DirectoryReader, Set<PrimaryTermAndGeneration>> openReaders = new HashMap<>();
 
     private final AtomicBoolean ongoingFlushMustUpload = new AtomicBoolean(false);
+    private final AtomicInteger forceMergesInProgress = new AtomicInteger(0);
 
     @SuppressWarnings("this-escape")
     public IndexEngine(
@@ -121,6 +126,35 @@ public class IndexEngine extends InternalEngine {
         CommitBCCResolver commitBCCResolver,
         DocumentParsingProvider documentParsingProvider,
         EngineMetrics metrics
+    ) {
+        this(
+            engineConfig,
+            translogReplicator,
+            translogBlobContainer,
+            statelessCommitService,
+            cacheWarmingService,
+            refreshThrottlerFactory,
+            localReaderListener,
+            commitBCCResolver,
+            documentParsingProvider,
+            metrics,
+            (shardId) -> false
+        );
+    }
+
+    @SuppressWarnings("this-escape")
+    public IndexEngine(
+        EngineConfig engineConfig,
+        TranslogReplicator translogReplicator,
+        Function<String, BlobContainer> translogBlobContainer,
+        StatelessCommitService statelessCommitService,
+        SharedBlobCacheWarmingService cacheWarmingService,
+        RefreshThrottler.Factory refreshThrottlerFactory,
+        IndexEngineLocalReaderListener localReaderListener,
+        CommitBCCResolver commitBCCResolver,
+        DocumentParsingProvider documentParsingProvider,
+        EngineMetrics metrics,
+        Predicate<ShardId> shouldSkipMerges
     ) {
         super(engineConfig);
         assert engineConfig.isPromotableToPrimary();
@@ -140,6 +174,7 @@ public class IndexEngine extends InternalEngine {
             engineConfig.getMapperService(),
             documentSizeAccumulator
         );
+        this.shouldSkipMerges = shouldSkipMerges;
         // We have to track the initial BCC references held by local readers at this point instead of doing it in
         // #createInternalReaderManager because that method is called from the super constructor and at that point,
         // commitBCCResolver field is not set yet.
@@ -570,7 +605,8 @@ public class IndexEngine extends InternalEngine {
     @Override
     public void forceMerge(boolean flush, int maxNumSegments, boolean onlyExpungeDeletes, String forceMergeUUID) throws EngineException,
         IOException {
-        try {
+        forceMergesInProgress.incrementAndGet();
+        try (Releasable ignored = forceMergesInProgress::decrementAndGet) {
             int before = getLastCommittedSegmentInfos().size();
             super.forceMerge(flush, maxNumSegments, onlyExpungeDeletes, forceMergeUUID);
             if (flush) {
@@ -620,6 +656,7 @@ public class IndexEngine extends InternalEngine {
                     merge,
                     fileName -> statelessCommitService.getBlobLocation(shardId, fileName)
                 ),
+                () -> forceMergesInProgress.get() == 0 && shouldSkipMerges.test(shardId),
                 this::onAfterMerge,
                 this::mergeException
             );

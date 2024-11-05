@@ -123,6 +123,7 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+
 import javax.net.ssl.SSLContext;
 
 import static java.util.Collections.sort;
@@ -1123,16 +1124,22 @@ public abstract class ESRestTestCase extends ESTestCase {
             final Request deleteRequest = new Request("DELETE", Strings.collectionToCommaDelimitedString(indexPatterns));
             deleteRequest.addParameter("expand_wildcards", "open,closed,hidden");
             // .security index is now created automatically on cluster startup
+            // we can ignore the warning about accessing system indices when we wipe the cluster after test
             if (false == preserveSecurityIndices) {
-                deleteRequest.setOptions(
-                    expectWarnings(
-                        "this request accesses system indices: [.security-7], but in a future major version, "
-                            + "direct access to system indices will be prevented by default"
-                    )
+                final Set<String> allowedWarnings = Set.of(
+                    "this request accesses system indices: [.security-7], "
+                        + "but in a future major version, direct access to system indices will be prevented by default"
                 );
+                deleteRequest.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(warnings -> {
+                    for (String actualWarning : warnings) {
+                        if (false == allowedWarnings.contains(actualWarning)) {
+                            return true;
+                        }
+                    }
+                    return false;
+                }).build());
             }
             final Response response = adminClient().performRequest(deleteRequest);
-
             try (InputStream is = response.getEntity().getContent()) {
                 assertTrue((boolean) XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true).get("acknowledged"));
             }

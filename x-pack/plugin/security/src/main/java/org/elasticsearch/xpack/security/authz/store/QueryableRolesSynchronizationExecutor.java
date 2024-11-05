@@ -96,11 +96,7 @@ public class QueryableRolesSynchronizationExecutor implements ClusterStateListen
             logger.info("Security index already contains the latest built-in roles indexed");
             return;
         } else {
-            logger.info(
-                "indexed built-in roles {} do not match the latest built-in roles {}",
-                indexedRolesVersions,
-                roles.roleVersions()
-            );
+            logger.info("indexed built-in roles {} do not match the latest built-in roles {}", indexedRolesVersions, roles.roleVersions());
         }
         if (rolesSynchronizationInProgress.compareAndSet(false, true)) {
             executor.execute(() -> syncBuiltinRoles(indexedRolesVersions, roles, ActionListener.wrap(v -> {

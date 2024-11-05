@@ -699,9 +699,11 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
                     client.prepareMultiSearch()
                         .add(
                             client.prepareSearch(SECURITY_MAIN_ALIAS)
-                                .setQuery(QueryBuilders.boolQuery()
-                                    .must(QueryBuilders.termQuery(RoleDescriptor.Fields.TYPE.getPreferredName(), ROLE_TYPE))
-                                    .mustNot(QueryBuilders.termQuery("metadata_flattened._reserved", true)))
+                                .setQuery(
+                                    QueryBuilders.boolQuery()
+                                        .must(QueryBuilders.termQuery(RoleDescriptor.Fields.TYPE.getPreferredName(), ROLE_TYPE))
+                                        .mustNot(QueryBuilders.termQuery("metadata_flattened._reserved", true))
+                                )
                                 .setTrackTotalHits(true)
                                 .setSize(0)
                         )

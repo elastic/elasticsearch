@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.core.template.IndexTemplateRegistry;
 import org.elasticsearch.xpack.core.template.IngestPipelineConfig;
 import org.elasticsearch.xpack.core.template.JsonIngestPipelineConfig;
 import org.elasticsearch.xpack.core.template.JsonLifecyclePolicyConfig;
+import org.elasticsearch.xpack.core.template.LifecyclePolicyConfig;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -123,7 +124,7 @@ public class LegacyStackTemplateRegistry extends IndexTemplateRegistry {
         }
     }
 
-    private static final List<JsonLifecyclePolicyConfig> LIFECYCLE_POLICY_CONFIGS = List.of(
+    private static final List<LifecyclePolicyConfig> LIFECYCLE_POLICY_CONFIGS = List.of(
         new JsonLifecyclePolicyConfig(LOGS_ILM_POLICY_NAME, "/logs@lifecycle.json", ADDITIONAL_TEMPLATE_VARIABLES),
         new JsonLifecyclePolicyConfig(METRICS_ILM_POLICY_NAME, "/metrics@lifecycle.json", ADDITIONAL_TEMPLATE_VARIABLES),
         new JsonLifecyclePolicyConfig(SYNTHETICS_ILM_POLICY_NAME, "/synthetics@lifecycle.json", ADDITIONAL_TEMPLATE_VARIABLES),
@@ -135,7 +136,7 @@ public class LegacyStackTemplateRegistry extends IndexTemplateRegistry {
     );
 
     @Override
-    protected List<JsonLifecyclePolicyConfig> getLifecycleConfigs() {
+    protected List<LifecyclePolicyConfig> getLifecycleConfigs() {
         return LIFECYCLE_POLICY_CONFIGS;
     }
 

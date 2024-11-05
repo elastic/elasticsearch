@@ -21,7 +21,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Properties;
 import java.util.Set;
-
 import javax.mail.MessagingException;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -140,7 +139,7 @@ public class EmailServiceTests extends ESTestCase {
             Collections.emptyMap()
         );
         assertThat(
-            EmailService.getRecipientDomains(email),
+            EmailService.getRecipients(email, true),
             containsInAnyOrder("bar.com", "eggplant.com", "example.com", "another.com", "bcc.com")
         );
 
@@ -158,7 +157,7 @@ public class EmailServiceTests extends ESTestCase {
             "htmlbody",
             Collections.emptyMap()
         );
-        assertThat(EmailService.getRecipientDomains(email), containsInAnyOrder("bar.com", "eggplant.com", "example.com"));
+        assertThat(EmailService.getRecipients(email, true), containsInAnyOrder("bar.com", "eggplant.com", "example.com"));
     }
 
     public void testAllowedDomain() throws Exception {

@@ -299,9 +299,20 @@ public class EmailService extends NotificationService<Account> {
                 "failed to send email with subject ["
                     + email.subject()
                     + "] and recipient domains "
-                    + getRecipientDomains(email)
+                    + getRecipients(email, true)
                     + ", one or more recipients is not specified in the domain allow list setting ["
                     + SETTING_DOMAIN_ALLOWLIST.getKey()
+                    + "]."
+            );
+        }
+        if (recipientAddressInAllowList(email, this.allowedRecipientPatterns) == false) {
+            throw new IllegalArgumentException(
+                "failed to send email with subject ["
+                    + email.subject()
+                    + "] and recipients "
+                    + getRecipients(email, false)
+                    + ", one or more recipients is not specified in the domain allow list setting ["
+                    + SETTING_RECIPIENT_ALLOW_PATTERNS.getKey()
                     + "]."
             );
         }
@@ -309,23 +320,26 @@ public class EmailService extends NotificationService<Account> {
     }
 
     // Visible for testing
-    static Set<String> getRecipientDomains(Email email) {
-        return Stream.concat(
+    static Set<String> getRecipients(Email email, boolean domainsOnly) {
+        var stream = Stream.concat(
             Optional.ofNullable(email.to()).map(addrs -> Arrays.stream(addrs.toArray())).orElse(Stream.empty()),
             Stream.concat(
                 Optional.ofNullable(email.cc()).map(addrs -> Arrays.stream(addrs.toArray())).orElse(Stream.empty()),
                 Optional.ofNullable(email.bcc()).map(addrs -> Arrays.stream(addrs.toArray())).orElse(Stream.empty())
             )
-        )
-            .map(InternetAddress::getAddress)
-            // Pull out only the domain of the email address, so foo@bar.com -> bar.com
-            .map(emailAddress -> emailAddress.substring(emailAddress.lastIndexOf('@') + 1))
-            .collect(Collectors.toSet());
+        ).map(InternetAddress::getAddress);
+
+        if (domainsOnly) {
+            // Pull out only the domain of the email address, so foo@bar.com
+            stream = stream.map(emailAddress -> emailAddress.substring(emailAddress.lastIndexOf('@') + 1));
+        }
+
+        return stream.collect(Collectors.toSet());
     }
 
     // Visible for testing
     static boolean recipientDomainsInAllowList(Email email, Set<String> allowedDomainSet) {
-        if (allowedDomainSet.size() == 0) {
+        if (allowedDomainSet.isEmpty()) {
             // Nothing is allowed
             return false;
         }
@@ -333,10 +347,27 @@ public class EmailService extends NotificationService<Account> {
             // Don't bother checking, because there is a wildcard all
             return true;
         }
-        final Set<String> domains = getRecipientDomains(email);
+        final Set<String> domains = getRecipients(email, true);
         final Predicate<String> matchesAnyAllowedDomain = domain -> allowedDomainSet.stream()
             .anyMatch(allowedDomain -> Regex.simpleMatch(allowedDomain, domain, true));
         return domains.stream().allMatch(matchesAnyAllowedDomain);
+    }
+
+    // Visible for testing
+    static boolean recipientAddressInAllowList(Email email, Set<String> allowedRecipientPatterns) {
+        if (allowedRecipientPatterns.isEmpty()) {
+            // Nothing is allowed
+            return false;
+        }
+        if (allowedRecipientPatterns.contains("*")) {
+            // Don't bother checking, because there is a wildcard all
+            return true;
+        }
+
+        final Set<String> recipients = getRecipients(email, false);
+        final Predicate<String> matchesAnyAllowedRecipient = recipient -> recipients.stream()
+            .anyMatch(allowedDomain -> Regex.simpleMatch(allowedDomain, recipient, true));
+        return recipients.stream().allMatch(matchesAnyAllowedRecipient);
     }
 
     private static EmailSent send(Email email, Authentication auth, Profile profile, Account account) throws MessagingException {

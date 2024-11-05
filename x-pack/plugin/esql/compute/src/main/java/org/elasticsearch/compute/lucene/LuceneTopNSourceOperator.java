@@ -22,6 +22,7 @@ import org.apache.lucene.search.TopFieldCollectorManager;
 import org.apache.lucene.search.TopScoreDocCollectorManager;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
@@ -199,6 +200,7 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
         IntBlock shard = null;
         IntVector segments = null;
         IntVector docs = null;
+        DocBlock docBlock = null;
         DoubleBlock scores = null;
         Page page = null;
         try (
@@ -223,7 +225,10 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
             shard = blockFactory.newConstantIntBlockWith(perShardCollector.shardContext.index(), size);
             segments = currentSegmentBuilder.build();
             docs = currentDocsBuilder.build();
-            var docBlock = new DocVector(shard.asVector(), segments, docs, null).asBlock();
+            docBlock = new DocVector(shard.asVector(), segments, docs, null).asBlock();
+            shard = null;
+            segments = null;
+            docs = null;
             if (currentScoresBuilder == null) {
                 page = new Page(size, docBlock);
             } else {
@@ -232,7 +237,7 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
             }
         } finally {
             if (page == null) {
-                Releasables.closeExpectNoException(shard, segments, docs, scores);
+                Releasables.closeExpectNoException(shard, segments, docs, docBlock, scores);
             }
         }
         pagesEmitted++;

@@ -282,6 +282,9 @@ tests:
 - class: org.elasticsearch.indexing.IndexActionIT
   method: testAutoGenerateIdNoDuplicates
   issue: https://github.com/elastic/elasticsearch/issues/115716
+- class: org.elasticsearch.xpack.test.rest.XPackRestIT
+  method: test {p0=ml/start_stop_datafeed/Test start datafeed given index pattern with no matching indices}
+  issue: https://github.com/elastic/elasticsearch/issues/116220
 
 # Examples:
 #

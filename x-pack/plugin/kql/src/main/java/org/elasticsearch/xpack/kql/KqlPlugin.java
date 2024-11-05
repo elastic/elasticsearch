@@ -12,18 +12,11 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.xpack.kql.query.KqlQueryBuilder;
 
-import java.util.Collection;
 import java.util.List;
 
 import static org.elasticsearch.xpack.kql.KqlFeatures.KQL_QUERY_SUPPORTED;
 
 public class KqlPlugin extends Plugin implements SearchPlugin, ExtensiblePlugin {
-
-    @Override
-    public Collection<?> createComponents(PluginServices services) {
-        return super.createComponents(services);
-    }
-
     @Override
     public List<QuerySpec<?>> getQueries() {
         if (hasKqlQueryFeature()) {

@@ -1,9 +1,6 @@
 ---
 setup:
   - do:
-      cluster.health:
-        wait_for_events: languid
-  - do:
       indices.put_index_template:
         name: traces-low-prio
         body:

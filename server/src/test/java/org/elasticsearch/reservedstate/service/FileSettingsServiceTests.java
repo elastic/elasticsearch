@@ -9,6 +9,9 @@
 
 package org.elasticsearch.reservedstate.service;
 
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
@@ -22,8 +25,12 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.Lifecycle;
+import org.elasticsearch.common.file.AbstractFileWatchingService;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.BuildVersion;
 import org.elasticsearch.env.Environment;
@@ -39,9 +46,10 @@ import org.junit.Before;
 import org.mockito.stubbing.Answer;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -50,6 +58,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
+import static java.nio.file.StandardCopyOption.ATOMIC_MOVE;
+import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.hasEntry;
@@ -62,6 +72,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 public class FileSettingsServiceTests extends ESTestCase {
+    private static final Logger logger = LogManager.getLogger(FileSettingsServiceTests.class);
     private Environment env;
     private ClusterService clusterService;
     private ReservedClusterStateService controller;
@@ -71,6 +82,8 @@ public class FileSettingsServiceTests extends ESTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
+        // TODO remove me once https://github.com/elastic/elasticsearch/issues/115280 is closed
+        Loggers.setLevel(LogManager.getLogger(AbstractFileWatchingService.class), Level.DEBUG);
 
         threadpool = new TestThreadPool("file_settings_service_tests");
 
@@ -115,16 +128,23 @@ public class FileSettingsServiceTests extends ESTestCase {
 
     @After
     public void tearDown() throws Exception {
-        if (fileSettingsService.lifecycleState() == Lifecycle.State.STARTED) {
-            fileSettingsService.stop();
-        }
-        if (fileSettingsService.lifecycleState() == Lifecycle.State.STOPPED) {
-            fileSettingsService.close();
-        }
+        try {
+            if (fileSettingsService.lifecycleState() == Lifecycle.State.STARTED) {
+                logger.info("Stopping file settings service");
+                fileSettingsService.stop();
+            }
+            if (fileSettingsService.lifecycleState() == Lifecycle.State.STOPPED) {
+                logger.info("Closing file settings service");
+                fileSettingsService.close();
+            }
 
-        super.tearDown();
-        clusterService.close();
-        threadpool.shutdownNow();
+            super.tearDown();
+            clusterService.close();
+            threadpool.shutdownNow();
+        } finally {
+            // TODO remove me once https://github.com/elastic/elasticsearch/issues/115280 is closed
+            Loggers.setLevel(LogManager.getLogger(AbstractFileWatchingService.class), Level.INFO);
+        }
     }
 
     public void testStartStop() {
@@ -190,9 +210,7 @@ public class FileSettingsServiceTests extends ESTestCase {
             return null;
         }).when(controller).process(any(), any(XContentParser.class), any(), any());
 
-        CountDownLatch latch = new CountDownLatch(1);
-
-        fileSettingsService.addFileChangedListener(latch::countDown);
+        CountDownLatch fileProcessingLatch = new CountDownLatch(1);
 
         Files.createDirectories(fileSettingsService.watchedFileDir());
         // contents of the JSON don't matter, we just need a file to exist
@@ -202,15 +220,14 @@ public class FileSettingsServiceTests extends ESTestCase {
             try {
                 return invocation.callRealMethod();
             } finally {
-                latch.countDown();
+                fileProcessingLatch.countDown();
             }
         }).when(fileSettingsService).processFileOnServiceStart();
 
         fileSettingsService.start();
         fileSettingsService.clusterChanged(new ClusterChangedEvent("test", clusterService.state(), ClusterState.EMPTY_STATE));
 
-        // wait for listener to be called
-        assertTrue(latch.await(20, TimeUnit.SECONDS));
+        longAwait(fileProcessingLatch);
 
         verify(fileSettingsService, times(1)).processFileOnServiceStart();
         verify(controller, times(1)).process(any(), any(XContentParser.class), eq(ReservedStateVersionCheck.HIGHER_OR_SAME_VERSION), any());
@@ -223,40 +240,40 @@ public class FileSettingsServiceTests extends ESTestCase {
             return null;
         }).when(controller).process(any(), any(XContentParser.class), any(), any());
 
-        // we get three events: initial clusterChanged event, first write, second write
-        CountDownLatch latch = new CountDownLatch(3);
+        CountDownLatch changesOnStartLatch = new CountDownLatch(1);
+        doAnswer((Answer<?>) invocation -> {
+            try {
+                return invocation.callRealMethod();
+            } finally {
+                changesOnStartLatch.countDown();
+            }
+        }).when(fileSettingsService).processFileOnServiceStart();
 
-        fileSettingsService.addFileChangedListener(latch::countDown);
+        CountDownLatch changesLatch = new CountDownLatch(1);
+        doAnswer((Answer<?>) invocation -> {
+            try {
+                return invocation.callRealMethod();
+            } finally {
+                changesLatch.countDown();
+            }
+        }).when(fileSettingsService).processFileChanges();
 
         Files.createDirectories(fileSettingsService.watchedFileDir());
         // contents of the JSON don't matter, we just need a file to exist
         writeTestFile(fileSettingsService.watchedFile(), "{}");
 
-        doAnswer((Answer<?>) invocation -> {
-            try {
-                return invocation.callRealMethod();
-            } finally {
-                latch.countDown();
-            }
-        }).when(fileSettingsService).processFileOnServiceStart();
-        doAnswer((Answer<?>) invocation -> {
-            try {
-                return invocation.callRealMethod();
-            } finally {
-                latch.countDown();
-            }
-        }).when(fileSettingsService).processFileChanges();
-
         fileSettingsService.start();
         fileSettingsService.clusterChanged(new ClusterChangedEvent("test", clusterService.state(), ClusterState.EMPTY_STATE));
-        // second file change; contents still don't matter
-        overwriteTestFile(fileSettingsService.watchedFile(), "{}");
 
-        // wait for listener to be called (once for initial processing, once for subsequent update)
-        assertTrue(latch.await(20, TimeUnit.SECONDS));
+        longAwait(changesOnStartLatch);
 
         verify(fileSettingsService, times(1)).processFileOnServiceStart();
         verify(controller, times(1)).process(any(), any(XContentParser.class), eq(ReservedStateVersionCheck.HIGHER_OR_SAME_VERSION), any());
+
+        // second file change; contents still don't matter
+        writeTestFile(fileSettingsService.watchedFile(), "[]");
+        longAwait(changesLatch);
+
         verify(fileSettingsService, times(1)).processFileChanges();
         verify(controller, times(1)).process(any(), any(XContentParser.class), eq(ReservedStateVersionCheck.HIGHER_VERSION_ONLY), any());
     }
@@ -295,9 +312,7 @@ public class FileSettingsServiceTests extends ESTestCase {
         // Make some fake settings file to cause the file settings service to process it
         writeTestFile(fileSettingsService.watchedFile(), "{}");
 
-        // we need to wait a bit, on MacOS it may take up to 10 seconds for the Java watcher service to notice the file,
-        // on Linux is instantaneous. Windows is instantaneous too.
-        assertTrue(processFileLatch.await(30, TimeUnit.SECONDS));
+        longAwait(processFileLatch);
 
         // Stopping the service should interrupt the watcher thread, we should be able to stop
         fileSettingsService.stop();
@@ -352,15 +367,42 @@ public class FileSettingsServiceTests extends ESTestCase {
     }
 
     // helpers
-    private void writeTestFile(Path path, String contents) throws IOException {
-        Path tempFilePath = createTempFile();
-        Files.writeString(tempFilePath, contents);
-        Files.move(tempFilePath, path, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+    private static void writeTestFile(Path path, String contents) {
+        Path tempFile = null;
+        try {
+            logger.info("Creating settings temp file under [{}]", path.toAbsolutePath());
+            tempFile = Files.createTempFile(path.getParent(), path.getFileName().toString(), "tmp");
+            logger.info("Created settings temp file [{}]", tempFile.getFileName());
+            Files.writeString(tempFile, contents);
+
+            try {
+                logger.info("Moving settings temp file to replace [{}]", tempFile.getFileName());
+                Files.move(tempFile, path, REPLACE_EXISTING, ATOMIC_MOVE);
+            } catch (AtomicMoveNotSupportedException e) {
+                logger.info(
+                    "Atomic move was not available. Falling back on non-atomic move for settings temp file to replace [{}]",
+                    tempFile.getFileName()
+                );
+                Files.move(tempFile, path, REPLACE_EXISTING);
+            }
+        } catch (final IOException e) {
+            throw new UncheckedIOException(Strings.format("could not write file [%s]", path.toAbsolutePath()), e);
+        } finally {
+            logger.info("Deleting settings temp file [{}]", tempFile != null ? tempFile.getFileName() : null);
+            // we are ignoring exceptions here, so we do not need handle whether or not tempFile was initialized nor if the file exists
+            IOUtils.deleteFilesIgnoringExceptions(tempFile);
+        }
     }
 
-    private void overwriteTestFile(Path path, String contents) throws IOException {
-        Path tempFilePath = createTempFile();
-        Files.writeString(tempFilePath, contents);
-        Files.move(tempFilePath, path, StandardCopyOption.REPLACE_EXISTING);
+    // this waits for up to 20 seconds to account for watcher service differences between OSes
+    // on MacOS it may take up to 10 seconds for the Java watcher service to notice the file,
+    // on Linux is instantaneous. Windows is instantaneous too.
+    private static void longAwait(CountDownLatch latch) {
+        try {
+            assertTrue("longAwait: CountDownLatch did not reach zero within the timeout", latch.await(20, TimeUnit.SECONDS));
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            fail(e, "longAwait: interrupted waiting for CountDownLatch to reach zero");
+        }
     }
 }

@@ -46,7 +46,6 @@ public class MvDedupe extends AbstractMultivalueFunction {
             "ip",
             "keyword",
             "long",
-            "text",
             "version" },
         description = "Remove duplicate values from a multivalued field.",
         note = "`MV_DEDUPE` may, but won't always, sort the values in the column.",

@@ -22,7 +22,9 @@ import co.elastic.elasticsearch.stateless.engine.ThreadPoolMergeScheduler;
 
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
+import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
+import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -34,12 +36,21 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
+import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.test.transport.StubbableTransport;
+import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportRequestOptions;
+import org.elasticsearch.xpack.shutdown.ShutdownPlugin;
 
+import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
 import java.util.function.Function;
 import java.util.function.IntSupplier;
 
+import static co.elastic.elasticsearch.stateless.recovery.TransportStatelessPrimaryRelocationAction.START_RELOCATION_ACTION_NAME;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
@@ -49,7 +60,7 @@ public class StatelessMergeIT extends AbstractStatelessIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return CollectionUtils.appendToCopy(super.nodePlugins(), TestTelemetryPlugin.class);
+        return CollectionUtils.concatLists(List.of(TestTelemetryPlugin.class, ShutdownPlugin.class), super.nodePlugins());
     }
 
     @Override
@@ -102,6 +113,87 @@ public class StatelessMergeIT extends AbstractStatelessIntegTestCase {
                     .completed()
             )
         );
+    }
+
+    public void testOnlyForceMergesAreAllowedDuringRelocation() throws Exception {
+        String indexNode = startMasterAndIndexNode();
+
+        final String indexName = randomIdentifier();
+        createIndex(indexName, indexSettings(1, 0).build());
+        ensureGreen(indexName);
+
+        var sourceShard = findIndexShard(resolveIndex(indexName), 0, indexNode);
+
+        indexDocs(indexName, 1_000);
+        flush(indexName);
+
+        indexDocs(indexName, 1_000);
+        flush(indexName);
+
+        var newIndexNode = startIndexNode();
+
+        final var resumeHandoff = new CountDownLatch(1);
+        final var pauseHandoff = new CountDownLatch(1);
+
+        MockTransportService.getInstance(newIndexNode).addSendBehavior(new StubbableTransport.SendRequestBehavior() {
+
+            private void await() {
+                pauseHandoff.countDown();
+                logger.info("--> start relocation paused");
+                safeAwait(resumeHandoff);
+                logger.info("--> start relocation resumed");
+            }
+
+            @Override
+            public void sendRequest(
+                Transport.Connection connection,
+                long requestId,
+                String action,
+                TransportRequest request,
+                TransportRequestOptions options
+            ) throws IOException {
+                if (action.equals(START_RELOCATION_ACTION_NAME)) {
+                    await();
+                }
+                connection.sendRequest(requestId, action, request, options);
+            }
+        });
+
+        ClusterRerouteUtils.reroute(client(), new MoveAllocationCommand(indexName, 0, indexNode, newIndexNode));
+
+        assertBusy(() -> assertTrue(sourceShard.routingEntry().relocating()));
+
+        pauseHandoff.await();
+
+        var startingMerges = client().admin().indices().prepareStats(indexName).clear().setMerge(true).get().getPrimaries().merge
+            .getTotal();
+
+        // In tests, this many documents + commits tend to produce 3-6 merges
+        int totalDocs = 0;
+        int threshold = randomIntBetween(1500, 2500);
+        while (totalDocs < threshold) {
+            int docs = randomIntBetween(100, 200);
+            totalDocs += docs;
+            indexDocs(indexName, docs);
+            indicesAdmin().prepareFlush(indexName).get();
+        }
+
+        try {
+            assertThat(
+                client().admin().indices().prepareStats(indexName).clear().setMerge(true).get().getPrimaries().merge.getTotal(),
+                equalTo(startingMerges)
+            );
+
+            client(indexNode).admin().indices().prepareForceMerge(indexName).setMaxNumSegments(1).get();
+
+            assertThat(
+                client().admin().indices().prepareStats(indexName).clear().setMerge(true).get().getPrimaries().merge.getTotal(),
+                equalTo(startingMerges + 1)
+            );
+
+        } finally {
+            resumeHandoff.countDown();
+        }
     }
 
     public void testRefreshOnLargeMerge_true() throws Exception {

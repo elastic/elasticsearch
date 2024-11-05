@@ -40,6 +40,7 @@ import java.io.IOException;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.function.BiConsumer;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -81,6 +82,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
     private final BiConsumer<String, MergePolicy.OneMerge> warmer;
     private final Consumer<OnGoingMerge> afterMerge;
     private final Consumer<Exception> exceptionHandler;
+    private final BooleanSupplier shouldSkipMerges;
     private final MergeTracking mergeTracking;
     private final SameThreadExecutorService sameThreadExecutorService = new SameThreadExecutorService();
 
@@ -92,6 +94,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
         ThreadPool threadPool,
         Supplier<MergeMetrics> mergeMetrics,
         BiConsumer<String, MergePolicy.OneMerge> warmer,
+        BooleanSupplier shouldSkipMerges,
         Consumer<OnGoingMerge> afterMerge,
         Consumer<Exception> exceptionHandler
     ) {
@@ -103,6 +106,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
         this.warmer = warmer;
         this.afterMerge = afterMerge;
         this.exceptionHandler = exceptionHandler;
+        this.shouldSkipMerges = shouldSkipMerges;
         this.mergeTracking = new MergeTracking(logger, () -> Double.POSITIVE_INFINITY);
     }
 
@@ -150,10 +154,8 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
 
             @Override
             public void onRejection(Exception e) {
-                // This would interrupt an IndexWriter if it were actually performing the merge. We just set this here because it seems
-                // appropriate as we are not going to move forward with the merge.
-                currentMerge.setAborted();
-                logger.debug(() -> format("merge [%s] rejected by thread pool", onGoingMerge.getId()), e);
+                abortMerge();
+                logger.debug(() -> format("merge [%s] rejected by thread pool, aborting", onGoingMerge.getId()), e);
             }
 
             @Override
@@ -169,6 +171,15 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
 
             @Override
             protected void doRun() throws Exception {
+                if (shouldSkipMerges.getAsBoolean()) {
+                    logger.trace("skipping merge [{}] because node is shutting down", onGoingMerge.getId());
+                    abortMerge();
+                } else {
+                    doMerge();
+                }
+            }
+
+            private void doMerge() throws IOException {
                 long timeNS = System.nanoTime();
                 mergeTracking.mergeStarted(onGoingMerge);
                 boolean success = false;
@@ -188,6 +199,15 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
                     // TODO: Consider if we should adjust these metrics when a failure happens
                     mergeTracking.mergeFinished(currentMerge, onGoingMerge, tookMS);
                 }
+            }
+
+            private void abortMerge() {
+                // This would interrupt an IndexWriter if it were actually performing the merge. We just set this here because it seems
+                // appropriate as we are not going to move forward with the merge.
+                currentMerge.setAborted();
+                // It is fine to mark this merge as finished. Lucene will eventually produce a new merge including this segment even if
+                // this merge did not actually execute.
+                mergeSource.onMergeFinished(currentMerge);
             }
         };
     }

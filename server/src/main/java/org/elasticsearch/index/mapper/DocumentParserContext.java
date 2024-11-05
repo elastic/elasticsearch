@@ -13,6 +13,7 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
@@ -151,6 +152,7 @@ public abstract class DocumentParserContext {
         SourceToParse sourceToParse,
         Set<String> ignoreFields,
         List<IgnoredSourceFieldMapper.NameValue> ignoredFieldValues,
+        Scope currentScope,
         Map<String, List<Mapper>> dynamicMappers,
         Map<String, ObjectMapper> dynamicObjectMappers,
         Map<String, List<RuntimeField>> dynamicRuntimeFields,
@@ -828,7 +830,7 @@ public abstract class DocumentParserContext {
      * Identify the fields that match the routing path, for indexes in logs mode. These fields are equivalent to TSDB dimensions.
      */
     public final void getDimensionsForLogsMode() {
-        if (indexSettings().getMode() == IndexMode.LOGS
+        if (indexSettings().getMode() == IndexMode.LOGSDB
             && indexSettings().getIndexRouting() instanceof IndexRouting.ExtractFromSource dimensionRouting) {
             for (var mapper : mappingLookup().fieldMappers()) {
                 if (mapper instanceof FieldMapper fieldMapper && dimensionRouting.matchesField(fieldMapper.fullPath())) {

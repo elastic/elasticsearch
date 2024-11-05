@@ -29,8 +29,9 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 
 import java.io.IOException;
 import java.time.ZoneId;
-import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 
 /**
  * Mapper for {@code _tsid} field included generated when the index is
@@ -150,16 +151,24 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
     }
 
     public static BytesReference buildLegacyTsid(RoutingDimensions routingDimensions) throws IOException {
-        Collection<RoutingDimensions.Dimension> dimensions = routingDimensions.dimensions();
+        var dimensions = routingDimensions.dimensions();
         if (dimensions.isEmpty()) {
             throw new IllegalArgumentException("Dimension fields are missing.");
         }
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.writeVInt(dimensions.size());
-            for (RoutingDimensions.Dimension entry : dimensions) {
-                out.writeBytesRef(entry.name());
-                entry.value().writeTo(out);
+            for (Map.Entry<BytesRef, List<BytesReference>> entry : dimensions.entrySet()) {
+                out.writeBytesRef(entry.getKey());
+                List<BytesReference> value = entry.getValue();
+                if (value.size() > 1) {
+                    // multi-value dimensions are only supported for newer indices that use buildTsidHash
+                    throw new IllegalArgumentException(
+                        "Dimension field [" + entry.getKey().utf8ToString() + "] cannot be a multi-valued field."
+                    );
+                }
+                assert value.isEmpty() == false : "dimension value is empty";
+                value.get(0).writeTo(out);
             }
             return out.bytes();
         }

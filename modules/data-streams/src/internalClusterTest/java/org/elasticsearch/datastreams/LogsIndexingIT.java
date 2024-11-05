@@ -1,10 +1,12 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
+
 package org.elasticsearch.datastreams;
 
 import org.elasticsearch.action.DocWriteRequest;
@@ -89,7 +91,7 @@ public class LogsIndexingIT extends ESSingleNodeTestCase {
                 .template(
                     new Template(
                         Settings.builder()
-                            .put("index.mode", "logs")
+                            .put("index.mode", "logsdb")
                             .put("index.routing_path", "metricset,k8s.pod.uid")
                             .put("index.number_of_replicas", 0)
                             // Reduce sync interval to speedup this integraton test,
@@ -135,7 +137,7 @@ public class LogsIndexingIT extends ESSingleNodeTestCase {
         var searchRequest = new SearchRequest(dataStreamName);
         searchRequest.source().trackTotalHits(true);
         assertResponse(client().search(searchRequest), searchResponse -> {
-            assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) numBulkRequests * numDocsPerBulk));
+            assertThat(searchResponse.getHits().getTotalHits().value(), equalTo((long) numBulkRequests * numDocsPerBulk));
             String id = searchResponse.getHits().getHits()[0].getId();
             assertThat(id, notNullValue());
 

@@ -63,6 +63,11 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
     public static final String LOSSY_PARAMETERS_ALLOWED_SETTING_NAME = "index.lossy.source-mapping-parameters";
 
+    public static final Setting<Mode> INDEX_MAPPER_SOURCE_MODE_SETTING = Setting.enumSetting(SourceFieldMapper.Mode.class, settings -> {
+        final IndexMode indexMode = IndexSettings.MODE.get(settings);
+        return indexMode.defaultSourceMode().name();
+    }, "index.mapping.source.mode", value -> {}, Setting.Property.Final, Setting.Property.IndexScope);
+
     /** The source mode */
     public enum Mode {
         DISABLED,
@@ -150,12 +155,15 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             m -> Arrays.asList(toType(m).excludes)
         );
 
+        private final Settings settings;
+
         private final IndexMode indexMode;
 
         private final boolean supportsNonDefaultParameterValues;
 
         public Builder(IndexMode indexMode, final Settings settings, boolean supportsCheckForNonDefaultParams) {
             super(Defaults.NAME);
+            this.settings = settings;
             this.indexMode = indexMode;
             this.supportsNonDefaultParameterValues = supportsCheckForNonDefaultParams == false
                 || settings.getAsBoolean(LOSSY_PARAMETERS_ALLOWED_SETTING_NAME, true);

@@ -1,15 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.StringHelper;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.hash.Murmur3Hasher;
@@ -22,6 +24,7 @@ import org.elasticsearch.search.DocValueFormat;
 import java.io.IOException;
 import java.util.Base64;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -67,26 +70,38 @@ public class DimensionHasher {
         int index = StreamOutput.putVInt(bytes, len, 0);
 
         hasher.reset();
-        for (final RoutingDimensions.Dimension dimension : dimensions) {
-            hasher.update(dimension.name().bytes);
+        for (final BytesRef name : dimensions.keySet()) {
+            hasher.update(name.bytes);
         }
         index = writeHash128(hasher.digestHash(), bytes, index);
 
         // NOTE: concatenate all dimension value hashes up to a certain number of dimensions
         int startIndex = index;
-        for (final RoutingDimensions.Dimension dimension : dimensions) {
+        for (final List<BytesReference> values : dimensions.values()) {
             if ((index - startIndex) >= 4 * numberOfDimensions) {
                 break;
             }
-            final BytesRef value = dimension.value().toBytesRef();
-            ByteUtils.writeIntLE(StringHelper.murmurhash3_x86_32(value.bytes, value.offset, value.length, SEED), bytes, index);
+            assert values.isEmpty() == false : "dimension values are empty";
+            final BytesRef dimensionValueBytesRef = values.get(0).toBytesRef();
+            ByteUtils.writeIntLE(
+                StringHelper.murmurhash3_x86_32(
+                    dimensionValueBytesRef.bytes,
+                    dimensionValueBytesRef.offset,
+                    dimensionValueBytesRef.length,
+                    SEED
+                ),
+                bytes,
+                index
+            );
             index += 4;
         }
 
-        // NOTE: hash all dimension field values
+        // NOTE: hash all dimension field allValues
         hasher.reset();
-        for (final RoutingDimensions.Dimension dimension : dimensions) {
-            hasher.update(dimension.value().toBytesRef().bytes);
+        for (final List<BytesReference> values : dimensions.values()) {
+            for (BytesReference v : values) {
+                hasher.update(v.toBytesRef().bytes);
+            }
         }
         index = writeHash128(hasher.digestHash(), bytes, index);
 
@@ -116,7 +131,7 @@ public class DimensionHasher {
     private static String base64Encode(final BytesRef bytesRef) {
         byte[] bytes = new byte[bytesRef.length];
         System.arraycopy(bytesRef.bytes, bytesRef.offset, bytes, 0, bytesRef.length);
-        return BASE64_ENCODER.encodeToString(bytes);
+        return Strings.BASE_64_NO_PADDING_URL_ENCODER.encodeToString(bytes);
     }
 
     public static Map<String, Object> decodeAsMap(BytesRef bytesRef) {
@@ -128,38 +143,44 @@ public class DimensionHasher {
     }
 
     public static Map<String, Object> decodeAsMap(StreamInput in) throws IOException {
-        int size = in.readVInt();
-        Map<String, Object> result = new LinkedHashMap<>(size);
+        try {
+            int size = in.readVInt();
+            Map<String, Object> result = new LinkedHashMap<>(size);
 
-        for (int i = 0; i < size; i++) {
-            String name = null;
-            try {
-                name = in.readSlicedBytesReference().utf8ToString();
-            } catch (AssertionError ae) {
-                throw new IllegalArgumentException("Error parsing keyword dimension: " + ae.getMessage(), ae);
-            }
+            for (int i = 0; i < size; i++) {
+                String name = null;
+                try {
+                    name = in.readSlicedBytesReference().utf8ToString();
+                } catch (AssertionError ae) {
+                    throw new IllegalArgumentException("Error parsing keyword dimension: " + ae.getMessage(), ae);
+                }
 
-            int type = in.read();
-            switch (type) {
-                case (byte) 's' -> {
-                    // parse a string
-                    try {
-                        result.put(name, in.readSlicedBytesReference().utf8ToString());
-                    } catch (AssertionError ae) {
-                        throw new IllegalArgumentException("Error parsing keyword dimension: " + ae.getMessage(), ae);
+                int type = in.read();
+                switch (type) {
+                    case (byte) 's' -> {
+                        // parse a string
+                        try {
+                            result.put(name, in.readSlicedBytesReference().utf8ToString());
+                        } catch (AssertionError ae) {
+                            throw new IllegalArgumentException("Error parsing keyword dimension: " + ae.getMessage(), ae);
+                        }
                     }
+                    case (byte) 'l' -> // parse a long
+                        result.put(name, in.readLong());
+                    case (byte) 'u' -> { // parse an unsigned_long
+                        Object ul = DocValueFormat.UNSIGNED_LONG_SHIFTED.format(in.readLong());
+                        result.put(name, ul);
+                    }
+                    case (byte) 'd' -> // parse a double
+                        result.put(name, in.readDouble());
+                    case (byte) 'b' -> // parse a boolean
+                        result.put(name, in.read() == 't');
+                    default -> throw new IllegalArgumentException("Cannot parse [" + name + "]: Unknown type [" + type + "]");
                 }
-                case (byte) 'l' -> // parse a long
-                    result.put(name, in.readLong());
-                case (byte) 'u' -> { // parse an unsigned_long
-                    Object ul = DocValueFormat.UNSIGNED_LONG_SHIFTED.format(in.readLong());
-                    result.put(name, ul);
-                }
-                case (byte) 'd' -> // parse a double
-                    result.put(name, in.readDouble());
-                default -> throw new IllegalArgumentException("Cannot parse [" + name + "]: Unknown type [" + type + "]");
             }
+            return result;
+        } catch (IOException | IllegalArgumentException e) {
+            throw new IllegalArgumentException("Error while hashing dimensions: " + e.getMessage(), e);
         }
-        return result;
     }
 }

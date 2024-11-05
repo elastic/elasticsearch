@@ -116,7 +116,7 @@ public enum IndexMode {
 
         @Override
         public DocumentDimensions buildDocumentDimensions(IndexSettings settings) {
-            return new DocumentDimensions.OnlySingleValueAllowed();
+            return DocumentDimensions.Noop.INSTANCE;
         }
 
         @Override
@@ -128,8 +128,8 @@ public enum IndexMode {
         public void validateSourceFieldMapper(SourceFieldMapper sourceFieldMapper) {}
 
         @Override
-        public boolean isSyntheticSourceEnabled() {
-            return false;
+        public SourceFieldMapper.Mode defaultSourceMode() {
+            return SourceFieldMapper.Mode.STORED;
         }
     },
     TIME_SERIES("time_series") {
@@ -281,14 +281,6 @@ public enum IndexMode {
         @Override
         public MetadataFieldMapper routingHashFieldMapper() {
             return DimensionRoutingHashFieldMapper.INSTANCE;
-        public MetadataFieldMapper timeSeriesRoutingHashFieldMapper() {
-            // non time-series indices must not have a TimeSeriesRoutingIdFieldMapper
-            return null;
-        }
-
-        @Override
-        public DocumentDimensions buildDocumentDimensions(IndexSettings settings) {
-            return DocumentDimensions.Noop.INSTANCE;
         }
 
         @Override
@@ -346,14 +338,12 @@ public enum IndexMode {
         }
 
         @Override
-        public MetadataFieldMapper timeSeriesIdFieldMapper() {
-            // non time-series indices must not have a TimeSeriesIdFieldMapper
+        public MetadataFieldMapper indexModeIdFieldMapper() {
             return null;
         }
 
         @Override
-        public MetadataFieldMapper timeSeriesRoutingHashFieldMapper() {
-            // non time-series indices must not have a TimeSeriesRoutingIdFieldMapper
+        public MetadataFieldMapper routingHashFieldMapper() {
             return null;
         }
 
@@ -490,7 +480,7 @@ public enum IndexMode {
      * Get default mapping for this index or {@code null} if there is none.
      */
     @Nullable
-    public abstract CompressedXContent getDefaultMapping();
+    public abstract CompressedXContent getDefaultMapping(IndexSettings indexSettings);
 
     /**
      * Build the {@link FieldMapper} for {@code _id}.
@@ -532,7 +522,7 @@ public enum IndexMode {
             IndexRouting.ExtractFromSource routing = (IndexRouting.ExtractFromSource) settings.getIndexRouting();
             return new RoutingDimensions(routing.builder());
         }
-        return new DocumentDimensions.OnlySingleValueAllowed();
+        return DocumentDimensions.Noop.INSTANCE;
     }
 
     /**

@@ -1184,7 +1184,7 @@ public final class IndexSettings {
 
     public boolean usesRoutingPath() {
         return mode == IndexMode.TIME_SERIES
-            || (mode == IndexMode.LOGS && IndexMetadata.INDEX_ROUTING_PATH.get(settings).isEmpty() == false);
+            || (mode == IndexMode.LOGSDB && IndexMetadata.INDEX_ROUTING_PATH.get(settings).isEmpty() == false);
     }
 
     /**

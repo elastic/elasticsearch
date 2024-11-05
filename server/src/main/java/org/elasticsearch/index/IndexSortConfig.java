@@ -155,7 +155,7 @@ public final class IndexSortConfig {
                 return;
             }
 
-            if (this.indexMode == IndexMode.LOGS) {
+            if (this.indexMode == IndexMode.LOGSDB) {
                 this.sortSpecs = LOGS_SORT;
                 return;
             }

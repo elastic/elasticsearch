@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -28,7 +29,7 @@ import java.util.Collections;
 
 /**
  * Mapper for {@code _logs_id} field generated when the index is
- * {@link IndexMode#LOGS used for logs} and it contains a routing path.
+ * {@link IndexMode#LOGSDB used for logs} and it contains a routing path.
  */
 public class LogsIdFieldMapper extends MetadataFieldMapper {
 
@@ -126,10 +127,5 @@ public class LogsIdFieldMapper extends MetadataFieldMapper {
     @Override
     protected String contentType() {
         return NAME;
-    }
-
-    @Override
-    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-        return SourceLoader.SyntheticFieldLoader.NOTHING;
     }
 }

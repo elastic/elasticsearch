@@ -29,15 +29,6 @@ a|
 * You need long retention periods with the ability to search indices in an object store cost-effectively.
 * Use cloud provider's highly available object stores for data integrity so you don't have to depend on your own.
 
-| <<three-availability-zones>>
-
-This architecture is derived from the Elasticsearch Service - High Availability - Single Region architecture. It defines additional considerations required when self-deploying. It uses multi-availability zone architecture and is optimized for time-series.
-
-a| 
-* When you need an architecture that is resilient to unplanned outages
-|
 |===
 
 include::elastic-cloud-architecture.asciidoc[]
-
-include::three-availability-zones.asciidoc[]

@@ -1605,8 +1605,9 @@ repeat
 required_capability: repeat 
 // tag::repeat[]
 ROW a = "Hello!"
-| EVAL triple_a = REPEAT(a, 3);
+| EVAL triple_a = REPEAT(a, 3)
 // end::repeat[]
+;
 
 // tag::repeat-result[]
 a:keyword | triple_a:keyword

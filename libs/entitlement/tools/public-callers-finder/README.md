@@ -30,12 +30,11 @@ The output of the tool is another CSV file, with one line for each entry-point, 
 8. Original caller Module name
 9. Original caller Class name (ASM style, with `/` separators)
 10. Original caller Method name
+11. Original caller Visibility
 
 Examples:
 ```
-
-```
-or
-```
-
+java.base	DeleteOnExitHook.java	50	java/io/DeleteOnExitHook$1	run	()V	PUBLIC	java.base	java/io/File	delete	PUBLIC
+java.base	ZipFile.java	254	java/util/zip/ZipFile	<init>	(Ljava/io/File;ILjava/nio/charset/Charset;)V	PUBLIC	java.base	java/io/File	delete	PUBLIC
+java.logging	FileHandler.java	279	java/util/logging/FileHandler	<init>	()V	PUBLIC	java.base	java/io/File	delete	PUBLIC
 ```

@@ -11,5 +11,8 @@ plugins {
   id 'java'
 }
 
+apply plugin: 'elasticsearch.build'
+apply plugin: 'elasticsearch.publish'
+
 group = 'org.elasticsearch.entitlement.tools'
 

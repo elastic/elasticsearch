@@ -16,9 +16,9 @@ public enum ExternalAccess {
     METHOD;
 
     public static String toString(EnumSet<ExternalAccess> externalAccesses) {
-        if (externalAccesses.contains(ExternalAccess.METHOD) && externalAccesses.contains(ExternalAccess.CLASS)) {
+        if (isFullyPublic(externalAccesses)) {
             return "PUBLIC";
-        } else if (externalAccesses.contains(ExternalAccess.METHOD)) {
+        } else if (isPublicMethod(externalAccesses)) {
             return "PUBLIC-METHOD";
         } else {
             return "PRIVATE";
@@ -36,8 +36,12 @@ public enum ExternalAccess {
         return externalAccesses;
     }
 
-    public static boolean isPublic(EnumSet<ExternalAccess> externalAccesses) {
-        return externalAccesses.isEmpty() == false;
+    public static boolean isPublicMethod(EnumSet<ExternalAccess> access) {
+        return access.contains(ExternalAccess.METHOD);
+    }
+
+    public static boolean isFullyPublic(EnumSet<ExternalAccess> access) {
+        return access.contains(ExternalAccess.METHOD) && access.contains(ExternalAccess.CLASS);
     }
 
     public static EnumSet<ExternalAccess> fromString(String accessAsString) {
@@ -49,4 +53,6 @@ public enum ExternalAccess {
         }
         return EnumSet.noneOf(ExternalAccess.class);
     }
+
+
 }

@@ -13,8 +13,10 @@ import org.elasticsearch.entitlement.tools.ExternalAccess;
 import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.MethodVisitor;
+import org.objectweb.asm.Type;
 
 import java.lang.constant.ClassDesc;
+import java.lang.reflect.AccessFlag;
 import java.util.EnumSet;
 import java.util.Set;
 
@@ -24,6 +26,7 @@ import static org.objectweb.asm.Opcodes.ASM9;
 class FindUsagesClassVisitor extends ClassVisitor {
 
     private int classAccess;
+    private boolean accessibleViaInterfaces;
 
     record MethodDescriptor(String className, String methodName, String methodDescriptor) {}
 
@@ -59,6 +62,26 @@ class FindUsagesClassVisitor extends ClassVisitor {
         super.visit(version, access, name, signature, superName, interfaces);
         this.className = name;
         this.classAccess = access;
+        if (interfaces.length > 0) {
+            this.accessibleViaInterfaces = findAccessibility(interfaces);
+        }
+    }
+
+    private boolean findAccessibility(String[] interfaces) {
+        var accessibleViaInterfaces = false;
+        for (var interfaceName: interfaces) {
+            if (moduleExports.contains(getPackageName(interfaceName))) {
+                var interfaceType = Type.getObjectType(interfaceName);
+                try {
+                    var clazz = Class.forName(interfaceType.getClassName());
+                    if (clazz.accessFlags().contains(AccessFlag.PUBLIC)) {
+                        accessibleViaInterfaces = true;
+                    }
+                } catch (ClassNotFoundException ignored) {
+                }
+            }
+        }
+        return accessibleViaInterfaces;
     }
 
     @Override
@@ -70,6 +93,10 @@ class FindUsagesClassVisitor extends ClassVisitor {
     @Override
     public MethodVisitor visitMethod(int access, String name, String descriptor, String signature, String[] exceptions) {
         return new FindUsagesMethodVisitor(super.visitMethod(access, name, descriptor, signature, exceptions), name, descriptor, access);
+    }
+
+    private static String getPackageName(String className) {
+        return ClassDesc.ofInternalName(className).packageName();
     }
 
     private class FindUsagesMethodVisitor extends MethodVisitor {
@@ -95,17 +122,13 @@ class FindUsagesClassVisitor extends ClassVisitor {
                     if (methodToFind.methodDescriptor == null || methodToFind.methodDescriptor.equals(descriptor)) {
                         EnumSet<ExternalAccess> externalAccess = ExternalAccess.fromPermissions(
                             moduleExports.contains(getPackageName(className)),
-                            (classAccess & ACC_PUBLIC) != 0,
+                            accessibleViaInterfaces || (classAccess & ACC_PUBLIC) != 0,
                             (methodAccess & ACC_PUBLIC) != 0
                         );
                         callers.accept(source, line, className, methodName, methodDescriptor, externalAccess);
                     }
                 }
             }
-        }
-
-        private String getPackageName(String className) {
-            return ClassDesc.ofInternalName(className).packageName();
         }
 
         @Override

@@ -20,6 +20,7 @@ import java.nio.file.Path;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -43,7 +44,7 @@ public class Main {
     ) {
         for (var caller : firstLevelCallers) {
             var methodsToCheck = new ArrayDeque<>(Set.of(caller));
-            var methodsSeen = new HashSet<>();
+            var methodsSeen = new HashSet<FindUsagesClassVisitor.EntryPoint>();
 
             while (methodsToCheck.isEmpty() == false) {
                 var methodToCheck = methodsToCheck.removeFirst();
@@ -67,11 +68,10 @@ public class Main {
 
                         var notSeenBefore = methodsSeen.add(newMethod.entryPoint());
                         if (notSeenBefore) {
-                            var isPublic = ExternalAccess.isPublic(access);
-                            if (isPublic) {
+                            if (ExternalAccess.isFullyPublic(access)) {
                                 usageConsumer.usageFound(caller.next(), newMethod);
                             }
-                            if (isPublic == false || bubbleUpFromPublic) {
+                            if (ExternalAccess.isPublicMethod(access) == false || bubbleUpFromPublic) {
                                 methodsToCheck.add(newMethod);
                             }
                         }
@@ -90,7 +90,11 @@ public class Main {
         }
     }
 
-    private static void identifyTopLevelEntryPoints(FindUsagesClassVisitor.MethodDescriptor methodToFind, boolean bubbleUpFromPublic)
+    private static void identifyTopLevelEntryPoints(
+        FindUsagesClassVisitor.MethodDescriptor methodToFind,
+        String methodToFindModule,
+        EnumSet<ExternalAccess> methodToFindAccess,
+        boolean bubbleUpFromPublic)
         throws IOException {
 
         Utils.walkJdkModules((moduleName, moduleClasses, moduleExports) -> {
@@ -103,13 +107,13 @@ public class Main {
                         new FindUsagesClassVisitor.EntryPoint(moduleName, source, line, className, methodName, methodDescriptor, access),
                         new CallChain(
                             new FindUsagesClassVisitor.EntryPoint(
-                                moduleName,
+                                methodToFindModule,
                                 "",
                                 0,
                                 methodToFind.className(),
                                 methodToFind.methodName(),
                                 methodToFind.methodDescriptor(),
-                                ExternalAccess.fromPermissions(true, true, true)
+                                methodToFindAccess
                             ),
                             null
                         )
@@ -126,13 +130,13 @@ public class Main {
                 }
             }
 
-            originalCallers.stream().filter(c -> ExternalAccess.isPublic(c.entryPoint().access())).forEach(c -> {
+            originalCallers.stream().filter(c -> ExternalAccess.isFullyPublic(c.entryPoint().access())).forEach(c -> {
                 var originalCaller = c.next();
                 printRow(getEntryPointString(c.entryPoint().moduleName(), c.entryPoint()), getOriginalEntryPointString(originalCaller));
             });
             var firstLevelCallers = bubbleUpFromPublic
                 ? originalCallers
-                : originalCallers.stream().filter(c -> ExternalAccess.isPublic(c.entryPoint().access()) == false).toList();
+                : originalCallers.stream().filter(c -> ExternalAccess.isFullyPublic(c.entryPoint().access()) == false).toList();
 
             if (firstLevelCallers.isEmpty() == false) {
                 findTransitiveUsages(
@@ -156,35 +160,34 @@ public class Main {
 
     private static String getEntryPointString(String moduleName, FindUsagesClassVisitor.EntryPoint e) {
         return moduleName + SEPARATOR + e.source() + SEPARATOR + e.line() + SEPARATOR + e.className() + SEPARATOR + e.methodName()
-            + SEPARATOR + e.methodDescriptor();
+            + SEPARATOR + e.methodDescriptor() + SEPARATOR + ExternalAccess.toString(e.access());
     }
 
     private static String getOriginalEntryPointString(CallChain originalCallChain) {
         return originalCallChain.entryPoint().moduleName() + SEPARATOR + originalCallChain.entryPoint().className() + SEPARATOR
-            + originalCallChain.entryPoint().methodName();
+            + originalCallChain.entryPoint().methodName() + SEPARATOR + ExternalAccess.toString(originalCallChain.entryPoint().access());
     }
 
     interface MethodDescriptorConsumer {
-        void accept(FindUsagesClassVisitor.MethodDescriptor methodDescriptor) throws IOException;
+        void accept(FindUsagesClassVisitor.MethodDescriptor methodDescriptor, String moduleName, EnumSet<ExternalAccess> access) throws IOException;
     }
 
-    private static void parseCsv(Path csvPath, boolean bubbleUpFromPublic, MethodDescriptorConsumer methodConsumer) throws IOException {
+    private static void parseCsv(Path csvPath, MethodDescriptorConsumer methodConsumer) throws IOException {
         var lines = Files.readAllLines(csvPath);
         for (var l : lines) {
             var tokens = l.split(SEPARATOR);
+            var moduleName = tokens[0];
             var className = tokens[3];
             var methodName = tokens[4];
             var methodDescriptor = tokens[5];
             var access = ExternalAccess.fromString(tokens[6]);
-            if (bubbleUpFromPublic || ExternalAccess.isPublic(access)) {
-                methodConsumer.accept(new FindUsagesClassVisitor.MethodDescriptor(className, methodName, methodDescriptor));
-            }
+            methodConsumer.accept(new FindUsagesClassVisitor.MethodDescriptor(className, methodName, methodDescriptor), moduleName, access);
         }
     }
 
     public static void main(String[] args) throws IOException {
         var csvFilePath = Path.of(args[0]);
         boolean bubbleUpFromPublic = args.length >= 2 && Boolean.parseBoolean(args[1]);
-        parseCsv(csvFilePath, bubbleUpFromPublic, x -> identifyTopLevelEntryPoints(x, bubbleUpFromPublic));
+        parseCsv(csvFilePath, (method, module, access) -> identifyTopLevelEntryPoints(method, module, access, bubbleUpFromPublic));
     }
 }

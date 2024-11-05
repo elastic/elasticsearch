@@ -24,7 +24,13 @@ import java.util.stream.Collectors;
 
 public class Utils {
 
-    private static final Set<String> EXCLUDED_MODULES = Set.of("java.desktop");
+    private static final Set<String> EXCLUDED_MODULES = Set.of(
+        "java.desktop",
+        "jdk.jartool",
+        "jdk.jdi",
+        "java.security.jgss",
+        "jdk.jshell"
+    );
 
     private static Map<String, Set<String>> findModuleExports(FileSystem fs) throws IOException {
         var modulesExports = new HashMap<String, Set<String>>();
@@ -71,5 +77,4 @@ public class Utils {
             }
         }
     }
-
 }

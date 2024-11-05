@@ -71,15 +71,20 @@ public class KqlQueryBuilder extends AbstractQueryBuilder<KqlQueryBuilder> {
     }
 
     @Override
-
-    protected Query doToQuery(SearchExecutionContext context) throws IOException {
-        QueryBuilder queryBuilder = new KqlParser().parseKqlQuery(query, context);
+    protected QueryBuilder doSearchRewrite(SearchExecutionContext searchExecutionContext) throws IOException {
+        KqlParser parser = new KqlParser();
+        QueryBuilder rewrittenQuery = parser.parseKqlQuery(query, searchExecutionContext);
 
         if (log.isTraceEnabled()) {
-            log.trace("KQL query {} translated to Query DSL: {}", query, Strings.toString(queryBuilder));
+            log.trace("KQL query {} translated to Query DSL: {}", query, Strings.toString(rewrittenQuery));
         }
 
-        return queryBuilder.toQuery(context);
+        return rewrittenQuery;
+    }
+
+    @Override
+    protected Query doToQuery(SearchExecutionContext context) throws IOException {
+        throw new IllegalStateException("The query should have been rewritten");
     }
 
     protected void doWriteTo(StreamOutput out) throws IOException {
@@ -109,5 +114,9 @@ public class KqlQueryBuilder extends AbstractQueryBuilder<KqlQueryBuilder> {
     public TransportVersion getMinimalSupportedVersion() {
         // TODO: Create a transport versions.
         return TransportVersion.current();
+    }
+
+    public String queryString() {
+        return query;
     }
 }

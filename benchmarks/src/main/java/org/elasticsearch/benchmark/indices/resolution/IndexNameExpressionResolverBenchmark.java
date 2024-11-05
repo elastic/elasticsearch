@@ -82,11 +82,14 @@ public class IndexNameExpressionResolverBenchmark {
             indices[position++] = dataStreamName;
             mb.put(DataStream.builder(dataStreamName, backingIndices).build());
         }
-
+        int mid = indices.length / 2;
         clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(mb).build();
         resolver = new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY), new SystemIndices(List.of()));
-        indexListRequest = new IndicesRequest(IndicesOptions.lenientExpandOpenHidden(), indices);
-        starRequest = new IndicesRequest(IndicesOptions.lenientExpandOpenHidden(), "*");
+        indexListRequest = new Request(IndicesOptions.lenientExpandOpenHidden(), indices);
+        starRequest = new Request(IndicesOptions.lenientExpandOpenHidden(), "*");
+        String[] mixed = indices.clone();
+        mixed[mid] = "my-*";
+        mixedRequest = new Request(IndicesOptions.lenientExpandOpenHidden(), mixed);
     }
 
     private IndexMetadata createIndexMetadata(String indexName, Metadata.Builder mb) {
@@ -101,8 +104,9 @@ public class IndexNameExpressionResolverBenchmark {
 
     private IndexNameExpressionResolver resolver;
     private ClusterState clusterState;
-    private IndicesRequest starRequest;
-    private IndicesRequest indexListRequest;
+    private Request starRequest;
+    private Request indexListRequest;
+    private Request mixedRequest;
 
     @Benchmark
     public String[] resolveResourcesListToConcreteIndices() {
@@ -114,28 +118,16 @@ public class IndexNameExpressionResolverBenchmark {
         return resolver.concreteIndexNames(clusterState, starRequest);
     }
 
+    @Benchmark
+    public String[] resolveMixedConcreteIndices() {
+        return resolver.concreteIndexNames(clusterState, mixedRequest);
+    }
+
     private int toInt(String v) {
         return Integer.parseInt(v.trim());
     }
 
-    static class IndicesRequest implements org.elasticsearch.action.IndicesRequest {
+    record Request(IndicesOptions indicesOptions, String... indices) implements IndicesRequest {
 
-        private final String[] indices;
-        private final IndicesOptions indicesOptions;
-
-        IndicesRequest(IndicesOptions indicesOptions, String... indices) {
-            this.indices = indices;
-            this.indicesOptions = indicesOptions;
-        }
-
-        @Override
-        public String[] indices() {
-            return indices;
-        }
-
-        @Override
-        public IndicesOptions indicesOptions() {
-            return indicesOptions;
-        }
     }
 }

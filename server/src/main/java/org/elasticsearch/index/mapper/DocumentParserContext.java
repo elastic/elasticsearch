@@ -104,6 +104,16 @@ public abstract class DocumentParserContext {
         }
     }
 
+    /**
+     * Defines the scope parser is currently in.
+     * This is used for synthetic source related logic during parsing.
+     */
+    private enum Scope {
+        SINGLETON,
+        ARRAY,
+        NESTED
+    }
+
     private final MappingLookup mappingLookup;
     private final MappingParserContext mappingParserContext;
     private final SourceToParse sourceToParse;
@@ -351,7 +361,7 @@ public abstract class DocumentParserContext {
             && mapper instanceof NestedObjectMapper == false
             && currentScope != Scope.ARRAY) {
             DocumentParserContext subcontext = switchParser(parser());
-            subcontext.inArrayScope = true;
+            subcontext.currentScope = Scope.ARRAY;
             return subcontext;
         }
         return this;

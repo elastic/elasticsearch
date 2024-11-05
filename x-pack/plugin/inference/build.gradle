@@ -12,7 +12,7 @@ apply plugin: 'elasticsearch.internal-yaml-rest-test'
 
 restResources {
   restApi {
-    include '_common', 'bulk', 'indices', 'inference', 'index', 'get', 'update', 'reindex', 'search', 'field_caps'
+    include '_common', 'bulk', 'indices', 'inference', 'index', 'get', 'update', 'reindex', 'search', 'field_caps', 'capabilities'
   }
 }
 
@@ -32,7 +32,7 @@ versions << [
 ]
 
 dependencies {
-  implementation project(path: ':libs:elasticsearch-logging')
+  implementation project(path: ':libs:logging')
   compileOnly project(":server")
   compileOnly project(path: xpackModule('core'))
   testImplementation(testArtifact(project(xpackModule('core'))))

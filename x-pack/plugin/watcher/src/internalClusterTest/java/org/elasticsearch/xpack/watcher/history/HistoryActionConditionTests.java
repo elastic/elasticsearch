@@ -122,7 +122,7 @@ public class HistoryActionConditionTests extends AbstractWatcherIntegrationTestC
             ensureGreen(HistoryStoreField.DATA_STREAM);
             final SearchResponse response = searchHistory(SearchSourceBuilder.searchSource().query(termQuery("watch_id", id)));
             try {
-                assertThat(response.getHits().getTotalHits().value, is(oneOf(1L, 2L)));
+                assertThat(response.getHits().getTotalHits().value(), is(oneOf(1L, 2L)));
                 searchHitReference.set(response.getHits().getAt(0).asUnpooled());
             } finally {
                 response.decRef();
@@ -176,7 +176,7 @@ public class HistoryActionConditionTests extends AbstractWatcherIntegrationTestC
             ensureGreen(HistoryStoreField.DATA_STREAM);
             final SearchResponse response = searchHistory(SearchSourceBuilder.searchSource().query(termQuery("watch_id", id)));
             try {
-                assertThat(response.getHits().getTotalHits().value, is(oneOf(1L, 2L)));
+                assertThat(response.getHits().getTotalHits().value(), is(oneOf(1L, 2L)));
                 searchHitReference.set(response.getHits().getAt(0).asUnpooled());
             } finally {
                 response.decRef();
@@ -236,7 +236,7 @@ public class HistoryActionConditionTests extends AbstractWatcherIntegrationTestC
             ensureGreen(HistoryStoreField.DATA_STREAM);
             final SearchResponse response = searchHistory(SearchSourceBuilder.searchSource().query(termQuery("watch_id", id)));
             try {
-                assertThat(response.getHits().getTotalHits().value, is(oneOf(1L, 2L)));
+                assertThat(response.getHits().getTotalHits().value(), is(oneOf(1L, 2L)));
                 searchHitReference.set(response.getHits().getAt(0).asUnpooled());
             } finally {
                 response.decRef();

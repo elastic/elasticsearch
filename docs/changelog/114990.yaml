@@ -1,0 +1,6 @@
+pr: 114990
+summary: Allow for querries on `_tier` to skip shards in the `can_match` phase
+area: Search
+type: bug
+issues:
+ - 114910

@@ -175,7 +175,7 @@ public class GeoShapeWithDocValuesIT extends GeoShapeIntegTestCase {
         indexRandom(true, prepareIndex("test").setId("0").setSource(source, XContentType.JSON));
 
         assertNoFailuresAndResponse(client().prepareSearch("test").setFetchSource(false).addStoredField("shape"), response -> {
-            assertThat(response.getHits().getTotalHits().value, equalTo(1L));
+            assertThat(response.getHits().getTotalHits().value(), equalTo(1L));
             SearchHit searchHit = response.getHits().getAt(0);
             assertThat(searchHit.field("shape").getValue(), instanceOf(BytesRef.class));
             BytesRef bytesRef = searchHit.field("shape").getValue();

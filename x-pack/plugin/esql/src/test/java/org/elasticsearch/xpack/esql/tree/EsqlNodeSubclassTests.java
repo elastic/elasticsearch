@@ -28,8 +28,6 @@ import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttributeTests;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedNamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.expression.predicate.fulltext.FullTextPredicate;
-import org.elasticsearch.xpack.esql.core.expression.predicate.regex.Like;
-import org.elasticsearch.xpack.esql.core.expression.predicate.regex.LikePattern;
 import org.elasticsearch.xpack.esql.core.tree.AbstractNodeTestCase;
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -47,7 +45,6 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.PhasedTests;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinType;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec.Stat;
@@ -120,7 +117,7 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
     private static final Predicate<String> CLASSNAME_FILTER = className -> {
         boolean esqlCore = className.startsWith("org.elasticsearch.xpack.esql.core") != false;
         boolean esqlProper = className.startsWith("org.elasticsearch.xpack.esql") != false;
-        return (esqlCore || esqlProper) && className.equals(PhasedTests.Dummy.class.getName()) == false;
+        return (esqlCore || esqlProper);
     };
 
     /**
@@ -131,7 +128,7 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
     @SuppressWarnings("rawtypes")
     public static List<Object[]> nodeSubclasses() throws IOException {
         return subclassesOf(Node.class, CLASSNAME_FILTER).stream()
-            .filter(c -> testClassFor(c) == null || c != PhasedTests.Dummy.class)
+            .filter(c -> testClassFor(c) == null)
             .map(c -> new Object[] { c })
             .toList();
     }
@@ -422,12 +419,6 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
                 }
                 return b.toString();
             }
-        } else if (toBuildClass == Like.class) {
-
-            if (argClass == LikePattern.class) {
-                return new LikePattern(randomAlphaOfLength(16), randomFrom('\\', '|', '/', '`'));
-            }
-
         } else if (argClass == Dissect.Parser.class) {
             // Dissect.Parser is a record / final, cannot be mocked
             String pattern = randomDissectPattern();

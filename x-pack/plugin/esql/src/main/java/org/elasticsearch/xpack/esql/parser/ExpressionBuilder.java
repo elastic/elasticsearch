@@ -441,7 +441,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
             // use the fast run variant
             result = new UnresolvedNamePattern(
                 src,
-                new CharacterRunAutomaton(Operations.concatenate(list)),
+                new CharacterRunAutomaton(Operations.determinize(Operations.concatenate(list), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT)),
                 patternString.toString(),
                 nameString.toString()
             );
@@ -815,7 +815,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
                 }
                 // wrap when necessary - no alias and no underlying attribute
                 if (ne == null) {
-                    ne = new Alias(source(ctx), name, value);
+                    ne = new Alias(source(field), name, value);
                 }
                 list.add(ne);
             }

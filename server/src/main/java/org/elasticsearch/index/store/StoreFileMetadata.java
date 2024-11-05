@@ -195,7 +195,7 @@ public class StoreFileMetadata implements Writeable {
      *
      * This ID may be {@link StoreFileMetadata#UNAVAILABLE_WRITER_UUID} (i.e. zero-length) if unavailable, e.g.:
      *
-     * - The file was written by a version of Lucene prior to {@link org.apache.lucene.util.Version#LUCENE_8_6_0}.
+     * - The file was written by a version of Lucene prior to 8.6.0.
      * - The metadata came from a version of Elasticsearch prior to {@link StoreFileMetadata#WRITER_UUID_MIN_VERSION}).
      * - The file is not one of the files listed above.
      *

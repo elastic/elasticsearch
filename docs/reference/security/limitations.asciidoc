@@ -81,12 +81,13 @@ including the following queries:
 * A search request cannot be profiled if document level security is enabled.
 * The <<search-terms-enum,terms enum API>> does not return terms if document
 level security is enabled.
+* The <<query-dsl-multi-match-query, `multi_match`>> query does not support specifying fields using wildcards.
 
 NOTE: While document-level security prevents users from viewing restricted documents,
 it's still possible to write search requests that return aggregate information about the
 entire index. A user whose access is restricted to specific documents in an index could
 still learn about field names and terms that only exist in inaccessible
-documents, and count how many inaccessible documents contain a given term. 
+documents, and count how many inaccessible documents contain a given term.
 
 [discrete]
 [[alias-limitations]]

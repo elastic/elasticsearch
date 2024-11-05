@@ -55,7 +55,7 @@ public class IndicesMetrics extends AbstractLifecycleComponent {
     }
 
     private static List<AutoCloseable> registerAsyncMetrics(MeterRegistry registry, IndicesStatsCache cache) {
-        final int TOTAL_METRICS = 36;
+        final int TOTAL_METRICS = 48;
         List<AutoCloseable> metrics = new ArrayList<>(TOTAL_METRICS);
         for (IndexMode indexMode : IndexMode.values()) {
             String name = indexMode.getName();

@@ -34,6 +34,7 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.math.BigInteger;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.Collections;
@@ -1485,25 +1486,66 @@ public class Setting<T> implements ToXContentObject {
     }
 
     public static int parseInt(String s, int minValue, int maxValue, String key, boolean isFiltered) {
-        int value = Integer.parseInt(s);
+        int value;
+        try {
+            value = Integer.parseInt(s);
+        } catch (NumberFormatException e) {
+            // check if value is a number or garbage
+            try {
+                var bi = new BigInteger(s);
+                // it's a number, so check which bound it is outside
+                if (bi.compareTo(BigInteger.valueOf(minValue)) < 0) {
+                    throw newNumericBoundsException(s, key, isFiltered, ">=", minValue);
+                } else {
+                    throw newNumericBoundsException(s, key, isFiltered, "<=", maxValue);
+                }
+            } catch (NumberFormatException e2) {
+                throw e; // it's garbage, use the original exception
+            }
+        }
         if (value < minValue) {
-            String err = "Failed to parse value" + (isFiltered ? "" : " [" + s + "]") + " for setting [" + key + "] must be >= " + minValue;
-            throw new IllegalArgumentException(err);
+            throw newNumericBoundsException(s, key, isFiltered, ">=", minValue);
         }
         if (value > maxValue) {
-            String err = "Failed to parse value" + (isFiltered ? "" : " [" + s + "]") + " for setting [" + key + "] must be <= " + maxValue;
-            throw new IllegalArgumentException(err);
+            throw newNumericBoundsException(s, key, isFiltered, "<=", maxValue);
         }
         return value;
     }
 
     static long parseLong(String s, long minValue, String key, boolean isFiltered) {
-        long value = Long.parseLong(s);
+        long value;
+        try {
+            value = Long.parseLong(s);
+        } catch (NumberFormatException e) {
+            // check if value is a number or garbage
+            try {
+                var bi = new BigInteger(s);
+                // it's a number, so check which bound it is outside
+                if (bi.compareTo(BigInteger.valueOf(minValue)) < 0) {
+                    throw newNumericBoundsException(s, key, isFiltered, ">=", minValue);
+                } else {
+                    throw newNumericBoundsException(s, key, isFiltered, "<=", Long.MAX_VALUE);
+                }
+            } catch (NumberFormatException e2) {
+                throw e; // it's garbage, use the original exception
+            }
+        }
         if (value < minValue) {
-            String err = "Failed to parse value" + (isFiltered ? "" : " [" + s + "]") + " for setting [" + key + "] must be >= " + minValue;
-            throw new IllegalArgumentException(err);
+            throw newNumericBoundsException(s, key, isFiltered, ">=", minValue);
         }
         return value;
+    }
+
+    private static IllegalArgumentException newNumericBoundsException(String s, String key, boolean isFiltered, String type, long bound) {
+        String err = "Failed to parse value"
+            + (isFiltered ? "" : " [" + s + "]")
+            + " for setting ["
+            + key
+            + "] must be "
+            + type
+            + " "
+            + bound;
+        throw new IllegalArgumentException(err);
     }
 
     public static Setting<Integer> intSetting(String key, int defaultValue, Property... properties) {

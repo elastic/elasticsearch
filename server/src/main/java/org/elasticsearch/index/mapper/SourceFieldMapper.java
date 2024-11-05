@@ -54,6 +54,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
     public static final NodeFeature REMOVE_SYNTHETIC_SOURCE_ONLY_VALIDATION = new NodeFeature(
         "mapper.source.remove_synthetic_source_only_validation"
     );
+    public static final NodeFeature SOURCE_MODE_FROM_INDEX_SETTING = new NodeFeature("mapper.source.mode_from_index_setting");
 
     public static final String NAME = "_source";
     public static final String RECOVERY_SOURCE_NAME = "_recovery_source";
@@ -242,7 +243,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         }
 
         private Mode resolveSourceMode() {
-            // If the `index.mapper.source.mode` exists it takes precedence to determine the source mode for `_source`
+            // If the `index.mapping.source.mode` exists it takes precedence to determine the source mode for `_source`
             // otherwise the mode is determined according to `_source.mode`.
             if (INDEX_MAPPER_SOURCE_MODE_SETTING.exists(settings)) {
                 return INDEX_MAPPER_SOURCE_MODE_SETTING.get(settings);
@@ -437,6 +438,10 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
     public static boolean isSynthetic(IndexSettings indexSettings) {
         return INDEX_MAPPER_SOURCE_MODE_SETTING.get(indexSettings.getSettings()) == SourceFieldMapper.Mode.SYNTHETIC;
+    }
+
+    public static boolean isStored(IndexSettings indexSettings) {
+        return INDEX_MAPPER_SOURCE_MODE_SETTING.get(indexSettings.getSettings()) == Mode.STORED;
     }
 
     public boolean isDisabled() {

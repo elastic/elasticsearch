@@ -72,7 +72,7 @@ public class SecurityMigrationExecutor extends PersistentTasksExecutor<SecurityM
         refreshSecurityIndex(
             new ThreadedActionListener<>(
                 this.getExecutor(),
-                listener.delegateFailureAndWrap((l, response) -> applyOutstandingMigrations(task, params.getMigrationVersion(), l))
+                listener.delegateFailureIgnoreResponseAndWrap(l -> applyOutstandingMigrations(task, params.getMigrationVersion(), l))
             )
         );
     }
@@ -94,18 +94,18 @@ public class SecurityMigrationExecutor extends PersistentTasksExecutor<SecurityM
                 .migrate(
                     securityIndexManager,
                     client,
-                    migrationsListener.delegateFailureAndWrap(
-                        (updateVersionListener, response) -> updateMigrationVersion(
+                    migrationsListener.delegateFailureIgnoreResponseAndWrap(
+                        updateVersionListener -> updateMigrationVersion(
                             migrationEntry.getKey(),
                             securityIndexManager.getConcreteIndexName(),
                             new ThreadedActionListener<>(
                                 this.getExecutor(),
-                                updateVersionListener.delegateFailureAndWrap((refreshListener, updateResponse) -> {
+                                updateVersionListener.delegateFailureIgnoreResponseAndWrap(refreshListener -> {
                                     refreshSecurityIndex(
                                         new ThreadedActionListener<>(
                                             this.getExecutor(),
-                                            refreshListener.delegateFailureAndWrap(
-                                                (l, refreshResponse) -> applyOutstandingMigrations(task, migrationEntry.getKey(), l)
+                                            refreshListener.delegateFailureIgnoreResponseAndWrap(
+                                                l -> applyOutstandingMigrations(task, migrationEntry.getKey(), l)
                                             )
                                         )
                                     );
@@ -143,7 +143,7 @@ public class SecurityMigrationExecutor extends PersistentTasksExecutor<SecurityM
         client.execute(
             UpdateIndexMigrationVersionAction.INSTANCE,
             new UpdateIndexMigrationVersionAction.Request(TimeValue.MAX_VALUE, migrationVersion, indexName),
-            listener.delegateFailureAndWrap((l, response) -> l.onResponse(null))
+            listener.delegateFailureIgnoreResponseAndWrap(l -> l.onResponse(null))
         );
     }
 }

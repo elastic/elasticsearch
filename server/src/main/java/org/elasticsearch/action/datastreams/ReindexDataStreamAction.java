@@ -31,13 +31,20 @@ public class ReindexDataStreamAction extends ActionType<ReindexDataStreamAction.
     }
 
     public static class ReindexDataStreamResponse extends ActionResponse implements ToXContentObject {
-        public ReindexDataStreamResponse() {
+        private final String taskId;
+
+        public ReindexDataStreamResponse(String taskId) {
             super();
+            this.taskId = taskId;
+        }
+
+        public ReindexDataStreamResponse(StreamInput in) throws IOException {
+            this.taskId = in.readString();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-
+            out.writeString(taskId);
         }
 
         @Override
@@ -48,15 +55,29 @@ public class ReindexDataStreamAction extends ActionType<ReindexDataStreamAction.
             builder.endObject();
             return builder;
         }
+
+        public String getTaskId() {
+            return taskId;
+        }
     }
 
     public static class ReindexDataStreamRequest extends ActionRequest {
-        public ReindexDataStreamRequest() {
+        private final String sourceIndex;
+
+        public ReindexDataStreamRequest(String sourceIndex) {
             super();
+            this.sourceIndex = sourceIndex;
         }
 
         public ReindexDataStreamRequest(StreamInput in) throws IOException {
             super(in);
+            this.sourceIndex = in.readString();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeString(sourceIndex);
         }
 
         @Override
@@ -67,6 +88,10 @@ public class ReindexDataStreamAction extends ActionType<ReindexDataStreamAction.
         @Override
         public boolean getShouldStoreResult() {
             return true; // not wait_for_completion
+        }
+
+        public String getSourceIndex() {
+            return sourceIndex;
         }
     }
 }

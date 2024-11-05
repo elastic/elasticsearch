@@ -358,7 +358,7 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
                 request.ifSeqNo(),
                 request.ifPrimaryTerm(),
                 0
-            );
+            ).docs().get(0).getFields();
         });
     }
 

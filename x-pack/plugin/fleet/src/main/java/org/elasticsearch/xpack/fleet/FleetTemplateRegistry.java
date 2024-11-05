@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.template.IndexTemplateConfig;
 import org.elasticsearch.xpack.core.template.IndexTemplateRegistry;
 import org.elasticsearch.xpack.core.template.JsonLifecyclePolicyConfig;
+import org.elasticsearch.xpack.core.template.LifecyclePolicyConfig;
 
 import java.util.List;
 import java.util.Map;
@@ -27,7 +28,7 @@ public class FleetTemplateRegistry extends IndexTemplateRegistry {
 
     public static final String TEMPLATE_VERSION_VARIABLE = "xpack.fleet.template.version";
 
-    private static final List<JsonLifecyclePolicyConfig> LIFECYCLE_POLICIES_CONFIG = List.of(
+    private static final List<LifecyclePolicyConfig> LIFECYCLE_POLICIES_CONFIG = List.of(
         new JsonLifecyclePolicyConfig(".fleet-actions-results-ilm-policy", "/fleet-actions-results-ilm-policy.json"),
         new JsonLifecyclePolicyConfig(".fleet-file-tohost-data-ilm-policy", "/fleet-file-tohost-data-ilm-policy.json"),
         new JsonLifecyclePolicyConfig(".fleet-file-tohost-meta-ilm-policy", "/fleet-file-tohost-meta-ilm-policy.json"),
@@ -78,7 +79,7 @@ public class FleetTemplateRegistry extends IndexTemplateRegistry {
     }
 
     @Override
-    protected List<JsonLifecyclePolicyConfig> getLifecycleConfigs() {
+    protected List<LifecyclePolicyConfig> getLifecycleConfigs() {
         return LIFECYCLE_POLICIES_CONFIG;
     }
 

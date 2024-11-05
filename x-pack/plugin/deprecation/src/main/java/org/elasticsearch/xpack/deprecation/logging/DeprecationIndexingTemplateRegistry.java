@@ -19,6 +19,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.template.IndexTemplateConfig;
 import org.elasticsearch.xpack.core.template.IndexTemplateRegistry;
 import org.elasticsearch.xpack.core.template.JsonLifecyclePolicyConfig;
+import org.elasticsearch.xpack.core.template.LifecyclePolicyConfig;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -104,7 +105,7 @@ public class DeprecationIndexingTemplateRegistry extends IndexTemplateRegistry {
     );
 
     @Override
-    protected List<JsonLifecyclePolicyConfig> getLifecycleConfigs() {
+    protected List<LifecyclePolicyConfig> getLifecycleConfigs() {
         return List.of(LIFECYCLE_POLICY_CONFIG);
     }
 

@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.core.ml.notifications.NotificationsIndex;
 import org.elasticsearch.xpack.core.template.IndexTemplateConfig;
 import org.elasticsearch.xpack.core.template.IndexTemplateRegistry;
 import org.elasticsearch.xpack.core.template.JsonLifecyclePolicyConfig;
+import org.elasticsearch.xpack.core.template.LifecyclePolicyConfig;
 
 import java.util.HashMap;
 import java.util.List;
@@ -155,7 +156,7 @@ public class MlIndexTemplateRegistry extends IndexTemplateRegistry {
     );
 
     @Override
-    protected List<JsonLifecyclePolicyConfig> getLifecycleConfigs() {
+    protected List<LifecyclePolicyConfig> getLifecycleConfigs() {
         return List.of(LIFECYCLE_POLICY_CONFIG);
     }
 

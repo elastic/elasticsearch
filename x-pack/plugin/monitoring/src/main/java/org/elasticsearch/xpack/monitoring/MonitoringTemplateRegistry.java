@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.template.IndexTemplateConfig;
 import org.elasticsearch.xpack.core.template.IndexTemplateRegistry;
 import org.elasticsearch.xpack.core.template.JsonLifecyclePolicyConfig;
+import org.elasticsearch.xpack.core.template.LifecyclePolicyConfig;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -251,7 +252,7 @@ public class MonitoringTemplateRegistry extends IndexTemplateRegistry {
     }
 
     @Override
-    protected List<JsonLifecyclePolicyConfig> getLifecycleConfigs() {
+    protected List<LifecyclePolicyConfig> getLifecycleConfigs() {
         Map<String, String> templateVars = new HashMap<>();
         if (HISTORY_DURATION.exists(settings)) {
             templateVars.put(MONITORING_POLICY_RETENTION_VARIABLE, HISTORY_DURATION.get(settings).getStringRep());

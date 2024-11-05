@@ -1,0 +1,11 @@
+pr: 116259
+summary: Fix `_type` deprecation on simulate pipeline API
+area: Ingest Node
+type: deprecation
+issues: []
+deprecation:
+  title: Fix `_type` deprecation on simulate pipeline API
+  area: Ingest Node
+  details: Please describe the details of this change for the release notes. You can
+    use asciidoc.
+  impact: Please describe the impact of this change to users

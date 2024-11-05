@@ -27,7 +27,7 @@ public record AlibabaCloudSearchEmbeddingsRequestEntity(List<String> input, Alib
 
     private static final String TEXTS_FIELD = "input";
 
-    static final String INPUT_TYPE_FIELD = "input_type";
+    public static final String INPUT_TYPE_FIELD = "input_type";
 
     public AlibabaCloudSearchEmbeddingsRequestEntity {
         Objects.requireNonNull(input);

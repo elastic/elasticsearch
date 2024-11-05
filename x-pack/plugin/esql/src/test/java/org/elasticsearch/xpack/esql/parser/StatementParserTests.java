@@ -392,12 +392,16 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertEquals(
             new InlineStats(
                 EMPTY,
-                PROCESSING_CMD_INPUT,
-                List.of(attribute("c"), attribute("d.e")),
-                List.of(
-                    new Alias(EMPTY, "b", new UnresolvedFunction(EMPTY, "min", DEFAULT, List.of(attribute("a")))),
-                    attribute("c"),
-                    attribute("d.e")
+                new Aggregate(
+                    EMPTY,
+                    PROCESSING_CMD_INPUT,
+                    Aggregate.AggregateType.STANDARD,
+                    List.of(attribute("c"), attribute("d.e")),
+                    List.of(
+                        new Alias(EMPTY, "b", new UnresolvedFunction(EMPTY, "min", DEFAULT, List.of(attribute("a")))),
+                        attribute("c"),
+                        attribute("d.e")
+                    )
                 )
             ),
             processingCommand(query)
@@ -414,11 +418,15 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertEquals(
             new InlineStats(
                 EMPTY,
-                PROCESSING_CMD_INPUT,
-                List.of(),
-                List.of(
-                    new Alias(EMPTY, "min(a)", new UnresolvedFunction(EMPTY, "min", DEFAULT, List.of(attribute("a")))),
-                    new Alias(EMPTY, "c", integer(1))
+                new Aggregate(
+                    EMPTY,
+                    PROCESSING_CMD_INPUT,
+                    Aggregate.AggregateType.STANDARD,
+                    List.of(),
+                    List.of(
+                        new Alias(EMPTY, "min(a)", new UnresolvedFunction(EMPTY, "min", DEFAULT, List.of(attribute("a")))),
+                        new Alias(EMPTY, "c", integer(1))
+                    )
                 )
             ),
             processingCommand(query)
@@ -1677,7 +1685,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     List.of(new Order(EMPTY, attribute("f.11..f.12.*"), Order.OrderDirection.ASC, Order.NullsPosition.LAST))
                 ),
                 attribute("f.*.13.f.14*"),
-                attribute("f.*.13.f.14*")
+                attribute("f.*.13.f.14*"),
+                null
             ),
             statement(
                 """

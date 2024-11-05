@@ -37,18 +37,6 @@ class KqlBaseBaseListener implements KqlBaseListener {
      *
      * <p>The default implementation does nothing.</p>
      */
-    @Override public void enterNotQuery(KqlBaseParser.NotQueryContext ctx) { }
-    /**
-     * {@inheritDoc}
-     *
-     * <p>The default implementation does nothing.</p>
-     */
-    @Override public void exitNotQuery(KqlBaseParser.NotQueryContext ctx) { }
-    /**
-     * {@inheritDoc}
-     *
-     * <p>The default implementation does nothing.</p>
-     */
     @Override public void enterBooleanQuery(KqlBaseParser.BooleanQueryContext ctx) { }
     /**
      * {@inheritDoc}
@@ -80,6 +68,18 @@ class KqlBaseBaseListener implements KqlBaseListener {
      * <p>The default implementation does nothing.</p>
      */
     @Override public void exitSimpleQuery(KqlBaseParser.SimpleQueryContext ctx) { }
+    /**
+     * {@inheritDoc}
+     *
+     * <p>The default implementation does nothing.</p>
+     */
+    @Override public void enterNotQuery(KqlBaseParser.NotQueryContext ctx) { }
+    /**
+     * {@inheritDoc}
+     *
+     * <p>The default implementation does nothing.</p>
+     */
+    @Override public void exitNotQuery(KqlBaseParser.NotQueryContext ctx) { }
     /**
      * {@inheritDoc}
      *

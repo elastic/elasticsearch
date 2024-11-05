@@ -1,0 +1,16 @@
+[[esql-search-functions]]
+==== {esql} Full-text search functions
+
+++++
+<titleabbrev>Full-text Search functions</titleabbrev>
+++++
+
+{esql} supports these full-text search functions:
+
+// tag::search_list[]
+* experimental:[] <<esql-match>>
+* experimental:[] <<esql-qstr>>
+// end::search_list[]
+
+include::layout/match.asciidoc[]
+include::layout/qstr.asciidoc[]

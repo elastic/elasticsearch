@@ -429,6 +429,12 @@ public class EsqlCapabilities {
         FIX_FILTER_PUSHDOWN_PAST_STATS,
 
         /**
+         * Send warnings on STATS alias collision
+         * https://github.com/elastic/elasticsearch/issues/114970
+         */
+        STATS_ALIAS_COLLISION_WARNINGS,
+
+        /**
          * This enables 60_usage.yml "Basic ESQL usage....snapshot" version test. See also the next capability.
          */
         SNAPSHOT_TEST_FOR_TELEMETRY(Build.current().isSnapshot()),

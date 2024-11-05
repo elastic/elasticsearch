@@ -705,8 +705,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             | stats count(salary) where false
             """);
 
-        var project = as(plan, Limit.class);
-        var source = as(project.child(), LocalRelation.class);
+        var limit = as(plan, Limit.class);
+        var source = as(limit.child(), LocalRelation.class);
         assertThat(Expressions.names(source.output()), contains("count(salary) where false"));
         Block[] blocks = source.supplier().get();
         assertThat(blocks.length, is(1));
@@ -787,6 +787,28 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(Expressions.names(aggregate.aggregates()), contains("max", "min", "emp_no"));
 
         var source = as(aggregate.child(), EsRelation.class);
+    }
+
+    /*
+     * Limit[1000[INTEGER]]
+     * \_LocalRelation[[count{r}#7],[LongVectorBlock[vector=ConstantLongVector[positions=1, value=0]]]]
+     */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/100634") // i.e. PropagateEvalFoldables applicability to Aggs
+    public void testReplaceStatsFilteredAggWithEvalFilterUsingEvaledValue() {
+        var plan = plan("""
+            from test
+            | eval my_length = length(concat(first_name, null))
+            | stats count = count(my_length) where my_length > 0
+            """);
+
+        var limit = as(plan, Limit.class);
+        var source = as(limit.child(), LocalRelation.class);
+        assertThat(Expressions.names(source.output()), contains("count"));
+        Block[] blocks = source.supplier().get();
+        assertThat(blocks.length, is(1));
+        var block = as(blocks[0], LongVectorBlock.class);
+        assertThat(block.getPositionCount(), is(1));
+        assertThat(block.asVector().getLong(0), is(0L));
     }
 
     /*

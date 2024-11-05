@@ -2432,7 +2432,7 @@ from employees
         count = count(height.float) + 2 where false,
         values = values(first_name) where my_length > 3
   by job_positions, is_rehired
-| sort job_positions
+| sort job_positions, is_rehired
 | limit 10
 ;
 
@@ -2454,7 +2454,7 @@ required_capability: per_agg_filtering
 from employees
 | eval my_length = length(concat(first_name, null))
 | stats count = count(my_length) where false,
-        values = mv_slice(values(first_name), 0, 1)
+        values = mv_sort(mv_slice(values(first_name), 0, 1))
   by job_positions
 | sort job_positions
 | limit 4
@@ -2463,8 +2463,20 @@ from employees
 count:long     |values:keyword    |job_positions:keyword
 0              |[Georgi, Patricio]|Accountant
 0              |[Duangkaew, Mary] |Architect
-0              |[Magy, Basil]     |Business Analyst
+0              |[Basil, Magy]     |Business Analyst
 0              |[Berni, Cristinel]|Data Scientist
+;
+
+prunedStatsFollowedByStats
+from employees
+| eval my_length = length(concat(first_name, null))
+| stats count = count(my_length) where false,
+        values = mv_slice(values(first_name), 0, 1) where my_length > 0
+| stats count_distinct = count_distinct(count)
+;
+
+count_distinct:long
+1
 ;
 
 statsWithFalseFiltersFromRow

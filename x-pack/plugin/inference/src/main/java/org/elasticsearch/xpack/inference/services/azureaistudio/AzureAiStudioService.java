@@ -48,9 +48,9 @@ import org.elasticsearch.xpack.inference.services.azureaistudio.completion.Azure
 import org.elasticsearch.xpack.inference.services.azureaistudio.completion.AzureAiStudioChatCompletionTaskSettings;
 import org.elasticsearch.xpack.inference.services.azureaistudio.embeddings.AzureAiStudioEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.azureaistudio.embeddings.AzureAiStudioEmbeddingsServiceSettings;
-import org.elasticsearch.xpack.inference.services.validation.ModelValidatorBuilder;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
+import org.elasticsearch.xpack.inference.services.validation.ModelValidatorBuilder;
 
 import java.util.EnumSet;
 import java.util.HashMap;

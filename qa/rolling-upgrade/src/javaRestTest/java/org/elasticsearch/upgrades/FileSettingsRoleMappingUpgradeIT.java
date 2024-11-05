@@ -29,6 +29,7 @@ import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
@@ -91,26 +92,21 @@ public class FileSettingsRoleMappingUpgradeIT extends ParameterizedRollingUpgrad
         );
     }
 
-    private static void waitForSecurityMigrationCompletionIfIndexExists() throws Exception {
-        final Request request = new Request("GET", "_cluster/state/metadata/.security-7");
+    private static void waitForSecurityMigrationCompletion() throws Exception {
         assertBusy(() -> {
+            final Request request = new Request("GET", "_cluster/state/metadata/.security-7");
             Map<String, Object> indices = new XContentTestUtils.JsonMapView(entityAsMap(client().performRequest(request))).get(
                 "metadata.indices"
             );
             assertNotNull(indices);
-            // If the security index exists, migration needs to happen. There is a bug in pre cluster state role mappings code that tries
-            // to write file based role mappings before security index manager state is recovered, this makes it look like the security
-            // index is outdated (isIndexUpToDate == false). Because we can't rely on the index being there for old versions, this check
-            // is needed.
-            if (indices.containsKey(".security-7")) {
-                // JsonMapView doesn't support . prefixed indices (splits on .)
-                @SuppressWarnings("unchecked")
-                String responseVersion = new XContentTestUtils.JsonMapView((Map<String, Object>) indices.get(".security-7")).get(
-                    "migration_version.version"
-                );
-                assertNotNull(responseVersion);
-                assertTrue(Integer.parseInt(responseVersion) >= ROLE_MAPPINGS_CLEANUP_MIGRATION_VERSION);
-            }
+            assertThat(indices, hasKey(".security-7"));
+            // JsonMapView doesn't support . prefixed indices (splits on .)
+            @SuppressWarnings("unchecked")
+            String responseVersion = new XContentTestUtils.JsonMapView((Map<String, Object>) indices.get(".security-7")).get(
+                "migration_version.version"
+            );
+            assertNotNull(responseVersion);
+            assertTrue(Integer.parseInt(responseVersion) >= ROLE_MAPPINGS_CLEANUP_MIGRATION_VERSION);
         });
     }
 
@@ -130,7 +126,7 @@ public class FileSettingsRoleMappingUpgradeIT extends ParameterizedRollingUpgrad
             ).get("metadata.role_mappings.role_mappings");
             assertThat(clusterStateRoleMappings, is(not(nullValue())));
             assertThat(clusterStateRoleMappings.size(), equalTo(1));
-            waitForSecurityMigrationCompletionIfIndexExists();
+            waitForSecurityMigrationCompletion();
             assertThat(
                 entityAsMap(client().performRequest(new Request("GET", "/_security/role_mapping"))).keySet(),
                 contains("everyone_kibana-read-only-operator-mapping")

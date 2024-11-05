@@ -11,6 +11,8 @@ import org.elasticsearch.Build;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.aggregation.QuantileStates;
+import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.LongVectorBlock;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.dissect.DissectParser;
 import org.elasticsearch.index.IndexMode;
@@ -558,10 +560,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     }
 
     /*
-     * Project[[sum(salary) where false{r}#3]]
-     * \_Eval[[null[LONG] AS sum(salary) where false]]
-     *  \_Limit[1000[INTEGER]]
-     *   \_EsRelation[test][_meta_field{f}#10, emp_no{f}#4, first_name{f}#5, ge..]
+     * Limit[1000[INTEGER]]
+     * \_LocalRelation[[sum(salary) where false{r}#26],[ConstantNullBlock[positions=1]]]
      */
     public void testReplaceStatsFilteredAggWithEvalSingleAgg() {
         var plan = plan("""
@@ -569,24 +569,20 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             | stats sum(salary) where false
             """);
 
-        var project = as(plan, Project.class);
-        assertThat(Expressions.names(project.projections()), contains("sum(salary) where false"));
-        var eval = as(project.child(), Eval.class);
-        assertThat(eval.fields().size(), is(1));
-        var alias = as(eval.fields().getFirst(), Alias.class);
-        assertTrue(alias.child().foldable());
-        assertThat(alias.child().fold(), nullValue());
-        assertThat(alias.child().dataType(), is(LONG));
-
-        var limit = as(eval.child(), Limit.class);
-        var source = as(limit.child(), EsRelation.class);
+        var project = as(plan, Limit.class);
+        var source = as(project.child(), LocalRelation.class);
+        assertThat(Expressions.names(source.output()), contains("sum(salary) where false"));
+        Block[] blocks = source.supplier().get();
+        assertThat(blocks.length, is(1));
+        assertThat(blocks[0].getPositionCount(), is(1));
+        assertTrue(blocks[0].areAllValuesNull());
     }
 
     /*
-     * Project[[sum(salary) + 1 where false{r}#31]]
-     * \_Eval[[null[LONG] AS sum(salary) + 1 where false]]
+     * Project[[sum(salary) + 1 where false{r}#68]]
+     * \_Eval[[$$SUM$sum(salary)_+_1$0{r$}#79 + 1[INTEGER] AS sum(salary) + 1 where false]]
      *   \_Limit[1000[INTEGER]]
-     *     \_EsRelation[test][_meta_field{f}#38, emp_no{f}#32, first_name{f}#33, ..]
+     *     \_LocalRelation[[$$SUM$sum(salary)_+_1$0{r$}#79],[ConstantNullBlock[positions=1]]]
      */
     public void testReplaceStatsFilteredAggWithEvalSingleAggWithExpression() {
         var plan = plan("""
@@ -600,12 +596,18 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var eval = as(project.child(), Eval.class);
         assertThat(eval.fields().size(), is(1));
         var alias = as(eval.fields().getFirst(), Alias.class);
-        assertTrue(alias.child().foldable());
-        assertThat(alias.child().fold(), nullValue());
-        assertThat(alias.child().dataType(), is(LONG));
+        assertThat(alias.name(), is("sum(salary) + 1 where false"));
+        var add = as(alias.child(), Add.class);
+        var literal = as(add.right(), Literal.class);
+        assertThat(literal.fold(), is(1));
 
         var limit = as(eval.child(), Limit.class);
-        var source = as(limit.child(), EsRelation.class);
+        var source = as(limit.child(), LocalRelation.class);
+
+        Block[] blocks = source.supplier().get();
+        assertThat(blocks.length, is(1));
+        assertThat(blocks[0].getPositionCount(), is(1));
+        assertTrue(blocks[0].areAllValuesNull());
     }
 
     /*
@@ -684,10 +686,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     }
 
     /*
-     *  Project[[count(salary) where false{r}#62]]
-     *  \_Eval[[0[LONG] AS count(salary) where false]]
-     *   \_Limit[1000[INTEGER]]
-     *      \_EsRelation[test][_meta_field{f}#69, emp_no{f}#63, first_name{f}#64, ..]
+     * Limit[1000[INTEGER]]
+     * \_LocalRelation[[count(salary) where false{r}#3],[LongVectorBlock[vector=ConstantLongVector[positions=1, value=0]]]]
      */
     public void testReplaceStatsFilteredAggWithEvalCount() {
         var plan = plan("""
@@ -695,42 +695,47 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             | stats count(salary) where false
             """);
 
-        var project = as(plan, Project.class);
-        assertThat(Expressions.names(project.projections()), contains("count(salary) where false"));
-        var eval = as(project.child(), Eval.class);
-        assertThat(eval.fields().size(), is(1));
-        var alias = as(eval.fields().getFirst(), Alias.class);
-        assertTrue(alias.child().foldable());
-        assertThat(alias.child().fold(), is(0L));
-        assertThat(alias.child().dataType(), is(LONG));
-
-        var limit = as(eval.child(), Limit.class);
-        var source = as(limit.child(), EsRelation.class);
+        var project = as(plan, Limit.class);
+        var source = as(project.child(), LocalRelation.class);
+        assertThat(Expressions.names(source.output()), contains("count(salary) where false"));
+        Block[] blocks = source.supplier().get();
+        assertThat(blocks.length, is(1));
+        var block = as(blocks[0], LongVectorBlock.class);
+        assertThat(block.getPositionCount(), is(1));
+        assertThat(block.asVector().getLong(0), is(0L));
     }
 
     /*
-     * Project[[count(salary) + 3 where false{r}#3]]
-     * \_Eval[[3[LONG] AS count_distinct(salary) + 3 where false]]
+     * Project[[count_distinct(salary + 2) + 3 where false{r}#3]]
+     * \_Eval[[$$COUNTDISTINCT$count_distinct(>$0{r$}#15 + 3[INTEGER] AS count_distinct(salary + 2) + 3 where false]]
      *   \_Limit[1000[INTEGER]]
-     *     \_EsRelation[test][_meta_field{f}#10, emp_no{f}#4, first_name{f}#5, ge..]
+     *     \_LocalRelation[[$$COUNTDISTINCT$count_distinct(>$0{r$}#15],[LongVectorBlock[vector=ConstantLongVector[positions=1, value=0]]]]
      */
     public void testReplaceStatsFilteredAggWithEvalCountDistinctInExpression() {
         var plan = plan("""
             from test
-            | stats count_distinct(salary) + 3 where false
+            | stats count_distinct(salary + 2) + 3 where false
             """);
 
         var project = as(plan, Project.class);
-        assertThat(Expressions.names(project.projections()), contains("count_distinct(salary) + 3 where false"));
+        assertThat(Expressions.names(project.projections()), contains("count_distinct(salary + 2) + 3 where false"));
+
         var eval = as(project.child(), Eval.class);
         assertThat(eval.fields().size(), is(1));
         var alias = as(eval.fields().getFirst(), Alias.class);
-        assertTrue(alias.child().foldable());
-        assertThat(alias.child().fold(), is(3L));
-        assertThat(alias.child().dataType(), is(LONG));
+        assertThat(alias.name(), is("count_distinct(salary + 2) + 3 where false"));
+        var add = as(alias.child(), Add.class);
+        var literal = as(add.right(), Literal.class);
+        assertThat(literal.fold(), is(3));
 
         var limit = as(eval.child(), Limit.class);
-        var source = as(limit.child(), EsRelation.class);
+        var source = as(limit.child(), LocalRelation.class);
+
+        Block[] blocks = source.supplier().get();
+        assertThat(blocks.length, is(1));
+        var block = as(blocks[0], LongVectorBlock.class);
+        assertThat(block.getPositionCount(), is(1));
+        assertThat(block.asVector().getLong(0), is(0L));
     }
 
     /*
@@ -770,6 +775,36 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         var aggregate = as(limit.child(), Aggregate.class);
         assertThat(Expressions.names(aggregate.aggregates()), contains("max", "min", "emp_no"));
+
+        var source = as(aggregate.child(), EsRelation.class);
+    }
+
+    /*
+     * Project[[c{r}#67, emp_no{f}#68]]
+     * \_Eval[[0[LONG] AS c]]
+     *   \_Limit[1000[INTEGER]]
+     *     \_Aggregate[STANDARD,[emp_no{f}#68],[emp_no{f}#68]]
+     *       \_EsRelation[test][_meta_field{f}#74, emp_no{f}#68, first_name{f}#69, ..]
+     */
+    public void testReplaceStatsFilteredAggWithEvalSingleAggWithGroup() {
+        var plan = plan("""
+            from test
+            | stats c = count(emp_no) where false
+              by emp_no
+            """);
+
+        var project = as(plan, Project.class);
+        assertThat(Expressions.names(project.projections()), contains("c", "emp_no"));
+
+        var eval = as(project.child(), Eval.class);
+        assertThat(eval.fields().size(), is(1));
+        var alias = as(eval.fields().getFirst(), Alias.class);
+        assertThat(Expressions.name(alias), containsString("c"));
+
+        var limit = as(eval.child(), Limit.class);
+
+        var aggregate = as(limit.child(), Aggregate.class);
+        assertThat(Expressions.names(aggregate.aggregates()), contains("emp_no"));
 
         var source = as(aggregate.child(), EsRelation.class);
     }

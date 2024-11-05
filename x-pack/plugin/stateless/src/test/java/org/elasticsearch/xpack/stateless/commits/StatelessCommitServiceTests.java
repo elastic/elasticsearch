@@ -1063,12 +1063,15 @@ public class StatelessCommitServiceTests extends ESTestCase {
     }
 
     public void testOutOfOrderNewCommitNotifications() throws Exception {
-        Set<StaleCompoundCommit> deletedCommits = ConcurrentCollections.newConcurrentSet();
+        Set<StaleCompoundCommit> deletedCommits = Collections.synchronizedSet(new HashSet<>(2));
+        var deletedCommitsLatch = new CountDownLatch(2);
+
         var fakeSearchNode = new FakeSearchNode(threadPool);
         var commitCleaner = new StatelessCommitCleaner(null, null, null) {
             @Override
             void deleteCommit(StaleCompoundCommit staleCompoundCommit) {
                 deletedCommits.add(staleCompoundCommit);
+                deletedCommitsLatch.countDown();
             }
         };
         var stateRef = new AtomicReference<ClusterState>();
@@ -1139,6 +1142,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
 
             // There were multiple in-flight new commit notification responses, but the notification filter by generation should ensure
             // we still delete all initial files.
+            safeAwait(deletedCommitsLatch);
             assertThat(deletedCommits, equalTo(staleCommits(initialCommits, shardId)));
         }
     }

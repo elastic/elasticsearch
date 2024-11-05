@@ -69,7 +69,7 @@ class FindUsagesClassVisitor extends ClassVisitor {
 
     private boolean findAccessibility(String[] interfaces) {
         var accessibleViaInterfaces = false;
-        for (var interfaceName: interfaces) {
+        for (var interfaceName : interfaces) {
             if (moduleExports.contains(getPackageName(interfaceName))) {
                 var interfaceType = Type.getObjectType(interfaceName);
                 try {
@@ -77,8 +77,7 @@ class FindUsagesClassVisitor extends ClassVisitor {
                     if (clazz.accessFlags().contains(AccessFlag.PUBLIC)) {
                         accessibleViaInterfaces = true;
                     }
-                } catch (ClassNotFoundException ignored) {
-                }
+                } catch (ClassNotFoundException ignored) {}
             }
         }
         return accessibleViaInterfaces;

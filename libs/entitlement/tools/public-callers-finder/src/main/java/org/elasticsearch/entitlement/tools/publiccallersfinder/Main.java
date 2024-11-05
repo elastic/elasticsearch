@@ -94,8 +94,8 @@ public class Main {
         FindUsagesClassVisitor.MethodDescriptor methodToFind,
         String methodToFindModule,
         EnumSet<ExternalAccess> methodToFindAccess,
-        boolean bubbleUpFromPublic)
-        throws IOException {
+        boolean bubbleUpFromPublic
+    ) throws IOException {
 
         Utils.walkJdkModules((moduleName, moduleClasses, moduleExports) -> {
             var originalCallers = new ArrayList<CallChain>();
@@ -169,7 +169,8 @@ public class Main {
     }
 
     interface MethodDescriptorConsumer {
-        void accept(FindUsagesClassVisitor.MethodDescriptor methodDescriptor, String moduleName, EnumSet<ExternalAccess> access) throws IOException;
+        void accept(FindUsagesClassVisitor.MethodDescriptor methodDescriptor, String moduleName, EnumSet<ExternalAccess> access)
+            throws IOException;
     }
 
     private static void parseCsv(Path csvPath, MethodDescriptorConsumer methodConsumer) throws IOException {

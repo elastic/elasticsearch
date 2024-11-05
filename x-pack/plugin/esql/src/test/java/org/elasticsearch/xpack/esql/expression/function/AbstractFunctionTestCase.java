@@ -67,6 +67,7 @@ import org.elasticsearch.xpack.esql.planner.Layout;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.hamcrest.Matcher;
+import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.AfterClass;
 
@@ -170,7 +171,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             (nullPosition, nullValueDataType, original) -> entirelyNullPreservesType == false
                 && nullValueDataType == DataType.NULL
                 && original.getData().size() == 1 ? DataType.NULL : original.expectedType(),
-            (nullPosition, nullData, original) -> original
+            (nullPosition, nullData, original) -> nullData.isForceLiteral() ? Matchers.equalTo("LiteralsEvaluator[lit=null]") : original
         );
     }
 

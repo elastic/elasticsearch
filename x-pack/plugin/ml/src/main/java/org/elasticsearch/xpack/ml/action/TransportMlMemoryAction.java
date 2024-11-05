@@ -110,7 +110,7 @@ public class TransportMlMemoryAction extends TransportMasterNodeAction<MlMemoryA
                         nodesStatsResponse.getNodes()
                             .stream()
                             .map(NodeStats::getNode)
-                            .filter(node -> node.getVersion().onOrAfter(V_8_2_0))
+                            .filter(node -> node.getVersion().onOrAfter(V_8_2_0)) // the cache info action was added in 8.2
                             .toArray(DiscoveryNode[]::new)
                     ).timeout(request.ackTimeout());
 

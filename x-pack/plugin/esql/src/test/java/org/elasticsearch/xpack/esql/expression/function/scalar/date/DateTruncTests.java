@@ -10,12 +10,12 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.date;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.elasticsearch.common.Rounding;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
+import org.hamcrest.Matchers;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -23,11 +23,11 @@ import java.time.Period;
 import java.util.List;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc.createRounding;
-import static org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc.process;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
+/**
+ * Parameterized testing for {@link DateTrunc}.  See also {@link DateTruncRoundingTests} for non-parametrized tests.
+ */
 public class DateTruncTests extends AbstractScalarFunctionTestCase {
 
     public DateTruncTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
@@ -61,95 +61,15 @@ public class DateTruncTests extends AbstractScalarFunctionTestCase {
         });
     }
 
-    public void testCreateRoundingDuration() {
-        Rounding.Prepared rounding;
-
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> createRounding(Duration.ofHours(0)));
-        assertThat(e.getMessage(), containsString("Zero or negative time interval is not supported"));
-
-        e = expectThrows(IllegalArgumentException.class, () -> createRounding(Duration.ofHours(-10)));
-        assertThat(e.getMessage(), containsString("Zero or negative time interval is not supported"));
-
-        rounding = createRounding(Duration.ofHours(1));
-        assertEquals(1, rounding.roundingSize(Rounding.DateTimeUnit.HOUR_OF_DAY), 0d);
-
-        rounding = createRounding(Duration.ofHours(10));
-        assertEquals(10, rounding.roundingSize(Rounding.DateTimeUnit.HOUR_OF_DAY), 0d);
-
-        rounding = createRounding(Duration.ofMinutes(1));
-        assertEquals(1, rounding.roundingSize(Rounding.DateTimeUnit.MINUTES_OF_HOUR), 0d);
-
-        rounding = createRounding(Duration.ofMinutes(100));
-        assertEquals(100, rounding.roundingSize(Rounding.DateTimeUnit.MINUTES_OF_HOUR), 0d);
-
-        rounding = createRounding(Duration.ofSeconds(1));
-        assertEquals(1, rounding.roundingSize(Rounding.DateTimeUnit.SECOND_OF_MINUTE), 0d);
-
-        rounding = createRounding(Duration.ofSeconds(120));
-        assertEquals(120, rounding.roundingSize(Rounding.DateTimeUnit.SECOND_OF_MINUTE), 0d);
-
-        rounding = createRounding(Duration.ofSeconds(60).plusMinutes(5).plusHours(1));
-        assertEquals(1 + 5 + 60, rounding.roundingSize(Rounding.DateTimeUnit.MINUTES_OF_HOUR), 0d);
-    }
-
-    public void testCreateRoundingPeriod() {
-        Rounding.Prepared rounding;
-
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> createRounding(Period.ofMonths(0)));
-        assertThat(e.getMessage(), containsString("Zero or negative time interval is not supported"));
-
-        e = expectThrows(IllegalArgumentException.class, () -> createRounding(Period.ofYears(-10)));
-        assertThat(e.getMessage(), containsString("Zero or negative time interval is not supported"));
-
-        e = expectThrows(IllegalArgumentException.class, () -> createRounding(Period.of(0, 1, 1)));
-        assertThat(e.getMessage(), containsString("Time interval with multiple periods is not supported"));
-
-        rounding = createRounding(Period.ofDays(1));
-        assertEquals(1, rounding.roundingSize(Rounding.DateTimeUnit.DAY_OF_MONTH), 0d);
-
-        rounding = createRounding(Period.ofDays(4));
-        assertEquals(4, rounding.roundingSize(Rounding.DateTimeUnit.DAY_OF_MONTH), 0d);
-
-        rounding = createRounding(Period.ofDays(7));
-        assertEquals(1, rounding.roundingSize(Rounding.DateTimeUnit.WEEK_OF_WEEKYEAR), 0d);
-
-        rounding = createRounding(Period.ofMonths(1));
-        assertEquals(1, rounding.roundingSize(Rounding.DateTimeUnit.MONTH_OF_YEAR), 0d);
-
-        rounding = createRounding(Period.ofMonths(3));
-        assertEquals(1, rounding.roundingSize(Rounding.DateTimeUnit.QUARTER_OF_YEAR), 0d);
-
-        rounding = createRounding(Period.ofYears(1));
-        assertEquals(1, rounding.roundingSize(Rounding.DateTimeUnit.YEAR_OF_CENTURY), 0d);
-
-        e = expectThrows(IllegalArgumentException.class, () -> createRounding(Period.ofYears(3)));
-        assertThat(e.getMessage(), containsString("Time interval is not supported"));
-    }
-
-    public void testCreateRoundingNullInterval() {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> createRounding(null));
-        assertThat(e.getMessage(), containsString("Time interval is not supported"));
-    }
-
-    public void testDateTruncFunction() {
-        long ts = toMillis("2023-02-17T10:25:33.38Z");
-
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> process(ts, createRounding(Period.ofDays(-1))));
-        assertThat(e.getMessage(), containsString("Zero or negative time interval is not supported"));
-
-        e = expectThrows(IllegalArgumentException.class, () -> process(ts, createRounding(Duration.ofHours(-1))));
-        assertThat(e.getMessage(), containsString("Zero or negative time interval is not supported"));
-    }
-
     private static TestCaseSupplier ofDatePeriod(Period period, long value, String expectedDate) {
         return new TestCaseSupplier(
             List.of(DataType.DATE_PERIOD, DataType.DATETIME),
             () -> new TestCaseSupplier.TestCase(
                 List.of(
-                    new TestCaseSupplier.TypedData(period, DataType.DATE_PERIOD, "interval"),
+                    new TestCaseSupplier.TypedData(period, DataType.DATE_PERIOD, "interval").forceLiteral(),
                     new TestCaseSupplier.TypedData(value, DataType.DATETIME, "date")
                 ),
-                "DateTruncEvaluator[date=Attribute[channel=1], interval=Attribute[channel=0]]",
+                Matchers.startsWith("DateTruncEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding["),
                 DataType.DATETIME,
                 equalTo(toMillis(expectedDate))
             )
@@ -161,10 +81,10 @@ public class DateTruncTests extends AbstractScalarFunctionTestCase {
             List.of(DataType.TIME_DURATION, DataType.DATETIME),
             () -> new TestCaseSupplier.TestCase(
                 List.of(
-                    new TestCaseSupplier.TypedData(duration, DataType.TIME_DURATION, "interval"),
+                    new TestCaseSupplier.TypedData(duration, DataType.TIME_DURATION, "interval").forceLiteral(),
                     new TestCaseSupplier.TypedData(value, DataType.DATETIME, "date")
                 ),
-                "DateTruncEvaluator[date=Attribute[channel=1], interval=Attribute[channel=0]]",
+                Matchers.startsWith("DateTruncEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding["),
                 DataType.DATETIME,
                 equalTo(toMillis(expectedDate))
             )

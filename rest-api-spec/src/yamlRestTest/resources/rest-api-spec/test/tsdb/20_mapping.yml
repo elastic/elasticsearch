@@ -427,8 +427,8 @@ nested fields:
 ---
 "Synthetic source":
   - requires:
-      cluster_features: ["gte_v8.10.0"]
-      reason: Synthetic source shows up in the mapping in 8.10
+      cluster_features: [ "mapper.source.mode_from_index_setting" ]
+      reason: "Source mode configured through index setting"
 
   - do:
       indices.create:
@@ -458,8 +458,8 @@ nested fields:
 ---
 stored source is supported:
   - requires:
-      cluster_features: ["mapper.source.remove_synthetic_source_only_validation"]
-      reason: requires new validation logic
+      cluster_features: [ "mapper.source.mode_from_index_setting" ]
+      reason: "Source mode configured through index setting"
 
   - do:
       indices.create:
@@ -472,9 +472,9 @@ stored source is supported:
               time_series:
                 start_time: 2021-04-28T00:00:00Z
                 end_time: 2021-04-29T00:00:00Z
+              mapping:
+                source.mode: stored
           mappings:
-            _source:
-              mode: stored
             properties:
               "@timestamp":
                 type: date
@@ -495,8 +495,8 @@ stored source is supported:
 ---
 disabled source is not supported:
   - requires:
-      cluster_features: ["mapper.source.remove_synthetic_source_only_validation"]
-      reason: requires new error message
+      cluster_features: [ "mapper.source.mode_from_index_setting" ]
+      reason: "Source mode configured through index setting"
 
   - do:
       catch: bad_request
@@ -510,9 +510,9 @@ disabled source is not supported:
               time_series:
                 start_time: 2021-04-28T00:00:00Z
                 end_time: 2021-04-29T00:00:00Z
+              mapping:
+                source.mode: disabled
           mappings:
-            _source:
-              mode: disabled
             properties:
               "@timestamp":
                 type: date

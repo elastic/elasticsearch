@@ -173,7 +173,7 @@ public class HDRPercentilesAggregatorTests extends AggregatorTestCase {
                 iw.addDocument(singleton(new NumericDocValuesField("number", 10)));
             }, hdr -> { fail("Aggregation should have failed due to negative value"); });
         });
-        assertThat(e.getMessage(), equalTo("Negative value [-20.0] not supported by HDR aggregation"));
+        assertThat(e.getMessage(), equalTo("Negative values are not supported by HDR aggregation"));
     }
 
     private void testCase(Query query, CheckedConsumer<RandomIndexWriter, IOException> buildIndex, Consumer<InternalHDRPercentiles> verify)

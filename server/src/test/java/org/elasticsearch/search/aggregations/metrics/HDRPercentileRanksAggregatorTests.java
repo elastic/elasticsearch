@@ -122,7 +122,7 @@ public class HDRPercentileRanksAggregatorTests extends AggregatorTestCase {
                     IllegalArgumentException.class,
                     () -> searchAndReduce(reader, new AggTestConfig(aggBuilder, fieldType))
                 );
-                assertThat(e.getMessage(), equalTo("Negative value [-20.0] not supported by HDR aggregation"));
+                assertThat(e.getMessage(), equalTo("Negative values are not supported by HDR aggregation"));
             }
         }
     }

@@ -63,7 +63,7 @@ abstract class AbstractHDRPercentilesAggregator extends NumericMetricsAggregator
                     for (int i = 0; i < values.docValueCount(); i++) {
                         final double value = values.nextValue();
                         if (value < 0) {
-                            throw new IllegalArgumentException("Negative value [" + value + "] not supported by HDR aggregation");
+                            throw new IllegalArgumentException("Negative values are not supported by HDR aggregation");
                         }
                         state.recordValue(value);
                     }
@@ -80,7 +80,7 @@ abstract class AbstractHDRPercentilesAggregator extends NumericMetricsAggregator
                 if (values.advanceExact(doc)) {
                     final double value = values.doubleValue();
                     if (value < 0) {
-                        throw new IllegalArgumentException("Negative value [" + value + "] not supported by HDR aggregation");
+                        throw new IllegalArgumentException("Negative values are not supported by HDR aggregation");
                     }
                     final DoubleHistogram state = getExistingOrNewHistogram(bigArrays(), bucket);
                     state.recordValue(value);

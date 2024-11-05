@@ -92,25 +92,21 @@ public class KqlQueryBuilder extends AbstractQueryBuilder<KqlQueryBuilder> {
     }
 
     @Override
-
     public String getWriteableName() {
         return NAME;
     }
 
     @Override
-
     protected int doHashCode() {
         return Objects.hash(query);
     }
 
     @Override
-
     protected boolean doEquals(KqlQueryBuilder other) {
         return Objects.equals(query, other.query);
     }
 
     @Override
-
     public TransportVersion getMinimalSupportedVersion() {
         // TODO: Create a transport versions.
         return TransportVersion.current();

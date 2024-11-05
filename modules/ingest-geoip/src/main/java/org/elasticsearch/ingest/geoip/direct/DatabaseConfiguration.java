@@ -26,6 +26,7 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.Objects;
 import java.util.Set;
 import java.util.regex.Pattern;
@@ -78,8 +79,19 @@ public record DatabaseConfiguration(String id, String name, Provider provider) i
         // "GeoLite2-Country"
     );
 
+    public static final Set<String> IPINFO_NAMES = Set.of(
+        // these file names are from https://ipinfo.io/developers/database-filename-reference
+        "asn", // "Free IP to ASN"
+        "country", // "Free IP to Country"
+        // "country_asn" // "Free IP to Country + IP to ASN", not supported at present
+        "standard_asn", // commercial "ASN"
+        "standard_location", // commercial "IP Geolocation"
+        "standard_privacy" // commercial "Privacy Detection" (sometimes "Anonymous IP")
+    );
+
     private static final ParseField NAME = new ParseField("name");
     private static final ParseField MAXMIND = new ParseField(Maxmind.NAME);
+    private static final ParseField IPINFO = new ParseField(Ipinfo.NAME);
     private static final ParseField WEB = new ParseField(Web.NAME);
     private static final ParseField LOCAL = new ParseField(Local.NAME);
 
@@ -89,12 +101,21 @@ public record DatabaseConfiguration(String id, String name, Provider provider) i
         (a, id) -> {
             String name = (String) a[0];
             Provider provider;
+
+            // one and only one provider object must be present
+            final long numNonNulls = Arrays.stream(a, 1, a.length).filter(Objects::nonNull).count();
+            if (numNonNulls != 1) {
+                throw new IllegalArgumentException("Exactly one provider object must be specified, but [" + numNonNulls + "] were found");
+            }
+
             if (a[1] != null) {
                 provider = (Maxmind) a[1];
             } else if (a[2] != null) {
-                provider = (Web) a[2];
+                provider = (Ipinfo) a[2];
+            } else if (a[3] != null) {
+                provider = (Web) a[3];
             } else {
-                provider = (Local) a[3];
+                provider = (Local) a[4];
             }
             return new DatabaseConfiguration(id, name, provider);
         }
@@ -107,6 +128,7 @@ public record DatabaseConfiguration(String id, String name, Provider provider) i
             (parser, id) -> Maxmind.PARSER.apply(parser, null),
             MAXMIND
         );
+        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (parser, id) -> Ipinfo.PARSER.apply(parser, null), IPINFO);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (parser, id) -> Web.PARSER.apply(parser, null), WEB);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (parser, id) -> Local.PARSER.apply(parser, null), LOCAL);
     }
@@ -194,8 +216,16 @@ public record DatabaseConfiguration(String id, String name, Provider provider) i
             err.addValidationError("invalid name [" + name + "]: cannot be empty");
         }
 
-        if (MAXMIND_NAMES.contains(name) == false) {
-            err.addValidationError("invalid name [" + name + "]: must be a supported name ([" + MAXMIND_NAMES + "])");
+        // provider-specific name validation
+        if (provider instanceof Maxmind) {
+            if (MAXMIND_NAMES.contains(name) == false) {
+                err.addValidationError("invalid name [" + name + "]: must be a supported name ([" + MAXMIND_NAMES + "])");
+            }
+        }
+        if (provider instanceof Ipinfo) {
+            if (IPINFO_NAMES.contains(name) == false) {
+                err.addValidationError("invalid name [" + name + "]: must be a supported name ([" + IPINFO_NAMES + "])");
+            }
         }
 
         // important: the name must be unique across all configurations of this same type,
@@ -234,7 +264,7 @@ public record DatabaseConfiguration(String id, String name, Provider provider) i
 
         private static final ParseField ACCOUNT_ID = new ParseField("account_id");
 
-        private static final ConstructingObjectParser<Maxmind, Void> PARSER = new ConstructingObjectParser<>("database", false, (a, id) -> {
+        private static final ConstructingObjectParser<Maxmind, Void> PARSER = new ConstructingObjectParser<>("maxmind", false, (a, id) -> {
             String accountId = (String) a[0];
             return new Maxmind(accountId);
         });
@@ -245,10 +275,6 @@ public record DatabaseConfiguration(String id, String name, Provider provider) i
 
         public Maxmind(StreamInput in) throws IOException {
             this(in.readString());
-        }
-
-        public static Maxmind parse(XContentParser parser) {
-            return PARSER.apply(parser, null);
         }
 
         @Override
@@ -262,6 +288,37 @@ public record DatabaseConfiguration(String id, String name, Provider provider) i
             builder.field("account_id", accountId);
             builder.endObject();
             return builder;
+        }
+
+        @Override
+        public boolean isReadOnly() {
+            return false;
+        }
+    }
+
+    public record Ipinfo() implements Provider {
+        public static final String NAME = "ipinfo";
+
+        // this'll become a ConstructingObjectParser once we accept the token (securely) in the json definition
+        private static final ObjectParser<Ipinfo, Void> PARSER = new ObjectParser<>("ipinfo", Ipinfo::new);
+
+        public Ipinfo(StreamInput in) throws IOException {
+            this();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {}
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.endObject();
+            return builder;
+        }
+
+        @Override
+        public String getWriteableName() {
+            return NAME;
         }
 
         @Override
@@ -286,10 +343,6 @@ public record DatabaseConfiguration(String id, String name, Provider provider) i
 
         public Local(StreamInput in) throws IOException {
             this(in.readString());
-        }
-
-        public static Local parse(XContentParser parser) {
-            return PARSER.apply(parser, null);
         }
 
         @Override
@@ -323,10 +376,6 @@ public record DatabaseConfiguration(String id, String name, Provider provider) i
 
         public Web(StreamInput in) throws IOException {
             this();
-        }
-
-        public static Web parse(XContentParser parser) {
-            return PARSER.apply(parser, null);
         }
 
         @Override

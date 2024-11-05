@@ -54,7 +54,11 @@ public class InternalSettingsPreparer {
         loadOverrides(output, properties);
         output.put(input);
         replaceForcedSettings(output);
-        output.replacePropertyPlaceholders();
+        try {
+            output.replacePropertyPlaceholders();
+        } catch (Exception e) {
+            throw new SettingsException("Failed to replace property placeholders from [" + configFile.getFileName() + "]", e);
+        }
         ensureSpecialSettingsExist(output, defaultNodeName);
 
         return new Environment(output.build(), configDir);

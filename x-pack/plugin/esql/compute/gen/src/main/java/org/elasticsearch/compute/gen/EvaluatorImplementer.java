@@ -97,9 +97,11 @@ public class EvaluatorImplementer {
         builder.addSuperinterface(EXPRESSION_EVALUATOR);
         builder.addType(factory());
 
-        builder.addField(WARNINGS, "warnings", Modifier.PRIVATE, Modifier.FINAL);
+        builder.addField(SOURCE, "source", Modifier.PRIVATE, Modifier.FINAL);
         processFunction.args.stream().forEach(a -> a.declareField(builder));
         builder.addField(DRIVER_CONTEXT, "driverContext", Modifier.PRIVATE, Modifier.FINAL);
+
+        builder.addField(WARNINGS, "warnings", Modifier.PRIVATE);
 
         builder.addMethod(ctor());
         builder.addMethod(eval());
@@ -116,17 +118,17 @@ public class EvaluatorImplementer {
         }
         builder.addMethod(toStringMethod());
         builder.addMethod(close());
+        builder.addMethod(warnings());
         return builder.build();
     }
 
     private MethodSpec ctor() {
         MethodSpec.Builder builder = MethodSpec.constructorBuilder().addModifiers(Modifier.PUBLIC);
         builder.addParameter(SOURCE, "source");
+        builder.addStatement("this.source = source");
         processFunction.args.stream().forEach(a -> a.implementCtor(builder));
-
         builder.addParameter(DRIVER_CONTEXT, "driverContext");
         builder.addStatement("this.driverContext = driverContext");
-        builder.addStatement("this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source)");
         return builder.build();
     }
 
@@ -250,7 +252,7 @@ public class EvaluatorImplementer {
                         + processFunction.warnExceptions.stream().map(m -> "$T").collect(Collectors.joining(" | "))
                         + " e)";
                     builder.nextControlFlow(catchPattern, processFunction.warnExceptions.stream().map(m -> TypeName.get(m)).toArray());
-                    builder.addStatement("warnings.registerException(e)");
+                    builder.addStatement("warnings().registerException(e)");
                     builder.addStatement("result.appendNull()");
                     builder.endControlFlow();
                 }
@@ -276,7 +278,7 @@ public class EvaluatorImplementer {
             {
                 builder.addStatement(
                     // TODO: reflection on SingleValueQuery.MULTI_VALUE_WARNING?
-                    "warnings.registerException(new $T(\"single-value function encountered multi-value\"))",
+                    "warnings().registerException(new $T(\"single-value function encountered multi-value\"))",
                     IllegalArgumentException.class
                 );
             }
@@ -313,6 +315,22 @@ public class EvaluatorImplementer {
                 Types.RELEASABLES
             );
         }
+        return builder.build();
+    }
+
+    static MethodSpec warnings() {
+        MethodSpec.Builder builder = MethodSpec.methodBuilder("warnings");
+        builder.addModifiers(Modifier.PRIVATE).returns(WARNINGS);
+        builder.beginControlFlow("if (warnings == null)");
+        builder.addStatement("""
+            this.warnings = Warnings.createWarnings(
+                driverContext.warningsMode(),
+                source.source().getLineNumber(),
+                source.source().getColumnNumber(),
+                source.text()
+            )""");
+        builder.endControlFlow();
+        builder.addStatement("return warnings");
         return builder.build();
     }
 

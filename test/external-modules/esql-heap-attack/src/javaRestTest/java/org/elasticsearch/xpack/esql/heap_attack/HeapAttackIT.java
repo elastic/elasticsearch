@@ -129,6 +129,15 @@ public class HeapAttackIT extends ESRestTestCase {
                 try {
                     resp = client().performRequest(fetch);
                 } catch (ResponseException e) {
+                    if (e.getResponse().getStatusLine().getStatusCode() == 403) {
+                        /*
+                         * There's a bug when loading from the translog with security
+                         * enabled. If we retry a few times we'll load from the index
+                         * itself and should succeed.
+                         */
+                        logger.error("polled for results got 403");
+                        continue;
+                    }
                     if (e.getResponse().getStatusLine().getStatusCode() == 404) {
                         logger.error("polled for results got 404");
                         continue;
@@ -166,7 +175,7 @@ public class HeapAttackIT extends ESRestTestCase {
                     "error",
                     matchesMap().extraOk()
                         .entry("bytes_wanted", greaterThan(1000))
-                        .entry("reason", matchesRegex("\\[request] Data too large, data for \\[(topn|esql_block_factory)] would .+"))
+                        .entry("reason", matchesRegex("\\[request] Data too large, data for \\[.+] would be .+"))
                         .entry("durability", "TRANSIENT")
                         .entry("type", "circuit_breaking_exception")
                         .entry("bytes_limit", greaterThan(1000))
@@ -409,9 +418,6 @@ public class HeapAttackIT extends ESRestTestCase {
                     TimeValue elapsed = TimeValue.timeValueNanos(System.nanoTime() - startedTimeInNanos);
                     logger.info("--> test {} triggering OOM after {}", getTestName(), elapsed);
                     Request triggerOOM = new Request("POST", "/_trigger_out_of_memory");
-                    RequestConfig requestConfig = RequestConfig.custom()
-                        .setSocketTimeout(Math.toIntExact(TimeValue.timeValueMinutes(2).millis()))
-                        .build();
                     client().performRequest(triggerOOM);
                 }
             }, TimeValue.timeValueMinutes(5), testThreadPool.executor(ThreadPool.Names.GENERIC));

@@ -20,6 +20,7 @@ public final class SearchUsage {
     private final Set<String> queries = new HashSet<>();
     private final Set<String> rescorers = new HashSet<>();
     private final Set<String> sections = new HashSet<>();
+    private final Set<String> retrievers = new HashSet<>();
 
     /**
      * Track the usage of the provided query
@@ -43,6 +44,13 @@ public final class SearchUsage {
     }
 
     /**
+     * Track retrieve usage
+     */
+    public void trackRetrieverUsage(String retriever) {
+        retrievers.add(retriever);
+    }
+
+    /**
      * Returns the query types that have been used at least once in the tracked search request
      */
     public Set<String> getQueryUsage() {
@@ -61,5 +69,12 @@ public final class SearchUsage {
      */
     public Set<String> getSectionsUsage() {
         return Collections.unmodifiableSet(sections);
+    }
+
+    /**
+     * Returns the retriever names that have been used at least once in the tracked search request
+     */
+    public Set<String> getRetrieverUsage() {
+        return Collections.unmodifiableSet(retrievers);
     }
 }

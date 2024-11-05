@@ -12,7 +12,7 @@ console. They are _not_ intended for use by applications. For application
 consumption, use the <<cluster-nodes-info,nodes info API>>.
 ====
 
-Returns a list of plugins running on each node of a cluster.
+Returns a list of <<modules-plugins,plugins>> running on each node of a cluster.
 
 
 [[cat-plugins-api-request]]

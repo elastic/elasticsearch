@@ -43,7 +43,7 @@ public class RestGetDataStreamsAction extends BaseRestHandler {
                 IndicesOptions.GatekeeperOptions.IGNORE_THROTTLED,
                 "verbose"
             ),
-            DataStream.isFailureStoreFeatureFlagEnabled() ? Set.of(IndicesOptions.FailureStoreOptions.FAILURE_STORE) : Set.of()
+            DataStream.isFailureStoreFeatureFlagEnabled() ? Set.of(IndicesOptions.FAILURE_STORE_QUERY_PARAM) : Set.of()
         )
     );
 

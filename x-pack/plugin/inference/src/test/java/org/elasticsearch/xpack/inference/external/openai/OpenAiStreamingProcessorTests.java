@@ -149,6 +149,42 @@ public class OpenAiStreamingProcessorTests extends ESTestCase {
         verify(downstream, times(0)).onNext(any());
     }
 
+    public void testInitialLlamaResponseIsIgnored() throws Exception {
+        var item = new ArrayDeque<ServerSentEvent>();
+        item.offer(new ServerSentEvent(ServerSentEventField.DATA, """
+            {
+                "id":"12345",
+                "object":"chat.completion.chunk",
+                "created":123456789,
+                "model":"Llama-2-7b-chat",
+                "system_fingerprint": "123456789",
+                "choices":[
+                    {
+                        "index":0,
+                        "delta":{
+                            "role":"assistant"
+                        },
+                        "logprobs":null,
+                        "finish_reason":null
+                    }
+                ]
+            }
+            """));
+
+        var processor = new OpenAiStreamingProcessor();
+
+        Flow.Subscriber<ChunkedToXContent> downstream = mock();
+        processor.subscribe(downstream);
+
+        Flow.Subscription upstream = mock();
+        processor.onSubscribe(upstream);
+
+        processor.next(item);
+
+        verify(upstream, times(1)).request(1);
+        verify(downstream, times(0)).onNext(any());
+    }
+
     private String toJsonString(ChunkedToXContent chunkedToXContent) throws IOException {
         try (var builder = XContentFactory.jsonBuilder()) {
             chunkedToXContent.toXContentChunked(EMPTY_PARAMS).forEachRemaining(xContent -> {

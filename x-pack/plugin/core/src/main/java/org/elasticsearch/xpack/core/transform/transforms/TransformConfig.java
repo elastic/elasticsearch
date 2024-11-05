@@ -450,7 +450,7 @@ public final class TransformConfig implements SimpleDiffable<TransformConfig>, W
                 builder.field(TransformField.VERSION.getPreferredName(), transformVersion);
             }
             if (createTime != null) {
-                builder.timeField(
+                builder.timestampFieldsFromUnixEpochMillis(
                     TransformField.CREATE_TIME.getPreferredName(),
                     TransformField.CREATE_TIME.getPreferredName() + "_string",
                     createTime.toEpochMilli()

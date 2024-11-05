@@ -17,9 +17,9 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.expression.function.Warnings;
 import org.elasticsearch.xpack.ml.aggs.categorization.TokenListCategorizer;
 import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzer;
 
@@ -28,7 +28,7 @@ import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzer;
  * This class is generated. Do not edit it.
  */
 public final class CategorizeEvaluator implements EvalOperator.ExpressionEvaluator {
-  private final Warnings warnings;
+  private final Source source;
 
   private final EvalOperator.ExpressionEvaluator v;
 
@@ -38,14 +38,16 @@ public final class CategorizeEvaluator implements EvalOperator.ExpressionEvaluat
 
   private final DriverContext driverContext;
 
+  private Warnings warnings;
+
   public CategorizeEvaluator(Source source, EvalOperator.ExpressionEvaluator v,
       CategorizationAnalyzer analyzer,
       TokenListCategorizer.CloseableTokenListCategorizer categorizer, DriverContext driverContext) {
+    this.source = source;
     this.v = v;
     this.analyzer = analyzer;
     this.categorizer = categorizer;
     this.driverContext = driverContext;
-    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override
@@ -69,7 +71,7 @@ public final class CategorizeEvaluator implements EvalOperator.ExpressionEvaluat
         }
         if (vBlock.getValueCount(p) != 1) {
           if (vBlock.getValueCount(p) > 1) {
-            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
           }
           result.appendNull();
           continue position;
@@ -98,6 +100,18 @@ public final class CategorizeEvaluator implements EvalOperator.ExpressionEvaluat
   @Override
   public void close() {
     Releasables.closeExpectNoException(v, analyzer, categorizer);
+  }
+
+  private Warnings warnings() {
+    if (warnings == null) {
+      this.warnings = Warnings.createWarnings(
+              driverContext.warningsMode(),
+              source.source().getLineNumber(),
+              source.source().getColumnNumber(),
+              source.text()
+          );
+    }
+    return warnings;
   }
 
   static class Factory implements EvalOperator.ExpressionEvaluator.Factory {

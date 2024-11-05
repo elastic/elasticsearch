@@ -28,7 +28,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 /**
  * Base class to check that a query than can be pushed down gives the same result
  * if it is actually pushed down and when it is executed by the compute engine,
- *
+ * <p>
  * For doing that we create two indices, one fully indexed and another with index
  * and doc values disabled. Then we index the same data in both indices and we check
  * that the same ES|QL queries produce the same results in both.

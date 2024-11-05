@@ -1,0 +1,31 @@
+{
+  "ingest.delete_ip_location_database":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/delete-ip-location-database-api.html",
+      "description":"Deletes an ip location database configuration"
+    },
+    "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_ingest/ip_location/database/{id}",
+          "methods":[
+            "DELETE"
+          ],
+          "parts":{
+            "id":{
+              "type":"list",
+              "description":"A comma-separated list of ip location database configurations to delete"
+            }
+          }
+        }
+      ]
+    },
+    "params":{
+    }
+  }
+}

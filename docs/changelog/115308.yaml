@@ -1,0 +1,6 @@
+pr: 115308
+summary: "ESQL: Disable pushdown of WHERE past STATS"
+area: ES|QL
+type: bug
+issues:
+ - 115281

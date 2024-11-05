@@ -1,0 +1,6 @@
+pr: 113981
+summary: "Adding chunking settings to `GoogleVertexAiService,` `AzureAiStudioService,`\
+  \ and `AlibabaCloudSearchService`"
+area: Machine Learning
+type: enhancement
+issues: []

@@ -96,6 +96,41 @@ public class FilterPathBasedFilter extends TokenFilter {
         return filter;
     }
 
+    /**
+     * This is overridden in order to keep empty arrays in nested exclusions - see #109668.
+     * <p>
+     * If we are excluding contents, we only want to exclude based on property name - but empty arrays in themselves do not have a property
+     * name. If the empty array were to be excluded, it should be done by excluding the parent.
+     * <p>
+     * Note though that the expected behavior seems to be ambiguous if contentsFiltered is true - that is, that the filter has pruned all
+     * the contents of a given array, such that we are left with the empty array. The behavior below drops that array, for at the time of
+     * writing, not doing so would cause assertions in JsonXContentFilteringTests to fail, which expect this behavior. Yet it is not obvious
+     * if dropping the empty array in this case is correct. For example, one could expect this sort of behavior:
+     * <ul>
+     *     <li>Document: <pre>{ "myArray": [ { "myField": "myValue" } ]}</pre></li>
+     *     <li>Filter: <pre>{ "exclude": "myArray.myField" }</pre></li>
+     * </ul>
+     * From the user's perspective, this could reasonably yield either of:
+     * <ol>
+     *     <li><pre>{ "myArray": []}</pre></li>
+     *     <li>Removing {@code myArray} entirely.</li>
+     * </ol>
+     */
+    @Override
+    public boolean includeEmptyArray(boolean contentsFiltered) {
+        return inclusive == false && contentsFiltered == false;
+    }
+
+    /**
+     * This is overridden in order to keep empty objects in nested exclusions - see #109668.
+     * <p>
+     * The same logic applies to this as to {@link #includeEmptyArray(boolean)}, only for nested objects instead of nested arrays.
+     */
+    @Override
+    public boolean includeEmptyObject(boolean contentsFiltered) {
+        return inclusive == false && contentsFiltered == false;
+    }
+
     @Override
     protected boolean _includeScalar() {
         return inclusive == false;

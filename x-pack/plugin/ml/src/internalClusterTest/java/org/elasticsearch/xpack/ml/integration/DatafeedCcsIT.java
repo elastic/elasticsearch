@@ -192,7 +192,7 @@ public class DatafeedCcsIT extends AbstractMultiClustersTestCase {
                 .setQuery(new MatchPhraseQueryBuilder("message", message))
                 .get();
             try {
-                return response.getHits().getTotalHits().value > 0;
+                return response.getHits().getTotalHits().value() > 0;
             } finally {
                 response.decRef();
             }

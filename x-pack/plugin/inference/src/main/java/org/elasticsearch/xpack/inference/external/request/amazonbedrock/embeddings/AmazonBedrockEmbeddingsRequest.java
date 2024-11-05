@@ -7,8 +7,9 @@
 
 package org.elasticsearch.xpack.inference.external.request.amazonbedrock.embeddings;
 
-import com.amazonaws.services.bedrockruntime.model.InvokeModelRequest;
-import com.amazonaws.services.bedrockruntime.model.InvokeModelResult;
+import software.amazon.awssdk.core.SdkBytes;
+import software.amazon.awssdk.services.bedrockruntime.model.InvokeModelRequest;
+import software.amazon.awssdk.services.bedrockruntime.model.InvokeModelResponse;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.Nullable;
@@ -35,7 +36,7 @@ public class AmazonBedrockEmbeddingsRequest extends AmazonBedrockRequest {
     private final Truncator truncator;
     private final Truncator.TruncationResult truncationResult;
     private final AmazonBedrockProvider provider;
-    private ActionListener<InvokeModelResult> listener = null;
+    private ActionListener<InvokeModelResponse> listener = null;
 
     public AmazonBedrockEmbeddingsRequest(
         Truncator truncator,
@@ -62,10 +63,10 @@ public class AmazonBedrockEmbeddingsRequest extends AmazonBedrockRequest {
             var jsonBuilder = new AmazonBedrockJsonBuilder(requestEntity);
             var bodyAsString = jsonBuilder.getStringContent();
 
-            var charset = StandardCharsets.UTF_8;
-            var bodyBuffer = charset.encode(bodyAsString);
-
-            var invokeModelRequest = new InvokeModelRequest().withModelId(embeddingsModel.model()).withBody(bodyBuffer);
+            var invokeModelRequest = InvokeModelRequest.builder()
+                .modelId(embeddingsModel.model())
+                .body(SdkBytes.fromString(bodyAsString, StandardCharsets.UTF_8))
+                .build();
 
             SocketAccess.doPrivileged(() -> client.invokeModel(invokeModelRequest, listener));
         } catch (IOException e) {

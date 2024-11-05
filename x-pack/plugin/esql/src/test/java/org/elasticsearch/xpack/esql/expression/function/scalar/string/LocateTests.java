@@ -35,13 +35,11 @@ public class LocateTests extends AbstractScalarFunctionTestCase {
         this.testCase = testCaseSupplier.get();
     }
 
-    private static final DataType[] STRING_TYPES = new DataType[] { DataType.KEYWORD, DataType.TEXT };
-
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
-        for (DataType strType : STRING_TYPES) {
-            for (DataType substrType : STRING_TYPES) {
+        for (DataType strType : DataType.stringTypes()) {
+            for (DataType substrType : DataType.stringTypes()) {
                 suppliers.add(
                     supplier(
                         "",

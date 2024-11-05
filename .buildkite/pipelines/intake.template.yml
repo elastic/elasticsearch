@@ -75,6 +75,7 @@ steps:
   - trigger: elasticsearch-dra-workflow
     label: Trigger DRA snapshot workflow
     async: true
+    branches: "main 8.* 7.17"
     build:
       branch: "$BUILDKITE_BRANCH"
       commit: "$BUILDKITE_COMMIT"

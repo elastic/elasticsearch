@@ -1,8 +1,6 @@
 [[retriever]]
 === Retriever
 
-preview::["This functionality is in technical preview and may be changed or removed in a future release. The syntax will likely change before GA. Elastic will work to fix any issues, but features in technical preview are not subject to the support SLA of official GA features."]
-
 A retriever is a specification to describe top documents returned from a
 search. A retriever replaces other elements of the <<search-search, search API>>
 that also return top documents such as <<query-dsl, `query`>> and
@@ -75,7 +73,7 @@ Collapses the top documents by a specified key into a single top document per ke
 ===== Restrictions
 
 When a retriever tree contains a compound retriever (a retriever with two or more child
-retrievers) *only* the query element is allowed.
+retrievers) the <<search-after, search after>> parameter is not supported.
 
 [discrete]
 [[standard-retriever-example]]
@@ -245,12 +243,6 @@ include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=rrf-rank-window-size]
 
 include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=rrf-filter]
 
-===== Restrictions
-
-An RRF retriever is a compound retriever. Child retrievers may not use
-elements that are restricted by having a compound retriever as part of
-the retriever tree.
-
 [discrete]
 [[rrf-retriever-example-hybrid]]
 ==== Example: Hybrid search
@@ -413,10 +405,6 @@ Applies the specified <<query-dsl-bool-query, boolean query filter>> to the chil
 If the child retriever already specifies any filters, then this top-level filter is applied in conjuction
 with the filter defined in the child retriever.
 
-===== Restrictions
-
-A text similarity re-ranker retriever is a compound retriever. Child retrievers may not use elements that are restricted by having a compound retriever as part of the retriever tree.
-
 [discrete]
 [[text-similarity-reranker-retriever-example-cohere]]
 ==== Example: Cohere Rerank
@@ -555,4 +543,3 @@ at the top-level and instead are only allowed as elements of specific retrievers
 * <<request-body-search-terminate-after, `terminate_after`>>
 * <<search-sort-param, `sort`>>
 * <<rescore, `rescore`>>
-* <<search-api-min-score, `min_score`>>

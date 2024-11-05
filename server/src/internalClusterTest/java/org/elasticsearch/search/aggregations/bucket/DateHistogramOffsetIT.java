@@ -63,7 +63,7 @@ public class DateHistogramOffsetIT extends ESIntegTestCase {
         IndexRequestBuilder[] reqs = new IndexRequestBuilder[numHours];
         for (int i = idxIdStart; i < idxIdStart + reqs.length; i++) {
             reqs[i - idxIdStart] = prepareIndex("idx2").setId("" + i)
-                .setSource(jsonBuilder().startObject().timeField("date", date).endObject());
+                .setSource(jsonBuilder().startObject().timestampField("date", date).endObject());
             date = date.plusHours(stepSizeHours);
         }
         indexRandom(true, reqs);
@@ -78,7 +78,7 @@ public class DateHistogramOffsetIT extends ESIntegTestCase {
                     dateHistogram("date_histo").field("date").offset("2h").format(DATE_FORMAT).fixedInterval(DateHistogramInterval.DAY)
                 ),
             response -> {
-                assertThat(response.getHits().getTotalHits().value, equalTo(5L));
+                assertThat(response.getHits().getTotalHits().value(), equalTo(5L));
 
                 Histogram histo = response.getAggregations().get("date_histo");
                 List<? extends Histogram.Bucket> buckets = histo.getBuckets();
@@ -99,7 +99,7 @@ public class DateHistogramOffsetIT extends ESIntegTestCase {
                     dateHistogram("date_histo").field("date").offset("-2h").format(DATE_FORMAT).fixedInterval(DateHistogramInterval.DAY)
                 ),
             response -> {
-                assertThat(response.getHits().getTotalHits().value, equalTo(5L));
+                assertThat(response.getHits().getTotalHits().value(), equalTo(5L));
 
                 Histogram histo = response.getAggregations().get("date_histo");
                 List<? extends Histogram.Bucket> buckets = histo.getBuckets();
@@ -128,7 +128,7 @@ public class DateHistogramOffsetIT extends ESIntegTestCase {
                         .fixedInterval(DateHistogramInterval.DAY)
                 ),
             response -> {
-                assertThat(response.getHits().getTotalHits().value, equalTo(24L));
+                assertThat(response.getHits().getTotalHits().value(), equalTo(24L));
 
                 Histogram histo = response.getAggregations().get("date_histo");
                 List<? extends Histogram.Bucket> buckets = histo.getBuckets();

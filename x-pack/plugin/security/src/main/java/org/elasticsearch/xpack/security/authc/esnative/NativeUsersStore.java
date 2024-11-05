@@ -179,7 +179,7 @@ public class NativeUsersStore {
                     TransportSearchAction.TYPE,
                     searchRequest,
                     ActionListener.wrap(searchResponse -> {
-                        final long total = searchResponse.getHits().getTotalHits().value;
+                        final long total = searchResponse.getHits().getTotalHits().value();
                         if (total == 0) {
                             logger.debug("No users found for query [{}]", searchRequest.source().query());
                             listener.onResponse(QueryUserResults.EMPTY);
@@ -214,7 +214,7 @@ public class NativeUsersStore {
                         .setSize(0)
                         .setTrackTotalHits(true)
                         .request(),
-                    listener.<SearchResponse>safeMap(response -> response.getHits().getTotalHits().value),
+                    listener.<SearchResponse>safeMap(response -> response.getHits().getTotalHits().value()),
                     client::search
                 )
             );
@@ -706,7 +706,7 @@ public class NativeUsersStore {
                         @Override
                         public void onResponse(SearchResponse searchResponse) {
                             Map<String, ReservedUserInfo> userInfos = new HashMap<>();
-                            assert searchResponse.getHits().getTotalHits().value <= 10
+                            assert searchResponse.getHits().getTotalHits().value() <= 10
                                 : "there are more than 10 reserved users we need to change this to retrieve them all!";
                             for (SearchHit searchHit : searchResponse.getHits().getHits()) {
                                 Map<String, Object> sourceMap = searchHit.getSourceAsMap();

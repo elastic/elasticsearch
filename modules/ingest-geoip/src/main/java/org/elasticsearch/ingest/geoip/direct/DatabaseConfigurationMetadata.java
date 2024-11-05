@@ -66,7 +66,7 @@ public record DatabaseConfigurationMetadata(DatabaseConfiguration database, long
         // (we'll be a in a json map where the id is the key)
         builder.startObject();
         builder.field(VERSION.getPreferredName(), version);
-        builder.timeField(MODIFIED_DATE_MILLIS.getPreferredName(), MODIFIED_DATE.getPreferredName(), modifiedDate);
+        builder.timestampFieldsFromUnixEpochMillis(MODIFIED_DATE_MILLIS.getPreferredName(), MODIFIED_DATE.getPreferredName(), modifiedDate);
         builder.field(DATABASE.getPreferredName(), database);
         builder.endObject();
         return builder;

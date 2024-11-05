@@ -68,7 +68,7 @@ public class ExistsQueryBuilderTests extends AbstractQueryTestCase<ExistsQueryBu
                 Collection<String> childFields = context.getMatchingFieldNames(field + ".*");
                 assertThat(booleanQuery.clauses().size(), equalTo(childFields.size()));
                 for (BooleanClause booleanClause : booleanQuery) {
-                    assertThat(booleanClause.getOccur(), equalTo(BooleanClause.Occur.SHOULD));
+                    assertThat(booleanClause.occur(), equalTo(BooleanClause.Occur.SHOULD));
                 }
             } else if (context.getFieldType(field).hasDocValues() || context.getFieldType(field).getTextSearchInfo().hasNorms()) {
                 assertThat(constantScoreQuery.getQuery(), instanceOf(FieldExistsQuery.class));
@@ -87,7 +87,7 @@ public class ExistsQueryBuilderTests extends AbstractQueryTestCase<ExistsQueryBu
             assertThat(booleanQuery.clauses().size(), equalTo(fields.size()));
             for (int i = 0; i < fields.size(); i++) {
                 BooleanClause booleanClause = booleanQuery.clauses().get(i);
-                assertThat(booleanClause.getOccur(), equalTo(BooleanClause.Occur.SHOULD));
+                assertThat(booleanClause.occur(), equalTo(BooleanClause.Occur.SHOULD));
             }
         }
     }

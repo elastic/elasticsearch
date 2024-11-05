@@ -1,0 +1,5 @@
+pr: 114750
+summary: Create an ml node inference endpoint referencing an existing model
+area: Machine Learning
+type: enhancement
+issues: []

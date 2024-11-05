@@ -89,7 +89,9 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
     private void setupDistributionContainer(Project project) {
         distributionsContainer = project.container(ElasticsearchDistribution.class, name -> {
             var fileConfiguration = project.getConfigurations().create(DISTRO_CONFIG_PREFIX + name);
+            fileConfiguration.setCanBeConsumed(false);
             var extractedConfiguration = project.getConfigurations().create(DISTRO_EXTRACTED_CONFIG_PREFIX + name);
+            extractedConfiguration.setCanBeConsumed(false);
             extractedConfiguration.getAttributes()
                 .attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE);
             var distribution = new ElasticsearchDistribution(

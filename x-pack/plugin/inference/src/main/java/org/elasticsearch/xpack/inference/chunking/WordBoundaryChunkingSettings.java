@@ -28,6 +28,8 @@ import java.util.Set;
 public class WordBoundaryChunkingSettings implements ChunkingSettings {
     public static final String NAME = "WordBoundaryChunkingSettings";
     private static final ChunkingStrategy STRATEGY = ChunkingStrategy.WORD;
+    private static final int MAX_CHUNK_SIZE_LOWER_LIMIT = 10;
+    private static final int MAX_CHUNK_SIZE_UPPER_LIMIT = 300;
     private static final Set<String> VALID_KEYS = Set.of(
         ChunkingSettingsOptions.STRATEGY.toString(),
         ChunkingSettingsOptions.MAX_CHUNK_SIZE.toString(),
@@ -52,13 +54,15 @@ public class WordBoundaryChunkingSettings implements ChunkingSettings {
         var invalidSettings = map.keySet().stream().filter(key -> VALID_KEYS.contains(key) == false).toArray();
         if (invalidSettings.length > 0) {
             validationException.addValidationError(
-                Strings.format("Sentence based chunking settings can not have the following settings: %s", Arrays.toString(invalidSettings))
+                Strings.format("Word based chunking settings can not have the following settings: %s", Arrays.toString(invalidSettings))
             );
         }
 
-        Integer maxChunkSize = ServiceUtils.extractRequiredPositiveInteger(
+        Integer maxChunkSize = ServiceUtils.extractRequiredPositiveIntegerBetween(
             map,
             ChunkingSettingsOptions.MAX_CHUNK_SIZE.toString(),
+            MAX_CHUNK_SIZE_LOWER_LIMIT,
+            MAX_CHUNK_SIZE_UPPER_LIMIT,
             ModelConfigurations.CHUNKING_SETTINGS,
             validationException
         );

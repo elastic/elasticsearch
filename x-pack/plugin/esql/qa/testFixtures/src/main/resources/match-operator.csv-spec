@@ -138,7 +138,6 @@ book_no:keyword | title:text                                                    
 1463            | Realms of Tolkien: Images of Middle-earth                        | J. R. R. Tolkien          | 12.25712776184082
 2714            | Return of the King Being the Third Part of The Lord of the Rings | J. R. R. Tolkien          | 17.39082145690918
 2936            | Fellowship of the Ring 2ND Edition                               | John Ronald Reuel Tolkien | 15.420738220214844
-
 ;
 
 multipleWhereWithMatchScoring
@@ -148,10 +147,22 @@ from books METADATA _score
 | where title match "short stories"
 | where author match "Ursula K. Le Guin"
 | keep book_no, title, author, _score
-| sort book_no
+| sort book_no;
+
+book_no:keyword | title:text                                | author:text        | _score:double
+8480            | The wind's twelve quarters: Short stories | Ursula K. Le Guin  | 14.489097595214844
 ;
 
-book_no:keyword | title:text                                | author:text | _score:double
+multipleWhereWithMatchScoringNoSort
+required_capability: metadata_score
+required_capability: match_operator
+from books METADATA _score
+| where title match "short stories"
+| where author match "Ursula K. Le Guin"
+| keep book_no, title, author, _score;
+
+ignoreOrder:true
+book_no:keyword | title:text                                | author:text        | _score:double
 8480            | The wind's twelve quarters: Short stories | Ursula K. Le Guin  | 14.489097595214844
 ;
 
@@ -162,11 +173,23 @@ from books METADATA _score
 | where title match "Tolkien" AND author match "Tolkien" AND year > 2000
 | where mv_count(author) == 1
 | keep book_no, title, author, year, _score
-| sort book_no
-;
+| sort book_no;
 
 book_no:keyword | title:text               | author:text    | year:integer | _score:double
-5335            | Letters of J R R Tolkien | J.R.R. Tolkien | 2014  | 5.448054313659668
+5335            | Letters of J R R Tolkien | J.R.R. Tolkien | 2014         | 5.448054313659668
+;
+
+combinedMatchWithFunctionsScoringNoSort
+required_capability: metadata_score
+required_capability: match_operator
+from books METADATA _score
+| where title match "Tolkien" AND author match "Tolkien" AND year > 2000
+| where mv_count(author) == 1
+| keep book_no, title, author, year, _score;
+
+ignoreOrder:true
+book_no:keyword | title:text               | author:text    | year:integer | _score:double
+5335            | Letters of J R R Tolkien | J.R.R. Tolkien | 2014         | 5.448054313659668
 ;
 
 combinedMatchWithScoringEval
@@ -181,5 +204,19 @@ from books METADATA _score
 ;
 
 book_no:keyword | title:text               | author:text    | year:integer | c_score:double
-5335            | Letters of J R R Tolkien | J.R.R. Tolkien | 2014  | 6
+5335            | Letters of J R R Tolkien | J.R.R. Tolkien | 2014         | 6
+;
+
+combinedMatchWithScoringEvalNoSort
+required_capability: metadata_score
+required_capability: match_operator
+from books METADATA _score
+| where title match "Tolkien" AND author match "Tolkien" AND year > 2000
+| where mv_count(author) == 1
+| eval c_score = ceil(_score)
+| keep book_no, title, author, year, c_score;
+
+ignoreOrder:true
+book_no:keyword | title:text               | author:text    | year:integer | c_score:double
+5335            | Letters of J R R Tolkien | J.R.R. Tolkien | 2014         | 6
 ;

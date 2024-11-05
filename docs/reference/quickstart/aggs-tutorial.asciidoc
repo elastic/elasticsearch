@@ -1,0 +1,527 @@
+[[aggregations-tutorial]]
+== Analyze ecommerce data with aggregations using Query DSL
+++++
+<titleabbrev>Basics: Analyze ecommerce data with aggregations</titleabbrev>
+++++
+
+This hands-on tutorial shows you how to analyze ecommerce data using {es} aggregations with the `_search` API and Query DSL.
+
+You'll learn how to:
+
+* Calculate key business metrics like average order value
+* Analyze sales patterns over time
+* Compare performance across product categories 
+* Track moving averages and cumulative totals
+
+[discrete]
+[[aggregations-tutorial-requirements]]
+=== Requirements
+
+You'll need:
+
+* A running {es} cluster, together with {kib} to use the Dev Tools API Console.
+* The {kibana-ref}/get-started.html#gs-get-data-into-kibana[Kibana sample ecommerce data] loaded
+
+Run the following command in your terminal to set up a <<run-elasticsearch-locally,single-node local cluster in Docker>>:
+
+[source,sh]
+----
+curl -fsSL https://elastic.co/start-local | sh
+----
+
+
+[discrete]
+[[aggregations-tutorial-basic-metrics]]
+=== Get key business metrics
+
+Let's start by calculating important metrics about orders and customers.
+
+[discrete]
+[[aggregations-tutorial-order-value]]
+==== Understand typical order size
+
+[source,console]
+----
+GET kibana_sample_data_ecommerce/_search
+{
+ "size": 0, <1>
+ "aggs": {
+   "avg_order_value": { <2>
+     "avg": { <3>
+       "field": "taxful_total_price"
+     }
+   }
+ }
+}
+----
+// TEST[skip:Using Kibana sample data]
+<1> Set `size` to 0 to avoid returning matched documents in the response and return only the aggregation results
+<2> A meaningful name that describes what this metric represents
+<3> A <<search-aggregations-metrics-avg-aggregation,`avg`>> aggregation calculates a simple arithmetic mean
+
+.Example response
+[%collapsible]
+====
+[source,console-result]
+----
+{
+  "took": 0,
+  "timed_out": false,
+  "_shards": {
+    "total": 1,
+    "successful": 1,
+    "skipped": 0,
+    "failed": 0
+  },
+  "hits": {
+    "total": {
+      "value": 4675, <1>
+      "relation": "eq"
+    },
+    "max_score": null,
+    "hits": [] <2>
+  },
+  "aggregations": {
+    "avg_order_value": { <3>
+      "value": 75.05542864304813 <4>
+    }
+  }
+}
+----
+// TEST[skip:Using Kibana sample data]
+<1> Total number of orders in the dataset
+<2> Empty because we set size to 0
+<3> Results appear under the name we specified
+<4> The average order value
+====
+
+[discrete]
+[[aggregations-tutorial-order-stats]]
+==== Get a complete picture of order values
+
+Calculate multiple statistics about orders in one request.
+
+[source,console]
+----
+GET kibana_sample_data_ecommerce/_search
+{
+ "size": 0,
+ "aggs": {
+   "order_stats": { <1>
+     "stats": { <2>
+       "field": "taxful_total_price"
+     }
+   }
+ }
+}
+----
+// TEST[skip:Using Kibana sample data]
+<1> A descriptive name for this set of statistics
+<2> `stats` returns count, min, max, avg, and sum at once
+
+.Example response
+[%collapsible]
+====
+[source,console-result]
+----
+{
+ "aggregations": {
+   "order_stats": {
+     "count": 4675, <1>
+     "min": 6.98828125, <2>
+     "max": 2250, <3>
+     "avg": 75.05542864304813, <4>
+     "sum": 350884.12890625 <5>
+   }
+ }
+}
+----
+// TEST[skip:Using Kibana sample data]
+<1> Total number of orders analyzed
+<2> the smallest order value
+<3> the largest order value
+<4> Average order value (same as previous example)
+<5> Total revenue across all orders
+====
+
+[TIP]
+====
+The <<search-aggregations-metrics-stats-aggregation,stats aggregation>> is more efficient than running individual min, max, avg, and sum aggregations.
+====
+
+[discrete]
+[[aggregations-tutorial-sales-patterns]]
+=== Analyze the sales patterns
+
+Let's group orders in different ways to understand sales patterns.
+
+[discrete]
+[[aggregations-tutorial-category-breakdown]]
+==== See how different categories perform
+
+[source,console]
+----
+GET kibana_sample_data_ecommerce/_search
+{
+ "size": 0,
+ "aggs": {
+   "sales_by_category": { <1>
+     "terms": { <2>
+       "field": "category.keyword", <3>
+       "size": 5, <4>
+       "order": { "_count": "desc" } <5>
+     }
+   }
+ }
+}
+----
+// TEST[skip:Using Kibana sample data]
+<1> Name reflecting the business purpose of this breakdown
+<2> `terms` aggregation groups documents by field values
+<3> Use `.keyword` for exact matching on text fields
+<4> Limit to top 5 categories 
+<5> Order by number of orders (descending)
+
+.Example response
+[%collapsible]
+====
+[source,console-result]
+----
+...
+ "aggregations": {
+    "sales_by_category": {
+      "doc_count_error_upper_bound": 0, <1>
+      "sum_other_doc_count": 572, <2>
+      "buckets": [ <3>
+        {
+          "key": "Men's Clothing", <4>
+          "doc_count": 2024 <5>
+        },
+        {
+          "key": "Women's Clothing",
+          "doc_count": 1903
+        },
+        {
+          "key": "Women's Shoes",
+          "doc_count": 1136
+        },
+        {
+          "key": "Men's Shoes",
+          "doc_count": 944
+        },
+        {
+          "key": "Women's Accessories",
+          "doc_count": 830
+        }
+      ]
+    }
+ }
+----
+// TEST[skip:Using Kibana sample data]
+<1> Possible error in counts due to distributed nature of search
+<2> Count of documents in categories beyond the requested size
+<3> Array of category buckets, ordered by count
+<4> Category name
+<5> Number of orders in this category
+====
+
+[discrete]
+[[aggregations-tutorial-daily-sales]]
+==== Track daily sales patterns
+
+[source,console]
+----
+GET kibana_sample_data_ecommerce/_search
+{
+ "size": 0,
+ "aggs": {
+   "daily_orders": { <1>
+     "date_histogram": { <2>
+       "field": "order_date",
+       "calendar_interval": "day", <3>
+       "format": "yyyy-MM-dd", <4>
+       "min_doc_count": 0 <5>
+     }
+   }
+ }
+}
+----
+// TEST[skip:Using Kibana sample data]
+<1> Name describing the time-based grouping
+<2> `date_histogram` creates buckets by time intervals
+<3> Group by day using calendar intervals
+<4> Format dates in the response
+<5> Include empty days with zero orders
+
+[discrete]
+[[aggregations-tutorial-combined-analysis]]
+=== Combine metrics with groupings
+
+Now let's calculate metrics within each group to get deeper insights.
+
+[discrete]
+[[aggregations-tutorial-category-metrics]]
+==== Compare category performance
+
+[source,console]
+----
+GET kibana_sample_data_ecommerce/_search
+{
+ "size": 0,
+ "aggs": {
+   "categories": {
+     "terms": {
+       "field": "category.keyword",
+       "size": 5,
+       "order": { "total_revenue": "desc" } <1>
+     },
+     "aggs": { <2>
+       "total_revenue": { <3>
+         "sum": {
+           "field": "taxful_total_price"
+         }
+       },
+       "avg_order_value": { <4>
+         "avg": {
+           "field": "taxful_total_price"
+         }
+       },
+       "total_items": { <5>
+         "sum": {
+           "field": "total_quantity"
+         }
+       }
+     }
+   }
+ }
+}
+----
+// TEST[skip:Using Kibana sample data]
+<1> Order categories by their total revenue instead of count
+<2> Define metrics to calculate within each category
+<3> Total revenue for the category
+<4> Average order value in the category
+<5> Total number of items sold
+
+.Example response
+[%collapsible]
+====
+[source,console-result]
+----
+{
+ "aggregations": {
+   "categories": {
+     "buckets": [
+       {
+         "key": "Men's Clothing", <1>
+         "doc_count": 2179, <2>
+         "total_revenue": { <3>
+           "value": 156729.453125
+         },
+         "avg_order_value": { <4>
+           "value": 71.92726898715927
+         },
+         "total_items": { <5>
+           "value": 8716
+         }
+       },
+       {
+         "key": "Women's Clothing",
+         "doc_count": 2262,
+         ...
+       }
+     ]
+   }
+ }
+}
+----
+// TEST[skip:Using Kibana sample data]
+<1> Category name
+<2> Number of orders
+<3> Total revenue for this category
+<4> Average order value for this category
+<5> Total quantity of items sold
+====
+
+[discrete]
+[[aggregations-tutorial-daily-metrics]]
+==== Analyze daily sales performance
+
+[source,console]
+----
+GET kibana_sample_data_ecommerce/_search
+{
+ "size": 0,
+ "aggs": {
+   "daily_sales": {
+     "date_histogram": {
+       "field": "order_date",
+       "calendar_interval": "day",
+       "format": "yyyy-MM-dd"
+     },
+     "aggs": {
+       "revenue": { <1>
+         "sum": {
+           "field": "taxful_total_price"
+         }
+       },
+       "unique_customers": { <2>
+         "cardinality": {
+           "field": "customer_id"
+         }
+       },
+       "avg_basket_size": { <3>
+         "avg": {
+           "field": "total_quantity"
+         }
+       }
+     }
+   }
+ }
+}
+----
+// TEST[skip:Using Kibana sample data]
+<1> Daily revenue
+<2> Number of unique customers each day
+<3> Average number of items per order
+
+[discrete]
+[[aggregations-tutorial-trends]]
+=== Track trends and patterns
+
+You can use <<search-aggregations-pipeline,pipeline aggregations>> on the results of other aggregations.
+Let's analyze how metrics change over time.
+
+[discrete]
+[[aggregations-tutorial-moving-average]]
+==== Smooth out daily fluctuations
+
+Moving averages help identify trends by reducing day-to-day noise in the data.
+Let's observe sales trends more clearly by smoothing daily revenue variations.
+
+[source,console]
+----
+GET kibana_sample_data_ecommerce/_search
+{
+  "size": 0,
+  "aggs": {
+    "daily_sales": {
+      "date_histogram": {
+        "field": "order_date",
+        "calendar_interval": "day"
+      },
+      "aggs": {
+        "daily_revenue": {  <1>
+          "sum": {
+            "field": "taxful_total_price"
+          }
+        },
+        "smoothed_revenue": { <2>
+          "moving_fn": { <3>
+            "buckets_path": "daily_revenue", <4>
+            "window": 3, <5>
+            "script": "MovingFunctions.unweightedAvg(values)" <6>
+          }
+        }
+      }
+    }
+  }
+}
+----
+// TEST[skip:Using Kibana sample data]
+<1> Calculate daily revenue first
+<2> Create a smoothed version of the daily revenue
+<3> Use `moving_fn` for moving window calculations
+<4> Reference the revenue from our date histogram
+<5> Use a 3-day window — use different window sizes to see trends at different time scales
+<6> Use the built-in unweighted average function
+
+.Example response (truncated)
+[%collapsible]
+====
+[source,console-result]
+----
+{ ...
+  "aggregations": {
+    "daily_sales": {
+      "buckets": [
+        {
+          "key_as_string": "2024-10-24T00:00:00.000Z", <1>
+          "key": 1729728000000,
+          "doc_count": 146, <2>
+          "daily_revenue": {
+            "value": 10578.53125 <3>
+          },
+          "smoothed_revenue": {
+            "value": null <4>
+          }
+        },
+        {
+          "key_as_string": "2024-10-25T00:00:00.000Z",
+          "key": 1729814400000,
+          "doc_count": 153,
+          "daily_revenue": {
+            "value": 10448
+          },
+          "smoothed_revenue": {
+            "value": 10578.53125 <5>
+          }
+        },
+        ...
+----
+// TEST[skip:Using Kibana sample data]
+<1> Date of the bucket in ISO format
+<2> Number of orders for this day
+<3> Raw daily revenue before smoothing
+<4> First day has no smoothed value as it needs previous days for the calculation
+<5> Moving average starts from second day, using a 3-day window
+====
+
+[TIP]
+====
+Notice how the smoothed values lag behind the actual values - this is because they need previous days' data to calculate. The first day will always be null when using moving averages.
+====
+
+[discrete]
+[[aggregations-tutorial-cumulative]]
+==== Track running totals
+
+[source,console]
+----
+GET kibana_sample_data_ecommerce/_search
+{
+ "size": 0,
+ "aggs": {
+   "daily_sales": {
+     "date_histogram": {
+       "field": "order_date",
+       "calendar_interval": "day"
+     },
+     "aggs": {
+       "revenue": {
+         "sum": {
+           "field": "taxful_total_price"
+         }
+       },
+       "cumulative_revenue": { <1>
+         "cumulative_sum": { <2>
+           "buckets_path": "revenue" <3>
+         }
+       }
+     }
+   }
+ }
+}
+----
+// TEST[skip:Using Kibana sample data]
+<1> Name for our running total
+<2> `cumulative_sum` adds up values across buckets
+<3> Reference the revenue we want to accumulate
+
+[discrete]
+[[aggregations-tutorial-next-steps]]
+=== Next steps
+
+Refer to the <<search-aggregations,aggregations reference>> for more details on all available aggregation types.
+
+//TODO add relevant links judiciously

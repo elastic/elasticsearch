@@ -28,6 +28,7 @@ Run the following command in your terminal to set up a <<run-elasticsearch-local
 ----
 curl -fsSL https://elastic.co/start-local | sh
 ----
+// NOTCONSOLE
 
 
 [discrete]

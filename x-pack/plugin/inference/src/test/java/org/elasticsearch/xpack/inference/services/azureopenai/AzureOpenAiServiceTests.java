@@ -14,11 +14,15 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
 import org.elasticsearch.inference.ChunkingOptions;
 import org.elasticsearch.inference.ChunkingSettings;
+import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
@@ -29,6 +33,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.ChunkingSettingsFeatureFlag;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
@@ -56,6 +61,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.elasticsearch.xpack.inference.Utils.getInvalidModel;
 import static org.elasticsearch.xpack.inference.Utils.getPersistedConfigMap;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
@@ -1502,6 +1509,164 @@ public class AzureOpenAiServiceTests extends ESTestCase {
             .hasNoEvents()
             .hasErrorWithStatusCode(401)
             .hasErrorContaining("You didn't provide an API key...");
+    }
+
+    @SuppressWarnings("checkstyle:LineLength")
+    public void testGetConfiguration() throws Exception {
+        try (var service = createAzureOpenAiService()) {
+            String content = XContentHelper.stripWhitespace(
+                """
+                    {
+                            "provider": "azureopenai",
+                            "task_types": [
+                                 {
+                                     "task_type": "text_embedding",
+                                     "configuration": {
+                                         "user": {
+                                             "default_value": null,
+                                             "depends_on": [],
+                                             "display": "textbox",
+                                             "label": "User",
+                                             "order": 1,
+                                             "required": false,
+                                             "sensitive": false,
+                                             "tooltip": "Specifies the user issuing the request.",
+                                             "type": "str",
+                                             "ui_restrictions": [],
+                                             "validations": [],
+                                             "value": ""
+                                         }
+                                     }
+                                 },
+                                 {
+                                     "task_type": "completion",
+                                     "configuration": {
+                                         "user": {
+                                             "default_value": null,
+                                             "depends_on": [],
+                                             "display": "textbox",
+                                             "label": "User",
+                                             "order": 1,
+                                             "required": false,
+                                             "sensitive": false,
+                                             "tooltip": "Specifies the user issuing the request.",
+                                             "type": "str",
+                                             "ui_restrictions": [],
+                                             "validations": [],
+                                             "value": ""
+                                         }
+                                     }
+                                 }
+                            ],
+                            "configuration": {
+                                "api_key": {
+                                    "default_value": null,
+                                    "depends_on": [],
+                                    "display": "textbox",
+                                    "label": "API Key",
+                                    "order": 1,
+                                    "required": false,
+                                    "sensitive": true,
+                                    "tooltip": "You must provide either an API key or an Entra ID.",
+                                    "type": "str",
+                                    "ui_restrictions": [],
+                                    "validations": [],
+                                    "value": null
+                                },
+                                "entra_id": {
+                                    "default_value": null,
+                                    "depends_on": [],
+                                    "display": "textbox",
+                                    "label": "Entra ID",
+                                    "order": 2,
+                                    "required": false,
+                                    "sensitive": true,
+                                    "tooltip": "You must provide either an API key or an Entra ID.",
+                                    "type": "str",
+                                    "ui_restrictions": [],
+                                    "validations": [],
+                                    "value": null
+                                },
+                                "rate_limit.requests_per_minute": {
+                                    "default_value": null,
+                                    "depends_on": [],
+                                    "display": "numeric",
+                                    "label": "Rate Limit",
+                                    "order": 6,
+                                    "required": false,
+                                    "sensitive": false,
+                                    "tooltip": "The azureopenai service sets a default number of requests allowed per minute depending on the task type.",
+                                    "type": "int",
+                                    "ui_restrictions": [],
+                                    "validations": [],
+                                    "value": null
+                                },
+                                "deployment_id": {
+                                    "default_value": null,
+                                    "depends_on": [],
+                                    "display": "textbox",
+                                    "label": "Deployment ID",
+                                    "order": 5,
+                                    "required": true,
+                                    "sensitive": false,
+                                    "tooltip": "The deployment name of your deployed models.",
+                                    "type": "str",
+                                    "ui_restrictions": [],
+                                    "validations": [],
+                                    "value": null
+                                },
+                                "resource_name": {
+                                    "default_value": null,
+                                    "depends_on": [],
+                                    "display": "textbox",
+                                    "label": "Resource Name",
+                                    "order": 3,
+                                    "required": true,
+                                    "sensitive": false,
+                                    "tooltip": "The name of your Azure OpenAI resource.",
+                                    "type": "str",
+                                    "ui_restrictions": [],
+                                    "validations": [],
+                                    "value": null
+                                },
+                                "api_version": {
+                                    "default_value": null,
+                                    "depends_on": [],
+                                    "display": "textbox",
+                                    "label": "API Version",
+                                    "order": 4,
+                                    "required": true,
+                                    "sensitive": false,
+                                    "tooltip": "The Azure API version ID to use.",
+                                    "type": "str",
+                                    "ui_restrictions": [],
+                                    "validations": [],
+                                    "value": null
+                                }
+                            }
+                        }
+                    """
+            );
+            InferenceServiceConfiguration configuration = InferenceServiceConfiguration.fromXContentBytes(
+                new BytesArray(content),
+                XContentType.JSON
+            );
+            boolean humanReadable = true;
+            BytesReference originalBytes = toShuffledXContent(configuration, XContentType.JSON, ToXContent.EMPTY_PARAMS, humanReadable);
+            InferenceServiceConfiguration serviceConfiguration = service.getConfiguration();
+            assertToXContentEquivalent(
+                originalBytes,
+                toXContent(serviceConfiguration, XContentType.JSON, humanReadable),
+                XContentType.JSON
+            );
+        }
+    }
+
+    public void testSupportsStreaming() throws IOException {
+        try (var service = new AzureOpenAiService(mock(), createWithEmptySettings(mock()))) {
+            assertTrue(service.canStream(TaskType.COMPLETION));
+            assertTrue(service.canStream(TaskType.ANY));
+        }
     }
 
     private AzureOpenAiService createAzureOpenAiService() {

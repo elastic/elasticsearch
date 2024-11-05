@@ -1,6 +1,6 @@
-[discrete]
 tag::basic-rrf-retriever-with-semantic-query[]
-===== Example#1
+[discrete]
+=== Example: Combining kNN and semantic search with RRF
 
 First, let's say that we have 2 queries that we want to combine, a `kNN`  query, along with a `semantic` query. These two results could produce scores in different ranges, but we can use `rrf` to combine the results
 and generate a merged final result list. To translate this to the retriever framework, we'll start from the top-level element, i.e. our `rrf` retriever,
@@ -42,9 +42,9 @@ GET /retrievers_example/_search
 //NOTCONSOLE
 end::basic-rrf-retriever-with-semantic-query[]
 
-[discrete]
 tag::rrf-retriever-with-collapse[]
-===== Example#2
+[discrete]
+=== Example: Grouping results by year with `collapse`
 Let's say that we have our results, but we get back many documents for the same `year`. We can now use `collapse` with retrievers, to group results based
 on a given value and pick just the top for each sub-group!
 
@@ -91,12 +91,13 @@ GET /retrievers_example/_search
 //NOTCONSOLE
 end::rrf-retriever-with-collapse[]
 
-[discrete]
 tag::rrf-on-top-of-semantic-reranker[]
-===== Example#3
+[discrete]
+=== Example: RRF with semantic reranker
 For this scenario, let's say that we want to swap our semantic query with our `my-awesome-rerank-model` reranker that we
 have already setup. The main difference now is that, since this is a reranker, it will need an initial pool of docs to rerank!
 We know that we want to work with `ai` topics, so let's try to do just that!
+
 [source,js]
 ----
 GET /retrievers_example/_search
@@ -142,14 +143,13 @@ GET /retrievers_example/_search
         "topic"
     ]
 }
-
 ----
 //NOTCONSOLE
 end::rrf-on-top-of-semantic-reranker[]
 
-[discrete]
 tag::text-similarity-reranker-on-top-of-rrf[]
-===== Example#4
+[discrete]
+=== Example: Combine semantic reranker with RRF
 
 In the example above, we had a `text_similarity_reranker` retriever within an `rrf` one, but remember that retrievers support full
 composability, so we can rerank the results of an rrf retriever. Let's try to do this with the query from the first example above
@@ -201,9 +201,9 @@ GET retrievers_example/_search
 //NOTCONSOLE
 end::text-similarity-reranker-on-top-of-rrf[]
 
-[discrete]
 tag::chaining-text-similarity-reranker-retrievers[]
-===== Example#5
+[discrete]
+=== Example: Chaining multiple semantic rerankers
 
 Full composability, means that we can also chain together multiple retrievers of the same type. Say that we have another
 very computationally expensive reranker that is more fine-grained for AI content. We can now also rerank the results of a `text_similarity_reranker`,
@@ -255,9 +255,9 @@ and then pick the top 10 results and rerank them using the more fine-grained `my
 
 end::chaining-text-similarity-reranker-retrievers[]
 
-[discrete]
 tag::rrf-retriever-with-aggs[]
-===== Example#6
+[discrete]
+=== Example: Combine RRF with aggregations
 
 We have seen some examples with retrievers' composability, but we can also now support most of the standard search functionality!
 Let's say that we want to compute aggregations for the `rrf` retriever. Note that the aggregations

@@ -138,13 +138,12 @@ public class Netty4Utils {
         return new ReleasableBytesReference(toBytesReference(buffer), toRefCounted(buffer));
     }
 
-    public static RefCounted toRefCounted(final ByteBuf buf) {
+    static ByteBufRefCounted toRefCounted(final ByteBuf buf) {
         return new ByteBufRefCounted(buf);
     }
 
-    private record ByteBufRefCounted(ByteBuf buffer) implements RefCounted {
+    record ByteBufRefCounted(ByteBuf buffer) implements RefCounted {
 
-        @Override
         public int refCnt() {
             return buffer.refCnt();
         }

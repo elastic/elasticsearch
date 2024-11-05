@@ -38,7 +38,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
-import static org.elasticsearch.xpack.security.support.SecurityIndexManager.Availability.SEARCH_SHARDS;
+import static org.elasticsearch.xpack.security.support.SecurityIndexManager.Availability.PRIMARY_SHARDS;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
 
 public class QueryableRolesSynchronizationExecutor implements ClusterStateListener {
@@ -88,12 +88,19 @@ public class QueryableRolesSynchronizationExecutor implements ClusterStateListen
         if (state.nodes().getDataNodes().isEmpty()) {
             return;
         }
+
         // TODO: Should we attempt to sync roles if we are in the mixed cluster?
         final QueryableRoles roles = rolesProvider.roles();
         final Map<String, String> indexedRolesVersions = readIndexedRolesVersion(state);
         if (roles.roleVersions().equals(indexedRolesVersions)) {
             logger.info("Security index already contains the latest built-in roles indexed");
             return;
+        } else {
+            logger.info(
+                "indexed built-in roles {} do not match the latest built-in roles {}",
+                indexedRolesVersions,
+                roles.roleVersions()
+            );
         }
         if (rolesSynchronizationInProgress.compareAndSet(false, true)) {
             executor.execute(() -> syncBuiltinRoles(indexedRolesVersions, roles, ActionListener.wrap(v -> {
@@ -110,13 +117,15 @@ public class QueryableRolesSynchronizationExecutor implements ClusterStateListen
         // This will create .security index if it does not exist and execute all migrations.
         securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
             final SecurityIndexManager frozenSecurityIndex = securityIndex.defensiveCopy();
-            if (frozenSecurityIndex.isAvailable(SEARCH_SHARDS) == false) {
-                listener.onFailure(frozenSecurityIndex.getUnavailableReason(SEARCH_SHARDS));
+            if (frozenSecurityIndex.isAvailable(PRIMARY_SHARDS) == false) {
+                listener.onFailure(frozenSecurityIndex.getUnavailableReason(PRIMARY_SHARDS));
             } else {
                 // we will first create new or update the existing roles in .security index
                 // then potentially delete the roles from .security index that have been removed
                 indexRoles(roles.roleDescriptors().values(), frozenSecurityIndex, ActionListener.wrap(onResponse -> {
-                    Set<String> rolesToDelete = Sets.difference(indexedRolesVersions.keySet(), roles.roleVersions().keySet());
+                    Set<String> rolesToDelete = indexedRolesVersions == null
+                        ? Set.of()
+                        : Sets.difference(indexedRolesVersions.keySet(), roles.roleVersions().keySet());
                     if (false == rolesToDelete.isEmpty()) {
                         deleteRoles(rolesToDelete, roles.roleVersions(), frozenSecurityIndex, indexedRolesVersions, listener);
                     } else {
@@ -179,6 +188,7 @@ public class QueryableRolesSynchronizationExecutor implements ClusterStateListen
         Map<String, String> newRolesVersion,
         ActionListener<Void> listener
     ) {
+        // TODO: We could potentially submit this as a cluster state update task instead of calling a transport action
         executeAsyncWithOrigin(
             client,
             SECURITY_ORIGIN,
@@ -203,10 +213,9 @@ public class QueryableRolesSynchronizationExecutor implements ClusterStateListen
     private Map<String, String> readIndexedRolesVersion(ClusterState state) {
         IndexMetadata indexMetadata = state.metadata().index(SECURITY_MAIN_ALIAS);
         if (indexMetadata == null) {
-            return Map.of();
+            return null;
         }
-        Map<String, String> currentlyIndexedRoles = indexMetadata.getCustomData(METADATA_INDEXED_BUILT_IN_ROLES);
-        return currentlyIndexedRoles == null ? Map.of() : currentlyIndexedRoles;
+        return indexMetadata.getCustomData(METADATA_INDEXED_BUILT_IN_ROLES);
     }
 
 }

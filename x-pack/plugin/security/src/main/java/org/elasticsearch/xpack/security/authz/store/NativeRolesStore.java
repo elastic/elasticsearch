@@ -699,7 +699,9 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
                     client.prepareMultiSearch()
                         .add(
                             client.prepareSearch(SECURITY_MAIN_ALIAS)
-                                .setQuery(QueryBuilders.termQuery(RoleDescriptor.Fields.TYPE.getPreferredName(), ROLE_TYPE))
+                                .setQuery(QueryBuilders.boolQuery()
+                                    .must(QueryBuilders.termQuery(RoleDescriptor.Fields.TYPE.getPreferredName(), ROLE_TYPE))
+                                    .mustNot(QueryBuilders.termQuery("metadata_flattened._reserved", true)))
                                 .setTrackTotalHits(true)
                                 .setSize(0)
                         )
@@ -708,6 +710,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
                                 .setQuery(
                                     QueryBuilders.boolQuery()
                                         .must(QueryBuilders.termQuery(RoleDescriptor.Fields.TYPE.getPreferredName(), ROLE_TYPE))
+                                        .mustNot(QueryBuilders.termQuery("metadata_flattened._reserved", true))
                                         .must(
                                             QueryBuilders.boolQuery()
                                                 .should(existsQuery("indices.field_security.grant"))
@@ -725,6 +728,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
                                 .setQuery(
                                     QueryBuilders.boolQuery()
                                         .must(QueryBuilders.termQuery(RoleDescriptor.Fields.TYPE.getPreferredName(), ROLE_TYPE))
+                                        .mustNot(QueryBuilders.termQuery("metadata_flattened._reserved", true))
                                         .filter(existsQuery("indices.query"))
                                 )
                                 .setTrackTotalHits(true)
@@ -736,6 +740,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
                                 .setQuery(
                                     QueryBuilders.boolQuery()
                                         .must(QueryBuilders.termQuery(RoleDescriptor.Fields.TYPE.getPreferredName(), ROLE_TYPE))
+                                        .mustNot(QueryBuilders.termQuery("metadata_flattened._reserved", true))
                                         .filter(existsQuery("remote_indices"))
                                 )
                                 .setTrackTotalHits(true)
@@ -746,6 +751,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
                                 .setQuery(
                                     QueryBuilders.boolQuery()
                                         .must(QueryBuilders.termQuery(RoleDescriptor.Fields.TYPE.getPreferredName(), ROLE_TYPE))
+                                        .mustNot(QueryBuilders.termQuery("metadata_flattened._reserved", true))
                                         .filter(existsQuery("remote_cluster"))
                                 )
                                 .setTrackTotalHits(true)

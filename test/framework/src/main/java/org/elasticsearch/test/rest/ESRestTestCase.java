@@ -123,7 +123,6 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-
 import javax.net.ssl.SSLContext;
 
 import static java.util.Collections.sort;
@@ -1123,7 +1122,17 @@ public abstract class ESRestTestCase extends ESTestCase {
             }
             final Request deleteRequest = new Request("DELETE", Strings.collectionToCommaDelimitedString(indexPatterns));
             deleteRequest.addParameter("expand_wildcards", "open,closed,hidden");
+            // .security index is now created automatically on cluster startup
+            if (false == preserveSecurityIndices) {
+                deleteRequest.setOptions(
+                    expectWarnings(
+                        "this request accesses system indices: [.security-7], but in a future major version, "
+                            + "direct access to system indices will be prevented by default"
+                    )
+                );
+            }
             final Response response = adminClient().performRequest(deleteRequest);
+
             try (InputStream is = response.getEntity().getContent()) {
                 assertTrue((boolean) XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true).get("acknowledged"));
             }

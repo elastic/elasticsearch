@@ -170,6 +170,10 @@ template:
       kubernetes.node.hostname:
         type: alias
         path: resource.attributes.k8s.node.hostname
+      # Below is needed for the k8s events filtering per namespace
+      resource.attributes.k8s.namespace.name:
+        type: alias
+        path: body.structured.object.regarding.namespace
 # Below are non-ECS fields that may be used by Kibana.
       service.language.name:
         type: alias

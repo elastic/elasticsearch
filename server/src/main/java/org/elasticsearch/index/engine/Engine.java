@@ -2210,7 +2210,7 @@ public abstract class Engine implements Closeable {
     /**
      * Do not replay translog operations, but make the engine be ready.
      */
-    public abstract void skipTranslogRecovery() throws IOException;
+    public abstract void skipTranslogRecovery();
 
     /**
      * Tries to prune buffered deletes from the version map.

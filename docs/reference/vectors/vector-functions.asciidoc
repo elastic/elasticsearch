@@ -371,7 +371,6 @@ PUT my-index-bit-vectors/_doc/3
 
 POST my-index-bit-vectors/_refresh
 --------------------------------------------------
-// TESTSETUP
 <1> The number of dimensions or bits for the `bit` vector.
 <2> This vector represents 5 bytes, or `5 * 8 = 40` bits, which equals the configured dimensions
 

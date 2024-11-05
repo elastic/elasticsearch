@@ -344,7 +344,7 @@ public class VectorScoreScriptUtils {
                 Number number = queryVector.get(i);
                 floatQueryVector[i] = number.floatValue();
                 byteQueryVector[i] = number.byteValue();
-                if (floatQueryVector[i] % 1.0f != 0.0f || floatQueryVector[i] < Byte.MIN_VALUE || floatQueryVector[i] > Byte.MAX_VALUE) {
+                if (isFloat || floatQueryVector[i] % 1.0f != 0.0f || floatQueryVector[i] < Byte.MIN_VALUE || floatQueryVector[i] > Byte.MAX_VALUE) {
                     isFloat = true;
                 }
             }

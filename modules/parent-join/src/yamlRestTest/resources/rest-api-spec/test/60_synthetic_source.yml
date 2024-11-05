@@ -1,7 +1,7 @@
 supported:
   - requires:
-      cluster_features: ["mapper.source.synthetic_source_fallback"]
-      reason: introduced in 8.15.0
+      cluster_features: [ "mapper.source.mode_from_index_setting" ]
+      reason: "Source mode configured through index setting"
 
   - do:
       indices.create:

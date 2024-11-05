@@ -843,8 +843,12 @@ setup:
 ---
 "Query a field that uses the default ELSER 2 endpoint":
   - requires:
-      cluster_features: "semantic_text.default_elser_2"
-      reason: semantic_text default ELSER 2 inference ID introduced in 8.16.0
+      reason: "default ELSER 2 inference ID is behind a feature flag"
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: GET
+          path: /_inference
+          capabilities: [default_elser_2]
 
   - do:
       indices.create:

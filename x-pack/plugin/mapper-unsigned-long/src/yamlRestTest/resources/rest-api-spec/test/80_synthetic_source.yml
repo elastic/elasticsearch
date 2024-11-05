@@ -1,3 +1,9 @@
+setup:
+  - requires:
+      cluster_features: [ "mapper.source.mode_from_index_setting" ]
+      reason: "Source mode configured through index setting"
+
+---
 synthetic source:
   - requires:
       cluster_features: ["mapper.source.synthetic_source_with_copy_to_and_doc_values_false"]

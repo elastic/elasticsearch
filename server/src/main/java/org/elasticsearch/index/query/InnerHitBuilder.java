@@ -46,7 +46,6 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
 
     public static final ParseField NAME_FIELD = new ParseField("name");
     public static final ParseField IGNORE_UNMAPPED = new ParseField("ignore_unmapped");
-    public static final QueryBuilder DEFAULT_INNER_HIT_QUERY = new MatchAllQueryBuilder();
     public static final ParseField COLLAPSE_FIELD = new ParseField("collapse");
     public static final ParseField FIELD_FIELD = new ParseField("field");
 

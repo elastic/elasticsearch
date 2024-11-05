@@ -562,6 +562,8 @@ This retriever has similar functionality to the <<query-dsl-rule-query>>, but wo
 
 To use the `rule` retriever you must first create one or more query rulesets using the <<query-rules-apis, query rules management APIs>>.
 
+[discrete]
+[[rule-retriever-parameters]]
 ===== Parameters
 
 `retriever`::

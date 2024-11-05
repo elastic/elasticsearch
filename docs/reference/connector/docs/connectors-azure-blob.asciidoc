@@ -33,7 +33,7 @@ Are you using a managed connector on Elastic Cloud or a self-managed connector? 
 [discrete#es-connectors-azure-blob-availability-prerequisites]
 ===== Availability and prerequisites
 
-This connector is available as a *managed connector* on Elastic Cloud, as of *8.9.1*.
+This connector is available as a *managed connector* on Elastic Cloud, as of *8.9.1*. 
 
 To use this connector natively in Elastic Cloud, satisfy all <<es-native-connectors-prerequisites,managed connector requirements>>.
 

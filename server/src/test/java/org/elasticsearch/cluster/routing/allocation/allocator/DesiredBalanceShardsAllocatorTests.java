@@ -949,7 +949,9 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
         );
     }
 
-    // Creates a mock GatewayAllocator that delegates its logic for allocating unassigned shards to the provided handler.
+    /**
+     * Creates an implementation of GatewayAllocator that delegates its logic for allocating unassigned shards to the provided handler.
+     */
     private static GatewayAllocator createGatewayAllocator(AllocateUnassignedHandler allocateUnassigned) {
         return new GatewayAllocator() {
 

@@ -131,6 +131,8 @@ public class Wait extends UnaryScalarFunction {
             } catch (InterruptedException e) {
                 return true;
             }
+        } else {
+            throw new IllegalArgumentException("Wait function is only available in snapshot builds");
         }
         return true;
     }

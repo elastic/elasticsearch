@@ -398,6 +398,7 @@ public class EsqlFunctionRegistry {
     private static FunctionDefinition[][] snapshotFunctions() {
         return new FunctionDefinition[][] {
             new FunctionDefinition[] {
+                // The wait() function is for debug/snapshot environments only and should never be enabled in a non-snapshot build
                 def(Wait.class, Wait::new, "wait"),
                 def(Categorize.class, Categorize::new, "categorize"),
                 def(Rate.class, Rate::withUnresolvedTimestamp, "rate") } };

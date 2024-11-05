@@ -28,7 +28,7 @@ public class BulkRequestParserTests extends ESTestCase {
 
     public void testParserCannotBeReusedAfterFailure() {
         BytesArray request = new BytesArray("""
-            { "index":{ }, "something": "unexpected" }
+            { "invalidaction":{ } }
             {}
             """);
 
@@ -49,7 +49,10 @@ public class BulkRequestParserTests extends ESTestCase {
         );
 
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> incrementalParser.parse(request, false));
-        assertEquals("Malformed action/metadata line [1], expected END_OBJECT but found [FIELD_NAME]", ex.getMessage());
+        assertEquals(
+            "Malformed action/metadata line [1], expected field [create], [delete], [index] or [update] but found [invalidaction]",
+            ex.getMessage()
+        );
 
         BytesArray valid = new BytesArray("""
             { "index":{ "_id": "bar" } }

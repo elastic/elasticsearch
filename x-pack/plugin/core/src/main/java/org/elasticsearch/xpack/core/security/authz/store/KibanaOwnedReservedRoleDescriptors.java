@@ -429,7 +429,9 @@ class KibanaOwnedReservedRoleDescriptors {
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(
                         "logs-wiz.vulnerability-*",
+                        "logs-wiz.vulnerability_full-*",
                         "logs-wiz.cloud_configuration_finding-*",
+                        "logs-wiz.cloud_configuration_finding_full-*",
                         "logs-google_scc.finding-*",
                         "logs-aws.securityhub_findings-*",
                         "logs-aws.inspector-*",

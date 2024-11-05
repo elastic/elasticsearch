@@ -282,6 +282,9 @@ tests:
 - class: org.elasticsearch.search.basic.SearchWhileRelocatingIT
   method: testSearchAndRelocateConcurrentlyRandomReplicas
   issue: https://github.com/elastic/elasticsearch/issues/116145
+- class: org.elasticsearch.reservedstate.service.FileSettingsServiceTests
+  method: testProcessFileChanges
+  issue: https://github.com/elastic/elasticsearch/issues/115280
 
 # Examples:
 #

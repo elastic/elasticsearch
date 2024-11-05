@@ -652,7 +652,10 @@ public class SecurityIndexManager implements ClusterStateListener {
                 );
 
                 if (descriptorForVersion == null) {
-                    final String error = systemIndexDescriptor.getMinimumMappingsVersionMessage("create index");
+                    final String error = systemIndexDescriptor.getMinimumMappingsVersionMessage(
+                        "create index",
+                        state.minClusterMappingVersion
+                    );
                     consumer.accept(new IllegalStateException(error));
                 } else {
                     logger.info(
@@ -703,7 +706,10 @@ public class SecurityIndexManager implements ClusterStateListener {
                 );
 
                 if (descriptorForVersion == null) {
-                    final String error = systemIndexDescriptor.getMinimumMappingsVersionMessage("updating mapping");
+                    final String error = systemIndexDescriptor.getMinimumMappingsVersionMessage(
+                        "updating mapping",
+                        state.minClusterMappingVersion
+                    );
                     consumer.accept(new IllegalStateException(error));
                 } else {
                     logger.info(

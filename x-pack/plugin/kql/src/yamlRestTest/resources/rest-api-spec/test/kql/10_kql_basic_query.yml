@@ -3,9 +3,6 @@ setup:
       cluster_features: "kql_query_supported"
       reason: KQL query is not available
 
-  - requires:
-      "test_runner_features": "headers"
-
   - do:
       indices.create:
         index: test-index
@@ -24,8 +21,6 @@ setup:
                 type: double
 
   - do:
-      headers:
-        Content-Type: application/json
       bulk:
         index: test-index
         refresh: true
@@ -37,13 +32,6 @@ setup:
 
 ---
 "KQL match all queries":
-  - requires:
-      cluster_features: "kql_query_supported"
-      reason: KQL query is not available
-
-  - requires:
-      "test_runner_features": "headers"
-
   # KQL empty query are supposed to match all.
   - do:
       search:
@@ -79,13 +67,6 @@ setup:
 
 ---
 "KQL match term queries (no field specified)":
-  - requires:
-      cluster_features: "kql_query_supported"
-      reason: KQL query is not available
-
-  - requires:
-      "test_runner_features": "headers"
-
   - do:
       search:
         index: test-index
@@ -121,13 +102,6 @@ setup:
 
 ---
 "KQL match multiple terms queries (no field specified)":
-  - requires:
-      cluster_features: "kql_query_supported"
-      reason: KQL query is not available
-
-  - requires:
-      "test_runner_features": "headers"
-
   - do:
       search:
         index: test-index
@@ -150,13 +124,6 @@ setup:
 
 ---
 "KQL match phrase queries (no field specified)":
-  - requires:
-      cluster_features: "kql_query_supported"
-      reason: KQL query is not available
-
-  - requires:
-      "test_runner_features": "headers"
-
   - do:
       search:
         index: test-index
@@ -170,13 +137,6 @@ setup:
 
 ---
 "KQL match number queries (no field specified)":
-  - requires:
-      cluster_features: "kql_query_supported"
-      reason: KQL query is not available
-
-  - requires:
-      "test_runner_features": "headers"
-
   - do:
       search:
         index: test-index
@@ -201,13 +161,6 @@ setup:
 
 ---
 "KQL match multiple terms queries (no matches)":
-  - requires:
-      cluster_features: "kql_query_supported"
-      reason: KQL query is not available
-
-  - requires:
-      "test_runner_features": "headers"
-
   - do:
       search:
         index: test-index
@@ -221,13 +174,6 @@ setup:
 
 ---
 "KQL boolean queries":
-  - requires:
-      cluster_features: "kql_query_supported"
-      reason: KQL query is not available
-
-  - requires:
-      "test_runner_features": "headers"
-
   - do:
       search:
         index: test-index

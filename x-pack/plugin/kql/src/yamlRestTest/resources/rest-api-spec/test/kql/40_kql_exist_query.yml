@@ -3,9 +3,6 @@ setup:
       cluster_features: "kql_query_supported"
       reason: KQL query is not available
 
-  - requires:
-      "test_runner_features": "headers"
-
   - do:
       indices.create:
         index: test-index
@@ -24,8 +21,6 @@ setup:
                 type: double
 
   - do:
-      headers:
-        Content-Type: application/json
       bulk:
         index: test-index
         refresh: true
@@ -37,13 +32,6 @@ setup:
 
 ---
 "KQL exists queries - Existing field":
-  - requires:
-      cluster_features: "kql_query_supported"
-      reason: KQL query is not available
-
-  - requires:
-      "test_runner_features": "headers"
-
   - do:
       search:
         index: test-index
@@ -122,13 +110,6 @@ setup:
 
 ---
 "KQL exists queries (existing field)":
-  - requires:
-      cluster_features: "kql_query_supported"
-      reason: KQL query is not available
-
-  - requires:
-      "test_runner_features": "headers"
-
   - do:
       search:
         index: test-index
@@ -186,13 +167,6 @@ setup:
 
 ---
 "KQL exists queries (non-existing field)":
-  - requires:
-      cluster_features: "kql_query_supported"
-      reason: KQL query is not available
-
-  - requires:
-      "test_runner_features": "headers"
-
   - do:
       search:
         index: test-index

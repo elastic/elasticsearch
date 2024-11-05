@@ -4,7 +4,7 @@ setup:
       reason: KQL query is not available
 
   - requires:
-      "test_runner_features": "headers"
+      "test_runner_features": "contains"
 
   - do:
       indices.create:
@@ -24,8 +24,6 @@ setup:
                 type: double
 
   - do:
-      headers:
-        Content-Type: application/json
       bulk:
         index: test-index
         refresh: true
@@ -38,13 +36,6 @@ setup:
 
 ---
 "KQL match term queries (text field)":
-  - requires:
-      cluster_features: "kql_query_supported"
-      reason: KQL query is not available
-
-  - requires:
-      "test_runner_features": "headers"
-
   - do:
       search:
         index: test-index
@@ -90,13 +81,6 @@ setup:
 
 ---
 "KQL match term queries (integer field)":
-  - requires:
-      cluster_features: "kql_query_supported"
-      reason: KQL query is not available
-
-  - requires:
-      "test_runner_features": ["headers", "contains"]
-
   - do:
       catch: bad_request
       search:
@@ -156,13 +140,6 @@ setup:
 
 ---
 "KQL match term queries (double field)":
-  - requires:
-      cluster_features: "kql_query_supported"
-      reason: KQL query is not available
-
-  - requires:
-      "test_runner_features": ["headers", "contains"]
-
   - do:
       catch: bad_request
       search:
@@ -221,13 +198,6 @@ setup:
 
 ---
 "KQL match term queries (keyword field)":
-  - requires:
-      cluster_features: "kql_query_supported"
-      reason: KQL query is not available
-
-  - requires:
-      "test_runner_features": "headers"
-
   - do:
       search:
         index: test-index
@@ -273,13 +243,6 @@ setup:
 
 ---
 "KQL match term queries (date field)":
-  - requires:
-      cluster_features: "kql_query_supported"
-      reason: KQL query is not available
-
-  - requires:
-      "test_runner_features": ["headers", "contains"]
-
   - do:
       catch: bad_request
       search:

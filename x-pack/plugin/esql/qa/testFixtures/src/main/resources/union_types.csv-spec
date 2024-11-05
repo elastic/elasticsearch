@@ -634,7 +634,7 @@ required_capability: union_types_remove_fields
 
 FROM sample_data, sample_data_ts_nanos METADATA _index
 | EVAL ts = TO_DATE_NANOS(@timestamp)
-| WHERE ts > "2023-10-23T13:00:00Z"
+| WHERE ts > TO_DATE_NANOS("2023-10-23T13:00:00Z")
 | KEEP _index, ts, client_ip, event_duration, message
 | SORT _index ASC, ts DESC
 ;
@@ -904,28 +904,35 @@ FROM sample_data* METADATA _index
 | SORT _index ASC, @timestamp DESC
 ;
 
-_index:keyword      | @timestamp:date           |  client_ip:ip  |  event_duration:long  |  message:keyword
-sample_data         | 2023-10-23T13:55:01.543Z  |  172.21.3.15   |  1756467              |  Connected to 10.1.0.1
-sample_data         | 2023-10-23T13:53:55.832Z  |  172.21.3.15   |  5033755              |  Connection error
-sample_data         | 2023-10-23T13:52:55.015Z  |  172.21.3.15   |  8268153              |  Connection error
-sample_data         | 2023-10-23T13:51:54.732Z  |  172.21.3.15   |  725448               |  Connection error
-sample_data         | 2023-10-23T13:33:34.937Z  |  172.21.0.5    |  1232382              |  Disconnected
-sample_data         | 2023-10-23T12:27:28.948Z  |  172.21.2.113  |  2764889              |  Connected to 10.1.0.2
-sample_data         | 2023-10-23T12:15:03.360Z  |  172.21.2.162  |  3450233              |  Connected to 10.1.0.3
-sample_data_str     | 2023-10-23T13:55:01.543Z  |  172.21.3.15   |  1756467              |  Connected to 10.1.0.1
-sample_data_str     | 2023-10-23T13:53:55.832Z  |  172.21.3.15   |  5033755              |  Connection error
-sample_data_str     | 2023-10-23T13:52:55.015Z  |  172.21.3.15   |  8268153              |  Connection error
-sample_data_str     | 2023-10-23T13:51:54.732Z  |  172.21.3.15   |  725448               |  Connection error
-sample_data_str     | 2023-10-23T13:33:34.937Z  |  172.21.0.5    |  1232382              |  Disconnected
-sample_data_str     | 2023-10-23T12:27:28.948Z  |  172.21.2.113  |  2764889              |  Connected to 10.1.0.2
-sample_data_str     | 2023-10-23T12:15:03.360Z  |  172.21.2.162  |  3450233              |  Connected to 10.1.0.3
-sample_data_ts_long | 2023-10-23T13:55:01.543Z  |  172.21.3.15   |  1756467              |  Connected to 10.1.0.1
-sample_data_ts_long | 2023-10-23T13:53:55.832Z  |  172.21.3.15   |  5033755              |  Connection error
-sample_data_ts_long | 2023-10-23T13:52:55.015Z  |  172.21.3.15   |  8268153              |  Connection error
-sample_data_ts_long | 2023-10-23T13:51:54.732Z  |  172.21.3.15   |  725448               |  Connection error
-sample_data_ts_long | 2023-10-23T13:33:34.937Z  |  172.21.0.5    |  1232382              |  Disconnected
-sample_data_ts_long | 2023-10-23T12:27:28.948Z  |  172.21.2.113  |  2764889              |  Connected to 10.1.0.2
-sample_data_ts_long | 2023-10-23T12:15:03.360Z  |  172.21.2.162  |  3450233              |  Connected to 10.1.0.3
+_index:keyword       | @timestamp:date           |  client_ip:ip  |  event_duration:long  |  message:keyword
+sample_data          | 2023-10-23T13:55:01.543Z  |  172.21.3.15   |  1756467              |  Connected to 10.1.0.1
+sample_data          | 2023-10-23T13:53:55.832Z  |  172.21.3.15   |  5033755              |  Connection error
+sample_data          | 2023-10-23T13:52:55.015Z  |  172.21.3.15   |  8268153              |  Connection error
+sample_data          | 2023-10-23T13:51:54.732Z  |  172.21.3.15   |  725448               |  Connection error
+sample_data          | 2023-10-23T13:33:34.937Z  |  172.21.0.5    |  1232382              |  Disconnected
+sample_data          | 2023-10-23T12:27:28.948Z  |  172.21.2.113  |  2764889              |  Connected to 10.1.0.2
+sample_data          | 2023-10-23T12:15:03.360Z  |  172.21.2.162  |  3450233              |  Connected to 10.1.0.3
+sample_data_str      | 2023-10-23T13:55:01.543Z  |  172.21.3.15   |  1756467              |  Connected to 10.1.0.1
+sample_data_str      | 2023-10-23T13:53:55.832Z  |  172.21.3.15   |  5033755              |  Connection error
+sample_data_str      | 2023-10-23T13:52:55.015Z  |  172.21.3.15   |  8268153              |  Connection error
+sample_data_str      | 2023-10-23T13:51:54.732Z  |  172.21.3.15   |  725448               |  Connection error
+sample_data_str      | 2023-10-23T13:33:34.937Z  |  172.21.0.5    |  1232382              |  Disconnected
+sample_data_str      | 2023-10-23T12:27:28.948Z  |  172.21.2.113  |  2764889              |  Connected to 10.1.0.2
+sample_data_str      | 2023-10-23T12:15:03.360Z  |  172.21.2.162  |  3450233              |  Connected to 10.1.0.3
+sample_data_ts_long  | 2023-10-23T13:55:01.543Z  |  172.21.3.15   |  1756467              |  Connected to 10.1.0.1
+sample_data_ts_long  | 2023-10-23T13:53:55.832Z  |  172.21.3.15   |  5033755              |  Connection error
+sample_data_ts_long  | 2023-10-23T13:52:55.015Z  |  172.21.3.15   |  8268153              |  Connection error
+sample_data_ts_long  | 2023-10-23T13:51:54.732Z  |  172.21.3.15   |  725448               |  Connection error
+sample_data_ts_long  | 2023-10-23T13:33:34.937Z  |  172.21.0.5    |  1232382              |  Disconnected
+sample_data_ts_long  | 2023-10-23T12:27:28.948Z  |  172.21.2.113  |  2764889              |  Connected to 10.1.0.2
+sample_data_ts_long  | 2023-10-23T12:15:03.360Z  |  172.21.2.162  |  3450233              |  Connected to 10.1.0.3
+sample_data_ts_nanos | 2023-10-23T13:55:01.543Z  |  172.21.3.15   |  1756467              |  Connected to 10.1.0.1
+sample_data_ts_nanos | 2023-10-23T13:53:55.832Z  |  172.21.3.15   |  5033755              |  Connection error
+sample_data_ts_nanos | 2023-10-23T13:52:55.015Z  |  172.21.3.15   |  8268153              |  Connection error
+sample_data_ts_nanos | 2023-10-23T13:51:54.732Z  |  172.21.3.15   |  725448               |  Connection error
+sample_data_ts_nanos | 2023-10-23T13:33:34.937Z  |  172.21.0.5    |  1232382              |  Disconnected
+sample_data_ts_nanos | 2023-10-23T12:27:28.948Z  |  172.21.2.113  |  2764889              |  Connected to 10.1.0.2
+sample_data_ts_nanos | 2023-10-23T12:15:03.360Z  |  172.21.2.162  |  3450233              |  Connected to 10.1.0.3
 ;
 
 multiIndexIpStringTsLongDropped
@@ -938,28 +945,35 @@ FROM sample_data* METADATA _index
 | SORT _index ASC, event_duration ASC
 ;
 
-_index:keyword      |  event_duration:long  |  message:keyword
-sample_data         |  725448               |  Connection error
-sample_data         |  1232382              |  Disconnected
-sample_data         |  1756467              |  Connected to 10.1.0.1
-sample_data         |  2764889              |  Connected to 10.1.0.2
-sample_data         |  3450233              |  Connected to 10.1.0.3
-sample_data         |  5033755              |  Connection error
-sample_data         |  8268153              |  Connection error
-sample_data_str     |  725448               |  Connection error
-sample_data_str     |  1232382              |  Disconnected
-sample_data_str     |  1756467              |  Connected to 10.1.0.1
-sample_data_str     |  2764889              |  Connected to 10.1.0.2
-sample_data_str     |  3450233              |  Connected to 10.1.0.3
-sample_data_str     |  5033755              |  Connection error
-sample_data_str     |  8268153              |  Connection error
-sample_data_ts_long |  725448               |  Connection error
-sample_data_ts_long |  1232382              |  Disconnected
-sample_data_ts_long |  1756467              |  Connected to 10.1.0.1
-sample_data_ts_long |  2764889              |  Connected to 10.1.0.2
-sample_data_ts_long |  3450233              |  Connected to 10.1.0.3
-sample_data_ts_long |  5033755              |  Connection error
-sample_data_ts_long |  8268153              |  Connection error
+_index:keyword       |  event_duration:long  |  message:keyword
+sample_data          |  725448               |  Connection error
+sample_data          |  1232382              |  Disconnected
+sample_data          |  1756467              |  Connected to 10.1.0.1
+sample_data          |  2764889              |  Connected to 10.1.0.2
+sample_data          |  3450233              |  Connected to 10.1.0.3
+sample_data          |  5033755              |  Connection error
+sample_data          |  8268153              |  Connection error
+sample_data_str      |  725448               |  Connection error
+sample_data_str      |  1232382              |  Disconnected
+sample_data_str      |  1756467              |  Connected to 10.1.0.1
+sample_data_str      |  2764889              |  Connected to 10.1.0.2
+sample_data_str      |  3450233              |  Connected to 10.1.0.3
+sample_data_str      |  5033755              |  Connection error
+sample_data_str      |  8268153              |  Connection error
+sample_data_ts_long  |  725448               |  Connection error
+sample_data_ts_long  |  1232382              |  Disconnected
+sample_data_ts_long  |  1756467              |  Connected to 10.1.0.1
+sample_data_ts_long  |  2764889              |  Connected to 10.1.0.2
+sample_data_ts_long  |  3450233              |  Connected to 10.1.0.3
+sample_data_ts_long  |  5033755              |  Connection error
+sample_data_ts_long  |  8268153              |  Connection error
+sample_data_ts_nanos |  725448               |  Connection error
+sample_data_ts_nanos |  1232382              |  Disconnected
+sample_data_ts_nanos |  1756467              |  Connected to 10.1.0.1
+sample_data_ts_nanos |  2764889              |  Connected to 10.1.0.2
+sample_data_ts_nanos |  3450233              |  Connected to 10.1.0.3
+sample_data_ts_nanos |  5033755              |  Connection error
+sample_data_ts_nanos |  8268153              |  Connection error
 ;
 
 multiIndexIpStringTsLongRename
@@ -973,28 +987,35 @@ FROM sample_data* METADATA _index
 | SORT _index ASC, ts DESC
 ;
 
-_index:keyword      | ts:date                   |  host_ip:ip    |  event_duration:long  |  message:keyword
-sample_data         | 2023-10-23T13:55:01.543Z  |  172.21.3.15   |  1756467              |  Connected to 10.1.0.1
-sample_data         | 2023-10-23T13:53:55.832Z  |  172.21.3.15   |  5033755              |  Connection error
-sample_data         | 2023-10-23T13:52:55.015Z  |  172.21.3.15   |  8268153              |  Connection error
-sample_data         | 2023-10-23T13:51:54.732Z  |  172.21.3.15   |  725448               |  Connection error
-sample_data         | 2023-10-23T13:33:34.937Z  |  172.21.0.5    |  1232382              |  Disconnected
-sample_data         | 2023-10-23T12:27:28.948Z  |  172.21.2.113  |  2764889              |  Connected to 10.1.0.2
-sample_data         | 2023-10-23T12:15:03.360Z  |  172.21.2.162  |  3450233              |  Connected to 10.1.0.3
-sample_data_str     | 2023-10-23T13:55:01.543Z  |  172.21.3.15   |  1756467              |  Connected to 10.1.0.1
-sample_data_str     | 2023-10-23T13:53:55.832Z  |  172.21.3.15   |  5033755              |  Connection error
-sample_data_str     | 2023-10-23T13:52:55.015Z  |  172.21.3.15   |  8268153              |  Connection error
-sample_data_str     | 2023-10-23T13:51:54.732Z  |  172.21.3.15   |  725448               |  Connection error
-sample_data_str     | 2023-10-23T13:33:34.937Z  |  172.21.0.5    |  1232382              |  Disconnected
-sample_data_str     | 2023-10-23T12:27:28.948Z  |  172.21.2.113  |  2764889              |  Connected to 10.1.0.2
-sample_data_str     | 2023-10-23T12:15:03.360Z  |  172.21.2.162  |  3450233              |  Connected to 10.1.0.3
-sample_data_ts_long | 2023-10-23T13:55:01.543Z  |  172.21.3.15   |  1756467              |  Connected to 10.1.0.1
-sample_data_ts_long | 2023-10-23T13:53:55.832Z  |  172.21.3.15   |  5033755              |  Connection error
-sample_data_ts_long | 2023-10-23T13:52:55.015Z  |  172.21.3.15   |  8268153              |  Connection error
-sample_data_ts_long | 2023-10-23T13:51:54.732Z  |  172.21.3.15   |  725448               |  Connection error
-sample_data_ts_long | 2023-10-23T13:33:34.937Z  |  172.21.0.5    |  1232382              |  Disconnected
-sample_data_ts_long | 2023-10-23T12:27:28.948Z  |  172.21.2.113  |  2764889              |  Connected to 10.1.0.2
-sample_data_ts_long | 2023-10-23T12:15:03.360Z  |  172.21.2.162  |  3450233              |  Connected to 10.1.0.3
+_index:keyword       | ts:date                   |  host_ip:ip    |  event_duration:long  |  message:keyword
+sample_data          | 2023-10-23T13:55:01.543Z  |  172.21.3.15   |  1756467              |  Connected to 10.1.0.1
+sample_data          | 2023-10-23T13:53:55.832Z  |  172.21.3.15   |  5033755              |  Connection error
+sample_data          | 2023-10-23T13:52:55.015Z  |  172.21.3.15   |  8268153              |  Connection error
+sample_data          | 2023-10-23T13:51:54.732Z  |  172.21.3.15   |  725448               |  Connection error
+sample_data          | 2023-10-23T13:33:34.937Z  |  172.21.0.5    |  1232382              |  Disconnected
+sample_data          | 2023-10-23T12:27:28.948Z  |  172.21.2.113  |  2764889              |  Connected to 10.1.0.2
+sample_data          | 2023-10-23T12:15:03.360Z  |  172.21.2.162  |  3450233              |  Connected to 10.1.0.3
+sample_data_str      | 2023-10-23T13:55:01.543Z  |  172.21.3.15   |  1756467              |  Connected to 10.1.0.1
+sample_data_str      | 2023-10-23T13:53:55.832Z  |  172.21.3.15   |  5033755              |  Connection error
+sample_data_str      | 2023-10-23T13:52:55.015Z  |  172.21.3.15   |  8268153              |  Connection error
+sample_data_str      | 2023-10-23T13:51:54.732Z  |  172.21.3.15   |  725448               |  Connection error
+sample_data_str      | 2023-10-23T13:33:34.937Z  |  172.21.0.5    |  1232382              |  Disconnected
+sample_data_str      | 2023-10-23T12:27:28.948Z  |  172.21.2.113  |  2764889              |  Connected to 10.1.0.2
+sample_data_str      | 2023-10-23T12:15:03.360Z  |  172.21.2.162  |  3450233              |  Connected to 10.1.0.3
+sample_data_ts_long  | 2023-10-23T13:55:01.543Z  |  172.21.3.15   |  1756467              |  Connected to 10.1.0.1
+sample_data_ts_long  | 2023-10-23T13:53:55.832Z  |  172.21.3.15   |  5033755              |  Connection error
+sample_data_ts_long  | 2023-10-23T13:52:55.015Z  |  172.21.3.15   |  8268153              |  Connection error
+sample_data_ts_long  | 2023-10-23T13:51:54.732Z  |  172.21.3.15   |  725448               |  Connection error
+sample_data_ts_long  | 2023-10-23T13:33:34.937Z  |  172.21.0.5    |  1232382              |  Disconnected
+sample_data_ts_long  | 2023-10-23T12:27:28.948Z  |  172.21.2.113  |  2764889              |  Connected to 10.1.0.2
+sample_data_ts_long  | 2023-10-23T12:15:03.360Z  |  172.21.2.162  |  3450233              |  Connected to 10.1.0.3
+sample_data_ts_nanos | 2023-10-23T13:55:01.543Z  |  172.21.3.15   |  1756467              |  Connected to 10.1.0.1
+sample_data_ts_nanos | 2023-10-23T13:53:55.832Z  |  172.21.3.15   |  5033755              |  Connection error
+sample_data_ts_nanos | 2023-10-23T13:52:55.015Z  |  172.21.3.15   |  8268153              |  Connection error
+sample_data_ts_nanos | 2023-10-23T13:51:54.732Z  |  172.21.3.15   |  725448               |  Connection error
+sample_data_ts_nanos | 2023-10-23T13:33:34.937Z  |  172.21.0.5    |  1232382              |  Disconnected
+sample_data_ts_nanos | 2023-10-23T12:27:28.948Z  |  172.21.2.113  |  2764889              |  Connected to 10.1.0.2
+sample_data_ts_nanos | 2023-10-23T12:15:03.360Z  |  172.21.2.162  |  3450233              |  Connected to 10.1.0.3
 ;
 
 multiIndexIpStringTsLongRenameDropped
@@ -1007,28 +1028,35 @@ FROM sample_data* METADATA _index
 | SORT _index ASC, event_duration ASC
 ;
 
-_index:keyword      |  event_duration:long  |  message:keyword
-sample_data         |  725448               |  Connection error
-sample_data         |  1232382              |  Disconnected
-sample_data         |  1756467              |  Connected to 10.1.0.1
-sample_data         |  2764889              |  Connected to 10.1.0.2
-sample_data         |  3450233              |  Connected to 10.1.0.3
-sample_data         |  5033755              |  Connection error
-sample_data         |  8268153              |  Connection error
-sample_data_str     |  725448               |  Connection error
-sample_data_str     |  1232382              |  Disconnected
-sample_data_str     |  1756467              |  Connected to 10.1.0.1
-sample_data_str     |  2764889              |  Connected to 10.1.0.2
-sample_data_str     |  3450233              |  Connected to 10.1.0.3
-sample_data_str     |  5033755              |  Connection error
-sample_data_str     |  8268153              |  Connection error
-sample_data_ts_long |  725448               |  Connection error
-sample_data_ts_long |  1232382              |  Disconnected
-sample_data_ts_long |  1756467              |  Connected to 10.1.0.1
-sample_data_ts_long |  2764889              |  Connected to 10.1.0.2
-sample_data_ts_long |  3450233              |  Connected to 10.1.0.3
-sample_data_ts_long |  5033755              |  Connection error
-sample_data_ts_long |  8268153              |  Connection error
+_index:keyword       |  event_duration:long  |  message:keyword
+sample_data          |  725448               |  Connection error
+sample_data          |  1232382              |  Disconnected
+sample_data          |  1756467              |  Connected to 10.1.0.1
+sample_data          |  2764889              |  Connected to 10.1.0.2
+sample_data          |  3450233              |  Connected to 10.1.0.3
+sample_data          |  5033755              |  Connection error
+sample_data          |  8268153              |  Connection error
+sample_data_str      |  725448               |  Connection error
+sample_data_str      |  1232382              |  Disconnected
+sample_data_str      |  1756467              |  Connected to 10.1.0.1
+sample_data_str      |  2764889              |  Connected to 10.1.0.2
+sample_data_str      |  3450233              |  Connected to 10.1.0.3
+sample_data_str      |  5033755              |  Connection error
+sample_data_str      |  8268153              |  Connection error
+sample_data_ts_long  |  725448               |  Connection error
+sample_data_ts_long  |  1232382              |  Disconnected
+sample_data_ts_long  |  1756467              |  Connected to 10.1.0.1
+sample_data_ts_long  |  2764889              |  Connected to 10.1.0.2
+sample_data_ts_long  |  3450233              |  Connected to 10.1.0.3
+sample_data_ts_long  |  5033755              |  Connection error
+sample_data_ts_long  |  8268153              |  Connection error
+sample_data_ts_nanos |  725448               |  Connection error
+sample_data_ts_nanos |  1232382              |  Disconnected
+sample_data_ts_nanos |  1756467              |  Connected to 10.1.0.1
+sample_data_ts_nanos |  2764889              |  Connected to 10.1.0.2
+sample_data_ts_nanos |  3450233              |  Connected to 10.1.0.3
+sample_data_ts_nanos |  5033755              |  Connection error
+sample_data_ts_nanos |  8268153              |  Connection error
 ;
 
 multiIndexIpStringTsLongRenameToString
@@ -1042,28 +1070,35 @@ FROM sample_data* METADATA _index
 | SORT _index ASC, ts DESC
 ;
 
-_index:keyword      | ts:keyword                |  host_ip:keyword  |  event_duration:long  |  message:keyword
-sample_data         | 2023-10-23T13:55:01.543Z  |  172.21.3.15      |  1756467              |  Connected to 10.1.0.1
-sample_data         | 2023-10-23T13:53:55.832Z  |  172.21.3.15      |  5033755              |  Connection error
-sample_data         | 2023-10-23T13:52:55.015Z  |  172.21.3.15      |  8268153              |  Connection error
-sample_data         | 2023-10-23T13:51:54.732Z  |  172.21.3.15      |  725448               |  Connection error
-sample_data         | 2023-10-23T13:33:34.937Z  |  172.21.0.5       |  1232382              |  Disconnected
-sample_data         | 2023-10-23T12:27:28.948Z  |  172.21.2.113     |  2764889              |  Connected to 10.1.0.2
-sample_data         | 2023-10-23T12:15:03.360Z  |  172.21.2.162     |  3450233              |  Connected to 10.1.0.3
-sample_data_str     | 2023-10-23T13:55:01.543Z  |  172.21.3.15      |  1756467              |  Connected to 10.1.0.1
-sample_data_str     | 2023-10-23T13:53:55.832Z  |  172.21.3.15      |  5033755              |  Connection error
-sample_data_str     | 2023-10-23T13:52:55.015Z  |  172.21.3.15      |  8268153              |  Connection error
-sample_data_str     | 2023-10-23T13:51:54.732Z  |  172.21.3.15      |  725448               |  Connection error
-sample_data_str     | 2023-10-23T13:33:34.937Z  |  172.21.0.5       |  1232382              |  Disconnected
-sample_data_str     | 2023-10-23T12:27:28.948Z  |  172.21.2.113     |  2764889              |  Connected to 10.1.0.2
-sample_data_str     | 2023-10-23T12:15:03.360Z  |  172.21.2.162     |  3450233              |  Connected to 10.1.0.3
-sample_data_ts_long | 2023-10-23T13:55:01.543Z  |  172.21.3.15      |  1756467              |  Connected to 10.1.0.1
-sample_data_ts_long | 2023-10-23T13:53:55.832Z  |  172.21.3.15      |  5033755              |  Connection error
-sample_data_ts_long | 2023-10-23T13:52:55.015Z  |  172.21.3.15      |  8268153              |  Connection error
-sample_data_ts_long | 2023-10-23T13:51:54.732Z  |  172.21.3.15      |  725448               |  Connection error
-sample_data_ts_long | 2023-10-23T13:33:34.937Z  |  172.21.0.5       |  1232382              |  Disconnected
-sample_data_ts_long | 2023-10-23T12:27:28.948Z  |  172.21.2.113     |  2764889              |  Connected to 10.1.0.2
-sample_data_ts_long | 2023-10-23T12:15:03.360Z  |  172.21.2.162     |  3450233              |  Connected to 10.1.0.3
+_index:keyword       | ts:keyword                |  host_ip:keyword  |  event_duration:long  |  message:keyword
+sample_data          | 2023-10-23T13:55:01.543Z  |  172.21.3.15      |  1756467              |  Connected to 10.1.0.1
+sample_data          | 2023-10-23T13:53:55.832Z  |  172.21.3.15      |  5033755              |  Connection error
+sample_data          | 2023-10-23T13:52:55.015Z  |  172.21.3.15      |  8268153              |  Connection error
+sample_data          | 2023-10-23T13:51:54.732Z  |  172.21.3.15      |  725448               |  Connection error
+sample_data          | 2023-10-23T13:33:34.937Z  |  172.21.0.5       |  1232382              |  Disconnected
+sample_data          | 2023-10-23T12:27:28.948Z  |  172.21.2.113     |  2764889              |  Connected to 10.1.0.2
+sample_data          | 2023-10-23T12:15:03.360Z  |  172.21.2.162     |  3450233              |  Connected to 10.1.0.3
+sample_data_str      | 2023-10-23T13:55:01.543Z  |  172.21.3.15      |  1756467              |  Connected to 10.1.0.1
+sample_data_str      | 2023-10-23T13:53:55.832Z  |  172.21.3.15      |  5033755              |  Connection error
+sample_data_str      | 2023-10-23T13:52:55.015Z  |  172.21.3.15      |  8268153              |  Connection error
+sample_data_str      | 2023-10-23T13:51:54.732Z  |  172.21.3.15      |  725448               |  Connection error
+sample_data_str      | 2023-10-23T13:33:34.937Z  |  172.21.0.5       |  1232382              |  Disconnected
+sample_data_str      | 2023-10-23T12:27:28.948Z  |  172.21.2.113     |  2764889              |  Connected to 10.1.0.2
+sample_data_str      | 2023-10-23T12:15:03.360Z  |  172.21.2.162     |  3450233              |  Connected to 10.1.0.3
+sample_data_ts_long  | 2023-10-23T13:55:01.543Z  |  172.21.3.15      |  1756467              |  Connected to 10.1.0.1
+sample_data_ts_long  | 2023-10-23T13:53:55.832Z  |  172.21.3.15      |  5033755              |  Connection error
+sample_data_ts_long  | 2023-10-23T13:52:55.015Z  |  172.21.3.15      |  8268153              |  Connection error
+sample_data_ts_long  | 2023-10-23T13:51:54.732Z  |  172.21.3.15      |  725448               |  Connection error
+sample_data_ts_long  | 2023-10-23T13:33:34.937Z  |  172.21.0.5       |  1232382              |  Disconnected
+sample_data_ts_long  | 2023-10-23T12:27:28.948Z  |  172.21.2.113     |  2764889              |  Connected to 10.1.0.2
+sample_data_ts_long  | 2023-10-23T12:15:03.360Z  |  172.21.2.162     |  3450233              |  Connected to 10.1.0.3
+sample_data_ts_nanos | 2023-10-23T13:55:01.543Z  |  172.21.3.15      |  1756467              |  Connected to 10.1.0.1
+sample_data_ts_nanos | 2023-10-23T13:53:55.832Z  |  172.21.3.15      |  5033755              |  Connection error
+sample_data_ts_nanos | 2023-10-23T13:52:55.015Z  |  172.21.3.15      |  8268153              |  Connection error
+sample_data_ts_nanos | 2023-10-23T13:51:54.732Z  |  172.21.3.15      |  725448               |  Connection error
+sample_data_ts_nanos | 2023-10-23T13:33:34.937Z  |  172.21.0.5       |  1232382              |  Disconnected
+sample_data_ts_nanos | 2023-10-23T12:27:28.948Z  |  172.21.2.113     |  2764889              |  Connected to 10.1.0.2
+sample_data_ts_nanos | 2023-10-23T12:15:03.360Z  |  172.21.2.162     |  3450233              |  Connected to 10.1.0.3
 ;
 
 multiIndexWhereIpStringTsLong
@@ -1141,10 +1176,11 @@ FROM sample_data* METADATA _index
 | SORT _index ASC, ts DESC
 ;
 
-@timestamp:null | client_ip:null | event_duration:long | message:keyword  | _index:keyword      | ts:date                   | ts_str:keyword            | ts_l:long      |  ip:ip         |  ip_str:k
-null            | null           |  8268153            | Connection error | sample_data         | 2023-10-23T13:52:55.015Z  | 2023-10-23T13:52:55.015Z  | 1698069175015  |  172.21.3.15   |  172.21.3.15
-null            | null           |  8268153            | Connection error | sample_data_str     | 2023-10-23T13:52:55.015Z  | 2023-10-23T13:52:55.015Z  | 1698069175015  |  172.21.3.15   |  172.21.3.15
-null            | null           |  8268153            | Connection error | sample_data_ts_long | 2023-10-23T13:52:55.015Z  | 1698069175015             | 1698069175015  |  172.21.3.15   |  172.21.3.15
+@timestamp:null | client_ip:null | event_duration:long | message:keyword  | _index:keyword       | ts:date                   | ts_str:keyword                 | ts_l:long           |  ip:ip         |  ip_str:k
+null            | null           |  8268153            | Connection error | sample_data          | 2023-10-23T13:52:55.015Z  | 2023-10-23T13:52:55.015Z       | 1698069175015       |  172.21.3.15   |  172.21.3.15
+null            | null           |  8268153            | Connection error | sample_data_str      | 2023-10-23T13:52:55.015Z  | 2023-10-23T13:52:55.015Z       | 1698069175015       |  172.21.3.15   |  172.21.3.15
+null            | null           |  8268153            | Connection error | sample_data_ts_long  | 2023-10-23T13:52:55.015Z  | 1698069175015                  | 1698069175015       |  172.21.3.15   |  172.21.3.15
+null            | null           |  8268153            | Connection error | sample_data_ts_nanos | 2023-10-23T13:52:55.015Z  | 2023-10-23T13:52:55.015123456Z | 1698069175015123456 |  172.21.3.15   |  172.21.3.15
 ;
 
 multiIndexMultiColumnTypesRenameAndKeep
@@ -1159,10 +1195,11 @@ FROM sample_data* METADATA _index
 | SORT _index ASC, ts DESC
 ;
 
-_index:keyword      | ts:date                   | ts_str:keyword            | ts_l:long      |  ip:ip         |  ip_str:k      |  event_duration:long
-sample_data         | 2023-10-23T13:52:55.015Z  | 2023-10-23T13:52:55.015Z  | 1698069175015  |  172.21.3.15   |  172.21.3.15   |  8268153
-sample_data_str     | 2023-10-23T13:52:55.015Z  | 2023-10-23T13:52:55.015Z  | 1698069175015  |  172.21.3.15   |  172.21.3.15   |  8268153
-sample_data_ts_long | 2023-10-23T13:52:55.015Z  | 1698069175015             | 1698069175015  |  172.21.3.15   |  172.21.3.15   |  8268153
+_index:keyword       | ts:date                   | ts_str:keyword                  | ts_l:long           |  ip:ip         |  ip_str:k      |  event_duration:long
+sample_data          | 2023-10-23T13:52:55.015Z  | 2023-10-23T13:52:55.015Z        | 1698069175015       |  172.21.3.15   |  172.21.3.15   |  8268153
+sample_data_str      | 2023-10-23T13:52:55.015Z  | 2023-10-23T13:52:55.015Z        | 1698069175015       |  172.21.3.15   |  172.21.3.15   |  8268153
+sample_data_ts_long  | 2023-10-23T13:52:55.015Z  | 1698069175015                   | 1698069175015       |  172.21.3.15   |  172.21.3.15   |  8268153
+sample_data_ts_nanos | 2023-10-23T13:52:55.015Z  | 2023-10-23T13:52:55.015123456Z  | 1698069175015123456 |  172.21.3.15   |  172.21.3.15   |  8268153
 ;
 
 multiIndexMultiColumnTypesRenameAndDrop
@@ -1177,10 +1214,11 @@ FROM sample_data* METADATA _index
 | SORT _index ASC, ts DESC
 ;
 
-event_duration:long | _index:keyword      | ts:date                   | ts_str:keyword            | ts_l:long      |  ip:ip         |  ip_str:k  
-8268153             | sample_data         | 2023-10-23T13:52:55.015Z  | 2023-10-23T13:52:55.015Z  | 1698069175015  |  172.21.3.15   |  172.21.3.15
-8268153             | sample_data_str     | 2023-10-23T13:52:55.015Z  | 2023-10-23T13:52:55.015Z  | 1698069175015  |  172.21.3.15   |  172.21.3.15
-8268153             | sample_data_ts_long | 2023-10-23T13:52:55.015Z  | 1698069175015             | 1698069175015  |  172.21.3.15   |  172.21.3.15
+event_duration:long | _index:keyword       | ts:date                   | ts_str:keyword                  | ts_l:long           |  ip:ip         |  ip_str:k  
+8268153             | sample_data          | 2023-10-23T13:52:55.015Z  | 2023-10-23T13:52:55.015Z        | 1698069175015       |  172.21.3.15   |  172.21.3.15
+8268153             | sample_data_str      | 2023-10-23T13:52:55.015Z  | 2023-10-23T13:52:55.015Z        | 1698069175015       |  172.21.3.15   |  172.21.3.15
+8268153             | sample_data_ts_long  | 2023-10-23T13:52:55.015Z  | 1698069175015                   | 1698069175015       |  172.21.3.15   |  172.21.3.15
+8268153             | sample_data_ts_nanos | 2023-10-23T13:52:55.015Z  | 2023-10-23T13:52:55.015123456Z  | 1698069175015123456 |  172.21.3.15   |  172.21.3.15
 ;
 
 

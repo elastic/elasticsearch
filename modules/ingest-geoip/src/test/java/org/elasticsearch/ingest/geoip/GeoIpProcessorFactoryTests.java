@@ -473,15 +473,6 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         threadPool.shutdown();
     }
 
-    public void testFallbackUsingDefaultDatabases() throws Exception {
-        GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(GEOIP_TYPE, databaseNodeService);
-        Map<String, Object> config = new HashMap<>();
-        config.put("field", "source_field");
-        config.put("fallback_to_default_databases", randomBoolean());
-        factory.create(null, null, null, config);
-        assertWarnings(GeoIpProcessor.DEFAULT_DATABASES_DEPRECATION_MESSAGE);
-    }
-
     public void testDownloadDatabaseOnPipelineCreation() throws IOException {
         GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(GEOIP_TYPE, databaseNodeService);
         Map<String, Object> config = new HashMap<>();

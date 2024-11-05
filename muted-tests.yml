@@ -292,6 +292,9 @@ tests:
 - class: org.elasticsearch.ingest.geoip.EnterpriseGeoIpDownloaderIT
   method: testEnterpriseDownloaderTask
   issue: https://github.com/elastic/elasticsearch/issues/115163
+- class: org.elasticsearch.xpack.remotecluster.RemoteClusterSecurityReloadCredentialsRestIT
+  method: testFirstTimeSetupWithElasticsearchSettings
+  issue: https://github.com/elastic/elasticsearch/issues/116286
 
 # Examples:
 #

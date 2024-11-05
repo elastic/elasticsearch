@@ -550,7 +550,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
                     public void onResponse(AcknowledgedResponse response) {
                         if (response.isAcknowledged()) {
                             if (applyRolloverAfterTemplateV2Update()) {
-                                invokeRollover(state, templateName, indexTemplate, creationCheck);
+                                invokeRollover(state, templateName, indexTemplate, () -> creationCheck.set((false)));
                             } else {
                                 creationCheck.set(false);
                             }
@@ -786,19 +786,19 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
 
     /**
      * invokeRollover rolls over any data streams matching the index template,
-     * and then sets creationCheck to false.
+     * and then invokes runAfter.
      */
     private void invokeRollover(
         final ClusterState state,
         final String templateName,
         final ComposableIndexTemplate indexTemplate,
-        final AtomicBoolean creationCheck
+        final Runnable runAfter
     ) {
         final Executor executor = threadPool.generic();
         executor.execute(() -> {
             List<String> rolloverTargets = findRolloverTargetDataStreams(state, templateName, indexTemplate);
             if (rolloverTargets.isEmpty()) {
-                creationCheck.set(false);
+                runAfter.run();
                 return;
             }
             GroupedActionListener<RolloverResponse> groupedActionListener = new GroupedActionListener<>(
@@ -806,13 +806,13 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
                 new ActionListener<>() {
                     @Override
                     public void onResponse(Collection<RolloverResponse> rolloverResponses) {
-                        creationCheck.set(false);
+                        runAfter.run();
                         onRolloversBulkResponse(rolloverResponses);
                     }
 
                     @Override
                     public void onFailure(Exception e) {
-                        creationCheck.set(false);
+                        runAfter.run();
                         onRolloverFailure(e);
                     }
                 }

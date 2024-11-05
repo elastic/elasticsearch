@@ -1,0 +1,5 @@
+pr: 116277
+summary: Update Semantic Query To Handle Zero Size Responses
+area: "Vector Search, Relevance"
+type: bug
+issues: []

@@ -35,6 +35,7 @@ import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.junit.AssumptionViolatedException;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -52,6 +53,11 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class MultiDenseVectorFieldMapperTests extends MapperTestCase {
+
+    @BeforeClass
+    public static void setup() {
+        assumeTrue("Requires multi-dense vector support", MultiDenseVectorFieldMapper.FEATURE_FLAG.isEnabled());
+    }
 
     private final ElementType elementType;
     private final int dims;

@@ -14,6 +14,7 @@ import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.vectors.MultiDenseVectorFieldMapper.MultiDenseVectorFieldType;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -23,6 +24,11 @@ import java.util.Set;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.BBQ_MIN_DIMS;
 
 public class MultiDenseVectorFieldTypeTests extends FieldTypeTestCase {
+
+    @BeforeClass
+    public static void setup() {
+        assumeTrue("Requires multi-dense vector support", MultiDenseVectorFieldMapper.FEATURE_FLAG.isEnabled());
+    }
 
     private MultiDenseVectorFieldType createFloatFieldType() {
         return new MultiDenseVectorFieldType(

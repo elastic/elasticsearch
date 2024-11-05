@@ -105,6 +105,8 @@ WS
     : [ \r\n\t]+ -> channel(HIDDEN)
     ;
 
+COLON : ':';
+
 //
 // Expression - used by most command
 //
@@ -207,7 +209,7 @@ MINUS : '-';
 ASTERISK : '*';
 SLASH : '/';
 PERCENT : '%';
-COLON : {this.isDevVersion()}? ':';
+EXPRESSION_COLON : {this.isDevVersion()}? COLON -> type(COLON);
 
 NESTED_WHERE : WHERE -> type(WHERE);
 

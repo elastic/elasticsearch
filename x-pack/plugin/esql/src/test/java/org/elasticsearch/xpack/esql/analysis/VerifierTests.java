@@ -1146,6 +1146,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testMatchFunctionAndOperatorHaveCorrectErrorMessages() throws Exception {
+        assumeTrue("skipping because MATCH operator is not enabled", EsqlCapabilities.Cap.MATCH_OPERATOR_COLON.isEnabled());
         assertEquals(
             "1:24: [MATCH] function cannot be used after LIMIT",
             error("from test | limit 10 | where match(first_name, \"Anna\")")

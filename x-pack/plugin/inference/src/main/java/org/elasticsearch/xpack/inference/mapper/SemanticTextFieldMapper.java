@@ -567,6 +567,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                             // Size is often set to 0 when calculating aggregations and an unconstrained kNN query will return all docs
                             // with indexed embeddings for the queried field, so we rewrite to a query that achieves that as efficiently as
                             // possible.
+                            // TODO: Apply pre-filters once they are available
                             yield new ExistsQueryBuilder(inferenceResultsFieldName);
                         }
 

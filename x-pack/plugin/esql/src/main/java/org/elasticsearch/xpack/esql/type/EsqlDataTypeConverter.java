@@ -274,11 +274,11 @@ public class EsqlDataTypeConverter {
             return null;
         }
         StringBuilder value = new StringBuilder();
-        StringBuilder qualifier = new StringBuilder();
-        separateValueAndQualifierForTemporalAmount(str.strip(), value, qualifier, errorMessage, expectedType.toString());
-        if ((value.isEmpty() || qualifier.isEmpty()) == false) {
+        StringBuilder temporalUnit = new StringBuilder();
+        separateValueAndTemporalUnitForTemporalAmount(str.strip(), value, temporalUnit, errorMessage, expectedType.toString());
+        if ((value.isEmpty() || temporalUnit.isEmpty()) == false) {
             try {
-                TemporalAmount result = parseTemporalAmount(Integer.parseInt(value.toString()), qualifier.toString(), Source.EMPTY);
+                TemporalAmount result = parseTemporalAmount(Integer.parseInt(value.toString()), temporalUnit.toString(), Source.EMPTY);
                 if (DataType.DATE_PERIOD == expectedType && result instanceof Period
                     || DataType.TIME_DURATION == expectedType && result instanceof Duration) {
                     return result;
@@ -297,15 +297,15 @@ public class EsqlDataTypeConverter {
     }
 
     public static TemporalAmount maybeParseTemporalAmount(String str) {
-        // The string literal can be either Date_Period or Time_Duration, derive the data type from its qualifier
+        // The string literal can be either Date_Period or Time_Duration, derive the data type from its temporal unit
         String errorMessage = "Cannot parse [{}] to {}";
         String expectedTypes = DATE_PERIOD + " or " + TIME_DURATION;
         StringBuilder value = new StringBuilder();
-        StringBuilder qualifier = new StringBuilder();
-        separateValueAndQualifierForTemporalAmount(str, value, qualifier, errorMessage, expectedTypes);
-        if ((value.isEmpty() || qualifier.isEmpty()) == false) {
+        StringBuilder temporalUnit = new StringBuilder();
+        separateValueAndTemporalUnitForTemporalAmount(str, value, temporalUnit, errorMessage, expectedTypes);
+        if ((value.isEmpty() || temporalUnit.isEmpty()) == false) {
             try {
-                return parseTemporalAmount(Integer.parseInt(value.toString()), qualifier.toString(), Source.EMPTY);
+                return parseTemporalAmount(Integer.parseInt(value.toString()), temporalUnit.toString(), Source.EMPTY);
             } catch (NumberFormatException ex) {
                 throw new ParsingException(Source.EMPTY, errorMessage, str, expectedTypes);
             }
@@ -313,10 +313,10 @@ public class EsqlDataTypeConverter {
         return null;
     }
 
-    private static void separateValueAndQualifierForTemporalAmount(
+    private static void separateValueAndTemporalUnitForTemporalAmount(
         String temporalAmount,
         StringBuilder value,
-        StringBuilder qualifier,
+        StringBuilder temporalUnit,
         String errorMessage,
         String expectedType
     ) {
@@ -325,7 +325,7 @@ public class EsqlDataTypeConverter {
         for (char c : temporalAmount.toCharArray()) {
             if (c == ' ') {
                 if (lastWasSpace == false) {
-                    nextBuffer = nextBuffer == value ? qualifier : null;
+                    nextBuffer = nextBuffer == value ? temporalUnit : null;
                 }
                 lastWasSpace = true;
                 continue;
@@ -420,10 +420,10 @@ public class EsqlDataTypeConverter {
     }
 
     // generally supporting abbreviations from https://en.wikipedia.org/wiki/Unit_of_time
-    public static TemporalAmount parseTemporalAmount(Number value, String qualifier, Source source) throws InvalidArgumentException,
+    public static TemporalAmount parseTemporalAmount(Number value, String temporalUnit, Source source) throws InvalidArgumentException,
         ArithmeticException, ParsingException {
         try {
-            return switch (INTERVALS.valueOf(qualifier.toUpperCase(Locale.ROOT))) {
+            return switch (INTERVALS.valueOf(temporalUnit.toUpperCase(Locale.ROOT))) {
                 case MILLISECOND, MILLISECONDS, MS -> Duration.ofMillis(safeToLong(value));
                 case SECOND, SECONDS, SEC, S -> Duration.ofSeconds(safeToLong(value));
                 case MINUTE, MINUTES, MIN -> Duration.ofMinutes(safeToLong(value));
@@ -436,7 +436,7 @@ public class EsqlDataTypeConverter {
                 case YEAR, YEARS, YR, Y -> Period.ofYears(safeToInt(safeToLong(value)));
             };
         } catch (IllegalArgumentException e) {
-            throw new ParsingException(source, "Unexpected time interval qualifier: '{}'", qualifier);
+            throw new ParsingException(source, "Unexpected temporal unit: '{}'", temporalUnit);
         }
     }
 

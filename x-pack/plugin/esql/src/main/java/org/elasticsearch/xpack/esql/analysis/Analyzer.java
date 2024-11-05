@@ -968,6 +968,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
      * date = "2024-08-21" + 3 days
      * ip == "127.0.0.1"
      * version != "1.0"
+     * bucket(dateField, "1 month")
+     * date_trunc("1 minute", dateField)
      *
      * If the inputs to Coalesce are mixed numeric types, cast the rest of the numeric field or value to the first numeric data type if
      * applicable. For example, implicit casting converts:
@@ -992,7 +994,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return processIn(in);
             }
             if (f instanceof EsqlScalarFunction || f instanceof GroupingFunction) { // exclude AggregateFunction until it is needed
-                return processFunction(f, registry);
+                return processScalarOrGroupingFunction(f, registry);
             }
             if (f instanceof EsqlArithmeticOperation || f instanceof BinaryComparison) {
                 return processBinaryOperator((BinaryOperator) f);
@@ -1000,7 +1002,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return f;
         }
 
-        private static Expression processFunction(
+        private static Expression processScalarOrGroupingFunction(
             org.elasticsearch.xpack.esql.core.expression.function.Function f,
             EsqlFunctionRegistry registry
         ) {

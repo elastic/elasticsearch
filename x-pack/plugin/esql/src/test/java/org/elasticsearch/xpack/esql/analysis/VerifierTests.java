@@ -1578,15 +1578,15 @@ public class VerifierTests extends ESTestCase {
 
         // Bucket
         assertEquals(
-            "1:52: Cannot convert string [1 yar] to [DATE_PERIOD or TIME_DURATION], error [Unexpected time interval qualifier: 'yar']",
+            "1:52: Cannot convert string [1 yar] to [DATE_PERIOD or TIME_DURATION], error [Unexpected temporal unit: 'yar']",
             error("from test | stats max(emp_no) by bucket(hire_date, \"1 yar\")")
         );
         assertEquals(
-            "1:52: Cannot convert string [1 hur] to [DATE_PERIOD or TIME_DURATION], error [Unexpected time interval qualifier: 'hur']",
+            "1:52: Cannot convert string [1 hur] to [DATE_PERIOD or TIME_DURATION], error [Unexpected temporal unit: 'hur']",
             error("from test | stats max(emp_no) by bucket(hire_date, \"1 hur\")")
         );
         assertEquals(
-            "1:58: Cannot convert string [1 mu] to [DATE_PERIOD or TIME_DURATION], error [Unexpected time interval qualifier: 'mu']",
+            "1:58: Cannot convert string [1 mu] to [DATE_PERIOD or TIME_DURATION], error [Unexpected temporal unit: 'mu']",
             error("from test | stats max = max(emp_no) by bucket(hire_date, \"1 mu\") | sort max ")
         );
         assertEquals(

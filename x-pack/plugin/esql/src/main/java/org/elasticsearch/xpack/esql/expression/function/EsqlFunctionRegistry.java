@@ -473,7 +473,7 @@ public class EsqlFunctionRegistry {
     }
 
     /**
-     * This is called by ImplicitCasting to convert string literals to a target data type.
+     * Build a list target data types, which is used by ImplicitCasting to convert string literals to a target data type.
      */
     public static DataType getTargetType(String[] names) {
         List<DataType> types = new ArrayList<>();

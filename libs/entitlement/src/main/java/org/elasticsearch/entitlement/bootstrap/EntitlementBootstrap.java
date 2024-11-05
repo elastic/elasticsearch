@@ -53,7 +53,7 @@ public class EntitlementBootstrap {
         String initPkg = EntitlementInitialization.class.getPackageName();
         // agent will live in unnamed module
         Module unnamedModule = ClassLoader.getSystemClassLoader().getUnnamedModule();
-        EntitlementBootstrap.class.getModule().addExports(initPkg, unnamedModule);
+        EntitlementInitialization.class.getModule().addExports(initPkg, unnamedModule);
     }
 
     private static String findAgentJar() {

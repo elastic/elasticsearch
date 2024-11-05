@@ -124,23 +124,20 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
                 long index = desiredBalanceInput.index();
                 logger.debug("Starting desired balance computation for [{}]", index);
 
-                DesiredBalance desiredBalance;
-                final long started = threadPool.relativeTimeInMillis();
-                try {
-                    desiredBalance = desiredBalanceComputer.compute(
-                        getInitialDesiredBalance(),
-                        desiredBalanceInput,
-                        pendingDesiredBalanceMoves,
-                        this::isFresh
-                    );
-                    setCurrentDesiredBalance(desiredBalance);
-                } finally {
-                    final long finished = threadPool.relativeTimeInMillis();
-                    cumulativeComputationTime.inc(finished - started);
-                }
+                recordTime(
+                    cumulativeComputationTime,
+                    () -> setCurrentDesiredBalance(
+                        desiredBalanceComputer.compute(
+                            getInitialDesiredBalance(),
+                            desiredBalanceInput,
+                            pendingDesiredBalanceMoves,
+                            this::isFresh
+                        )
+                    )
+                );
                 computationsExecuted.inc();
 
-                if (desiredBalance.finishReason() == DesiredBalance.ComputationFinishReason.STOP_EARLY) {
+                if (currentDesiredBalance.finishReason() == DesiredBalance.ComputationFinishReason.STOP_EARLY) {
                     logger.debug(
                         "Desired balance computation for [{}] terminated early with partial result, scheduling reconciliation",
                         index

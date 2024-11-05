@@ -107,7 +107,7 @@ to your use case:
 
 * add nodes to the affected <<data-tiers,data tiers>>
 +
-TIP: We recommend enabling <<xpack-autoscaling,Autoscaling>> for clusters deployed via our {ess}, {ece}, and {eck} platforms.
+TIP: You should enable <<xpack-autoscaling,autoscaling>> for clusters deployed using our {ess}, {ece}, and {eck} platforms.
 
 * upgrade existing nodes to increase disk space
 +

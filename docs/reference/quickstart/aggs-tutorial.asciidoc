@@ -39,7 +39,7 @@ Let's start by calculating important metrics about orders and customers.
 
 [discrete]
 [[aggregations-tutorial-order-value]]
-==== Understand typical order size
+==== Get average order size
 
 [source,console]
 ----
@@ -98,7 +98,7 @@ GET kibana_sample_data_ecommerce/_search
 
 [discrete]
 [[aggregations-tutorial-order-stats]]
-==== Get a complete picture of order values
+==== Get multiple order statistics at once
 
 Calculate multiple statistics about orders in one request.
 
@@ -152,13 +152,13 @@ The <<search-aggregations-metrics-stats-aggregation,stats aggregation>> is more 
 
 [discrete]
 [[aggregations-tutorial-sales-patterns]]
-=== Analyze the sales patterns
+=== Analyze sales patterns
 
 Let's group orders in different ways to understand sales patterns.
 
 [discrete]
 [[aggregations-tutorial-category-breakdown]]
-==== See how different categories perform
+==== Break down sales by category
 
 [source,console]
 ----
@@ -347,6 +347,8 @@ GET kibana_sample_data_ecommerce/_search
 [discrete]
 [[aggregations-tutorial-daily-metrics]]
 ==== Analyze daily sales performance
+
+Let's combine metrics to track daily trends: daily revenue, unique customers, and average basket size.
 
 [source,console]
 ----

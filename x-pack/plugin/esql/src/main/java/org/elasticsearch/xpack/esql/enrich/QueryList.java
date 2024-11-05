@@ -40,7 +40,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
 /**
  * Generates a list of Lucene queries based on the input block.
  */
-abstract class QueryList {
+public abstract class QueryList {
     protected final Block block;
 
     protected QueryList(Block block) {

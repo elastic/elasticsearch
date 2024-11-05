@@ -63,8 +63,12 @@ dependencies {
   api "com.github.stephenc.jcip:jcip-annotations:1.0-1"
   api "com.nimbusds:content-type:2.3"
   api "com.nimbusds:lang-tag:1.7"
-  api "com.nimbusds:nimbus-jose-jwt:9.37.3"
-  api "com.nimbusds:oauth2-oidc-sdk:11.9.1"
+  api("com.nimbusds:nimbus-jose-jwt:9.37.3"){
+    exclude group: 'com.google.crypto.tink', module: 'tink' // it's an optional dependency on which we don't rely
+  }
+  api("com.nimbusds:oauth2-oidc-sdk:11.9.1"){
+    exclude group: 'com.google.crypto.tink', module: 'tink' // it's an optional dependency on which we don't rely
+  }
   api "jakarta.activation:jakarta.activation-api:1.2.1"
   api "jakarta.xml.bind:jakarta.xml.bind-api:2.3.3"
   api "net.java.dev.jna:jna-platform:${versions.jna}" // Maven says 5.14.0 but this aligns with the Elasticsearch-wide version
@@ -74,8 +78,6 @@ dependencies {
   api "org.codehaus.woodstox:stax2-api:4.2.2"
   api "org.ow2.asm:asm:9.3"
 
-  runtimeOnly "com.google.crypto.tink:tink:1.14.0"
-  runtimeOnly "com.google.protobuf:protobuf-java:4.27.0"
   runtimeOnly "com.google.code.gson:gson:2.11.0"
   runtimeOnly "org.cryptomator:siv-mode:1.5.2"
 
@@ -175,13 +177,11 @@ tasks.named("thirdPartyAudit").configure {
     //    'org.slf4j.ext.EventData' - bring back when https://github.com/elastic/elasticsearch/issues/93714 is done
 
     // Optional dependency of tink
-    'com.google.api.client.http.HttpHeaders',
-    'com.google.api.client.http.HttpRequest',
-    'com.google.api.client.http.HttpRequestFactory',
-    'com.google.api.client.http.HttpResponse',
-    'com.google.api.client.http.HttpTransport',
-    'com.google.api.client.http.javanet.NetHttpTransport',
-    'com.google.api.client.http.javanet.NetHttpTransport$Builder',
+    'com.google.crypto.tink.subtle.Ed25519Sign',
+    'com.google.crypto.tink.subtle.Ed25519Sign$KeyPair',
+    'com.google.crypto.tink.subtle.Ed25519Verify',
+    'com.google.crypto.tink.subtle.X25519',
+    'com.google.crypto.tink.subtle.XChaCha20Poly1305',
 
     // Optional dependency of nimbus-jose-jwt and oauth2-oidc-sdk
     'org.bouncycastle.asn1.pkcs.PrivateKeyInfo',
@@ -253,14 +253,6 @@ tasks.named("thirdPartyAudit").configure {
     'javax.activation.MailcapCommandMap',
     'javax.activation.MimetypesFileTypeMap',
     'reactor.core.publisher.Traces$SharedSecretsCallSiteSupplierFactory$TracingException',
-
-    'com.google.protobuf.MessageSchema',
-    'com.google.protobuf.UnsafeUtil',
-    'com.google.protobuf.UnsafeUtil$1',
-    'com.google.protobuf.UnsafeUtil$Android32MemoryAccessor',
-    'com.google.protobuf.UnsafeUtil$Android64MemoryAccessor',
-    'com.google.protobuf.UnsafeUtil$JvmMemoryAccessor',
-    'com.google.protobuf.UnsafeUtil$MemoryAccessor',
   )
 }
 

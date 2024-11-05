@@ -12,11 +12,11 @@ import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.ParseTreeVisitor;
 import org.antlr.v4.runtime.tree.TerminalNode;
-import org.apache.logging.log4j.util.Strings;
 import org.apache.lucene.queryparser.classic.QueryParser;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 /**
  * Utility class for parsing and processing KQL expressions.
@@ -211,15 +211,15 @@ public final class ParserUtils {
         if (startIndex + 1 >= input.length()) {
             return false;
         }
-        String remaining = Strings.toRootLowerCase(input.substring(startIndex));
+        String remaining = input.substring(startIndex).toLowerCase(Locale.ROOT);
         return remaining.startsWith("and") || remaining.startsWith("or") || remaining.startsWith("not");
     }
 
     private static String handleKeywordSequence(String input, int startIndex) {
         String remaining = input.substring(startIndex);
-        if (Strings.toRootLowerCase(remaining).startsWith("and")) return remaining.substring(0, 3);
-        if (Strings.toRootLowerCase(remaining).startsWith("or")) return remaining.substring(0, 2);
-        if (Strings.toRootLowerCase(remaining).startsWith("not")) return remaining.substring(0, 3);
+        if (remaining.toLowerCase(Locale.ROOT).startsWith("and")) return remaining.substring(0, 3);
+        if (remaining.toLowerCase(Locale.ROOT).startsWith("or")) return remaining.substring(0, 2);
+        if (remaining.toLowerCase(Locale.ROOT).startsWith("not")) return remaining.substring(0, 3);
         return "";
     }
 

@@ -254,7 +254,7 @@ public abstract class YamlTemplateRegistry extends IndexTemplateRegistry {
     }
 
     @Override
-    protected boolean applyRolloverAfterTemplateV2Upgrade() {
+    protected boolean applyRolloverAfterTemplateV2Update() {
         return true;
     }
 }

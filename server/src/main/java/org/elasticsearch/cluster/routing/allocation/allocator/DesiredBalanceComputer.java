@@ -335,7 +335,7 @@ public class DesiredBalanceComputer {
                 nextReportTime = currentTime + timeWarningInterval;
             }
 
-            if (hasIterationConverged(hasChanges, i)) {
+            if (hasComputationConverged(hasChanges, i)) {
                 logger.debug(
                     "Desired balance computation for [{}] converged after [{}] and [{}] iterations",
                     desiredBalanceInput.index(),
@@ -415,7 +415,7 @@ public class DesiredBalanceComputer {
     }
 
     // visible for testing
-    boolean hasIterationConverged(boolean hasRoutingChanges, int i) {
+    boolean hasComputationConverged(boolean hasRoutingChanges, int currentIteration) {
         return hasRoutingChanges == false;
     }
 

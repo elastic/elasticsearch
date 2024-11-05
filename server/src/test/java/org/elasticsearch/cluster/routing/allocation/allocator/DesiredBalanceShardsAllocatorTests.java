@@ -384,10 +384,13 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             }
         };
 
+        // Make sure the computation takes at least a few iterations, where each iteration takes 1s (see {@code #shardsAllocator.allocate}).
+        // By setting the following setting we ensure the desired balance computation will be interrupted early to not delay assigning
+        // newly created primary shards. This ensures that we hit a desired balance computation (3s) which is longer than the configured
+        // setting below.
         var clusterSettings = createBuiltInClusterSettings(
             Settings.builder().put(DesiredBalanceComputer.MAX_BALANCE_COMPUTATION_TIME_DURING_INDEX_CREATION_SETTING.getKey(), "2s").build()
         );
-        // Make sure the computation takes at least a few iterations, where each iteration takes 1s (see {@code #shardsAllocator.allocate})
         final int minIterations = between(3, 10);
         var desiredBalanceShardsAllocator = new DesiredBalanceShardsAllocator(
             shardsAllocator,
@@ -405,8 +408,8 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
                 }
 
                 @Override
-                boolean hasIterationConverged(boolean hasRoutingChanges, int i) {
-                    return super.hasIterationConverged(hasRoutingChanges, i) && i >= minIterations;
+                boolean hasComputationConverged(boolean hasRoutingChanges, int currentIteration) {
+                    return super.hasComputationConverged(hasRoutingChanges, currentIteration) && currentIteration >= minIterations;
                 }
             },
             reconcileAction,
@@ -416,6 +419,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
         allocationServiceRef.set(allocationService);
 
         var rerouteFinished = new CyclicBarrier(2);
+        // A mock cluster state update task for creating an index
         class CreateIndexTask extends ClusterStateUpdateTask {
             private final String indexName;
 
@@ -449,6 +453,8 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
         final var computationInterruptedMessage =
             "Desired balance computation for * interrupted * in order to not delay assignment of newly created index shards *";
         try {
+            // Create a new index which is not ignored and therefore must be considered when a desired balance
+            // computation takes longer than 2s.
             assertThat(desiredBalanceShardsAllocator.getStats().computationExecuted(), equalTo(0L));
             MockLog.assertThatLogger(() -> {
                 clusterService.submitUnbatchedStateUpdateTask("test", new CreateIndexTask("index-1"));
@@ -943,6 +949,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
         );
     }
 
+    // Creates a mock GatewayAllocator that delegates its logic for allocating unassigned shards to the provided handler.
     private static GatewayAllocator createGatewayAllocator(AllocateUnassignedHandler allocateUnassigned) {
         return new GatewayAllocator() {
 

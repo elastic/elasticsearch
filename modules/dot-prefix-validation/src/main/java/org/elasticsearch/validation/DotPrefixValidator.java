@@ -26,6 +26,7 @@ import org.elasticsearch.tasks.Task;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
 import java.util.stream.Collectors;
@@ -67,7 +68,7 @@ public abstract class DotPrefixValidator<RequestType> implements MappedActionFil
         ".ml-state",
         ".ml-anomalies-unrelated"
     );
-    public static Setting<List<String>> IGNORED_INDEX_PATTERNS_SETTING = Setting.stringListSetting(
+    public static Setting<List<String>> IGNORED_INDEX_PATTERNS_SETTING = Setting.listSetting(
         "cluster.indices.validate_ignored_dot_patterns",
         List.of(
             "\\.ml-state-\\d+",
@@ -75,6 +76,7 @@ public abstract class DotPrefixValidator<RequestType> implements MappedActionFil
             "\\.slo-observability\\.summary-v\\d+.*",
             "\\.entities\\.v\\d+\\.latest\\..*"
         ),
+        Function.identity(),
         (patternList) -> patternList.forEach(pattern -> {
             try {
                 Pattern.compile(pattern);

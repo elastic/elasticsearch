@@ -272,7 +272,6 @@ public class IndexNameExpressionResolver {
             }
         }
         boolean wildcardSeen = false;
-        boolean emptyWildcardExpressionRuleRespected = context.getOptions().allowNoIndices();
         Set<String> resources = new LinkedHashSet<>();
         for (int i = 0, n = expressions.length; i < n; i++) {
             String originalExpression = expressions[i];
@@ -292,6 +291,7 @@ public class IndexNameExpressionResolver {
             wildcardSeen |= isWildcard;
 
             if (isWildcard) {
+                boolean emptyWildcardExpressionRuleRespected = context.getOptions().allowNoIndices();
                 Set<String> matchingResources = WildcardExpressionResolver.matchWildcardToResources(context, baseExpression);
                 emptyWildcardExpressionRuleRespected |= matchingResources.isEmpty() == false;
                 if (emptyWildcardExpressionRuleRespected == false) {

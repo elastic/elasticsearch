@@ -12,6 +12,7 @@ import org.elasticsearch.index.fielddata.FormattedDocValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper;
@@ -88,6 +89,9 @@ class FieldValueFetcher {
                         fetchers.add(new AggregateMetricFieldValueFetcher(metricSubField, aggMetricFieldType, fieldData));
                     }
                 }
+            } if (fieldType instanceof FlattenedFieldMapper.RootFlattenedFieldType rootFlattenedFieldType) {
+                // Can't recreate the flattened field as the value is returned as a literal while the index expect a json object.
+                return Collections.unmodifiableList(fetchers);
             } else {
                 if (context.fieldExistsInIndex(field)) {
                     final IndexFieldData<?> fieldData = context.getForField(fieldType, MappedFieldType.FielddataOperation.SEARCH);

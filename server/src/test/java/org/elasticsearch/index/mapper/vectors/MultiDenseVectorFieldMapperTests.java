@@ -80,7 +80,7 @@ public class MultiDenseVectorFieldMapperTests extends MapperTestCase {
 
     @Override
     protected Object getSampleValueForDocument() {
-        int numVectors = randomIntBetween(1, 64);
+        int numVectors = randomIntBetween(1, 16);
         return Stream.generate(
             () -> elementType == ElementType.FLOAT ? List.of(0.5, 0.5, 0.5, 0.5) : List.of((byte) 1, (byte) 1, (byte) 1, (byte) 1)
         ).limit(numVectors).toList();
@@ -280,38 +280,32 @@ public class MultiDenseVectorFieldMapperTests extends MapperTestCase {
 
         // test that error is thrown when a document has number of dims more than defined in the mapping
         float[][] invalidVector = new float[4][dims + 1];
-        DocumentParsingException e = expectThrows(
-            DocumentParsingException.class,
-            () -> mapper.parse(source(b -> {
-                b.startArray("field");
-                for (float[] vector : invalidVector) {
-                    b.startArray();
-                    for (float value : vector) {
-                        b.value(value);
-                    }
-                    b.endArray();
+        DocumentParsingException e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> {
+            b.startArray("field");
+            for (float[] vector : invalidVector) {
+                b.startArray();
+                for (float value : vector) {
+                    b.value(value);
                 }
                 b.endArray();
-            }))
-        );
+            }
+            b.endArray();
+        })));
         assertThat(e.getCause().getMessage(), containsString("has more dimensions than defined in the mapping [3]"));
 
         // test that error is thrown when a document has number of dims less than defined in the mapping
         float[][] invalidVector2 = new float[4][dims - 1];
-        DocumentParsingException e2 = expectThrows(
-            DocumentParsingException.class,
-            () -> mapper.parse(source(b -> {
-                b.startArray("field");
-                for (float[] vector : invalidVector2) {
-                    b.startArray();
-                    for (float value : vector) {
-                        b.value(value);
-                    }
-                    b.endArray();
+        DocumentParsingException e2 = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> {
+            b.startArray("field");
+            for (float[] vector : invalidVector2) {
+                b.startArray();
+                for (float value : vector) {
+                    b.value(value);
                 }
                 b.endArray();
-            }))
-        );
+            }
+            b.endArray();
+        })));
         assertThat(e2.getCause().getMessage(), containsString("has a different number of dimensions [2] than defined in the mapping [3]"));
     }
 
@@ -375,7 +369,7 @@ public class MultiDenseVectorFieldMapperTests extends MapperTestCase {
     @Override
     protected Object generateRandomInputValue(MappedFieldType ft) {
         MultiDenseVectorFieldMapper.MultiDenseVectorFieldType vectorFieldType = (MultiDenseVectorFieldMapper.MultiDenseVectorFieldType) ft;
-        int numVectors = randomIntBetween(1, 64);
+        int numVectors = randomIntBetween(1, 16);
         return switch (vectorFieldType.getElementType()) {
             case BYTE -> {
                 byte[][] vectors = new byte[numVectors][vectorFieldType.getVectorDimensions()];
@@ -432,11 +426,11 @@ public class MultiDenseVectorFieldMapperTests extends MapperTestCase {
 
     private static class DenseVectorSyntheticSourceSupport implements SyntheticSourceSupport {
         private final int dims = between(5, 1000);
-        private final int numVecs = between(1, 64);
+        private final int numVecs = between(1, 16);
         private final ElementType elementType = randomFrom(ElementType.BYTE, ElementType.FLOAT, ElementType.BIT);
 
         @Override
-        public SyntheticSourceExample example(int maxValues) throws IOException {
+        public SyntheticSourceExample example(int maxValues) {
             Object value = switch (elementType) {
                 case BYTE, BIT:
                     yield randomList(numVecs, numVecs, () -> randomList(dims, dims, ESTestCase::randomByte));

@@ -5,10 +5,10 @@ version: 11
 
 component-templates:
   # Data lifecycle.
-  - apm-10d-default_policy
-  - apm-90d-default_policy
-  - apm-180d-default_policy
-  - apm-390d-default_policy
+  - apm-10d@lifecycle
+  - apm-90d@lifecycle
+  - apm-180d@lifecycle
+  - apm-390d@lifecycle
   # Common mappings and settings.
   # - *-apm* data streams compose apm@*
   # - metrics-apm* data streams additionally compose metrics-apm@*

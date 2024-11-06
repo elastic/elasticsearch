@@ -15,7 +15,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.MapperTestUtils;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.license.MockLicenseState;
@@ -280,7 +279,6 @@ public class SyntheticSourceIndexSettingsProviderTests extends ESTestCase {
             .build();
 
         Settings result = provider.getAdditionalIndexSettings(
-            IndexVersion.current(),
             DataStream.getDefaultBackingIndexName(dataStreamName, 2),
             dataStreamName,
             null,
@@ -294,7 +292,6 @@ public class SyntheticSourceIndexSettingsProviderTests extends ESTestCase {
 
         syntheticSourceLicenseService.setSyntheticSourceFallback(true);
         result = provider.getAdditionalIndexSettings(
-            IndexVersion.current(),
             DataStream.getDefaultBackingIndexName(dataStreamName, 2),
             dataStreamName,
             null,
@@ -308,7 +305,6 @@ public class SyntheticSourceIndexSettingsProviderTests extends ESTestCase {
         assertThat(newMapperServiceCounter.get(), equalTo(0));
 
         result = provider.getAdditionalIndexSettings(
-            IndexVersion.current(),
             DataStream.getDefaultBackingIndexName(dataStreamName, 2),
             dataStreamName,
             IndexMode.TIME_SERIES,
@@ -322,7 +318,6 @@ public class SyntheticSourceIndexSettingsProviderTests extends ESTestCase {
         assertThat(newMapperServiceCounter.get(), equalTo(0));
 
         result = provider.getAdditionalIndexSettings(
-            IndexVersion.current(),
             DataStream.getDefaultBackingIndexName(dataStreamName, 2),
             dataStreamName,
             IndexMode.LOGSDB,
@@ -357,7 +352,6 @@ public class SyntheticSourceIndexSettingsProviderTests extends ESTestCase {
         );
         Metadata metadata = mb.build();
         Settings result = provider.getAdditionalIndexSettings(
-            IndexVersion.current(),
             DataStream.getDefaultBackingIndexName(dataStreamName, 2),
             dataStreamName,
             null,
@@ -382,7 +376,6 @@ public class SyntheticSourceIndexSettingsProviderTests extends ESTestCase {
         metadata = mb.build();
 
         result = provider.getAdditionalIndexSettings(
-            IndexVersion.current(),
             DataStream.getDefaultBackingIndexName(dataStreamName, 2),
             dataStreamName,
             null,
@@ -396,7 +389,6 @@ public class SyntheticSourceIndexSettingsProviderTests extends ESTestCase {
         assertThat(newMapperServiceCounter.get(), equalTo(0));
 
         result = provider.getAdditionalIndexSettings(
-            IndexVersion.current(),
             DataStream.getDefaultBackingIndexName(dataStreamName, 2),
             dataStreamName,
             null,

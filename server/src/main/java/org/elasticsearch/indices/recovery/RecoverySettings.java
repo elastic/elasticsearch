@@ -397,13 +397,6 @@ public class RecoverySettings {
         Property.NodeScope
     );
 
-    public static final Setting<Boolean> INDICES_RECOVERY_SOURCE_SYNTHETIC_LOGS_ENABLED_SETTING = Setting.boolSetting(
-        "index.recovery.recovery_source.synthetic.logs.enabled",
-        true,
-        Property.Dynamic,
-        Property.NodeScope
-    );
-
     public static final ByteSizeValue DEFAULT_CHUNK_SIZE = new ByteSizeValue(512, ByteSizeUnit.KB);
 
     private volatile ByteSizeValue maxBytesPerSec;

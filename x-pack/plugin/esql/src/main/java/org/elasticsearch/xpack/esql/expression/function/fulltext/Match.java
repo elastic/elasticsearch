@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Locale;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
@@ -38,11 +39,11 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isStr
  */
 public class Match extends FullTextFunction implements Validatable {
 
-    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Match", Match::new);
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Match", Match::readFrom);
 
     private final Expression field;
-
     private InferenceResults inferenceResults;
+    private transient Boolean isOperator;
 
     @FunctionInfo(
         returnType = "boolean",
@@ -63,15 +64,20 @@ public class Match extends FullTextFunction implements Validatable {
         this.field = field;
     }
 
-    private Match(StreamInput in) throws IOException {
-        this(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(Expression.class), in.readNamedWriteable(Expression.class));
-        this.inferenceResults = in.readOptionalNamedWriteable(InferenceResults.class);
+    private static Match readFrom(StreamInput in) throws IOException {
+        Source source = Source.readFrom((PlanStreamInput) in);
+        Expression field = in.readNamedWriteable(Expression.class);
+        Expression query = in.readNamedWriteable(Expression.class);
+        InferenceResults inferenceResults = in.readOptionalNamedWriteable(InferenceResults.class);
+        Match match = new Match(source, field, query);
+        match.setInferenceResults(inferenceResults);
+        return match;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         source().writeTo(out);
-        out.writeNamedWriteable(field);
+        out.writeNamedWriteable(field());
         out.writeNamedWriteable(query());
         out.writeOptionalWriteable(inferenceResults);
     }
@@ -92,8 +98,9 @@ public class Match extends FullTextFunction implements Validatable {
             failures.add(
                 Failure.fail(
                     field,
-                    "[{}] cannot operate on [{}], which is not a field from an index mapping",
+                    "[{}] {} cannot operate on [{}], which is not a field from an index mapping",
                     functionName(),
+                    functionType(),
                     field.sourceText()
                 )
             );
@@ -102,7 +109,6 @@ public class Match extends FullTextFunction implements Validatable {
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        // Query is the first child, field is the second child
         Match newMatch = new Match(source(), newChildren.get(0), newChildren.get(1));
         newMatch.setInferenceResults(this.inferenceResults);
         return newMatch;
@@ -127,5 +133,22 @@ public class Match extends FullTextFunction implements Validatable {
 
     public InferenceResults inferenceResults() {
         return inferenceResults;
+    }
+
+    @Override
+    public String functionType() {
+        return isOperator() ? "operator" : super.functionType();
+    }
+
+    @Override
+    public String functionName() {
+        return isOperator() ? ":" : super.functionName();
+    }
+
+    private boolean isOperator() {
+        if (isOperator == null) {
+            isOperator = source().text().toUpperCase(Locale.ROOT).matches("^" + super.functionName() + "\\s*\\(.*\\)") == false;
+        }
+        return isOperator;
     }
 }

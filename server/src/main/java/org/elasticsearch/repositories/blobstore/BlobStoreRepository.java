@@ -3469,8 +3469,31 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     private static void ensureNotAborted(ShardId shardId, SnapshotId snapshotId, IndexShardSnapshotStatus snapshotStatus, String fileName) {
         try {
             snapshotStatus.ensureNotAborted();
+
+            if (snapshotStatus.getStage() != IndexShardSnapshotStatus.Stage.INIT
+                && snapshotStatus.getStage() != IndexShardSnapshotStatus.Stage.STARTED) {
+                // A normally running shard snapshot should be in stage INIT or STARTED. And we know it's not in PAUSING or ABORTED because
+                // the ensureNotAborted() call above did not throw. The remaining options don't make sense, if they ever happen.
+                logger.info(
+                    "Shard snapshot found no interrupt signal, but is in an unexpected state. ShardId [{}], SnapshotID [{}], Stage [{}]",
+                    shardId,
+                    snapshotId,
+                    snapshotStatus.getStage()
+                );
+            }
         } catch (Exception e) {
-            logger.debug("[{}] [{}] {} on the file [{}], exiting", shardId, snapshotId, e.getMessage(), fileName);
+            // We want to see when a shard snapshot operation checks for and finds an interrupt signal during shutdown. A
+            // PausedSnapshotException indicates we're in shutdown because that's the only case when shard snapshots are signaled to pause.
+            // An AbortedSnapshotException may also occur during shutdown if an uncommon error occurs.
+            logger.info(
+                "Shard snapshot operation is aborting. ShardId [{}], SnapshotID [{}], File [{}], Stage [{}], Message [{}], Stacktrace: {}",
+                shardId,
+                snapshotId,
+                fileName,
+                snapshotStatus.getStage(),
+                e.getMessage(),
+                e.getStackTrace()
+            );
             assert e instanceof AbortedSnapshotException || e instanceof PausedSnapshotException : e;
             throw e;
         }

@@ -12,6 +12,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -130,7 +131,7 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
             }
             timeSeriesId = buildLegacyTsid(routingPathFields).toBytesRef();
         } else {
-            timeSeriesId = RoutingHasher.build(routingPathFields).toBytesRef();
+            timeSeriesId = routingPathFields.buildHash().toBytesRef();
         }
         context.doc().add(new SortedDocValuesField(fieldType().name(), timeSeriesId));
 
@@ -157,10 +158,20 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
      */
     public static Object encodeTsid(StreamInput in) {
         try {
-            return RoutingHasher.encode(in.readSlicedBytesReference().toBytesRef());
+            return encode(in.readSlicedBytesReference().toBytesRef());
         } catch (IOException e) {
             throw new IllegalArgumentException("Unable to read tsid");
         }
+    }
+
+    public static Object encode(final BytesRef bytesRef) {
+        return base64Encode(bytesRef);
+    }
+
+    private static String base64Encode(final BytesRef bytesRef) {
+        byte[] bytes = new byte[bytesRef.length];
+        System.arraycopy(bytesRef.bytes, bytesRef.offset, bytes, 0, bytesRef.length);
+        return Strings.BASE_64_NO_PADDING_URL_ENCODER.encodeToString(bytes);
     }
 
     public static BytesReference buildLegacyTsid(RoutingPathFields routingPathFields) throws IOException {

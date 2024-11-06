@@ -162,7 +162,7 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
     }
 
     private static String tsidDescription(IndexableField tsidField) {
-        String tsid = RoutingHasher.encode(tsidField.binaryValue()).toString();
+        String tsid = TimeSeriesIdFieldMapper.encode(tsidField.binaryValue()).toString();
         if (tsid.length() <= DESCRIPTION_TSID_LIMIT) {
             return tsid;
         }

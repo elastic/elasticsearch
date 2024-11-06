@@ -46,7 +46,6 @@ import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
-import org.elasticsearch.index.mapper.RoutingHasher;
 import org.elasticsearch.index.mapper.RoutingPathFields;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.plugins.SearchPlugin;
@@ -804,7 +803,7 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
                     ArrayList<Field> fields = new ArrayList<>(
                         Arrays.asList(
                             new SortedDocValuesField("group_id", new BytesRef(testData.groups[g])),
-                            new SortedDocValuesField(TimeSeriesIdFieldMapper.NAME, RoutingHasher.build(routingFields).toBytesRef())
+                            new SortedDocValuesField(TimeSeriesIdFieldMapper.NAME, routingFields.buildHash().toBytesRef())
                         )
                     );
                     GeoPoint point = points.get(i);

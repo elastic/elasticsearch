@@ -20,7 +20,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.mapper.DateFieldMapper.Resolution;
-import org.elasticsearch.index.mapper.RoutingHasher;
 import org.elasticsearch.index.mapper.RoutingPathFields;
 import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
 import org.elasticsearch.test.ESTestCase;
@@ -384,7 +383,7 @@ public class DocValueFormatTests extends ESTestCase {
         routingFields.addString("string", randomAlphaOfLength(10));
         routingFields.addLong("long", randomLong());
         routingFields.addUnsignedLong("ulong", randomLong());
-        BytesRef expected = RoutingHasher.build(routingFields).toBytesRef();
+        BytesRef expected = routingFields.buildHash().toBytesRef();
         byte[] expectedBytes = new byte[expected.length];
         System.arraycopy(expected.bytes, 0, expectedBytes, 0, expected.length);
         BytesRef actual = DocValueFormat.TIME_SERIES_ID.parseBytesRef(expected);

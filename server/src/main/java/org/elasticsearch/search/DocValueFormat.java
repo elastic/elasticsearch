@@ -22,7 +22,6 @@ import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.util.LocaleUtils;
 import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.index.mapper.DateFieldMapper;
-import org.elasticsearch.index.mapper.RoutingHasher;
 import org.elasticsearch.index.mapper.RoutingPathFields;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
@@ -705,10 +704,10 @@ public interface DocValueFormat extends NamedWriteable {
             try {
                 // NOTE: if the tsid is a map of dimension key/value pairs (as it was before introducing
                 // tsid hashing) we just decode the map and return it.
-                return RoutingHasher.decodeAsMap(value);
+                return RoutingPathFields.decodeAsMap(value);
             } catch (Exception e) {
                 // NOTE: otherwise the _tsid field is just a hash and we can't decode it
-                return RoutingHasher.encode(value);
+                return TimeSeriesIdFieldMapper.encode(value);
             }
         }
 

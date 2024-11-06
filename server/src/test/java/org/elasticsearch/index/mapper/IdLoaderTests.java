@@ -239,7 +239,7 @@ public class IdLoaderTests extends ESTestCase {
                 fields.add(new SortedSetDocValuesField(dimension.field, new BytesRef(dimension.value.toString())));
             }
         }
-        BytesRef tsid = RoutingHasher.build(routingFields).toBytesRef();
+        BytesRef tsid = routingFields.buildHash().toBytesRef();
         fields.add(new SortedDocValuesField(TimeSeriesIdFieldMapper.NAME, tsid));
         fields.add(
             new SortedDocValuesField(
@@ -259,7 +259,7 @@ public class IdLoaderTests extends ESTestCase {
                 routingFields.addString(dimension.field, dimension.value.toString());
             }
         }
-        return TsidExtractingIdFieldMapper.createId(routingHash, RoutingHasher.build(routingFields).toBytesRef(), doc.timestamp);
+        return TsidExtractingIdFieldMapper.createId(routingHash, routingFields.buildHash().toBytesRef(), doc.timestamp);
     }
 
     private static IndexRouting.ExtractFromSource createRouting(List<String> routingPaths) {

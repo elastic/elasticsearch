@@ -408,8 +408,8 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
                 }
 
                 @Override
-                boolean hasComputationConverged(boolean hasRoutingChanges, int currentIteration) {
-                    return super.hasComputationConverged(hasRoutingChanges, currentIteration) && currentIteration >= minIterations;
+                boolean hasEnoughIterations(int currentIteration) {
+                    return currentIteration >= minIterations;
                 }
             },
             reconcileAction,

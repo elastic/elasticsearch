@@ -42,6 +42,8 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
+import org.hamcrest.FeatureMatcher;
+import org.hamcrest.Matcher;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.stubbing.Answer;
@@ -56,6 +58,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
@@ -65,7 +68,9 @@ import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -309,6 +314,11 @@ public class FileSettingsServiceTests extends ESTestCase {
         doAnswer((Answer<?>) invocation -> {
             try {
                 return invocation.callRealMethod();
+            } catch (XContentParseException e) {
+                // We're expecting a parse error. processFileChanges specifies that this is supposed to throw ExecutionException.
+                throw new ExecutionException(e);
+            } catch (Throwable e) {
+                throw new AssertionError("Unexpected exception", e);
             } finally {
                 doneFileChanged.await();
             }
@@ -317,12 +327,15 @@ public class FileSettingsServiceTests extends ESTestCase {
         fileSettingsService.start();
         fileSettingsService.clusterChanged(new ClusterChangedEvent("test", clusterService.state(), ClusterState.EMPTY_STATE));
         doneServiceStart.await(20, TimeUnit.SECONDS);
-        overwriteTestFile(fileSettingsService.watchedFile(), "test_invalid_JSON");
+        writeTestFile(fileSettingsService.watchedFile(), "test_invalid_JSON");
         doneFileChanged.await(20, TimeUnit.SECONDS);
 
         verify(fileSettingsService, times(1)).processFileOnServiceStart(); // The initial state
         verify(fileSettingsService, times(1)).processFileChanges(); // The changed state
-        verify(fileSettingsService, times(1)).onProcessFileChangesException(any(XContentParseException.class));
+        Matcher<Object> matcher = instanceOf(ExecutionException.class);
+        Matcher<Object> causeMatcher = hasCauseThat(instanceOf(XContentParseException.class));
+        verify(fileSettingsService, times(1)).onProcessFileChangesException(argThat(e -> e instanceof ExecutionException && e.getCause() instanceof XContentParseException));
+
     }
 
     @SuppressWarnings("unchecked")
@@ -452,4 +465,14 @@ public class FileSettingsServiceTests extends ESTestCase {
             fail(e, "longAwait: interrupted waiting for CountDownLatch to reach zero");
         }
     }
+
+    public static Matcher<Object> hasCauseThat(Matcher<? super Throwable> causeMatcher) {
+        return new FeatureMatcher<Object, Throwable>(causeMatcher, "an exception with cause that", "cause") {
+            @Override
+            protected Throwable featureValueOf(Object obj) {
+                return ((Throwable) obj).getCause();
+            }
+        };
+    }
+
 }

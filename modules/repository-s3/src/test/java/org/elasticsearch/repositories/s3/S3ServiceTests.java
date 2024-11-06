@@ -61,17 +61,10 @@ public class S3ServiceTests extends ESTestCase {
             e.setStatusCode(randomValueOtherThan(403, () -> between(0, 600)));
             // Retryable 403 condition delegates to the AWS default retry condition. Its result must be consistent with the decision
             // by the AWS default, e.g. some error status like 429 is retryable by default, the retryable 403 condition respects it.
-            if (PredefinedRetryPolicies.DEFAULT_RETRY_CONDITION.shouldRetry(mock(AmazonWebServiceRequest.class), e, between(0, 9))) {
-                assertTrue(
-                    S3Service.RETRYABLE_403_RETRY_POLICY.getRetryCondition()
-                        .shouldRetry(mock(AmazonWebServiceRequest.class), e, between(0, 9))
-                );
-            } else {
-                assertFalse(
-                    S3Service.RETRYABLE_403_RETRY_POLICY.getRetryCondition()
-                        .shouldRetry(mock(AmazonWebServiceRequest.class), e, between(0, 9))
-                );
-            }
+            boolean actual = S3Service.RETRYABLE_403_RETRY_POLICY.getRetryCondition()
+                        .shouldRetry(mock(AmazonWebServiceRequest.class), e, between(0, 9));
+            boolean expected  = PredefinedRetryPolicies.DEFAULT_RETRY_CONDITION.shouldRetry(mock(AmazonWebServiceRequest.class), e, between(0, 9));
+            assertThat(actual, equals(expected));
         } else {
             // Not retry for 403 with error code that is not invalid access key id
             e.setErrorCode(randomAlphaOfLength(10));

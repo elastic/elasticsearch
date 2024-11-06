@@ -22,17 +22,17 @@ import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
-import static org.elasticsearch.xpack.kql.parser.KqlParserExecutionContext.isDateField;
-import static org.elasticsearch.xpack.kql.parser.KqlParserExecutionContext.isKeywordField;
-import static org.elasticsearch.xpack.kql.parser.KqlParserExecutionContext.isRuntimeField;
+import static org.elasticsearch.xpack.kql.parser.KqlParsingContext.isDateField;
+import static org.elasticsearch.xpack.kql.parser.KqlParsingContext.isKeywordField;
+import static org.elasticsearch.xpack.kql.parser.KqlParsingContext.isRuntimeField;
 import static org.elasticsearch.xpack.kql.parser.ParserUtils.escapeLuceneQueryString;
 import static org.elasticsearch.xpack.kql.parser.ParserUtils.hasWildcard;
 
 class KqlAstBuilder extends KqlBaseBaseVisitor<QueryBuilder> {
-    private final KqlParserExecutionContext kqlParserExecutionContext;
+    private final KqlParsingContext kqlParsingContext;
 
-    KqlAstBuilder(KqlParserExecutionContext kqlParserExecutionContext) {
-        this.kqlParserExecutionContext = kqlParserExecutionContext;
+    KqlAstBuilder(KqlParsingContext kqlParsingContext) {
+        this.kqlParsingContext = kqlParsingContext;
     }
 
     public QueryBuilder toQueryBuilder(ParserRuleContext ctx) {
@@ -127,8 +127,8 @@ class KqlAstBuilder extends KqlBaseBaseVisitor<QueryBuilder> {
         withFields(ctx.fieldName(), (fieldName, mappedFieldType) -> {
             RangeQueryBuilder rangeQuery = rangeOperation.apply(QueryBuilders.rangeQuery(fieldName), queryText);
 
-            if (kqlParserExecutionContext.timeZone() != null) {
-                rangeQuery.timeZone(kqlParserExecutionContext.timeZone().getId());
+            if (kqlParsingContext.timeZone() != null) {
+                rangeQuery.timeZone(kqlParsingContext.timeZone().getId());
             }
 
             boolQueryBuilder.should(rangeQuery);
@@ -165,17 +165,17 @@ class KqlAstBuilder extends KqlBaseBaseVisitor<QueryBuilder> {
             QueryBuilder fieldQuery = null;
 
             if (hasWildcard && isKeywordField(mappedFieldType)) {
-                fieldQuery = QueryBuilders.wildcardQuery(fieldName, queryText).caseInsensitive(kqlParserExecutionContext.caseInsensitive());
+                fieldQuery = QueryBuilders.wildcardQuery(fieldName, queryText).caseInsensitive(kqlParsingContext.caseInsensitive());
             } else if (hasWildcard) {
                 fieldQuery = QueryBuilders.queryStringQuery(escapeLuceneQueryString(queryText, true)).field(fieldName);
             } else if (isDateField(mappedFieldType)) {
                 RangeQueryBuilder rangeFieldQuery = QueryBuilders.rangeQuery(fieldName).gte(queryText).lte(queryText);
-                if (kqlParserExecutionContext.timeZone() != null) {
-                    rangeFieldQuery.timeZone(kqlParserExecutionContext.timeZone().getId());
+                if (kqlParsingContext.timeZone() != null) {
+                    rangeFieldQuery.timeZone(kqlParsingContext.timeZone().getId());
                 }
                 fieldQuery = rangeFieldQuery;
             } else if (isKeywordField(mappedFieldType)) {
-                fieldQuery = QueryBuilders.termQuery(fieldName, queryText).caseInsensitive(kqlParserExecutionContext.caseInsensitive());
+                fieldQuery = QueryBuilders.termQuery(fieldName, queryText).caseInsensitive(kqlParsingContext.caseInsensitive());
             } else if (ctx.fieldQueryValue().QUOTED_STRING() != null) {
                 fieldQuery = QueryBuilders.matchPhraseQuery(fieldName, queryText);
             } else {
@@ -199,7 +199,7 @@ class KqlAstBuilder extends KqlBaseBaseVisitor<QueryBuilder> {
     }
 
     private void withFields(KqlBaseParser.FieldNameContext ctx, BiConsumer<String, MappedFieldType> fieldConsummer) {
-        kqlParserExecutionContext.resolveFields(ctx).forEach(fieldDef -> fieldConsummer.accept(fieldDef.v1(), fieldDef.v2()));
+        kqlParsingContext.resolveFields(ctx).forEach(fieldDef -> fieldConsummer.accept(fieldDef.v1(), fieldDef.v2()));
     }
 
     private QueryBuilder rewriteDisjunctionQuery(BoolQueryBuilder boolQueryBuilder) {

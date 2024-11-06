@@ -24,7 +24,7 @@ import java.util.function.Function;
 public class KqlParser {
     private static final Logger log = LogManager.getLogger(KqlParser.class);
 
-    public QueryBuilder parseKqlQuery(String kqlQuery, KqlParserExecutionContext kqlParserContext) {
+    public QueryBuilder parseKqlQuery(String kqlQuery, KqlParsingContext kqlParserContext) {
         if (log.isDebugEnabled()) {
             log.debug("Parsing KQL query: {}", kqlQuery);
         }
@@ -34,7 +34,7 @@ public class KqlParser {
 
     private <T> T invokeParser(
         String kqlQuery,
-        KqlParserExecutionContext kqlParserExecutionContext,
+        KqlParsingContext kqlParsingContext,
         Function<KqlBaseParser, ParserRuleContext> parseFunction,
         BiFunction<KqlAstBuilder, ParserRuleContext, T> visitor
     ) {
@@ -57,7 +57,7 @@ public class KqlParser {
             log.trace("Parse tree: {}", tree.toStringTree());
         }
 
-        return visitor.apply(new KqlAstBuilder(kqlParserExecutionContext), tree);
+        return visitor.apply(new KqlAstBuilder(kqlParsingContext), tree);
     }
 
     private static final BaseErrorListener ERROR_LISTENER = new BaseErrorListener() {

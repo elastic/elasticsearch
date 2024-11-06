@@ -22,7 +22,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Tuple.tuple;
 
-public class KqlParserExecutionContext {
+public class KqlParsingContext {
 
     private static final List<String> IGNORED_METADATA_FIELDS = List.of(
         "_seq_no",
@@ -48,12 +48,7 @@ public class KqlParserExecutionContext {
 
     private final String defaultFields;
 
-    public KqlParserExecutionContext(
-        QueryRewriteContext queryRewriteContext,
-        boolean caseInsensitive,
-        ZoneId timeZone,
-        String defaultFields
-    ) {
+    public KqlParsingContext(QueryRewriteContext queryRewriteContext, boolean caseInsensitive, ZoneId timeZone, String defaultFields) {
         this.queryRewriteContext = queryRewriteContext;
         this.caseInsensitive = caseInsensitive;
         this.timeZone = timeZone;
@@ -109,8 +104,8 @@ public class KqlParserExecutionContext {
             this.queryRewriteContext = queryRewriteContext;
         }
 
-        public KqlParserExecutionContext build() {
-            return new KqlParserExecutionContext(queryRewriteContext, caseInsensitive, timeZone, defaultFields);
+        public KqlParsingContext build() {
+            return new KqlParsingContext(queryRewriteContext, caseInsensitive, timeZone, defaultFields);
         }
 
         public Builder caseInsensitive(boolean caseInsensitive) {

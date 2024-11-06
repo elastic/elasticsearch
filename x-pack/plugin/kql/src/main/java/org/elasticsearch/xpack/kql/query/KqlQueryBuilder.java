@@ -25,7 +25,7 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.kql.parser.KqlParser;
-import org.elasticsearch.xpack.kql.parser.KqlParserExecutionContext;
+import org.elasticsearch.xpack.kql.parser.KqlParsingContext;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -191,8 +191,8 @@ public class KqlQueryBuilder extends AbstractQueryBuilder<KqlQueryBuilder> {
             && caseInsensitive == other.caseInsensitive;
     }
 
-    private KqlParserExecutionContext createKqlParserContext(QueryRewriteContext queryRewriteContext) {
-        return KqlParserExecutionContext.builder(queryRewriteContext)
+    private KqlParsingContext createKqlParserContext(QueryRewriteContext queryRewriteContext) {
+        return KqlParsingContext.builder(queryRewriteContext)
             .caseInsensitive(caseInsensitive)
             .timeZone(timeZone)
             .defaultFields(defaultFields)

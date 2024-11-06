@@ -162,6 +162,10 @@ abstract class QueryList {
                 case NULL -> offset -> null;
                 case DOC -> throw new EsqlIllegalArgumentException("can't read values from [doc] block");
                 case COMPOSITE -> throw new EsqlIllegalArgumentException("can't read values from [composite] block");
+                case CATEGORY_RAW -> throw new EsqlIllegalArgumentException("can't read values from [category_raw] block");
+                case CATEGORY_INTERMEDIATE -> throw new EsqlIllegalArgumentException(
+                    "can't read values from [category_intermediate] block"
+                );
                 case UNKNOWN -> throw new EsqlIllegalArgumentException("can't read values from [" + block + "]");
             };
         }

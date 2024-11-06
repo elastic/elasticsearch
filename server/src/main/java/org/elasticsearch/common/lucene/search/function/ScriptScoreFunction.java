@@ -27,13 +27,7 @@ import java.util.function.IntSupplier;
 public class ScriptScoreFunction extends ScoreFunction {
 
     static final class CannedScorer extends Scorable {
-        protected int docid;
         protected float score;
-
-        @Override
-        public int docID() {
-            return docid;
-        }
 
         @Override
         public float score() {
@@ -70,14 +64,13 @@ public class ScriptScoreFunction extends ScoreFunction {
 
         if (script.needs_termStats()) {
             assert termStatsFactory != null;
-            leafScript._setTermStats(termStatsFactory.apply(ctx, scorer::docID));
+            leafScript._setTermStats(termStatsFactory.apply(ctx, leafScript::docId));
         }
 
         return new LeafScoreFunction() {
 
             private double score(int docId, float subQueryScore, ScoreScript.ExplanationHolder holder) throws IOException {
                 leafScript.setDocument(docId);
-                scorer.docid = docId;
                 scorer.score = subQueryScore;
                 double result = leafScript.execute(holder);
 
@@ -97,7 +90,6 @@ public class ScriptScoreFunction extends ScoreFunction {
                 Explanation exp;
                 if (leafScript instanceof ExplainableScoreScript) {
                     leafScript.setDocument(docId);
-                    scorer.docid = docId;
                     scorer.score = subQueryScore.getValue().floatValue();
                     exp = ((ExplainableScoreScript) leafScript).explain(subQueryScore);
                 } else {

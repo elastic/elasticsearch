@@ -23,9 +23,12 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.tasks.Task;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Pattern;
+import java.util.regex.PatternSyntaxException;
+import java.util.stream.Collectors;
 
 /**
  * DotPrefixValidator provides an abstract class implementing a mapped action filter.
@@ -39,7 +42,7 @@ import java.util.regex.Pattern;
  * method, which subclasses must implement.
  *
  * Some built-in index names and patterns are also elided from the check, as defined in
- * {@link #IGNORED_INDEX_NAMES} and {@link #IGNORED_INDEX_PATTERNS}.
+ * {@link #IGNORED_INDEX_NAMES} and {@link #IGNORED_INDEX_PATTERNS_SETTING}.
  */
 public abstract class DotPrefixValidator<RequestType> implements MappedActionFilter {
     public static final Setting<Boolean> VALIDATE_DOT_PREFIXES = Setting.boolSetting(
@@ -56,6 +59,7 @@ public abstract class DotPrefixValidator<RequestType> implements MappedActionFil
      *
      * .elastic-connectors-* is used by enterprise search
      * .ml-* is used by ML
+     * .slo-observability-* is used by Observability
      */
     private static Set<String> IGNORED_INDEX_NAMES = Set.of(
         ".elastic-connectors-v1",
@@ -63,16 +67,43 @@ public abstract class DotPrefixValidator<RequestType> implements MappedActionFil
         ".ml-state",
         ".ml-anomalies-unrelated"
     );
-    private static Set<Pattern> IGNORED_INDEX_PATTERNS = Set.of(Pattern.compile("\\.ml-state-\\d+"));
+    public static Setting<List<String>> IGNORED_INDEX_PATTERNS_SETTING = Setting.stringListSetting(
+        "cluster.indices.validate_ignored_dot_patterns",
+        List.of(
+            "\\.ml-state-\\d+",
+            "\\.slo-observability\\.sli-v\\d+.*",
+            "\\.slo-observability\\.summary-v\\d+.*",
+            "\\.entities\\.v\\d+\\.latest\\..*"
+        ),
+        (patternList) -> patternList.forEach(pattern -> {
+            try {
+                Pattern.compile(pattern);
+            } catch (PatternSyntaxException e) {
+                throw new IllegalArgumentException("invalid dot validation exception pattern: [" + pattern + "]", e);
+            }
+        }),
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
 
     DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(DotPrefixValidator.class);
 
     private final ThreadContext threadContext;
     private final boolean isEnabled;
+    private volatile Set<Pattern> ignoredIndexPatterns;
 
     public DotPrefixValidator(ThreadContext threadContext, ClusterService clusterService) {
         this.threadContext = threadContext;
         this.isEnabled = VALIDATE_DOT_PREFIXES.get(clusterService.getSettings());
+        this.ignoredIndexPatterns = IGNORED_INDEX_PATTERNS_SETTING.get(clusterService.getSettings())
+            .stream()
+            .map(Pattern::compile)
+            .collect(Collectors.toSet());
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(IGNORED_INDEX_PATTERNS_SETTING, this::updateIgnoredIndexPatterns);
+    }
+
+    private void updateIgnoredIndexPatterns(List<String> patterns) {
+        this.ignoredIndexPatterns = patterns.stream().map(Pattern::compile).collect(Collectors.toSet());
     }
 
     protected abstract Set<String> getIndicesFromRequest(RequestType request);
@@ -99,10 +130,11 @@ public abstract class DotPrefixValidator<RequestType> implements MappedActionFil
                 if (Strings.hasLength(index)) {
                     char c = getFirstChar(index);
                     if (c == '.') {
-                        if (IGNORED_INDEX_NAMES.contains(index)) {
+                        final String strippedName = stripDateMath(index);
+                        if (IGNORED_INDEX_NAMES.contains(strippedName)) {
                             return;
                         }
-                        if (IGNORED_INDEX_PATTERNS.stream().anyMatch(p -> p.matcher(index).matches())) {
+                        if (this.ignoredIndexPatterns.stream().anyMatch(p -> p.matcher(strippedName).matches())) {
                             return;
                         }
                         deprecationLogger.warn(
@@ -132,7 +164,18 @@ public abstract class DotPrefixValidator<RequestType> implements MappedActionFil
         return c;
     }
 
-    private boolean isInternalRequest() {
+    private static String stripDateMath(String index) {
+        char c = index.charAt(0);
+        if (c == '<') {
+            assert index.charAt(index.length() - 1) == '>'
+                : "expected index name with date math to start with < and end with >, how did this pass request validation? " + index;
+            return index.substring(1, index.length() - 1);
+        } else {
+            return index;
+        }
+    }
+
+    boolean isInternalRequest() {
         final String actionOrigin = threadContext.getTransient(ThreadContext.ACTION_ORIGIN_TRANSIENT_NAME);
         final boolean isSystemContext = threadContext.isSystemContext();
         final boolean isInternalOrigin = Optional.ofNullable(actionOrigin).map(Strings::hasText).orElse(false);

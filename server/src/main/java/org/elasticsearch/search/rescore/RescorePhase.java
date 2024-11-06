@@ -14,12 +14,18 @@ import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.lucene.grouping.TopFieldGroups;
+import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.query.QueryPhase;
+import org.elasticsearch.search.query.SearchTimeoutException;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -44,11 +50,14 @@ public class RescorePhase {
             topGroups = topFieldGroups;
         }
         try {
+            Runnable cancellationCheck = getCancellationChecks(context);
             for (RescoreContext ctx : context.rescore()) {
+                ctx.setCancellationChecker(cancellationCheck);
                 topDocs = ctx.rescorer().rescore(topDocs, context.searcher(), ctx);
                 // It is the responsibility of the rescorer to sort the resulted top docs,
                 // here we only assert that this condition is met.
                 assert context.sort() == null && topDocsSortedByScore(topDocs) : "topdocs should be sorted after rescore";
+                ctx.setCancellationChecker(null);
             }
             if (topGroups != null) {
                 assert context.collapse() != null;
@@ -63,6 +72,11 @@ public class RescorePhase {
                 .topDocs(new TopDocsAndMaxScore(topDocs, topDocs.scoreDocs[0].score), context.queryResult().sortValueFormats());
         } catch (IOException e) {
             throw new ElasticsearchException("Rescore Phase Failed", e);
+        } catch (ContextIndexSearcher.TimeExceededException e) {
+            if (context.request().allowPartialSearchResults() == false) {
+                throw new SearchTimeoutException(context.shardTarget(), "Time exceeded");
+            }
+            context.queryResult().searchTimedOut(true);
         }
     }
 
@@ -105,5 +119,28 @@ public class RescorePhase {
             lastScore = doc.score;
         }
         return true;
+    }
+
+    static Runnable getCancellationChecks(SearchContext context) {
+        List<Runnable> cancellationChecks = new ArrayList<>();
+        if (context.lowLevelCancellation()) {
+            cancellationChecks.add(() -> {
+                final SearchShardTask task = context.getTask();
+                if (task != null) {
+                    task.ensureNotCancelled();
+                }
+            });
+        }
+
+        final Runnable timeoutRunnable = QueryPhase.getTimeoutCheck(context);
+        if (timeoutRunnable != null) {
+            cancellationChecks.add(timeoutRunnable);
+        }
+
+        return () -> {
+            for (var check : cancellationChecks) {
+                check.run();
+            }
+        };
     }
 }

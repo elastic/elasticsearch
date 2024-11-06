@@ -10,6 +10,7 @@
 package org.elasticsearch.script.field.vectors;
 
 import org.apache.lucene.index.ByteVectorValues;
+import org.apache.lucene.index.KnnVectorValues;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
 import org.elasticsearch.index.mapper.vectors.DenseVectorScriptDocValues;
@@ -19,7 +20,8 @@ import java.io.IOException;
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 
 public class ByteKnnDenseVectorDocValuesField extends DenseVectorDocValuesField {
-    protected ByteVectorValues input; // null if no vectors
+    protected final ByteVectorValues input; // null if no vectors
+    protected final KnnVectorValues.DocIndexIterator iterator; // null if no vectors
     protected byte[] vector;
     protected final int dims;
 
@@ -31,6 +33,7 @@ public class ByteKnnDenseVectorDocValuesField extends DenseVectorDocValuesField 
         super(name, elementType);
         this.dims = dims;
         this.input = input;
+        this.iterator = input == null ? null : input.iterator();
     }
 
     @Override
@@ -38,15 +41,15 @@ public class ByteKnnDenseVectorDocValuesField extends DenseVectorDocValuesField 
         if (input == null) {
             return;
         }
-        int currentDoc = input.docID();
+        int currentDoc = iterator.docID();
         if (currentDoc == NO_MORE_DOCS || docId < currentDoc) {
             vector = null;
         } else if (docId == currentDoc) {
-            vector = input.vectorValue();
+            vector = input.vectorValue(iterator.index());
         } else {
-            currentDoc = input.advance(docId);
+            currentDoc = iterator.advance(docId);
             if (currentDoc == docId) {
-                vector = input.vectorValue();
+                vector = input.vectorValue(iterator.index());
             } else {
                 vector = null;
             }

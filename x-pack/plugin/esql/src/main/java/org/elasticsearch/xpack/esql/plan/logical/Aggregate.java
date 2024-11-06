@@ -11,6 +11,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -27,7 +28,7 @@ import java.util.Objects;
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 
-public class Aggregate extends UnaryPlan implements Stats {
+public class Aggregate extends UnaryPlan {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         LogicalPlan.class,
         "Aggregate",
@@ -109,7 +110,10 @@ public class Aggregate extends UnaryPlan implements Stats {
         return new Aggregate(source(), newChild, aggregateType, groupings, aggregates);
     }
 
-    @Override
+    public Aggregate with(List<Expression> newGroupings, List<? extends NamedExpression> newAggregates) {
+        return with(child(), newGroupings, newAggregates);
+    }
+
     public Aggregate with(LogicalPlan child, List<Expression> newGroupings, List<? extends NamedExpression> newAggregates) {
         return new Aggregate(source(), child, aggregateType(), newGroupings, newAggregates);
     }
@@ -157,7 +161,13 @@ public class Aggregate extends UnaryPlan implements Stats {
     }
 
     public static AttributeSet computeReferences(List<? extends NamedExpression> aggregates, List<? extends Expression> groupings) {
-        return Expressions.references(groupings).combine(Expressions.references(aggregates));
+        AttributeSet result = Expressions.references(groupings).combine(Expressions.references(aggregates));
+        for (Expression grouping : groupings) {
+            if (grouping instanceof Alias) {
+                result.remove(((Alias) grouping).toAttribute());
+            }
+        }
+        return result;
     }
 
     @Override

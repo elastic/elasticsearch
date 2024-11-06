@@ -754,7 +754,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
                 .promoteDataStream();
             rolloverTarget = dataStream.getName();
             if (dataStream.isFailureStoreEnabled() && randomBoolean()) {
-                defaultSelectorOptions = IndicesOptions.SelectorOptions.ONLY_FAILURES;
+                defaultSelectorOptions = IndicesOptions.SelectorOptions.FAILURES;
                 sourceIndexName = dataStream.getFailureStoreWriteIndex().getName();
                 defaultRolloverIndexName = DataStream.getDefaultFailureStoreName(
                     dataStream.getName(),
@@ -815,7 +815,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
             true,
             null,
             null,
-            IndicesOptions.SelectorOptions.ONLY_FAILURES.equals(defaultSelectorOptions)
+            IndicesOptions.SelectorOptions.FAILURES.equals(defaultSelectorOptions)
         );
 
         newIndexName = newIndexName == null ? defaultRolloverIndexName : newIndexName;

@@ -20,6 +20,8 @@ import org.elasticsearch.script.VectorScoreScriptUtils.Hamming;
 import org.elasticsearch.script.VectorScoreScriptUtils.L1Norm;
 import org.elasticsearch.script.VectorScoreScriptUtils.L2Norm;
 import org.elasticsearch.script.field.vectors.BinaryDenseVectorDocValuesField;
+import org.elasticsearch.script.field.vectors.BitBinaryDenseVectorDocValuesField;
+import org.elasticsearch.script.field.vectors.BitKnnDenseVectorDocValuesField;
 import org.elasticsearch.script.field.vectors.ByteBinaryDenseVectorDocValuesField;
 import org.elasticsearch.script.field.vectors.ByteKnnDenseVectorDocValuesField;
 import org.elasticsearch.script.field.vectors.DenseVectorDocValuesField;
@@ -230,6 +232,61 @@ public class VectorScoreScriptUtilsTests extends ESTestCase {
             when(scoreScript._getDocId()).thenReturn(1);
             e = expectThrows(IllegalArgumentException.class, dotProduct::dotProduct);
             assertEquals("A document doesn't have a value for a vector field!", e.getMessage());
+        }
+    }
+
+    public void testBitVectorClassBindingsDotProduct() throws IOException {
+        String fieldName = "vector";
+        int dims = 8;
+        float[] docVector = new float[] { 124 };
+        // 124 in binary is b01111100
+        List<Number> queryVector = Arrays.asList((byte) 1, (byte) 125, (byte) -12, (byte) 2, (byte) 4, (byte) 1, (byte) 125, (byte) -12);
+        List<Number> floatQueryVector = Arrays.asList(1.4f, -1.4f, 0.42f, 0.0f, 1f, -1f, -0.42f, 1.2f);
+        List<Number> invalidQueryVector = Arrays.asList((byte) 1, (byte) 1);
+        String hexidecimalString = HexFormat.of().formatHex(new byte[] { 124 });
+
+        List<DenseVectorDocValuesField> fields = List.of(
+            new BitBinaryDenseVectorDocValuesField(
+                BinaryDenseVectorScriptDocValuesTests.wrap(new float[][] { docVector }, ElementType.BIT, IndexVersion.current()),
+                "test",
+                ElementType.BIT,
+                dims
+            ),
+            new BitKnnDenseVectorDocValuesField(KnnDenseVectorScriptDocValuesTests.wrapBytes(new float[][] { docVector }), "test", dims)
+        );
+        for (DenseVectorDocValuesField field : fields) {
+            field.setNextDocId(0);
+
+            ScoreScript scoreScript = mock(ScoreScript.class);
+            when(scoreScript.field(fieldName)).thenAnswer(mock -> field);
+
+            // Test cosine similarity explicitly, as it must perform special logic on top of the doc values
+            DotProduct function = new DotProduct(scoreScript, queryVector, fieldName);
+            assertEquals("dotProduct result is not equal to the expected value!", -12 + 2 + 4 + 1 + 125, function.dotProduct(), 0.001);
+
+            function = new DotProduct(scoreScript, floatQueryVector, fieldName);
+            assertEquals(
+                "dotProduct result is not equal to the expected value!",
+                0.42f + 0f + 1f - 1f - 0.42f,
+                function.dotProduct(),
+                0.001
+            );
+
+            function = new DotProduct(scoreScript, hexidecimalString, fieldName);
+            assertEquals("dotProduct result is not equal to the expected value!", Integer.bitCount(124), function.dotProduct(), 0.0);
+
+            // Check each function rejects query vectors with the wrong dimension
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> new DotProduct(scoreScript, invalidQueryVector, fieldName)
+            );
+            assertThat(
+                e.getMessage(),
+                containsString(
+                    "query vector has an incorrect number of dimensions. "
+                        + "Must be [1] for bitwise operations, or [8] for byte wise operations: provided [2]."
+                )
+            );
         }
     }
 

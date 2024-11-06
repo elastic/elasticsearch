@@ -1,6 +1,10 @@
 setup:
   - requires:
-      cluster_features: "kql_query_supported"
+      capabilities:
+        - method: POST
+          path: /_search
+          capabilities: [ kql_query ]
+      test_runner_features: capabilities
       reason: KQL query is not available
 
   - requires:

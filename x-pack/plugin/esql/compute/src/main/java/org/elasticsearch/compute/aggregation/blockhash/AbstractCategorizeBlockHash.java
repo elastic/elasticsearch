@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
+import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefVector;
@@ -19,6 +20,8 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.ReleasableIterator;
+import org.elasticsearch.xpack.ml.aggs.categorization.CategorizationBytesRefHash;
+import org.elasticsearch.xpack.ml.aggs.categorization.CategorizationPartOfSpeechDictionary;
 import org.elasticsearch.xpack.ml.aggs.categorization.SerializableTokenListCategory;
 import org.elasticsearch.xpack.ml.aggs.categorization.TokenListCategorizer;
 
@@ -30,16 +33,15 @@ public abstract class AbstractCategorizeBlockHash extends BlockHash {
     private final boolean outputPartial;
     protected final TokenListCategorizer.CloseableTokenListCategorizer categorizer;
 
-    AbstractCategorizeBlockHash(
-        BlockFactory blockFactory,
-        int channel,
-        boolean outputPartial,
-        TokenListCategorizer.CloseableTokenListCategorizer categorizer
-    ) {
+    AbstractCategorizeBlockHash(BlockFactory blockFactory, int channel, boolean outputPartial) {
         super(blockFactory);
         this.channel = channel;
         this.outputPartial = outputPartial;
-        this.categorizer = categorizer;
+        this.categorizer = new TokenListCategorizer.CloseableTokenListCategorizer(
+            new CategorizationBytesRefHash(new BytesRefHash(2048, blockFactory.bigArrays())),
+            CategorizationPartOfSpeechDictionary.getInstance(),
+            0.70f
+        );
     }
 
     protected int channel() {

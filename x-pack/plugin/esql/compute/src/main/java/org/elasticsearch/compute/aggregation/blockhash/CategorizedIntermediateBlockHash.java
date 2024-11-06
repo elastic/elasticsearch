@@ -10,16 +10,12 @@ package org.elasticsearch.compute.aggregation.blockhash;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.xpack.ml.aggs.categorization.CategorizationBytesRefHash;
-import org.elasticsearch.xpack.ml.aggs.categorization.CategorizationPartOfSpeechDictionary;
 import org.elasticsearch.xpack.ml.aggs.categorization.SerializableTokenListCategory;
-import org.elasticsearch.xpack.ml.aggs.categorization.TokenListCategorizer;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -29,25 +25,7 @@ import java.util.Map;
 public class CategorizedIntermediateBlockHash extends AbstractCategorizeBlockHash {
 
     CategorizedIntermediateBlockHash(int channel, BlockFactory blockFactory, boolean outputPartial) {
-        this(
-            channel,
-            blockFactory,
-            outputPartial,
-            new TokenListCategorizer.CloseableTokenListCategorizer(
-                new CategorizationBytesRefHash(new BytesRefHash(2048, blockFactory.bigArrays())),
-                CategorizationPartOfSpeechDictionary.getInstance(),
-                0.70f
-            )
-        );
-    }
-
-    CategorizedIntermediateBlockHash(
-        int channel,
-        BlockFactory blockFactory,
-        boolean outputPartial,
-        TokenListCategorizer.CloseableTokenListCategorizer categorizer
-    ) {
-        super(blockFactory, channel, outputPartial, categorizer);
+        super(blockFactory, channel, outputPartial);
     }
 
     @Override

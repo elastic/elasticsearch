@@ -7,13 +7,11 @@
 
 package org.elasticsearch.compute.aggregation.blockhash;
 
-import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
@@ -37,14 +35,6 @@ import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.LocalSourceOperator;
 import org.elasticsearch.compute.operator.PageConsumerOperator;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.index.analysis.CharFilterFactory;
-import org.elasticsearch.index.analysis.CustomAnalyzer;
-import org.elasticsearch.index.analysis.TokenFilterFactory;
-import org.elasticsearch.index.analysis.TokenizerFactory;
-import org.elasticsearch.xpack.ml.aggs.categorization.CategorizationBytesRefHash;
-import org.elasticsearch.xpack.ml.aggs.categorization.CategorizationPartOfSpeechDictionary;
-import org.elasticsearch.xpack.ml.aggs.categorization.TokenListCategorizer.CloseableTokenListCategorizer;
-import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzer;
 
 import java.util.ArrayList;
 import java.util.HashMap;

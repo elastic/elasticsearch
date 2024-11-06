@@ -38,7 +38,6 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.core.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
-import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
@@ -5792,7 +5791,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             from test | eval initial = substring(first_name, 1) | where match(initial, "A")"""));
         assertTrue(e.getMessage().startsWith("Found "));
         assertEquals(
-            "1:67: [MATCH] cannot operate on [initial], which is not a field from an index mapping",
+            "1:67: [MATCH] function cannot operate on [initial], which is not a field from an index mapping",
             e.getMessage().substring(header.length())
         );
 
@@ -5800,7 +5799,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             from test | eval text=concat(first_name, last_name) | where match(text, "cat")"""));
         assertTrue(e.getMessage().startsWith("Found "));
         assertEquals(
-            "1:67: [MATCH] cannot operate on [text], which is not a field from an index mapping",
+            "1:67: [MATCH] function cannot operate on [text], which is not a field from an index mapping",
             e.getMessage().substring(header.length())
         );
     }
@@ -5813,11 +5812,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         VerificationException ve = expectThrows(VerificationException.class, () -> plan(queryText));
         assertThat(
             ve.getMessage(),
-            containsString("[MATCH] cannot operate on [text::keyword], which is not a field from an index mapping")
+            containsString("[MATCH] function cannot operate on [text::keyword], which is not a field from an index mapping")
         );
-    }
-
-    private Literal nullOf(DataType dataType) {
-        return new Literal(Source.EMPTY, null, dataType);
     }
 }

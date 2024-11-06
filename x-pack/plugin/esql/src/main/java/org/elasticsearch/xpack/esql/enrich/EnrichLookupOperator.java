@@ -109,17 +109,16 @@ public final class EnrichLookupOperator extends AsyncOperator {
     protected void performAsync(Page inputPage, ActionListener<Page> listener) {
         final Block inputBlock = inputPage.getBlock(inputChannel);
         totalTerms += inputBlock.getTotalValueCount();
-        enrichLookupService.lookupAsync(
+        EnrichLookupService.Request request = new EnrichLookupService.Request(
             sessionId,
-            parentTask,
             enrichIndex,
             inputDataType,
             matchType,
             matchField,
-            enrichFields,
             new Page(inputBlock),
-            listener.map(inputPage::appendPage)
+            enrichFields
         );
+        enrichLookupService.lookupAsync(request, parentTask, listener.map(inputPage::appendPage));
     }
 
     @Override

@@ -290,6 +290,8 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/116317
 - class: org.elasticsearch.xpack.downsample.DownsampleRestIT
   issue: https://github.com/elastic/elasticsearch/issues/116326
+- class: org.elasticsearch.xpack.downsample.DownsampleWithBasicRestIT
+  issue: https://github.com/elastic/elasticsearch/issues/116327
 
 # Examples:
 #

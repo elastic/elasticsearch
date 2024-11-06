@@ -38,6 +38,8 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
+import org.elasticsearch.cluster.routing.GlobalRoutingTableTestHelper;
+import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -532,9 +534,13 @@ public class TransportBulkActionTests extends ESTestCase {
             .add(new IndexRequest("failure-store").source(Map.of()).setWriteToFailureStore(true));
 
         // Construct a cluster state that contains the required data streams.
-        var state = clusterService.state()
-            .copyAndUpdateMetadata(
-                builder -> builder.put(indexMetadata(".ds-data-stream-01"))
+        // using a single, non-default project
+        final ClusterState oldState = clusterService.state();
+        final Metadata metadata = Metadata.builder(oldState.metadata())
+            .removeProject(Metadata.DEFAULT_PROJECT_ID)
+            .put(
+                ProjectMetadata.builder(new ProjectId(randomUUID()))
+                    .put(indexMetadata(".ds-data-stream-01"))
                     .put(indexMetadata(".ds-failure-store-01"))
                     .put(indexMetadata(".fs-failure-store-01"))
                     .put(
@@ -554,11 +560,17 @@ public class TransportBulkActionTests extends ESTestCase {
                             )
                             .build()
                     )
-            );
+            )
+            .build();
+        final ClusterState clusterState = ClusterState.builder(oldState)
+            .metadata(metadata)
+            .routingTable(GlobalRoutingTableTestHelper.buildRoutingTable(metadata, RoutingTable.Builder::addAsNew))
+            .build();
 
         // Apply the cluster state.
         CountDownLatch latch = new CountDownLatch(1);
-        clusterService.getClusterApplierService().onNewClusterState("set-state", () -> state, ActionListener.running(latch::countDown));
+        clusterService.getClusterApplierService()
+            .onNewClusterState("set-state", () -> clusterState, ActionListener.running(latch::countDown));
         // And wait for it to be applied.
         latch.await(10L, TimeUnit.SECONDS);
 

@@ -32,7 +32,7 @@ import org.elasticsearch.action.support.WriteResponse;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
@@ -277,11 +277,32 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         Set<String> dataStreamsToBeRolledOver,
         Set<String> failureStoresToBeRolledOver
     ) {
-        ClusterState state = clusterService.state();
+        populateMissingTargets(
+            bulkRequest,
+            projectResolver.getProjectState(clusterService.state()),
+            indicesToAutoCreate,
+            dataStreamsToBeRolledOver,
+            failureStoresToBeRolledOver
+        );
+    }
+
+    private void populateMissingTargets(
+        BulkRequest bulkRequest,
+        ProjectState projectState,
+        Map<String, CreateIndexRequest> indicesToAutoCreate,
+        Set<String> dataStreamsToBeRolledOver,
+        Set<String> failureStoresToBeRolledOver
+    ) {
         // A map for memorizing which indices exist.
         Map<String, Boolean> indexExistence = new HashMap<>();
-        Function<String, Boolean> indexExistenceComputation = (index) -> indexNameExpressionResolver.hasIndexAbstraction(index, state);
-        boolean lazyRolloverFeature = featureService.clusterHasFeature(state, LazyRolloverAction.DATA_STREAM_LAZY_ROLLOVER);
+        Function<String, Boolean> indexExistenceComputation = (index) -> indexNameExpressionResolver.hasIndexAbstraction(
+            index,
+            projectState.metadata()
+        );
+        boolean lazyRolloverFeature = featureService.clusterHasFeature(
+            projectState.cluster(),
+            LazyRolloverAction.DATA_STREAM_LAZY_ROLLOVER
+        );
         boolean lazyRolloverFailureStoreFeature = DataStream.isFailureStoreFeatureFlagEnabled();
         Set<String> indicesThatRequireAlias = new HashSet<>();
 
@@ -327,7 +348,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
             }
             // Determine which data streams and failure stores need to be rolled over.
             if (lazyRolloverFeature) {
-                DataStream dataStream = state.metadata().getProject().dataStreams().get(request.index());
+                DataStream dataStream = projectState.metadata().dataStreams().get(request.index());
                 if (dataStream != null) {
                     if (writeToFailureStore == false && dataStream.getBackingIndices().isRolloverOnWrite()) {
                         dataStreamsToBeRolledOver.add(request.index());

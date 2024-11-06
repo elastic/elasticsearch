@@ -294,6 +294,9 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/116327
 - class: org.elasticsearch.validation.DotPrefixClientYamlTestSuiteIT
   issue: https://github.com/elastic/elasticsearch/issues/116328
+- class: org.elasticsearch.action.search.SearchQueryThenFetchAsyncActionTests
+  method: testBottomFieldSort
+  issue: https://github.com/elastic/elasticsearch/issues/116249
 
 # Examples:
 #

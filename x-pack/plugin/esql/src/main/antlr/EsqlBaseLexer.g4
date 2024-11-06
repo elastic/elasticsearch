@@ -105,6 +105,8 @@ WS
     : [ \r\n\t]+ -> channel(HIDDEN)
     ;
 
+COLON : ':';
+
 //
 // Expression - used by most command
 //
@@ -207,8 +209,8 @@ MINUS : '-';
 ASTERISK : '*';
 SLASH : '/';
 PERCENT : '%';
+EXPRESSION_COLON : {this.isDevVersion()}? COLON -> type(COLON);
 
-MATCH : 'match';
 NESTED_WHERE : WHERE -> type(WHERE);
 
 NAMED_OR_POSITIONAL_PARAM
@@ -477,7 +479,7 @@ SHOW_WS
 mode SETTING_MODE;
 SETTING_CLOSING_BRACKET : CLOSING_BRACKET -> type(CLOSING_BRACKET), popMode;
 
-COLON : ':';
+SETTING_COLON : COLON -> type(COLON);
 
 SETTING
     : (ASPERAND | DIGIT| DOT | LETTER | UNDERSCORE)+

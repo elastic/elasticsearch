@@ -25,8 +25,10 @@ import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.routing.PlainShardIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
@@ -61,6 +63,7 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
     private static final Logger logger = LogManager.getLogger(TransportShardMultiGetAction.class);
 
     private final IndicesService indicesService;
+    private final ProjectResolver projectResolver;
     private final ExecutorSelector executorSelector;
     private final NodeClient client;
 
@@ -71,6 +74,7 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
         IndicesService indicesService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
+        ProjectResolver projectResolver,
         IndexNameExpressionResolver indexNameExpressionResolver,
         ExecutorSelector executorSelector,
         NodeClient client
@@ -86,6 +90,7 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
             threadPool.executor(ThreadPool.Names.GET)
         );
         this.indicesService = indicesService;
+        this.projectResolver = projectResolver;
         this.executorSelector = executorSelector;
         this.client = client;
     }
@@ -107,14 +112,18 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
 
     @Override
     protected ShardIterator shards(ClusterState state, InternalRequest request) {
+        ProjectState project = projectResolver.getProjectState(state);
         ShardIterator iterator = clusterService.operationRouting()
-            .getShards(state, request.request().index(), request.request().shardId(), request.request().preference());
+            .getShards(project, request.request().index(), request.request().shardId(), request.request().preference());
         if (iterator == null) {
             return null;
         }
         return new PlainShardIterator(
             iterator.shardId(),
-            iterator.getShardRoutings().stream().filter(shardRouting -> OperationRouting.canSearchShard(shardRouting, state)).toList()
+            iterator.getShardRoutings()
+                .stream()
+                .filter(shardRouting -> OperationRouting.canSearchShard(shardRouting, project.metadata()))
+                .toList()
         );
     }
 

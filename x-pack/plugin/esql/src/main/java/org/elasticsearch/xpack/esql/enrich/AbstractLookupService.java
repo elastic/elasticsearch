@@ -181,7 +181,7 @@ abstract class AbstractLookupService<R extends AbstractLookupService.Request, T 
         hasPrivilege(listener.delegateFailureAndWrap((delegate, ignored) -> {
             ClusterState clusterState = clusterService.state();
             GroupShardsIterator<ShardIterator> shardIterators = clusterService.operationRouting()
-                .searchShards(clusterState, new String[] { request.index }, Map.of(), "_local");
+                .searchShards(clusterState.projectState(), new String[] { request.index }, Map.of(), "_local");
             if (shardIterators.size() != 1) {
                 delegate.onFailure(new EsqlIllegalArgumentException("target index {} has more than one shard", request.index));
                 return;

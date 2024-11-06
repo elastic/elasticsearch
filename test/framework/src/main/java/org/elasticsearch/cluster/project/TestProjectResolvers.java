@@ -19,6 +19,7 @@ import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.tasks.Task;
 
 import java.util.Collection;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -76,6 +77,7 @@ public final class TestProjectResolvers {
     }
 
     public static ProjectResolver singleProject(ProjectId projectId) {
+        Objects.requireNonNull(projectId);
         return new ProjectResolver() {
             @Override
             public ProjectMetadata getProjectMetadata(Metadata metadata) {

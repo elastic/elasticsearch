@@ -17,6 +17,8 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -33,6 +35,7 @@ public class TransportMultiTermVectorsAction extends HandledTransportAction<Mult
 
     private final ClusterService clusterService;
     private final NodeClient client;
+    private final ProjectResolver projectResolver;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
 
     @Inject
@@ -41,6 +44,7 @@ public class TransportMultiTermVectorsAction extends HandledTransportAction<Mult
         ClusterService clusterService,
         NodeClient client,
         ActionFilters actionFilters,
+        ProjectResolver projectResolver,
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(
@@ -52,13 +56,14 @@ public class TransportMultiTermVectorsAction extends HandledTransportAction<Mult
         );
         this.clusterService = clusterService;
         this.client = client;
+        this.projectResolver = projectResolver;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
     }
 
     @Override
     protected void doExecute(Task task, final MultiTermVectorsRequest request, final ActionListener<MultiTermVectorsResponse> listener) {
         ClusterState clusterState = clusterService.state();
-
+        ProjectMetadata project = projectResolver.getProjectMetadata(clusterState);
         clusterState.blocks().globalBlockedRaiseException(ClusterBlockLevel.READ);
 
         final AtomicArray<MultiTermVectorsItemResponse> responses = new AtomicArray<>(request.requests.size());
@@ -68,12 +73,10 @@ public class TransportMultiTermVectorsAction extends HandledTransportAction<Mult
             TermVectorsRequest termVectorsRequest = request.requests.get(i);
             ShardId shardId;
             try {
-                termVectorsRequest.routing(
-                    clusterState.metadata().getProject().resolveIndexRouting(termVectorsRequest.routing(), termVectorsRequest.index())
-                );
-                String concreteSingleIndex = indexNameExpressionResolver.concreteSingleIndex(clusterState, termVectorsRequest).getName();
+                termVectorsRequest.routing(project.resolveIndexRouting(termVectorsRequest.routing(), termVectorsRequest.index()));
+                String concreteSingleIndex = indexNameExpressionResolver.concreteSingleIndex(project, termVectorsRequest).getName();
                 shardId = clusterService.operationRouting()
-                    .shardId(clusterState, concreteSingleIndex, termVectorsRequest.id(), termVectorsRequest.routing());
+                    .shardId(project, concreteSingleIndex, termVectorsRequest.id(), termVectorsRequest.routing());
             } catch (RoutingMissingException e) {
                 responses.set(
                     i,

@@ -14,6 +14,8 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.RoutingTable;
 
+import java.util.Objects;
+
 /**
  * Encapsulates all the information for a single project
  */
@@ -45,5 +47,18 @@ public final class ProjectState {
 
     public ClusterBlocks blocks() {
         return cluster().blocks();
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == this) return true;
+        if (obj == null || obj.getClass() != getClass()) return false;
+        ProjectState other = (ProjectState) obj;
+        return cluster.equals(other.cluster) && project.equals(other.project);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(cluster, project);
     }
 }

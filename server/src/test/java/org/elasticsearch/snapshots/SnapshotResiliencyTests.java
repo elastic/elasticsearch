@@ -105,6 +105,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.project.DefaultProjectResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.routing.BatchedRerouteService;
 import org.elasticsearch.cluster.routing.RerouteService;
@@ -2167,7 +2168,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     null,
                     emptySet()
                 );
-                final IndexNameExpressionResolver indexNameExpressionResolver = TestIndexNameExpressionResolver.newInstance();
+                ProjectResolver projectResolver = TestProjectResolvers.singleProjectOnly();
+                IndexNameExpressionResolver indexNameExpressionResolver = TestIndexNameExpressionResolver.newInstance();
                 bigArrays = new BigArrays(new PageCacheRecycler(settings), null, "test");
                 repositoriesService = new RepositoriesService(
                     settings,
@@ -2358,7 +2360,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                             actionFilters,
                             new IndexingPressure(settings),
                             EmptySystemIndices.INSTANCE,
-                            TestProjectResolvers.singleProjectOnly()
+                            projectResolver
                         )
                     ),
                     RetentionLeaseSyncer.EMPTY,
@@ -2418,7 +2420,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         indexNameExpressionResolver,
                         new IndexingPressure(settings),
                         EmptySystemIndices.INSTANCE,
-                        TestProjectResolvers.singleProjectOnly(),
+                        projectResolver,
                         FailureStoreMetrics.NOOP
                     )
                 );
@@ -2434,7 +2436,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     actionFilters,
                     indexingMemoryLimits,
                     EmptySystemIndices.INSTANCE,
-                    TestProjectResolvers.singleProjectOnly(),
+                    projectResolver,
                     DocumentParsingProvider.EMPTY_INSTANCE
                 );
                 actions.put(TransportShardBulkAction.TYPE, transportShardBulkAction);
@@ -2469,7 +2471,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         indexNameExpressionResolver,
                         new RequestValidators<>(Collections.emptyList()),
                         EmptySystemIndices.INSTANCE,
-                        TestProjectResolvers.singleProjectOnly()
+                        projectResolver
                     )
                 );
                 actions.put(
@@ -2497,6 +2499,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         searchPhaseController,
                         clusterService,
                         actionFilters,
+                        projectResolver,
                         indexNameExpressionResolver,
                         namedWriteableRegistry,
                         EmptySystemIndices.INSTANCE.getExecutorSelector(),

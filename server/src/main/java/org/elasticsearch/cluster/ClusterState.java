@@ -509,6 +509,13 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         }
     }
 
+    @FixForMultiProject
+    public ProjectState projectState() {
+        // check there is only the single default project
+        metadata.getProject();
+        return new ProjectState(this, Metadata.DEFAULT_PROJECT_ID);
+    }
+
     public ProjectState projectState(ProjectId projectId) {
         return new ProjectState(this, projectId);
     }

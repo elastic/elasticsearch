@@ -433,10 +433,6 @@ public class GlobalRoutingTableTests extends AbstractWireSerializingTestCase<Glo
         }
     }
 
-    private static ProjectId randomProjectId() {
-        return new ProjectId(randomUUID());
-    }
-
     private RoutingTable randomRoutingTable() {
         return addIndices(randomIntBetween(0, 10), new RoutingTable.Builder());
     }

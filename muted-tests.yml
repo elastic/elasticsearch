@@ -118,9 +118,6 @@ tests:
 - class: org.elasticsearch.xpack.remotecluster.RemoteClusterSecurityWithApmTracingRestIT
   method: testTracingCrossCluster
   issue: https://github.com/elastic/elasticsearch/issues/112731
-- class: org.elasticsearch.xpack.inference.DefaultEndPointsIT
-  method: testInferDeploysDefaultElser
-  issue: https://github.com/elastic/elasticsearch/issues/114913
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=esql/60_usage/Basic ESQL usage output (telemetry)}
   issue: https://github.com/elastic/elasticsearch/issues/115231
@@ -261,9 +258,6 @@ tests:
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=ml/filter_crud/Test update filter}
   issue: https://github.com/elastic/elasticsearch/issues/116271
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {p0=aggregations/percentiles_hdr_metric/Negative values test}
-  issue: https://github.com/elastic/elasticsearch/issues/116276
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=ml/get_datafeeds/Test explicit get all datafeeds}
   issue: https://github.com/elastic/elasticsearch/issues/116284
@@ -282,6 +276,21 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/114723
 - class: org.elasticsearch.xpack.search.AsyncSearchSecurityIT
   issue: https://github.com/elastic/elasticsearch/issues/116293
+- class: org.elasticsearch.packaging.test.ArchiveTests
+  method: test43AutoconfigurationNotTriggeredWhenTlsAlreadyConfigured
+  issue: https://github.com/elastic/elasticsearch/issues/116317
+- class: org.elasticsearch.xpack.downsample.DownsampleRestIT
+  issue: https://github.com/elastic/elasticsearch/issues/116326
+- class: org.elasticsearch.xpack.downsample.DownsampleWithBasicRestIT
+  issue: https://github.com/elastic/elasticsearch/issues/116327
+- class: org.elasticsearch.validation.DotPrefixClientYamlTestSuiteIT
+  issue: https://github.com/elastic/elasticsearch/issues/116328
+- class: org.elasticsearch.action.search.SearchQueryThenFetchAsyncActionTests
+  method: testBottomFieldSort
+  issue: https://github.com/elastic/elasticsearch/issues/116249
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=synonyms/90_synonyms_reloading_for_synset/Reload analyzers for specific synonym set}
+  issue: https://github.com/elastic/elasticsearch/issues/116332
 
 # Examples:
 #

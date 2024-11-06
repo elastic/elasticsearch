@@ -821,7 +821,7 @@ public class IbmWatsonxServiceTests extends ESTestCase {
             assertEquals(embeddingSize, updatedModel.getServiceSettings().dimensions().intValue());
         }
     }
-  
+
     public void testGetConfiguration() throws Exception {
         try (var service = createIbmWatsonxService()) {
             String content = XContentHelper.stripWhitespace("""

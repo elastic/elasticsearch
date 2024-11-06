@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.kql.query;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -23,27 +24,53 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.kql.parser.KqlParser;
+import org.elasticsearch.xpack.kql.parser.KqlParserExecutionContext;
 
 import java.io.IOException;
+import java.time.ZoneId;
 import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class KqlQueryBuilder extends AbstractQueryBuilder<KqlQueryBuilder> {
     public static final String NAME = "kql";
     public static final ParseField QUERY_FIELD = new ParseField("query");
+    private static final ParseField CASE_INSENSITIVE_FIELD = new ParseField("case_insensitive");
+    private static final ParseField TIME_ZONE_FIELD = new ParseField("time_zone");
+    private static final ParseField DEFAULT_FIELD_FIELD = new ParseField("default_field");
+
     private static final Logger log = LogManager.getLogger(KqlQueryBuilder.class);
-    private static final ConstructingObjectParser<KqlQueryBuilder, Void> PARSER = new ConstructingObjectParser<>(
-        NAME,
-        a -> new KqlQueryBuilder((String) a[0])
-    );
+    private static final ConstructingObjectParser<KqlQueryBuilder, Void> PARSER = new ConstructingObjectParser<>(NAME, a -> {
+        KqlQueryBuilder kqlQuery = new KqlQueryBuilder((String) a[0]);
+
+        if (a[1] != null) {
+            kqlQuery.caseInsensitive((Boolean) a[1]);
+        }
+
+        if (a[2] != null) {
+            kqlQuery.timeZone((String) a[2]);
+        }
+
+        if (a[3] != null) {
+            kqlQuery.defaultFields((String) a[3]);
+        }
+
+        return kqlQuery;
+    });
 
     static {
         PARSER.declareString(constructorArg(), QUERY_FIELD);
+        PARSER.declareBoolean(optionalConstructorArg(), CASE_INSENSITIVE_FIELD);
+        PARSER.declareString(optionalConstructorArg(), TIME_ZONE_FIELD);
+        PARSER.declareString(optionalConstructorArg(), DEFAULT_FIELD_FIELD);
         declareStandardFields(PARSER);
     }
 
     private final String query;
+    private boolean caseInsensitive;
+    private ZoneId timeZone;
+    private String defaultFields;
 
     public KqlQueryBuilder(String query) {
         this.query = Objects.requireNonNull(query, "query can not be null");
@@ -52,6 +79,9 @@ public class KqlQueryBuilder extends AbstractQueryBuilder<KqlQueryBuilder> {
     public KqlQueryBuilder(StreamInput in) throws IOException {
         super(in);
         query = in.readString();
+        caseInsensitive = in.readBoolean();
+        timeZone = in.readOptionalZoneId();
+        defaultFields = in.readOptionalString();
     }
 
     public static KqlQueryBuilder fromXContent(XContentParser parser) {
@@ -63,17 +93,65 @@ public class KqlQueryBuilder extends AbstractQueryBuilder<KqlQueryBuilder> {
     }
 
     @Override
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.KQL_QUERY_ADDED;
+    }
+
+    public String queryString() {
+        return query;
+    }
+
+    public boolean caseInsensitive() {
+        return caseInsensitive;
+    }
+
+    public KqlQueryBuilder caseInsensitive(boolean caseInsensitive) {
+        this.caseInsensitive = caseInsensitive;
+        return this;
+    }
+
+    public ZoneId timeZone() {
+        return timeZone;
+    }
+
+    public KqlQueryBuilder timeZone(String timeZone) {
+        this.timeZone = timeZone != null ? ZoneId.of(timeZone) : null;
+        return this;
+    }
+
+    public String defaultFields() {
+        return defaultFields;
+    }
+
+    public KqlQueryBuilder defaultFields(String defaultFields) {
+        this.defaultFields = defaultFields;
+        return this;
+    }
+
+    @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
-        builder.field(QUERY_FIELD.getPreferredName(), query);
-        boostAndQueryNameToXContent(builder);
+        {
+            builder.field(QUERY_FIELD.getPreferredName(), query);
+            builder.field(CASE_INSENSITIVE_FIELD.getPreferredName(), caseInsensitive);
+
+            if (defaultFields != null) {
+                builder.field(DEFAULT_FIELD_FIELD.getPreferredName(), defaultFields);
+            }
+
+            if (timeZone != null) {
+                builder.field(TIME_ZONE_FIELD.getPreferredName(), timeZone.getId());
+            }
+
+            boostAndQueryNameToXContent(builder);
+        }
         builder.endObject();
     }
 
     @Override
     protected QueryBuilder doSearchRewrite(SearchExecutionContext searchExecutionContext) throws IOException {
         KqlParser parser = new KqlParser();
-        QueryBuilder rewrittenQuery = parser.parseKqlQuery(query, searchExecutionContext);
+        QueryBuilder rewrittenQuery = parser.parseKqlQuery(query, createKqlParserContext(searchExecutionContext));
 
         if (log.isTraceEnabled()) {
             log.trace("KQL query {} translated to Query DSL: {}", query, Strings.toString(rewrittenQuery));
@@ -89,6 +167,9 @@ public class KqlQueryBuilder extends AbstractQueryBuilder<KqlQueryBuilder> {
 
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeString(query);
+        out.writeBoolean(caseInsensitive);
+        out.writeOptionalZoneId(timeZone);
+        out.writeOptionalString(defaultFields);
     }
 
     @Override
@@ -98,21 +179,22 @@ public class KqlQueryBuilder extends AbstractQueryBuilder<KqlQueryBuilder> {
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(query);
+        return Objects.hash(query, caseInsensitive, timeZone, defaultFields);
     }
 
     @Override
     protected boolean doEquals(KqlQueryBuilder other) {
-        return Objects.equals(query, other.query);
+        return Objects.equals(query, other.query)
+            && Objects.equals(timeZone, other.timeZone)
+            && Objects.equals(defaultFields, other.defaultFields)
+            && caseInsensitive == other.caseInsensitive;
     }
 
-    @Override
-    public TransportVersion getMinimalSupportedVersion() {
-        // TODO: Create a transport versions.
-        return TransportVersion.current();
-    }
-
-    public String queryString() {
-        return query;
+    private KqlParserExecutionContext createKqlParserContext(SearchExecutionContext searchExecutionContext) {
+        return KqlParserExecutionContext.builder(searchExecutionContext)
+            .caseInsensitive(caseInsensitive)
+            .timeZone(timeZone)
+            .defaultFields(defaultFields)
+            .build();
     }
 }

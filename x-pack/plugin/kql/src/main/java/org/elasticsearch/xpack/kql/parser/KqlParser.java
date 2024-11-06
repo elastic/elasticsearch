@@ -15,7 +15,6 @@ import org.antlr.v4.runtime.RecognitionException;
 import org.antlr.v4.runtime.Recognizer;
 import org.antlr.v4.runtime.atn.PredictionMode;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
@@ -25,17 +24,12 @@ import java.util.function.Function;
 public class KqlParser {
     private static final Logger log = LogManager.getLogger(KqlParser.class);
 
-    public QueryBuilder parseKqlQuery(String kqlQuery, SearchExecutionContext searchExecutionContext) {
+    public QueryBuilder parseKqlQuery(String kqlQuery, KqlParserExecutionContext kqlParserContext) {
         if (log.isDebugEnabled()) {
             log.debug("Parsing KQL query: {}", kqlQuery);
         }
 
-        return invokeParser(
-            kqlQuery,
-            new KqlParserExecutionContext(searchExecutionContext),
-            KqlBaseParser::topLevelQuery,
-            KqlAstBuilder::toQueryBuilder
-        );
+        return invokeParser(kqlQuery, kqlParserContext, KqlBaseParser::topLevelQuery, KqlAstBuilder::toQueryBuilder);
     }
 
     private <T> T invokeParser(

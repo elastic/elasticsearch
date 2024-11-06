@@ -126,7 +126,11 @@ class KqlAstBuilder extends KqlBaseBaseVisitor<QueryBuilder> {
 
         withFields(ctx.fieldName(), (fieldName, mappedFieldType) -> {
             RangeQueryBuilder rangeQuery = rangeOperation.apply(QueryBuilders.rangeQuery(fieldName), queryText);
-            // TODO: add timezone for date fields
+
+            if (kqlParserExecutionContext.timeZone() != null) {
+                rangeQuery.timeZone(kqlParserExecutionContext.timeZone().getId());
+            }
+
             boolQueryBuilder.should(rangeQuery);
         });
 
@@ -161,16 +165,17 @@ class KqlAstBuilder extends KqlBaseBaseVisitor<QueryBuilder> {
             QueryBuilder fieldQuery = null;
 
             if (hasWildcard && isKeywordField(mappedFieldType)) {
-                fieldQuery = QueryBuilders.wildcardQuery(fieldName, queryText)
-                    .caseInsensitive(kqlParserExecutionContext.isCaseSensitive() == false);
+                fieldQuery = QueryBuilders.wildcardQuery(fieldName, queryText).caseInsensitive(kqlParserExecutionContext.caseInsensitive());
             } else if (hasWildcard) {
                 fieldQuery = QueryBuilders.queryStringQuery(escapeLuceneQueryString(queryText, true)).field(fieldName);
             } else if (isDateField(mappedFieldType)) {
-                // TODO: add timezone
-                fieldQuery = QueryBuilders.rangeQuery(fieldName).gte(queryText).lte(queryText);
+                RangeQueryBuilder rangeFieldQuery = QueryBuilders.rangeQuery(fieldName).gte(queryText).lte(queryText);
+                if (kqlParserExecutionContext.timeZone() != null) {
+                    rangeFieldQuery.timeZone(kqlParserExecutionContext.timeZone().getId());
+                }
+                fieldQuery = rangeFieldQuery;
             } else if (isKeywordField(mappedFieldType)) {
-                fieldQuery = QueryBuilders.termQuery(fieldName, queryText)
-                    .caseInsensitive(kqlParserExecutionContext.isCaseSensitive() == false);
+                fieldQuery = QueryBuilders.termQuery(fieldName, queryText).caseInsensitive(kqlParserExecutionContext.caseInsensitive());
             } else if (ctx.fieldQueryValue().QUOTED_STRING() != null) {
                 fieldQuery = QueryBuilders.matchPhraseQuery(fieldName, queryText);
             } else {

@@ -21,7 +21,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Tuple.tuple;
 
-class KqlParserExecutionContext extends SearchExecutionContext {
+public class KqlParserExecutionContext extends SearchExecutionContext {
 
     private static final List<String> IGNORED_METADATA_FIELDS = List.of(
         "_seq_no",
@@ -32,14 +32,25 @@ class KqlParserExecutionContext extends SearchExecutionContext {
         "_field_names"
     );
 
-    private static Predicate<Tuple<String, MappedFieldType>> searchableFieldFilter = (fieldDef) -> fieldDef.v2().isSearchable();
-
-    private static Predicate<Tuple<String, MappedFieldType>> ignoredFieldFilter = (fieldDef) -> IGNORED_METADATA_FIELDS.contains(
+    private static final Predicate<Tuple<String, MappedFieldType>> searchableFieldFilter = (fieldDef) -> fieldDef.v2().isSearchable();
+    private static final Predicate<Tuple<String, MappedFieldType>> ignoredFieldFilter = (fieldDef) -> IGNORED_METADATA_FIELDS.contains(
         fieldDef.v1()
     );
 
-    KqlParserExecutionContext(SearchExecutionContext source) {
+    public static Builder builder(SearchExecutionContext searchExecutionContext) {
+        return new Builder(searchExecutionContext);
+    }
+
+    private final boolean caseInsensitive;
+    private final ZoneId timeZone;
+
+    private final String defaultFields;
+
+    public KqlParserExecutionContext(SearchExecutionContext source, boolean caseInsensitive, ZoneId timeZone, String defaultFields) {
         super(source);
+        this.caseInsensitive = caseInsensitive;
+        this.timeZone = timeZone;
+        this.defaultFields = defaultFields;
     }
 
     public Iterable<Tuple<String, MappedFieldType>> resolveFields(KqlBaseParser.FieldNameContext fieldNameContext) {
@@ -56,9 +67,8 @@ class KqlParserExecutionContext extends SearchExecutionContext {
             .collect(Collectors.toList());
     }
 
-    public boolean isCaseSensitive() {
-        // TODO: implementation
-        return false;
+    public boolean caseInsensitive() {
+        return caseInsensitive;
     }
 
     public ZoneId timeZone() {
@@ -75,5 +85,35 @@ class KqlParserExecutionContext extends SearchExecutionContext {
 
     public static boolean isKeywordField(MappedFieldType fieldType) {
         return fieldType.typeName().equals(KeywordFieldMapper.CONTENT_TYPE);
+    }
+
+    public static class Builder {
+        private final SearchExecutionContext searchExecutionContext;
+        private boolean caseInsensitive = true;
+        private ZoneId timeZone = null;
+        private String defaultFields = null;
+
+        private Builder(SearchExecutionContext searchExecutionContext) {
+            this.searchExecutionContext = searchExecutionContext;
+        }
+
+        public KqlParserExecutionContext build() {
+            return new KqlParserExecutionContext(searchExecutionContext, caseInsensitive, timeZone, defaultFields);
+        }
+
+        public Builder caseInsensitive(boolean caseInsensitive) {
+            this.caseInsensitive = caseInsensitive;
+            return this;
+        }
+
+        public Builder timeZone(ZoneId timeZone) {
+            this.timeZone = timeZone;
+            return this;
+        }
+
+        public Builder defaultFields(String defaultFields) {
+            this.defaultFields = defaultFields;
+            return this;
+        }
     }
 }

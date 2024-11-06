@@ -30,7 +30,21 @@ public class KqlQueryBuilderTests extends AbstractQueryTestCase<KqlQueryBuilder>
 
     @Override
     protected KqlQueryBuilder doCreateTestQueryBuilder() {
-        return new KqlQueryBuilder(generateRandomKqlQuery());
+        KqlQueryBuilder kqlQueryBuilder = new KqlQueryBuilder(generateRandomKqlQuery());
+
+        if (randomBoolean()) {
+            kqlQueryBuilder.caseInsensitive(randomBoolean());
+        }
+
+        if (randomBoolean()) {
+            kqlQueryBuilder.timeZone(randomTimeZone().getID());
+        }
+
+        if (randomBoolean()) {
+            kqlQueryBuilder.defaultFields(randomFrom("*", "mapped_*", KEYWORD_FIELD_NAME, TEXT_FIELD_NAME));
+        }
+
+        return kqlQueryBuilder;
     }
 
     @Override
@@ -40,7 +54,44 @@ public class KqlQueryBuilderTests extends AbstractQueryTestCase<KqlQueryBuilder>
             return super.mutateInstance(instance);
         }
 
-        return new KqlQueryBuilder(randomValueOtherThan(instance.queryString(), this::generateRandomKqlQuery));
+        KqlQueryBuilder kqlQueryBuilder = new KqlQueryBuilder(randomValueOtherThan(instance.queryString(), this::generateRandomKqlQuery))
+            .caseInsensitive(instance.caseInsensitive())
+            .timeZone(instance.timeZone() != null ? instance.timeZone().getId() : null)
+            .defaultFields(instance.defaultFields());
+
+        if (kqlQueryBuilder.queryString().equals(instance.queryString()) == false) {
+            return kqlQueryBuilder;
+        }
+
+        switch (randomInt() % 3) {
+            case 0 -> {
+                kqlQueryBuilder.caseInsensitive(instance.caseInsensitive() == false);
+            }
+            case 1 -> {
+                if (randomBoolean() && instance.defaultFields() != null) {
+                    kqlQueryBuilder.defaultFields(null);
+                } else {
+                    kqlQueryBuilder.defaultFields(
+                        randomValueOtherThan(
+                            instance.defaultFields(),
+                            () -> randomFrom("*", "mapped_*", KEYWORD_FIELD_NAME, TEXT_FIELD_NAME)
+                        )
+                    );
+                }
+            }
+            default -> {
+                if (randomBoolean() && instance.timeZone() != null) {
+                    kqlQueryBuilder.timeZone(null);
+                } else if (instance.timeZone() != null) {
+                    kqlQueryBuilder.timeZone(randomValueOtherThan(instance.timeZone().getId(), () -> randomTimeZone().getID()));
+                } else {
+                    kqlQueryBuilder.timeZone(randomTimeZone().getID());
+                }
+            }
+        }
+        ;
+
+        return kqlQueryBuilder;
     }
 
     @Override

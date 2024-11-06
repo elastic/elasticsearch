@@ -12,6 +12,7 @@ package org.elasticsearch.rest;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Tuple;
@@ -34,6 +35,7 @@ public interface RestRequestFilter {
     default RestRequest getFilteredRequest(RestRequest restRequest) {
         Set<String> fields = getFilteredFields();
         if (restRequest.hasContent() && fields.isEmpty() == false) {
+            BytesReference content = restRequest.tryCopyContent();
             return new RestRequest(restRequest) {
 
                 private BytesReference filteredBytes = null;
@@ -44,10 +46,10 @@ public interface RestRequestFilter {
                 }
 
                 @Override
-                public BytesReference copyContent() {
+                public ReleasableBytesReference content() {
                     if (filteredBytes == null) {
                         Tuple<XContentType, Map<String, Object>> result = XContentHelper.convertToMap(
-                            restRequest.tryCopyContent(),
+                            content,
                             true,
                             restRequest.getXContentType()
                         );
@@ -63,7 +65,7 @@ public interface RestRequestFilter {
                             throw new ElasticsearchException("failed to parse request", e);
                         }
                     }
-                    return filteredBytes;
+                    return ReleasableBytesReference.wrap(filteredBytes);
                 }
             };
         } else {

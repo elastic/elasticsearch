@@ -74,7 +74,7 @@ final class DfsQueryPhase extends SearchPhase {
         final CountedCollector<SearchPhaseResult> counter = new CountedCollector<>(
             queryResult,
             searchResults.size(),
-            () -> context.executeNextPhase(this, nextPhaseFactory.apply(queryResult)),
+            () -> context.executeNextPhase(this, () -> nextPhaseFactory.apply(queryResult)),
             context
         );
 
@@ -92,7 +92,7 @@ final class DfsQueryPhase extends SearchPhase {
                 connection = context.getConnection(shardTarget.getClusterAlias(), shardTarget.getNodeId());
             } catch (Exception e) {
                 shardFailure(e, querySearchRequest, shardIndex, shardTarget, counter);
-                return;
+                continue;
             }
             searchTransportService.sendExecuteQuery(
                 connection,

@@ -39,6 +39,7 @@ dependencies {
   api project(':libs:grok')
   api project(":libs:tdigest")
   implementation project(":libs:simdvec")
+  implementation project(":libs:entitlement")
 
   // lucene
   api "org.apache.lucene:lucene-core:${versions.lucene}"

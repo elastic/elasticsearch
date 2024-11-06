@@ -19,7 +19,7 @@ module org.elasticsearch.base {
         to
             org.elasticsearch.xcontent,
             org.elasticsearch.nativeaccess,
-            org.elasticsearch.entitlement;
+            org.elasticsearch.entitlement.agent;
 
     uses ModuleQualifiedExportsService;
 }

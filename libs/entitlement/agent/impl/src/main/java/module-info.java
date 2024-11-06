@@ -7,14 +7,12 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-module org.elasticsearch.entitlement.runtime {
-    requires org.elasticsearch.entitlement.bridge;
-    requires org.elasticsearch.xcontent;
-    requires org.elasticsearch.server;
+import org.elasticsearch.entitlement.instrumentation.InstrumentationService;
+import org.elasticsearch.entitlement.instrumentation.impl.InstrumentationServiceImpl;
 
-    exports org.elasticsearch.entitlement.runtime.api;
+module org.elasticsearch.entitlement.agent.impl {
+    requires org.objectweb.asm;
+    requires org.elasticsearch.entitlement.agent;
 
-    provides org.elasticsearch.entitlement.api.EntitlementChecks
-        with
-            org.elasticsearch.entitlement.runtime.api.ElasticsearchEntitlementManager;
+    provides InstrumentationService with InstrumentationServiceImpl;
 }

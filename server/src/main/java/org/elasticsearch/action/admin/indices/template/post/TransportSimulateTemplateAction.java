@@ -114,12 +114,12 @@ public class TransportSimulateTemplateAction extends TransportMasterNodeReadActi
             simulateTemplateToAdd = request.getTemplateName() == null ? "simulate_template_" + uuid : request.getTemplateName();
             // Perform validation for things like typos in component template names
             MetadataIndexTemplateService.validateV2TemplateRequest(
-                state.metadata(),
+                state.metadata().getProject(),
                 simulateTemplateToAdd,
                 request.getIndexTemplateRequest().indexTemplate()
             );
             stateWithTemplate = indexTemplateService.addIndexTemplateV2(
-                state,
+                state.projectState(state.metadata().getProject().id()),
                 request.getIndexTemplateRequest().create(),
                 simulateTemplateToAdd,
                 request.getIndexTemplateRequest().indexTemplate()
@@ -159,7 +159,9 @@ public class TransportSimulateTemplateAction extends TransportMasterNodeReadActi
         assert templateV2 != null : "the matched template must exist";
 
         Map<String, List<String>> overlapping = new HashMap<>();
-        overlapping.putAll(findConflictingV1Templates(tempClusterState, matchingTemplate, templateV2.indexPatterns()));
+        overlapping.putAll(
+            findConflictingV1Templates(tempClusterState.metadata().getProject(), matchingTemplate, templateV2.indexPatterns())
+        );
         overlapping.putAll(findConflictingV2Templates(tempClusterState, matchingTemplate, templateV2.indexPatterns()));
 
         Template template = TransportSimulateIndexTemplateAction.resolveTemplate(

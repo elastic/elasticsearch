@@ -658,6 +658,7 @@ FROM sample_data
 ;
 
 docsBitLength
+required_capability: fn_bit_length
 // tag::bitLength[]
 FROM employees
 | KEEP first_name, last_name

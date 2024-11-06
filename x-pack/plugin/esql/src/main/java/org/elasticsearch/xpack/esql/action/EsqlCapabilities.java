@@ -319,6 +319,11 @@ public class EsqlCapabilities {
         LEAST_GREATEST_FOR_DATENANOS(EsqlCorePlugin.DATE_NANOS_FEATURE_FLAG),
 
         /**
+         * Support for date_trunc function on date nanos type
+         */
+        DATE_TRUNC_DATE_NANOS(EsqlCorePlugin.DATE_NANOS_FEATURE_FLAG),
+
+        /**
          * support aggregations on date nanos
          */
         DATE_NANOS_AGGREGATIONS(EsqlCorePlugin.DATE_NANOS_FEATURE_FLAG),

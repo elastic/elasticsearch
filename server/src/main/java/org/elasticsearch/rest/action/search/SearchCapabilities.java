@@ -33,7 +33,6 @@ public final class SearchCapabilities {
 
     public static final Set<String> CAPABILITIES = capabilities();
 
-
     private static Set<String> capabilities() {
         Set<String> capabilities = Set.of(
             RANGE_REGEX_INTERVAL_QUERY_CAPABILITY,
@@ -48,7 +47,7 @@ public final class SearchCapabilities {
         return capabilities;
     }
 
-    private static Set<String>  snapshotBuildCapabilities() {
+    private static Set<String> snapshotBuildCapabilities() {
         return Set.of(KQL_QUERY_SUPPORTED);
     }
 }

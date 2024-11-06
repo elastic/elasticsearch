@@ -1,8 +1,11 @@
 setup:
   - requires:
-      cluster_features: "gte_v8.17.0"
-      "test_runner_features": "close_to"
-      reason: 'docvalue_fields parameter for dense_vector fields is required'
+      capabilities:
+        - method: POST
+          path: /_search
+          capabilities: [ dense_vector_docvalue_fields ]
+      test_runner_features: [ capabilities, close_to ]
+      reason: Capability required to run test
   - do:
       indices.create:
         index: test

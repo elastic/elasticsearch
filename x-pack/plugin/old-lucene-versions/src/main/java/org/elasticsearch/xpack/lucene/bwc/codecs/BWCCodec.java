@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.lucene.bwc.codecs;
 
+import org.apache.lucene.backward_codecs.lucene87.Lucene87Codec;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.FieldInfosFormat;
 import org.apache.lucene.codecs.FieldsConsumer;
@@ -26,6 +27,7 @@ import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
+import org.elasticsearch.xpack.lucene.bwc.codecs.lucene87.BWCLucene87Codec;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -118,7 +120,9 @@ public abstract class BWCCodec extends Codec {
     }
 
     public static SegmentInfo wrap(SegmentInfo segmentInfo) {
-        final Codec codec = segmentInfo.getCodec();
+        // special handling for Lucene87Codec (which is currently bundled with Lucene)
+        // Use BWCLucene87Codec instead as that one extends BWCCodec (similar to all other older codecs)
+        final Codec codec = segmentInfo.getCodec() instanceof Lucene87Codec ? new BWCLucene87Codec() : segmentInfo.getCodec();
         final SegmentInfo segmentInfo1 = new SegmentInfo(
             segmentInfo.dir,
             // Use Version.LATEST instead of original version, otherwise SegmentCommitInfo will bark when processing (N-1 limitation)

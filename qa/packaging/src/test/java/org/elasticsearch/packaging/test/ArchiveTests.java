@@ -48,6 +48,7 @@ import static org.hamcrest.Matchers.startsWith;
 import static org.junit.Assume.assumeThat;
 import static org.junit.Assume.assumeTrue;
 
+@PackagingTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/116299")
 public class ArchiveTests extends PackagingTestCase {
 
     @BeforeClass
@@ -124,7 +125,6 @@ public class ArchiveTests extends PackagingTestCase {
         FileUtils.rm(installation.data);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/116299")
     public void test41AutoconfigurationNotTriggeredWhenNodeCannotContainData() throws Exception {
         // auto-config requires that the archive owner and the process user be the same
         Platforms.onWindows(() -> sh.chown(installation.config, installation.getOwner()));

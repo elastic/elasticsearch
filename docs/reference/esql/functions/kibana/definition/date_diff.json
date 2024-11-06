@@ -55,7 +55,7 @@
   ],
   "examples" : [
     "ROW date1 = TO_DATETIME(\"2023-12-02T11:00:00.000Z\"), date2 = TO_DATETIME(\"2023-12-02T11:00:00.001Z\")\n| EVAL dd_ms = DATE_DIFF(\"microseconds\", date1, date2)",
-    "ROW end_23=\"2023-12-31T23:59:59.999Z\"::DATETIME,\n  start_24=\"2024-01-01T00:00:00.000Z\"::DATETIME,\n    end_24=\"2024-12-31T23:59:59.999\"::DATETIME\n| EVAL end23_to_start24=DATE_DIFF(\"year\", end_23, start_24)\n| EVAL end23_to_end24=DATE_DIFF(\"year\", end_23, end_24)\n| EVAL start_to_end_24=DATE_DIFF(\"year\", start_24, end_24)"
+    "ROW end_23=TO_DATETIME(\"2023-12-31T23:59:59.999Z\"),\n  start_24=TO_DATETIME(\"2024-01-01T00:00:00.000Z\"),\n    end_24=TO_DATETIME(\"2024-12-31T23:59:59.999\")\n| EVAL end23_to_start24=DATE_DIFF(\"year\", end_23, start_24)\n| EVAL end23_to_end24=DATE_DIFF(\"year\", end_23, end_24)\n| EVAL start_to_end_24=DATE_DIFF(\"year\", start_24, end_24)"
   ],
   "preview" : false,
   "snapshot_only" : false

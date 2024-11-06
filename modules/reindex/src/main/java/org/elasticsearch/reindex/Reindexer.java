@@ -31,6 +31,7 @@ import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.Strings;
@@ -245,15 +246,16 @@ public class Reindexer {
         }
 
         private IndexMode destinationIndexMode(ClusterState state) {
-            IndexMetadata destMeta = state.metadata().index(mainRequest.getDestination().index());
+            ProjectMetadata projectMetadata = state.metadata().getProject();
+            IndexMetadata destMeta = projectMetadata.index(mainRequest.getDestination().index());
             if (destMeta != null) {
                 return IndexSettings.MODE.get(destMeta.getSettings());
             }
-            String template = MetadataIndexTemplateService.findV2Template(state.metadata(), mainRequest.getDestination().index(), false);
+            String template = MetadataIndexTemplateService.findV2Template(projectMetadata, mainRequest.getDestination().index(), false);
             if (template == null) {
                 return IndexMode.STANDARD;
             }
-            Settings settings = MetadataIndexTemplateService.resolveSettings(state.metadata(), template);
+            Settings settings = MetadataIndexTemplateService.resolveSettings(projectMetadata, template);
             return IndexSettings.MODE.get(settings);
         }
 

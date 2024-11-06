@@ -204,6 +204,7 @@ public class ReservedLifecycleStateServiceTests extends ESTestCase {
         assertThat(updatedState.keys(), containsInAnyOrder("my_timeseries_lifecycle", "my_timeseries_lifecycle1"));
         IndexLifecycleMetadata ilmMetadata = updatedState.state()
             .metadata()
+            .getProject()
             .custom(IndexLifecycleMetadata.TYPE, IndexLifecycleMetadata.EMPTY);
         assertThat(ilmMetadata.getPolicyMetadatas().keySet(), containsInAnyOrder("my_timeseries_lifecycle", "my_timeseries_lifecycle1"));
 
@@ -223,7 +224,7 @@ public class ReservedLifecycleStateServiceTests extends ESTestCase {
         prevState = updatedState;
         updatedState = processJSON(action, prevState, onePolicyRemovedJSON);
         assertThat(updatedState.keys(), containsInAnyOrder("my_timeseries_lifecycle"));
-        ilmMetadata = updatedState.state().metadata().custom(IndexLifecycleMetadata.TYPE, IndexLifecycleMetadata.EMPTY);
+        ilmMetadata = updatedState.state().metadata().getProject().custom(IndexLifecycleMetadata.TYPE, IndexLifecycleMetadata.EMPTY);
         assertThat(ilmMetadata.getPolicyMetadatas().keySet(), containsInAnyOrder("my_timeseries_lifecycle"));
 
         String onePolicyRenamedJSON = """
@@ -242,7 +243,7 @@ public class ReservedLifecycleStateServiceTests extends ESTestCase {
         prevState = updatedState;
         updatedState = processJSON(action, prevState, onePolicyRenamedJSON);
         assertThat(updatedState.keys(), containsInAnyOrder("my_timeseries_lifecycle2"));
-        ilmMetadata = updatedState.state().metadata().custom(IndexLifecycleMetadata.TYPE, IndexLifecycleMetadata.EMPTY);
+        ilmMetadata = updatedState.state().metadata().getProject().custom(IndexLifecycleMetadata.TYPE, IndexLifecycleMetadata.EMPTY);
         assertThat(ilmMetadata.getPolicyMetadatas().keySet(), containsInAnyOrder("my_timeseries_lifecycle2"));
     }
 

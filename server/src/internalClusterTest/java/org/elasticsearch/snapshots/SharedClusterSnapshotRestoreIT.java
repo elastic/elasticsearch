@@ -234,8 +234,8 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         ensureGreen();
         assertDocCount("test-idx-1", 100);
         ClusterState clusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
-        assertThat(clusterState.getMetadata().hasIndex("test-idx-1"), equalTo(true));
-        assertThat(clusterState.getMetadata().hasIndex("test-idx-2"), equalTo(false));
+        assertThat(clusterState.getMetadata().getProject().hasIndex("test-idx-1"), equalTo(true));
+        assertThat(clusterState.getMetadata().getProject().hasIndex("test-idx-2"), equalTo(false));
 
         assertNull(
             indicesAdmin().prepareGetSettings("test-idx-1")
@@ -876,7 +876,10 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         logger.info("-->  closing index test-idx-closed");
         assertAcked(client.admin().indices().prepareClose("test-idx-closed"));
         ClusterStateResponse stateResponse = client.admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get();
-        assertThat(stateResponse.getState().metadata().index("test-idx-closed").getState(), equalTo(IndexMetadata.State.CLOSE));
+        assertThat(
+            stateResponse.getState().metadata().getProject().index("test-idx-closed").getState(),
+            equalTo(IndexMetadata.State.CLOSE)
+        );
         assertThat(stateResponse.getState().routingTable().index("test-idx-closed"), notNullValue());
 
         final SnapshotInfo snapshotInfo = createSnapshot("test-repo", "test-snap", Collections.singletonList("test-idx*"));
@@ -1478,7 +1481,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                 safeAwait(
                     ClusterServiceUtils.addTemporaryStateListener(
                         internalCluster().getInstance(ClusterService.class),
-                        cs -> cs.metadata().index(indexName).primaryTerm(0) > primaryTerm
+                        cs -> cs.metadata().getProject().index(indexName).primaryTerm(0) > primaryTerm
                     )
                 );
                 ensureGreen(indexName);
@@ -2276,9 +2279,9 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             );
             assertThat(restoreSnapshotResponse.getRestoreInfo().indices(), containsInAnyOrder(normalIndex, hiddenIndex, dottedHiddenIndex));
             ClusterState clusterState = client.admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
-            assertThat(clusterState.getMetadata().hasIndex(normalIndex), equalTo(true));
-            assertThat(clusterState.getMetadata().hasIndex(hiddenIndex), equalTo(true));
-            assertThat(clusterState.getMetadata().hasIndex(dottedHiddenIndex), equalTo(true));
+            assertThat(clusterState.getMetadata().getProject().hasIndex(normalIndex), equalTo(true));
+            assertThat(clusterState.getMetadata().getProject().hasIndex(hiddenIndex), equalTo(true));
+            assertThat(clusterState.getMetadata().getProject().hasIndex(dottedHiddenIndex), equalTo(true));
             cluster().wipeIndices(normalIndex, hiddenIndex, dottedHiddenIndex);
         }
 
@@ -2296,9 +2299,9 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             );
             assertThat(restoreSnapshotResponse.getRestoreInfo().indices(), containsInAnyOrder(normalIndex, hiddenIndex));
             ClusterState clusterState = client.admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
-            assertThat(clusterState.getMetadata().hasIndex(normalIndex), equalTo(true));
-            assertThat(clusterState.getMetadata().hasIndex(hiddenIndex), equalTo(true));
-            assertThat(clusterState.getMetadata().hasIndex(dottedHiddenIndex), equalTo(false));
+            assertThat(clusterState.getMetadata().getProject().hasIndex(normalIndex), equalTo(true));
+            assertThat(clusterState.getMetadata().getProject().hasIndex(hiddenIndex), equalTo(true));
+            assertThat(clusterState.getMetadata().getProject().hasIndex(dottedHiddenIndex), equalTo(false));
             cluster().wipeIndices(normalIndex, hiddenIndex);
         }
 
@@ -2316,9 +2319,9 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             );
             assertThat(restoreSnapshotResponse.getRestoreInfo().indices(), containsInAnyOrder(hiddenIndex));
             ClusterState clusterState = client.admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
-            assertThat(clusterState.getMetadata().hasIndex(normalIndex), equalTo(false));
-            assertThat(clusterState.getMetadata().hasIndex(hiddenIndex), equalTo(true));
-            assertThat(clusterState.getMetadata().hasIndex(dottedHiddenIndex), equalTo(false));
+            assertThat(clusterState.getMetadata().getProject().hasIndex(normalIndex), equalTo(false));
+            assertThat(clusterState.getMetadata().getProject().hasIndex(hiddenIndex), equalTo(true));
+            assertThat(clusterState.getMetadata().getProject().hasIndex(dottedHiddenIndex), equalTo(false));
             cluster().wipeIndices(hiddenIndex);
         }
 
@@ -2336,9 +2339,9 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             );
             assertThat(restoreSnapshotResponse.getRestoreInfo().indices(), containsInAnyOrder(dottedHiddenIndex));
             ClusterState clusterState = client.admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
-            assertThat(clusterState.getMetadata().hasIndex(normalIndex), equalTo(false));
-            assertThat(clusterState.getMetadata().hasIndex(hiddenIndex), equalTo(false));
-            assertThat(clusterState.getMetadata().hasIndex(dottedHiddenIndex), equalTo(true));
+            assertThat(clusterState.getMetadata().getProject().hasIndex(normalIndex), equalTo(false));
+            assertThat(clusterState.getMetadata().getProject().hasIndex(hiddenIndex), equalTo(false));
+            assertThat(clusterState.getMetadata().getProject().hasIndex(dottedHiddenIndex), equalTo(true));
         }
     }
 

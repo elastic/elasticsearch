@@ -12,6 +12,7 @@ package org.elasticsearch.ingest.geoip;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
@@ -39,12 +40,14 @@ public class GeoIpDownloaderTaskExecutorTests extends ESTestCase {
         when(clusterState.getMetadata()).thenReturn(metadata);
 
         final IngestMetadata[] ingestMetadata = new IngestMetadata[1];
-        when(metadata.custom(IngestMetadata.TYPE)).thenAnswer(invocationOnmock -> ingestMetadata[0]);
+        ProjectMetadata project = mock(ProjectMetadata.class);
+        when(metadata.getProject()).thenReturn(project);
+        when(project.custom(IngestMetadata.TYPE)).thenAnswer(invocationOnmock -> ingestMetadata[0]);
 
         final Settings[] indexSettings = new Settings[1];
         IndexMetadata indexMetadata = mock(IndexMetadata.class);
         when(indexMetadata.getSettings()).thenAnswer(invocationMock -> indexSettings[0]);
-        when(metadata.indices()).thenReturn(Map.of("index", indexMetadata));
+        when(project.indices()).thenReturn(Map.of("index", indexMetadata));
 
         for (String pipelineConfigJson : getPipelinesWithGeoIpProcessors(false)) {
             ingestMetadata[0] = new IngestMetadata(
@@ -69,7 +72,9 @@ public class GeoIpDownloaderTaskExecutorTests extends ESTestCase {
         final IngestMetadata[] ingestMetadata = new IngestMetadata[1];
         ClusterState clusterState = mock(ClusterState.class);
         Metadata metadata = mock(Metadata.class);
-        when(metadata.custom(IngestMetadata.TYPE)).thenAnswer(invocationOnmock -> ingestMetadata[0]);
+        ProjectMetadata project = mock(ProjectMetadata.class);
+        when(metadata.getProject()).thenReturn(project);
+        when(project.custom(IngestMetadata.TYPE)).thenAnswer(invocationOnmock -> ingestMetadata[0]);
         when(clusterState.getMetadata()).thenReturn(metadata);
         List<String> expectHitsInputs = getPipelinesWithGeoIpProcessors(true);
         List<String> expectMissesInputs = getPipelinesWithoutGeoIpProcessors();

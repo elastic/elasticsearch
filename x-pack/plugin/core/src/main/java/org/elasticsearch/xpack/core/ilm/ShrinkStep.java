@@ -65,7 +65,7 @@ public class ShrinkStep extends AsyncActionStep {
         }
 
         String shrunkenIndexName = getShrinkIndexName(indexMetadata.getIndex().getName(), lifecycleState);
-        if (currentState.metadata().index(shrunkenIndexName) != null) {
+        if (currentState.metadata().getProject().index(shrunkenIndexName) != null) {
             logger.warn(
                 "skipping [{}] step for index [{}] as part of policy [{}] as the shrunk index [{}] already exists",
                 ShrinkStep.NAME,

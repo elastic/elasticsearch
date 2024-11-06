@@ -26,7 +26,9 @@ import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -55,6 +57,7 @@ public class TransportPutComposableIndexTemplateAction extends AcknowledgedTrans
 
     public static final ActionType<AcknowledgedResponse> TYPE = new ActionType<>("indices:admin/index_template/put");
     private final MetadataIndexTemplateService indexTemplateService;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportPutComposableIndexTemplateAction(
@@ -63,7 +66,8 @@ public class TransportPutComposableIndexTemplateAction extends AcknowledgedTrans
         ThreadPool threadPool,
         MetadataIndexTemplateService indexTemplateService,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        ProjectResolver projectResolver
     ) {
         super(
             TYPE.name(),
@@ -76,6 +80,7 @@ public class TransportPutComposableIndexTemplateAction extends AcknowledgedTrans
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.indexTemplateService = indexTemplateService;
+        this.projectResolver = projectResolver;
     }
 
     @Override
@@ -92,12 +97,14 @@ public class TransportPutComposableIndexTemplateAction extends AcknowledgedTrans
     ) {
         verifyIfUsingReservedComponentTemplates(request, state);
         ComposableIndexTemplate indexTemplate = request.indexTemplate();
+        ProjectId projectId = projectResolver.getProjectId(state);
         indexTemplateService.putIndexTemplateV2(
             request.cause(),
             request.create(),
             request.name(),
             request.masterNodeTimeout(),
             indexTemplate,
+            projectId,
             listener
         );
     }

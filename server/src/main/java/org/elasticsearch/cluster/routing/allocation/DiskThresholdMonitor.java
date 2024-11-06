@@ -429,7 +429,7 @@ public class DiskThresholdMonitor {
             info,
             SnapshotShardSizeInfo.EMPTY,
             reroutedClusterState.metadata(),
-            reroutedClusterState.routingTable(),
+            reroutedClusterState.globalRoutingTable(),
             0L
         );
     }

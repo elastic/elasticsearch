@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.logsdb;
 
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
@@ -38,7 +38,7 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
         final String indexName,
         final String dataStreamName,
         IndexMode templateIndexMode,
-        final Metadata metadata,
+        final ProjectMetadata metadata,
         final Instant resolvedAt,
         final Settings settings,
         final List<CompressedXContent> combinedTemplateMappings

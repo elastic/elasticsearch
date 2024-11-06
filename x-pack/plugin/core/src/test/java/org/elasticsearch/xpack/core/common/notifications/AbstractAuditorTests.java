@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -229,8 +230,10 @@ public class AbstractAuditorTests extends ESTestCase {
         Map<String, IndexTemplateMetadata> templates = Map.of(TEST_INDEX, mock(IndexTemplateMetadata.class));
         Map<String, ComposableIndexTemplate> templatesV2 = Collections.singletonMap(TEST_INDEX, mock(ComposableIndexTemplate.class));
         Metadata metadata = mock(Metadata.class);
-        when(metadata.getTemplates()).thenReturn(templates);
-        when(metadata.templatesV2()).thenReturn(templatesV2);
+        ProjectMetadata project = mock(ProjectMetadata.class);
+        when(metadata.getProject()).thenReturn(project);
+        when(project.templates()).thenReturn(templates);
+        when(project.templatesV2()).thenReturn(templatesV2);
         ClusterState state = mock(ClusterState.class);
         when(state.getMetadata()).thenReturn(metadata);
         ClusterService clusterService = mock(ClusterService.class);
@@ -270,7 +273,9 @@ public class AbstractAuditorTests extends ESTestCase {
         when(client.admin()).thenReturn(adminClient);
 
         Metadata metadata = mock(Metadata.class);
-        when(metadata.getTemplates()).thenReturn(Map.of());
+        ProjectMetadata project = mock(ProjectMetadata.class);
+        when(metadata.getProject()).thenReturn(project);
+        when(project.templates()).thenReturn(Map.of());
         ClusterState state = mock(ClusterState.class);
         when(state.getMetadata()).thenReturn(metadata);
         ClusterService clusterService = mock(ClusterService.class);

@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -30,6 +31,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 public class TransportGetComponentTemplateAction extends TransportMasterNodeReadAction<
     GetComponentTemplateAction.Request,
@@ -71,7 +73,13 @@ public class TransportGetComponentTemplateAction extends TransportMasterNodeRead
         ClusterState state,
         ActionListener<GetComponentTemplateAction.Response> listener
     ) {
-        Map<String, ComponentTemplate> allTemplates = state.metadata().componentTemplates();
+        @FixForMultiProject // this will fail if there's multiple templates with the same name
+        Map<String, ComponentTemplate> allTemplates = state.metadata()
+            .projects()
+            .values()
+            .stream()
+            .flatMap(p -> p.componentTemplates().entrySet().stream())
+            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
         Map<String, ComponentTemplate> results;
 
         // If we did not ask for a specific name, then we return all templates

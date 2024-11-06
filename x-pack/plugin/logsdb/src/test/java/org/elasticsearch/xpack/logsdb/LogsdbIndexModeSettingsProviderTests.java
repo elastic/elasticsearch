@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.logsdb;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
@@ -52,7 +53,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             null,
             "logs-apache-production",
             null,
-            Metadata.EMPTY_METADATA,
+            Metadata.EMPTY_METADATA.getProject(),
             Instant.now().truncatedTo(ChronoUnit.SECONDS),
             Settings.EMPTY,
             List.of(new CompressedXContent(DEFAULT_MAPPING))
@@ -70,7 +71,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             "logs-apache-production",
             null,
             null,
-            Metadata.EMPTY_METADATA,
+            Metadata.EMPTY_METADATA.getProject(),
             Instant.now().truncatedTo(ChronoUnit.SECONDS),
             Settings.EMPTY,
             List.of(new CompressedXContent(DEFAULT_MAPPING))
@@ -88,7 +89,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             null,
             "logs-apache-production",
             null,
-            Metadata.EMPTY_METADATA,
+            Metadata.EMPTY_METADATA.getProject(),
             Instant.now().truncatedTo(ChronoUnit.SECONDS),
             Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.STANDARD.getName()).build(),
             List.of(new CompressedXContent(DEFAULT_MAPPING))
@@ -106,7 +107,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             null,
             "logs-apache-production",
             null,
-            Metadata.EMPTY_METADATA,
+            Metadata.EMPTY_METADATA.getProject(),
             Instant.now().truncatedTo(ChronoUnit.SECONDS),
             Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName()).build(),
             List.of(new CompressedXContent(DEFAULT_MAPPING))
@@ -124,7 +125,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             null,
             "logs",
             null,
-            Metadata.EMPTY_METADATA,
+            Metadata.EMPTY_METADATA.getProject(),
             Instant.now().truncatedTo(ChronoUnit.SECONDS),
             Settings.EMPTY,
             List.of(new CompressedXContent(DEFAULT_MAPPING))
@@ -232,7 +233,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             null,
             "LOGS-apache-production",
             null,
-            Metadata.EMPTY_METADATA,
+            Metadata.EMPTY_METADATA.getProject(),
             Instant.now().truncatedTo(ChronoUnit.SECONDS),
             Settings.EMPTY,
             List.of(new CompressedXContent(DEFAULT_MAPPING))
@@ -250,7 +251,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             null,
             "logs-apache-production-eu",
             null,
-            Metadata.EMPTY_METADATA,
+            Metadata.EMPTY_METADATA.getProject(),
             Instant.now().truncatedTo(ChronoUnit.SECONDS),
             Settings.EMPTY,
             List.of(new CompressedXContent(DEFAULT_MAPPING))
@@ -305,7 +306,8 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
         assertTrue(laterSettings.isEmpty());
     }
 
-    private static Metadata buildMetadata(final List<String> indexPatterns, final List<String> componentTemplates) throws IOException {
+    private static ProjectMetadata buildMetadata(final List<String> indexPatterns, final List<String> componentTemplates)
+        throws IOException {
         final Template template = new Template(Settings.EMPTY, new CompressedXContent(DEFAULT_MAPPING), null);
         final ComposableIndexTemplate composableTemplate = ComposableIndexTemplate.builder()
             .indexPatterns(indexPatterns)
@@ -314,7 +316,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             .priority(1_000L)
             .version(1L)
             .build();
-        return Metadata.builder()
+        return ProjectMetadata.builder(Metadata.DEFAULT_PROJECT_ID)
             .putCustom(ComposableIndexTemplateMetadata.TYPE, new ComposableIndexTemplateMetadata(Map.of("composable", composableTemplate)))
             .build();
     }

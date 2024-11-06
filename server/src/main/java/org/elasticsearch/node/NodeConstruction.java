@@ -56,6 +56,8 @@ import org.elasticsearch.cluster.metadata.SystemIndexMetadataUpgradeService;
 import org.elasticsearch.cluster.metadata.TemplateUpgradeService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.project.DefaultProjectResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.BatchedRerouteService;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
@@ -686,6 +688,12 @@ class NodeConstruction {
             telemetryProvider.getTracer()
         );
 
+        // serverless deployments plug-in the multi-project resolver
+        ProjectResolver projectResolver = pluginsService.loadSingletonServiceProvider(
+            ProjectResolver.class,
+            () -> DefaultProjectResolver.INSTANCE
+        );
+        modules.bindToInstance(ProjectResolver.class, projectResolver);
         ClusterService clusterService = createClusterService(settingsModule, threadPool, taskManager);
         clusterService.addStateApplier(scriptService);
 
@@ -749,6 +757,7 @@ class NodeConstruction {
             snapshotsInfoService,
             threadPool,
             systemIndices,
+            projectResolver,
             getWriteLoadForecaster(threadPool, settings, clusterService.getClusterSettings()),
             telemetryProvider
         );
@@ -881,7 +890,8 @@ class NodeConstruction {
             systemIndices,
             dataStreamGlobalRetentionSettings,
             documentParsingProvider,
-            taskManager
+            taskManager,
+            projectResolver
         );
 
         Collection<?> pluginComponents = pluginsService.flatMap(plugin -> {

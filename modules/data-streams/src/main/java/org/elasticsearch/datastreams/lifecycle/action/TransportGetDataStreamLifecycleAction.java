@@ -80,7 +80,7 @@ public class TransportGetDataStreamLifecycleAction extends TransportMasterNodeRe
             request.getNames(),
             request.indicesOptions()
         );
-        Map<String, DataStream> dataStreams = state.metadata().dataStreams();
+        Map<String, DataStream> dataStreams = state.metadata().getProject().dataStreams();
 
         listener.onResponse(
             new GetDataStreamLifecycleAction.Response(

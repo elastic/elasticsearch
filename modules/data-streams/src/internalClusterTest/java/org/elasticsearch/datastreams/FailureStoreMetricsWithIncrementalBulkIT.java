@@ -163,25 +163,25 @@ public class FailureStoreMetricsWithIncrementalBulkIT extends ESIntegTestCase {
             assertTrue(bulkResponse.getItems()[i].getFailureStoreStatus().getLabel().equalsIgnoreCase("NOT_APPLICABLE_OR_UNKNOWN"));
         }
 
-        int docs_redirected_to_fs = 0;
-        int docs_in_fs = 0;
+        int docsRedirectedToFs = 0;
+        int docsInFs = 0;
         for (int i = (int) hits.get(); i < bulkResponse.getItems().length; ++i) {
             BulkItemResponse item = bulkResponse.getItems()[i];
             if (item.isFailed()) {
                 assertFalse(shardsOnDifferentNodes);
                 assertThat(item.getFailure().getCause().getCause(), instanceOf(EsRejectedExecutionException.class));
                 assertTrue(item.getFailureStoreStatus().getLabel().equalsIgnoreCase("FAILED"));
-                docs_redirected_to_fs++;
+                docsRedirectedToFs++;
             } else {
                 assertTrue(shardsOnDifferentNodes);
                 assertTrue(item.getFailureStoreStatus().getLabel().equalsIgnoreCase("USED"));
-                docs_in_fs++;
+                docsInFs++;
             }
         }
         measurements = collectTelemetry();
         assertMeasurements(measurements.get(FailureStoreMetrics.METRIC_TOTAL), bulkResponse.getItems().length, dataStream);
         assertEquals(bulkResponse.getItems().length - hits.get(), measurements.get(FailureStoreMetrics.METRIC_FAILURE_STORE).size());
-        assertEquals(docs_redirected_to_fs, measurements.get(FailureStoreMetrics.METRIC_REJECTED).size());
+        assertEquals(docsRedirectedToFs, measurements.get(FailureStoreMetrics.METRIC_REJECTED).size());
     }
 
     private void createDataStream() {

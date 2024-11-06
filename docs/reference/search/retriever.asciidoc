@@ -551,7 +551,6 @@ POST movies/_search
 This retriever uses a standard `match` query to search the `movie` index for films tagged with the genre "drama".
 It then re-ranks the results based on semantic similarity to the text in the `inference_text` parameter, using the model we uploaded to {es}.
 
-[discrete]
 [[rule-retriever]]
 ==== Query Rules Retriever
 

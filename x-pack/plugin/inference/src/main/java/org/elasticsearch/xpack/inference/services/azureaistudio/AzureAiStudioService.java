@@ -33,7 +33,6 @@ import org.elasticsearch.inference.configuration.SettingsConfigurationDisplayTyp
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.inference.configuration.SettingsConfigurationSelectOption;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xpack.core.inference.ChunkingSettingsFeatureFlag;
 import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.inference.chunking.EmbeddingRequestChunker;
 import org.elasticsearch.xpack.inference.external.action.azureaistudio.AzureAiStudioActionCreator;
@@ -60,6 +59,7 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.parsePersistedConfigErrorMsg;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMap;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
@@ -113,21 +113,12 @@ public class AzureAiStudioService extends SenderService {
         if (model instanceof AzureAiStudioModel baseAzureAiStudioModel) {
             var actionCreator = new AzureAiStudioActionCreator(getSender(), getServiceComponents());
 
-            List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests;
-            if (ChunkingSettingsFeatureFlag.isEnabled()) {
-                batchedRequests = new EmbeddingRequestChunker(
-                    inputs.getInputs(),
-                    EMBEDDING_MAX_BATCH_SIZE,
-                    EmbeddingRequestChunker.EmbeddingType.FLOAT,
-                    baseAzureAiStudioModel.getConfigurations().getChunkingSettings()
-                ).batchRequestsWithListeners(listener);
-            } else {
-                batchedRequests = new EmbeddingRequestChunker(
-                    inputs.getInputs(),
-                    EMBEDDING_MAX_BATCH_SIZE,
-                    EmbeddingRequestChunker.EmbeddingType.FLOAT
-                ).batchRequestsWithListeners(listener);
-            }
+            List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker(
+                inputs.getInputs(),
+                EMBEDDING_MAX_BATCH_SIZE,
+                EmbeddingRequestChunker.EmbeddingType.FLOAT,
+                baseAzureAiStudioModel.getConfigurations().getChunkingSettings()
+            ).batchRequestsWithListeners(listener);
 
             for (var request : batchedRequests) {
                 var action = baseAzureAiStudioModel.accept(actionCreator, taskSettings);
@@ -150,7 +141,7 @@ public class AzureAiStudioService extends SenderService {
             Map<String, Object> taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
 
             ChunkingSettings chunkingSettings = null;
-            if (ChunkingSettingsFeatureFlag.isEnabled() && TaskType.TEXT_EMBEDDING.equals(taskType)) {
+            if (TaskType.TEXT_EMBEDDING.equals(taskType)) {
                 chunkingSettings = ChunkingSettingsBuilder.fromMap(
                     removeFromMapOrDefaultEmpty(config, ModelConfigurations.CHUNKING_SETTINGS)
                 );
@@ -189,8 +180,8 @@ public class AzureAiStudioService extends SenderService {
         Map<String, Object> secretSettingsMap = removeFromMapOrDefaultEmpty(secrets, ModelSecrets.SECRET_SETTINGS);
 
         ChunkingSettings chunkingSettings = null;
-        if (ChunkingSettingsFeatureFlag.isEnabled() && TaskType.TEXT_EMBEDDING.equals(taskType)) {
-            chunkingSettings = ChunkingSettingsBuilder.fromMap(removeFromMapOrDefaultEmpty(config, ModelConfigurations.CHUNKING_SETTINGS));
+        if (TaskType.TEXT_EMBEDDING.equals(taskType)) {
+            chunkingSettings = ChunkingSettingsBuilder.fromMap(removeFromMap(config, ModelConfigurations.CHUNKING_SETTINGS));
         }
 
         return createModelFromPersistent(
@@ -210,8 +201,8 @@ public class AzureAiStudioService extends SenderService {
         Map<String, Object> taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
 
         ChunkingSettings chunkingSettings = null;
-        if (ChunkingSettingsFeatureFlag.isEnabled() && TaskType.TEXT_EMBEDDING.equals(taskType)) {
-            chunkingSettings = ChunkingSettingsBuilder.fromMap(removeFromMapOrDefaultEmpty(config, ModelConfigurations.CHUNKING_SETTINGS));
+        if (TaskType.TEXT_EMBEDDING.equals(taskType)) {
+            chunkingSettings = ChunkingSettingsBuilder.fromMap(removeFromMap(config, ModelConfigurations.CHUNKING_SETTINGS));
         }
 
         return createModelFromPersistent(

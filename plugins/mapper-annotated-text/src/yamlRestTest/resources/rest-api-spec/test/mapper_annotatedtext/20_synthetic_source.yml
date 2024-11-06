@@ -1,8 +1,8 @@
 ---
 setup:
   - requires:
-      cluster_features: ["mapper.annotated_text.synthetic_source"]
-      reason: introduced in 8.15.0
+      cluster_features: [ "mapper.source.mode_from_index_setting" ]
+      reason: "Source mode configured through index setting"
 
 ---
 stored annotated_text field:
@@ -10,9 +10,10 @@ stored annotated_text field:
       indices.create:
         index: test
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               annotated_text:
                 type: annotated_text
@@ -40,9 +41,10 @@ annotated_text field with keyword multi-field:
       indices.create:
         index: test
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               annotated_text:
                 type: annotated_text
@@ -72,9 +74,10 @@ multiple values in stored annotated_text field:
       indices.create:
         index: test
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               annotated_text:
                 type: annotated_text
@@ -102,9 +105,10 @@ multiple values in annotated_text field with keyword multi-field:
       indices.create:
         index: test
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               annotated_text:
                 type: annotated_text
@@ -135,9 +139,10 @@ multiple values in annotated_text field with stored keyword multi-field:
       indices.create:
         index: test
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               annotated_text:
                 type: annotated_text
@@ -169,9 +174,10 @@ multiple values in stored annotated_text field with keyword multi-field:
       indices.create:
         index: test
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               annotated_text:
                 type: annotated_text
@@ -202,9 +208,10 @@ fallback synthetic source:
       indices.create:
         index: test
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               annotated_text:
                 type: annotated_text

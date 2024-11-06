@@ -2756,8 +2756,8 @@ public class InternalEngine extends Engine {
 
     private boolean useSyntheticSourceForRecovery() {
         return engineConfig.getMapperService() != null
-                && engineConfig.getMapperService().mappingLookup().isSourceSynthetic()
-                && engineConfig.getIndexSettings().isRecoverySourceSyntheticEnabled();
+            && engineConfig.getMapperService().mappingLookup().isSourceSynthetic()
+            && engineConfig.getIndexSettings().isRecoverySourceSyntheticEnabled();
 
     }
 

@@ -5,7 +5,7 @@ type: breaking
 issues: []
 breaking:
   title: Remove `cluster.routing.allocation.disk.watermark.enable_for_single_data_node` setting
-  area: Allocation
+  area: 'Cluster and node setting'
   details: >-
     Prior to 7.8, whenever a cluster had only a single data node, the watermarks would not be respected.
     This was incompatible with how storage based autoscaling works and in order to change this in 7.8+ in a backwards

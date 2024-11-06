@@ -231,8 +231,6 @@ William Faulkner                                   | 4.272439002990723
 William Faulkner                                   | 4.272439002990723
 ;
 
-
-
 singleMatchWithKeywordFieldScoring
 required_capability: metadata_score
 required_capability: match_operator_colon

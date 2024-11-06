@@ -1430,7 +1430,8 @@ PUT /persian_example
             "decimal_digit",
             "arabic_normalization",
             "persian_normalization",
-            "persian_stop"
+            "persian_stop",
+            "persian_stem"
           ]
         }
       }

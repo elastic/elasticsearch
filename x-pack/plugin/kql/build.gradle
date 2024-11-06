@@ -1,4 +1,5 @@
 import org.elasticsearch.gradle.internal.info.BuildParams
+import static org.elasticsearch.gradle.util.PlatformUtils.normalize
 
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
@@ -16,7 +17,7 @@ base {
 
 dependencies {
   compileOnly project(path: xpackModule('core'))
-  compileOnly "org.antlr:antlr4-runtime:${versions.antlr4}"
+  api "org.antlr:antlr4-runtime:${versions.antlr4}"
 
   testImplementation "org.antlr:antlr4-runtime:${versions.antlr4}"
   testImplementation project(':test:framework')
@@ -54,7 +55,7 @@ pluginManager.withPlugin('com.diffplug.spotless') {
   }
 }
 tasks.named('checkstyleMain').configure {
-  exclude { it.file.toString().contains("src/main/java/org/elasticsearch/xpack/kql/parser/KqlBase") }
+  exclude { normalize(it.file.toString()).contains("src/main/java/org/elasticsearch/xpack/kql/parser/KqlBase") }
 }
 
 tasks.register("cleanGenerated", Delete) {

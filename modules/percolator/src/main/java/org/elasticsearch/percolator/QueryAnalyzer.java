@@ -8,7 +8,6 @@
  */
 package org.elasticsearch.percolator;
 
-import org.apache.lucene.index.PrefixCodedTerms;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.spans.SpanOrQuery;
 import org.apache.lucene.queries.spans.SpanTermQuery;
@@ -26,12 +25,15 @@ import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefIterator;
 import org.apache.lucene.util.NumericUtils;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.index.query.DateRangeIncludingNowQuery;
 import org.elasticsearch.lucene.queries.BlendedTermQuery;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -162,7 +164,7 @@ final class QueryAnalyzer {
             int minimumShouldMatchValue = 0;
             if (parent instanceof BooleanQuery bq) {
                 if (bq.getMinimumNumberShouldMatch() == 0
-                    && bq.clauses().stream().anyMatch(c -> c.getOccur() == Occur.MUST || c.getOccur() == Occur.FILTER)) {
+                    && bq.clauses().stream().anyMatch(c -> c.occur() == Occur.MUST || c.occur() == Occur.FILTER)) {
                     return QueryVisitor.EMPTY_VISITOR;
                 }
                 minimumShouldMatchValue = bq.getMinimumNumberShouldMatch();
@@ -198,11 +200,15 @@ final class QueryAnalyzer {
         @Override
         public void consumeTermsMatching(Query query, String field, Supplier<ByteRunAutomaton> automaton) {
             if (query instanceof TermInSetQuery q) {
-                PrefixCodedTerms.TermIterator ti = q.getTermData().iterator();
+                BytesRefIterator bytesRefIterator = q.getBytesRefIterator();
                 BytesRef term;
                 Set<QueryExtraction> qe = new HashSet<>();
-                while ((term = ti.next()) != null) {
-                    qe.add(new QueryExtraction(new Term(field, term)));
+                try {
+                    while ((term = bytesRefIterator.next()) != null) {
+                        qe.add(new QueryExtraction(new Term(field, term)));
+                    }
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
                 }
                 this.terms.add(new Result(true, qe, 1));
             } else {

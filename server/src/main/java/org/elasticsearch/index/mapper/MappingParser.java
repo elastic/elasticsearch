@@ -124,7 +124,10 @@ public final class MappingParser {
         Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappers = metadataMappersSupplier.get();
         Map<String, Object> meta = null;
 
-        boolean isSourceSynthetic = mappingParserContext.getIndexSettings().getMode().isSyntheticSourceEnabled();
+        // TODO this should be the final value once `_source.mode` mapping parameter is not used anymore
+        // and it should not be reassigned below.
+        // For now it is still possible to set `_source.mode` so this is correct.
+        boolean isSourceSynthetic = SourceFieldMapper.isSynthetic(mappingParserContext.getIndexSettings());
         boolean isDataStream = false;
 
         Iterator<Map.Entry<String, Object>> iterator = mappingSource.entrySet().iterator();

@@ -96,6 +96,19 @@ public class CoalesceTests extends AbstractScalarFunctionTestCase {
                 equalTo(firstDate == null ? secondDate : firstDate)
             );
         }));
+        noNullsSuppliers.add(new TestCaseSupplier(List.of(DataType.DATE_NANOS, DataType.DATE_NANOS), () -> {
+            Long firstDate = randomBoolean() ? null : randomNonNegativeLong();
+            Long secondDate = randomNonNegativeLong();
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(firstDate, DataType.DATE_NANOS, "first"),
+                    new TestCaseSupplier.TypedData(secondDate, DataType.DATE_NANOS, "second")
+                ),
+                "CoalesceEvaluator[values=[Attribute[channel=0], Attribute[channel=1]]]",
+                DataType.DATE_NANOS,
+                equalTo(firstDate == null ? secondDate : firstDate)
+            );
+        }));
 
         List<TestCaseSupplier> suppliers = new ArrayList<>(noNullsSuppliers);
         for (TestCaseSupplier s : noNullsSuppliers) {

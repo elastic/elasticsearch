@@ -31,6 +31,7 @@ module org.elasticsearch.server {
     requires org.elasticsearch.grok;
     requires org.elasticsearch.tdigest;
     requires org.elasticsearch.simdvec;
+    requires org.elasticsearch.entitlement;
 
     requires hppc;
     requires HdrHistogram;
@@ -458,7 +459,8 @@ module org.elasticsearch.server {
     provides org.apache.lucene.codecs.Codec
         with
             org.elasticsearch.index.codec.Elasticsearch814Codec,
-            org.elasticsearch.index.codec.Elasticsearch816Codec;
+            org.elasticsearch.index.codec.Elasticsearch816Codec,
+            org.elasticsearch.index.codec.Elasticsearch900Codec;
 
     provides org.apache.logging.log4j.core.util.ContextDataProvider with org.elasticsearch.common.logging.DynamicContextDataProvider;
 
@@ -468,5 +470,7 @@ module org.elasticsearch.server {
             org.elasticsearch.serverless.shardhealth,
             org.elasticsearch.serverless.apifiltering;
     exports org.elasticsearch.lucene.spatial;
+    exports org.elasticsearch.inference.configuration;
+    exports org.elasticsearch.monitor.metrics;
 
 }

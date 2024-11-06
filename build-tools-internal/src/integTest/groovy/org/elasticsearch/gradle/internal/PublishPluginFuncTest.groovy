@@ -18,7 +18,7 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
 
     def setup() {
         // required for JarHell to work
-        subProject(":libs:elasticsearch-core") << "apply plugin:'java'"
+        subProject(":libs:core") << "apply plugin:'java'"
 
         configurationCacheCompatible = false
     }

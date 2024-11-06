@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 
 import java.io.IOException;
 import java.security.MessageDigest;
+import java.util.Base64;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.Map;
@@ -62,7 +63,9 @@ public class QueryableReservedRolesProvider implements QueryableRolesProvider {
                 throw new RuntimeException("failed to compute queryable roles version", e);
             }
 
-            return MessageDigests.toHexString(hash.digest());
+            // HEX vs Base64 encoding is a trade-off between readability and space efficiency
+            // opting for Base64 here to reduce the size of the cluster state
+            return Base64.getEncoder().encodeToString(hash.digest());
         });
     }
 

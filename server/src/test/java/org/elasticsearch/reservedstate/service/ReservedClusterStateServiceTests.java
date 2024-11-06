@@ -299,9 +299,11 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
         RerouteService rerouteService = mock(RerouteService.class);
         ReservedStateUpdateTaskExecutor taskExecutor = new ReservedStateUpdateTaskExecutor(rerouteService);
         ClusterState newState = taskExecutor.execute(
-            new ClusterStateTaskExecutor.BatchExecutionContext<>(state0,
+            new ClusterStateTaskExecutor.BatchExecutionContext<>(
+                state0,
                 List.of(new TestTaskContext<>(task1), new TestTaskContext<>(task2)),
-                () -> null)
+                () -> null
+            )
         );
 
         assertThat("State should be the final state", newState, sameInstance(state2));

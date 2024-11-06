@@ -193,7 +193,8 @@ class EsqlSessionCCSUtils {
         /**
          * Rules enforced at planning time around non-matching indices
          * P1. fail query if no matching indices on any cluster (VerificationException) - that is handled elsewhere (TODO: document where)
-         * P2. fail query if a skip_unavailable:false cluster has no matching indices (the local cluster already has this rule enforced at planning time)
+         * P2. fail query if a skip_unavailable:false cluster has no matching indices (the local cluster already has this rule
+         *     enforced at planning time)
          * P3. fail query if the local cluster has no matching indices and a concrete index was specified
          */
         String fatalErrorMessage = null;

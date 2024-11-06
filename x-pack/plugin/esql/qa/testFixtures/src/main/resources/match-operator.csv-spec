@@ -250,7 +250,7 @@ book_no:keyword | author:text | _score:double
 9896            | William Faulkner | 2.3142893314361572
 ;
 
-multipleMatchScoring
+multipleMatchScoring-Ignore
 required_capability: metadata_score
 required_capability: match_operator_colon
 from books METADATA _score

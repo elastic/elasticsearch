@@ -14,15 +14,14 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.SimpleBatchedExecutor;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.core.Tuple;
 
 /**
  * Reserved cluster state update task executor
  */
-public class ReservedStateUpdateTaskExecutor extends SimpleBatchedExecutor<ReservedStateUpdateTask, Void> {
+public class ReservedStateUpdateTaskExecutor implements ClusterStateTaskExecutor<ReservedStateUpdateTask> {
 
     private static final Logger logger = LogManager.getLogger(ReservedStateUpdateTaskExecutor.class);
 
@@ -34,17 +33,27 @@ public class ReservedStateUpdateTaskExecutor extends SimpleBatchedExecutor<Reser
     }
 
     @Override
-    public Tuple<ClusterState, Void> executeTask(ReservedStateUpdateTask task, ClusterState clusterState) {
-        return Tuple.tuple(task.execute(clusterState), null);
+    public final ClusterState execute(BatchExecutionContext<ReservedStateUpdateTask> batchExecutionContext) throws Exception {
+        var initState = batchExecutionContext.initialState();
+        var taskContexts = batchExecutionContext.taskContexts();
+        if (taskContexts.isEmpty()) {
+            return initState;
+        }
+        // Only the last update is relevant; the others can be skipped
+        var taskContext = taskContexts.get(taskContexts.size() - 1);
+        ClusterState clusterState = initState;
+        try (var ignored = taskContext.captureResponseHeaders()) {
+            var task = taskContext.getTask();
+            clusterState = task.execute(clusterState);
+            taskContext.success(() -> task.listener().onResponse(ActionResponse.Empty.INSTANCE));
+        } catch (Exception e) {
+            taskContext.onFailure(e);
+        }
+        return clusterState;
     }
 
     @Override
-    public void taskSucceeded(ReservedStateUpdateTask task, Void unused) {
-        task.listener().onResponse(ActionResponse.Empty.INSTANCE);
-    }
-
-    @Override
-    public void clusterStatePublished() {
+    public final void clusterStatePublished(ClusterState newClusterState) {
         rerouteService.reroute(
             "reroute after saving and reserving part of the cluster state",
             Priority.NORMAL,
@@ -54,4 +63,5 @@ public class ReservedStateUpdateTaskExecutor extends SimpleBatchedExecutor<Reser
             )
         );
     }
+
 }

@@ -453,6 +453,10 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
         return getSingleProject();
     }
 
+    public boolean hasProject(ProjectId projectId) {
+        return projectMetadata.containsKey(projectId);
+    }
+
     public ProjectMetadata getProject(ProjectId projectId) {
         ProjectMetadata metadata = projectMetadata.get(projectId);
         assert metadata != null : "Project " + projectId.id() + " not found in " + projectMetadata.keySet();

@@ -12,16 +12,17 @@ import org.elasticsearch.index.mapper.AbstractScriptFieldType;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.query.QueryRewriteContext;
 
 import java.time.ZoneId;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Tuple.tuple;
 
-public class KqlParserExecutionContext extends SearchExecutionContext {
+public class KqlParserExecutionContext {
 
     private static final List<String> IGNORED_METADATA_FIELDS = List.of(
         "_seq_no",
@@ -37,17 +38,23 @@ public class KqlParserExecutionContext extends SearchExecutionContext {
         fieldDef.v1()
     );
 
-    public static Builder builder(SearchExecutionContext searchExecutionContext) {
-        return new Builder(searchExecutionContext);
+    public static Builder builder(QueryRewriteContext queryRewriteContext) {
+        return new Builder(queryRewriteContext);
     }
 
+    private QueryRewriteContext queryRewriteContext;
     private final boolean caseInsensitive;
     private final ZoneId timeZone;
 
     private final String defaultFields;
 
-    public KqlParserExecutionContext(SearchExecutionContext source, boolean caseInsensitive, ZoneId timeZone, String defaultFields) {
-        super(source);
+    public KqlParserExecutionContext(
+        QueryRewriteContext queryRewriteContext,
+        boolean caseInsensitive,
+        ZoneId timeZone,
+        String defaultFields
+    ) {
+        this.queryRewriteContext = queryRewriteContext;
         this.caseInsensitive = caseInsensitive;
         this.timeZone = timeZone;
         this.defaultFields = defaultFields;
@@ -56,13 +63,18 @@ public class KqlParserExecutionContext extends SearchExecutionContext {
     public Iterable<Tuple<String, MappedFieldType>> resolveFields(KqlBaseParser.FieldNameContext fieldNameContext) {
         // TODO: use index settings default field.
         String fieldNamePattern = fieldNameContext != null ? ParserUtils.extractText(fieldNameContext) : "*";
+        Set<String> matchingFieldNames = queryRewriteContext.getMatchingFieldNames(fieldNamePattern);
 
         if (fieldNameContext != null && fieldNameContext.value != null && fieldNameContext.value.getType() == KqlBaseParser.QUOTED_STRING) {
-            return isFieldMapped(fieldNamePattern) ? List.of(tuple(fieldNamePattern, getFieldType(fieldNamePattern))) : List.of();
+            if (matchingFieldNames.isEmpty() || fieldNamePattern.contains("*")) {
+                return List.of();
+            }
+
+            return List.of(tuple(fieldNamePattern, queryRewriteContext.getFieldType(fieldNamePattern)));
         }
 
-        return getMatchingFieldNames(fieldNamePattern).stream()
-            .map(fieldName -> tuple(fieldName, getFieldType(fieldName)))
+        return matchingFieldNames.stream()
+            .map(fieldName -> tuple(fieldName, queryRewriteContext.getFieldType(fieldName)))
             .filter(searchableFieldFilter.and(Predicate.not(ignoredFieldFilter)))
             .collect(Collectors.toList());
     }
@@ -72,7 +84,7 @@ public class KqlParserExecutionContext extends SearchExecutionContext {
     }
 
     public ZoneId timeZone() {
-        return null;
+        return timeZone;
     }
 
     public static boolean isRuntimeField(MappedFieldType fieldType) {
@@ -88,17 +100,17 @@ public class KqlParserExecutionContext extends SearchExecutionContext {
     }
 
     public static class Builder {
-        private final SearchExecutionContext searchExecutionContext;
+        private final QueryRewriteContext queryRewriteContext;
         private boolean caseInsensitive = true;
         private ZoneId timeZone = null;
         private String defaultFields = null;
 
-        private Builder(SearchExecutionContext searchExecutionContext) {
-            this.searchExecutionContext = searchExecutionContext;
+        private Builder(QueryRewriteContext queryRewriteContext) {
+            this.queryRewriteContext = queryRewriteContext;
         }
 
         public KqlParserExecutionContext build() {
-            return new KqlParserExecutionContext(searchExecutionContext, caseInsensitive, timeZone, defaultFields);
+            return new KqlParserExecutionContext(queryRewriteContext, caseInsensitive, timeZone, defaultFields);
         }
 
         public Builder caseInsensitive(boolean caseInsensitive) {

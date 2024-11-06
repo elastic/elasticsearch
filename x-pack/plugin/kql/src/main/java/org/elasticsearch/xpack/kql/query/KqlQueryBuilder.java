@@ -16,6 +16,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -149,9 +150,9 @@ public class KqlQueryBuilder extends AbstractQueryBuilder<KqlQueryBuilder> {
     }
 
     @Override
-    protected QueryBuilder doSearchRewrite(SearchExecutionContext searchExecutionContext) throws IOException {
+    protected QueryBuilder doIndexMetadataRewrite(QueryRewriteContext context) throws IOException {
         KqlParser parser = new KqlParser();
-        QueryBuilder rewrittenQuery = parser.parseKqlQuery(query, createKqlParserContext(searchExecutionContext));
+        QueryBuilder rewrittenQuery = parser.parseKqlQuery(query, createKqlParserContext(context));
 
         if (log.isTraceEnabled()) {
             log.trace("KQL query {} translated to Query DSL: {}", query, Strings.toString(rewrittenQuery));
@@ -190,8 +191,8 @@ public class KqlQueryBuilder extends AbstractQueryBuilder<KqlQueryBuilder> {
             && caseInsensitive == other.caseInsensitive;
     }
 
-    private KqlParserExecutionContext createKqlParserContext(SearchExecutionContext searchExecutionContext) {
-        return KqlParserExecutionContext.builder(searchExecutionContext)
+    private KqlParserExecutionContext createKqlParserContext(QueryRewriteContext queryRewriteContext) {
+        return KqlParserExecutionContext.builder(queryRewriteContext)
             .caseInsensitive(caseInsensitive)
             .timeZone(timeZone)
             .defaultFields(defaultFields)

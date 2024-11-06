@@ -110,7 +110,7 @@ public abstract class AbstractKqlParserTestCase extends AbstractBuilderTestCase 
 
     protected QueryBuilder parseKqlQuery(String kqlQuery) {
         KqlParser parser = new KqlParser();
-        KqlParserExecutionContext kqlParserContext = KqlParserExecutionContext.builder(createSearchExecutionContext()).build();
+        KqlParserExecutionContext kqlParserContext = KqlParserExecutionContext.builder(createQueryRewriteContext()).build();
         return parser.parseKqlQuery(kqlQuery, kqlParserContext);
     }
 

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.plugin;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.FailureCollector;
@@ -188,6 +189,27 @@ final class ComputeListener implements Releasable {
         });
     }
 
+    ActionListener<Void> acquireSkipUnavailable(@Nullable String computeClusterAlias) {
+        if (computeClusterAlias == null
+            || esqlExecutionInfo.isCrossClusterSearch() == false
+            || runningOnRemoteCluster()
+            || computeClusterAlias.equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY)
+            || esqlExecutionInfo.isSkipUnavailable(computeClusterAlias) == false) {
+            return acquireAvoid();
+        }
+        return refs.acquire().delegateResponse((l, e) -> {
+            LOGGER.error("Skipping unavailable cluster {} in ESQL query: {}", computeClusterAlias, e);
+            esqlExecutionInfo.swapCluster(computeClusterAlias, (k, v) -> {
+                assert v.getStatus() != EsqlExecutionInfo.Cluster.Status.SKIPPED
+                    : "We shouldn't be running compute on a cluster that's already marked as skipped";
+                return new EsqlExecutionInfo.Cluster.Builder(v).setStatus(EsqlExecutionInfo.Cluster.Status.PARTIAL)
+                    .setFailures(List.of(new ShardSearchFailure(e)))
+                    .build();
+            });
+            l.onResponse(null);
+        });
+    }
+
     /**
      * Acquires a new listener that collects compute result. This listener will also collect warnings emitted during compute
      * @param computeClusterAlias The cluster alias where the compute is happening. Used when metadata needs to be gathered
@@ -198,7 +220,7 @@ final class ComputeListener implements Releasable {
         assert computeClusterAlias == null || (esqlExecutionInfo != null && esqlExecutionInfo.getRelativeStartNanos() != null)
             : "When clusterAlias is provided to acquireCompute, executionInfo and relativeStartTimeNanos must be non-null";
 
-        return acquireAvoid().map(resp -> {
+        return acquireSkipUnavailable(computeClusterAlias).map(resp -> {
             responseHeaders.collect();
             var profiles = resp.getProfiles();
             if (profiles != null && profiles.isEmpty() == false) {

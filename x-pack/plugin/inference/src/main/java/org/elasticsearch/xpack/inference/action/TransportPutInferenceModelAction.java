@@ -172,7 +172,7 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
         ActionListener<Model> storeModelListener = listener.delegateFailureAndWrap(
             (delegate, verifiedModel) -> modelRegistry.storeModel(
                 verifiedModel,
-                ActionListener.wrap(r -> startInferenceEndpoint(service, verifiedModel, delegate), e -> {
+                ActionListener.wrap(r -> listener.onResponse(createResponse(verifiedModel.getConfigurations())), e -> {
                     if (e.getCause() instanceof StrictDynamicMappingException && e.getCause().getMessage().contains("chunking_settings")) {
                         delegate.onFailure(
                             new ElasticsearchStatusException(
@@ -199,12 +199,8 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
         service.parseRequestConfig(inferenceEntityId, taskType, config, parsedModelListener);
     }
 
-    private void startInferenceEndpoint(InferenceService service, Model model, ActionListener<PutInferenceModelAction.Response> listener) {
-        if (skipValidationAndStart) {
-            listener.onResponse(new PutInferenceModelAction.Response(model.getConfigurations()));
-        } else {
-            service.start(model, listener.map(started -> new PutInferenceModelAction.Response(model.getConfigurations())));
-        }
+    private PutInferenceModelAction.Response createResponse(ModelConfigurations configurations) {
+        return new PutInferenceModelAction.Response(configurations);
     }
 
     private Map<String, Object> requestToMap(PutInferenceModelAction.Request request) throws IOException {

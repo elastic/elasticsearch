@@ -267,7 +267,6 @@ public abstract class BucketsAggregator extends AggregatorBase {
             }
             results[owningOrdIdx] = resultBuilder.apply(buckets);
         }
-
         return results;
     }
 

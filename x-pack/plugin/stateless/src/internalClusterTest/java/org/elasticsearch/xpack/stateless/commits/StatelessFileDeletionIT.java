@@ -43,10 +43,12 @@ import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRes
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
+import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.coordination.ApplyCommitRequest;
 import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -59,6 +61,7 @@ import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.seqno.SeqNoStats;
@@ -67,6 +70,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoveryClusterStateDelayListeners;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotState;
@@ -97,6 +101,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.LockSupport;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static co.elastic.elasticsearch.stateless.commits.StatelessCommitService.SHARD_INACTIVITY_DURATION_TIME_SETTING;
 import static co.elastic.elasticsearch.stateless.commits.StatelessCommitService.SHARD_INACTIVITY_MONITOR_INTERVAL_TIME_SETTING;
@@ -916,7 +921,6 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
         reason = "verifying shutdown doesn't cause warnings",
         value = "co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService:WARN"
     )
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-serverless/issues/1671")
     public void testDeleteIndexWhileNodeStopping() {
         var indexNode = startMasterAndIndexNode();
         startSearchNode();
@@ -926,29 +930,49 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
         startMasterAndIndexNode(Settings.builder().put(HEARTBEAT_FREQUENCY.getKey(), "1s").put(MAX_MISSED_HEARTBEATS.getKey(), 1).build());
 
         indexDocsAndFlush(indexName);
+        indexDocsAndFlush(indexName);
 
         final var startBarrier = new CyclicBarrier(3);
 
-        final var deleteThread = new Thread(() -> {
-            safeAwait(startBarrier);
-            indexDocsAndFlush(indexName);
+        final var indexDocsAndFlushThread = new Thread(() -> {
+            try {
+                safeAwait(startBarrier);
+                var bulkRequest = client().prepareBulk();
+                IntStream.rangeClosed(0, randomIntBetween(10, 20))
+                    .mapToObj(ignored -> new IndexRequest(indexName).source("field", randomUnicodeOfCodepointLengthBetween(1, 25)))
+                    .forEach(bulkRequest::add);
+                var bulkResponse = bulkRequest.get();
+                for (var item : bulkResponse.getItems()) {
+                    if (item.getFailure() != null) {
+                        // can happen while node is stopped
+                        assertThat(item.getFailure().getStatus(), equalTo(RestStatus.INTERNAL_SERVER_ERROR));
+                    }
+                }
+                flush(indexName); // asserts that shard failures are equal to RestStatus.SERVICE_UNAVAILABLE
+            } catch (Exception e) {
+                throw new AssertionError(e);
+            }
         });
 
-        final var doForceMerge = randomBoolean();
         final var forceMergeThread = new Thread(() -> {
-            safeAwait(startBarrier);
-            if (doForceMerge) {
+            try {
+                safeAwait(startBarrier);
                 indicesAdmin().prepareForceMerge(indexName).setMaxNumSegments(1).get();
+            } catch (ClusterBlockException | MasterNotDiscoveredException e) {
+                // can happen while node is stopped
+                assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
+            } catch (Exception e) {
+                throw new AssertionError(e);
             }
         });
 
         MockLog.assertThatLogger(() -> {
             try {
-                deleteThread.start();
+                indexDocsAndFlushThread.start();
                 forceMergeThread.start();
                 safeAwait(startBarrier);
                 internalCluster().stopNode(indexNode);
-                deleteThread.join();
+                indexDocsAndFlushThread.join();
                 forceMergeThread.join();
             } catch (Exception e) {
                 fail(e);

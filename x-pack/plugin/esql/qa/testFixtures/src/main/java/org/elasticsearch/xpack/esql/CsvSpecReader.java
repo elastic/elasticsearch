@@ -145,13 +145,17 @@ public final class CsvSpecReader {
 
         /**
          * How should we assert the warnings returned by ESQL.
+         * @param deduplicateExact Should tests configured with {@code warnings:} deduplicate
+         *                         the warnings before asserting? Normally don't do it because
+         *                         duplicate warnings are lame. We'd like to fix them all. But
+         *                         in multi-node and multi-shard tests we can emit duplicate
+         *                         warnings and it isn't worth fixing them now.
          */
         public AssertWarnings assertWarnings(boolean deduplicateExact) {
             if (expectedWarnings.isEmpty() == false) {
-                if (deduplicateExact) {
-                    return new AssertWarnings.DeduplicatedStrings(expectedWarnings);
-                }
-                return new AssertWarnings.ExactStrings(expectedWarnings);
+                return deduplicateExact
+                    ? new AssertWarnings.DeduplicatedStrings(expectedWarnings)
+                    : new AssertWarnings.ExactStrings(expectedWarnings);
             }
             if (expectedWarningsRegex.isEmpty() == false) {
                 return new AssertWarnings.AllowedRegexes(expectedWarningsRegex);

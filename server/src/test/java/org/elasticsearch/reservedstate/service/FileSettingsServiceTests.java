@@ -68,7 +68,6 @@ import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.hasEntry;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
@@ -287,7 +286,6 @@ public class FileSettingsServiceTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testInvalidJSON() throws Exception {
-        System.out.println("Starting");
         doAnswer((Answer<Void>) invocation -> {
             invocation.getArgument(1, XContentParser.class).map(); // Throw if JSON is invalid
             ((Consumer<Exception>) invocation.getArgument(3)).accept(null);
@@ -332,9 +330,9 @@ public class FileSettingsServiceTests extends ESTestCase {
 
         verify(fileSettingsService, times(1)).processFileOnServiceStart(); // The initial state
         verify(fileSettingsService, times(1)).processFileChanges(); // The changed state
-        Matcher<Object> matcher = instanceOf(ExecutionException.class);
-        Matcher<Object> causeMatcher = hasCauseThat(instanceOf(XContentParseException.class));
-        verify(fileSettingsService, times(1)).onProcessFileChangesException(argThat(e -> e instanceof ExecutionException && e.getCause() instanceof XContentParseException));
+        verify(fileSettingsService, times(1)).onProcessFileChangesException(
+            argThat(e -> e instanceof ExecutionException && e.getCause() instanceof XContentParseException)
+        );
 
     }
 

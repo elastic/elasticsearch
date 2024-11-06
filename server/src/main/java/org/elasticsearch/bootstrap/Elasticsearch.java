@@ -41,6 +41,8 @@ import org.elasticsearch.monitor.process.ProcessProbe;
 import org.elasticsearch.nativeaccess.NativeAccess;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeValidationException;
+import org.elasticsearch.plugins.PluginBundle;
+import org.elasticsearch.plugins.PluginsUtils;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -50,13 +52,17 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.Permission;
 import java.security.Security;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.bootstrap.BootstrapSettings.SECURITY_FILTER_BAD_DEFAULTS_SETTING;
 import static org.elasticsearch.nativeaccess.WindowsFunctions.ConsoleCtrlHandler.CTRL_CLOSE_EVENT;
+import static org.elasticsearch.plugins.PluginsUtils.getModuleBundles;
 
 /**
  * This class starts elasticsearch.
@@ -200,7 +206,16 @@ class Elasticsearch {
         );
 
         if (Boolean.parseBoolean(System.getProperty("es.entitlements.enabled"))) {
-            EntitlementBootstrap.bootstrap();
+            Map<Path, Boolean> pluginData = new HashMap<>();
+            Set<PluginBundle> moduleBundles = PluginsUtils.getModuleBundles(nodeEnv.modulesFile());
+            for (PluginBundle moduleBundle : moduleBundles) {
+                pluginData.put(moduleBundle.getDir(), moduleBundle.pluginDescriptor().isModular());
+            }
+            Set<PluginBundle> pluginBundles = PluginsUtils.getPluginBundles(nodeEnv.pluginsFile());
+            for (PluginBundle pluginBundle : pluginBundles) {
+                pluginData.put(pluginBundle.getDir(), pluginBundle.pluginDescriptor().isModular());
+            }
+            EntitlementBootstrap.bootstrap(pluginData);
         } else {
             // install SM after natives, shutdown hooks, etc.
             org.elasticsearch.bootstrap.Security.configure(

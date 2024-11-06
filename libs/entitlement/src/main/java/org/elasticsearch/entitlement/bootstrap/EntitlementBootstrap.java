@@ -22,6 +22,7 @@ import org.elasticsearch.logging.Logger;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Map;
 
 public class EntitlementBootstrap {
 
@@ -29,8 +30,9 @@ public class EntitlementBootstrap {
      * Activates entitlement checking. Once this method returns, calls to forbidden methods
      * will throw {@link org.elasticsearch.entitlement.runtime.api.NotEntitledException}.
      */
-    public static void bootstrap() {
+    public static void bootstrap(Map<Path, Boolean> pluginData) {
         logger.debug("Loading entitlement agent");
+        EntitlementInitialization.setPluginData(pluginData);
         exportInitializationToAgent();
         loadAgent(findAgentJar());
     }

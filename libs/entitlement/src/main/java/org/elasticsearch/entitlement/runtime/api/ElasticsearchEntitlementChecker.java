@@ -10,6 +10,7 @@
 package org.elasticsearch.entitlement.runtime.api;
 
 import org.elasticsearch.entitlement.bridge.EntitlementChecker;
+import org.elasticsearch.entitlement.runtime.policy.PolicyManager;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
@@ -24,6 +25,12 @@ import static org.elasticsearch.entitlement.runtime.internals.EntitlementInterna
  */
 public class ElasticsearchEntitlementChecker implements EntitlementChecker {
     private static final Logger logger = LogManager.getLogger(ElasticsearchEntitlementChecker.class);
+
+    private final PolicyManager policyManager;
+
+    public ElasticsearchEntitlementChecker(PolicyManager policyManager) {
+        this.policyManager = policyManager;
+    }
 
     /**
      * Causes entitlements to be enforced.

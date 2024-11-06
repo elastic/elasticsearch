@@ -15,10 +15,26 @@ import org.elasticsearch.entitlement.instrumentation.InstrumentationService;
 import org.elasticsearch.entitlement.instrumentation.MethodKey;
 import org.elasticsearch.entitlement.instrumentation.Transformer;
 import org.elasticsearch.entitlement.runtime.api.ElasticsearchEntitlementChecker;
+import org.elasticsearch.entitlement.runtime.policy.Policy;
+import org.elasticsearch.entitlement.runtime.policy.PolicyManager;
+import org.elasticsearch.entitlement.runtime.policy.PolicyParser;
+import org.elasticsearch.entitlement.runtime.policy.Scope;
 
 import java.lang.instrument.Instrumentation;
+import java.lang.module.ModuleFinder;
+import java.lang.module.ModuleReader;
+import java.lang.module.ModuleReference;
 import java.lang.reflect.Method;
+import java.nio.file.Files;
+import java.nio.file.OpenOption;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -29,6 +45,10 @@ import java.util.Set;
  * to begin injecting our instrumentation.
  */
 public class EntitlementInitialization {
+
+    private static final String POLICY_FILE_NAME = "entitlement-policy.yaml";
+    private static Map<Path, Boolean> pluginData;
+
     private static ElasticsearchEntitlementChecker manager;
 
     // Note: referenced by bridge reflectively
@@ -36,9 +56,54 @@ public class EntitlementInitialization {
         return manager;
     }
 
+    public static void setPluginData(Map<Path, Boolean> pluginData) {
+        if (EntitlementInitialization.pluginData != null) {
+            throw new IllegalStateException("pluginData is already set");
+        }
+        EntitlementInitialization.pluginData = Collections.unmodifiableMap(Objects.requireNonNull(pluginData));
+    }
+
     // Note: referenced by agent reflectively
     public static void initialize(Instrumentation inst) throws Exception {
-        manager = new ElasticsearchEntitlementChecker();
+        Map<String, Policy> pluginPolicies = new HashMap<>();
+
+        for (Map.Entry<Path, Boolean> entry : EntitlementInitialization.pluginData.entrySet()) {
+            Path pluginRoot = entry.getKey();
+
+            String pluginName = pluginRoot.getFileName().toString();
+            Path policyFile = pluginRoot.resolve(POLICY_FILE_NAME);
+            Policy policy;
+
+            if (Files.exists(policyFile)) {
+                policy = new PolicyParser(Files.newInputStream(policyFile, StandardOpenOption.READ), pluginName).parsePolicy();
+            } else {
+                policy = new Policy(pluginName, List.of());
+            }
+
+            // TODO: what is our default module when isModular == false?
+            boolean isModular = entry.getValue();
+
+            ModuleFinder moduleFinder = ModuleFinder.of(pluginRoot);
+            Set<ModuleReference> moduleReferences = moduleFinder.findAll();
+            Set<String> moduleNames = new HashSet<>();
+            for (ModuleReference moduleReference : moduleReferences) {
+                moduleNames.add(moduleReference.descriptor().name());
+            }
+
+            // TODO: should this check actually be part of the parser?
+            for (Scope scope : policy.scopes) {
+                if (moduleNames.contains(scope.name) == false) {
+                    throw new IllegalStateException("policy [" + policyFile + "] contains invalid module [" + scope.name + "]");
+                }
+            }
+
+            pluginPolicies.put(pluginName, policy);
+        }
+
+        // TODO: what goes in the elasticsearch default policy? What should the name be?
+        PolicyManager policyManager = new PolicyManager(new Policy("elasticsearch", List.of()), pluginPolicies);
+
+        manager = new ElasticsearchEntitlementChecker(policyManager);
 
         // TODO: Configure actual entitlement grants instead of this hardcoded one
         Method targetMethod = System.class.getMethod("exit", int.class);

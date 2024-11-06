@@ -136,7 +136,7 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
         var query = """
             FROM test
             METADATA _score
-            | WHERE content MATCH "fox"
+            | WHERE content:"fox"
             | KEEP id, _score
             | SORT id ASC
             """;
@@ -158,7 +158,7 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
         var query = """
             FROM test
             METADATA _score
-            | WHERE content MATCH "fox"
+            | WHERE content:"fox"
             | KEEP id, _score
             | SORT id
             """;
@@ -180,7 +180,7 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
         var query = """
             FROM test
             METADATA _score
-            | WHERE content MATCH "fox"
+            | WHERE content:"fox"
             | KEEP id, _score
             """;
 

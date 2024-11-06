@@ -136,28 +136,36 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
     protected static final String[] MAPPED_FIELD_NAMES = new String[] {
         TEXT_FIELD_NAME,
         TEXT_ALIAS_FIELD_NAME,
+        KEYWORD_FIELD_NAME,
         INT_FIELD_NAME,
+        INT_ALIAS_FIELD_NAME,
         INT_RANGE_FIELD_NAME,
         DOUBLE_FIELD_NAME,
         BOOLEAN_FIELD_NAME,
         DATE_NANOS_FIELD_NAME,
         DATE_FIELD_NAME,
+        DATE_ALIAS_FIELD_NAME,
         DATE_RANGE_FIELD_NAME,
         OBJECT_FIELD_NAME,
         GEO_POINT_FIELD_NAME,
-        GEO_POINT_ALIAS_FIELD_NAME };
+        GEO_POINT_ALIAS_FIELD_NAME,
+        BINARY_FIELD_NAME };
     protected static final String[] MAPPED_LEAF_FIELD_NAMES = new String[] {
         TEXT_FIELD_NAME,
         TEXT_ALIAS_FIELD_NAME,
+        KEYWORD_FIELD_NAME,
         INT_FIELD_NAME,
+        INT_ALIAS_FIELD_NAME,
         INT_RANGE_FIELD_NAME,
         DOUBLE_FIELD_NAME,
         BOOLEAN_FIELD_NAME,
         DATE_NANOS_FIELD_NAME,
         DATE_FIELD_NAME,
+        DATE_ALIAS_FIELD_NAME,
         DATE_RANGE_FIELD_NAME,
         GEO_POINT_FIELD_NAME,
-        GEO_POINT_ALIAS_FIELD_NAME };
+        GEO_POINT_ALIAS_FIELD_NAME,
+        BINARY_FIELD_NAME };
 
     private static final Map<String, String> ALIAS_TO_CONCRETE_FIELD_NAME = new HashMap<>();
     static {
@@ -340,6 +348,15 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
         long max
     ) {
         return serviceHolder.createCoordinatorContext(dateFieldType, min, max);
+    }
+
+    protected static CoordinatorRewriteContext createCoordinatorRewriteContext(
+        DateFieldMapper.DateFieldType dateFieldType,
+        long min,
+        long max,
+        String tier
+    ) {
+        return serviceHolder.createCoordinatorContext(dateFieldType, min, max, tier);
     }
 
     protected static DataRewriteContext dataRewriteContext() {
@@ -625,13 +642,17 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
         }
 
         CoordinatorRewriteContext createCoordinatorContext(DateFieldMapper.DateFieldType dateFieldType, long min, long max) {
+            return createCoordinatorContext(dateFieldType, min, max, "");
+        }
+
+        CoordinatorRewriteContext createCoordinatorContext(DateFieldMapper.DateFieldType dateFieldType, long min, long max, String tier) {
             DateFieldRangeInfo timestampFieldInfo = new DateFieldRangeInfo(
                 dateFieldType,
                 IndexLongFieldRange.NO_SHARDS.extendWithShardRange(0, 1, ShardLongFieldRange.of(min, max)),
                 dateFieldType,
                 IndexLongFieldRange.NO_SHARDS.extendWithShardRange(0, 1, ShardLongFieldRange.of(min, max))
             );
-            return new CoordinatorRewriteContext(parserConfiguration, this.client, () -> nowInMillis, timestampFieldInfo);
+            return new CoordinatorRewriteContext(parserConfiguration, this.client, () -> nowInMillis, timestampFieldInfo, tier);
         }
 
         DataRewriteContext createDataContext() {

@@ -265,8 +265,8 @@ Definition of a mapping that will be merged into the index's mapping for validat
 
 [[simulate-ingest-api-pre-existing-pipelines-ex]]
 ===== Use pre-existing pipeline definitions
-In this example the index `index` has a default pipeline called `my-pipeline` and a final
-pipeline called `my-final-pipeline`. Since both documents are being ingested into `index`,
+In this example the index `my-index` has a default pipeline called `my-pipeline` and a final
+pipeline called `my-final-pipeline`. Since both documents are being ingested into `my-index`,
 both pipelines are executed using the pipeline definitions that are already in the system.
 
 [source,console]

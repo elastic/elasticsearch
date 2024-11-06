@@ -75,6 +75,11 @@ public class EsqlCapabilities {
         FN_SUBSTRING_EMPTY_NULL,
 
         /**
+         * All functions that take TEXT should never emit TEXT, only KEYWORD. #114334
+         */
+        FUNCTIONS_NEVER_EMIT_TEXT,
+
+        /**
          * Support for the {@code INLINESTATS} syntax.
          */
         INLINESTATS(EsqlPlugin.INLINESTATS_FEATURE_FLAG),
@@ -284,9 +289,9 @@ public class EsqlCapabilities {
         MV_PSERIES_WEIGHTED_SUM,
 
         /**
-         * Support for match operator
+         * Support for match operator as a colon. Previous support for match operator as MATCH has been removed
          */
-        MATCH_OPERATOR(Build.current().isSnapshot()),
+        MATCH_OPERATOR_COLON(Build.current().isSnapshot()),
 
         /**
          * Removing support for the {@code META} keyword.
@@ -312,6 +317,11 @@ public class EsqlCapabilities {
          * Support Least and Greatest functions on Date Nanos type
          */
         LEAST_GREATEST_FOR_DATENANOS(EsqlCorePlugin.DATE_NANOS_FEATURE_FLAG),
+
+        /**
+         * support aggregations on date nanos
+         */
+        DATE_NANOS_AGGREGATIONS(EsqlCorePlugin.DATE_NANOS_FEATURE_FLAG),
 
         /**
          * Support for datetime in least and greatest functions
@@ -385,11 +395,6 @@ public class EsqlCapabilities {
         DATE_DIFF_YEAR_CALENDARIAL,
 
         /**
-         * Support named parameters for field names.
-         */
-        NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES(Build.current().isSnapshot()),
-
-        /**
          * Fix sorting not allowed on _source and counters.
          */
         SORTING_ON_SOURCE_AND_COUNTERS_FORBIDDEN,
@@ -398,6 +403,11 @@ public class EsqlCapabilities {
          * Allow filter per individual aggregation.
          */
         PER_AGG_FILTERING,
+
+        /**
+         * Fix {@link #PER_AGG_FILTERING} grouped by ordinals.
+         */
+        PER_AGG_FILTERING_ORDS,
 
         /**
          * Fix for https://github.com/elastic/elasticsearch/issues/114714
@@ -416,7 +426,40 @@ public class EsqlCapabilities {
          * Fix for an optimization that caused wrong results
          * https://github.com/elastic/elasticsearch/issues/115281
          */
-        FIX_FILTER_PUSHDOWN_PAST_STATS;
+        FIX_FILTER_PUSHDOWN_PAST_STATS,
+
+        /**
+         * Send warnings on STATS alias collision
+         * https://github.com/elastic/elasticsearch/issues/114970
+         */
+        STATS_ALIAS_COLLISION_WARNINGS,
+
+        /**
+         * This enables 60_usage.yml "Basic ESQL usage....snapshot" version test. See also the next capability.
+         */
+        SNAPSHOT_TEST_FOR_TELEMETRY(Build.current().isSnapshot()),
+
+        /**
+         * This enables 60_usage.yml "Basic ESQL usage....non-snapshot" version test. See also the previous capability.
+         */
+        NON_SNAPSHOT_TEST_FOR_TELEMETRY(Build.current().isSnapshot() == false),
+
+        /**
+         * Support simplified syntax for named parameters for field and function names.
+         */
+        NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES_SIMPLIFIED_SYNTAX(Build.current().isSnapshot()),
+
+        /**
+         * Fix pushdown of LIMIT past MV_EXPAND
+         */
+        ADD_LIMIT_INSIDE_MV_EXPAND,
+
+        /**
+         * WIP on Join planning
+         * - Introduce BinaryPlan and co
+         * - Refactor INLINESTATS and LOOKUP as a JOIN block
+         */
+        JOIN_PLANNING_V1(Build.current().isSnapshot());
 
         private final boolean enabled;
 

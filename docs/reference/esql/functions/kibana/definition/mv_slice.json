@@ -290,7 +290,7 @@
         }
       ],
       "variadic" : false,
-      "returnType" : "text"
+      "returnType" : "keyword"
     },
     {
       "params" : [

@@ -27,7 +27,6 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class CategorizedIntermediateBlockHash extends AbstractCategorizeBlockHash {
-    private final IntBlockHash hash;
 
     CategorizedIntermediateBlockHash(int channel, BlockFactory blockFactory, boolean outputPartial) {
         this(
@@ -49,7 +48,6 @@ public class CategorizedIntermediateBlockHash extends AbstractCategorizeBlockHas
         TokenListCategorizer.CloseableTokenListCategorizer categorizer
     ) {
         super(blockFactory, channel, outputPartial, categorizer);
-        this.hash = new IntBlockHash(channel, blockFactory);
     }
 
     @Override
@@ -61,14 +59,12 @@ public class CategorizedIntermediateBlockHash extends AbstractCategorizeBlockHas
         } else {
             idMap = Collections.emptyMap();
         }
-        // TODO: when there are aggregators running, this renumbering doesn't work.
-        // This should renumber the destination IDs only, but it also renumbers the source IDs.
         try (IntBlock.Builder newIdsBuilder = blockFactory.newIntBlockBuilder(idMap.size())) {
             for (int i = 0; i < idMap.size(); i++) {
                 newIdsBuilder.appendInt(idMap.get(i));
             }
             IntBlock newIds = newIdsBuilder.build();
-            addInput.add(0, hash.add(newIds));
+            addInput.add(0, newIds);
         }
     }
 
@@ -77,9 +73,7 @@ public class CategorizedIntermediateBlockHash extends AbstractCategorizeBlockHas
         try (StreamInput in = new BytesArray(bytes).streamInput()) {
             int count = in.readVInt();
             for (int oldCategoryId = 0; oldCategoryId < count; oldCategoryId++) {
-                SerializableTokenListCategory category = new SerializableTokenListCategory(in);
-                int newCategoryId = categorizer.mergeWireCategory(category).getId();
-                System.err.println("category id map: " + oldCategoryId + " -> " + newCategoryId + " (" + category.getRegex() + ")");
+                int newCategoryId = categorizer.mergeWireCategory(new SerializableTokenListCategory(in)).getId();
                 idMap.put(oldCategoryId, newCategoryId);
             }
             return idMap;
@@ -91,6 +85,5 @@ public class CategorizedIntermediateBlockHash extends AbstractCategorizeBlockHas
     @Override
     public void close() {
         categorizer.close();
-        hash.close();
     }
 }

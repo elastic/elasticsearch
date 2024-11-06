@@ -68,7 +68,7 @@ public abstract class AbstractCategorizeBlockHash extends BlockHash {
 
     private Block buildIntermediateBlock() {
         if (categorizer.getCategoryCount() == 0) {
-            return blockFactory.newConstantNullBlock(1);
+            return blockFactory.newConstantNullBlock(categorizer.getCategoryCount());
         }
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             // TODO be more careful here.

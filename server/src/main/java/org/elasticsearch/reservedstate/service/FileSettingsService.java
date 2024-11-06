@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.file.MasterNodeFileWatchingService;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.io.BufferedInputStream;
@@ -146,11 +147,17 @@ public class FileSettingsService extends MasterNodeFileWatchingService implement
 
     @Override
     protected void onProcessFileChangesException(Exception e) {
-        if (e instanceof ExecutionException && e.getCause() instanceof FailedToCommitClusterStateException) {
-            logger.error("Unable to commit cluster state", e);
-        } else {
-            super.onProcessFileChangesException(e);
+        if (e instanceof ExecutionException) {
+            var cause = e.getCause();
+            if (cause instanceof FailedToCommitClusterStateException) {
+                logger.error("Unable to commit cluster state", e);
+                return;
+            } else if (cause instanceof XContentParseException) {
+                logger.error("Unable to parse settings", e);
+                return;
+            }
         }
+        super.onProcessFileChangesException(e);
     }
 
     @Override

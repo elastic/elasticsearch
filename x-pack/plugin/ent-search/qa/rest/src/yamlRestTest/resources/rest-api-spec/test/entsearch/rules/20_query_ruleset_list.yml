@@ -1,7 +1,7 @@
 setup:
   - requires:
-      cluster_features: [ "gte_v8.10.0" ]
-      reason: Introduced in 8.10.0
+      cluster_features: [ "query_rule_list_types" ]
+      reason: 'List responses updated in 8.15.5 and 8.16.1'
   - do:
       query_rules.put_ruleset:
         ruleset_id: test-query-ruleset-3

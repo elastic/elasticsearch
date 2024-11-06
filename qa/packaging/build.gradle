@@ -13,7 +13,7 @@ plugins {
 
 dependencies {
   testImplementation project(':server')
-  testImplementation project(':libs:elasticsearch-core')
+  testImplementation project(':libs:core')
   testImplementation(testArtifact(project(':x-pack:plugin:core')))
   testImplementation "junit:junit:${versions.junit}"
   testImplementation "org.hamcrest:hamcrest:${versions.hamcrest}"

@@ -1621,6 +1621,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             null,
             null,
             null,
+            null,
             concreteSecurityIndexName,
             healthStatus,
             IndexMetadata.State.OPEN,

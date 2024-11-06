@@ -19,6 +19,7 @@ import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.transport.Transport;
 
 import java.util.concurrent.Executor;
+import java.util.function.Supplier;
 
 /**
  * This class provide contextual state and access to resources across multiple search phases.
@@ -120,7 +121,7 @@ interface SearchPhaseContext extends Executor {
      * of the next phase. If there are no successful operations in the context when this method is executed the search is aborted and
      * a response is returned to the user indicating that all shards have failed.
      */
-    void executeNextPhase(SearchPhase currentPhase, SearchPhase nextPhase);
+    void executeNextPhase(SearchPhase currentPhase, Supplier<SearchPhase> nextPhaseSupplier);
 
     /**
      * Registers a {@link Releasable} that will be closed when the search request finishes or fails.

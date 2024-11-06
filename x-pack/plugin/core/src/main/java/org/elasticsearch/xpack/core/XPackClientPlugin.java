@@ -25,6 +25,7 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.core.aggregatemetric.AggregateMetricFeatureSetUsage;
 import org.elasticsearch.xpack.core.analytics.AnalyticsFeatureSetUsage;
 import org.elasticsearch.xpack.core.application.EnterpriseSearchFeatureSetUsage;
+import org.elasticsearch.xpack.core.application.LogsDBFeatureSetUsage;
 import org.elasticsearch.xpack.core.application.ProfilingUsage;
 import org.elasticsearch.xpack.core.archive.ArchiveFeatureSetUsage;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
@@ -305,7 +306,8 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, SearchPlu
                 PersistentTaskParams.class,
                 SecurityMigrationTaskParams.TASK_NAME,
                 SecurityMigrationTaskParams::new
-            )
+            ),
+            new NamedWriteableRegistry.Entry(XPackFeatureUsage.class, XPackField.LOGSDB, LogsDBFeatureSetUsage::new)
         ).filter(Objects::nonNull).toList();
     }
 

@@ -502,6 +502,7 @@ public class Verifier {
         }
         allowed.add(DataType.IP);
         allowed.add(DataType.DATETIME);
+        allowed.add(DataType.DATE_NANOS);
         allowed.add(DataType.VERSION);
         allowed.add(DataType.GEO_POINT);
         allowed.add(DataType.GEO_SHAPE);

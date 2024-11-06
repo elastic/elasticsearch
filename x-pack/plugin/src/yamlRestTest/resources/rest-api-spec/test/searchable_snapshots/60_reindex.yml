@@ -1,0 +1,141 @@
+---
+"Tests reindexing a searchable snapshot":
+
+  - do:
+      license.post:
+        acknowledge: true
+        body: |
+          {"licenses":[{"uid":"3aa62ffe-36e1-4fad-bfdc-9dff8301eb22","type":"trial","issue_date_in_millis":1523456691721,"expiry_date_in_millis":1838816691721,"max_nodes":5,"issued_to":"customer","issuer":"elasticsearch","signature":"AAAABAAAAA2kWNcuc+DT0lrlmYZKAAAAIAo5/x6hrsGh1GqqrJmy4qgmEC7gK0U4zQ6q5ZEMhm4jAAABAEn6fG9y2VxKBu2T3D5hffh56kzOQODCOdhr0y2d17ZSIJMZRqO7ZywPCWNS1aR33GhfIHkTER0ysML0xMH/gXavhyRvMBndJj0UBKzuwpTawSlnxYtcqN8mSBIvJC7Ki+uJ1SpAILC2ZP9fnkRlqwXqBlTwfYn7xnZgu9DKrOWru/ipTPObo7jcePl8VTK6nWFen7/hCFDQTUFZ0jQvd+nq7A1PAcHGNxGfdbMVmAXCXgGWkRfT3clo9/vadgo+isNyh1sPq9mN7gwsvBAKtA1FrpH2EXYYbfOsSpBvUmhYMgErLg1k3/CbS0pCWLKOaX1xTMayosdZOjagU3auZXY=","start_date_in_millis":-1}]}
+
+  - do:
+      indices.create:
+        index: docs
+        body:
+          settings:
+            number_of_shards:   1
+            number_of_replicas: 0
+
+  - do:
+      bulk:
+        body:
+          - index:
+              _index: docs
+              _id:    "1"
+          - field: foo
+          - index:
+              _index: docs
+              _id:    "2"
+          - field: bar
+          - index:
+              _index: docs
+              _id:    "3"
+          - field: baz
+
+  - do:
+      snapshot.create_repository:
+        repository: repository-fs
+        body:
+          type: fs
+          settings:
+            location: "repository-fs"
+
+  # Remove the snapshot if a previous test failed to delete it.
+  # Useful for third party tests that runs the test against a real external service.
+  - do:
+      snapshot.delete:
+        repository: repository-fs
+        snapshot: snapshot
+        ignore: 404
+
+  - do:
+      snapshot.create:
+        repository: repository-fs
+        snapshot: snapshot
+        wait_for_completion: true
+        body: |
+          { "indices": "docs" }
+
+  - do:
+      indices.delete:
+        index: docs
+
+  - do:
+      searchable_snapshots.mount:
+        repository: repository-fs
+        snapshot: snapshot
+        wait_for_completion: true
+        storage: shared_cache
+        body:
+          index: docs
+
+  - match: { snapshot.snapshot: snapshot }
+  - match: { snapshot.shards.failed: 0 }
+  - match: { snapshot.shards.successful: 1 }
+
+  - do:
+      search:
+        index: docs
+
+  - match:  { hits.total.value: 3 }
+
+  - do:
+      reindex:
+        refresh: true
+        body:
+          source:
+            index:   docs
+          dest:
+            index:   new_docs
+
+  - do:
+      search:
+        index: new_docs
+
+  - match:  { hits.total.value: 3 }
+
+  - do:
+      snapshot.delete:
+        repository: repository-fs
+        snapshot: new_snapshot
+        ignore: 404
+
+  - do:
+      snapshot.create:
+        repository: repository-fs
+        snapshot: new_snapshot
+        wait_for_completion: true
+        body: |
+          { "indices": "new_docs" }
+
+  - do:
+      indices.delete:
+        index: new_docs
+
+  - do:
+      searchable_snapshots.mount:
+        repository: repository-fs
+        snapshot: new_snapshot
+        wait_for_completion: true
+        storage: shared_cache
+        body:
+          index: new_docs
+
+  - match: { snapshot.snapshot: new_snapshot }
+  - match: { snapshot.shards.failed: 0 }
+  - match: { snapshot.shards.successful: 1 }
+
+  - do:
+      indices.delete:
+        index: docs
+
+  - do:
+      snapshot.delete:
+        repository: repository-fs
+        snapshot: snapshot
+        ignore: 404
+
+  - do:
+      search:
+        index: new_docs
+
+  - match:  { hits.total.value: 3 }

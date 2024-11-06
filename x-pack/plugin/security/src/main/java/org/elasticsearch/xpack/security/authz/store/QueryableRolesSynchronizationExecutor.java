@@ -13,12 +13,15 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -26,6 +29,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.action.SetIndexMetadataPropertyAction;
@@ -36,6 +40,7 @@ import org.elasticsearch.xpack.security.authz.store.QueryableRolesProvider.Query
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
@@ -133,15 +138,16 @@ public class QueryableRolesSynchronizationExecutor implements ClusterStateListen
         if (roles.roleVersions().equals(indexedRolesVersions)) {
             logger.info("Security index already contains the latest built-in roles indexed, skipping synchronization");
             return;
-        } else {
-            logger.info("indexed built-in roles {} do not match the latest built-in roles {}", indexedRolesVersions, roles.roleVersions());
         }
+
         if (synchronizationInProgress.compareAndSet(false, true)) {
             executor.execute(() -> syncBuiltinRoles(indexedRolesVersions, roles, ActionListener.wrap(v -> {
                 logger.info("Successfully synced built-in roles to security index");
                 synchronizationInProgress.set(false);
             }, e -> {
-                logger.warn("Failed to sync built-in roles to security index", e);
+                if (false == e instanceof UnavailableShardsException) {
+                    logger.warn("Failed to sync built-in roles to security index", e);
+                }
                 synchronizationInProgress.set(false);
             })));
         }
@@ -236,7 +242,7 @@ public class QueryableRolesSynchronizationExecutor implements ClusterStateListen
             ),
             ActionListener.wrap(response -> {
                 if (newRolesVersion.equals(response.value()) == false) {
-                    listener.onFailure(new IllegalStateException("Failed to mark reserved roles as indexed"));
+                    listener.onFailure(new IllegalStateException("Failed to mark built-in roles as indexed"));
                 } else {
                     listener.onResponse(null);
                 }
@@ -245,11 +251,23 @@ public class QueryableRolesSynchronizationExecutor implements ClusterStateListen
     }
 
     private Map<String, String> readIndexedRolesVersion(ClusterState state) {
-        IndexMetadata indexMetadata = state.metadata().index(SECURITY_MAIN_ALIAS);
+        final IndexMetadata indexMetadata = resolveConcreteIndex(SECURITY_MAIN_ALIAS, state.metadata());
         if (indexMetadata == null) {
             return null;
         }
         return indexMetadata.getCustomData(METADATA_INDEXED_BUILT_IN_ROLES);
+    }
+
+    private static IndexMetadata resolveConcreteIndex(final String indexOrAliasName, final Metadata metadata) {
+        final IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(indexOrAliasName);
+        if (indexAbstraction != null) {
+            final List<Index> indices = indexAbstraction.getIndices();
+            if (indexAbstraction.getType() != IndexAbstraction.Type.CONCRETE_INDEX && indices.size() > 1) {
+                throw new IllegalStateException("Alias [" + indexOrAliasName + "] points to more than one index: " + indices);
+            }
+            return metadata.index(indices.get(0));
+        }
+        return null;
     }
 
 }

@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -59,10 +60,12 @@ public class QueryableRolesSynchronizationExecutor implements ClusterStateListen
     private final Client client;
     private final Executor executor;
     private final ClusterService clusterService;
+    private final FeatureService featureService;
     private final AtomicBoolean synchronizationInProgress = new AtomicBoolean(false);
 
     public QueryableRolesSynchronizationExecutor(
         ClusterService clusterService,
+        FeatureService featureService,
         QueryableRolesProvider rolesProvider,
         NativeRolesStore nativeRolesStore,
         SecurityIndexManager securityIndex,
@@ -70,6 +73,7 @@ public class QueryableRolesSynchronizationExecutor implements ClusterStateListen
         ThreadPool threadPool
     ) {
         this.clusterService = clusterService;
+        this.featureService = featureService;
         this.builtinRolesProvider = rolesProvider;
         this.nativeRolesStore = nativeRolesStore;
         this.securityIndex = securityIndex;
@@ -98,7 +102,7 @@ public class QueryableRolesSynchronizationExecutor implements ClusterStateListen
             logger.info("Not all nodes are on the same version, skipping built-in roles synchronization");
             return false;
         }
-        if (state.clusterFeatures().clusterHasFeature(QUERYABLE_BUILT_IN_ROLES_FEATURE) == false) {
+        if (false == featureService.clusterHasFeature(state, QUERYABLE_BUILT_IN_ROLES_FEATURE)) {
             logger.info("Not all nodes support queryable built-in roles, skipping built-in roles synchronization");
             return false;
         }

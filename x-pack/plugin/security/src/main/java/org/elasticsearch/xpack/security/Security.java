@@ -1179,6 +1179,7 @@ public class Security extends Plugin
                                                                                                                 // injectable
         QueryableRolesSynchronizationExecutor queryableRolesSynchronizationExecutor = new QueryableRolesSynchronizationExecutor(
             clusterService,
+            featureService,
             queryableRolesProvider,
             nativeRolesStore,
             systemIndices.getMainIndexManager(),

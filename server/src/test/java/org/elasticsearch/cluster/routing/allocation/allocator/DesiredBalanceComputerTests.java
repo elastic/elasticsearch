@@ -86,7 +86,6 @@ import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class DesiredBalanceComputerTests extends ESAllocationTestCase {
 
@@ -1206,16 +1205,15 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
 
     private void checkIterationLogging(int iterations, long eachIterationDuration, MockLog.AbstractEventExpectation expectation) {
 
-        var mockThreadPool = mock(ThreadPool.class);
         var currentTime = new AtomicLong(0L);
-        when(mockThreadPool.relativeTimeInMillis()).thenAnswer(invocation -> currentTime.addAndGet(eachIterationDuration));
+        ThreadPool.TimeSupplier timeSupplier = () -> currentTime.addAndGet(eachIterationDuration);
 
         // Some runs of this test try to simulate a long desired balance computation. Setting a high value on the following setting
         // prevents interrupting a long computation.
         var clusterSettings = createBuiltInClusterSettings(
             Settings.builder().put(DesiredBalanceComputer.MAX_BALANCE_COMPUTATION_TIME_DURING_INDEX_CREATION_SETTING.getKey(), "2m").build()
         );
-        var desiredBalanceComputer = new DesiredBalanceComputer(clusterSettings, mockThreadPool, new ShardsAllocator() {
+        var desiredBalanceComputer = new DesiredBalanceComputer(clusterSettings, timeSupplier, new ShardsAllocator() {
             @Override
             public void allocate(RoutingAllocation allocation) {
                 final var unassignedIterator = allocation.routingNodes().unassigned().iterator();
@@ -1349,7 +1347,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
     }
 
     private static DesiredBalanceComputer createDesiredBalanceComputer(ShardsAllocator allocator) {
-        return new DesiredBalanceComputer(createBuiltInClusterSettings(), mock(ThreadPool.class), allocator);
+        return new DesiredBalanceComputer(createBuiltInClusterSettings(), mock(ThreadPool.class)::relativeTimeInMillis, allocator);
     }
 
     private static void assertDesiredAssignments(DesiredBalance desiredBalance, Map<ShardId, ShardAssignment> expected) {

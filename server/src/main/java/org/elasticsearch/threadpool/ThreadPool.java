@@ -1106,4 +1106,8 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         }
         return true;
     }
+
+    public interface TimeSupplier {
+        long timeInMillis();
+    }
 }

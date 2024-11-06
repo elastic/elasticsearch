@@ -77,12 +77,15 @@ public abstract class QueryList {
                 FloatBlock floatBlock = ((FloatBlock) block);
                 yield floatBlock::getFloat;
             }
+            case LONG -> {
+                LongBlock intBlock = (LongBlock) block;
+                yield intBlock::getLong;
+            }
             case INT -> {
                 IntBlock intBlock = (IntBlock) block;
                 yield intBlock::getInt;
             }
             case NULL -> offset -> null;
-            case LONG -> throw new IllegalArgumentException("can't read values from [long] block");
             case DOC -> throw new IllegalArgumentException("can't read values from [doc] block");
             case COMPOSITE -> throw new IllegalArgumentException("can't read values from [composite] block");
             case UNKNOWN -> throw new IllegalArgumentException("can't read values from [" + block + "]");

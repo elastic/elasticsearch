@@ -118,8 +118,6 @@ public abstract class RankBuilder implements VersionedNamedWriteable, ToXContent
     /**
      * Transforms the specific rank builder (as parsed through SearchSourceBuilder) to the corresponding retriever.
      * This is used to ensure smooth deprecation of `rank` and `sub_searches` and move towards the retriever framework
-     *
-     * @return
      */
     @UpdateForV10(owner = UpdateForV10.Owner.SEARCH_RELEVANCE) // remove for 10.0 once we remove support for the rank parameter in SearchAPI
     @Nullable

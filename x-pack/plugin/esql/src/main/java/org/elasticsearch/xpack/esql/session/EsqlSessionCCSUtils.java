@@ -75,10 +75,10 @@ class EsqlSessionCCSUtils {
 
     /**
      * Whether to return an empty result (HTTP status 200) for a CCS rather than a top level 4xx/5xx error.
-     *
+     * <p>
      * For cases where field-caps had no indices to search and the remotes were unavailable, we
      * return an empty successful response (200) if all remotes are marked with skip_unavailable=true.
-     *
+     * <p>
      * Note: a follow-on PR will expand this logic to handle cases where no indices could be found to match
      * on any of the requested clusters.
      */
@@ -191,46 +191,52 @@ class EsqlSessionCCSUtils {
         clustersWithNoMatchingIndices.removeAll(indexResolution.getUnavailableClusters().keySet());
 
         /**
-         * The rules to determine whether missing indices is an error or not are:
-         * 1. no matching indices on any cluster: error   MP TODO: I think this is handled elsewhere? Where? Check this
-         * ✓ 2. skip_unavailable=false remotes with no matching indices: error
-         * 3. missing concrete index expression:
-         *  (a) error for local and skip_unavailable=false remotes
-         *  (b) not an error for skip_unavailable=true remotes as long as there is at least one other matching index expression in the query (for any cluster)
-         * 4. wildcard index expressions, if at least one matches: not an error
+         * Rules enforced at planning time around non-matching indices
+         * P1. fail query if no matching indices on any cluster (VerificationException) - that is handled elsewhere (TODO: document where)
+         * P2. fail query if a skip_unavailable:false cluster has no matching indices (the local cluster already has this rule enforced at planning time)
+         * P3. fail query if the local cluster has no matching indices and a concrete index was specified
          */
-
         String fatalErrorMessage = null;
         /*
-         * MP TODO: update this code comment
          * These are clusters in the original request that are not present in the field-caps response. They were
-         * specified with an index or indices that do not exist, so the search on that cluster is done.
+         * specified with an index expression matched no indices, so the search on that cluster is done.
          * Mark it as SKIPPED with 0 shards searched and took=0.
          */
         for (String c : clustersWithNoMatchingIndices) {
-            if (executionInfo.isSkipUnavailable(c) == false)) {
-                String error = "No matching indices for [" + executionInfo.getCluster(c).getIndexExpression() + "]";
-                if (c.equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY) == false) {
-                    error += " on remote cluster [" + c + "]";
-                }
+            final String indexExpression = executionInfo.getCluster(c).getIndexExpression();
+            if (missingIndicesIsFatal(c, executionInfo)) {
+                String error = Strings.format(
+                    "Unknown index [%s]",
+                    (c.equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY) ? indexExpression : c + ":" + indexExpression)
+                );
                 if (fatalErrorMessage == null) {
                     fatalErrorMessage = error;
                 } else {
                     fatalErrorMessage += "; " + error;
                 }
             } else {
-                EsqlExecutionInfo.Cluster.Status status = c.equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY) ?
-                    EsqlExecutionInfo.Cluster.Status.SUCCESSFUL : EsqlExecutionInfo.Cluster.Status.SKIPPED;
-                executionInfo.swapCluster(
-                    c,
-                    (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setStatus(status)
+                // handles local cluster (when no concrete indices requested) and skip_unavailable=true clusters
+                EsqlExecutionInfo.Cluster.Status status;
+                ShardSearchFailure failure;
+                if (c.equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY)) {
+                    status = EsqlExecutionInfo.Cluster.Status.SUCCESSFUL;
+                    failure = null;
+                } else {
+                    status = EsqlExecutionInfo.Cluster.Status.SKIPPED;
+                    failure = new ShardSearchFailure(new VerificationException("Unknown index [" + indexExpression + "]"));
+                }
+                executionInfo.swapCluster(c, (k, v) -> {
+                    var builder = new EsqlExecutionInfo.Cluster.Builder(v).setStatus(status)
                         .setTook(new TimeValue(0))
                         .setTotalShards(0)
                         .setSuccessfulShards(0)
                         .setSkippedShards(0)
-                        .setFailedShards(0)
-                        .build()
-                );
+                        .setFailedShards(0);
+                    if (failure != null) {
+                        builder.setFailures(List.of(failure));
+                    }
+                    return builder.build();
+                });
             }
         }
         if (fatalErrorMessage != null) {
@@ -238,9 +244,27 @@ class EsqlSessionCCSUtils {
         }
     }
 
+    // visible for testing
+    static boolean missingIndicesIsFatal(String clusterAlias, EsqlExecutionInfo executionInfo) {
+        if (executionInfo.getCluster(clusterAlias).isSkipUnavailable()) {
+            return false;
+        }
+        // missing indices on local cluster is fatal only if a concrete index requested
+        if (clusterAlias.equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY)) {
+            return concreteIndexRequested(executionInfo.getCluster(clusterAlias).getIndexExpression());
+        }
+        return true;
+    }
+
     // MP TODO: is there a better method for doing this, say in RemoteClusterService or RemoteClusterAware?
     private static boolean concreteIndexRequested(String indexExpression) {
-        return indexExpression.indexOf('*') < 0;
+        for (String expr : indexExpression.split(",")) {
+            // TODO need to also detect date math before this check?
+            if (expr.indexOf('*') < 0) {
+                return true;
+            }
+        }
+        return false;
     }
 
     // visible for testing

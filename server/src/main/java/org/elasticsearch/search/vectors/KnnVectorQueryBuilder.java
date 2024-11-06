@@ -82,7 +82,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
             (Integer) args[2],
             (Integer) args[3],
             (Float) args[4],
-            (Float) args[5]
+            (Float) args[6]
         )
     );
 
@@ -102,6 +102,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
             (p, c, n) -> p.namedObject(QueryVectorBuilder.class, n, c),
             QUERY_VECTOR_BUILDER_FIELD
         );
+        PARSER.declareFloat(optionalConstructorArg(), RESCORE_VECTOR_OVERSAMPLE);
         PARSER.declareFieldArray(
             KnnVectorQueryBuilder::addFilterQueries,
             (p, c) -> AbstractQueryBuilder.parseTopLevelQuery(p),
@@ -109,7 +110,6 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
             ObjectParser.ValueType.OBJECT_ARRAY
         );
         declareStandardFields(PARSER);
-        PARSER.declareFloat(optionalConstructorArg(), RESCORE_VECTOR_OVERSAMPLE);
     }
 
     public static KnnVectorQueryBuilder fromXContent(XContentParser parser) {
@@ -127,7 +127,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
     private final Float rescoreOversample;
 
     public KnnVectorQueryBuilder(String fieldName, float[] queryVector, Integer k, Integer numCands, Float vectorSimilarity) {
-        this(fieldName, VectorData.fromFloats(queryVector), null, null, k, numCands, vectorSimilarity);
+        this(fieldName, VectorData.fromFloats(queryVector), null, null, k, numCands, vectorSimilarity, null);
     }
 
     public KnnVectorQueryBuilder(
@@ -137,7 +137,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         Integer numCands,
         Float vectorSimilarity
     ) {
-        this(fieldName, null, queryVectorBuilder, null, k, numCands, vectorSimilarity);
+        this(fieldName, null, queryVectorBuilder, null, k, numCands, vectorSimilarity, null);
     }
 
     public KnnVectorQueryBuilder(String fieldName, byte[] queryVector, Integer k, Integer numCands, Float vectorSimilarity) {
@@ -157,7 +157,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         Integer numCands,
         Float vectorSimilarity
     ) {
-        this(fieldName, queryVector, null, null, k, numCands, vectorSimilarity, 0F);
+        this(fieldName, queryVector, null, null, k, numCands, vectorSimilarity, null);
     }
 
     private KnnVectorQueryBuilder(

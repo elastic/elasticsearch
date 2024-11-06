@@ -60,7 +60,7 @@ public class ESKnnFloatVectorQuery extends KnnFloatVectorQuery implements Profil
             return topDocs;
         }
 
-        BitSet exactSearchAcceptDocs = topDocsToBitSet(topDocs, acceptDocs.length());
+        BitSet exactSearchAcceptDocs = topDocsToBitSet(topDocs, context.reader().maxDoc());
         BitSetIterator bitSetIterator = new BitSetIterator(exactSearchAcceptDocs, topDocs.scoreDocs.length);
         QueryTimeout queryTimeout = null;
         if (knnCollectorManager instanceof TimeLimitingKnnCollectorManager timeLimitingKnnCollectorManager) {

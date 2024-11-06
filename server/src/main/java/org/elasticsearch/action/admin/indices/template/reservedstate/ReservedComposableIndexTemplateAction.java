@@ -150,6 +150,9 @@ public class ReservedComposableIndexTemplateAction
 
         var components = requests.componentTemplates;
         var composables = requests.composableTemplates;
+        // Both the creation/update and the overlap checking below should be made project-aware.
+        @FixForMultiProject()
+        final var projectId = Metadata.DEFAULT_PROJECT_ID;
 
         // 1. create or update component templates (composable templates depend on them)
         for (var request : components) {
@@ -164,9 +167,6 @@ public class ReservedComposableIndexTemplateAction
         // 2. create or update composable index templates, no overlap validation
         for (var request : composables) {
             MetadataIndexTemplateService.validateV2TemplateRequest(state.metadata().getProject(), request.name(), request.indexTemplate());
-            // Both the creation/update and the overlap checking below should be made project-aware.
-            @FixForMultiProject()
-            final var projectId = Metadata.DEFAULT_PROJECT_ID;
             state = indexTemplateService.addIndexTemplateV2(
                 state.projectState(projectId),
                 false,
@@ -185,7 +185,7 @@ public class ReservedComposableIndexTemplateAction
         // 3. delete composable index templates (this will fail on attached data streams, unless we added a higher priority one)
         if (composablesToDelete.isEmpty() == false) {
             var composableNames = composablesToDelete.stream().map(c -> composableIndexNameFromReservedName(c)).toArray(String[]::new);
-            state = MetadataIndexTemplateService.innerRemoveIndexTemplateV2(state, composableNames);
+            state = MetadataIndexTemplateService.innerRemoveIndexTemplateV2(state.projectState(projectId), composableNames);
         }
 
         // 4. validate for v2 composable template overlaps

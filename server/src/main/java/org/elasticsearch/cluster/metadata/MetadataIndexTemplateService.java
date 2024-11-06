@@ -992,6 +992,7 @@ public class MetadataIndexTemplateService {
      * supports simple regex wildcards for removing multiple index templates at a time.
      */
     public void removeIndexTemplateV2(
+        final ProjectId projectId,
         final String[] names,
         final TimeValue masterTimeout,
         final ActionListener<AcknowledgedResponse> listener
@@ -999,19 +1000,20 @@ public class MetadataIndexTemplateService {
         taskQueue.submitTask("remove-index-template-v2 [" + String.join(",", names) + "]", new TemplateClusterStateUpdateTask(listener) {
             @Override
             public ClusterState execute(ClusterState currentState) {
-                return innerRemoveIndexTemplateV2(currentState, names);
+                return innerRemoveIndexTemplateV2(currentState.projectState(projectId), names);
             }
         }, masterTimeout);
     }
 
     // Public because it's used by ReservedComposableIndexTemplateAction
-    public static ClusterState innerRemoveIndexTemplateV2(ClusterState currentState, String... names) {
+    public static ClusterState innerRemoveIndexTemplateV2(final ProjectState projectState, String... names) {
         Set<String> templateNames = new HashSet<>();
 
+        var project = projectState.metadata();
         if (names.length > 1) {
             Set<String> missingNames = null;
             for (String name : names) {
-                if (currentState.metadata().getProject().templatesV2().containsKey(name)) {
+                if (project.templatesV2().containsKey(name)) {
                     templateNames.add(name);
                 } else {
                     // wildcards are not supported, so if a name with a wildcard is specified then
@@ -1028,7 +1030,7 @@ public class MetadataIndexTemplateService {
             }
         } else {
             final String name = names[0];
-            for (String templateName : currentState.metadata().getProject().templatesV2().keySet()) {
+            for (String templateName : project.templatesV2().keySet()) {
                 if (Regex.simpleMatch(name, templateName)) {
                     templateNames.add(templateName);
                 }
@@ -1041,14 +1043,14 @@ public class MetadataIndexTemplateService {
                     isMatchAll = true;
                 }
                 if (isMatchAll) {
-                    return currentState;
+                    return projectState.cluster();
                 } else {
                     throw new IndexTemplateMissingException(name);
                 }
             }
         }
 
-        Set<String> dataStreamsUsingTemplates = dataStreamsExclusivelyUsingTemplates(currentState, templateNames);
+        Set<String> dataStreamsUsingTemplates = dataStreamsExclusivelyUsingTemplates(project, templateNames);
         if (dataStreamsUsingTemplates.size() > 0) {
             throw new IllegalArgumentException(
                 "unable to remove composable templates "
@@ -1058,12 +1060,12 @@ public class MetadataIndexTemplateService {
             );
         }
 
-        Metadata.Builder metadata = Metadata.builder(currentState.metadata());
+        ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(project);
         for (String templateName : templateNames) {
             logger.info("removing index template [{}]", templateName);
-            metadata.removeIndexTemplate(templateName);
+            projectBuilder.removeIndexTemplate(templateName);
         }
-        return ClusterState.builder(currentState).metadata(metadata).build();
+        return ClusterState.builder(projectState.cluster()).putProjectMetadata(projectBuilder).build();
     }
 
     /**
@@ -1071,9 +1073,7 @@ public class MetadataIndexTemplateService {
      * other templates. This means that the returned data streams depend on these templates which has implications for
      * these templates, for example they cannot be removed.
      */
-    static Set<String> dataStreamsExclusivelyUsingTemplates(final ClusterState state, final Set<String> templateNames) {
-        ProjectMetadata projectMetadata = state.metadata().getProject();
-
+    static Set<String> dataStreamsExclusivelyUsingTemplates(final ProjectMetadata projectMetadata, final Set<String> templateNames) {
         Set<String> namePatterns = templateNames.stream()
             .map(templateName -> projectMetadata.templatesV2().get(templateName))
             .filter(Objects::nonNull)

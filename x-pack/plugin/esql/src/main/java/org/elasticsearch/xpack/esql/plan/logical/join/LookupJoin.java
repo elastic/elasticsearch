@@ -47,6 +47,7 @@ public class LookupJoin extends Join implements SurrogateLogicalPlan {
         JoinConfig cfg = config();
         JoinConfig newConfig = new JoinConfig(LEFT, cfg.matchFields(), cfg.leftFields(), cfg.rightFields());
         Join normalized = new Join(source(), left(), right(), newConfig);
+        // TODO: decide whether to introduce USING or just basic ON semantics - keep the ordering out for now
         return new Project(source(), normalized, output);
     }
 

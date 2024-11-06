@@ -10,22 +10,20 @@ package org.elasticsearch.xpack.esql.plan.logical.join;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
-import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
@@ -107,26 +105,45 @@ public class Join extends BinaryPlan {
      * In case of (name) conflicts, specify which sides wins, that is overrides the other column - the left or the right.
      */
     public static List<Attribute> computeOutput(List<Attribute> leftOutput, List<Attribute> rightOutput, JoinConfig config) {
-        AttributeSet matchFieldSet = new AttributeSet(config.matchFields());
-        Set<String> matchFieldNames = new HashSet<>(Expressions.names(config.matchFields()));
         JoinType joinType = config.type();
         List<Attribute> output;
         if (LEFT.equals(joinType)) {
-            // Left side wins, right side becomes nullable.
-            output = CollectionUtils.combine(leftOutput, makeNullable(removeDuplicateNames(rightOutput, matchFieldSet, matchFieldNames)));
+            // right side becomes nullable and overrides left
+            // output = merge(leftOutput, makeNullable(rightOutput));
+            output = merge(leftOutput, rightOutput);
         } else if (RIGHT.equals(joinType)) {
-            // right side wins, left side becomes nullable.
-            output = CollectionUtils.combine(makeNullable(removeDuplicateNames(leftOutput, matchFieldSet, matchFieldNames)), rightOutput);
+            // left side becomes nullable and overrides right
+            // output = merge(makeNullable(leftOutput), rightOutput);
+            output = merge(leftOutput, rightOutput);
         } else {
             throw new IllegalArgumentException(joinType.joinName() + " unsupported");
         }
         return output;
     }
 
-    private static List<Attribute> removeDuplicateNames(List<Attribute> attributes, AttributeSet matchFields, Set<String> matchFieldNames) {
+    /**
+     * Merge the two lists of attributes into one and preserves order.
+     * In case of conflicts, specify the existing entry is overridden (in place) or not.
+     */
+    private static List<Attribute> merge(List<Attribute> left, List<Attribute> right) {
+        // use linked hash map to preserve order
+        Map<String, Attribute> nameToAttribute = Maps.newLinkedHashMapWithExpectedSize(left.size() + right.size());
+        for (Attribute a : left) {
+            nameToAttribute.put(a.name(), a);
+        }
+        for (Attribute a : right) {
+            // override the existing entry in place
+            nameToAttribute.compute(a.name(), (name, existing) -> a);
+        }
+
+        return new ArrayList<>(nameToAttribute.values());
+    }
+
+    private static List<Attribute> removeDuplicateNames(List<Attribute> attributes, Set<String> sideNames, Set<String> matchFieldNames) {
         List<Attribute> result = new ArrayList<>(attributes.size());
         for (Attribute attr : attributes) {
-            if ((matchFields.contains(attr) || matchFieldNames.contains(attr.name())) == false) {
+            String name = attr.name();
+            if ((sideNames.contains(name) || matchFieldNames.contains(name)) == false) {
                 result.add(attr);
             }
         }

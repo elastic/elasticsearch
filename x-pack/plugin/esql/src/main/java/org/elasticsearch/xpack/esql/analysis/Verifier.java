@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.common.logging.LoggerMessageFormat;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.core.capabilities.Unresolvable;
@@ -53,6 +54,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.stats.FeatureMetric;
 import org.elasticsearch.xpack.esql.stats.Metrics;
 
@@ -166,6 +168,20 @@ public class Verifier {
                 else {
                     lookup.matchFields().forEach(unresolvedExpressions);
                 }
+            } else if (p instanceof LookupJoin lj) {
+                // expect right side to always be a lookup index
+                lj.right().forEachUp(EsRelation.class, r -> {
+                    if (r.indexMode() == IndexMode.LOOKUP) {
+                        failures.add(
+                            fail(
+                                r,
+                                "LOOKUP JOIN right side [{}] must be a lookup index (index_mode=lookup, not [{}]",
+                                r.index().name(),
+                                r.indexMode().getName()
+                            )
+                        );
+                    }
+                });
             }
 
             else {

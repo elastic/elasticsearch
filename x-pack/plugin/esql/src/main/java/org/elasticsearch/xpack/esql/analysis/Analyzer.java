@@ -596,6 +596,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // per SQL standard, the USING columns are placed first in the output, followed by the rest of left, then right
             if (type instanceof UsingJoinType using) {
                 List<Attribute> cols = using.columns();
+                // the lookup cannot be resolved, bail out
+                if (Expressions.anyMatch(cols, c -> c instanceof UnresolvedAttribute ua && ua.customMessage())) {
+                    return join;
+                }
+
                 JoinType coreJoin = using.coreJoin();
                 // verify the join type
                 if (coreJoin != JoinTypes.LEFT) {
@@ -610,11 +615,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 // resolve the using columns against the left and the right side then assemble the new join config
                 List<Attribute> leftKeys = resolveUsingColumns(cols, join.left().output(), "left");
                 List<Attribute> rightKeys = resolveUsingColumns(cols, join.right().output(), "right");
-                List<Attribute> output = new ArrayList<>(leftKeys);
+                List<Attribute> output = new ArrayList<>(rightKeys);
 
                 // update the config - pick the left keys as those in the output
-                type = new UsingJoinType(coreJoin, leftKeys);
-                config = new JoinConfig(type, leftKeys, leftKeys, rightKeys);
+                type = new UsingJoinType(coreJoin, rightKeys);
+                config = new JoinConfig(type, rightKeys, leftKeys, rightKeys);
                 join = new LookupJoin(join.source(), join.left(), join.right(), config, output);
             }
             // everything else is unsupported for now

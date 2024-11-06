@@ -16,3 +16,6 @@ apply plugin: 'elasticsearch.publish'
 
 group = 'org.elasticsearch.entitlement.tools'
 
+tasks.named('forbiddenApisMain').configure {
+  replaceSignatureFiles 'jdk-signatures'
+}

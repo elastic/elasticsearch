@@ -26,8 +26,9 @@ public final class SearchCapabilities {
     private static final String RANGE_REGEX_INTERVAL_QUERY_CAPABILITY = "range_regexp_interval_queries";
     /** Support synthetic source with `bit` type in `dense_vector` field when `index` is set to `false`. */
     private static final String BIT_DENSE_VECTOR_SYNTHETIC_SOURCE_CAPABILITY = "bit_dense_vector_synthetic_source";
-    /** Support regex and range match rules in interval queries. */
+    /** Support kql query. */
     private static final String KQL_QUERY_SUPPORTED = "kql_query";
+
     public static final Set<String> CAPABILITIES = capabilities();
 
     private static Set<String> capabilities() {

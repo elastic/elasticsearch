@@ -18,7 +18,8 @@ import java.util.List;
 
 public interface DocumentParserListener {
     sealed interface Token permits Token.FieldName, Token.StartObject, Token.EndObject, Token.StartArray, Token.EndArray, Token.StringValue,
-        Token.BooleanValue, Token.IntValue, Token.BigIntegerValue, Token.LongValue, Token.DoubleValue, Token.FloatValue, Token.NullValue {
+        Token.StringAsCharArrayValue, Token.BooleanValue, Token.IntValue, Token.BigIntegerValue, Token.LongValue, Token.DoubleValue,
+        Token.FloatValue, Token.NullValue {
         record FieldName(String name) implements Token {}
 
         record StartObject() implements Token {}
@@ -30,6 +31,8 @@ public interface DocumentParserListener {
         record EndArray() implements Token {}
 
         record StringValue(String value) implements Token {}
+
+        record StringAsCharArrayValue(char[] buffer, int offset, int length) implements Token {}
 
         record BooleanValue(boolean value) implements Token {}
 
@@ -52,7 +55,13 @@ public interface DocumentParserListener {
                 case START_ARRAY -> new StartArray();
                 case END_ARRAY -> new EndArray();
                 case FIELD_NAME -> new FieldName(parser.currentName());
-                case VALUE_STRING -> new StringValue(parser.text());
+                case VALUE_STRING -> {
+                    if (parser.hasTextCharacters()) {
+                        yield new StringAsCharArrayValue(parser.textCharacters(), parser.textOffset(), parser.textLength());
+                    } else {
+                        yield new StringValue(parser.text());
+                    }
+                }
                 case VALUE_NUMBER -> switch (parser.numberType()) {
                     case INT -> new Token.IntValue(parser.intValue());
                     case BIG_INTEGER -> new BigIntegerValue((BigInteger) parser.numberValue());

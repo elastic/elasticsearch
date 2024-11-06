@@ -112,6 +112,8 @@ public class SyntheticSourceDocumentParserListener implements DocumentParserList
                 }
                 case Token.FieldName fieldName -> data.field(fieldName.name());
                 case Token.StringValue stringValue -> data.value(stringValue.value());
+                case Token.StringAsCharArrayValue stringAsCharArrayValue -> data.generator()
+                    .writeString(stringAsCharArrayValue.buffer(), stringAsCharArrayValue.offset(), stringAsCharArrayValue.length());
                 case Token.BooleanValue booleanValue -> data.value(booleanValue.value());
                 case Token.IntValue intValue -> data.value(intValue.value());
                 case Token.LongValue longValue -> data.value(longValue.value());

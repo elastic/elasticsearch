@@ -17,9 +17,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 public interface DocumentParserListener {
-    sealed interface Token permits Token.FieldName, Token.StartObject, Token.EndObject, Token.StartArray, Token.EndArray, Token.StringValue,
-        Token.StringAsCharArrayValue, Token.BooleanValue, Token.IntValue, Token.BigIntegerValue, Token.LongValue, Token.DoubleValue,
-        Token.FloatValue, Token.NullValue {
+    sealed interface Token permits Token.FieldName, Token.StartObject, Token.EndObject, Token.StartArray, Token.EndArray,
+        Token.StringAsCharArrayValue, Token.NullValue, Token.ValueToken {
         record FieldName(String name) implements Token {}
 
         record StartObject() implements Token {}
@@ -30,23 +29,31 @@ public interface DocumentParserListener {
 
         record EndArray() implements Token {}
 
-        record StringValue(String value) implements Token {}
-
-        record StringAsCharArrayValue(char[] buffer, int offset, int length) implements Token {}
-
-        record BooleanValue(boolean value) implements Token {}
-
-        record IntValue(int value) implements Token {}
-
-        record LongValue(long value) implements Token {}
-
-        record BigIntegerValue(BigInteger value) implements Token {}
-
-        record DoubleValue(double value) implements Token {}
-
-        record FloatValue(float value) implements Token {}
-
         record NullValue() implements Token {}
+
+        final class StringAsCharArrayValue implements Token {
+            private final XContentParser parser;
+
+            public StringAsCharArrayValue(XContentParser parser) {
+                this.parser = parser;
+            }
+
+            char[] buffer() throws IOException {
+                return parser.textCharacters();
+            }
+
+            int length() throws IOException {
+                return parser.textLength();
+            }
+
+            int offset() throws IOException {
+                return parser.textOffset();
+            }
+        }
+
+        non-sealed interface ValueToken<T> extends Token {
+            T value() throws IOException;
+        }
 
         static Token current(XContentParser parser) throws IOException {
             return switch (parser.currentToken()) {
@@ -57,26 +64,25 @@ public interface DocumentParserListener {
                 case FIELD_NAME -> new FieldName(parser.currentName());
                 case VALUE_STRING -> {
                     if (parser.hasTextCharacters()) {
-                        yield new StringAsCharArrayValue(parser.textCharacters(), parser.textOffset(), parser.textLength());
+                        yield new StringAsCharArrayValue(parser);
                     } else {
-                        yield new StringValue(parser.text());
+                        yield (ValueToken<String>) parser::text;
                     }
                 }
                 case VALUE_NUMBER -> switch (parser.numberType()) {
-                    case INT -> new Token.IntValue(parser.intValue());
-                    case BIG_INTEGER -> new BigIntegerValue((BigInteger) parser.numberValue());
-                    case LONG -> new Token.LongValue(parser.longValue());
-                    case FLOAT -> new Token.FloatValue(parser.floatValue());
-                    case DOUBLE -> new Token.DoubleValue(parser.doubleValue());
+                    case INT -> (ValueToken<Integer>) parser::intValue;
+                    case BIG_INTEGER -> (ValueToken<BigInteger>) () -> (BigInteger) parser.numberValue();
+                    case LONG -> (ValueToken<Long>) parser::longValue;
+                    case FLOAT -> (ValueToken<Float>) parser::floatValue;
+                    case DOUBLE -> (ValueToken<Double>) parser::doubleValue;
                     case BIG_DECIMAL -> {
                         // See @XContentGenerator#copyCurrentEvent
                         assert false : "missing xcontent number handling for type [" + parser.numberType() + "]";
                         yield null;
                     }
                 };
-                case VALUE_BOOLEAN -> new BooleanValue(parser.booleanValue());
-                // TODO
-                case VALUE_EMBEDDED_OBJECT -> null;
+                case VALUE_BOOLEAN -> (ValueToken<Boolean>) parser::booleanValue;
+                case VALUE_EMBEDDED_OBJECT -> (ValueToken<byte[]>) parser::binaryValue;
                 case VALUE_NULL -> new NullValue();
                 case null -> null;
             };

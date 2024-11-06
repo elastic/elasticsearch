@@ -81,7 +81,9 @@ public final class DocumentParser {
 
         Listeners listeners = Listeners.NOOP;
         if (mappingLookup.isSourceSynthetic() && mappingParserContext.getIndexSettings().getSkipIgnoredSourceWrite() == false) {
-            listeners = new Listeners.ListenerCollection(List.of(new SyntheticSourceDocumentParserListener(mappingLookup, xContentType)));
+            listeners = new Listeners.ListenerCollection(
+                List.of(new SyntheticSourceDocumentParserListener(mappingLookup, mappingParserContext.getIndexSettings(), xContentType))
+            );
         }
 
         XContentMeteringParserDecorator meteringParserDecorator = source.getMeteringParserDecorator();
@@ -409,9 +411,7 @@ public final class DocumentParser {
         }
 
         var sourceKeepMode = getSourceKeepMode(context, context.parent().sourceKeepMode());
-        if (context.canAddIgnoredField()
-            && (sourceKeepMode == Mapper.SourceKeepMode.ALL
-                || (sourceKeepMode == Mapper.SourceKeepMode.ARRAYS && context.inArrayScope()))) {
+        if (context.canAddIgnoredField() && (sourceKeepMode == Mapper.SourceKeepMode.ALL)) {
             context = context.addIgnoredFieldFromContext(
                 new IgnoredSourceFieldMapper.NameValue(
                     context.parent().fullPath(),
@@ -794,12 +794,6 @@ public final class DocumentParser {
         boolean canRemoveSingleLeafElement = false;
         if (context.canAddIgnoredField()) {
             Mapper.SourceKeepMode mode = Mapper.SourceKeepMode.NONE;
-            boolean objectWithFallbackSyntheticSource = false;
-            if (mapper instanceof ObjectMapper objectMapper) {
-                mode = getSourceKeepMode(context, objectMapper.sourceKeepMode());
-                objectWithFallbackSyntheticSource = mode == Mapper.SourceKeepMode.ALL
-                    || (mode == Mapper.SourceKeepMode.ARRAYS && objectMapper instanceof NestedObjectMapper == false);
-            }
             boolean fieldWithFallbackSyntheticSource = false;
             boolean fieldWithStoredArraySource = false;
             if (mapper instanceof FieldMapper fieldMapper) {
@@ -814,10 +808,7 @@ public final class DocumentParser {
                 && fieldWithFallbackSyntheticSource == false
                 && copyToFieldHasValuesInDocument == false;
 
-            if (objectWithFallbackSyntheticSource
-                || fieldWithFallbackSyntheticSource
-                || fieldWithStoredArraySource
-                || copyToFieldHasValuesInDocument) {
+            if (fieldWithFallbackSyntheticSource || fieldWithStoredArraySource || copyToFieldHasValuesInDocument) {
                 context = context.addIgnoredFieldFromContext(IgnoredSourceFieldMapper.NameValue.fromContext(context, fullPath, null));
             } else if (mapper instanceof ObjectMapper objectMapper && (objectMapper.isEnabled() == false)) {
                 // No need to call #addIgnoredFieldFromContext as both singleton and array instances of this object

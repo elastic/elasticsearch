@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -19,14 +20,16 @@ import java.util.Stack;
 
 public class SyntheticSourceDocumentParserListener implements DocumentParserListener {
     private final MappingLookup mappingLookup;
+    private final IndexSettings indexSettings;
     private final XContentType xContentType;
 
     private final List<IgnoredSourceFieldMapper.NameValue> valuesToStore;
 
     private State state;
 
-    public SyntheticSourceDocumentParserListener(MappingLookup mappingLookup, XContentType xContentType) {
+    public SyntheticSourceDocumentParserListener(MappingLookup mappingLookup, IndexSettings indexSettings, XContentType xContentType) {
         this.mappingLookup = mappingLookup;
+        this.indexSettings = indexSettings;
         this.xContentType = xContentType;
 
         this.valuesToStore = new ArrayList<>();
@@ -111,15 +114,9 @@ public class SyntheticSourceDocumentParserListener implements DocumentParserList
                     }
                 }
                 case Token.FieldName fieldName -> data.field(fieldName.name());
-                case Token.StringValue stringValue -> data.value(stringValue.value());
                 case Token.StringAsCharArrayValue stringAsCharArrayValue -> data.generator()
                     .writeString(stringAsCharArrayValue.buffer(), stringAsCharArrayValue.offset(), stringAsCharArrayValue.length());
-                case Token.BooleanValue booleanValue -> data.value(booleanValue.value());
-                case Token.IntValue intValue -> data.value(intValue.value());
-                case Token.LongValue longValue -> data.value(longValue.value());
-                case Token.BigIntegerValue bigIntegerValue -> data.value(bigIntegerValue.value());
-                case Token.DoubleValue doubleValue -> data.value(doubleValue.value());
-                case Token.FloatValue floatValue -> data.value(floatValue.value());
+                case Token.ValueToken<?> valueToken -> data.value(valueToken.value());
                 case Token.NullValue nullValue -> data.nullValue();
             }
 
@@ -200,6 +197,19 @@ public class SyntheticSourceDocumentParserListener implements DocumentParserList
                     }
                 }
                 case Token.StartArray startArray -> {
+                    if (currentMapper instanceof ObjectMapper om
+                        && (sourceKeepMode(om) == Mapper.SourceKeepMode.ALL
+                            || (om.isNested() == false && sourceKeepMode(om) == Mapper.SourceKeepMode.ARRAYS))) {
+                        ObjectMapper parentMapper = parents.peek().parentMapper();
+                        String fullPath = parentMapper.isRoot()
+                            ? currentMapper.leafName()
+                            : parentMapper.fullPath() + "." + currentMapper.leafName();
+
+                        prepare();
+
+                        return new Storing(this, startArray, fullPath, parents.peek().parentMapper(), documents.peek().document());
+                    }
+
                     if (currentMapper instanceof ObjectMapper om) {
                         parents.push(new Parent(om, depth));
                         prepare();
@@ -230,6 +240,10 @@ public class SyntheticSourceDocumentParserListener implements DocumentParserList
          */
         private void prepare() {
             currentMapper = null;
+        }
+
+        private Mapper.SourceKeepMode sourceKeepMode(ObjectMapper mapper) {
+            return mapper.sourceKeepMode().orElseGet(indexSettings::sourceKeepMode);
         }
 
         public State consume(Event event) {

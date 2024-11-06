@@ -81,12 +81,7 @@ public abstract class BucketsAggregator extends AggregatorBase {
         grow(bucketOrd + 1);
         int docCount = docCountProvider.getDocCount(doc);
         if (docCounts.increment(bucketOrd, docCount) == docCount) {
-            // We call the circuit breaker the time to time in order to give it a chance to check available
-            // memory in the parent breaker and break the execution if we are running out. To achieve that we
-            // are passing 0 as the estimated bytes every 1024 calls
-            if ((++callCount & 0x3FF) == 0) {
-                breaker.addEstimateBytesAndMaybeBreak(0, "allocated_buckets");
-            }
+            updateCircuitBreaker("allocated_buckets");
         }
         subCollector.collect(doc, bucketOrd);
     }
@@ -181,6 +176,7 @@ public abstract class BucketsAggregator extends AggregatorBase {
         for (int i = 0; i < subAggregators.length; i++) {
             aggregations[i] = subAggregators[i].buildAggregations(bucketOrdsToCollect);
         }
+        updateCircuitBreaker("built_sub_aggregations");
         return subAggsForBucketFunction(aggregations);
     }
 
@@ -271,6 +267,7 @@ public abstract class BucketsAggregator extends AggregatorBase {
             }
             results[owningOrdIdx] = resultBuilder.apply(buckets);
         }
+
         return results;
     }
 
@@ -414,5 +411,16 @@ public abstract class BucketsAggregator extends AggregatorBase {
         super.preGetSubLeafCollectors(ctx);
         // Set LeafReaderContext to the doc_count provider
         docCountProvider.setLeafReaderContext(ctx);
+    }
+
+    /**
+     * This method calls the circuit breaker from time to time in order to give it a chance to check available
+     * memory in the parent breaker and break the execution if we are running out.
+     * To achieve that, we are passing 0 as the estimated bytes every 1024 calls
+     */
+    private void updateCircuitBreaker(String label) {
+        if ((++callCount & 0x3FF) == 0) {
+            breaker.addEstimateBytesAndMaybeBreak(0, label);
+        }
     }
 }

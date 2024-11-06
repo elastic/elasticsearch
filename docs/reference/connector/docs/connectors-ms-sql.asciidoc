@@ -47,7 +47,7 @@ See <<es-native-connectors>>.
 
 Users require the `sysadmin` SQL Server role.
 Note that SQL Server Authentication is required.
-Windows Authenticationis not supported.
+Windows Authentication is not supported.
 
 For additional operations, see <<es-connectors-usage>>.
 
@@ -313,7 +313,7 @@ include::_connectors-create-client.asciidoc[]
 
 Users require the `sysadmin` server role.
 Note that SQL Server Authentication is required.
-Windows Authenticationis not supported.
+Windows Authentication is not supported.
 
 To use this connector as a *self-managed connector*, see <<es-build-connector>>
 For additional usage operations, see <<es-connectors-usage>>.

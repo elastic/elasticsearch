@@ -5,15 +5,9 @@ tests:
 - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
   method: test {yaml=reference/esql/esql-async-query-api/line_17}
   issue: https://github.com/elastic/elasticsearch/issues/109260
-- class: "org.elasticsearch.xpack.ml.integration.ClassificationHousePricingIT"
-  issue: "https://github.com/elastic/elasticsearch/issues/101598"
-  method: "testFeatureImportanceValues"
 - class: "org.elasticsearch.client.RestClientSingleHostIntegTests"
   issue: "https://github.com/elastic/elasticsearch/issues/102717"
   method: "testRequestResetAndAbort"
-- class: "org.elasticsearch.xpack.deprecation.DeprecationHttpIT"
-  issue: "https://github.com/elastic/elasticsearch/issues/108628"
-  method: "testDeprecatedSettingsReturnWarnings"
 - class: org.elasticsearch.index.store.FsDirectoryFactoryTests
   method: testStoreDirectory
   issue: https://github.com/elastic/elasticsearch/issues/110210
@@ -67,9 +61,6 @@ tests:
 - class: org.elasticsearch.xpack.ml.integration.MlJobIT
   method: testDeleteJobAsync
   issue: https://github.com/elastic/elasticsearch/issues/112212
-- class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
-  method: test {yaml=reference/rest-api/watcher/put-watch/line_120}
-  issue: https://github.com/elastic/elasticsearch/issues/99517
 - class: org.elasticsearch.xpack.ml.integration.MlJobIT
   method: testMultiIndexDelete
   issue: https://github.com/elastic/elasticsearch/issues/112381
@@ -120,8 +111,6 @@ tests:
 - class: org.elasticsearch.xpack.ml.integration.MlJobIT
   method: testDeleteJobAfterMissingAliases
   issue: https://github.com/elastic/elasticsearch/issues/112823
-- class: org.elasticsearch.repositories.blobstore.testkit.analyze.HdfsRepositoryAnalysisRestIT
-  issue: https://github.com/elastic/elasticsearch/issues/112889
 - class: org.elasticsearch.xpack.ml.integration.MlJobIT
   method: testCreateJob_WithClashingFieldMappingsFails
   issue: https://github.com/elastic/elasticsearch/issues/113046
@@ -161,9 +150,6 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=mtermvectors/10_basic/Tests catching other exceptions per item}
   issue: https://github.com/elastic/elasticsearch/issues/113325
-- class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
-  method: test {yaml=reference/ccr/apis/follow/post-resume-follow/line_84}
-  issue: https://github.com/elastic/elasticsearch/issues/113343
 - class: org.elasticsearch.xpack.ml.integration.MlJobIT
   method: testDeleteJob_TimingStatsDocumentIsDeleted
   issue: https://github.com/elastic/elasticsearch/issues/113370
@@ -197,9 +183,6 @@ tests:
 - class: org.elasticsearch.xpack.transform.integration.TransformIT
   method: testStopWaitForCheckpoint
   issue: https://github.com/elastic/elasticsearch/issues/106113
-- class: org.elasticsearch.smoketest.MlWithSecurityIT
-  method: test {yaml=ml/3rd_party_deployment/Test start and stop multiple deployments}
-  issue: https://github.com/elastic/elasticsearch/issues/101458
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=search/540_ignore_above_synthetic_source/ignore_above mapping level setting on arrays}
   issue: https://github.com/elastic/elasticsearch/issues/113648
@@ -223,14 +206,8 @@ tests:
   method: test {p0=indices.split/40_routing_partition_size/more than 1}
   issue: https://github.com/elastic/elasticsearch/issues/113841
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
-  method: test {categorize.Categorize ASYNC}
-  issue: https://github.com/elastic/elasticsearch/issues/113721
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {categorize.Categorize SYNC}
   issue: https://github.com/elastic/elasticsearch/issues/113722
-- class: org.elasticsearch.xpack.security.support.SecurityIndexManagerIntegTests
-  method: testOnIndexAvailableForSearchIndexAlreadyAvailable
-  issue: https://github.com/elastic/elasticsearch/issues/114608
 - class: org.elasticsearch.kibana.KibanaThreadPoolIT
   method: testBlockedThreadPoolsRejectUserRequests
   issue: https://github.com/elastic/elasticsearch/issues/113939
@@ -261,18 +238,12 @@ tests:
 - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
   method: test {yaml=reference/rest-api/usage/line_38}
   issue: https://github.com/elastic/elasticsearch/issues/113694
-- class: org.elasticsearch.xpack.security.operator.OperatorPrivilegesIT
-  method: testEveryActionIsEitherOperatorOnlyOrNonOperator
-  issue: https://github.com/elastic/elasticsearch/issues/102992
 - class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
   method: test {p0=search.vectors/42_knn_search_int4_flat/Vector similarity with filter only}
   issue: https://github.com/elastic/elasticsearch/issues/115475
 - class: org.elasticsearch.reservedstate.service.FileSettingsServiceTests
   method: testProcessFileChanges
   issue: https://github.com/elastic/elasticsearch/issues/115280
-- class: org.elasticsearch.monitor.jvm.JvmStatsTests
-  method: testJvmStats
-  issue: https://github.com/elastic/elasticsearch/issues/115711
 - class: org.elasticsearch.xpack.inference.DefaultEndPointsIT
   method: testInferDeploysDefaultE5
   issue: https://github.com/elastic/elasticsearch/issues/115361
@@ -292,9 +263,6 @@ tests:
 - class: org.elasticsearch.upgrades.FullClusterRestartIT
   method: testSnapshotRestore {cluster=OLD}
   issue: https://github.com/elastic/elasticsearch/issues/111777
-- class: org.elasticsearch.search.DefaultSearchContextTests
-  method: testSearchConcurrencyDoesNotCreateMoreTasksThanThreads
-  issue: https://github.com/elastic/elasticsearch/issues/116048
 - class: org.elasticsearch.analysis.common.CommonAnalysisClientYamlTestSuiteIT
   issue: https://github.com/elastic/elasticsearch/issues/116134
 - class: org.elasticsearch.xpack.ml.integration.DatafeedJobsRestIT
@@ -315,6 +283,18 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
   method: test {categorize.Categorize SYNC}
   issue: https://github.com/elastic/elasticsearch/issues/113054
+- class: org.elasticsearch.ingest.common.IngestCommonClientYamlTestSuiteIT
+  method: test {yaml=ingest/310_reroute_processor/Test remove then add reroute processor with and without lazy rollover}
+  issue: https://github.com/elastic/elasticsearch/issues/116158
+- class: org.elasticsearch.ingest.common.IngestCommonClientYamlTestSuiteIT
+  method: test {yaml=ingest/310_reroute_processor/Test data stream with lazy rollover obtains pipeline from template}
+  issue: https://github.com/elastic/elasticsearch/issues/116157
+- class: org.elasticsearch.ingest.geoip.EnterpriseGeoIpDownloaderIT
+  method: testEnterpriseDownloaderTask
+  issue: https://github.com/elastic/elasticsearch/issues/115163
+- class: org.elasticsearch.xpack.remotecluster.RemoteClusterSecurityReloadCredentialsRestIT
+  method: testFirstTimeSetupWithElasticsearchSettings
+  issue: https://github.com/elastic/elasticsearch/issues/116286
 
 # Examples:
 #

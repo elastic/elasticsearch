@@ -405,7 +405,7 @@ public class BulkRequestTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> new BulkRequest().add(updateWithDynamicTemplates, null, XContentType.JSON)
         );
-        assertThat(error.getMessage(), equalTo("Update request in line [2] does not accept dynamic_templates"));
+        assertThat(error.getMessage(), equalTo("Update request in line [1] does not accept dynamic_templates"));
 
         BytesArray invalidDynamicTemplates = new BytesArray("""
             { "index":{"_index":"test","dynamic_templates":[]}

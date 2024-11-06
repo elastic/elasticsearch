@@ -174,8 +174,8 @@ public abstract class BucketsAggregator extends AggregatorBase {
         prepareSubAggs(bucketOrdsToCollect);
         InternalAggregation[][] aggregations = new InternalAggregation[subAggregators.length][];
         for (int i = 0; i < subAggregators.length; i++) {
+            updateCircuitBreaker("building_sub_aggregation");
             aggregations[i] = subAggregators[i].buildAggregations(bucketOrdsToCollect);
-            updateCircuitBreaker("built_sub_aggregation");
         }
         return subAggsForBucketFunction(aggregations);
     }
@@ -414,7 +414,7 @@ public abstract class BucketsAggregator extends AggregatorBase {
 
     /**
      * This method calls the circuit breaker from time to time in order to give it a chance to check available
-     * memory in the parent breaker and break the execution if we are running out.
+     * memory in the parent breaker (Which should be a real memory breaker) and break the execution if we are running out.
      * To achieve that, we are passing 0 as the estimated bytes every 1024 calls
      */
     private void updateCircuitBreaker(String label) {

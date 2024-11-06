@@ -449,7 +449,20 @@ public class ClusterStateCreationUtils {
      * Creates cluster state with several indexes, shards and replicas and all shards STARTED.
      */
     public static ClusterState stateWithAssignedPrimariesAndReplicas(String[] indices, int numberOfShards, int numberOfReplicas) {
+        return stateWithAssignedPrimariesAndReplicas(Metadata.DEFAULT_PROJECT_ID, indices, numberOfShards, numberOfReplicas);
+    }
+
+    /**
+     * Creates cluster state with several indexes, shards and replicas and all shards STARTED.
+     */
+    public static ClusterState stateWithAssignedPrimariesAndReplicas(
+        ProjectId projectId,
+        String[] indices,
+        int numberOfShards,
+        int numberOfReplicas
+    ) {
         return stateWithAssignedPrimariesAndReplicas(
+            projectId,
             indices,
             numberOfShards,
             Collections.nCopies(numberOfReplicas, ShardRouting.Role.DEFAULT)
@@ -460,6 +473,18 @@ public class ClusterStateCreationUtils {
      * Creates cluster state with several indexes, shards and replicas (with given roles) and all shards STARTED.
      */
     public static ClusterState stateWithAssignedPrimariesAndReplicas(
+        String[] indices,
+        int numberOfShards,
+        List<ShardRouting.Role> replicaRoles
+    ) {
+        return stateWithAssignedPrimariesAndReplicas(Metadata.DEFAULT_PROJECT_ID, indices, numberOfShards, replicaRoles);
+    }
+
+    /**
+     * Creates cluster state with several indexes, shards and replicas (with given roles) and all shards STARTED.
+     */
+    public static ClusterState stateWithAssignedPrimariesAndReplicas(
+        ProjectId projectId,
         String[] indices,
         int numberOfShards,
         List<ShardRouting.Role> replicaRoles
@@ -480,7 +505,7 @@ public class ClusterStateCreationUtils {
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
 
         Metadata.Builder metadataBuilder = Metadata.builder();
-        final ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(Metadata.DEFAULT_PROJECT_ID);
+        final ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(projectId);
         for (String index : indices) {
             IndexMetadata indexMetadata = IndexMetadata.builder(index)
                 .settings(
@@ -515,7 +540,7 @@ public class ClusterStateCreationUtils {
         metadataBuilder.put(projectBuilder).generateClusterUuidIfNeeded();
 
         state.metadata(metadataBuilder);
-        state.routingTable(GlobalRoutingTable.builder().put(Metadata.DEFAULT_PROJECT_ID, routingTableBuilder).build());
+        state.routingTable(GlobalRoutingTable.builder().put(projectId, routingTableBuilder).build());
         return state.build();
     }
 

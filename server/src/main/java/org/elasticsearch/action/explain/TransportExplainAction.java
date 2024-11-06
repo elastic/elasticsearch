@@ -18,6 +18,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -53,6 +54,7 @@ import java.util.function.LongSupplier;
 public class TransportExplainAction extends TransportSingleShardAction<ExplainRequest, ExplainResponse> {
 
     public static final ActionType<ExplainResponse> TYPE = new ActionType<>("indices:data/read/explain");
+    private final ProjectResolver projectResolver;
     private final SearchService searchService;
     private final RemoteClusterService remoteClusterService;
 
@@ -63,6 +65,7 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
         TransportService transportService,
         SearchService searchService,
         ActionFilters actionFilters,
+        ProjectResolver projectResolver,
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(
@@ -75,6 +78,7 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
             ExplainRequest::new,
             threadPool.executor(ThreadPool.Names.GET)
         );
+        this.projectResolver = projectResolver;
         this.searchService = searchService;
         this.remoteClusterService = transportService.getRemoteClusterService();
     }
@@ -174,7 +178,7 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
     protected ShardIterator shards(ClusterState state, InternalRequest request) {
         return clusterService.operationRouting()
             .getShards(
-                clusterService.state(),
+                projectResolver.getProjectState(state),
                 request.concreteIndex(),
                 request.request().id(),
                 request.request().routing(),

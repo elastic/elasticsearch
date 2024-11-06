@@ -26,8 +26,10 @@ import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.routing.PlainShardIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
@@ -60,6 +62,7 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
     private static final Logger logger = LogManager.getLogger(TransportGetAction.class);
 
     private final IndicesService indicesService;
+    private final ProjectResolver projectResolver;
     private final ExecutorSelector executorSelector;
     private final NodeClient client;
 
@@ -70,6 +73,7 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
         IndicesService indicesService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
+        ProjectResolver projectResolver,
         IndexNameExpressionResolver indexNameExpressionResolver,
         ExecutorSelector executorSelector,
         NodeClient client
@@ -85,6 +89,7 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
             threadPool.executor(ThreadPool.Names.GET)
         );
         this.indicesService = indicesService;
+        this.projectResolver = projectResolver;
         this.executorSelector = executorSelector;
         this.client = client;
         // register the internal TransportGetFromTranslogAction
@@ -98,9 +103,10 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
 
     @Override
     protected ShardIterator shards(ClusterState state, InternalRequest request) {
+        ProjectState project = projectResolver.getProjectState(state);
         ShardIterator iterator = clusterService.operationRouting()
             .getShards(
-                clusterService.state(),
+                project,
                 request.concreteIndex(),
                 request.request().id(),
                 request.request().routing(),
@@ -111,7 +117,10 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
         }
         return new PlainShardIterator(
             iterator.shardId(),
-            iterator.getShardRoutings().stream().filter(shardRouting -> OperationRouting.canSearchShard(shardRouting, state)).toList()
+            iterator.getShardRoutings()
+                .stream()
+                .filter(shardRouting -> OperationRouting.canSearchShard(shardRouting, project.metadata()))
+                .toList()
         );
     }
 

@@ -13,7 +13,9 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -36,6 +38,7 @@ import java.util.concurrent.Executor;
 public class TransportTermVectorsAction extends TransportSingleShardAction<TermVectorsRequest, TermVectorsResponse> {
 
     private final IndicesService indicesService;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportTermVectorsAction(
@@ -44,6 +47,7 @@ public class TransportTermVectorsAction extends TransportSingleShardAction<TermV
         IndicesService indicesService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
+        ProjectResolver projectResolver,
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(
@@ -57,20 +61,27 @@ public class TransportTermVectorsAction extends TransportSingleShardAction<TermV
             threadPool.executor(ThreadPool.Names.GET)
         );
         this.indicesService = indicesService;
-
+        this.projectResolver = projectResolver;
     }
 
     @Override
     protected ShardIterator shards(ClusterState state, InternalRequest request) {
+        ProjectState project = projectResolver.getProjectState(state);
         if (request.request().doc() != null && request.request().routing() == null) {
             // artificial document without routing specified, ignore its "id" and use either random shard or according to preference
             GroupShardsIterator<ShardIterator> groupShardsIter = clusterService.operationRouting()
-                .searchShards(state, new String[] { request.concreteIndex() }, null, request.request().preference());
+                .searchShards(project, new String[] { request.concreteIndex() }, null, request.request().preference());
             return groupShardsIter.iterator().next();
         }
 
         ShardIterator shards = clusterService.operationRouting()
-            .getShards(state, request.concreteIndex(), request.request().id(), request.request().routing(), request.request().preference());
+            .getShards(
+                project,
+                request.concreteIndex(),
+                request.request().id(),
+                request.request().routing(),
+                request.request().preference()
+            );
         return clusterService.operationRouting().useOnlyPromotableShardsForStateless(shards);
     }
 

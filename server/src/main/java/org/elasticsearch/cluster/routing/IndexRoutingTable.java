@@ -236,12 +236,20 @@ public class IndexRoutingTable implements SimpleDiffable<IndexRoutingTable> {
     /**
      * @return <code>true</code> if an index is available to service search queries.
      */
+    @Deprecated
     public boolean readyForSearch(ClusterState clusterState) {
+        return readyForSearch(clusterState.getMetadata().getProject());
+    }
+
+    /**
+     * @return <code>true</code> if an index is available to service search queries.
+     */
+    public boolean readyForSearch(ProjectMetadata project) {
         for (IndexShardRoutingTable shardRoutingTable : this.shards) {
             boolean found = false;
             for (int idx = 0; idx < shardRoutingTable.size(); idx++) {
                 ShardRouting shardRouting = shardRoutingTable.shard(idx);
-                if (shardRouting.active() && OperationRouting.canSearchShard(shardRouting, clusterState)) {
+                if (shardRouting.active() && OperationRouting.canSearchShard(shardRouting, project)) {
                     found = true;
                     break;
                 }

@@ -28,7 +28,7 @@ public class FleetRestIT extends ESClientYamlSuiteTestCase {
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
-        .setting("xpack.license.self_generated.type", "trial")
+        .setting("xpack.license.self_generated.type", "basic")
         .setting("xpack.security.enabled", "true")
         .rolesFile(Resource.fromClasspath("roles.yml"))
         .user("elastic_admin", "admin-password", "superuser", true)

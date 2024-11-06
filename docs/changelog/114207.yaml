@@ -1,0 +1,14 @@
+pr: 114207
+summary: Remove `cluster.routing.allocation.disk.watermark.enable_for_single_data_node`
+  setting
+area: Allocation
+type: breaking
+issues: []
+breaking:
+  title: Remove `cluster.routing.allocation.disk.watermark.enable_for_single_data_node`
+    setting
+  area: Allocation
+  details: Please describe the details of this change for the release notes. You can
+    use asciidoc.
+  impact: Please describe the impact of this change to users
+  notable: false

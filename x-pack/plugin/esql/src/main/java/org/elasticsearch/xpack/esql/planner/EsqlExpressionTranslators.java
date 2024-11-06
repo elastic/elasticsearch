@@ -87,7 +87,6 @@ public final class EsqlExpressionTranslators {
         new ExpressionTranslators.Nots(),
         new ExpressionTranslators.Likes(),
         new ExpressionTranslators.StringQueries(),
-        new ExpressionTranslators.Matches(),
         new ExpressionTranslators.MultiMatches(),
         new MatchFunctionTranslator(),
         new QueryStringFunctionTranslator(),

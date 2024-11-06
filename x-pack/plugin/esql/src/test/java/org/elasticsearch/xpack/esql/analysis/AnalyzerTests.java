@@ -1118,21 +1118,21 @@ public class AnalyzerTests extends ESTestCase {
         verifyUnsupported("""
             from test
             | eval date_trunc(1 month, int)
-            """, "second argument of [date_trunc(1 month, int)] must be [datetime], found value [int] type [integer]");
+            """, "second argument of [date_trunc(1 month, int)] must be [date_nanos or datetime], found value [int] type [integer]");
     }
 
     public void testDateTruncOnFloat() {
         verifyUnsupported("""
             from test
             | eval date_trunc(1 month, float)
-            """, "second argument of [date_trunc(1 month, float)] must be [datetime], found value [float] type [double]");
+            """, "second argument of [date_trunc(1 month, float)] must be [date_nanos or datetime], found value [float] type [double]");
     }
 
     public void testDateTruncOnText() {
         verifyUnsupported("""
             from test
             | eval date_trunc(1 month, keyword)
-            """, "second argument of [date_trunc(1 month, keyword)] must be [datetime], found value [keyword] type [keyword]");
+            """, "second argument of [date_trunc(1 month, keyword)] must be [date_nanos or datetime], found value [keyword] type [keyword]");
     }
 
     public void testDateTruncWithNumericInterval() {

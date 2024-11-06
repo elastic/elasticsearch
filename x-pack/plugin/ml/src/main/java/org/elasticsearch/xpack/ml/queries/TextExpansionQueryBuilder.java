@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.core.ml.search.WeightedTokensQueryBuilder;
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -58,6 +59,8 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
     private final String modelId;
     private SetOnce<TextExpansionResults> weightedTokensSupplier;
     private final TokenPruningConfig tokenPruningConfig;
+
+    private static final Set<String> ALLOWED_FIELD_TYPES = Set.of("sparse_vector", "rank_features");
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ParseField.class);
     public static final String TEXT_EXPANSION_DEPRECATION_MESSAGE = NAME + " is deprecated. Use sparse_vector instead.";
@@ -157,6 +160,8 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
             }
             return weightedTokensToQuery(fieldName, weightedTokensSupplier.get());
         }
+
+        // Do field type check if query won't be rewritten as a WeightedTokensQuery
 
         CoordinatedInferenceAction.Request inferRequest = CoordinatedInferenceAction.Request.forTextInput(
             modelId,

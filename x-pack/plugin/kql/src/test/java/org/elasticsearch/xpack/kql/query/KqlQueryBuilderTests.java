@@ -41,7 +41,7 @@ public class KqlQueryBuilderTests extends AbstractQueryTestCase<KqlQueryBuilder>
         }
 
         if (randomBoolean()) {
-            kqlQueryBuilder.defaultFields(randomFrom("*", "mapped_*", KEYWORD_FIELD_NAME, TEXT_FIELD_NAME));
+            kqlQueryBuilder.defaultField(randomFrom("*", "mapped_*", KEYWORD_FIELD_NAME, TEXT_FIELD_NAME));
         }
 
         return kqlQueryBuilder;
@@ -57,7 +57,7 @@ public class KqlQueryBuilderTests extends AbstractQueryTestCase<KqlQueryBuilder>
         KqlQueryBuilder kqlQueryBuilder = new KqlQueryBuilder(randomValueOtherThan(instance.queryString(), this::generateRandomKqlQuery))
             .caseInsensitive(instance.caseInsensitive())
             .timeZone(instance.timeZone() != null ? instance.timeZone().getId() : null)
-            .defaultFields(instance.defaultFields());
+            .defaultField(instance.defaultField());
 
         if (kqlQueryBuilder.queryString().equals(instance.queryString()) == false) {
             return kqlQueryBuilder;
@@ -68,12 +68,12 @@ public class KqlQueryBuilderTests extends AbstractQueryTestCase<KqlQueryBuilder>
                 kqlQueryBuilder.caseInsensitive(instance.caseInsensitive() == false);
             }
             case 1 -> {
-                if (randomBoolean() && instance.defaultFields() != null) {
-                    kqlQueryBuilder.defaultFields(null);
+                if (randomBoolean() && instance.defaultField() != null) {
+                    kqlQueryBuilder.defaultField(null);
                 } else {
-                    kqlQueryBuilder.defaultFields(
+                    kqlQueryBuilder.defaultField(
                         randomValueOtherThan(
-                            instance.defaultFields(),
+                            instance.defaultField(),
                             () -> randomFrom("*", "mapped_*", KEYWORD_FIELD_NAME, TEXT_FIELD_NAME)
                         )
                     );

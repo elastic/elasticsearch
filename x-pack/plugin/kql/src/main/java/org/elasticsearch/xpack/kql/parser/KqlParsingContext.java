@@ -45,14 +45,13 @@ public class KqlParsingContext {
     private QueryRewriteContext queryRewriteContext;
     private final boolean caseInsensitive;
     private final ZoneId timeZone;
+    private final String defaultField;
 
-    private final String defaultFields;
-
-    public KqlParsingContext(QueryRewriteContext queryRewriteContext, boolean caseInsensitive, ZoneId timeZone, String defaultFields) {
+    public KqlParsingContext(QueryRewriteContext queryRewriteContext, boolean caseInsensitive, ZoneId timeZone, String defaultField) {
         this.queryRewriteContext = queryRewriteContext;
         this.caseInsensitive = caseInsensitive;
         this.timeZone = timeZone;
-        this.defaultFields = defaultFields;
+        this.defaultField = defaultField;
     }
 
     public Iterable<Tuple<String, MappedFieldType>> resolveFields(KqlBaseParser.FieldNameContext fieldNameContext) {
@@ -98,14 +97,14 @@ public class KqlParsingContext {
         private final QueryRewriteContext queryRewriteContext;
         private boolean caseInsensitive = true;
         private ZoneId timeZone = null;
-        private String defaultFields = null;
+        private String defaultField = null;
 
         private Builder(QueryRewriteContext queryRewriteContext) {
             this.queryRewriteContext = queryRewriteContext;
         }
 
         public KqlParsingContext build() {
-            return new KqlParsingContext(queryRewriteContext, caseInsensitive, timeZone, defaultFields);
+            return new KqlParsingContext(queryRewriteContext, caseInsensitive, timeZone, defaultField);
         }
 
         public Builder caseInsensitive(boolean caseInsensitive) {
@@ -118,8 +117,8 @@ public class KqlParsingContext {
             return this;
         }
 
-        public Builder defaultFields(String defaultFields) {
-            this.defaultFields = defaultFields;
+        public Builder defaultField(String defaultField) {
+            this.defaultField = defaultField;
             return this;
         }
     }

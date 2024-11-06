@@ -30,10 +30,7 @@ public class LookupJoin extends Join implements SurrogateLogicalPlan {
 
     private final List<Attribute> output;
 
-    public LookupJoin(Source source,
-                      LogicalPlan left,
-                      LogicalPlan right,
-                      List<Attribute> joinFields) {
+    public LookupJoin(Source source, LogicalPlan left, LogicalPlan right, List<Attribute> joinFields) {
         this(source, left, right, new JoinConfig(new UsingJoinType(LEFT, joinFields), emptyList(), emptyList(), emptyList()), emptyList());
     }
 
@@ -66,14 +63,7 @@ public class LookupJoin extends Join implements SurrogateLogicalPlan {
     protected NodeInfo<Join> info() {
         // Do not just add the JoinConfig as a whole - this would prevent correctly registering the
         // expressions and references.
-        return NodeInfo.create(
-            this,
-            LookupJoin::new,
-            left(),
-            right(),
-            config(),
-            output
-        );
+        return NodeInfo.create(this, LookupJoin::new, left(), right(), config(), output);
     }
 
     @Override

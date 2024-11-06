@@ -47,6 +47,9 @@ public record JoinConfig(JoinType type, List<Attribute> matchFields, List<Attrib
     }
 
     public boolean expressionsResolved() {
-        return type.resolved() && Resolvables.resolved(matchFields) && Resolvables.resolved(leftFields) && Resolvables.resolved(rightFields);
+        return type.resolved()
+            && Resolvables.resolved(matchFields)
+            && Resolvables.resolved(leftFields)
+            && Resolvables.resolved(rightFields);
     }
 }

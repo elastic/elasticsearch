@@ -39,7 +39,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
-import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
@@ -505,7 +504,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @Override
     public PlanFactory visitLookupCommand(EsqlBaseParser.LookupCommandContext ctx) {
         if (false == Build.current().isSnapshot()) {
-            throw new ParsingException(source(ctx), "LOOK_UP is in preview and only available in SNAPSHOT build");
+            throw new ParsingException(source(ctx), "LOOKUP__ is in preview and only available in SNAPSHOT build");
         }
         var source = source(ctx);
 

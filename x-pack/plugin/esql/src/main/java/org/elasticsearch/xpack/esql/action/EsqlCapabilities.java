@@ -460,7 +460,6 @@ public class EsqlCapabilities {
          */
         JOIN_LOOKUP(Build.current().isSnapshot());
 
-
         private final boolean enabled;
 
         Cap() {

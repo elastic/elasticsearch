@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.plan.logical.join;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -22,7 +21,6 @@ import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes.UsingJoinType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -125,11 +123,7 @@ public class Join extends BinaryPlan {
         return output;
     }
 
-    private static List<Attribute> removeDuplicateNames(
-        List<Attribute> attributes,
-        AttributeSet matchFields,
-        Set<String> matchFieldNames
-    ) {
+    private static List<Attribute> removeDuplicateNames(List<Attribute> attributes, AttributeSet matchFields, Set<String> matchFieldNames) {
         List<Attribute> result = new ArrayList<>(attributes.size());
         for (Attribute attr : attributes) {
             if ((matchFields.contains(attr) || matchFieldNames.contains(attr.name())) == false) {

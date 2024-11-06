@@ -131,7 +131,6 @@ public class JoinTypes {
         }
     }
 
-
     public static JoinType readFrom(StreamInput in) throws IOException {
         byte id = in.readByte();
         return switch (id) {

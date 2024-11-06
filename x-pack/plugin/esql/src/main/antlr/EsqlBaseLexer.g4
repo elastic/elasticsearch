@@ -85,7 +85,7 @@ WHERE : 'where'               -> pushMode(EXPRESSION_MODE);
 // main section while preserving alphabetical order:
 // MYCOMMAND : 'mycommand' -> ...
 DEV_INLINESTATS : {this.isDevVersion()}? 'inlinestats'   -> pushMode(EXPRESSION_MODE);
-DEV_LOOKUP :      {this.isDevVersion()}? 'look_up'       -> pushMode(LOOKUP_MODE);
+DEV_LOOKUP :      {this.isDevVersion()}? 'lookup__'      -> pushMode(LOOKUP_MODE);
 DEV_METRICS :     {this.isDevVersion()}? 'metrics'       -> pushMode(METRICS_MODE);
 // list of all JOIN commands
 DEV_JOIN :        {this.isDevVersion()}? 'join'          -> pushMode(JOIN_MODE);

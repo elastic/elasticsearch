@@ -206,6 +206,9 @@ public class IndicesStatsResponse extends ChunkedBroadcastResponse {
                             if (indexStats.getTierPreference() != null) {
                                 builder.field("tier_preference", indexStats.getTierPreference());
                             }
+                            if (indexStats.getCreationDate() != -1) {
+                                builder.field("creation_date", indexStats.getCreationDate());
+                            }
                             builder.startObject("primaries");
                             indexStats.getPrimaries().toXContent(builder, p);
                             builder.endObject();

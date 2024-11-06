@@ -65,6 +65,10 @@ public class IndexStats implements Iterable<IndexShardStats> {
         return metadata == null ? null : metadata.getTierPreference();
     }
 
+    public long getCreationDate() {
+        return metadata == null ? -1 : metadata.getCreationDate();
+    }
+
     public ShardStats[] getShards() {
         return this.shards;
     }

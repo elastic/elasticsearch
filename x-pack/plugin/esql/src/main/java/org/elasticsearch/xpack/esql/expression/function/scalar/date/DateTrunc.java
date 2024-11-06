@@ -127,7 +127,7 @@ public class DateTrunc extends EsqlScalarFunction {
     }
 
     public DataType dataType() {
-        // Default to DATETIME in the case of nulls.  This mimics the behavior before DATE_NANOS support
+        // Default to DATETIME in the case of nulls. This mimics the behavior before DATE_NANOS support
         return timestampField.dataType() == DataType.NULL ? DATETIME : timestampField.dataType();
     }
 

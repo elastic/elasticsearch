@@ -97,7 +97,10 @@ public class DateTruncRoundingTests extends ESTestCase {
     public void testDateTruncFunction() {
         long ts = toMillis("2023-02-17T10:25:33.38Z");
 
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> processDatetime(ts, createRounding(Period.ofDays(-1))));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> processDatetime(ts, createRounding(Period.ofDays(-1)))
+        );
         assertThat(e.getMessage(), containsString("Zero or negative time interval is not supported"));
 
         e = expectThrows(IllegalArgumentException.class, () -> processDatetime(ts, createRounding(Duration.ofHours(-1))));

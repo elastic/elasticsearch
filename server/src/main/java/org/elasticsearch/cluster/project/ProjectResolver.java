@@ -31,7 +31,10 @@ public interface ProjectResolver {
     }
 
     default ProjectState getProjectState(ClusterState clusterState) {
-        return clusterState.projectState(getProjectId(clusterState));
+        final ProjectId id = getProjectId(clusterState);
+        final ProjectState projectState = clusterState.projectState(id);
+        assert projectState != null : "Received null project state for [" + id + "] from " + clusterState;
+        return projectState;
     }
 
     // TODO multi-project: change this so it doesn't take in any parameters

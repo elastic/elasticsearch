@@ -175,8 +175,8 @@ public abstract class BucketsAggregator extends AggregatorBase {
         InternalAggregation[][] aggregations = new InternalAggregation[subAggregators.length][];
         for (int i = 0; i < subAggregators.length; i++) {
             aggregations[i] = subAggregators[i].buildAggregations(bucketOrdsToCollect);
+            updateCircuitBreaker("built_sub_aggregation");
         }
-        updateCircuitBreaker("built_sub_aggregations");
         return subAggsForBucketFunction(aggregations);
     }
 

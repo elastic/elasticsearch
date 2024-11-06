@@ -220,8 +220,8 @@ count(*): long  | author.keyword:keyword
 
 singleMatchWithTextFieldScoring
 required_capability: metadata_score
-required_capability: match_operator
-from books METADATA _score | where author match "William Faulkner" | sort book_no | keep author, _score | LIMIT 5;
+required_capability: match_operator_colon
+from books METADATA _score | where author:"William Faulkner" | sort book_no | keep author, _score | LIMIT 5;
 
 author:text | _score:double
 William Faulkner                                   | 4.272439002990723
@@ -235,8 +235,8 @@ William Faulkner                                   | 4.272439002990723
 
 singleMatchWithKeywordFieldScoring
 required_capability: metadata_score
-required_capability: match_operator
-from books METADATA _score | where author.keyword match "William Faulkner" | keep book_no, author, _score | sort book_no;
+required_capability: match_operator_colon
+from books METADATA _score | where author.keyword:"William Faulkner" | keep book_no, author, _score | sort book_no;
 
 book_no:keyword | author:text | _score:double
 2713            | William Faulkner | 2.3142893314361572
@@ -252,10 +252,10 @@ book_no:keyword | author:text | _score:double
 
 multipleMatchScoring
 required_capability: metadata_score
-required_capability: match_operator
+required_capability: match_operator_colon
 from books METADATA _score
-| where (description match "Sauron" OR description match "Dark Lord") AND
-  (author match "J. R. R. Tolkien" OR author match "John Ronald Reuel Tolkien")
+| where (description:"Sauron" OR description:"Dark Lord") AND
+  (author:"J. R. R. Tolkien" OR author:"John Ronald Reuel Tolkien")
 | keep book_no, title, author, _score
 | sort book_no
 | limit 3
@@ -269,10 +269,10 @@ book_no:keyword | title:text                                                    
 
 multipleWhereWithMatchScoring
 required_capability: metadata_score
-required_capability: match_operator
+required_capability: match_operator_colon
 from books METADATA _score
-| where title match "short stories"
-| where author match "Ursula K. Le Guin"
+| where title:"short stories"
+| where author:"Ursula K. Le Guin"
 | keep book_no, title, author, _score
 | sort book_no;
 
@@ -282,10 +282,10 @@ book_no:keyword | title:text                                | author:text       
 
 multipleWhereWithMatchScoringNoSort
 required_capability: metadata_score
-required_capability: match_operator
+required_capability: match_operator_colon
 from books METADATA _score
-| where title match "short stories"
-| where author match "Ursula K. Le Guin"
+| where title:"short stories"
+| where author:"Ursula K. Le Guin"
 | keep book_no, title, author, _score;
 
 ignoreOrder:true
@@ -295,9 +295,9 @@ book_no:keyword | title:text                                | author:text       
 
 combinedMatchWithFunctionsScoring
 required_capability: metadata_score
-required_capability: match_operator
+required_capability: match_operator_colon
 from books METADATA _score
-| where title match "Tolkien" AND author match "Tolkien" AND year > 2000
+| where title:"Tolkien" AND author:"Tolkien" AND year > 2000
 | where mv_count(author) == 1
 | keep book_no, title, author, year, _score
 | sort book_no;
@@ -308,9 +308,9 @@ book_no:keyword | title:text               | author:text    | year:integer | _sc
 
 combinedMatchWithFunctionsScoringNoSort
 required_capability: metadata_score
-required_capability: match_operator
+required_capability: match_operator_colon
 from books METADATA _score
-| where title match "Tolkien" AND author match "Tolkien" AND year > 2000
+| where title:"Tolkien" AND author:"Tolkien" AND year > 2000
 | where mv_count(author) == 1
 | keep book_no, title, author, year, _score;
 
@@ -321,9 +321,9 @@ book_no:keyword | title:text               | author:text    | year:integer | _sc
 
 combinedMatchWithScoringEval
 required_capability: metadata_score
-required_capability: match_operator
+required_capability: match_operator_colon
 from books METADATA _score
-| where title match "Tolkien" AND author match "Tolkien" AND year > 2000
+| where title:"Tolkien" AND author:"Tolkien" AND year > 2000
 | where mv_count(author) == 1
 | eval c_score = ceil(_score)
 | keep book_no, title, author, year, c_score
@@ -336,9 +336,9 @@ book_no:keyword | title:text               | author:text    | year:integer | c_s
 
 combinedMatchWithScoringEvalNoSort
 required_capability: metadata_score
-required_capability: match_operator
+required_capability: match_operator_colon
 from books METADATA _score
-| where title match "Tolkien" AND author match "Tolkien" AND year > 2000
+| where title:"Tolkien" AND author:"Tolkien" AND year > 2000
 | where mv_count(author) == 1
 | eval c_score = ceil(_score)
 | keep book_no, title, author, year, c_score;

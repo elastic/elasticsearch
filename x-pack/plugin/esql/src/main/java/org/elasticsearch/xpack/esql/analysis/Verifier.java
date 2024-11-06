@@ -216,17 +216,18 @@ public class Verifier {
     }
 
     /**
+     * Implementation limitation, for now.
      * Check for patterns like this: `... | WHERE match(..) | ... | EVAL whatever = _score | ... | WHERE match() ... `.
      * This is currently disallowed because of the fact that both such match/qstr/etc. would get pushed down together (as an AND) to ES.
-     * Hence any such supposedly "intermediate" _score (for the first query) would be meaningless, as it would be identical to the
+     * Hence any such supposedly "intermediate" _score (for the first query) cannot be determined, as it would be identical to the
      * (final) _score of the combined queries.
      */
     private static void checkScoreManipulationBetweenMultipleFulltextExpressions(LogicalPlan p, Set<Failure> failures) {
         if (p.inputSet().stream().anyMatch(a -> MetadataAttribute.SCORE.equals(a.name()) && a instanceof MetadataAttribute)) {
             p.forEachDown(Filter.class, f -> {
                 Expression condition = f.condition();
-                // check on instance type of type MatchQueryPredicate or FullTextFunction
-                if (condition instanceof MatchQueryPredicate || condition instanceof FullTextFunction) {
+                // check on instance type of type FullTextFunction
+                if (condition instanceof FullTextFunction) {
                     f.forEachDown(Eval.class, eval -> {
                         List<Alias> fields = eval.fields();
                         for (Alias alias : fields) {
@@ -236,8 +237,8 @@ public class Verifier {
                                 && metadataAttribute.name().equals(MetadataAttribute.SCORE)) {
                                 eval.forEachDown(Filter.class, f2 -> {
                                     Expression f2Condition = f2.condition();
-                                    // check on instance type of type MatchQueryPredicate or FullTextFunction
-                                    if (f2Condition instanceof MatchQueryPredicate || f2Condition instanceof FullTextFunction) {
+                                    // check on instance type of type FullTextFunction
+                                    if (f2Condition instanceof FullTextFunction) {
                                         failures.add(fail(p, "`_score` manipulation between fulltext expressions"));
                                     }
                                 });

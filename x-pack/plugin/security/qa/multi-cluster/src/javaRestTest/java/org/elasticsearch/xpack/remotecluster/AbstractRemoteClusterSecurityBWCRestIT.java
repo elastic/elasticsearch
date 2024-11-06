@@ -19,7 +19,6 @@ import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -42,18 +41,6 @@ import static org.hamcrest.Matchers.nullValue;
 public abstract class AbstractRemoteClusterSecurityBWCRestIT extends AbstractRemoteClusterSecurityTestCase {
 
     protected abstract boolean isRCS2();
-
-    @Before
-    public void setUp() throws Exception {
-        final boolean useProxyMode = randomBoolean();
-        if (isRCS2()) {
-            configureRemoteCluster(useProxyMode);
-        } else {
-            setupQueryClusterRCS1(useProxyMode);
-        }
-        ensureRemoteFulfillingClusterIsConnected(useProxyMode);
-        super.setUp();
-    }
 
     public void testBwcCCSViaRCS1orRCS2() throws Exception {
 

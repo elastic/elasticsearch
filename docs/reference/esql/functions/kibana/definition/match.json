@@ -81,5 +81,5 @@
     "from books \n| where match(author, \"Faulkner\")\n| keep book_no, author \n| sort book_no \n| limit 5;"
   ],
   "preview" : true,
-  "snapshot_only" : true
+  "snapshot_only" : false
 }

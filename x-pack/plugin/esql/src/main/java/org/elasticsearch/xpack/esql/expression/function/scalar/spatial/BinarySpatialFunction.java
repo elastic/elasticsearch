@@ -28,6 +28,8 @@ import java.util.Objects;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_POINT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_SHAPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_SHAPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isNull;
@@ -203,7 +205,7 @@ public abstract class BinarySpatialFunction extends BinaryScalarFunction impleme
     }
 
     private static final String[] GEO_TYPE_NAMES = new String[] { GEO_POINT.typeName(), GEO_SHAPE.typeName() };
-    private static final String[] CARTESIAN_TYPE_NAMES = new String[] { GEO_POINT.typeName(), GEO_SHAPE.typeName() };
+    private static final String[] CARTESIAN_TYPE_NAMES = new String[] { CARTESIAN_POINT.typeName(), CARTESIAN_SHAPE.typeName() };
 
     protected static boolean spatialCRSCompatible(DataType spatialDataType, DataType otherDataType) {
         return DataType.isSpatialGeo(spatialDataType) && DataType.isSpatialGeo(otherDataType)

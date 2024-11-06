@@ -13,8 +13,11 @@ import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceFeature;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -24,6 +27,7 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.equalToIgnoringCase;
 import static org.hamcrest.Matchers.hasSize;
@@ -40,7 +44,7 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
         }
 
         var getAllModels = getAllModels();
-        int numModels = DefaultElserFeatureFlag.isEnabled() ? 10 : 9;
+        int numModels = DefaultElserFeatureFlag.isEnabled() ? 11 : 9;
         assertThat(getAllModels, hasSize(numModels));
 
         var getSparseModels = getModels("_all", TaskType.SPARSE_EMBEDDING);
@@ -51,7 +55,8 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
         }
 
         var getDenseModels = getModels("_all", TaskType.TEXT_EMBEDDING);
-        assertThat(getDenseModels, hasSize(4));
+        int numDenseModels = DefaultElserFeatureFlag.isEnabled() ? 5 : 4;
+        assertThat(getDenseModels, hasSize(numDenseModels));
         for (var denseModel : getDenseModels) {
             assertEquals("text_embedding", denseModel.get("task_type"));
         }
@@ -124,6 +129,156 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
         var inference = infer(modelId, List.of(randomAlphaOfLength(10)));
         assertNonEmptyInferenceResults(inference, 1, TaskType.SPARSE_EMBEDDING);
         deleteModel(modelId);
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testGetServicesWithoutTaskType() throws IOException {
+        List<Object> services = getAllServices();
+        if (ElasticInferenceServiceFeature.ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG.isEnabled()) {
+            assertThat(services.size(), equalTo(19));
+        } else {
+            assertThat(services.size(), equalTo(18));
+        }
+
+        String[] providers = new String[services.size()];
+        for (int i = 0; i < services.size(); i++) {
+            Map<String, Object> serviceConfig = (Map<String, Object>) services.get(i);
+            providers[i] = (String) serviceConfig.get("provider");
+        }
+
+        Arrays.sort(providers);
+
+        var providerList = new ArrayList<>(
+            Arrays.asList(
+                "alibabacloud-ai-search",
+                "amazonbedrock",
+                "anthropic",
+                "azureaistudio",
+                "azureopenai",
+                "cohere",
+                "elasticsearch",
+                "googleaistudio",
+                "googlevertexai",
+                "hugging_face",
+                "hugging_face_elser",
+                "mistral",
+                "openai",
+                "streaming_completion_test_service",
+                "test_reranking_service",
+                "test_service",
+                "text_embedding_test_service",
+                "watsonxai"
+            )
+        );
+        if (ElasticInferenceServiceFeature.ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG.isEnabled()) {
+            providerList.add(6, "elastic");
+        }
+        assertArrayEquals(providers, providerList.toArray());
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testGetServicesWithTextEmbeddingTaskType() throws IOException {
+        List<Object> services = getServices(TaskType.TEXT_EMBEDDING);
+        assertThat(services.size(), equalTo(13));
+
+        String[] providers = new String[services.size()];
+        for (int i = 0; i < services.size(); i++) {
+            Map<String, Object> serviceConfig = (Map<String, Object>) services.get(i);
+            providers[i] = (String) serviceConfig.get("provider");
+        }
+
+        Arrays.sort(providers);
+        assertArrayEquals(
+            providers,
+            List.of(
+                "alibabacloud-ai-search",
+                "amazonbedrock",
+                "azureaistudio",
+                "azureopenai",
+                "cohere",
+                "elasticsearch",
+                "googleaistudio",
+                "googlevertexai",
+                "hugging_face",
+                "mistral",
+                "openai",
+                "text_embedding_test_service",
+                "watsonxai"
+            ).toArray()
+        );
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testGetServicesWithRerankTaskType() throws IOException {
+        List<Object> services = getServices(TaskType.RERANK);
+        assertThat(services.size(), equalTo(5));
+
+        String[] providers = new String[services.size()];
+        for (int i = 0; i < services.size(); i++) {
+            Map<String, Object> serviceConfig = (Map<String, Object>) services.get(i);
+            providers[i] = (String) serviceConfig.get("provider");
+        }
+
+        Arrays.sort(providers);
+        assertArrayEquals(
+            providers,
+            List.of("alibabacloud-ai-search", "cohere", "elasticsearch", "googlevertexai", "test_reranking_service").toArray()
+        );
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testGetServicesWithCompletionTaskType() throws IOException {
+        List<Object> services = getServices(TaskType.COMPLETION);
+        assertThat(services.size(), equalTo(9));
+
+        String[] providers = new String[services.size()];
+        for (int i = 0; i < services.size(); i++) {
+            Map<String, Object> serviceConfig = (Map<String, Object>) services.get(i);
+            providers[i] = (String) serviceConfig.get("provider");
+        }
+
+        Arrays.sort(providers);
+        assertArrayEquals(
+            providers,
+            List.of(
+                "alibabacloud-ai-search",
+                "amazonbedrock",
+                "anthropic",
+                "azureaistudio",
+                "azureopenai",
+                "cohere",
+                "googleaistudio",
+                "openai",
+                "streaming_completion_test_service"
+            ).toArray()
+        );
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testGetServicesWithSparseEmbeddingTaskType() throws IOException {
+        List<Object> services = getServices(TaskType.SPARSE_EMBEDDING);
+
+        if (ElasticInferenceServiceFeature.ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG.isEnabled()) {
+            assertThat(services.size(), equalTo(6));
+        } else {
+            assertThat(services.size(), equalTo(5));
+        }
+
+        String[] providers = new String[services.size()];
+        for (int i = 0; i < services.size(); i++) {
+            Map<String, Object> serviceConfig = (Map<String, Object>) services.get(i);
+            providers[i] = (String) serviceConfig.get("provider");
+        }
+
+        Arrays.sort(providers);
+
+        var providerList = new ArrayList<>(
+            Arrays.asList("alibabacloud-ai-search", "elasticsearch", "hugging_face", "hugging_face_elser", "test_service")
+        );
+        if (ElasticInferenceServiceFeature.ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG.isEnabled()) {
+            providerList.add(1, "elastic");
+        }
+        assertArrayEquals(providers, providerList.toArray());
     }
 
     public void testSkipValidationAndStart() throws IOException {
@@ -305,8 +460,7 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
         assertEquals(modelId, singleModel.get("inference_id"));
         assertEquals(TaskType.COMPLETION.toString(), singleModel.get("task_type"));
 
-        var input = IntStream.range(1, randomInt(10)).mapToObj(i -> randomAlphaOfLength(10)).toList();
-
+        var input = IntStream.range(1, 2 + randomInt(8)).mapToObj(i -> randomAlphaOfLength(10)).toList();
         try {
             var events = streamInferOnMockService(modelId, TaskType.COMPLETION, input);
 
@@ -324,5 +478,10 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
         } finally {
             deleteModel(modelId);
         }
+    }
+
+    public void testGetZeroModels() throws IOException {
+        var models = getModels("_all", TaskType.RERANK);
+        assertThat(models, empty());
     }
 }

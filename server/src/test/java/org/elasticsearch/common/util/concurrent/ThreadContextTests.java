@@ -1122,6 +1122,57 @@ public class ThreadContextTests extends ESTestCase {
         }
     }
 
+    public void testNewEmptyContext() {
+        final var threadContext = new ThreadContext(Settings.EMPTY);
+        final var header = randomBoolean() ? randomIdentifier() : randomFrom(HEADERS_TO_COPY);
+        threadContext.putHeader(header, randomIdentifier());
+
+        try (var ignored = threadContext.newEmptyContext()) {
+            assertTrue(threadContext.isDefaultContext());
+            assertNull(threadContext.getHeader(header));
+            assertTrue(threadContext.getHeaders().isEmpty());
+        }
+
+        assertNotNull(threadContext.getHeader(header));
+    }
+
+    public void testNewEmptySystemContext() {
+        final var threadContext = new ThreadContext(Settings.EMPTY);
+        final var header = randomBoolean() ? randomIdentifier() : randomFrom(HEADERS_TO_COPY);
+        threadContext.putHeader(header, randomIdentifier());
+
+        try (var ignored = threadContext.newEmptySystemContext()) {
+            assertTrue(threadContext.isSystemContext());
+            assertNull(threadContext.getHeader(header));
+            assertTrue(threadContext.getHeaders().isEmpty());
+        }
+
+        assertNotNull(threadContext.getHeader(header));
+    }
+
+    public void testRestoreExistingContext() {
+        final var threadContext = new ThreadContext(Settings.EMPTY);
+        final var header = randomIdentifier();
+        final var originalValue = randomIdentifier();
+        threadContext.putHeader(header, originalValue);
+        try (var originalContext = threadContext.newStoredContext()) {
+            assertEquals(originalValue, threadContext.getHeader(header));
+
+            try (var ignored1 = threadContext.newEmptyContext()) {
+                final var updatedValue = randomIdentifier();
+                threadContext.putHeader(header, updatedValue);
+
+                try (var ignored2 = threadContext.restoreExistingContext(originalContext)) {
+                    assertEquals(originalValue, threadContext.getHeader(header));
+                }
+
+                assertEquals(updatedValue, threadContext.getHeader(header));
+            }
+
+            assertEquals(originalValue, threadContext.getHeader(header));
+        }
+    }
+
     private String randomCase(String original) {
         int i = randomInt(original.length() - 1);
         StringBuilder sb = new StringBuilder(original);

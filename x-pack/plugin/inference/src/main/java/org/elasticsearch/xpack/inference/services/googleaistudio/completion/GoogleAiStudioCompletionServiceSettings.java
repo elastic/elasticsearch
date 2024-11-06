@@ -102,7 +102,7 @@ public class GoogleAiStudioCompletionServiceSettings extends FilteredXContentObj
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ML_INFERENCE_GOOGLE_AI_STUDIO_COMPLETION_ADDED;
+        return TransportVersions.V_8_15_0;
     }
 
     @Override

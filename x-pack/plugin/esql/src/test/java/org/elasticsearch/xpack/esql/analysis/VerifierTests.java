@@ -360,6 +360,40 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
+    public void testAggFilterOnNonAggregates() {
+        assertEquals(
+            "1:36: WHERE clause allowed only for aggregate functions, none found in [emp_no + 1 where languages > 1]",
+            error("from test | stats emp_no + 1 where languages > 1 by emp_no")
+        );
+        assertEquals(
+            "1:53: WHERE clause allowed only for aggregate functions, none found in [abs(emp_no + languages) % 2 WHERE languages > 1]",
+            error("from test | stats abs(emp_no + languages) % 2 WHERE languages > 1 by emp_no, languages")
+        );
+    }
+
+    public void testAggFilterOnBucketingOrAggFunctions() {
+        // query passes when the bucket function is part of the BY clause
+        query("from test | stats max(languages) WHERE bucket(salary, 10) > 1 by bucket(salary, 10)");
+
+        // but fails if it's different
+        assertEquals(
+            "1:40: can only use grouping function [bucket(salary, 10)] part of the BY clause",
+            error("from test | stats max(languages) WHERE bucket(salary, 10) > 1 by emp_no")
+        );
+
+        assertEquals(
+            "1:40: cannot use aggregate function [max(salary)] in aggregate WHERE clause [max(languages) WHERE max(salary) > 1]",
+            error("from test | stats max(languages) WHERE max(salary) > 1 by emp_no")
+        );
+
+        assertEquals(
+            "1:40: cannot use aggregate function [max(salary)] in aggregate WHERE clause [max(languages) WHERE max(salary) + 2 > 1]",
+            error("from test | stats max(languages) WHERE max(salary) + 2 > 1 by emp_no")
+        );
+
+        assertEquals("1:60: Unknown column [m]", error("from test | stats m = max(languages), min(languages) WHERE m + 2 > 1 by emp_no"));
+    }
+
     public void testGroupingInsideAggsAsAgg() {
         assertEquals(
             "1:18: can only use grouping function [bucket(emp_no, 5.)] part of the BY clause",
@@ -489,13 +523,12 @@ public class VerifierTests extends ESTestCase {
 
     public void testGroupingAliasDuplicate() throws Exception {
         assertEquals(
-            "1:22: column [languages] cannot be used as an aggregate "
-                + "once declared in the STATS BY grouping key [l = languages % 3, l = languages, l = languages % 2]",
+            "1:22: column [languages] cannot be used as an aggregate once declared in the STATS BY grouping key [l = languages % 3]",
             error("from test| stats l = languages + 3 by l = languages % 3, l = languages, l = languages % 2 | keep l")
         );
 
         assertEquals(
-            "1:22: column [languages] cannot be used as an aggregate " + "once declared in the STATS BY grouping key [l = languages % 3]",
+            "1:22: column [languages] cannot be used as an aggregate once declared in the STATS BY grouping key [l = languages % 3]",
             error("from test| stats l = languages + 3, l = languages % 2  by l = languages % 3 | keep l")
         );
 
@@ -1078,50 +1111,54 @@ public class VerifierTests extends ESTestCase {
     public void testMatchInsideEval() throws Exception {
         assumeTrue("Match operator is available just for snapshots", Build.current().isSnapshot());
 
-        assertEquals("1:36: EVAL does not support MATCH expressions", error("row title = \"brown fox\" | eval x = title match \"fox\" "));
+        assertEquals(
+            "1:36: [:] operator is only supported in WHERE commands",
+            error("row title = \"brown fox\" | eval x = title:\"fox\" ")
+        );
     }
 
     public void testMatchFilter() throws Exception {
-        assumeTrue("Match operator is available just for snapshots", Build.current().isSnapshot());
+        assumeTrue("Match operator is available just for snapshots", EsqlCapabilities.Cap.MATCH_OPERATOR_COLON.isEnabled());
 
         assertEquals(
-            "1:63: MATCH requires a mapped index field, found [name]",
-            error("from test | eval name = concat(first_name, last_name) | where name match \"Anna\"")
+            "1:19: first argument of [salary:\"100\"] must be [string], found value [salary] type [integer]",
+            error("from test | where salary:\"100\"")
         );
 
         assertEquals(
-            "1:19: MATCH requires a text or keyword field, but [salary] has type [integer]",
-            error("from test | where salary match \"100\"")
+            "1:19: Invalid condition [first_name:\"Anna\" or starts_with(first_name, \"Anne\")]. "
+                + "[:] operator can't be used as part of an or condition",
+            error("from test | where first_name:\"Anna\" or starts_with(first_name, \"Anne\")")
         );
 
         assertEquals(
-            "1:19: Invalid condition using MATCH",
-            error("from test | where first_name match \"Anna\" or starts_with(first_name, \"Anne\")")
-        );
-
-        assertEquals(
-            "1:51: Invalid condition using MATCH",
-            error("from test | eval new_salary = salary + 10 | where first_name match \"Anna\" OR new_salary > 100")
-        );
-
-        assertEquals(
-            "1:45: MATCH requires a mapped index field, found [fn]",
-            error("from test | rename first_name as fn | where fn match \"Anna\"")
+            "1:51: Invalid condition [first_name:\"Anna\" OR new_salary > 100]. " + "[:] operator can't be used as part of an or condition",
+            error("from test | eval new_salary = salary + 10 | where first_name:\"Anna\" OR new_salary > 100")
         );
     }
 
     public void testMatchFunctionNotAllowedAfterCommands() throws Exception {
-        assumeTrue("skipping because MATCH is not enabled", EsqlCapabilities.Cap.MATCH_FUNCTION.isEnabled());
-
         assertEquals(
             "1:24: [MATCH] function cannot be used after LIMIT",
             error("from test | limit 10 | where match(first_name, \"Anna\")")
         );
     }
 
-    public void testQueryStringFunctionsNotAllowedAfterCommands() throws Exception {
-        assumeTrue("skipping because QSTR is not enabled", EsqlCapabilities.Cap.QSTR_FUNCTION.isEnabled());
+    public void testMatchFunctionAndOperatorHaveCorrectErrorMessages() throws Exception {
+        assumeTrue("skipping because MATCH operator is not enabled", EsqlCapabilities.Cap.MATCH_OPERATOR_COLON.isEnabled());
+        assertEquals(
+            "1:24: [MATCH] function cannot be used after LIMIT",
+            error("from test | limit 10 | where match(first_name, \"Anna\")")
+        );
+        assertEquals(
+            "1:24: [MATCH] function cannot be used after LIMIT",
+            error("from test | limit 10 | where match ( first_name, \"Anna\" ) ")
+        );
+        assertEquals("1:24: [:] operator cannot be used after LIMIT", error("from test | limit 10 | where first_name:\"Anna\""));
+        assertEquals("1:24: [:] operator cannot be used after LIMIT", error("from test | limit 10 | where first_name : \"Anna\""));
+    }
 
+    public void testQueryStringFunctionsNotAllowedAfterCommands() throws Exception {
         // Source commands
         assertEquals("1:13: [QSTR] function cannot be used after SHOW", error("show info | where qstr(\"8.16.0\")"));
         assertEquals("1:17: [QSTR] function cannot be used after ROW", error("row a= \"Anna\" | where qstr(\"Anna\")"));
@@ -1180,36 +1217,44 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testQueryStringFunctionOnlyAllowedInWhere() throws Exception {
-        assumeTrue("skipping because QSTR is not enabled", EsqlCapabilities.Cap.QSTR_FUNCTION.isEnabled());
-
         assertEquals("1:9: [QSTR] function is only supported in WHERE commands", error("row a = qstr(\"Anna\")"));
-        checkFullTextFunctionsOnlyAllowedInWhere("QSTR", "qstr(\"Anna\")");
+        checkFullTextFunctionsOnlyAllowedInWhere("QSTR", "qstr(\"Anna\")", "function");
     }
 
     public void testMatchFunctionOnlyAllowedInWhere() throws Exception {
-        assumeTrue("skipping because MATCH is not enabled", EsqlCapabilities.Cap.MATCH_FUNCTION.isEnabled());
-
-        checkFullTextFunctionsOnlyAllowedInWhere("MATCH", "match(first_name, \"Anna\")");
+        checkFullTextFunctionsOnlyAllowedInWhere("MATCH", "match(first_name, \"Anna\")", "function");
     }
 
-    private void checkFullTextFunctionsOnlyAllowedInWhere(String functionName, String functionInvocation) throws Exception {
+    public void testMatchOperatornOnlyAllowedInWhere() throws Exception {
+        assumeTrue("skipping because MATCH operator is not enabled", EsqlCapabilities.Cap.MATCH_OPERATOR_COLON.isEnabled());
+        checkFullTextFunctionsOnlyAllowedInWhere(":", "first_name:\"Anna\"", "operator");
+    }
+
+    private void checkFullTextFunctionsOnlyAllowedInWhere(String functionName, String functionInvocation, String functionType)
+        throws Exception {
         assertEquals(
-            "1:22: [" + functionName + "] function is only supported in WHERE commands",
+            "1:22: [" + functionName + "] " + functionType + " is only supported in WHERE commands",
             error("from test | eval y = " + functionInvocation)
         );
         assertEquals(
-            "1:18: [" + functionName + "] function is only supported in WHERE commands",
+            "1:18: [" + functionName + "] " + functionType + " is only supported in WHERE commands",
             error("from test | sort " + functionInvocation + " asc")
         );
         assertEquals(
-            "1:23: [" + functionName + "] function is only supported in WHERE commands",
+            "1:23: [" + functionName + "] " + functionType + " is only supported in WHERE commands",
             error("from test | STATS c = " + functionInvocation + " BY first_name")
+        );
+        assertEquals(
+            "1:50: [" + functionName + "] " + functionType + " is only supported in WHERE commands",
+            error("from test | stats max_salary = max(salary) where " + functionInvocation)
+        );
+        assertEquals(
+            "1:47: [" + functionName + "] " + functionType + " is only supported in WHERE commands",
+            error("from test | stats max_salary = max(salary) by " + functionInvocation)
         );
     }
 
     public void testQueryStringFunctionArgNotNullOrConstant() throws Exception {
-        assumeTrue("skipping because QSTR is not enabled", EsqlCapabilities.Cap.QSTR_FUNCTION.isEnabled());
-
         assertEquals(
             "1:19: argument of [qstr(first_name)] must be a constant, received [first_name]",
             error("from test | where qstr(first_name)")
@@ -1219,22 +1264,27 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testQueryStringWithDisjunctions() {
-        assumeTrue("skipping because QSTR is not enabled", EsqlCapabilities.Cap.QSTR_FUNCTION.isEnabled());
-
-        checkWithDisjunctions("QSTR", "qstr(\"first_name: Anna\")");
+        checkWithDisjunctions("QSTR", "qstr(\"first_name: Anna\")", "function");
     }
 
-    public void testMatchWithDisjunctions() {
-        assumeTrue("skipping because MATCH is not enabled", EsqlCapabilities.Cap.MATCH_FUNCTION.isEnabled());
-
-        checkWithDisjunctions("MATCH", "match(first_name, \"Anna\")");
+    public void testMatchFunctionWithDisjunctions() {
+        checkWithDisjunctions("MATCH", "match(first_name, \"Anna\")", "function");
     }
 
-    private void checkWithDisjunctions(String functionName, String functionInvocation) {
+    public void testMatchOperatorWithDisjunctions() {
+        assumeTrue("skipping because MATCH operator is not enabled", EsqlCapabilities.Cap.MATCH_OPERATOR_COLON.isEnabled());
+
+        checkWithDisjunctions(":", "first_name : \"Anna\"", "operator");
+    }
+
+    private void checkWithDisjunctions(String functionName, String functionInvocation, String functionType) {
         assertEquals(
             LoggerMessageFormat.format(
                 null,
-                "1:19: Invalid condition [{} or length(first_name) > 12]. " + "Function {} can't be used as part of an or condition",
+                "1:19: Invalid condition [{} or length(first_name) > 12]. "
+                    + "[{}] "
+                    + functionType
+                    + " can't be used as part of an or condition",
                 functionInvocation,
                 functionName
             ),
@@ -1244,7 +1294,9 @@ public class VerifierTests extends ESTestCase {
             LoggerMessageFormat.format(
                 null,
                 "1:19: Invalid condition [({} and first_name is not null) or (length(first_name) > 12 and first_name is null)]. "
-                    + "Function {} can't be used as part of an or condition",
+                    + "[{}] "
+                    + functionType
+                    + " can't be used as part of an or condition",
                 functionInvocation,
                 functionName
             ),
@@ -1258,7 +1310,9 @@ public class VerifierTests extends ESTestCase {
             LoggerMessageFormat.format(
                 null,
                 "1:19: Invalid condition [({} and first_name is not null) or first_name is null]. "
-                    + "Function {} can't be used as part of an or condition",
+                    + "[{}] "
+                    + functionType
+                    + " can't be used as part of an or condition",
                 functionInvocation,
                 functionName
             ),
@@ -1267,39 +1321,75 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testQueryStringFunctionWithNonBooleanFunctions() {
-        assumeTrue("skipping because QSTR is not enabled", EsqlCapabilities.Cap.QSTR_FUNCTION.isEnabled());
-
-        checkFullTextFunctionsWithNonBooleanFunctions("QSTR", "qstr(\"first_name: Anna\")");
+        checkFullTextFunctionsWithNonBooleanFunctions("QSTR", "qstr(\"first_name: Anna\")", "function");
     }
 
     public void testMatchFunctionWithNonBooleanFunctions() {
-        assumeTrue("skipping because MATCH is not enabled", EsqlCapabilities.Cap.MATCH_FUNCTION.isEnabled());
-
-        checkFullTextFunctionsWithNonBooleanFunctions("MATCH", "match(first_name, \"Anna\")");
+        checkFullTextFunctionsWithNonBooleanFunctions("MATCH", "match(first_name, \"Anna\")", "function");
     }
 
-    private void checkFullTextFunctionsWithNonBooleanFunctions(String functionName, String functionInvocation) {
+    public void testMatchOperatorWithNonBooleanFunctions() {
+        assumeTrue("skipping because MATCH operator is not enabled", EsqlCapabilities.Cap.MATCH_OPERATOR_COLON.isEnabled());
+        checkFullTextFunctionsWithNonBooleanFunctions(":", "first_name:\"Anna\"", "operator");
+    }
+
+    private void checkFullTextFunctionsWithNonBooleanFunctions(String functionName, String functionInvocation, String functionType) {
+        if (functionType.equals("operator") == false) {
+            // The following tests are only possible for functions from a parsing perspective
+            assertEquals(
+                "1:19: Invalid condition ["
+                    + functionInvocation
+                    + " is not null]. ["
+                    + functionName
+                    + "] "
+                    + functionType
+                    + " can't be used with ISNOTNULL",
+                error("from test | where " + functionInvocation + " is not null")
+            );
+            assertEquals(
+                "1:19: Invalid condition ["
+                    + functionInvocation
+                    + " is null]. ["
+                    + functionName
+                    + "] "
+                    + functionType
+                    + " can't be used with ISNULL",
+                error("from test | where " + functionInvocation + " is null")
+            );
+            assertEquals(
+                "1:19: Invalid condition ["
+                    + functionInvocation
+                    + " in (\"hello\", \"world\")]. ["
+                    + functionName
+                    + "] "
+                    + functionType
+                    + " can't be used with IN",
+                error("from test | where " + functionInvocation + " in (\"hello\", \"world\")")
+            );
+        }
         assertEquals(
-            "1:19: Invalid condition [" + functionInvocation + " is not null]. Function " + functionName + " can't be used with ISNOTNULL",
-            error("from test | where " + functionInvocation + " is not null")
-        );
-        assertEquals(
-            "1:19: Invalid condition [" + functionInvocation + " is null]. Function " + functionName + " can't be used with ISNULL",
-            error("from test | where " + functionInvocation + " is null")
-        );
-        assertEquals(
-            "1:19: Invalid condition ["
+            "1:19: Invalid condition [coalesce("
                 + functionInvocation
-                + " in (\"hello\", \"world\")]. Function "
+                + ", "
+                + functionInvocation
+                + ")]. ["
                 + functionName
-                + " can't be used with IN",
-            error("from test | where " + functionInvocation + " in (\"hello\", \"world\")")
+                + "] "
+                + functionType
+                + " can't be used with COALESCE",
+            error("from test | where coalesce(" + functionInvocation + ", " + functionInvocation + ")")
+        );
+        assertEquals(
+            "1:19: argument of [concat("
+                + functionInvocation
+                + ", \"a\")] must be [string], found value ["
+                + functionInvocation
+                + "] type [boolean]",
+            error("from test | where concat(" + functionInvocation + ", \"a\")")
         );
     }
 
     public void testMatchFunctionArgNotConstant() throws Exception {
-        assumeTrue("skipping because MATCH is not enabled", EsqlCapabilities.Cap.MATCH_FUNCTION.isEnabled());
-
         assertEquals(
             "1:19: second argument of [match(first_name, first_name)] must be a constant, received [first_name]",
             error("from test | where match(first_name, first_name)")
@@ -1313,17 +1403,19 @@ public class VerifierTests extends ESTestCase {
 
     // These should pass eventually once we lift some restrictions on match function
     public void testMatchFunctionCurrentlyUnsupportedBehaviour() throws Exception {
-        assumeTrue("skipping because MATCH is not enabled", EsqlCapabilities.Cap.MATCH_FUNCTION.isEnabled());
-
         assertEquals(
             "1:68: Unknown column [first_name]",
             error("from test | stats max_salary = max(salary) by emp_no | where match(first_name, \"Anna\")")
         );
+
+        assumeTrue("skipping because MATCH operator is not enabled", EsqlCapabilities.Cap.MATCH_OPERATOR_COLON.isEnabled());
+        assertEquals(
+            "1:62: Unknown column [first_name]",
+            error("from test | stats max_salary = max(salary) by emp_no | where first_name : \"Anna\"")
+        );
     }
 
     public void testMatchFunctionNullArgs() throws Exception {
-        assumeTrue("skipping because MATCH is not enabled", EsqlCapabilities.Cap.MATCH_FUNCTION.isEnabled());
-
         assertEquals(
             "1:19: first argument of [match(null, \"query\")] cannot be null, received [null]",
             error("from test | where match(null, \"query\")")
@@ -1334,10 +1426,11 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
-    public void testMatchFunctionTargetsExistingField() throws Exception {
-        assumeTrue("skipping because MATCH is not enabled", EsqlCapabilities.Cap.MATCH_FUNCTION.isEnabled());
-
+    public void testMatchTargetsExistingField() throws Exception {
         assertEquals("1:39: Unknown column [first_name]", error("from test | keep emp_no | where match(first_name, \"Anna\")"));
+
+        assumeTrue("skipping because MATCH operator is not enabled", EsqlCapabilities.Cap.MATCH_OPERATOR_COLON.isEnabled());
+        assertEquals("1:33: Unknown column [first_name]", error("from test | keep emp_no | where first_name : \"Anna\""));
     }
 
     public void testCoalesceWithMixedNumericTypes() {
@@ -1473,20 +1566,20 @@ public class VerifierTests extends ESTestCase {
         assertEquals(
             "1:26: first argument of [\"3 days\"::date_period == to_dateperiod(\"3 days\")] must be "
                 + "[boolean, cartesian_point, cartesian_shape, date_nanos, datetime, double, geo_point, geo_shape, integer, ip, keyword, "
-                + "long, text, unsigned_long or version], found value [\"3 days\"::date_period] type [date_period]",
+                + "long, semantic_text, text, unsigned_long or version], found value [\"3 days\"::date_period] type [date_period]",
             error("row x = \"3 days\" | where \"3 days\"::date_period == to_dateperiod(\"3 days\")")
         );
 
         assertEquals(
             "1:26: first argument of [\"3 hours\"::time_duration <= to_timeduration(\"3 hours\")] must be "
-                + "[date_nanos, datetime, double, integer, ip, keyword, long, text, unsigned_long or version], "
+                + "[date_nanos, datetime, double, integer, ip, keyword, long, semantic_text, text, unsigned_long or version], "
                 + "found value [\"3 hours\"::time_duration] type [time_duration]",
             error("row x = \"3 days\" | where \"3 hours\"::time_duration <= to_timeduration(\"3 hours\")")
         );
 
         assertEquals(
             "1:19: second argument of [first_name <= to_timeduration(\"3 hours\")] must be "
-                + "[date_nanos, datetime, double, integer, ip, keyword, long, text, unsigned_long or version], "
+                + "[date_nanos, datetime, double, integer, ip, keyword, long, semantic_text, text, unsigned_long or version], "
                 + "found value [to_timeduration(\"3 hours\")] type [time_duration]",
             error("from test | where first_name <= to_timeduration(\"3 hours\")")
         );
@@ -1531,6 +1624,10 @@ public class VerifierTests extends ESTestCase {
             "1:59: argument of [to_timeduration(x)] must be [time_duration or string], found value [x] type [ip]",
             error("from types  | EVAL x = \"2024-09-08\"::ip, y = birth_date - to_timeduration(x)")
         );
+    }
+
+    private void query(String query) {
+        defaultAnalyzer.analyze(parser.createStatement(query));
     }
 
     private String error(String query) {

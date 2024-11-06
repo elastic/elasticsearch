@@ -135,7 +135,7 @@ null              |Swan             |-8.46                       |-8.46         
 Sanjiv            |Zschoche         |[-7.67, -3.25]              |[-3.25, -7.67]               |[-3, -8]             |10053
 ;
 
-sortingOnSwappedFields
+sortingOnSwappedFields#[skip:-8.13.3, reason:fixed in 8.13]
 FROM employees
 | EVAL name = last_name, last_name = first_name, first_name = name
 | WHERE first_name > "B" AND last_name IS NOT NULL
@@ -157,7 +157,7 @@ Brattka      | Charlene          | Brattka
 Bridgland    | Patricio          | Bridgland
 ;
 
-sortingOnSwappedFieldsNoKeep
+sortingOnSwappedFieldsNoKeep#[skip:-8.13.3, reason:fixed in 8.13]
 // Note that this test requires all fields to be returned in order to test a specific code path in physical planning
 FROM employees
 | EVAL name = first_name, first_name = last_name, last_name = name

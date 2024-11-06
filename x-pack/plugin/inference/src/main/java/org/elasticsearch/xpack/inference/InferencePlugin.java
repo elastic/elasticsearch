@@ -45,12 +45,14 @@ import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.inference.action.DeleteInferenceEndpointAction;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceDiagnosticsAction;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
+import org.elasticsearch.xpack.core.inference.action.GetInferenceServicesAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.action.PutInferenceModelAction;
 import org.elasticsearch.xpack.core.inference.action.UpdateInferenceModelAction;
 import org.elasticsearch.xpack.inference.action.TransportDeleteInferenceEndpointAction;
 import org.elasticsearch.xpack.inference.action.TransportGetInferenceDiagnosticsAction;
 import org.elasticsearch.xpack.inference.action.TransportGetInferenceModelAction;
+import org.elasticsearch.xpack.inference.action.TransportGetInferenceServicesAction;
 import org.elasticsearch.xpack.inference.action.TransportInferenceAction;
 import org.elasticsearch.xpack.inference.action.TransportInferenceUsageAction;
 import org.elasticsearch.xpack.inference.action.TransportPutInferenceModelAction;
@@ -75,6 +77,7 @@ import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.rest.RestDeleteInferenceEndpointAction;
 import org.elasticsearch.xpack.inference.rest.RestGetInferenceDiagnosticsAction;
 import org.elasticsearch.xpack.inference.rest.RestGetInferenceModelAction;
+import org.elasticsearch.xpack.inference.rest.RestGetInferenceServicesAction;
 import org.elasticsearch.xpack.inference.rest.RestInferenceAction;
 import org.elasticsearch.xpack.inference.rest.RestPutInferenceModelAction;
 import org.elasticsearch.xpack.inference.rest.RestStreamInferenceAction;
@@ -98,7 +101,6 @@ import org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceE
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.IbmWatsonxService;
 import org.elasticsearch.xpack.inference.services.mistral.MistralService;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiService;
-import org.elasticsearch.xpack.inference.telemetry.ApmInferenceStats;
 import org.elasticsearch.xpack.inference.telemetry.InferenceStats;
 
 import java.util.ArrayList;
@@ -155,7 +157,8 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
             new ActionHandler<>(UpdateInferenceModelAction.INSTANCE, TransportUpdateInferenceModelAction.class),
             new ActionHandler<>(DeleteInferenceEndpointAction.INSTANCE, TransportDeleteInferenceEndpointAction.class),
             new ActionHandler<>(XPackUsageFeatureAction.INFERENCE, TransportInferenceUsageAction.class),
-            new ActionHandler<>(GetInferenceDiagnosticsAction.INSTANCE, TransportGetInferenceDiagnosticsAction.class)
+            new ActionHandler<>(GetInferenceDiagnosticsAction.INSTANCE, TransportGetInferenceDiagnosticsAction.class),
+            new ActionHandler<>(GetInferenceServicesAction.INSTANCE, TransportGetInferenceServicesAction.class)
         );
     }
 
@@ -178,7 +181,8 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
             new RestPutInferenceModelAction(),
             new RestUpdateInferenceModelAction(),
             new RestDeleteInferenceEndpointAction(),
-            new RestGetInferenceDiagnosticsAction()
+            new RestGetInferenceDiagnosticsAction(),
+            new RestGetInferenceServicesAction()
         );
     }
 
@@ -212,14 +216,20 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
             );
         }
 
-        var factoryContext = new InferenceServiceExtension.InferenceServiceFactoryContext(services.client(), services.threadPool());
+        var factoryContext = new InferenceServiceExtension.InferenceServiceFactoryContext(
+            services.client(),
+            services.threadPool(),
+            services.clusterService(),
+            settings
+        );
+
         // This must be done after the HttpRequestSenderFactory is created so that the services can get the
         // reference correctly
         var registry = new InferenceServiceRegistry(inferenceServices, factoryContext);
         registry.init(services.client());
         if (DefaultElserFeatureFlag.isEnabled()) {
             for (var service : registry.getServices().values()) {
-                service.defaultConfigs().forEach(modelRegistry::addDefaultConfiguration);
+                service.defaultConfigIds().forEach(modelRegistry::addDefaultIds);
             }
         }
         inferenceServiceRegistry.set(registry);
@@ -228,7 +238,7 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
         shardBulkInferenceActionFilter.set(actionFilter);
 
         var meterRegistry = services.telemetryProvider().getMeterRegistry();
-        var stats = new PluginComponentBinding<>(InferenceStats.class, ApmInferenceStats.create(meterRegistry));
+        var stats = new PluginComponentBinding<>(InferenceStats.class, InferenceStats.create(meterRegistry));
 
         return List.of(modelRegistry, registry, httpClientManager, stats);
     }
@@ -277,7 +287,6 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
             .setDescription("Contains inference service and model configuration")
             .setMappings(InferenceIndex.mappingsV1())
             .setSettings(InferenceIndex.settings())
-            .setVersionMetaKey("version")
             .setOrigin(ClientHelper.INFERENCE_ORIGIN)
             .build();
 
@@ -290,7 +299,6 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
                 .setDescription("Contains inference service and model configuration")
                 .setMappings(InferenceIndex.mappings())
                 .setSettings(InferenceIndex.settings())
-                .setVersionMetaKey("version")
                 .setOrigin(ClientHelper.INFERENCE_ORIGIN)
                 .setPriorSystemIndexDescriptors(List.of(inferenceIndexV1Descriptor))
                 .build(),
@@ -301,7 +309,6 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
                 .setDescription("Contains inference service secrets")
                 .setMappings(InferenceSecretsIndex.mappings())
                 .setSettings(InferenceSecretsIndex.settings())
-                .setVersionMetaKey("version")
                 .setOrigin(ClientHelper.INFERENCE_ORIGIN)
                 .setNetNew()
                 .build()

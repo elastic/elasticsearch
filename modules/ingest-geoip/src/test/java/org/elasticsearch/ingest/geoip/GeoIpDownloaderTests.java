@@ -9,7 +9,6 @@
 
 package org.elasticsearch.ingest.geoip;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -25,11 +24,9 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
@@ -583,37 +580,28 @@ public class GeoIpDownloaderTests extends ESTestCase {
         assertFalse(it.hasNext());
     }
 
-    public void testUpdateDatabasesWriteBlock() {
+    public void testUpdateDatabasesWriteBlock() throws IOException {
+        /*
+         * Here we make sure that we bail out before making an httpClient request if there is write block on the .geoip_databases index
+         */
         ClusterState state = createClusterState(new PersistentTasksCustomMetadata(1L, Map.of()));
         var geoIpIndex = state.getMetadata().getIndicesLookup().get(GeoIpDownloader.DATABASES_INDEX).getWriteIndex().getName();
         state = ClusterState.builder(state)
             .blocks(new ClusterBlocks.Builder().addIndexBlock(geoIpIndex, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK))
             .build();
         when(clusterService.state()).thenReturn(state);
-        var e = expectThrows(ClusterBlockException.class, () -> geoIpDownloader.updateDatabases());
-        assertThat(
-            e.getMessage(),
-            equalTo(
-                "index ["
-                    + geoIpIndex
-                    + "] blocked by: [TOO_MANY_REQUESTS/12/disk usage exceeded flood-stage watermark, "
-                    + "index has read-only-allow-delete block; for more information, see "
-                    + ReferenceDocs.FLOOD_STAGE_WATERMARK
-                    + "];"
-            )
-        );
+        geoIpDownloader.updateDatabases();
         verifyNoInteractions(httpClient);
     }
 
-    public void testUpdateDatabasesIndexNotReady() {
+    public void testUpdateDatabasesIndexNotReady() throws IOException {
+        /*
+         * Here we make sure that we bail out before making an httpClient request if there are unallocated shards on the .geoip_databases
+         * index
+         */
         ClusterState state = createClusterState(new PersistentTasksCustomMetadata(1L, Map.of()), true);
-        var geoIpIndex = state.getMetadata().getIndicesLookup().get(GeoIpDownloader.DATABASES_INDEX).getWriteIndex().getName();
-        state = ClusterState.builder(state)
-            .blocks(new ClusterBlocks.Builder().addIndexBlock(geoIpIndex, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK))
-            .build();
         when(clusterService.state()).thenReturn(state);
-        var e = expectThrows(ElasticsearchException.class, () -> geoIpDownloader.updateDatabases());
-        assertThat(e.getMessage(), equalTo("not all primary shards of [.geoip_databases] index are active"));
+        geoIpDownloader.updateDatabases();
         verifyNoInteractions(httpClient);
     }
 

@@ -1,4 +1,8 @@
 setup:
+  - skip:
+      features:
+        - close_to
+        - contains
   - requires:
       cluster_features: "text_similarity_reranker_retriever_supported"
       reason: semantic reranking introduced in 8.15.0
@@ -206,8 +210,8 @@ setup:
           size: 10
           explain: true
 
-  - match: { hits.hits.0._id: "doc_2" }
-  - match: { hits.hits.1._id: "doc_1" }
+  - contains: { hits.hits: { _id: "doc_2" } }
+  - contains: { hits.hits: { _id: "doc_1" } }
 
   - close_to: { hits.hits.0._explanation.value: { value: 0.4, error: 0.000001 } }
   - match: {hits.hits.0._explanation.description: "/text_similarity_reranker.match.using.inference.endpoint:.\\[my-rerank-model\\].on.document.field:.\\[text\\].*/" }

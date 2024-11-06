@@ -1,5 +1,0 @@
-pr: 113961
-summary: "[ESQL] Support datetime data type in Least and Greatest functions"
-area: ES|QL
-type: bug
-issues: []

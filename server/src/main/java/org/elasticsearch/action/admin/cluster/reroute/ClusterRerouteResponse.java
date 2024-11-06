@@ -92,17 +92,12 @@ public class ClusterRerouteResponse extends ActionResponse implements IsAcknowle
         if (emitState(outerParams)) {
             deprecationLogger.critical(DeprecationCategory.API, "reroute_cluster_state", STATE_FIELD_DEPRECATION_MESSAGE);
         }
-        return toXContentChunkedV7(outerParams);
-    }
-
-    @Override
-    public Iterator<? extends ToXContent> toXContentChunkedV7(ToXContent.Params params) {
-        return ChunkedToXContent.builder(params).object(b -> {
+        return ChunkedToXContent.builder(outerParams).object(b -> {
             b.field(ACKNOWLEDGED_KEY, isAcknowledged());
-            if (emitState(params)) {
+            if (emitState(outerParams)) {
                 b.xContentObject("state", state);
             }
-            if (params.paramAsBoolean("explain", false)) {
+            if (outerParams.paramAsBoolean("explain", false)) {
                 b.append(explanations);
             }
         });

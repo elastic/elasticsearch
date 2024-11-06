@@ -122,7 +122,7 @@ public class SingleNodeShutdownStatus implements Writeable, ChunkedToXContentObj
                         metadata.getAllocationDelay().getStringRep()
                     );
                 }
-                builder.timeField(
+                builder.timestampFieldsFromUnixEpochMillis(
                     SingleNodeShutdownMetadata.STARTED_AT_MILLIS_FIELD.getPreferredName(),
                     SingleNodeShutdownMetadata.STARTED_AT_READABLE_FIELD,
                     metadata.getStartedAtMillis()
@@ -138,7 +138,7 @@ public class SingleNodeShutdownStatus implements Writeable, ChunkedToXContentObj
                     builder.field(TARGET_NODE_NAME_FIELD.getPreferredName(), metadata.getTargetNodeName());
                 }
                 if (metadata.getGracePeriod() != null) {
-                    builder.timeField(
+                    builder.timestampField(
                         SingleNodeShutdownMetadata.GRACE_PERIOD_FIELD.getPreferredName(),
                         metadata.getGracePeriod().getStringRep()
                     );

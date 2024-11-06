@@ -89,7 +89,9 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
             .put(super.repositorySettings(repoName))
             .put(AzureRepository.Repository.MAX_SINGLE_PART_UPLOAD_SIZE_SETTING.getKey(), new ByteSizeValue(1, ByteSizeUnit.MB))
             .put(AzureRepository.Repository.CONTAINER_SETTING.getKey(), "container")
-            .put(AzureStorageSettings.ACCOUNT_SETTING.getKey(), "test");
+            .put(AzureStorageSettings.ACCOUNT_SETTING.getKey(), "test")
+            .put(AzureRepository.Repository.DELETION_BATCH_SIZE_SETTING.getKey(), randomIntBetween(5, 256))
+            .put(AzureRepository.Repository.MAX_CONCURRENT_BATCH_DELETES_SETTING.getKey(), randomIntBetween(1, 10));
         if (randomBoolean()) {
             settingsBuilder.put(AzureRepository.Repository.BASE_PATH_SETTING.getKey(), randomFrom("test", "test/1"));
         }
@@ -249,6 +251,8 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
                 trackRequest("PutBlockList");
             } else if (Regex.simpleMatch("PUT /*/*", request)) {
                 trackRequest("PutBlob");
+            } else if (Regex.simpleMatch("POST /*/*?*comp=batch*", request)) {
+                trackRequest("BlobBatch");
             }
         }
 
@@ -279,10 +283,22 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
     }
 
     public void testDeleteBlobsIgnoringIfNotExists() throws Exception {
-        try (BlobStore store = newBlobStore()) {
+        // Test with a smaller batch size here
+        final int deleteBatchSize = randomIntBetween(1, 30);
+        final String repositoryName = randomRepositoryName();
+        createRepository(
+            repositoryName,
+            Settings.builder()
+                .put(repositorySettings(repositoryName))
+                .put(AzureRepository.Repository.DELETION_BATCH_SIZE_SETTING.getKey(), deleteBatchSize)
+                .build(),
+            true
+        );
+        try (BlobStore store = newBlobStore(repositoryName)) {
             final BlobContainer container = store.blobContainer(BlobPath.EMPTY);
-            List<String> blobsToDelete = new ArrayList<>();
-            for (int i = 0; i < 10; i++) {
+            final int toDeleteCount = randomIntBetween(deleteBatchSize, 3 * deleteBatchSize);
+            final List<String> blobsToDelete = new ArrayList<>();
+            for (int i = 0; i < toDeleteCount; i++) {
                 byte[] bytes = randomBytes(randomInt(100));
                 String blobName = randomAlphaOfLength(10);
                 container.writeBlob(randomPurpose(), blobName, new BytesArray(bytes), false);

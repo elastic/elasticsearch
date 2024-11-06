@@ -105,7 +105,7 @@ public class OpenJobPersistentTasksExecutorTests extends ESTestCase {
                     ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_THREAD_DUMP_TIMEOUT_SETTING,
                     MachineLearning.CONCURRENT_JOB_ALLOCATIONS,
                     MachineLearning.MAX_MACHINE_MEMORY_PERCENT,
-                    MachineLearning.MAX_LAZY_ML_NODES,
+                    MachineLearningField.MAX_LAZY_ML_NODES,
                     MachineLearning.MAX_ML_NODE_SIZE,
                     MachineLearning.MAX_OPEN_JOBS_PER_NODE,
                     MachineLearningField.USE_AUTO_MACHINE_MEMORY_PERCENT
@@ -155,7 +155,7 @@ public class OpenJobPersistentTasksExecutorTests extends ESTestCase {
 
     // An index being unavailable should take precedence over waiting for a lazy node
     public void testGetAssignment_GivenUnavailableIndicesWithLazyNode() {
-        Settings settings = Settings.builder().put(MachineLearning.MAX_LAZY_ML_NODES.getKey(), 1).build();
+        Settings settings = Settings.builder().put(MachineLearningField.MAX_LAZY_ML_NODES.getKey(), 1).build();
 
         ClusterState.Builder csBuilder = ClusterState.builder(new ClusterName("_name"));
         Metadata.Builder metadata = Metadata.builder();
@@ -177,7 +177,7 @@ public class OpenJobPersistentTasksExecutorTests extends ESTestCase {
     }
 
     public void testGetAssignment_GivenLazyJobAndNoGlobalLazyNodes() {
-        Settings settings = Settings.builder().put(MachineLearning.MAX_LAZY_ML_NODES.getKey(), 0).build();
+        Settings settings = Settings.builder().put(MachineLearningField.MAX_LAZY_ML_NODES.getKey(), 0).build();
         ClusterState.Builder csBuilder = ClusterState.builder(new ClusterName("_name"));
         Metadata.Builder metadata = Metadata.builder();
         RoutingTable.Builder routingTable = RoutingTable.builder();

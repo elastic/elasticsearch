@@ -264,9 +264,6 @@ tests:
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=ml/filter_crud/Test update filter}
   issue: https://github.com/elastic/elasticsearch/issues/116271
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {p0=aggregations/percentiles_hdr_metric/Negative values test}
-  issue: https://github.com/elastic/elasticsearch/issues/116276
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=ml/get_datafeeds/Test explicit get all datafeeds}
   issue: https://github.com/elastic/elasticsearch/issues/116284

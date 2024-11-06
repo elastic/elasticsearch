@@ -35,7 +35,6 @@ public interface RestRequestFilter {
     default RestRequest getFilteredRequest(RestRequest restRequest) {
         Set<String> fields = getFilteredFields();
         if (restRequest.hasContent() && fields.isEmpty() == false) {
-            BytesReference content = restRequest.requiredContent();
             return new RestRequest(restRequest) {
 
                 private BytesReference filteredBytes = null;
@@ -49,7 +48,7 @@ public interface RestRequestFilter {
                 public ReleasableBytesReference unsafeContent() {
                     if (filteredBytes == null) {
                         Tuple<XContentType, Map<String, Object>> result = XContentHelper.convertToMap(
-                            content,
+                            restRequest.requiredContent(),
                             true,
                             restRequest.getXContentType()
                         );

@@ -1763,7 +1763,6 @@ public class IndexNameExpressionResolver {
                     throw notFoundException(name);
                 }
             }
-
             // treat aliases as unavailable indices when ignoreAliases is set to true (e.g. delete index and update aliases api)
             if (indexAbstraction.getType() == Type.ALIAS && context.getOptions().ignoreAliases()) {
                 if (ignoreUnavailable) {

@@ -1,0 +1,5 @@
+pr: 116352
+summary: Add endpoint creation validation for `ElasticsearchInternalService`
+area: Machine Learning
+type: enhancement
+issues: []

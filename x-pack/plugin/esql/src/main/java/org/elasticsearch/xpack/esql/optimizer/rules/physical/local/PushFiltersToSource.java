@@ -56,7 +56,6 @@ import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.Predicate;
 
 import static java.util.Arrays.asList;
 import static org.elasticsearch.xpack.esql.core.expression.predicate.Predicates.splitAnd;
@@ -78,9 +77,7 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
         List<Expression> pushable = new ArrayList<>();
         List<Expression> nonPushable = new ArrayList<>();
         for (Expression exp : splitAnd(filterExec.condition())) {
-            Predicate<FieldAttribute> hasIdenticalDelegate = (fa) -> LucenePushDownUtils.hasIdenticalDelegate(fa, ctx.searchStats());
-            Predicate<FieldAttribute> isIndexed = (fa) -> ctx.searchStats().isIndexed(fa.name());
-            (canPushToSource(exp, hasIdenticalDelegate, isIndexed) ? pushable : nonPushable).add(exp);
+            (canPushToSource(exp, LucenePushdownPredicates.from(ctx.searchStats())) ? pushable : nonPushable).add(exp);
         }
         return rewrite(filterExec, queryExec, pushable, nonPushable, List.of());
     }
@@ -95,10 +92,8 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
         List<Expression> pushable = new ArrayList<>();
         List<Expression> nonPushable = new ArrayList<>();
         for (Expression exp : splitAnd(filterExec.condition())) {
-            Predicate<FieldAttribute> hasIdenticalDelegate = (fa) -> LucenePushDownUtils.hasIdenticalDelegate(fa, ctx.searchStats());
-            Predicate<FieldAttribute> isIndexed = (fa) -> ctx.searchStats().isIndexed(fa.name());
             Expression resExp = exp.transformUp(ReferenceAttribute.class, r -> aliasReplacedBy.resolve(r, r));
-            (canPushToSource(resExp, hasIdenticalDelegate, isIndexed) ? pushable : nonPushable).add(exp);
+            (canPushToSource(resExp, LucenePushdownPredicates.from(ctx.searchStats())) ? pushable : nonPushable).add(exp);
         }
         // Replace field references with their actual field attributes
         pushable.replaceAll(e -> e.transformDown(ReferenceAttribute.class, r -> aliasReplacedBy.resolve(r, r)));
@@ -224,32 +219,26 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
         return changed ? CollectionUtils.combine(others, bcs, ranges) : pushable;
     }
 
+    /**
+     * Check if the given expression can be pushed down to the source.
+     * This version of the check is called when we do not have SearchStats available, so assume no identical delegates
+     * and make the indexed/doc-values check using the isAggregatable flag only (has risks for indexed=false)
+     */
     public static boolean canPushToSource(Expression exp) {
-        // This version of the check is called from the LogicalOptimizer, which does not have access to the SearchStats or execution context
-        return canPushToSource(exp, fa -> false, fa -> fa.exactAttribute().field().isAggregatable());
+        return canPushToSource(exp, LucenePushdownPredicates.DEFAULT);
     }
 
-    public static boolean canPushToSource(Expression exp, Predicate<FieldAttribute> hasIdenticalDelegate) {
-        // This version of the check is called from the ComputeService, which assumed we have identical delegates
-        return canPushToSource(exp, hasIdenticalDelegate, fa -> fa.exactAttribute().field().isAggregatable());
-    }
-
-    public static boolean canPushToSource(
-        Expression exp,
-        Predicate<FieldAttribute> hasIdenticalDelegate,
-        Predicate<FieldAttribute> isIndexed
-    ) {
+    static boolean canPushToSource(Expression exp, LucenePushdownPredicates lucenePushdownPredicates) {
         if (exp instanceof BinaryComparison bc) {
-            return isAttributePushable(bc.left(), bc, hasIdenticalDelegate, isIndexed) && bc.right().foldable();
+            return isAttributePushable(bc.left(), bc, lucenePushdownPredicates) && bc.right().foldable();
         } else if (exp instanceof InsensitiveBinaryComparison bc) {
-            return isAttributePushable(bc.left(), bc, hasIdenticalDelegate, isIndexed) && bc.right().foldable();
+            return isAttributePushable(bc.left(), bc, lucenePushdownPredicates) && bc.right().foldable();
         } else if (exp instanceof BinaryLogic bl) {
-            return canPushToSource(bl.left(), hasIdenticalDelegate, isIndexed)
-                && canPushToSource(bl.right(), hasIdenticalDelegate, isIndexed);
+            return canPushToSource(bl.left(), lucenePushdownPredicates) && canPushToSource(bl.right(), lucenePushdownPredicates);
         } else if (exp instanceof In in) {
-            return isAttributePushable(in.value(), null, hasIdenticalDelegate, isIndexed) && Expressions.foldable(in.list());
+            return isAttributePushable(in.value(), null, lucenePushdownPredicates) && Expressions.foldable(in.list());
         } else if (exp instanceof Not not) {
-            return canPushToSource(not.field(), hasIdenticalDelegate, isIndexed);
+            return canPushToSource(not.field(), lucenePushdownPredicates);
         } else if (exp instanceof UnaryScalarFunction usf) {
             if (usf instanceof RegexMatch<?> || usf instanceof IsNull || usf instanceof IsNotNull) {
                 if (usf instanceof IsNull || usf instanceof IsNotNull) {
@@ -257,13 +246,13 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
                         return true;
                     }
                 }
-                return isAttributePushable(usf.field(), usf, hasIdenticalDelegate, isIndexed);
+                return isAttributePushable(usf.field(), usf, lucenePushdownPredicates);
             }
         } else if (exp instanceof CIDRMatch cidrMatch) {
-            return isAttributePushable(cidrMatch.ipField(), cidrMatch, hasIdenticalDelegate, isIndexed)
+            return isAttributePushable(cidrMatch.ipField(), cidrMatch, lucenePushdownPredicates)
                 && Expressions.foldable(cidrMatch.matches());
         } else if (exp instanceof SpatialRelatesFunction spatial) {
-            return canPushSpatialFunctionToSource(spatial, isIndexed);
+            return canPushSpatialFunctionToSource(spatial, lucenePushdownPredicates);
         } else if (exp instanceof MatchQueryPredicate mqp) {
             return mqp.field() instanceof FieldAttribute && DataType.isString(mqp.field().dataType());
         } else if (exp instanceof StringQueryPredicate) {
@@ -279,25 +268,24 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
     /**
      * Push-down to Lucene is only possible if one field is an indexed spatial field, and the other is a constant spatial or string column.
      */
-    public static boolean canPushSpatialFunctionToSource(BinarySpatialFunction s, Predicate<FieldAttribute> isIndexed) {
+    public static boolean canPushSpatialFunctionToSource(BinarySpatialFunction s, LucenePushdownPredicates lucenePushdownPredicates) {
         // The use of foldable here instead of SpatialEvaluatorFieldKey.isConstant is intentional to match the behavior of the
         // Lucene pushdown code in EsqlTranslationHandler::SpatialRelatesTranslator
         // We could enhance both places to support ReferenceAttributes that refer to constants, but that is a larger change
-        return isPushableSpatialAttribute(s.left(), isIndexed) && s.right().foldable()
-            || isPushableSpatialAttribute(s.right(), isIndexed) && s.left().foldable();
+        return isPushableSpatialAttribute(s.left(), lucenePushdownPredicates) && s.right().foldable()
+            || isPushableSpatialAttribute(s.right(), lucenePushdownPredicates) && s.left().foldable();
     }
 
-    private static boolean isPushableSpatialAttribute(Expression exp, Predicate<FieldAttribute> isIndexed) {
-        return exp instanceof FieldAttribute fa && DataType.isSpatial(fa.dataType()) && fa.getExactInfo().hasExact() && isIndexed.test(fa);
+    private static boolean isPushableSpatialAttribute(Expression exp, LucenePushdownPredicates p) {
+        return exp instanceof FieldAttribute fa && DataType.isSpatial(fa.dataType()) && fa.getExactInfo().hasExact() && p.isIndexed(fa);
     }
 
     private static boolean isAttributePushable(
         Expression expression,
         Expression operation,
-        Predicate<FieldAttribute> hasIdenticalDelegate,
-        Predicate<FieldAttribute> isIndexed
+        LucenePushdownPredicates lucenePushdownPredicates
     ) {
-        if (LucenePushDownUtils.isPushableFieldAttribute(expression, hasIdenticalDelegate, isIndexed)) {
+        if (LucenePushDownUtils.isPushableFieldAttribute(expression, lucenePushdownPredicates)) {
             return true;
         }
         if (expression instanceof MetadataAttribute ma && ma.searchable()) {

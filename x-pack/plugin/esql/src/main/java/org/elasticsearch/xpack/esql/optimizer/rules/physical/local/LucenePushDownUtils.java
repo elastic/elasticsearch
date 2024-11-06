@@ -10,15 +10,8 @@ package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.stats.SearchStats;
-
-import java.util.function.Predicate;
 
 class LucenePushDownUtils {
-    public static boolean hasIdenticalDelegate(FieldAttribute attr, SearchStats stats) {
-        return stats.hasIdenticalDelegate(attr.name());
-    }
-
     /**
      * We see fields as pushable if either they are aggregatable or they are indexed.
      * This covers non-indexed cases like <code>AbstractScriptFieldType</code> which hard-coded <code>isAggregatable</code> to true,
@@ -27,13 +20,10 @@ class LucenePushDownUtils {
      * also differ from node to node, and we can physically plan each node separately, allowing Lucene pushdown on the nodes that
      * support it, and relying on the compute engine for the nodes that do not.
      */
-    public static boolean isPushableFieldAttribute(
-        Expression exp,
-        Predicate<FieldAttribute> hasIdenticalDelegate,
-        Predicate<FieldAttribute> isIndexed
-    ) {
-        if (exp instanceof FieldAttribute fa && fa.getExactInfo().hasExact() && (fa.field().isAggregatable() || isIndexed.test(fa))) {
-            return (fa.dataType() != DataType.TEXT && fa.dataType() != DataType.SEMANTIC_TEXT) || hasIdenticalDelegate.test(fa);
+    public static boolean isPushableFieldAttribute(Expression exp, LucenePushdownPredicates lucenePushdownPredicates) {
+        if (exp instanceof FieldAttribute fa && fa.getExactInfo().hasExact() && lucenePushdownPredicates.isIndexedAndDocValues(fa)) {
+            return (fa.dataType() != DataType.TEXT && fa.dataType() != DataType.SEMANTIC_TEXT)
+                || lucenePushdownPredicates.hasIdenticalDelegate(fa);
         }
         return false;
     }

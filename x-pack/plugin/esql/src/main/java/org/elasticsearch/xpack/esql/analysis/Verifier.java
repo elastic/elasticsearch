@@ -664,7 +664,7 @@ public class Verifier {
                 }
             });
 
-            if (canPushToSource(condition, x -> false)) {
+            if (canPushToSource(condition)) {
                 return;
             }
             if (hasMatch.get()) {

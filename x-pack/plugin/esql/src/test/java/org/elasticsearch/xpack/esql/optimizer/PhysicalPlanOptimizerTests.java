@@ -2691,7 +2691,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 agg = as(exchange.child(), AggregateExec.class);
                 // below the exchange (in data node) the aggregation is using doc-values
                 assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, withDocValues);
-                assertChildIsGeoPointExtract(agg, withDocValues);
+                assertChildIsGeoPointExtract(withDocValues ? agg : as(agg.child(), FilterExec.class), withDocValues);
             }
         }
     }

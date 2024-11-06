@@ -16,7 +16,6 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -35,14 +34,12 @@ import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
-import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Predicate;
 
 import static org.elasticsearch.xpack.esql.core.expression.predicate.Predicates.splitAnd;
 import static org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushFiltersToSource.canPushSpatialFunctionToSource;
@@ -79,15 +76,15 @@ public class EnableSpatialDistancePushdown extends PhysicalOptimizerRules.Parame
     protected PhysicalPlan rule(FilterExec filterExec, LocalPhysicalOptimizerContext ctx) {
         PhysicalPlan plan = filterExec;
         if (filterExec.child() instanceof EsQueryExec esQueryExec) {
-            plan = rewrite(filterExec, esQueryExec);
+            plan = rewrite(filterExec, esQueryExec, LucenePushdownPredicates.from(ctx.searchStats()));
         } else if (filterExec.child() instanceof EvalExec evalExec && evalExec.child() instanceof EsQueryExec esQueryExec) {
-            plan = rewriteBySplittingFilter(filterExec, evalExec, esQueryExec, ctx.searchStats());
+            plan = rewriteBySplittingFilter(filterExec, evalExec, esQueryExec, LucenePushdownPredicates.from(ctx.searchStats()));
         }
 
         return plan;
     }
 
-    private FilterExec rewrite(FilterExec filterExec, EsQueryExec esQueryExec) {
+    private FilterExec rewrite(FilterExec filterExec, EsQueryExec esQueryExec, LucenePushdownPredicates lucenePushdownPredicates) {
         // Find and rewrite any binary comparisons that involve a distance function and a literal
         var rewritten = filterExec.condition().transformDown(EsqlBinaryComparison.class, comparison -> {
             ComparisonType comparisonType = ComparisonType.from(comparison.getFunctionType());
@@ -98,7 +95,7 @@ public class EnableSpatialDistancePushdown extends PhysicalOptimizerRules.Parame
             }
             return comparison;
         });
-        if (rewritten.equals(filterExec.condition()) == false && canPushToSource(rewritten, x -> false)) {
+        if (rewritten.equals(filterExec.condition()) == false && canPushToSource(rewritten, lucenePushdownPredicates)) {
             return new FilterExec(filterExec.source(), esQueryExec, rewritten);
         }
         return filterExec;
@@ -122,9 +119,14 @@ public class EnableSpatialDistancePushdown extends PhysicalOptimizerRules.Parame
      *     | WHERE other &gt; 10
      * </pre>
      */
-    private PhysicalPlan rewriteBySplittingFilter(FilterExec filterExec, EvalExec evalExec, EsQueryExec esQueryExec, SearchStats stats) {
+    private PhysicalPlan rewriteBySplittingFilter(
+        FilterExec filterExec,
+        EvalExec evalExec,
+        EsQueryExec esQueryExec,
+        LucenePushdownPredicates lucenePushdownPredicates
+    ) {
         // Find all pushable distance functions in the EVAL
-        Map<NameId, StDistance> distances = getPushableDistances(evalExec.fields(), stats);
+        Map<NameId, StDistance> distances = getPushableDistances(evalExec.fields(), lucenePushdownPredicates);
 
         // Don't do anything if there are no distances to push down
         if (distances.isEmpty()) {
@@ -142,7 +144,7 @@ public class EnableSpatialDistancePushdown extends PhysicalOptimizerRules.Parame
             // Find and rewrite any binary comparisons that involve a distance function and a literal
             var rewritten = rewriteDistanceFilters(resExp, distances);
             // If all pushable StDistance functions were found and re-written, we need to re-write the FILTER/EVAL combination
-            if (rewritten.equals(resExp) == false && canPushToSource(rewritten, x -> false)) {
+            if (rewritten.equals(resExp) == false && canPushToSource(rewritten, lucenePushdownPredicates)) {
                 pushable.add(rewritten);
             } else {
                 nonPushable.add(exp);
@@ -166,11 +168,10 @@ public class EnableSpatialDistancePushdown extends PhysicalOptimizerRules.Parame
         }
     }
 
-    private Map<NameId, StDistance> getPushableDistances(List<Alias> aliases, SearchStats stats) {
+    private Map<NameId, StDistance> getPushableDistances(List<Alias> aliases, LucenePushdownPredicates lucenePushdownPredicates) {
         Map<NameId, StDistance> distances = new LinkedHashMap<>();
-        Predicate<FieldAttribute> isIndexed = (fa) -> stats.isIndexed(fa.name());
         aliases.forEach(alias -> {
-            if (alias.child() instanceof StDistance distance && canPushSpatialFunctionToSource(distance, isIndexed)) {
+            if (alias.child() instanceof StDistance distance && canPushSpatialFunctionToSource(distance, lucenePushdownPredicates)) {
                 distances.put(alias.id(), distance);
             } else if (alias.child() instanceof ReferenceAttribute ref && distances.containsKey(ref.id())) {
                 StDistance distance = distances.get(ref.id());

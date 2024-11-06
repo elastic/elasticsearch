@@ -279,6 +279,37 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
         verify(rerouteService, times(1)).reroute(anyString(), any(), any());
     }
 
+    public void testLastUpdateIsApplied() throws Exception {
+        ClusterState state0 = ClusterState.builder(new ClusterName("test")).version(1000).build();
+        ClusterState state1 = ClusterState.builder(new ClusterName("test")).version(1001).build();
+        ClusterState state2 = ClusterState.builder(new ClusterName("test")).version(1002).build();
+        ReservedStateUpdateTask realTask = new ReservedStateUpdateTask(
+            "test",
+            null,
+            ReservedStateVersionCheck.HIGHER_VERSION_ONLY,
+            Map.of(),
+            Set.of(),
+            errorState -> fail("Unexpected error"),
+            ActionListener.noop()
+        );
+        ReservedStateUpdateTask task1 = spy(realTask);
+        doReturn(state1).when(task1).execute(any());
+        ReservedStateUpdateTask task2 = spy(realTask);
+        doReturn(state2).when(task2).execute(any());
+        RerouteService rerouteService = mock(RerouteService.class);
+        ReservedStateUpdateTaskExecutor taskExecutor = new ReservedStateUpdateTaskExecutor(rerouteService);
+        ClusterState newState = taskExecutor.execute(
+            new ClusterStateTaskExecutor.BatchExecutionContext<>(state0,
+                List.of(new TestTaskContext<>(task1), new TestTaskContext<>(task2)),
+                () -> null)
+        );
+
+        assertThat("State should be the final state", newState, sameInstance(state2));
+        // Only process the final task; the intermediate ones can be skipped
+        verify(task1, times(0)).execute(any());
+        verify(task2, times(1)).execute(any());
+    }
+
     public void testUpdateErrorState() {
         ClusterService clusterService = mock(ClusterService.class);
         ClusterState state = ClusterState.builder(new ClusterName("test")).build();
@@ -400,7 +431,7 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
         var chunk = new ReservedStateChunk(Map.of("one", "two", "maker", "three"), new ReservedStateVersion(2L, BuildVersion.current()));
         var orderedHandlers = List.of(exceptionThrower.name(), newStateMaker.name());
 
-        // We submit a task with two handler, one will cause an exception, the other will create a new state.
+        // We submit a task with two handlers, one will cause an exception, the other will create a new state.
         // When we fail to update the metadata because of version, we ensure that the returned state is equal to the
         // original state by pointer reference to avoid cluster state update task to run.
         ReservedStateUpdateTask task = new ReservedStateUpdateTask(

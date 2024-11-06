@@ -295,9 +295,9 @@ public class EsqlCapabilities {
         MV_PSERIES_WEIGHTED_SUM,
 
         /**
-         * Support for match operator
+         * Support for match operator as a colon. Previous support for match operator as MATCH has been removed
          */
-        MATCH_OPERATOR(Build.current().isSnapshot()),
+        MATCH_OPERATOR_COLON(Build.current().isSnapshot()),
 
         /**
          * Removing support for the {@code META} keyword.
@@ -433,6 +433,12 @@ public class EsqlCapabilities {
          * https://github.com/elastic/elasticsearch/issues/115281
          */
         FIX_FILTER_PUSHDOWN_PAST_STATS,
+
+        /**
+         * Send warnings on STATS alias collision
+         * https://github.com/elastic/elasticsearch/issues/114970
+         */
+        STATS_ALIAS_COLLISION_WARNINGS,
 
         /**
          * This enables 60_usage.yml "Basic ESQL usage....snapshot" version test. See also the next capability.

@@ -1178,6 +1178,7 @@ public class Security extends Plugin
         QueryableRolesProvider queryableRolesProvider = new QueryableReservedRolesProvider(reservedRolesStore); // TODO: Make this
                                                                                                                 // injectable
         QueryableRolesSynchronizationExecutor queryableRolesSynchronizationExecutor = new QueryableRolesSynchronizationExecutor(
+            clusterService,
             queryableRolesProvider,
             nativeRolesStore,
             systemIndices.getMainIndexManager(),

@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
@@ -18,9 +19,12 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.gateway.GatewayService;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.action.SetIndexMetadataPropertyAction;
@@ -43,68 +47,98 @@ import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SEC
 
 public class QueryableRolesSynchronizationExecutor implements ClusterStateListener {
 
+    public static final NodeFeature QUERYABLE_BUILT_IN_ROLES_FEATURE = new NodeFeature("security.queryable_built_in_roles");
+
     private static final String METADATA_INDEXED_BUILT_IN_ROLES = "indexed-built-in-roles";
 
     private static final Logger logger = LogManager.getLogger(QueryableRolesSynchronizationExecutor.class);
 
-    private final QueryableRolesProvider rolesProvider;
+    private final QueryableRolesProvider builtinRolesProvider;
     private final NativeRolesStore nativeRolesStore;
     private final SecurityIndexManager securityIndex;
     private final Client client;
     private final Executor executor;
-
-    private final AtomicBoolean rolesSynchronizationInProgress = new AtomicBoolean(false);
+    private final ClusterService clusterService;
+    private final AtomicBoolean synchronizationInProgress = new AtomicBoolean(false);
 
     public QueryableRolesSynchronizationExecutor(
+        ClusterService clusterService,
         QueryableRolesProvider rolesProvider,
         NativeRolesStore nativeRolesStore,
         SecurityIndexManager securityIndex,
         Client client,
         ThreadPool threadPool
     ) {
-        this.rolesProvider = rolesProvider;
+        this.clusterService = clusterService;
+        this.builtinRolesProvider = rolesProvider;
         this.nativeRolesStore = nativeRolesStore;
         this.securityIndex = securityIndex;
         this.client = client;
         this.executor = threadPool.generic();
     }
 
+    private boolean shouldSyncBuiltInRoles(ClusterState state) {
+        if (nativeRolesStore.isEnabled() == false) {
+            logger.info("Native role management is not enabled, skipping built-in roles synchronization");
+            return false;
+        }
+        if (false == state.clusterRecovered()) {
+            logger.info("Cluster state has not recovered yet, skipping built-in roles synchronization");
+            return false;
+        }
+        if (false == state.nodes().isLocalNodeElectedMaster()) {
+            logger.info("Local node is not the master, skipping built-in roles synchronization");
+            return false;
+        }
+        if (state.nodes().getDataNodes().isEmpty()) {
+            logger.info("No data nodes in the cluster, skipping built-in roles synchronization");
+            return false;
+        }
+        if (isMixedVersionCluster(state.nodes())) {
+            logger.info("Not all nodes are on the same version, skipping built-in roles synchronization");
+            return false;
+        }
+        if (state.clusterFeatures().clusterHasFeature(QUERYABLE_BUILT_IN_ROLES_FEATURE) == false) {
+            logger.info("Not all nodes support queryable built-in roles, skipping built-in roles synchronization");
+            return false;
+        }
+        return true;
+    }
+
+    private static boolean isMixedVersionCluster(DiscoveryNodes nodes) {
+        Version version = null;
+        for (DiscoveryNode node : nodes) {
+            if (version == null) {
+                version = node.getVersion();
+            } else if (version.equals(node.getVersion()) == false) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
-        if (nativeRolesStore.isEnabled() == false) {
-            // TODO: Should we even attempt to index builtin roles if native role management is not enabled?
-            return;
-        }
         final ClusterState state = event.state();
-        // cluster state has not recovered yet, nothing to do
-        if (state.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
-            return;
-        }
-        // only the master node should sync the roles
-        if (event.localNodeMaster() == false) {
-            return;
-        }
-        // no data nodes, hence no security index to sync to
-        if (state.nodes().getDataNodes().isEmpty()) {
+        if (false == shouldSyncBuiltInRoles(state)) {
             return;
         }
 
-        // TODO: Should we attempt to sync roles if we are in the mixed cluster?
-        final QueryableRoles roles = rolesProvider.roles();
+        final QueryableRoles roles = builtinRolesProvider.roles();
         final Map<String, String> indexedRolesVersions = readIndexedRolesVersion(state);
         if (roles.roleVersions().equals(indexedRolesVersions)) {
-            logger.info("Security index already contains the latest built-in roles indexed");
+            logger.info("Security index already contains the latest built-in roles indexed, skipping synchronization");
             return;
         } else {
             logger.info("indexed built-in roles {} do not match the latest built-in roles {}", indexedRolesVersions, roles.roleVersions());
         }
-        if (rolesSynchronizationInProgress.compareAndSet(false, true)) {
+        if (synchronizationInProgress.compareAndSet(false, true)) {
             executor.execute(() -> syncBuiltinRoles(indexedRolesVersions, roles, ActionListener.wrap(v -> {
                 logger.info("Successfully synced built-in roles to security index");
-                rolesSynchronizationInProgress.set(false);
+                synchronizationInProgress.set(false);
             }, e -> {
                 logger.warn("Failed to sync built-in roles to security index", e);
-                rolesSynchronizationInProgress.set(false);
+                synchronizationInProgress.set(false);
             })));
         }
     }

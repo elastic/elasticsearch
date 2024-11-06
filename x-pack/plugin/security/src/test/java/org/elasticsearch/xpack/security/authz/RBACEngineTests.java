@@ -1395,13 +1395,19 @@ public class RBACEngineTests extends ESTestCase {
 
         // ensure that all permissions are valid for the current transport version
         assertThat(
-            Arrays.asList(remoteClusterPermissions.privilegeNames("remote-1", TransportVersion.current())),
+            Arrays.asList(remoteClusterPermissions.collapseAndRemoveUnsupportedPrivileges("remote-1", TransportVersion.current())),
             hasItem("monitor_enrich")
         );
 
         for (String permission : RemoteClusterPermissions.getSupportedRemoteClusterPermissions()) {
-            assertThat(Arrays.asList(remoteClusterPermissions.privilegeNames("remote-2", TransportVersion.current())), hasItem(permission));
-            assertThat(Arrays.asList(remoteClusterPermissions.privilegeNames("remote-3", TransportVersion.current())), hasItem(permission));
+            assertThat(
+                Arrays.asList(remoteClusterPermissions.collapseAndRemoveUnsupportedPrivileges("remote-2", TransportVersion.current())),
+                hasItem(permission)
+            );
+            assertThat(
+                Arrays.asList(remoteClusterPermissions.collapseAndRemoveUnsupportedPrivileges("remote-3", TransportVersion.current())),
+                hasItem(permission)
+            );
         }
     }
 

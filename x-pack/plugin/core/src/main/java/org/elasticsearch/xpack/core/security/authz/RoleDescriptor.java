@@ -845,7 +845,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
                             currentFieldName,
                             Arrays.toString(privileges)
                         );
-                        logger.warn(message);
+                        logger.info(message);
                         throw new ElasticsearchParseException(message);
                     }
                 } else if (Fields.CLUSTERS.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -857,7 +857,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
                         roleName,
                         currentFieldName
                     );
-                    logger.warn(message);
+                    logger.info(message);
                     throw new ElasticsearchParseException(message);
                 }
             }

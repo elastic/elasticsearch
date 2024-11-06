@@ -95,7 +95,7 @@ public class RemoteClusterPermissionsTests extends AbstractXContentSerializingTe
         }
     }
 
-    public void testPrivilegeNames() {
+    public void testCollapseAndRemoveUnsupportedPrivileges() {
         Map<TransportVersion, Set<String>> original = RemoteClusterPermissions.allowedRemoteClusterPermissions;
         try {
             // create random groups with random privileges for random clusters
@@ -112,7 +112,7 @@ public class RemoteClusterPermissionsTests extends AbstractXContentSerializingTe
                 String[] privileges = groupPrivileges.get(i);
                 String[] clusters = groupClusters.get(i);
                 for (String cluster : clusters) {
-                    String[] found = remoteClusterPermission.privilegeNames(cluster, TransportVersion.current());
+                    String[] found = remoteClusterPermission.collapseAndRemoveUnsupportedPrivileges(cluster, TransportVersion.current());
                     Arrays.sort(found);
                     // ensure all lowercase since the privilege names are case insensitive and the method will result in lowercase
                     for (int j = 0; j < privileges.length; j++) {
@@ -137,7 +137,7 @@ public class RemoteClusterPermissionsTests extends AbstractXContentSerializingTe
             String[] privileges = groupPrivileges.get(i);
             String[] clusters = groupClusters.get(i);
             for (String cluster : clusters) {
-                String[] found = remoteClusterPermission.privilegeNames(cluster, TransportVersion.current());
+                String[] found = remoteClusterPermission.collapseAndRemoveUnsupportedPrivileges(cluster, TransportVersion.current());
                 Arrays.sort(found);
                 // ensure all lowercase since the privilege names are case insensitive and the method will result in lowercase
                 for (int j = 0; j < privileges.length; j++) {
@@ -173,15 +173,15 @@ public class RemoteClusterPermissionsTests extends AbstractXContentSerializingTe
         // test permission before, after and on the version
         String[] privileges = randomBoolean() ? new String[] { permission } : new String[] { permission, "foo", "bar" };
         String[] before = new RemoteClusterPermissions().addGroup(new RemoteClusterPermissionGroup(privileges, new String[] { "*" }))
-            .privilegeNames("*", TransportVersionUtils.getPreviousVersion(version));
+            .collapseAndRemoveUnsupportedPrivileges("*", TransportVersionUtils.getPreviousVersion(version));
         // empty set since permissions is not allowed in the before version
         assertThat(Set.of(before), equalTo(Collections.emptySet()));
         String[] on = new RemoteClusterPermissions().addGroup(new RemoteClusterPermissionGroup(privileges, new String[] { "*" }))
-            .privilegeNames("*", version);
+            .collapseAndRemoveUnsupportedPrivileges("*", version);
         // the permission is found on that provided version
         assertThat(Set.of(on), equalTo(Set.of(permission)));
         String[] after = new RemoteClusterPermissions().addGroup(new RemoteClusterPermissionGroup(privileges, new String[] { "*" }))
-            .privilegeNames("*", TransportVersion.current());
+            .collapseAndRemoveUnsupportedPrivileges("*", TransportVersion.current());
         // current version (after the version) has the permission
         assertThat(Set.of(after), equalTo(Set.of(permission)));
     }

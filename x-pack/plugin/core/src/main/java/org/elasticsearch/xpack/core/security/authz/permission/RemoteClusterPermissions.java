@@ -36,10 +36,12 @@ import static org.elasticsearch.TransportVersions.ROLE_MONITOR_STATS;
 
 /**
  * Represents the set of permissions for remote clusters. This is intended to be the model for both the {@link RoleDescriptor}
- * and {@link Role}. This model is not intended to support RCS 2.0 where these remote cluster permissions are converted to local cluster
- * permissions {@link #privilegeNames(String, TransportVersion)} ) before sent to the remote cluster. This model also supports RCS 1.0 where
- * these permissions are sent to the remote API keys {@link #toMap()}. In both cases the outbound transport version will be used to
- * remove permissions that are not available to elder remote clusters.
+ * and {@link Role}. This model is intended to be converted to local cluster permissions
+ * {@link #collapseAndRemoveUnsupportedPrivileges(String, TransportVersion)} before sent to the remote cluster. This model also be included
+ * in the role descriptors for (normal) API keys sent between nodes/clusters. In both cases the outbound transport version can be used to
+ * remove permissions that are not available to older nodes or clusters. The methods {@link #removeUnsupportedPrivileges(TransportVersion)}
+ * and {@link #collapseAndRemoveUnsupportedPrivileges(String, TransportVersion)} are used to aid in ensuring correct privileges per
+ * transport version.
  * For example, on the local/querying cluster this model represents the following:
  * <code>
  * "remote_cluster" : [
@@ -63,8 +65,8 @@ import static org.elasticsearch.TransportVersions.ROLE_MONITOR_STATS;
  * <code>
  *   "cluster": ["bar"]
  * </code>
- * (RCS 1.0 and RCS 2.0) If the remote cluster does not support the privilege, as determined by the remote cluster version,
- * the privilege will be not be sent. Upstream code performs the removal, but this class owns the business logic for how to remove.
+ * For normal API keys and their role descriptors :If the remote cluster does not support the privilege, the privilege will be not be sent.
+ * Upstream code performs the removal, but this class owns the business logic for how to remove per outbound version.
  */
 public class RemoteClusterPermissions implements NamedWriteable, ToXContentObject {
 
@@ -115,7 +117,9 @@ public class RemoteClusterPermissions implements NamedWriteable, ToXContentObjec
 
     /**
      * Will remove any unsupported privileges for the provided outbound version. This method will not modify the current instance.
-     * This is useful for RCS 1.0 and API keys to help ensure that we don't send unsupported privileges to the remote cluster.
+     * This is useful for (normal) API keys role descriptors to help ensure that we don't send unsupported privileges. The result of
+     * this method may result in no groups if all privileges are removed. {@link #hasPrivileges()} can be used to check if there are
+     * any privileges left.
      * @param outboundVersion The version by which to remove unsupported privileges, this is typically the version of the remote cluster
      * @return a new instance of RemoteClusterPermissions with the unsupported privileges removed
      */
@@ -166,7 +170,7 @@ public class RemoteClusterPermissions implements NamedWriteable, ToXContentObjec
      * and will only return the appropriate privileges for the provided remote cluster version. This is useful for RCS 2.0 to ensure
      * that we properly convert all the remote_cluster -> cluster privileges per remote cluster.
      */
-    public String[] privilegeNames(final String remoteClusterAlias, TransportVersion remoteClusterVersion) {
+    public String[] collapseAndRemoveUnsupportedPrivileges(final String remoteClusterAlias, TransportVersion outboundVersion) {
 
         // get all privileges for the remote cluster
         Set<String> groupPrivileges = remoteClusterPermissionGroups.stream()
@@ -177,7 +181,7 @@ public class RemoteClusterPermissions implements NamedWriteable, ToXContentObjec
             .collect(Collectors.toSet());
 
         // find all the privileges that are allowed for the remote cluster version
-        Set<String> allowedPermissionsPerVersion = getAllowedPermissionsPerVersion(remoteClusterVersion);
+        Set<String> allowedPermissionsPerVersion = getAllowedPermissionsPerVersion(outboundVersion);
 
         // intersect the two sets to get the allowed privileges for the remote cluster version
         Set<String> allowedPrivileges = new HashSet<>(groupPrivileges);

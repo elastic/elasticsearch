@@ -60,7 +60,6 @@ import org.apache.lucene.search.suggest.document.CompletionPostingsFormat;
 import org.apache.lucene.search.suggest.document.SuggestField;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
-import org.apache.lucene.store.IOContext;
 import org.apache.lucene.tests.geo.GeoTestUtil;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.BitSetIterator;
@@ -688,7 +687,7 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
         final String[] files;
         final Directory directory;
         if (sis.getUseCompoundFile()) {
-            directory = sis.getCodec().compoundFormat().getCompoundReader(reader.directory(), sis, IOContext.DEFAULT);
+            directory = sis.getCodec().compoundFormat().getCompoundReader(reader.directory(), sis);
             files = directory.listAll();
         } else {
             directory = reader.directory();

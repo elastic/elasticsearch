@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.OperationRouting;
@@ -128,7 +129,7 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
     protected void resolveRequest(ClusterState state, InternalRequest request) {
         // update the routing (request#index here is possibly an alias)
         request.request()
-            .routing(state.metadata().getProject().resolveIndexRouting(request.request().routing(), request.request().index()));
+            .routing(projectResolver.getProjectMetadata(state).resolveIndexRouting(request.request().routing(), request.request().index()));
     }
 
     @Override
@@ -181,7 +182,7 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
     @Override
     protected Executor getExecutor(GetRequest request, ShardId shardId) {
         final ClusterState clusterState = clusterService.state();
-        if (clusterState.metadata().getProject().getIndexSafe(shardId.getIndex()).isSystem()) {
+        if (projectResolver.getProjectMetadata(clusterState).getIndexSafe(shardId.getIndex()).isSystem()) {
             return threadPool.executor(executorSelector.executorForGet(shardId.getIndexName()));
         } else if (indicesService.indexServiceSafe(shardId.getIndex()).getIndexSettings().isSearchThrottled()) {
             return threadPool.executor(ThreadPool.Names.SEARCH_THROTTLED);
@@ -224,7 +225,7 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
                 logger,
                 threadPool.getThreadContext()
             );
-            getFromTranslog(request, indexShard, state, observer, listener);
+            getFromTranslog(request, indexShard, projectResolver.getProjectState(state), observer, listener);
         } else {
             // A non-real-time get with no explicit refresh requested.
             super.asyncShardOperation(request, shardId, listener);
@@ -234,7 +235,7 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
     private void getFromTranslog(
         GetRequest request,
         IndexShard indexShard,
-        ClusterState state,
+        ProjectState state,
         ClusterStateObserver observer,
         ActionListener<GetResponse> listener
     ) {
@@ -245,6 +246,7 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
             listener.onFailure(e);
             return;
         }
+        ProjectId projectId = state.projectId();
         final var retryingListener = listener.delegateResponse((l, e) -> {
             final var cause = ExceptionsHelper.unwrapCause(e);
             logger.debug("get_from_translog failed", cause);
@@ -253,7 +255,7 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
                 observer.waitForNextChange(new ClusterStateObserver.Listener() {
                     @Override
                     public void onNewClusterState(ClusterState state) {
-                        getFromTranslog(request, indexShard, state, observer, l);
+                        getFromTranslog(request, indexShard, state.projectState(projectId), observer, l);
                     }
 
                     @Override
@@ -308,12 +310,12 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
         );
     }
 
-    static DiscoveryNode getCurrentNodeOfPrimary(ClusterState clusterState, ShardId shardId) {
+    static DiscoveryNode getCurrentNodeOfPrimary(ProjectState clusterState, ShardId shardId) {
         final var primaryShard = clusterState.routingTable().shardRoutingTable(shardId).primaryShard();
         if (primaryShard.active() == false) {
             throw new NoShardAvailableActionException(shardId, "primary shard is not active");
         }
-        DiscoveryNode node = clusterState.nodes().get(primaryShard.currentNodeId());
+        DiscoveryNode node = clusterState.cluster().nodes().get(primaryShard.currentNodeId());
         assert node != null;
         return node;
     }

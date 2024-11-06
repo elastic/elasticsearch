@@ -27,6 +27,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
 
+import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.is;
 
 public class IndexDocumentMultiProjectIT extends ESRestTestCase {
@@ -65,7 +66,7 @@ public class IndexDocumentMultiProjectIT extends ESRestTestCase {
             createProject(p);
         }
 
-        String indexName = "testindex" + testNameRule.getMethodName().toLowerCase(Locale.ROOT);
+        String indexName = testNameRule.getMethodName().toLowerCase(Locale.ROOT);
 
         for (String p : projects) {
             Request putIndexRequest = new Request("PUT", "/" + indexName + "?wait_for_active_shards=all&master_timeout=999s&timeout=999s");
@@ -87,7 +88,7 @@ public class IndexDocumentMultiProjectIT extends ESRestTestCase {
         }
 
         for (String p : projects) {
-            Request indexDocumentRequest = new Request("POST", "/" + indexName + "/_doc");
+            Request indexDocumentRequest = new Request("PUT", "/" + indexName + "/_doc/0");
             setRequestProjectId(indexDocumentRequest, p);
             indexDocumentRequest.setJsonEntity(Strings.format("""
                 {
@@ -96,6 +97,15 @@ public class IndexDocumentMultiProjectIT extends ESRestTestCase {
                 """, p));
             Response indexDocumentResponse = client().performRequest(indexDocumentRequest);
             assertOK(indexDocumentResponse);
+        }
+
+        for (String p : projects) {
+            Request indexDocumentRequest = new Request("GET", "/" + indexName + "/_source/0");
+            setRequestProjectId(indexDocumentRequest, p);
+            Response indexDocumentResponse = client().performRequest(indexDocumentRequest);
+            assertOK(indexDocumentResponse);
+            var response = responseAsMap(indexDocumentResponse);
+            assertThat(response, hasEntry("index-field", p + "-doc"));
         }
     }
 

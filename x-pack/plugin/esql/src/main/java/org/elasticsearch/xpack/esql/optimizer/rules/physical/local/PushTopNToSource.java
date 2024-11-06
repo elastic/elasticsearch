@@ -31,8 +31,6 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 
-import static org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushDownUtils.isPushableFieldAttribute;
-
 /**
  * We handle two main scenarios here:
  * <ol>
@@ -149,7 +147,7 @@ public class PushTopNToSource extends PhysicalOptimizerRules.ParameterizedOptimi
 
             List<EsQueryExec.Sort> pushableSorts = new ArrayList<>();
             for (Order order : orders) {
-                if (isPushableFieldAttribute(order.child(), lucenePushdownPredicates)) {
+                if (lucenePushdownPredicates.isPushableFieldAttribute(order.child())) {
                     pushableSorts.add(
                         new EsQueryExec.FieldSort(
                             ((FieldAttribute) order.child()).exactAttribute(),
@@ -170,7 +168,7 @@ public class PushTopNToSource extends PhysicalOptimizerRules.ParameterizedOptimi
                             break;
                         }
                     } else if (aliasReplacedBy.resolve(referenceAttribute, referenceAttribute) instanceof FieldAttribute fieldAttribute
-                        && isPushableFieldAttribute(fieldAttribute, lucenePushdownPredicates)) {
+                        && lucenePushdownPredicates.isPushableFieldAttribute(fieldAttribute)) {
                             // If the SORT refers to a reference to a pushable field, we can push it down
                             pushableSorts.add(
                                 new EsQueryExec.FieldSort(fieldAttribute.exactAttribute(), order.direction(), order.nullsPosition())
@@ -194,7 +192,7 @@ public class PushTopNToSource extends PhysicalOptimizerRules.ParameterizedOptimi
 
     private static boolean canPushDownOrders(List<Order> orders, LucenePushdownPredicates lucenePushdownPredicates) {
         // allow only exact FieldAttributes (no expressions) for sorting
-        return orders.stream().allMatch(o -> isPushableFieldAttribute(o.child(), lucenePushdownPredicates));
+        return orders.stream().allMatch(o -> lucenePushdownPredicates.isPushableFieldAttribute(o.child()));
     }
 
     private static List<EsQueryExec.Sort> buildFieldSorts(List<Order> orders) {

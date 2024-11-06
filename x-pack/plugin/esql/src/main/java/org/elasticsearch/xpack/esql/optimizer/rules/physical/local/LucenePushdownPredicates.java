@@ -7,7 +7,9 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 /**
@@ -42,6 +44,26 @@ public interface LucenePushdownPredicates {
      */
     boolean isIndexed(FieldAttribute attr);
 
+    /**
+     * We see fields as pushable if either they are aggregatable or they are indexed.
+     * This covers non-indexed cases like <code>AbstractScriptFieldType</code> which hard-coded <code>isAggregatable</code> to true,
+     * as well as normal <code>FieldAttribute</code>'s which can only be pushed down if they are indexed.
+     * The reason we don't just rely entirely on <code>isAggregatable</code> is because this is often false for normal fields, and could
+     * also differ from node to node, and we can physically plan each node separately, allowing Lucene pushdown on the nodes that
+     * support it, and relying on the compute engine for the nodes that do not.
+     */
+    default boolean isPushableFieldAttribute(Expression exp) {
+        if (exp instanceof FieldAttribute fa && fa.getExactInfo().hasExact() && isIndexedAndDocValues(fa)) {
+            return (fa.dataType() != DataType.TEXT && fa.dataType() != DataType.SEMANTIC_TEXT) || hasIdenticalDelegate(fa);
+        }
+        return false;
+    }
+
+    /**
+     * The default implementation of this has no access to SearchStats, so it can only make decisions based on the FieldAttribute itself.
+     * In particular, it assumes TEXT fields have no identical delegate (underlying keyword field),
+     * and that isAggregatable means indexed and has hasDocValues.
+     */
     LucenePushdownPredicates DEFAULT = new LucenePushdownPredicates() {
         @Override
         public boolean hasIdenticalDelegate(FieldAttribute attr) {
@@ -61,6 +83,10 @@ public interface LucenePushdownPredicates {
         }
     };
 
+    /**
+     * If we have access to SearchStats over a collection of shards, we can make more fine-grained decisions about what can be pushed down.
+     * This should open up more opportunities for pushdown.
+     */
     static LucenePushdownPredicates from(SearchStats stats) {
         return new LucenePushdownPredicates() {
             @Override

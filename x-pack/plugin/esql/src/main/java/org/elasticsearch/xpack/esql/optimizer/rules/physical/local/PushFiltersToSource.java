@@ -282,7 +282,7 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
         Expression operation,
         LucenePushdownPredicates lucenePushdownPredicates
     ) {
-        if (LucenePushDownUtils.isPushableFieldAttribute(expression, lucenePushdownPredicates)) {
+        if (lucenePushdownPredicates.isPushableFieldAttribute(expression)) {
             return true;
         }
         if (expression instanceof MetadataAttribute ma && ma.searchable()) {

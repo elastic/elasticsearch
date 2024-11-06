@@ -52,8 +52,6 @@ import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.IOUtils;
@@ -79,7 +77,6 @@ import java.util.Set;
 import static org.hamcrest.Matchers.equalTo;
 
 public class LuceneTests extends ESTestCase {
-    private static final NamedWriteableRegistry EMPTY_REGISTRY = new NamedWriteableRegistry(Collections.emptyList());
 
     public void testCleanIndex() throws IOException {
         MockDirectoryWrapper dir = newMockDirectory();
@@ -556,7 +553,6 @@ public class LuceneTests extends ESTestCase {
         Tuple<SortField, SortField> sortFieldTuple = randomSortField();
         SortField deserialized = copyInstance(
             sortFieldTuple.v1(),
-            EMPTY_REGISTRY,
             Lucene::writeSortField,
             Lucene::readSortField,
             TransportVersionUtils.randomVersion(random())
@@ -568,7 +564,6 @@ public class LuceneTests extends ESTestCase {
         Object sortValue = randomSortValue();
         Object deserialized = copyInstance(
             sortValue,
-            EMPTY_REGISTRY,
             Lucene::writeSortValue,
             Lucene::readSortValue,
             TransportVersionUtils.randomVersion(random())
@@ -576,17 +571,12 @@ public class LuceneTests extends ESTestCase {
         assertEquals(sortValue, deserialized);
     }
 
-    private static <T> T copyInstance(
-        T original,
-        NamedWriteableRegistry namedWriteableRegistry,
-        Writeable.Writer<T> writer,
-        Writeable.Reader<T> reader,
-        TransportVersion version
-    ) throws IOException {
+    private static <T> T copyInstance(T original, Writeable.Writer<T> writer, Writeable.Reader<T> reader, TransportVersion version)
+        throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             output.setTransportVersion(version);
             writer.write(output, original);
-            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
+            try (StreamInput in = output.bytes().streamInput()) {
                 in.setTransportVersion(version);
                 return reader.read(in);
             }

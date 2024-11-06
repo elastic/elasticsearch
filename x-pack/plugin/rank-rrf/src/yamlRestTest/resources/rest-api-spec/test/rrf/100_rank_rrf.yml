@@ -288,3 +288,22 @@ setup:
               rank_window_size: 10
               rank_constant: 0.3
           size: 10
+
+---
+"RRF rank should fail if we specify both rank and retriever":
+  - do:
+      catch: "/Cannot specify both \\[rank\\] and \\[retriever\\]./"
+      search:
+        index: test
+        body:
+          track_total_hits: true
+          fields: [ "text", "keyword" ]
+          retriever:
+            standard:
+              query:
+                match_all: {}
+          rank:
+            rrf:
+              rank_window_size: 10
+              rank_constant: 10
+          size: 10

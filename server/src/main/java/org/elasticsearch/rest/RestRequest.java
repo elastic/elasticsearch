@@ -302,15 +302,15 @@ public class RestRequest implements ToXContent.Params, Traceable {
      * Returns a copy of HTTP content. The copy is GC-managed and does not require reference counting.
      * Please use {@link #retainedContent()} to avoid content copy.
      */
-    public BytesReference copyContent() {
-        return BytesReference.copyBytes(content());
+    public BytesReference content() {
+        return BytesReference.copyBytes(unsafeContent());
     }
 
     /**
      * Returns a reference to the network buffer of HTTP content. To retain content please use {@link #retainedContent()}
      * or increment reference count.
      */
-    public ReleasableBytesReference content() {
+    public ReleasableBytesReference unsafeContent() {
         this.contentConsumed = true;
         var bytes = httpRequest.body().asFull().bytes();
         assert bytes.hasReferences() : "cannot access http content, ref count reached 0";
@@ -323,7 +323,7 @@ public class RestRequest implements ToXContent.Params, Traceable {
      * HTTP content without copying it.
      */
     public ReleasableBytesReference retainedContent() {
-        var bytes = content();
+        var bytes = unsafeContent();
         bytes.retain();
         return bytes;
     }
@@ -353,11 +353,11 @@ public class RestRequest implements ToXContent.Params, Traceable {
 
     /**
      * @return copy of the request body or throw an exception if the body or content type is missing.
-     * See {@link #copyContent()}. Please use {@link #tryRetainedContent()} to avoid content copy.
+     * See {@link #content()}. Please use {@link #tryRetainedContent()} to avoid content copy.
      */
-    public final BytesReference tryCopyContent() {
+    public final BytesReference requiredContent() {
         ensureContent();
-        return copyContent();
+        return content();
     }
 
     /**
@@ -571,7 +571,7 @@ public class RestRequest implements ToXContent.Params, Traceable {
      * {@link #contentOrSourceParamParser()} for requests that support specifying the request body in the {@code source} param.
      */
     public final XContentParser contentParser() throws IOException {
-        BytesReference content = tryCopyContent(); // will throw exception if body or content type missing
+        BytesReference content = requiredContent(); // will throw exception if body or content type missing
         return XContentHelper.createParserNotCompressed(parserConfig, content, xContentType.get());
 
     }
@@ -629,7 +629,7 @@ public class RestRequest implements ToXContent.Params, Traceable {
         if (hasContentOrSourceParam() == false) {
             throw new ElasticsearchParseException("request body or source parameter is required");
         } else if (hasContent()) {
-            return new Tuple<>(xContentType.get(), tryCopyContent());
+            return new Tuple<>(xContentType.get(), requiredContent());
         }
         String source = param("source");
         String typeParam = param("source_content_type");

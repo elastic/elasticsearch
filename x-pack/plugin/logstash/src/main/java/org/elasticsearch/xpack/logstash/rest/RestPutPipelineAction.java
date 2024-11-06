@@ -47,7 +47,7 @@ public class RestPutPipelineAction extends BaseRestHandler {
             // parse pipeline for validation
             Pipeline.PARSER.apply(parser, id);
         }
-        final String content = request.content().utf8ToString();
+        final String content = request.unsafeContent().utf8ToString();
         return restChannel -> client.execute(
             PutPipelineAction.INSTANCE,
             new PutPipelineRequest(id, content, request.getXContentType()),

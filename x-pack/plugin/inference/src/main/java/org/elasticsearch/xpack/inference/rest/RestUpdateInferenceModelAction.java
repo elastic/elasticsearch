@@ -52,7 +52,7 @@ public class RestUpdateInferenceModelAction extends BaseRestHandler {
 
         var request = new UpdateInferenceModelAction.Request(
             inferenceEntityId,
-            restRequest.tryCopyContent(),
+            restRequest.requiredContent(),
             restRequest.getXContentType(),
             taskType,
             RestUtils.getMasterNodeTimeout(restRequest)

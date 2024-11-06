@@ -65,7 +65,7 @@ public class RestNoopBulkAction extends BaseRestHandler {
         bulkRequest.timeout(request.paramAsTime("timeout", BulkShardRequest.DEFAULT_TIMEOUT));
         bulkRequest.setRefreshPolicy(request.param("refresh"));
         bulkRequest.add(
-            request.tryCopyContent(),
+            request.requiredContent(),
             defaultIndex,
             defaultRouting,
             null,

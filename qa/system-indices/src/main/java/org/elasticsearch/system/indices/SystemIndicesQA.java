@@ -178,7 +178,7 @@ public class SystemIndicesQA extends Plugin implements SystemIndexPlugin, Action
         @Override
         protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
             IndexRequest indexRequest = new IndexRequest(".net-new-system-index-primary");
-            indexRequest.source(request.tryCopyContent(), request.getXContentType());
+            indexRequest.source(request.requiredContent(), request.getXContentType());
             indexRequest.id(request.param("id"));
             indexRequest.setRefreshPolicy(request.param("refresh"));
 

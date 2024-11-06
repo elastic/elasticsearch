@@ -63,7 +63,7 @@ public class WaitUntilTimeSeriesEndTimePassesStepTests extends AbstractStepTestC
             dataStreamName,
             List.of(Tuple.tuple(start1, end1), Tuple.tuple(start2, end2))
         );
-        DataStream dataStream = clusterState.getMetadata().dataStreams().get(dataStreamName);
+        DataStream dataStream = clusterState.getMetadata().getProject().dataStreams().get(dataStreamName);
 
         WaitUntilTimeSeriesEndTimePassesStep step = new WaitUntilTimeSeriesEndTimePassesStep(
             randomStepKey(),

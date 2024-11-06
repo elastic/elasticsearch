@@ -38,6 +38,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
@@ -46,7 +47,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MapperException;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.indices.SystemIndices;
+import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
@@ -1079,7 +1080,7 @@ public class BulkOperationTests extends ESTestCase {
 
         // Expressions
         ThreadContext ctx = threadPool.getThreadContext();
-        IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver(ctx, new SystemIndices(List.of()));
+        IndexNameExpressionResolver indexNameExpressionResolver = TestIndexNameExpressionResolver.newInstance(ctx);
 
         // Mocks
         final DiscoveryNode mockNode = mock(DiscoveryNode.class);
@@ -1097,6 +1098,7 @@ public class BulkOperationTests extends ESTestCase {
             client,
             existingResponses,
             indexNameExpressionResolver,
+            TestProjectResolvers.usingRequestHeader(ctx),
             () -> endTime,
             timeZero,
             listener,

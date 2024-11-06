@@ -39,6 +39,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetadataDataStreamsService;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionMultiListener;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -169,7 +170,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
     ) throws Exception {
 
         assert task instanceof CancellableTask;
-        Metadata metadata = clusterState.metadata();
+        ProjectMetadata projectMetadata = clusterState.metadata().getProject();
         // We evaluate the names of the index for which we should evaluate conditions, as well as what our newly created index *would* be.
         boolean targetFailureStore = rolloverRequest.targetsFailureStore();
         final MetadataRolloverService.NameResolution trialRolloverNames = MetadataRolloverService.resolveRolloverNames(
@@ -181,9 +182,9 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         );
         final String trialSourceIndexName = trialRolloverNames.sourceName();
         final String trialRolloverIndexName = trialRolloverNames.rolloverName();
-        MetadataCreateIndexService.validateIndexName(trialRolloverIndexName, metadata, clusterState.routingTable());
+        MetadataCreateIndexService.validateIndexName(trialRolloverIndexName, projectMetadata, clusterState.routingTable());
 
-        boolean isDataStream = metadata.dataStreams().containsKey(rolloverRequest.getRolloverTarget());
+        boolean isDataStream = projectMetadata.dataStreams().containsKey(rolloverRequest.getRolloverTarget());
         if (rolloverRequest.isLazy()) {
             if (isDataStream == false || rolloverRequest.getConditions().hasConditions()) {
                 String message;
@@ -224,6 +225,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         }
 
         final IndexAbstraction rolloverTargetAbstraction = clusterState.metadata()
+            .getProject()
             .getIndicesLookup()
             .get(rolloverRequest.getRolloverTarget());
         if (rolloverTargetAbstraction.getType() == IndexAbstraction.Type.ALIAS && rolloverTargetAbstraction.isDataStreamRelated()) {
@@ -267,6 +269,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
 
                 AutoShardingResult rolloverAutoSharding = null;
                 final IndexAbstraction indexAbstraction = clusterState.metadata()
+                    .getProject()
                     .getIndicesLookup()
                     .get(rolloverRequest.getRolloverTarget());
                 if (indexAbstraction.getType().equals(IndexAbstraction.Type.DATA_STREAM)) {
@@ -307,7 +310,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                 // Evaluate the conditions, so that we can tell without a cluster state update whether a rollover would occur.
                 final Map<String, Boolean> trialConditionResults = evaluateConditions(
                     rolloverRequest.getConditionValues(),
-                    buildStats(metadata.index(trialSourceIndexName), statsResponse)
+                    buildStats(projectMetadata.index(trialSourceIndexName), statsResponse)
                 );
 
                 final RolloverResponse trialRolloverResponse = new RolloverResponse(
@@ -503,7 +506,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
             );
 
             // Re-evaluate the conditions, now with our final source index name
-            IndexMetadata rolloverSourceIndex = currentState.metadata().index(rolloverNames.sourceName());
+            IndexMetadata rolloverSourceIndex = currentState.metadata().getProject().index(rolloverNames.sourceName());
             final Map<String, Boolean> postConditionResults = evaluateConditions(
                 rolloverRequest.getConditionValues(),
                 buildStats(rolloverSourceIndex, rolloverTask.statsResponse())
@@ -531,6 +534,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                     .toList();
 
                 final IndexAbstraction rolloverTargetAbstraction = currentState.metadata()
+                    .getProject()
                     .getIndicesLookup()
                     .get(rolloverRequest.getRolloverTarget());
 
@@ -567,6 +571,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                     // active shards, as well as return the names of the indices that were rolled/created
                     ActiveShardsObserver.waitForActiveShards(
                         clusterService,
+                        Metadata.DEFAULT_PROJECT_ID,
                         new String[] { rolloverIndexName },
                         rolloverRequest.getCreateIndexRequest().waitForActiveShards(),
                         waitForActiveShardsTimeout,

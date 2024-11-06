@@ -891,7 +891,7 @@ public class NativeRolesStoreTests extends ESTestCase {
             metadata = SecurityTestUtils.addAliasToMetadata(metadata, securityIndexName);
         }
 
-        Index index = metadata.index(securityIndexName).getIndex();
+        Index index = metadata.getProject().index(securityIndexName).getIndex();
 
         ShardRouting shardRouting = ShardRouting.newUnassigned(
             new ShardId(index, 0),

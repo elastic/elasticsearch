@@ -52,16 +52,16 @@ public class DanglingIndicesState {
     public Map<Index, IndexMetadata> getDanglingIndices() {
         final Metadata metadata = this.clusterService.state().metadata();
 
-        final Set<String> excludeIndexPathIds = Sets.newHashSetWithExpectedSize(metadata.indices().size());
+        final Set<String> excludeIndexPathIds = Sets.newHashSetWithExpectedSize(metadata.getProject().indices().size());
 
-        for (IndexMetadata indexMetadata : metadata.indices().values()) {
+        for (IndexMetadata indexMetadata : metadata.getProject().indices().values()) {
             excludeIndexPathIds.add(indexMetadata.getIndex().getUUID());
         }
 
         try {
             final List<IndexMetadata> indexMetadataList = metaStateService.loadIndicesStates(excludeIndexPathIds::contains);
             final Map<Index, IndexMetadata> danglingIndices = new HashMap<>();
-            final IndexGraveyard graveyard = metadata.indexGraveyard();
+            final IndexGraveyard graveyard = metadata.getProject().indexGraveyard();
 
             for (IndexMetadata indexMetadata : indexMetadataList) {
                 Index index = indexMetadata.getIndex();

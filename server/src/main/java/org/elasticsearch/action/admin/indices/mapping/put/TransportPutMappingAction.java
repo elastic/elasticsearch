@@ -22,6 +22,8 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataMappingService;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -52,6 +54,7 @@ public class TransportPutMappingAction extends AcknowledgedTransportMasterNodeAc
     private final MetadataMappingService metadataMappingService;
     private final RequestValidators<PutMappingRequest> requestValidators;
     private final SystemIndices systemIndices;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportPutMappingAction(
@@ -62,7 +65,8 @@ public class TransportPutMappingAction extends AcknowledgedTransportMasterNodeAc
         final ActionFilters actionFilters,
         final IndexNameExpressionResolver indexNameExpressionResolver,
         final RequestValidators<PutMappingRequest> requestValidators,
-        final SystemIndices systemIndices
+        final SystemIndices systemIndices,
+        final ProjectResolver projectResolver
     ) {
         super(
             TYPE.name(),
@@ -77,13 +81,15 @@ public class TransportPutMappingAction extends AcknowledgedTransportMasterNodeAc
         this.metadataMappingService = metadataMappingService;
         this.requestValidators = Objects.requireNonNull(requestValidators);
         this.systemIndices = systemIndices;
+        this.projectResolver = projectResolver;
     }
 
     @Override
     protected ClusterBlockException checkBlock(PutMappingRequest request, ClusterState state) {
         String[] indices;
         if (request.getConcreteIndex() == null) {
-            indices = indexNameExpressionResolver.concreteIndexNames(state, request);
+            ProjectMetadata projectMetadata = projectResolver.getProjectMetadata(state);
+            indices = indexNameExpressionResolver.concreteIndexNames(projectMetadata, request);
         } else {
             indices = new String[] { request.getConcreteIndex().getName() };
         }
@@ -98,9 +104,14 @@ public class TransportPutMappingAction extends AcknowledgedTransportMasterNodeAc
         final ActionListener<AcknowledgedResponse> listener
     ) {
         try {
-            final Index[] concreteIndices = resolveIndices(state, request, indexNameExpressionResolver);
+            ProjectMetadata projectMetadata = projectResolver.getProjectMetadata(state);
+            final Index[] concreteIndices = resolveIndices(projectMetadata, request, indexNameExpressionResolver);
 
-            final Optional<Exception> maybeValidationException = requestValidators.validateRequest(request, state, concreteIndices);
+            final Optional<Exception> maybeValidationException = requestValidators.validateRequest(
+                request,
+                projectMetadata,
+                concreteIndices
+            );
             if (maybeValidationException.isPresent()) {
                 listener.onFailure(maybeValidationException.get());
                 return;
@@ -120,14 +131,18 @@ public class TransportPutMappingAction extends AcknowledgedTransportMasterNodeAc
         }
     }
 
-    static Index[] resolveIndices(final ClusterState state, PutMappingRequest request, final IndexNameExpressionResolver iner) {
+    static Index[] resolveIndices(
+        final ProjectMetadata projectMetadata,
+        PutMappingRequest request,
+        final IndexNameExpressionResolver iner
+    ) {
         if (request.getConcreteIndex() == null) {
             if (request.writeIndexOnly()) {
                 List<Index> indices = new ArrayList<>();
                 for (String indexExpression : request.indices()) {
                     indices.add(
                         iner.concreteWriteIndex(
-                            state,
+                            projectMetadata,
                             request.indicesOptions(),
                             indexExpression,
                             request.indicesOptions().allowNoIndices(),
@@ -137,7 +152,7 @@ public class TransportPutMappingAction extends AcknowledgedTransportMasterNodeAc
                 }
                 return indices.toArray(Index.EMPTY_ARRAY);
             } else {
-                return iner.concreteIndices(state, request);
+                return iner.concreteIndices(projectMetadata, request);
             }
         } else {
             return new Index[] { request.getConcreteIndex() };

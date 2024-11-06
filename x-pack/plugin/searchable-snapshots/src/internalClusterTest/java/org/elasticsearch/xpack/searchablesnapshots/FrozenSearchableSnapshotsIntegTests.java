@@ -154,6 +154,7 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
                 .get()
                 .getState()
                 .metadata()
+                .getProject()
                 .index(indexName)
                 .getTimestampRange(),
             sameInstance(IndexLongFieldRange.UNKNOWN)
@@ -318,6 +319,7 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
                 .get()
                 .getState()
                 .metadata()
+                .getProject()
                 .index(restoredIndexName)
                 .getTimestampRange(),
             sameInstance(IndexLongFieldRange.UNKNOWN)

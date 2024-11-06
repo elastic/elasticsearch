@@ -55,9 +55,9 @@ public class ClusterStateUpdatersTests extends ESTestCase {
 
     private static void assertMetadataEquals(final ClusterState state1, final ClusterState state2) {
         assertTrue(Metadata.isGlobalStateEquals(state1.metadata(), state2.metadata()));
-        assertThat(state1.metadata().indices().size(), equalTo(state2.metadata().indices().size()));
-        for (final IndexMetadata indexMetadata : state1.metadata()) {
-            assertThat(indexMetadata, equalTo(state2.metadata().index(indexMetadata.getIndex())));
+        assertThat(state1.metadata().getProject().indices().size(), equalTo(state2.metadata().getProject().indices().size()));
+        for (final IndexMetadata indexMetadata : state1.metadata().getProject()) {
+            assertThat(indexMetadata, equalTo(state2.metadata().getProject().index(indexMetadata.getIndex())));
         }
     }
 
@@ -150,7 +150,7 @@ public class ClusterStateUpdatersTests extends ESTestCase {
                 ClusterState.builder(initialState)
                     .metadata(
                         Metadata.builder(initialState.metadata())
-                            .put(IndexMetadata.builder(initialState.metadata().index("test")).state(IndexMetadata.State.CLOSE))
+                            .put(IndexMetadata.builder(initialState.metadata().getProject().index("test")).state(IndexMetadata.State.CLOSE))
                             .build()
                     )
                     .build(),
@@ -164,11 +164,11 @@ public class ClusterStateUpdatersTests extends ESTestCase {
                     .metadata(
                         Metadata.builder(initialState.metadata())
                             .put(
-                                IndexMetadata.builder(initialState.metadata().index("test"))
+                                IndexMetadata.builder(initialState.metadata().getProject().index("test"))
                                     .state(IndexMetadata.State.CLOSE)
                                     .settings(
                                         Settings.builder()
-                                            .put(initialState.metadata().index("test").getSettings())
+                                            .put(initialState.metadata().getProject().index("test").getSettings())
                                             .put(MetadataIndexStateService.VERIFIED_BEFORE_CLOSE_SETTING.getKey(), true)
                                             .build()
                                     )
@@ -202,7 +202,7 @@ public class ClusterStateUpdatersTests extends ESTestCase {
 
         assertThat(updatedState.metadata().clusterUUID(), not(equalTo(Metadata.UNKNOWN_CLUSTER_UUID)));
         assertFalse(Metadata.isGlobalStateEquals(metadata, updatedState.metadata()));
-        assertThat(updatedState.metadata().index("test"), equalTo(indexMetadata));
+        assertThat(updatedState.metadata().getProject().index("test"), equalTo(indexMetadata));
         assertTrue(updatedState.blocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK));
         assertTrue(updatedState.blocks().hasGlobalBlock(CLUSTER_READ_ONLY_BLOCK));
     }
@@ -272,7 +272,7 @@ public class ClusterStateUpdatersTests extends ESTestCase {
                 Metadata.builder().coordinationMetadata(coordinationMetadata).clusterUUID(clusterUUID).build()
             )
         );
-        assertThat(hiddenState.metadata().indices().size(), is(0));
+        assertThat(hiddenState.metadata().getProject().indices().size(), is(0));
         assertTrue(hiddenState.blocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK));
         assertFalse(hiddenState.blocks().hasGlobalBlock(Metadata.CLUSTER_READ_ONLY_BLOCK));
         assertFalse(hiddenState.blocks().hasGlobalBlock(Metadata.CLUSTER_READ_ONLY_ALLOW_DELETE_BLOCK));

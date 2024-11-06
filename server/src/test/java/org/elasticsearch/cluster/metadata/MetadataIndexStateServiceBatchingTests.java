@@ -85,7 +85,7 @@ public class MetadataIndexStateServiceBatchingTests extends ESSingleNodeTestCase
 
         // and assert that all the indices are open
         for (String index : List.of("test-1", "test-2", "test-3")) {
-            final var indexMetadata = clusterService.state().metadata().indices().get(index);
+            final var indexMetadata = clusterService.state().metadata().getProject().indices().get(index);
             assertThat(indexMetadata.getState(), is(State.OPEN));
         }
 
@@ -104,7 +104,7 @@ public class MetadataIndexStateServiceBatchingTests extends ESSingleNodeTestCase
 
         final List<String[]> observedClosedIndices = Collections.synchronizedList(new ArrayList<>());
         final ClusterStateListener closedIndicesStateListener = event -> observedClosedIndices.add(
-            event.state().metadata().getConcreteAllClosedIndices()
+            event.state().metadata().getProject().getConcreteAllClosedIndices()
         );
         clusterService.addListener(closedIndicesStateListener);
 
@@ -145,7 +145,7 @@ public class MetadataIndexStateServiceBatchingTests extends ESSingleNodeTestCase
 
         // and assert that all the indices are closed
         for (String index : List.of("test-1", "test-2", "test-3")) {
-            final var indexMetadata = clusterService.state().metadata().indices().get(index);
+            final var indexMetadata = clusterService.state().metadata().getProject().indices().get(index);
             assertThat(indexMetadata.getState(), is(State.CLOSE));
         }
 
@@ -202,7 +202,7 @@ public class MetadataIndexStateServiceBatchingTests extends ESSingleNodeTestCase
 
         // and assert that all the indices are blocked
         for (String index : List.of("test-1", "test-2", "test-3")) {
-            final var indexMetadata = clusterService.state().metadata().indices().get(index);
+            final var indexMetadata = clusterService.state().metadata().getProject().indices().get(index);
             assertThat(INDEX_BLOCKS_WRITE_SETTING.get(indexMetadata.getSettings()), is(true));
         }
 
@@ -223,12 +223,17 @@ public class MetadataIndexStateServiceBatchingTests extends ESSingleNodeTestCase
     }
 
     private static ClusterStateListener closedIndexCountListener(int closedIndices) {
-        return event -> assertThat(event.state().metadata().getConcreteAllClosedIndices().length, oneOf(0, closedIndices));
+        return event -> assertThat(event.state().metadata().getProject().getConcreteAllClosedIndices().length, oneOf(0, closedIndices));
     }
 
     private static ClusterStateListener blockedIndexCountListener() {
         return event -> assertThat(
-            event.state().metadata().stream().filter(indexMetadata -> INDEX_BLOCKS_WRITE_SETTING.get(indexMetadata.getSettings())).count(),
+            event.state()
+                .metadata()
+                .getProject()
+                .stream()
+                .filter(indexMetadata -> INDEX_BLOCKS_WRITE_SETTING.get(indexMetadata.getSettings()))
+                .count(),
             oneOf(0L, 3L)
         );
     }

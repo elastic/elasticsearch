@@ -71,13 +71,14 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         ClusterState.Builder stateBuilder = ClusterState.builder(originalState);
         IntStream.range(0, between(1, 10)).forEach(i -> ReactiveStorageDeciderServiceTests.addNode(stateBuilder));
         stateBuilder.routingTable(
-            addRouting(originalState.metadata(), RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)).build()
+            addRouting(originalState.metadata().getProject(), RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY))
+                .build()
         );
         long lastCreated = System.currentTimeMillis();
         applyCreatedDates(
             originalState,
             stateBuilder,
-            (DataStream) originalState.metadata().getIndicesLookup().get("test"),
+            (DataStream) originalState.metadata().getProject().getIndicesLookup().get("test"),
             lastCreated,
             1
         );
@@ -148,7 +149,9 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             );
             assertThat(
                 reason.forecasted(),
-                lessThanOrEqualTo(totalSize(state.metadata().dataStreams().get("test").getIndices(), state.routingTable(), info))
+                lessThanOrEqualTo(
+                    totalSize(state.metadata().getProject().dataStreams().get("test").getIndices(), state.routingTable(), info)
+                )
             );
 
             deciderResult = service.scale(
@@ -176,7 +179,8 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         );
         ClusterState.Builder stateBuilder = ClusterState.builder(originalState);
         stateBuilder.routingTable(
-            addRouting(originalState.metadata(), RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)).build()
+            addRouting(originalState.metadata().getProject(), RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY))
+                .build()
         );
         ClusterState state = stateBuilder.build();
         ReactiveStorageDeciderService.AllocationState allocationState = new ReactiveStorageDeciderService.AllocationState(
@@ -202,13 +206,14 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         ClusterState.Builder stateBuilder = ClusterState.builder(originalState);
         IntStream.range(0, between(1, 10)).forEach(i -> ReactiveStorageDeciderServiceTests.addNode(stateBuilder));
         stateBuilder.routingTable(
-            addRouting(originalState.metadata(), RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)).build()
+            addRouting(originalState.metadata().getProject(), RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY))
+                .build()
         );
         long lastCreated = randomNonNegativeLong();
         applyCreatedDates(
             originalState,
             stateBuilder,
-            (DataStream) originalState.metadata().getIndicesLookup().get("test"),
+            (DataStream) originalState.metadata().getProject().getIndicesLookup().get("test"),
             lastCreated,
             1
         );
@@ -242,14 +247,15 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         );
         ClusterState.Builder stateBuilder = ClusterState.builder(originalState);
         stateBuilder.routingTable(
-            addRouting(originalState.metadata(), RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)).build()
+            addRouting(originalState.metadata().getProject(), RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY))
+                .build()
         );
         IntStream.range(0, between(1, 10)).forEach(i -> ReactiveStorageDeciderServiceTests.addNode(stateBuilder));
         long lastCreated = randomNonNegativeLong();
         applyCreatedDates(
             originalState,
             stateBuilder,
-            (DataStream) originalState.metadata().getIndicesLookup().get("test"),
+            (DataStream) originalState.metadata().getProject().getIndicesLookup().get("test"),
             lastCreated,
             1
         );
@@ -257,7 +263,7 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
 
         state = randomAllocate(state);
 
-        DataStream dataStream = state.metadata().dataStreams().get("test");
+        DataStream dataStream = state.metadata().getProject().dataStreams().get("test");
 
         ClusterInfo info = randomClusterInfo(state);
 
@@ -276,8 +282,8 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             ReactiveStorageDeciderService.AllocationState forecast = allocationState.forecast(window, lastCreated + 1);
             int actualWindow = Math.min(window, indices);
             int expectedIndices = actualWindow + indices;
-            assertThat(forecast.state().metadata().indices().size(), Matchers.equalTo(expectedIndices));
-            DataStream forecastDataStream = forecast.state().metadata().dataStreams().get("test");
+            assertThat(forecast.state().metadata().getProject().indices().size(), Matchers.equalTo(expectedIndices));
+            DataStream forecastDataStream = forecast.state().metadata().getProject().dataStreams().get("test");
             assertThat(forecastDataStream.getIndices().size(), Matchers.equalTo(expectedIndices));
             assertThat(forecastDataStream.getIndices().subList(0, indices), Matchers.equalTo(dataStream.getIndices()));
 
@@ -400,7 +406,7 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         List<Index> indices = ds.getIndices();
         long start = last - (decrement * (indices.size() - 1));
         for (int i = 0; i < indices.size(); ++i) {
-            IndexMetadata previousInstance = state.metadata().index(indices.get(i));
+            IndexMetadata previousInstance = state.metadata().getProject().index(indices.get(i));
             metadataBuilder.put(IndexMetadata.builder(previousInstance).creationDate(start + (i * decrement)).build(), false);
         }
         return builder.metadata(metadataBuilder);

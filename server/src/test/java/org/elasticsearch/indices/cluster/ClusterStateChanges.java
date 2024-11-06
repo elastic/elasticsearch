@@ -62,6 +62,7 @@ import org.elasticsearch.cluster.metadata.MetadataIndexStateServiceUtils;
 import org.elasticsearch.cluster.metadata.MetadataUpdateSettingsService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.project.DefaultProjectResolver;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.FailedShard;
@@ -349,7 +350,8 @@ public class ClusterStateChanges {
             createIndexService,
             actionFilters,
             indexNameExpressionResolver,
-            EmptySystemIndices.INSTANCE
+            EmptySystemIndices.INSTANCE,
+            DefaultProjectResolver.INSTANCE
         );
 
         nodeLeftExecutor = new NodeLeftExecutor(allocationService);
@@ -370,7 +372,7 @@ public class ClusterStateChanges {
 
     public ClusterState closeIndices(ClusterState state, CloseIndexRequest request) {
         final Index[] concreteIndices = Arrays.stream(request.indices())
-            .map(index -> state.metadata().index(index).getIndex())
+            .map(index -> state.metadata().getProject().index(index).getIndex())
             .toArray(Index[]::new);
 
         final Map<Index, ClusterBlock> blockedIndices = new HashMap<>();
@@ -471,7 +473,7 @@ public class ClusterStateChanges {
 
     public ClusterState applyStartedShards(ClusterState clusterState, List<ShardRouting> startedShards) {
         final Map<ShardRouting, Long> entries = startedShards.stream().collect(toMap(Function.identity(), startedShard -> {
-            final IndexMetadata indexMetadata = clusterState.metadata().index(startedShard.shardId().getIndex());
+            final IndexMetadata indexMetadata = clusterState.metadata().getProject().index(startedShard.shardId().getIndex());
             return indexMetadata != null ? indexMetadata.primaryTerm(startedShard.shardId().id()) : 0L;
         }));
         return applyStartedShards(clusterState, entries);

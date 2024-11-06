@@ -90,8 +90,12 @@ import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
@@ -246,6 +250,7 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 public class AuthorizationServiceTests extends ESTestCase {
+    private ProjectId projectId;
     private AuditTrail auditTrail;
     private AuditTrailService auditTrailService;
     private ClusterService clusterService;
@@ -259,10 +264,12 @@ public class AuthorizationServiceTests extends ESTestCase {
     private boolean shouldFailOperatorPrivilegesCheck = false;
     private boolean setFakeOriginatingAction = true;
     private SecurityContext securityContext;
+    private ProjectResolver projectResolver;
 
     @SuppressWarnings("unchecked")
     @Before
     public void setup() {
+        projectId = new ProjectId(randomUUID());
         fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
         rolesStore = mock(CompositeRolesStore.class);
         clusterService = mock(ClusterService.class);
@@ -272,7 +279,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             Sets.union(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS, LoadAuthorizedIndicesTimeChecker.Factory.getSettings())
         );
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
-        when(clusterService.state()).thenReturn(ClusterState.EMPTY_STATE);
+        mockEmptyMetadata();
+
         auditTrail = mock(AuditTrail.class);
         MockLicenseState licenseState = mock(MockLicenseState.class);
         when(licenseState.isAllowed(Security.AUDITING_FEATURE)).thenReturn(true);
@@ -308,6 +316,11 @@ public class AuthorizationServiceTests extends ESTestCase {
         }).when(rolesStore).getRole(any(Subject.class), anyActionListener());
         roleMap.put(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName(), ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR);
         operatorPrivilegesService = mock(OperatorPrivileges.OperatorPrivilegesService.class);
+        projectResolver = mock(ProjectResolver.class);
+        when(projectResolver.getProjectMetadata(any(ClusterState.class))).thenAnswer(inv -> {
+            ClusterState clusterState = inv.getArgument(0);
+            return clusterState.metadata().getProject(projectId);
+        });
         authorizationService = new AuthorizationService(
             settings,
             rolesStore,
@@ -323,7 +336,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             TestIndexNameExpressionResolver.newInstance(),
             operatorPrivilegesService,
             RESTRICTED_INDICES,
-            new AuthorizationDenialMessages.Default()
+            new AuthorizationDenialMessages.Default(),
+            projectResolver
         );
     }
 
@@ -1190,8 +1204,20 @@ public class AuthorizationServiceTests extends ESTestCase {
         final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
         final String indexName = "index-" + randomAlphaOfLengthBetween(1, 5);
 
-        final ClusterState clusterState = mockMetadataWithIndex(indexName);
-        final IndexMetadata indexMetadata = clusterState.metadata().index(indexName);
+        final int additionalProjects = randomIntBetween(0, 5);
+        final Metadata.Builder metadataBuilder = Metadata.builder();
+        metadataBuilder.put(ProjectMetadata.builder(projectId).put(createIndexMetadata(indexName), true));
+
+        for (int p = 0; p < additionalProjects; p++) {
+            ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(new ProjectId(randomUUID()));
+            int indices = randomIntBetween(1, 3);
+            for (int i = 0; i < indices; i++) {
+                projectBuilder.put(createIndexMetadata(i == 0 ? indexName : randomAlphaOfLength(12)), true);
+            }
+            metadataBuilder.put(projectBuilder);
+        }
+        final ClusterState clusterState = mockClusterState(metadataBuilder.build());
+        final IndexMetadata indexMetadata = clusterState.metadata().getProject(projectId).index(indexName);
 
         SearchRequest searchRequest = new SearchRequest(indexName).allowPartialSearchResults(false);
         final ShardSearchRequest shardRequest = new ShardSearchRequest(
@@ -1254,7 +1280,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         final String indexName = "index-" + randomAlphaOfLengthBetween(1, 5);
 
         final ClusterState clusterState = mockMetadataWithIndex(indexName);
-        final IndexMetadata indexMetadata = clusterState.metadata().index(indexName);
+        final IndexMetadata indexMetadata = clusterState.metadata().getProject(projectId).index(indexName);
 
         PointInTimeBuilder pit = new PointInTimeBuilder(createEncodedPIT(indexMetadata.getIndex()));
         SearchRequest searchRequest = new SearchRequest().source(new SearchSourceBuilder().pointInTimeBuilder(pit))
@@ -1745,7 +1771,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             TestIndexNameExpressionResolver.newInstance(),
             operatorPrivilegesService,
             RESTRICTED_INDICES,
-            new AuthorizationDenialMessages.Default()
+            new AuthorizationDenialMessages.Default(),
+            TestProjectResolvers.singleProjectOnly()
         );
 
         RoleDescriptor role = new RoleDescriptor(
@@ -1794,7 +1821,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             TestIndexNameExpressionResolver.newInstance(),
             operatorPrivilegesService,
             RESTRICTED_INDICES,
-            new AuthorizationDenialMessages.Default()
+            new AuthorizationDenialMessages.Default(),
+            TestProjectResolvers.singleProjectOnly()
         );
 
         RoleDescriptor role = new RoleDescriptor(
@@ -2037,7 +2065,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         final Authentication authentication = createAuthentication(new User("all_access_user", "all_access"));
         roleMap.put("all_access", role);
         ClusterState state = mockClusterState(
-            Metadata.builder()
+            ProjectMetadata.builder(projectId)
                 .put(
                     new IndexMetadata.Builder(INTERNAL_SECURITY_MAIN_INDEX_7).putAlias(
                         new AliasMetadata.Builder(SECURITY_MAIN_ALIAS).build()
@@ -2189,7 +2217,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         roleMap.put("restricted_monitor", restrictedMonitorRole);
         roleMap.put("unrestricted_monitor", unrestrictedMonitorRole);
         ClusterState state = mockClusterState(
-            Metadata.builder()
+            ProjectMetadata.builder(projectId)
                 .put(
                     new IndexMetadata.Builder(INTERNAL_SECURITY_MAIN_INDEX_7).putAlias(
                         new AliasMetadata.Builder(SECURITY_MAIN_ALIAS).build()
@@ -2248,7 +2276,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         final User superuser = new User("custom_admin", ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName());
         roleMap.put(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName(), ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR);
         mockClusterState(
-            Metadata.builder()
+            ProjectMetadata.builder(projectId)
                 .put(
                     new IndexMetadata.Builder(INTERNAL_SECURITY_MAIN_INDEX_7).putAlias(
                         new AliasMetadata.Builder(SECURITY_MAIN_ALIAS).build()
@@ -2321,7 +2349,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         final User superuser = new User("custom_admin", ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName());
         roleMap.put(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName(), ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR);
         mockClusterState(
-            Metadata.builder()
+            ProjectMetadata.builder(projectId)
                 .put(
                     new IndexMetadata.Builder(INTERNAL_SECURITY_MAIN_INDEX_7).putAlias(
                         new AliasMetadata.Builder(SECURITY_MAIN_ALIAS).build()
@@ -2399,11 +2427,13 @@ public class AuthorizationServiceTests extends ESTestCase {
     }
 
     public void testSuperusersCanExecuteReadOperationAgainstSecurityIndexWithWildcard() {
+        // TODO This test depends on IndexAbstractionResolver (via IndicesAndAliasesResolver), which only works with the default project
+        projectId = Metadata.DEFAULT_PROJECT_ID;
         final User superuser = new User("custom_admin", ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName());
         final Authentication authentication = createAuthentication(superuser);
         roleMap.put(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName(), ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR);
         mockClusterState(
-            Metadata.builder()
+            ProjectMetadata.builder(projectId)
                 .put(
                     new IndexMetadata.Builder(INTERNAL_SECURITY_MAIN_INDEX_7).putAlias(
                         new AliasMetadata.Builder(SECURITY_MAIN_ALIAS).build()
@@ -3146,14 +3176,26 @@ public class AuthorizationServiceTests extends ESTestCase {
     }
 
     private ClusterState mockEmptyMetadata() {
-        return mockClusterState(Metadata.EMPTY_METADATA);
+        return mockClusterState(ProjectMetadata.builder(projectId).build());
     }
 
     private ClusterState mockMetadataWithIndex(String indexName) {
-        final IndexMetadata indexMetadata = new IndexMetadata.Builder(indexName).settings(
-            Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build()
+        final IndexMetadata indexMetadata = createIndexMetadata(indexName);
+        final ProjectMetadata project = ProjectMetadata.builder(projectId).put(indexMetadata, true).build();
+        return mockClusterState(project);
+    }
+
+    private static IndexMetadata createIndexMetadata(String indexName) {
+        return new IndexMetadata.Builder(indexName).settings(
+            Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                .put(IndexMetadata.SETTING_INDEX_UUID, randomUUID())
+                .build()
         ).numberOfShards(1).numberOfReplicas(0).build();
-        final Metadata metadata = Metadata.builder().put(indexMetadata, true).build();
+    }
+
+    private ClusterState mockClusterState(ProjectMetadata project) {
+        final Metadata metadata = Metadata.builder().put(project).build();
         return mockClusterState(metadata);
     }
 
@@ -3319,7 +3361,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             TestIndexNameExpressionResolver.newInstance(),
             operatorPrivilegesService,
             RESTRICTED_INDICES,
-            new AuthorizationDenialMessages.Default()
+            new AuthorizationDenialMessages.Default(),
+            TestProjectResolvers.singleProjectOnly()
         );
 
         Subject subject = new Subject(new User("test", "a role"), mock(RealmRef.class));
@@ -3475,7 +3518,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             TestIndexNameExpressionResolver.newInstance(),
             operatorPrivilegesService,
             RESTRICTED_INDICES,
-            new AuthorizationDenialMessages.Default()
+            new AuthorizationDenialMessages.Default(),
+            TestProjectResolvers.singleProjectOnly()
         );
         Authentication authentication;
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {

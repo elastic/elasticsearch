@@ -13,7 +13,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.RecoverySource.EmptyStoreRecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.ExistingStoreRecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.LocalShardsRecoverySource;
@@ -94,7 +94,7 @@ public class IndexRoutingTable implements SimpleDiffable<IndexRoutingTable> {
         return index;
     }
 
-    boolean validate(Metadata metadata) {
+    boolean validate(ProjectMetadata metadata) {
         // check index exists
         if (metadata.hasIndex(index.getName()) == false) {
             throw new IllegalStateException(index + " exists in routing does not exists in metadata");
@@ -236,12 +236,20 @@ public class IndexRoutingTable implements SimpleDiffable<IndexRoutingTable> {
     /**
      * @return <code>true</code> if an index is available to service search queries.
      */
+    @Deprecated
     public boolean readyForSearch(ClusterState clusterState) {
+        return readyForSearch(clusterState.getMetadata().getProject());
+    }
+
+    /**
+     * @return <code>true</code> if an index is available to service search queries.
+     */
+    public boolean readyForSearch(ProjectMetadata project) {
         for (IndexShardRoutingTable shardRoutingTable : this.shards) {
             boolean found = false;
             for (int idx = 0; idx < shardRoutingTable.size(); idx++) {
                 ShardRouting shardRouting = shardRoutingTable.shard(idx);
-                if (shardRouting.active() && OperationRouting.canSearchShard(shardRouting, clusterState)) {
+                if (shardRouting.active() && OperationRouting.canSearchShard(shardRouting, project)) {
                     found = true;
                     break;
                 }

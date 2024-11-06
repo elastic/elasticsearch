@@ -293,7 +293,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         IndicesService indicesService = getIndicesService();
         IndexService test = createIndex("test");
         ClusterService clusterService = getInstanceFromNode(ClusterService.class);
-        IndexMetadata firstMetadata = clusterService.state().metadata().index("test");
+        IndexMetadata firstMetadata = clusterService.state().metadata().getProject().index("test");
         assertTrue(test.hasShard(0));
         ShardPath firstPath = ShardPath.loadShardPath(
             logger,
@@ -308,7 +308,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         GatewayMetaState gwMetaState = getInstanceFromNode(GatewayMetaState.class);
         Metadata meta = gwMetaState.getMetadata();
         assertNotNull(meta);
-        assertNotNull(meta.index("test"));
+        assertNotNull(meta.getProject().index("test"));
         assertAcked(client().admin().indices().prepareDelete("test"));
         awaitIndexShardCloseAsyncTasks();
 
@@ -316,13 +316,13 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
 
         meta = gwMetaState.getMetadata();
         assertNotNull(meta);
-        assertNull(meta.index("test"));
+        assertNull(meta.getProject().index("test"));
 
         test = createIndex("test");
         prepareIndex("test").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
         client().admin().indices().prepareFlush("test").get();
         assertHitCount(client().prepareSearch("test"), 1);
-        IndexMetadata secondMetadata = clusterService.state().metadata().index("test");
+        IndexMetadata secondMetadata = clusterService.state().metadata().getProject().index("test");
         assertAcked(client().admin().indices().prepareClose("test"));
         ShardPath secondPath = ShardPath.loadShardPath(
             logger,
@@ -476,7 +476,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         dangling.allocateDangled(Arrays.asList(indexMetadata), ActionListener.running(latch::countDown));
         latch.await();
         assertThat(clusterService.state(), not(originalState));
-        assertNotNull(clusterService.state().getMetadata().index(alias));
+        assertNotNull(clusterService.state().getMetadata().getProject().index(alias));
     }
 
     public void testDanglingIndicesWithLaterVersion() throws Exception {

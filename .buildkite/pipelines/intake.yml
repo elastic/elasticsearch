@@ -72,13 +72,13 @@ steps:
       image: family/elasticsearch-ubuntu-2004
       machineType: custom-32-98304
       buildDirectory: /dev/shm/bk
-  - wait
-  - trigger: elasticsearch-dra-workflow
-    label: Trigger DRA snapshot workflow
-    async: true
-    branches: "main 8.* 7.17"
-    build:
-      branch: "$BUILDKITE_BRANCH"
-      commit: "$BUILDKITE_COMMIT"
-      env:
-        DRA_WORKFLOW: snapshot
+  # - wait
+  # - trigger: elasticsearch-dra-workflow
+  #   label: Trigger DRA snapshot workflow
+  #   async: true
+  #   branches: "main 8.* 7.17"
+  #   build:
+  #     branch: "$BUILDKITE_BRANCH"
+  #     commit: "$BUILDKITE_COMMIT"
+  #     env:
+  #       DRA_WORKFLOW: snapshot

@@ -14,7 +14,9 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -36,6 +38,7 @@ public class TransportShardMultiTermsVectorAction extends TransportSingleShardAc
     MultiTermVectorsShardResponse> {
 
     private final IndicesService indicesService;
+    private final ProjectResolver projectResolver;
 
     private static final String ACTION_NAME = MultiTermVectorsAction.NAME + "[shard]";
     public static final ActionType<MultiTermVectorsShardResponse> TYPE = new ActionType<>(ACTION_NAME);
@@ -47,6 +50,7 @@ public class TransportShardMultiTermsVectorAction extends TransportSingleShardAc
         IndicesService indicesService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
+        ProjectResolver projectResolver,
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(
@@ -60,6 +64,7 @@ public class TransportShardMultiTermsVectorAction extends TransportSingleShardAc
             threadPool.executor(ThreadPool.Names.GET)
         );
         this.indicesService = indicesService;
+        this.projectResolver = projectResolver;
     }
 
     @Override
@@ -79,8 +84,9 @@ public class TransportShardMultiTermsVectorAction extends TransportSingleShardAc
 
     @Override
     protected ShardIterator shards(ClusterState state, InternalRequest request) {
+        ProjectState project = projectResolver.getProjectState(state);
         ShardIterator shards = clusterService.operationRouting()
-            .getShards(state, request.concreteIndex(), request.request().shardId(), request.request().preference());
+            .getShards(project, request.concreteIndex(), request.request().shardId(), request.request().preference());
         return clusterService.operationRouting().useOnlyPromotableShardsForStateless(shards);
     }
 

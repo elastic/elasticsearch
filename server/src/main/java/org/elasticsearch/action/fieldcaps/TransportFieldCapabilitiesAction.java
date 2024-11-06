@@ -25,6 +25,7 @@ import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
@@ -81,6 +82,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
     private final Executor searchCoordinationExecutor;
     private final TransportService transportService;
     private final ClusterService clusterService;
+    private final ProjectResolver projectResolver;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
 
     private final IndicesService indicesService;
@@ -93,6 +95,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         ThreadPool threadPool,
         ActionFilters actionFilters,
         IndicesService indicesService,
+        ProjectResolver projectResolver,
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         // TODO replace DIRECT_EXECUTOR_SERVICE when removing workaround for https://github.com/elastic/elasticsearch/issues/97916
@@ -100,6 +103,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         this.searchCoordinationExecutor = threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION);
         this.transportService = transportService;
         this.clusterService = clusterService;
+        this.projectResolver = projectResolver;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.indicesService = indicesService;
         transportService.registerRequestHandler(
@@ -234,6 +238,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             final RequestDispatcher requestDispatcher = new RequestDispatcher(
                 clusterService,
                 transportService,
+                projectResolver,
                 task,
                 request,
                 localIndices,

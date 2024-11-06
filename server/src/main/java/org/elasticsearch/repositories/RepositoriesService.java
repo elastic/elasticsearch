@@ -898,7 +898,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
     private static void ensureNoSearchableSnapshotsIndicesInUse(ClusterState clusterState, RepositoryMetadata repositoryMetadata) {
         long count = 0L;
         List<Index> indices = null;
-        for (IndexMetadata indexMetadata : clusterState.metadata()) {
+        for (IndexMetadata indexMetadata : clusterState.metadata().getProject()) {
             if (indexSettingsMatchRepositoryMetadata(indexMetadata, repositoryMetadata)) {
                 if (indices == null) {
                     indices = new ArrayList<>();

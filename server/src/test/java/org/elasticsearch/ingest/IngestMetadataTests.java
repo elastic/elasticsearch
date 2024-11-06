@@ -53,7 +53,7 @@ public class IngestMetadataTests extends ESTestCase {
         builder.endObject();
         XContentBuilder shuffled = shuffleXContent(builder);
         try (XContentParser parser = createParser(shuffled)) {
-            Metadata.Custom custom = IngestMetadata.fromXContent(parser);
+            Metadata.ProjectCustom custom = IngestMetadata.fromXContent(parser);
             assertTrue(custom instanceof IngestMetadata);
             IngestMetadata m = (IngestMetadata) custom;
             assertEquals(2, m.getPipelines().size());

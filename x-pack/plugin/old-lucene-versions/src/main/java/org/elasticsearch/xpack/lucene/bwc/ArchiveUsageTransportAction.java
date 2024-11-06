@@ -58,7 +58,7 @@ public class ArchiveUsageTransportAction extends XPackUsageFeatureTransportActio
         ActionListener<XPackUsageFeatureResponse> listener
     ) {
         int numArchiveIndices = 0;
-        for (IndexMetadata indexMetadata : state.metadata()) {
+        for (IndexMetadata indexMetadata : state.metadata().getProject()) {
             if (indexMetadata.getCreationVersion().isLegacyIndexVersion()) {
                 numArchiveIndices++;
             }

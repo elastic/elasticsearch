@@ -70,7 +70,7 @@ public class SystemIndexMappingUpdateServiceIT extends ESIntegTestCase {
     }
 
     /**
-     * Check that if the the SystemIndexManager finds a managed index with mappings that claim to be newer than
+     * Check that if the SystemIndexManager finds a managed index with mappings that claim to be newer than
      * what it expects, then those mappings are left alone.
      */
     public void testSystemIndexManagerLeavesNewerMappingsAlone() throws Exception {

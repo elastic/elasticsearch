@@ -33,17 +33,18 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BitSetIterator;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.search.internal.FilterStoredFieldVisitor;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Objects;
 import java.util.function.Supplier;
 
 final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
     RecoverySourcePruneMergePolicy(
-        String recoverySourceField,
+        @Nullable String recoverySourceField,
+        String recoverySourceSizeField,
         boolean pruneIdField,
         Supplier<Query> retainSourceQuerySupplier,
         MergePolicy in
@@ -52,18 +53,21 @@ final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
             @Override
             public CodecReader wrapForMerge(CodecReader reader) throws IOException {
                 CodecReader wrapped = toWrap.wrapForMerge(reader);
-                return wrapReader(recoverySourceField, pruneIdField, wrapped, retainSourceQuerySupplier);
+                return wrapReader(recoverySourceField, recoverySourceSizeField, pruneIdField, wrapped, retainSourceQuerySupplier);
             }
         });
     }
 
     private static CodecReader wrapReader(
         String recoverySourceField,
+        String recoverySourceSizeField,
         boolean pruneIdField,
         CodecReader reader,
         Supplier<Query> retainSourceQuerySupplier
     ) throws IOException {
-        NumericDocValues recoverySource = reader.getNumericDocValues(recoverySourceField);
+        NumericDocValues recoverySource = reader.getNumericDocValues(
+            recoverySourceField != null ? recoverySourceField : recoverySourceSizeField
+        );
         if (recoverySource == null || recoverySource.nextDoc() == DocIdSetIterator.NO_MORE_DOCS) {
             return reader; // early terminate - nothing to do here since non of the docs has a recovery source anymore.
         }
@@ -78,21 +82,35 @@ final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
             if (recoverySourceToKeep.cardinality() == reader.maxDoc()) {
                 return reader; // keep all source
             }
-            return new SourcePruningFilterCodecReader(recoverySourceField, pruneIdField, reader, recoverySourceToKeep);
+            return new SourcePruningFilterCodecReader(
+                recoverySourceField,
+                recoverySourceSizeField,
+                pruneIdField,
+                reader,
+                recoverySourceToKeep
+            );
         } else {
-            return new SourcePruningFilterCodecReader(recoverySourceField, pruneIdField, reader, null);
+            return new SourcePruningFilterCodecReader(recoverySourceField, recoverySourceSizeField, pruneIdField, reader, null);
         }
     }
 
     private static class SourcePruningFilterCodecReader extends FilterCodecReader {
         private final BitSet recoverySourceToKeep;
         private final String recoverySourceField;
+        private final String recoverySourceSizeField;
         private final boolean pruneIdField;
 
-        SourcePruningFilterCodecReader(String recoverySourceField, boolean pruneIdField, CodecReader reader, BitSet recoverySourceToKeep) {
+        SourcePruningFilterCodecReader(
+            String recoverySourceField,
+            String recoverySourceSizeField,
+            boolean pruneIdField,
+            CodecReader reader,
+            BitSet recoverySourceToKeep
+        ) {
             super(reader);
             this.recoverySourceField = recoverySourceField;
             this.recoverySourceToKeep = recoverySourceToKeep;
+            this.recoverySourceSizeField = recoverySourceSizeField;
             this.pruneIdField = pruneIdField;
         }
 
@@ -103,7 +121,7 @@ final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
                 @Override
                 public NumericDocValues getNumeric(FieldInfo field) throws IOException {
                     NumericDocValues numeric = super.getNumeric(field);
-                    if (recoverySourceField.equals(field.name)) {
+                    if (field.name.equals(recoverySourceField) || field.name.equals(recoverySourceSizeField)) {
                         assert numeric != null : recoverySourceField + " must have numeric DV but was null";
                         final DocIdSetIterator intersection;
                         if (recoverySourceToKeep == null) {
@@ -139,6 +157,9 @@ final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
 
         @Override
         public StoredFieldsReader getFieldsReader() {
+            if (recoverySourceField == null && pruneIdField == false) {
+                return super.getFieldsReader();
+            }
             return new RecoverySourcePruningStoredFieldsReader(
                 super.getFieldsReader(),
                 recoverySourceToKeep,
@@ -241,12 +262,13 @@ final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
             RecoverySourcePruningStoredFieldsReader(
                 StoredFieldsReader in,
                 BitSet recoverySourceToKeep,
-                String recoverySourceField,
+                @Nullable String recoverySourceField,
                 boolean pruneIdField
             ) {
                 super(in);
+                assert recoverySourceField != null || pruneIdField : "nothing to prune";
                 this.recoverySourceToKeep = recoverySourceToKeep;
-                this.recoverySourceField = Objects.requireNonNull(recoverySourceField);
+                this.recoverySourceField = recoverySourceField;
                 this.pruneIdField = pruneIdField;
             }
 
@@ -258,7 +280,7 @@ final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
                     super.document(docID, new FilterStoredFieldVisitor(visitor) {
                         @Override
                         public Status needsField(FieldInfo fieldInfo) throws IOException {
-                            if (recoverySourceField.equals(fieldInfo.name)) {
+                            if (fieldInfo.name.equals(recoverySourceField)) {
                                 return Status.NO;
                             }
                             if (pruneIdField && IdFieldMapper.NAME.equals(fieldInfo.name)) {

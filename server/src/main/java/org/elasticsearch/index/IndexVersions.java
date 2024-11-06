@@ -131,6 +131,8 @@ public class IndexVersions {
 
     public static final IndexVersion UPGRADE_TO_LUCENE_10_0_0 = def(9_000_00_0, Version.LUCENE_10_0_0);
 
+    public static final IndexVersion USE_SYNTHETIC_SOURCE_FOR_RECOVERY = def(9_001_00_0, Version.LUCENE_10_0_0);
+
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _

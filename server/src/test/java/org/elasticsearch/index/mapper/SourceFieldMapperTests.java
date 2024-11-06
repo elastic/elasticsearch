@@ -406,9 +406,22 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
                 topMapping(b -> b.startObject(SourceFieldMapper.NAME).field("mode", "synthetic").endObject())
             );
             DocumentMapper docMapper = mapperService.documentMapper();
-            ParsedDocument doc = docMapper.parse(source(b -> { b.field("field1", "value1"); }));
+            ParsedDocument doc = docMapper.parse(source(b -> b.field("field1", "value1")));
             assertNotNull(doc.rootDoc().getField("_recovery_source"));
             assertThat(doc.rootDoc().getField("_recovery_source").binaryValue(), equalTo(new BytesRef("{\"field1\":\"value1\"}")));
+        }
+        {
+            Settings settings = Settings.builder()
+                .put(IndexSettings.INDICES_RECOVERY_SOURCE_SYNTHETIC_ENABLED_SETTING.getKey(), true)
+                .build();
+            MapperService mapperService = createMapperService(
+                settings,
+                topMapping(b -> b.startObject(SourceFieldMapper.NAME).field("mode", "synthetic").endObject())
+            );
+            DocumentMapper docMapper = mapperService.documentMapper();
+            ParsedDocument doc = docMapper.parse(source(b -> b.field("field1", "value1")));
+            assertNotNull(doc.rootDoc().getField("_recovery_source_size"));
+            assertThat(doc.rootDoc().getField("_recovery_source_size").numericValue(), equalTo(19L));
         }
         {
             Settings settings = Settings.builder().put(INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey(), false).build();
@@ -430,6 +443,17 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
             ParsedDocument doc = docMapper.parse(source(b -> { b.field("@timestamp", "2012-02-13"); }));
             assertNotNull(doc.rootDoc().getField("_recovery_source"));
             assertThat(doc.rootDoc().getField("_recovery_source").binaryValue(), equalTo(new BytesRef("{\"@timestamp\":\"2012-02-13\"}")));
+        }
+        {
+            Settings settings = Settings.builder()
+                .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.getName())
+                .put(IndexSettings.INDICES_RECOVERY_SOURCE_SYNTHETIC_ENABLED_SETTING.getKey(), true)
+                .build();
+            MapperService mapperService = createMapperService(settings, mapping(b -> {}));
+            DocumentMapper docMapper = mapperService.documentMapper();
+            ParsedDocument doc = docMapper.parse(source(b -> { b.field("@timestamp", "2012-02-13"); }));
+            assertNotNull(doc.rootDoc().getField("_recovery_source_size"));
+            assertThat(doc.rootDoc().getField("_recovery_source_size").numericValue(), equalTo(27L));
         }
         {
             Settings settings = Settings.builder()

@@ -16,7 +16,6 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Map;
 import java.util.stream.Stream;
 

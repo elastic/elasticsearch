@@ -2709,7 +2709,9 @@ public class InternalEngine extends Engine {
         // always configure soft-deletes field so an engine with soft-deletes disabled can open a Lucene index with soft-deletes.
         iwc.setSoftDeletesField(Lucene.SOFT_DELETES_FIELD);
         mergePolicy = new RecoverySourcePruneMergePolicy(
-            SourceFieldMapper.RECOVERY_SOURCE_NAME,
+            engineConfig.getMapperService().mappingLookup().isSourceSynthetic()
+                && engineConfig.getIndexSettings().isRecoverySourceSyntheticEnabled() ? null : SourceFieldMapper.RECOVERY_SOURCE_NAME,
+            SourceFieldMapper.RECOVERY_SOURCE_SIZE_NAME,
             engineConfig.getIndexSettings().getMode() == IndexMode.TIME_SERIES,
             softDeletesPolicy::getRetentionQuery,
             new SoftDeletesRetentionMergePolicy(
@@ -3153,16 +3155,32 @@ public class InternalEngine extends Engine {
         refreshIfNeeded(source, toSeqNo);
         Searcher searcher = acquireSearcher(source, SearcherScope.INTERNAL);
         try {
-            LuceneChangesSnapshot snapshot = new LuceneChangesSnapshot(
-                searcher,
-                LuceneChangesSnapshot.DEFAULT_BATCH_SIZE,
-                fromSeqNo,
-                toSeqNo,
-                requiredFullRange,
-                singleConsumer,
-                accessStats,
-                config().getIndexSettings().getIndexVersionCreated()
-            );
+            final Translog.Snapshot snapshot;
+            if (engineConfig.getMapperService().mappingLookup().isSourceSynthetic()
+                    && engineConfig.getIndexSettings().isRecoverySourceSyntheticEnabled()) {
+                snapshot = new LuceneSyntheticSourceChangesSnapshot(
+                    engineConfig.getMapperService().mappingLookup(),
+                    searcher,
+                    SearchBasedChangesSnapshot.DEFAULT_BATCH_SIZE,
+                    LuceneSyntheticSourceChangesSnapshot.DEFAULT_MEMORY_SIZE,
+                    fromSeqNo,
+                    toSeqNo,
+                    requiredFullRange,
+                    accessStats,
+                    config().getIndexSettings().getIndexVersionCreated()
+                );
+            } else {
+                snapshot = new LuceneChangesSnapshot(
+                    searcher,
+                    SearchBasedChangesSnapshot.DEFAULT_BATCH_SIZE,
+                    fromSeqNo,
+                    toSeqNo,
+                    requiredFullRange,
+                    singleConsumer,
+                    accessStats,
+                    config().getIndexSettings().getIndexVersionCreated()
+                );
+            }
             searcher = null;
             return snapshot;
         } catch (Exception e) {

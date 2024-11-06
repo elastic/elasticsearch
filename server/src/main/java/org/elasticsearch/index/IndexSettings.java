@@ -51,6 +51,7 @@ import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_IGNORE_
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING;
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING;
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING;
+import static org.elasticsearch.index.mapper.SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING;
 
 /**
  * This class encapsulates all index level settings and handles settings updates.
@@ -660,6 +661,13 @@ public final class IndexSettings {
         Property.Dynamic
     );
 
+    public static final Setting<Boolean> INDICES_RECOVERY_SOURCE_SYNTHETIC_ENABLED_SETTING = Setting.boolSetting(
+        "index.recovery.recovery_source.synthetic.enabled",
+        false,
+        Property.IndexScope,
+        Property.Final
+    );
+
     /**
      * Returns <code>true</code> if TSDB encoding is enabled. The default is <code>true</code>
      */
@@ -832,6 +840,7 @@ public final class IndexSettings {
     private volatile boolean syntheticSourceSecondDocParsingPassEnabled;
     private final SourceFieldMapper.Mode indexMappingSourceMode;
     private final boolean recoverySourceEnabled;
+    private final boolean recoverySourceSyntheticEnabled;
 
     /**
      * The maximum number of refresh listeners allows on this shard.
@@ -993,8 +1002,9 @@ public final class IndexSettings {
         skipIgnoredSourceWrite = scopedSettings.get(IgnoredSourceFieldMapper.SKIP_IGNORED_SOURCE_WRITE_SETTING);
         skipIgnoredSourceRead = scopedSettings.get(IgnoredSourceFieldMapper.SKIP_IGNORED_SOURCE_READ_SETTING);
         syntheticSourceSecondDocParsingPassEnabled = scopedSettings.get(SYNTHETIC_SOURCE_SECOND_DOC_PARSING_PASS_SETTING);
-        indexMappingSourceMode = scopedSettings.get(SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING);
+        indexMappingSourceMode = scopedSettings.get(INDEX_MAPPER_SOURCE_MODE_SETTING);
         recoverySourceEnabled = RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.get(nodeSettings);
+        recoverySourceSyntheticEnabled = scopedSettings.get(INDICES_RECOVERY_SOURCE_SYNTHETIC_ENABLED_SETTING);
 
         scopedSettings.addSettingsUpdateConsumer(
             MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING,
@@ -1696,6 +1706,14 @@ public final class IndexSettings {
      */
     public boolean isRecoverySourceEnabled() {
         return recoverySourceEnabled;
+    }
+
+    /**
+     * @return Whether recovery source should always be bypassed in favor of using synthetic source.
+     */
+    public boolean isRecoverySourceSyntheticEnabled() {
+        return version.onOrAfter(IndexVersions.USE_SYNTHETIC_SOURCE_FOR_RECOVERY)
+                && recoverySourceSyntheticEnabled;
     }
 
     /**

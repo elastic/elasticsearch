@@ -3461,7 +3461,7 @@ public class InternalEngineTests extends EngineTestCase {
             assertThat(indexResult.getVersion(), equalTo(1L));
         }
         assertVisibleCount(engine, numDocs);
-        translogHandler = createTranslogHandler(engine.engineConfig.getIndexSettings());
+        translogHandler = createTranslogHandler(mapperService);
 
         engine.close();
         // we need to reuse the engine config unless the parser.mappingModified won't work
@@ -3473,7 +3473,7 @@ public class InternalEngineTests extends EngineTestCase {
         assertEquals(numDocs, translogHandler.appliedOperations());
 
         engine.close();
-        translogHandler = createTranslogHandler(engine.engineConfig.getIndexSettings());
+        translogHandler = createTranslogHandler(mapperService);
         engine = createEngine(store, primaryTranslogDir, inSyncGlobalCheckpointSupplier);
         engine.refresh("warm_up");
         assertVisibleCount(engine, numDocs, false);
@@ -3527,7 +3527,7 @@ public class InternalEngineTests extends EngineTestCase {
         }
 
         engine.close();
-        translogHandler = createTranslogHandler(engine.engineConfig.getIndexSettings());
+        translogHandler = createTranslogHandler(mapperService);
         engine = createEngine(store, primaryTranslogDir, inSyncGlobalCheckpointSupplier);
         engine.refresh("warm_up");
         try (Engine.Searcher searcher = engine.acquireSearcher("test")) {

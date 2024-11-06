@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FilteredExpression;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.RLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
@@ -392,12 +393,16 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertEquals(
             new InlineStats(
                 EMPTY,
-                PROCESSING_CMD_INPUT,
-                List.of(attribute("c"), attribute("d.e")),
-                List.of(
-                    new Alias(EMPTY, "b", new UnresolvedFunction(EMPTY, "min", DEFAULT, List.of(attribute("a")))),
-                    attribute("c"),
-                    attribute("d.e")
+                new Aggregate(
+                    EMPTY,
+                    PROCESSING_CMD_INPUT,
+                    Aggregate.AggregateType.STANDARD,
+                    List.of(attribute("c"), attribute("d.e")),
+                    List.of(
+                        new Alias(EMPTY, "b", new UnresolvedFunction(EMPTY, "min", DEFAULT, List.of(attribute("a")))),
+                        attribute("c"),
+                        attribute("d.e")
+                    )
                 )
             ),
             processingCommand(query)
@@ -414,11 +419,15 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertEquals(
             new InlineStats(
                 EMPTY,
-                PROCESSING_CMD_INPUT,
-                List.of(),
-                List.of(
-                    new Alias(EMPTY, "min(a)", new UnresolvedFunction(EMPTY, "min", DEFAULT, List.of(attribute("a")))),
-                    new Alias(EMPTY, "c", integer(1))
+                new Aggregate(
+                    EMPTY,
+                    PROCESSING_CMD_INPUT,
+                    Aggregate.AggregateType.STANDARD,
+                    List.of(),
+                    List.of(
+                        new Alias(EMPTY, "min(a)", new UnresolvedFunction(EMPTY, "min", DEFAULT, List.of(attribute("a")))),
+                        new Alias(EMPTY, "c", integer(1))
+                    )
                 )
             ),
             processingCommand(query)
@@ -2288,5 +2297,42 @@ public class StatementParserTests extends AbstractStatementParserTests {
         for (String query : queries) {
             expectVerificationError(query, "grouping key [a] already specified in the STATS BY clause");
         }
+    }
+
+    public void testMatchOperatorConstantQueryString() {
+        assumeTrue("skipping because MATCH operator is not enabled", EsqlCapabilities.Cap.MATCH_OPERATOR_COLON.isEnabled());
+        var plan = statement("FROM test | WHERE field:\"value\"");
+        var filter = as(plan, Filter.class);
+        var match = (Match) filter.condition();
+        var matchField = (UnresolvedAttribute) match.field();
+        assertThat(matchField.name(), equalTo("field"));
+        assertThat(match.query().fold(), equalTo("value"));
+    }
+
+    public void testInvalidMatchOperator() {
+        assumeTrue("skipping because MATCH operator is not enabled", EsqlCapabilities.Cap.MATCH_OPERATOR_COLON.isEnabled());
+        expectError("from test | WHERE field:", "line 1:25: mismatched input '<EOF>' expecting {QUOTED_STRING, ");
+        expectError(
+            "from test | WHERE field:CONCAT(\"hello\", \"world\")",
+            "line 1:25: mismatched input 'CONCAT' expecting {QUOTED_STRING, INTEGER_LITERAL, DECIMAL_LITERAL, "
+        );
+        expectError("from test | WHERE field:123::STRING", "line 1:28: mismatched input '::' expecting {<EOF>, '|', 'and', 'or'}");
+        expectError(
+            "from test | WHERE field:(true OR false)",
+            "line 1:25: extraneous input '(' expecting {QUOTED_STRING, INTEGER_LITERAL, DECIMAL_LITERAL, "
+        );
+        expectError(
+            "from test | WHERE field:another_field_or_value",
+            "line 1:25: mismatched input 'another_field_or_value' expecting {QUOTED_STRING, INTEGER_LITERAL, DECIMAL_LITERAL, "
+        );
+        expectError("from test | WHERE field:2+3", "line 1:26: mismatched input '+' expecting {<EOF>, '|', 'and', 'or'}");
+        expectError(
+            "from test | WHERE \"field\":\"value\"",
+            "line 1:26: mismatched input ':' expecting {<EOF>, '|', 'and', '::', 'or', '+', '-', '*', '/', '%'}"
+        );
+        expectError(
+            "from test | WHERE CONCAT(\"field\", 1):\"value\"",
+            "line 1:37: mismatched input ':' expecting {<EOF>, '|', 'and', '::', 'or', '+', '-', '*', '/', '%'}"
+        );
     }
 }

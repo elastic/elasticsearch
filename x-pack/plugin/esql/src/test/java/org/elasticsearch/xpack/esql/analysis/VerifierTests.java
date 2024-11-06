@@ -523,13 +523,12 @@ public class VerifierTests extends ESTestCase {
 
     public void testGroupingAliasDuplicate() throws Exception {
         assertEquals(
-            "1:22: column [languages] cannot be used as an aggregate "
-                + "once declared in the STATS BY grouping key [l = languages % 3, l = languages, l = languages % 2]",
+            "1:22: column [languages] cannot be used as an aggregate once declared in the STATS BY grouping key [l = languages % 3]",
             error("from test| stats l = languages + 3 by l = languages % 3, l = languages, l = languages % 2 | keep l")
         );
 
         assertEquals(
-            "1:22: column [languages] cannot be used as an aggregate " + "once declared in the STATS BY grouping key [l = languages % 3]",
+            "1:22: column [languages] cannot be used as an aggregate once declared in the STATS BY grouping key [l = languages % 3]",
             error("from test| stats l = languages + 3, l = languages % 2  by l = languages % 3 | keep l")
         );
 
@@ -1481,20 +1480,20 @@ public class VerifierTests extends ESTestCase {
         assertEquals(
             "1:26: first argument of [\"3 days\"::date_period == to_dateperiod(\"3 days\")] must be "
                 + "[boolean, cartesian_point, cartesian_shape, date_nanos, datetime, double, geo_point, geo_shape, integer, ip, keyword, "
-                + "long, text, unsigned_long or version], found value [\"3 days\"::date_period] type [date_period]",
+                + "long, semantic_text, text, unsigned_long or version], found value [\"3 days\"::date_period] type [date_period]",
             error("row x = \"3 days\" | where \"3 days\"::date_period == to_dateperiod(\"3 days\")")
         );
 
         assertEquals(
             "1:26: first argument of [\"3 hours\"::time_duration <= to_timeduration(\"3 hours\")] must be "
-                + "[date_nanos, datetime, double, integer, ip, keyword, long, text, unsigned_long or version], "
+                + "[date_nanos, datetime, double, integer, ip, keyword, long, semantic_text, text, unsigned_long or version], "
                 + "found value [\"3 hours\"::time_duration] type [time_duration]",
             error("row x = \"3 days\" | where \"3 hours\"::time_duration <= to_timeduration(\"3 hours\")")
         );
 
         assertEquals(
             "1:19: second argument of [first_name <= to_timeduration(\"3 hours\")] must be "
-                + "[date_nanos, datetime, double, integer, ip, keyword, long, text, unsigned_long or version], "
+                + "[date_nanos, datetime, double, integer, ip, keyword, long, semantic_text, text, unsigned_long or version], "
                 + "found value [to_timeduration(\"3 hours\")] type [time_duration]",
             error("from test | where first_name <= to_timeduration(\"3 hours\")")
         );

@@ -370,7 +370,7 @@ public enum DataType {
     }
 
     public static boolean isString(DataType t) {
-        return t == KEYWORD || t == TEXT;
+        return t == KEYWORD || t == TEXT || t == SEMANTIC_TEXT;
     }
 
     public static boolean isPrimitiveAndSupported(DataType t) {
@@ -585,7 +585,7 @@ public enum DataType {
     }
 
     public DataType noText() {
-        return this == TEXT ? KEYWORD : this;
+        return isString(this) ? KEYWORD : this;
     }
 
     /**

@@ -123,13 +123,13 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
             String simulateTemplateToAdd = "simulate_index_template_" + UUIDs.randomBase64UUID().toLowerCase(Locale.ROOT);
             // Perform validation for things like typos in component template names
             MetadataIndexTemplateService.validateV2TemplateRequest(
-                state.metadata(),
+                state.metadata().getProject(),
                 simulateTemplateToAdd,
                 request.getIndexTemplateRequest().indexTemplate()
             );
             stateWithTemplate = removeExistingAbstractions(
                 indexTemplateService.addIndexTemplateV2(
-                    state,
+                    state.projectState(state.metadata().getProject().id()),
                     request.getIndexTemplateRequest().create(),
                     simulateTemplateToAdd,
                     request.getIndexTemplateRequest().indexTemplate()
@@ -162,7 +162,9 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
         );
 
         final Map<String, List<String>> overlapping = new HashMap<>();
-        overlapping.putAll(findConflictingV1Templates(tempClusterState, matchingTemplate, templateV2.indexPatterns()));
+        overlapping.putAll(
+            findConflictingV1Templates(tempClusterState.metadata().getProject(), matchingTemplate, templateV2.indexPatterns())
+        );
         overlapping.putAll(findConflictingV2Templates(tempClusterState, matchingTemplate, templateV2.indexPatterns()));
 
         if (request.includeDefaults()) {

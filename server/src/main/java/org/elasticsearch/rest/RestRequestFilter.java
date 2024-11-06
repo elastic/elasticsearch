@@ -44,10 +44,10 @@ public interface RestRequestFilter {
                 }
 
                 @Override
-                public BytesReference content() {
+                public BytesReference copyContent() {
                     if (filteredBytes == null) {
                         Tuple<XContentType, Map<String, Object>> result = XContentHelper.convertToMap(
-                            restRequest.requiredContent(),
+                            restRequest.tryCopyContent(),
                             true,
                             restRequest.getXContentType()
                         );

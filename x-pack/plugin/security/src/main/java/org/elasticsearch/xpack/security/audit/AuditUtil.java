@@ -27,10 +27,12 @@ public class AuditUtil {
 
     public static String restRequestContent(RestRequest request) {
         if (request.hasContent()) {
-            try {
-                return XContentHelper.convertToJson(request.content(), false, false, request.getXContentType());
-            } catch (IOException ioe) {
-                return "Invalid Format: " + request.content().utf8ToString();
+            try (var content = request.retainedContent()) {
+                try {
+                    return XContentHelper.convertToJson(content, false, false, request.getXContentType());
+                } catch (IOException ioe) {
+                    return "Invalid Format: " + content.utf8ToString();
+                }
             }
         }
         return "";

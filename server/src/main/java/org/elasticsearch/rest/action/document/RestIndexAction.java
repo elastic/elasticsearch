@@ -9,12 +9,14 @@
 
 package org.elasticsearch.rest.action.document;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -104,11 +106,12 @@ public class RestIndexAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
+        ReleasableBytesReference source = request.tryRetainedContent();
         IndexRequest indexRequest = new IndexRequest(request.param("index"));
         indexRequest.id(request.param("id"));
         indexRequest.routing(request.param("routing"));
         indexRequest.setPipeline(request.param("pipeline"));
-        indexRequest.source(request.requiredContent(), request.getXContentType());
+        indexRequest.source(source, request.getXContentType());
         indexRequest.timeout(request.paramAsTime("timeout", IndexRequest.DEFAULT_TIMEOUT));
         indexRequest.setRefreshPolicy(request.param("refresh"));
         indexRequest.version(RestActions.parseVersion(request));
@@ -128,7 +131,10 @@ public class RestIndexAction extends BaseRestHandler {
 
         return channel -> client.index(
             indexRequest,
-            new RestToXContentListener<>(channel, DocWriteResponse::status, r -> r.getLocation(indexRequest.routing()))
+            ActionListener.releaseAfter(
+                new RestToXContentListener<>(channel, DocWriteResponse::status, r -> r.getLocation(indexRequest.routing())),
+                source
+            )
         );
     }
 

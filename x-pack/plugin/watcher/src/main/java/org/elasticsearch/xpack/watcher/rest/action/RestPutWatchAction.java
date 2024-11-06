@@ -42,7 +42,7 @@ public class RestPutWatchAction extends BaseRestHandler implements RestRequestFi
 
     @Override
     protected RestChannelConsumer prepareRequest(final RestRequest request, NodeClient client) {
-        PutWatchRequest putWatchRequest = new PutWatchRequest(request.param("id"), request.content(), request.getXContentType());
+        PutWatchRequest putWatchRequest = new PutWatchRequest(request.param("id"), request.copyContent(), request.getXContentType());
         putWatchRequest.setVersion(request.paramAsLong("version", Versions.MATCH_ANY));
         putWatchRequest.setIfSeqNo(request.paramAsLong("if_seq_no", putWatchRequest.getIfSeqNo()));
         putWatchRequest.setIfPrimaryTerm(request.paramAsLong("if_primary_term", putWatchRequest.getIfPrimaryTerm()));

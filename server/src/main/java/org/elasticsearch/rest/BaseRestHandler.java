@@ -137,6 +137,9 @@ public abstract class BaseRestHandler implements RestHandler {
                         chunkConsumer.streamClose();
                     }
                 });
+            } else {
+                // if content is needed it must be copied or retained in prepareRequest
+                request.close();
             }
 
             usageCount.increment();

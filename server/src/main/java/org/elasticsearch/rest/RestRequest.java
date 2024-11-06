@@ -16,12 +16,12 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
@@ -50,7 +50,7 @@ import java.util.regex.Pattern;
 import static org.elasticsearch.common.unit.ByteSizeValue.parseBytesSizeValue;
 import static org.elasticsearch.core.TimeValue.parseTimeValue;
 
-public class RestRequest implements ToXContent.Params, Traceable, Releasable {
+public class RestRequest implements ToXContent.Params, Traceable {
 
     /**
      * Internal marker request parameter to indicate that a request was made in serverless mode. Use this parameter, together with
@@ -298,9 +298,34 @@ public class RestRequest implements ToXContent.Params, Traceable, Releasable {
         return httpRequest.body().isFull();
     }
 
-    public BytesReference content() {
+    /**
+     * Returns a copy of HTTP content. The copy is GC-managed and does not require reference counting.
+     * Please use {@link #retainedContent()} to avoid content copy.
+     */
+    public BytesReference copyContent() {
+        return BytesReference.copyBytes(content());
+    }
+
+    /**
+     * Returns a reference to the network buffer of HTTP content. To retain content please use {@link #retainedContent()}
+     * or increment reference count.
+     */
+    public ReleasableBytesReference content() {
         this.contentConsumed = true;
+        var bytes = httpRequest.body().asFull().bytes();
+        assert bytes.hasReferences() : "cannot access http content, ref count reached 0";
         return httpRequest.body().asFull().bytes();
+    }
+
+    /**
+     * Reruns a reference to the network buffer of HTTP content and increment ref count.
+     * The caller is responsible to decrement(close) reference. It's a recommended method to handle
+     * HTTP content without copying it.
+     */
+    public ReleasableBytesReference retainedContent() {
+        var bytes = content();
+        bytes.retain();
+        return bytes;
     }
 
     public boolean isStreamedContent() {
@@ -314,21 +339,34 @@ public class RestRequest implements ToXContent.Params, Traceable, Releasable {
     /**
      * Release underlying HTTP request and related buffers.
      */
-    @Override
-    public void close() {
+    void close() {
         httpRequest.release();
     }
 
-    /**
-     * @return content of the request body or throw an exception if the body or content type is missing
-     */
-    public final BytesReference requiredContent() {
+    private void ensureContent() {
         if (hasContent() == false) {
             throw new ElasticsearchParseException("request body is required");
         } else if (xContentType.get() == null) {
             throwValidationException("unknown content type");
         }
-        return content();
+    }
+
+    /**
+     * @return copy of the request body or throw an exception if the body or content type is missing.
+     * See {@link #copyContent()}. Please use {@link #tryRetainedContent()} to avoid content copy.
+     */
+    public final BytesReference tryCopyContent() {
+        ensureContent();
+        return copyContent();
+    }
+
+    /**
+     * Returns reference to the network buffer of HTTP content or throw an exception if the body or content type is missing.
+     * See {@link #retainedContent()}. It's a recommended method to handle HTTP content without copying it.
+     */
+    public ReleasableBytesReference tryRetainedContent() {
+        ensureContent();
+        return retainedContent();
     }
 
     private static void throwValidationException(String msg) {
@@ -533,7 +571,7 @@ public class RestRequest implements ToXContent.Params, Traceable, Releasable {
      * {@link #contentOrSourceParamParser()} for requests that support specifying the request body in the {@code source} param.
      */
     public final XContentParser contentParser() throws IOException {
-        BytesReference content = requiredContent(); // will throw exception if body or content type missing
+        BytesReference content = tryCopyContent(); // will throw exception if body or content type missing
         return XContentHelper.createParserNotCompressed(parserConfig, content, xContentType.get());
 
     }
@@ -591,7 +629,7 @@ public class RestRequest implements ToXContent.Params, Traceable, Releasable {
         if (hasContentOrSourceParam() == false) {
             throw new ElasticsearchParseException("request body or source parameter is required");
         } else if (hasContent()) {
-            return new Tuple<>(xContentType.get(), requiredContent());
+            return new Tuple<>(xContentType.get(), tryCopyContent());
         }
         String source = param("source");
         String typeParam = param("source_content_type");

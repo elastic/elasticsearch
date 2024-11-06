@@ -52,7 +52,7 @@ public class RestFindStructureAction extends BaseRestHandler {
         RestFindStructureArgumentsParser.parse(restRequest, request);
 
         if (restRequest.hasContent()) {
-            request.setSample(restRequest.content());
+            request.setSample(restRequest.copyContent());
         } else {
             throw new ElasticsearchParseException("request body is required");
         }

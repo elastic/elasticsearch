@@ -93,7 +93,7 @@ public class RestMonitoringBulkAction extends BaseRestHandler {
         final long intervalMillis = parseTimeValue(intervalAsString, INTERVAL).getMillis();
 
         final MonitoringBulkRequestBuilder requestBuilder = new MonitoringBulkRequestBuilder(client);
-        requestBuilder.add(system, request.content(), request.getXContentType(), timestamp, intervalMillis);
+        requestBuilder.add(system, request.copyContent(), request.getXContentType(), timestamp, intervalMillis);
         return channel -> requestBuilder.execute(getRestBuilderListener(channel));
     }
 

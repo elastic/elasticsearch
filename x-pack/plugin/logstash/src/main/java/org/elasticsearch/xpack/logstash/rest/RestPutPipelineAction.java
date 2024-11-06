@@ -47,21 +47,16 @@ public class RestPutPipelineAction extends BaseRestHandler {
             // parse pipeline for validation
             Pipeline.PARSER.apply(parser, id);
         }
-
-        return restChannel -> {
-            final String content = request.content().utf8ToString();
-            client.execute(
-                PutPipelineAction.INSTANCE,
-                new PutPipelineRequest(id, content, request.getXContentType()),
-                new RestActionListener<>(restChannel) {
-                    @Override
-                    protected void processResponse(PutPipelineResponse putPipelineResponse) throws Exception {
-                        channel.sendResponse(
-                            new RestResponse(putPipelineResponse.status(), XContentType.JSON.mediaType(), BytesArray.EMPTY)
-                        );
-                    }
+        final String content = request.content().utf8ToString();
+        return restChannel -> client.execute(
+            PutPipelineAction.INSTANCE,
+            new PutPipelineRequest(id, content, request.getXContentType()),
+            new RestActionListener<>(restChannel) {
+                @Override
+                protected void processResponse(PutPipelineResponse putPipelineResponse) throws Exception {
+                    channel.sendResponse(new RestResponse(putPipelineResponse.status(), XContentType.JSON.mediaType(), BytesArray.EMPTY));
                 }
-            );
-        };
+            }
+        );
     }
 }

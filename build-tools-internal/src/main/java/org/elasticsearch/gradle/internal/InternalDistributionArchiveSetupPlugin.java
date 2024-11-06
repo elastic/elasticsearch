@@ -76,12 +76,14 @@ public class InternalDistributionArchiveSetupPlugin implements Plugin<Project> {
                 sub.getArtifacts().add(DEFAULT_CONFIGURATION_NAME, distributionArchive.getArchiveTask());
                 var extractedConfiguration = sub.getConfigurations().create(EXTRACTED_CONFIGURATION_NAME);
                 extractedConfiguration.setCanBeResolved(false);
+                extractedConfiguration.setCanBeConsumed(true);
                 extractedConfiguration.getAttributes()
                     .attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE);
                 sub.getArtifacts().add(EXTRACTED_CONFIGURATION_NAME, distributionArchive.getExpandedDistTask());
                 // The "composite" configuration is specifically used for resolving transformed artifacts in an included build
                 var compositeConfiguration = sub.getConfigurations().create(COMPOSITE_CONFIGURATION_NAME);
                 compositeConfiguration.setCanBeResolved(false);
+                compositeConfiguration.setCanBeConsumed(true);
                 compositeConfiguration.getAttributes()
                     .attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE);
                 compositeConfiguration.getAttributes().attribute(Attribute.of("composite", Boolean.class), true);

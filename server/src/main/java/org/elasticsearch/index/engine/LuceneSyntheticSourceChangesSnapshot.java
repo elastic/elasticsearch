@@ -34,7 +34,7 @@ import java.util.Set;
 
 /**
  * A {@link SearchBasedChangesSnapshot} that utilizes a synthetic field loader to rebuild the recovery source.
- * This snapshot is activated when {@link IndexSettings#INDICES_RECOVERY_SOURCE_SYNTHETIC_ENABLED_SETTING}
+ * This snapshot is activated when {@link IndexSettings#RECOVERY_SOURCE_SYNTHETIC_ENABLED_SETTING}
  * is enabled on the underlying index.
  *
  * The {@code maxMemorySizeInBytes} parameter limits the total size of uncompressed _sources

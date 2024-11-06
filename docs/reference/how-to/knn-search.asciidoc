@@ -16,10 +16,11 @@ structures. So these same recommendations also help with indexing speed.
 The default <<dense-vector-element-type,`element_type`>> is `float`. But this
 can be automatically quantized during index time through
 <<dense-vector-quantization,`quantization`>>. Quantization will reduce the
-required memory by 4x, but it will also reduce the precision of the vectors and
-increase disk usage for the field (by up to 25%). Increased disk usage is a
+required memory by 4x, 8x, or as much as 32x, but it will also reduce the precision of the vectors and
+increase disk usage for the field (by up to 25%, 12.5%, or 3.125%, respectively). Increased disk usage is a
 result of {es} storing both the quantized and the unquantized vectors.
-For example, when quantizing 40GB of floating point vectors an extra 10GB of data will be stored for the quantized vectors. The total disk usage amounts to 50GB, but the memory usage for fast search will be reduced to 10GB.
+For example, when int8 quantizing 40GB of floating point vectors an extra 10GB of data will be stored for the quantized vectors.
+The total disk usage amounts to 50GB, but the memory usage for fast search will be reduced to 10GB.
 
 For `float` vectors with `dim` greater than or equal to `384`, using a
 <<dense-vector-quantization,`quantized`>> index is highly recommended.
@@ -68,12 +69,23 @@ Another option is to use  <<synthetic-source,synthetic `_source`>>.
 kNN search. HNSW is a graph-based algorithm which only works efficiently when
 most vector data is held in memory. You should ensure that data nodes have at
 least enough RAM to hold the vector data and index structures. To check the
-size of the vector data, you can use the <<indices-disk-usage>> API. As a
-loose rule of thumb, and assuming the default HNSW options, the bytes used will
-be `num_vectors * 4 * (num_dimensions + 12)`. When using the `byte` <<dense-vector-element-type,`element_type`>>
-the space required will be closer to  `num_vectors * (num_dimensions + 12)`. Note that
-the required RAM is for the filesystem cache, which is separate from the Java
-heap.
+size of the vector data, you can use the <<indices-disk-usage>> API.
+
+Here are estimates for different element types and quantization levels:
++
+--
+`element_type: float`: `num_vectors * num_dimensions * 4`
+`element_type: float` with `quantization: int8`: `num_vectors * (num_dimensions + 4)`
+`element_type: float` with `quantization: int4`: `num_vectors * (num_dimensions/2 + 4)`
+`element_type: float` with `quantization: bbq`: `num_vectors * (num_dimensions/8 + 12)`
+`element_type: byte`: `num_vectors * num_dimensions`
+`element_type: bit`: `num_vectors * (num_dimensions/8)`
+--
+
+If utilizing HNSW, the graph must also be in memory, to estimate the required bytes use `num_vectors * 4 * HNSW.m`. The
+default value for `HNSW.m` is 16, so by default `num_vectors * 4 * 16`.
+
+Note that the required RAM is for the filesystem cache, which is separate from the Java heap.
 
 The data nodes should also leave a buffer for other ways that RAM is needed.
 For example your index might also include text fields and numerics, which also

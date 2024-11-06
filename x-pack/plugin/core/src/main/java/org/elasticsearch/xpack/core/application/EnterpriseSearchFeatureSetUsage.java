@@ -12,7 +12,7 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.XPackFeatureSet;
+import org.elasticsearch.xpack.core.XPackFeatureUsage;
 import org.elasticsearch.xpack.core.XPackField;
 
 import java.io.IOException;
@@ -20,7 +20,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
-public class EnterpriseSearchFeatureSetUsage extends XPackFeatureSet.Usage {
+public class EnterpriseSearchFeatureSetUsage extends XPackFeatureUsage {
 
     static final TransportVersion BEHAVIORAL_ANALYTICS_TRANSPORT_VERSION = TransportVersions.V_8_8_1;
     static final TransportVersion QUERY_RULES_TRANSPORT_VERSION = TransportVersions.V_8_10_X;

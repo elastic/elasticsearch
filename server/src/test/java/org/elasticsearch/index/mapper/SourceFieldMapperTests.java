@@ -412,7 +412,7 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
         }
         {
             Settings settings = Settings.builder()
-                .put(IndexSettings.INDICES_RECOVERY_SOURCE_SYNTHETIC_ENABLED_SETTING.getKey(), true)
+                .put(IndexSettings.RECOVERY_SOURCE_SYNTHETIC_ENABLED_SETTING.getKey(), true)
                 .build();
             MapperService mapperService = createMapperService(
                 settings,
@@ -447,7 +447,7 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
         {
             Settings settings = Settings.builder()
                 .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.getName())
-                .put(IndexSettings.INDICES_RECOVERY_SOURCE_SYNTHETIC_ENABLED_SETTING.getKey(), true)
+                .put(IndexSettings.RECOVERY_SOURCE_SYNTHETIC_ENABLED_SETTING.getKey(), true)
                 .build();
             MapperService mapperService = createMapperService(settings, mapping(b -> {}));
             DocumentMapper docMapper = mapperService.documentMapper();

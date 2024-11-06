@@ -108,7 +108,7 @@ public class LuceneChangesSnapshotBenchmark {
         Settings settings = mode.startsWith("logsdb")
             ? Settings.builder()
                 .put("index.mode", "logsdb")
-                .put(IndexSettings.INDICES_RECOVERY_SOURCE_SYNTHETIC_ENABLED_SETTING.getKey(), true)
+                .put(IndexSettings.RECOVERY_SOURCE_SYNTHETIC_ENABLED_SETTING.getKey(), true)
                 .build()
             : Settings.EMPTY;
         this.mapperService = MapperServiceFactory.create(settings, readMappings(dataset));

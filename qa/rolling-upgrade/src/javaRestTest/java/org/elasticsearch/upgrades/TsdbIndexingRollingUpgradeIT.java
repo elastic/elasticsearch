@@ -16,10 +16,13 @@ import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.test.rest.ObjectPath;
 
 import java.time.Instant;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.upgrades.LogsIndexModeRollingUpgradeIT.getWriteBackingIndex;
-import static org.elasticsearch.upgrades.LogsdbIndexingRollingUpgradeIT.*;
+import static org.elasticsearch.upgrades.LogsdbIndexingRollingUpgradeIT.createTemplate;
+import static org.elasticsearch.upgrades.LogsdbIndexingRollingUpgradeIT.getIndexSettingsWithDefaults;
+import static org.elasticsearch.upgrades.LogsdbIndexingRollingUpgradeIT.startTrial;
 import static org.elasticsearch.upgrades.TsdbIT.TEMPLATE;
 import static org.elasticsearch.upgrades.TsdbIT.formatInstant;
 import static org.hamcrest.Matchers.equalTo;
@@ -42,7 +45,7 @@ public class TsdbIndexingRollingUpgradeIT extends AbstractRollingUpgradeTestCase
         String dataStreamName = "k9s";
         if (isOldCluster()) {
             startTrial();
-            createTemplate(dataStreamName, "2", TEMPLATE);
+            createTemplate(dataStreamName, getClass().getSimpleName().toLowerCase(Locale.ROOT), TEMPLATE);
 
             Instant startTime = Instant.now().minusSeconds(60 * 60);
             bulkIndex(dataStreamName, 4, 1024, startTime);
@@ -51,6 +54,13 @@ public class TsdbIndexingRollingUpgradeIT extends AbstractRollingUpgradeTestCase
             var settings = (Map<?, ?>) getIndexSettingsWithDefaults(firstBackingIndex).get(firstBackingIndex);
             assertThat(((Map<?, ?>) settings.get("settings")).get("index.mode"), equalTo("time_series"));
             assertThat(((Map<?, ?>) settings.get("defaults")).get("index.mapping.source.mode"), equalTo("SYNTHETIC"));
+
+            var mapping = getIndexMappingAsMap(firstBackingIndex);
+            assertThat(
+                "incorrect k8s.pod.name field in mapping:" + mapping,
+                "keyword",
+                equalTo(ObjectPath.evaluate(mapping, "properties.k8s.properties.pod.properties.name.type"))
+            );
 
             ensureGreen(dataStreamName);
             search(dataStreamName);

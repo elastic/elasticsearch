@@ -328,10 +328,8 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
                     sniffResponseHandler = new ClusterStateSniffResponseHandler(connection, listener, seedNodesSuppliers);
                 }
 
-                try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
-                    // we stash any context here since this is an internal execution and should not leak any
-                    // existing context information.
-                    threadContext.markAsSystemContext();
+                try (var ignored = threadContext.newEmptySystemContext()) {
+                    // we stash any context here since this is an internal execution and should not leak any existing context information.
                     transportService.sendRequest(
                         connection,
                         action,

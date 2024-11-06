@@ -486,7 +486,7 @@ public class TransportSearchActionTests extends ESTestCase {
                 threadPool
             );
             mockTransportServices[i] = remoteSeedTransport;
-            DiscoveryNode remoteSeedNode = remoteSeedTransport.getLocalDiscoNode();
+            DiscoveryNode remoteSeedNode = remoteSeedTransport.getLocalNode();
             knownNodes.add(remoteSeedNode);
             nodes[i] = remoteSeedNode;
             settingsBuilder.put("cluster.remote.remote" + i + ".seeds", remoteSeedNode.getAddress().toString());

@@ -25,7 +25,7 @@ import static org.hamcrest.Matchers.sameInstance;
 public class AmazonBedrockInferenceClientCacheTests extends ESTestCase {
     public void testCache_ReturnsSameObject() throws IOException {
         AmazonBedrockInferenceClientCache cacheInstance;
-        try (var cache = new AmazonBedrockInferenceClientCache(AmazonBedrockMockInferenceClient::create, null)) {
+        try (var cache = new AmazonBedrockInferenceClientCache(AmazonBedrockMockInferenceClient::create, Clock.systemUTC())) {
             cacheInstance = cache;
             var model = AmazonBedrockEmbeddingsModelTests.createModel(
                 "inferenceId",

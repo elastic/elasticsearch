@@ -67,6 +67,7 @@ public final class ObjectObjectPagedHashMap<K, V> extends AbstractPagedHashMap i
      * an insertion.
      */
     public V put(K key, V value) {
+        assert value != null : "Null values are not supported";
         if (size >= maxSize) {
             assert size == maxSize;
             grow();
@@ -100,7 +101,6 @@ public final class ObjectObjectPagedHashMap<K, V> extends AbstractPagedHashMap i
 
     private V set(K key, int code, V value) {
         assert key.hashCode() == code;
-        assert value != null;
         assert size < maxSize;
         final long slot = slot(code, mask);
         for (long index = slot;; index = nextSlot(index, mask)) {
@@ -187,9 +187,22 @@ public final class ObjectObjectPagedHashMap<K, V> extends AbstractPagedHashMap i
     protected void removeAndAdd(long index) {
         final K key = keys.get(index);
         final V value = values.getAndSet(index, null);
-        --size;
-        final V removed = set(key, key.hashCode(), value);
-        assert removed == null;
+        reset(key, value);
+    }
+
+    private void reset(K key, V value) {
+        final ObjectArray<V> values = this.values;
+        final long mask = this.mask;
+        final long slot = slot(key.hashCode(), mask);
+        for (long index = slot;; index = nextSlot(index, mask)) {
+            final V previous = values.get(index);
+            if (previous == null) {
+                // slot was free
+                values.set(index, value);
+                keys.set(index, key);
+                break;
+            }
+        }
     }
 
     public static final class Cursor<K, V> {

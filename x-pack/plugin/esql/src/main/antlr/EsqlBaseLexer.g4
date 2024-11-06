@@ -86,7 +86,6 @@ WHERE : 'where'               -> pushMode(EXPRESSION_MODE);
 // MYCOMMAND : 'mycommand' -> ...
 DEV_INLINESTATS : {this.isDevVersion()}? 'inlinestats'   -> pushMode(EXPRESSION_MODE);
 DEV_LOOKUP :      {this.isDevVersion()}? 'lookup'        -> pushMode(LOOKUP_MODE);
-DEV_MATCH :       {this.isDevVersion()}? 'match'         -> pushMode(EXPRESSION_MODE);
 DEV_METRICS :     {this.isDevVersion()}? 'metrics'       -> pushMode(METRICS_MODE);
 
 //
@@ -105,6 +104,8 @@ MULTILINE_COMMENT
 WS
     : [ \r\n\t]+ -> channel(HIDDEN)
     ;
+
+COLON : ':';
 
 //
 // Expression - used by most command
@@ -208,9 +209,9 @@ MINUS : '-';
 ASTERISK : '*';
 SLASH : '/';
 PERCENT : '%';
+EXPRESSION_COLON : {this.isDevVersion()}? COLON -> type(COLON);
 
-// move it in the main section if the feature gets promoted
-DEV_MATCH_OP : {this.isDevVersion()}? DEV_MATCH -> type(DEV_MATCH);
+NESTED_WHERE : WHERE -> type(WHERE);
 
 NAMED_OR_POSITIONAL_PARAM
     : PARAM (LETTER | UNDERSCORE) UNQUOTED_ID_BODY*
@@ -306,6 +307,8 @@ mode PROJECT_MODE;
 PROJECT_PIPE : PIPE -> type(PIPE), popMode;
 PROJECT_DOT: DOT -> type(DOT);
 PROJECT_COMMA : COMMA -> type(COMMA);
+PROJECT_PARAM : {this.isDevVersion()}? PARAM -> type(PARAM);
+PROJECT_NAMED_OR_POSITIONAL_PARAM : {this.isDevVersion()}? NAMED_OR_POSITIONAL_PARAM -> type(NAMED_OR_POSITIONAL_PARAM);
 
 fragment UNQUOTED_ID_BODY_WITH_PATTERN
     : (LETTER | DIGIT | UNDERSCORE | ASTERISK)
@@ -339,6 +342,8 @@ RENAME_PIPE : PIPE -> type(PIPE), popMode;
 RENAME_ASSIGN : ASSIGN -> type(ASSIGN);
 RENAME_COMMA : COMMA -> type(COMMA);
 RENAME_DOT: DOT -> type(DOT);
+RENAME_PARAM : {this.isDevVersion()}? PARAM -> type(PARAM);
+RENAME_NAMED_OR_POSITIONAL_PARAM : {this.isDevVersion()}? NAMED_OR_POSITIONAL_PARAM -> type(NAMED_OR_POSITIONAL_PARAM);
 
 AS : 'as';
 
@@ -410,6 +415,9 @@ ENRICH_FIELD_QUOTED_IDENTIFIER
     : QUOTED_IDENTIFIER -> type(QUOTED_IDENTIFIER)
     ;
 
+ENRICH_FIELD_PARAM : {this.isDevVersion()}? PARAM -> type(PARAM);
+ENRICH_FIELD_NAMED_OR_POSITIONAL_PARAM : {this.isDevVersion()}? NAMED_OR_POSITIONAL_PARAM -> type(NAMED_OR_POSITIONAL_PARAM);
+
 ENRICH_FIELD_LINE_COMMENT
     : LINE_COMMENT -> channel(HIDDEN)
     ;
@@ -425,6 +433,8 @@ ENRICH_FIELD_WS
 mode MVEXPAND_MODE;
 MVEXPAND_PIPE : PIPE -> type(PIPE), popMode;
 MVEXPAND_DOT: DOT -> type(DOT);
+MVEXPAND_PARAM : {this.isDevVersion()}? PARAM -> type(PARAM);
+MVEXPAND_NAMED_OR_POSITIONAL_PARAM : {this.isDevVersion()}? NAMED_OR_POSITIONAL_PARAM -> type(NAMED_OR_POSITIONAL_PARAM);
 
 MVEXPAND_QUOTED_IDENTIFIER
     : QUOTED_IDENTIFIER -> type(QUOTED_IDENTIFIER)
@@ -469,7 +479,7 @@ SHOW_WS
 mode SETTING_MODE;
 SETTING_CLOSING_BRACKET : CLOSING_BRACKET -> type(CLOSING_BRACKET), popMode;
 
-COLON : ':';
+SETTING_COLON : COLON -> type(COLON);
 
 SETTING
     : (ASPERAND | DIGIT| DOT | LETTER | UNDERSCORE)+

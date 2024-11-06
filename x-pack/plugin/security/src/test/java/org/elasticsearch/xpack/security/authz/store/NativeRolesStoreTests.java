@@ -98,6 +98,7 @@ import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTestHelp
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTestHelper.randomClusterPrivileges;
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTestHelper.randomRemoteIndicesPrivileges;
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTestHelper.randomRoleDescriptorMetadata;
+import static org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions.ROLE_REMOTE_CLUSTER_PRIVS;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.contains;
@@ -488,7 +489,7 @@ public class NativeRolesStoreTests extends ESTestCase {
             switch (testMode) {
                 case REMOTE_CLUSTER_PRIVS -> {
                     transportVersionBeforeAdvancedRemoteClusterSecurity = TransportVersionUtils.getPreviousVersion(
-                        TransportVersions.ROLE_REMOTE_CLUSTER_PRIVS
+                        ROLE_REMOTE_CLUSTER_PRIVS
                     );
                     remoteIndicesPrivileges = null;
                 }
@@ -549,7 +550,7 @@ public class NativeRolesStoreTests extends ESTestCase {
                 containsString(
                     "all nodes must have version ["
                         + (TEST_MODE.REMOTE_CLUSTER_PRIVS.equals(testMode)
-                            ? TransportVersions.ROLE_REMOTE_CLUSTER_PRIVS
+                            ? ROLE_REMOTE_CLUSTER_PRIVS.toReleaseVersion()
                             : TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY.toReleaseVersion())
                         + "] or higher to support remote "
                         + (remoteIndicesPrivileges != null ? "indices" : "cluster")

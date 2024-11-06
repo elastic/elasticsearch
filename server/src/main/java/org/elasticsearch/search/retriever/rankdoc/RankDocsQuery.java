@@ -13,7 +13,6 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
@@ -106,13 +105,12 @@ public class RankDocsQuery extends Query {
                 }
 
                 @Override
-                public Scorer scorer(LeafReaderContext context) {
-                    // Segment starts indicate how many docs are in the segment,
-                    // upper equalling lower indicates no documents for this segment
-                    if (segmentStarts[context.ord] == segmentStarts[context.ord + 1]) {
-                        return null;
-                    }
-                    return new Scorer(this) {
+                public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
+                    /**
+                     * We return a scorer even if there are no ranked documents within the segment.
+                     * This ensures the correct propagation of the maximum score.
+                     */
+                    Scorer scorer = new Scorer() {
                         final int lower = segmentStarts[context.ord];
                         final int upper = segmentStarts[context.ord + 1];
                         int upTo = -1;
@@ -181,6 +179,7 @@ public class RankDocsQuery extends Query {
                         }
 
                     };
+                    return new DefaultScorerSupplier(scorer);
                 }
 
                 @Override
@@ -327,11 +326,6 @@ public class RankDocsQuery extends Query {
             }
 
             @Override
-            public Scorer scorer(LeafReaderContext context) throws IOException {
-                return combinedWeight.scorer(context);
-            }
-
-            @Override
             public boolean isCacheable(LeafReaderContext ctx) {
                 return combinedWeight.isCacheable(ctx);
             }
@@ -339,11 +333,6 @@ public class RankDocsQuery extends Query {
             @Override
             public Matches matches(LeafReaderContext context, int doc) throws IOException {
                 return combinedWeight.matches(context, doc);
-            }
-
-            @Override
-            public BulkScorer bulkScorer(LeafReaderContext context) throws IOException {
-                return combinedWeight.bulkScorer(context);
             }
 
             @Override

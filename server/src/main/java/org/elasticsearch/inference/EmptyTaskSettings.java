@@ -16,6 +16,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Map;
 
 /**
  * This class defines an empty task settings object. This is useful for services that do not have any task settings.
@@ -53,4 +54,9 @@ public record EmptyTaskSettings() implements TaskSettings {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {}
+
+    @Override
+    public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
+        return INSTANCE;
+    }
 }

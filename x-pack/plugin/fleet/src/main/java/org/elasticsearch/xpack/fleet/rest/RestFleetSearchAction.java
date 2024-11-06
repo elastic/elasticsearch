@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.fleet.rest;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.client.internal.node.NodeClient;
@@ -57,12 +56,11 @@ public class RestFleetSearchAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        SearchRequest searchRequest;
-        if (request.hasParam("min_compatible_shard_node")) {
-            searchRequest = new SearchRequest(Version.fromString(request.param("min_compatible_shard_node")));
-        } else {
-            searchRequest = new SearchRequest();
-        }
+        SearchRequest searchRequest = new SearchRequest();
+        // access the BwC param, but just drop it
+        // this might be set by old clients
+        request.param("min_compatible_shard_node");
+
         String[] indices = searchRequest.indices();
         if (indices.length > 1) {
             throw new IllegalArgumentException(

@@ -141,10 +141,7 @@ public class DataStreamLifecycleWithRetentionWarningsTests extends ESTestCase {
         MetadataDataStreamsService metadataDataStreamsService = new MetadataDataStreamsService(
             mock(ClusterService.class),
             mock(IndicesService.class),
-            DataStreamGlobalRetentionSettings.create(
-                ClusterSettings.createBuiltInClusterSettings(settingsWithDefaultRetention),
-                DataStreamFactoryRetention.emptyFactoryRetention()
-            )
+            DataStreamGlobalRetentionSettings.create(ClusterSettings.createBuiltInClusterSettings(settingsWithDefaultRetention))
         );
 
         ClusterState after = metadataDataStreamsService.updateDataLifecycle(before, List.of(dataStream), DataStreamLifecycle.DEFAULT);
@@ -281,10 +278,7 @@ public class DataStreamLifecycleWithRetentionWarningsTests extends ESTestCase {
             xContentRegistry(),
             EmptySystemIndices.INSTANCE,
             new IndexSettingProviders(Set.of()),
-            DataStreamGlobalRetentionSettings.create(
-                ClusterSettings.createBuiltInClusterSettings(settingsWithDefaultRetention),
-                DataStreamFactoryRetention.emptyFactoryRetention()
-            )
+            DataStreamGlobalRetentionSettings.create(ClusterSettings.createBuiltInClusterSettings(settingsWithDefaultRetention))
         );
 
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);

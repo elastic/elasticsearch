@@ -124,10 +124,12 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
         IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         IndexShard indexShard = indexService.getShard(shardId.id());
         if (indexShard.routingEntry().isPromotableToPrimary() == false) {
+            // TODO: Re-evaluate assertion (ES-8227)
+            // assert indexShard.indexSettings().isFastRefresh() == false
+            // : "a search shard should not receive a TransportShardMultiGetAction for an index with fast refresh";
             handleMultiGetOnUnpromotableShard(request, indexShard, listener);
             return;
         }
-        // TODO: adapt assertion to assert only that it is not stateless (ES-9563)
         assert DiscoveryNode.isStateless(clusterService.getSettings()) == false || indexShard.indexSettings().isFastRefresh()
             : "in Stateless a promotable to primary shard can receive a TransportShardMultiGetAction only if an index has "
                 + "the fast refresh setting";

@@ -82,9 +82,6 @@ public class GetIndexRequestTests extends ESTestCase {
         );
         assertThat(getIndexRequest.indicesOptions().wildcardOptions(), equalTo(IndicesOptions.strictExpandOpen().wildcardOptions()));
         assertThat(getIndexRequest.indicesOptions().gatekeeperOptions(), equalTo(IndicesOptions.strictExpandOpen().gatekeeperOptions()));
-        assertThat(
-            getIndexRequest.indicesOptions().failureStoreOptions(),
-            equalTo(IndicesOptions.FailureStoreOptions.builder().includeRegularIndices(true).includeFailureIndices(true).build())
-        );
+        assertThat(getIndexRequest.indicesOptions().selectorOptions(), equalTo(IndicesOptions.SelectorOptions.ALL_APPLICABLE));
     }
 }

@@ -87,7 +87,7 @@ public class EsRelation extends LeafPlan {
     }
 
     private static boolean supportingEsSourceOptions(TransportVersion version) {
-        return version.onOrAfter(TransportVersions.V_8_14_0) && version.before(TransportVersions.ESQL_REMOVE_ES_SOURCE_OPTIONS);
+        return version.between(TransportVersions.V_8_14_0, TransportVersions.V_8_15_0);
     }
 
     @Override
@@ -112,7 +112,12 @@ public class EsRelation extends LeafPlan {
             EsField t = entry.getValue();
 
             if (t != null) {
-                FieldAttribute f = new FieldAttribute(source, parent, parent != null ? parent.name() + "." + name : name, t);
+                FieldAttribute f = new FieldAttribute(
+                    source,
+                    parent != null ? parent.name() : null,
+                    parent != null ? parent.name() + "." + name : name,
+                    t
+                );
                 list.add(f);
                 // object or nested
                 if (t.getProperties().isEmpty() == false) {
@@ -180,7 +185,7 @@ public class EsRelation extends LeafPlan {
     }
 
     public static IndexMode readIndexMode(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_ADD_INDEX_MODE_TO_SOURCE)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
             return IndexMode.fromString(in.readString());
         } else {
             return IndexMode.STANDARD;
@@ -188,7 +193,7 @@ public class EsRelation extends LeafPlan {
     }
 
     public static void writeIndexMode(StreamOutput out, IndexMode indexMode) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_ADD_INDEX_MODE_TO_SOURCE)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
             out.writeString(indexMode.getName());
         } else if (indexMode != IndexMode.STANDARD) {
             throw new IllegalStateException("not ready to support index mode [" + indexMode + "]");

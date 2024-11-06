@@ -34,7 +34,7 @@ public class RestBulkPutRolesAction extends NativeRoleBaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(Route.builder(POST, "/_security/role").build());
+        return List.of(new Route(POST, "/_security/role"));
     }
 
     @Override

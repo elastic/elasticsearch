@@ -88,9 +88,6 @@ public class ParsingTests extends ESTestCase {
             Collections.sort(namesAndAliases);
             for (String nameOrAlias : namesAndAliases) {
                 DataType expectedType = DataType.fromNameOrAlias(nameOrAlias);
-                if (expectedType == DataType.TEXT) {
-                    expectedType = DataType.KEYWORD;
-                }
                 if (EsqlDataTypeConverter.converterFunctionFactory(expectedType) == null) {
                     continue;
                 }

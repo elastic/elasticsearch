@@ -16,6 +16,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.ScoreMode;
@@ -172,6 +173,7 @@ public class ShardSplittingQueryTests extends ESTestCase {
                     int doc;
                     int numActual = 0;
                     int lastDoc = 0;
+                    StoredFields storedFields = reader.storedFields();
                     while ((doc = iterator.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
                         lastDoc = doc;
                         while (shard_id.nextDoc() < doc) {
@@ -181,7 +183,7 @@ public class ShardSplittingQueryTests extends ESTestCase {
                         }
                         assertEquals(shard_id.docID(), doc);
                         long shardID = shard_id.nextValue();
-                        BytesRef id = reader.document(doc).getBinaryValue("_id");
+                        BytesRef id = storedFields.document(doc).getBinaryValue("_id");
                         String actualId = Uid.decodeId(id.bytes, id.offset, id.length);
                         assertNotEquals(ctx.reader() + " docID: " + doc + " actualID: " + actualId, shardID, targetShardId);
                     }

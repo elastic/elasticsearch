@@ -7,70 +7,74 @@
 
 package org.elasticsearch.xpack.inference.external.request.amazonbedrock.completion;
 
-import com.amazonaws.services.bedrockruntime.model.ContentBlock;
-import com.amazonaws.services.bedrockruntime.model.ConverseRequest;
-import com.amazonaws.services.bedrockruntime.model.Message;
+import software.amazon.awssdk.services.bedrockruntime.model.ContentBlock;
+import software.amazon.awssdk.services.bedrockruntime.model.ConverseRequest;
+import software.amazon.awssdk.services.bedrockruntime.model.Message;
 
 import org.elasticsearch.core.Strings;
 
+import java.util.Collection;
+
+import static org.elasticsearch.xpack.inference.external.request.amazonbedrock.completion.AmazonBedrockConverseUtils.getConverseMessageList;
+import static org.elasticsearch.xpack.inference.external.request.amazonbedrock.completion.AmazonBedrockConverseUtils.inferenceConfig;
+
 public final class AmazonBedrockConverseRequestUtils {
     public static ConverseRequest getConverseRequest(String modelId, AmazonBedrockConverseRequestEntity requestEntity) {
-        var converseRequest = new ConverseRequest().withModelId(modelId);
-        converseRequest = requestEntity.addMessages(converseRequest);
-        converseRequest = requestEntity.addInferenceConfig(converseRequest);
-        converseRequest = requestEntity.addAdditionalModelFields(converseRequest);
-        return converseRequest;
+        var converseRequest = ConverseRequest.builder()
+            .modelId(modelId)
+            .messages(getConverseMessageList(requestEntity.messages()))
+            .additionalModelResponseFieldPaths(requestEntity.additionalModelFields());
+        inferenceConfig(requestEntity).ifPresent(converseRequest::inferenceConfig);
+        return converseRequest.build();
     }
 
     public static boolean doesConverseRequestHasMessage(ConverseRequest converseRequest, String expectedMessage) {
-        for (Message message : converseRequest.getMessages()) {
-            var content = message.getContent();
-            for (ContentBlock contentBlock : content) {
-                if (contentBlock.getText().equals(expectedMessage)) {
-                    return true;
-                }
-            }
+        if (expectedMessage == null) {
+            return false;
         }
-        return false;
+        return converseRequest.messages()
+            .stream()
+            .map(Message::content)
+            .flatMap(Collection::stream)
+            .map(ContentBlock::text)
+            .anyMatch(expectedMessage::equals);
     }
 
     public static boolean doesConverseRequestHaveAnyTemperatureInput(ConverseRequest converseRequest) {
-        return converseRequest.getInferenceConfig() != null
-            && converseRequest.getInferenceConfig().getTemperature() != null
-            && (converseRequest.getInferenceConfig().getTemperature().isNaN() == false);
+        return converseRequest.inferenceConfig() != null
+            && converseRequest.inferenceConfig().temperature() != null
+            && (converseRequest.inferenceConfig().temperature().isNaN() == false);
     }
 
     public static boolean doesConverseRequestHaveAnyTopPInput(ConverseRequest converseRequest) {
-        return converseRequest.getInferenceConfig() != null
-            && converseRequest.getInferenceConfig().getTopP() != null
-            && (converseRequest.getInferenceConfig().getTopP().isNaN() == false);
+        return converseRequest.inferenceConfig() != null
+            && converseRequest.inferenceConfig().topP() != null
+            && (converseRequest.inferenceConfig().topP().isNaN() == false);
     }
 
     public static boolean doesConverseRequestHaveAnyMaxTokensInput(ConverseRequest converseRequest) {
-        return converseRequest.getInferenceConfig() != null && converseRequest.getInferenceConfig().getMaxTokens() != null;
+        return converseRequest.inferenceConfig() != null && converseRequest.inferenceConfig().maxTokens() != null;
     }
 
     public static boolean doesConverseRequestHaveTemperatureInput(ConverseRequest converseRequest, Double temperature) {
         return doesConverseRequestHaveAnyTemperatureInput(converseRequest)
-            && converseRequest.getInferenceConfig().getTemperature().equals(temperature.floatValue());
+            && converseRequest.inferenceConfig().temperature().equals(temperature.floatValue());
     }
 
     public static boolean doesConverseRequestHaveTopPInput(ConverseRequest converseRequest, Double topP) {
-        return doesConverseRequestHaveAnyTopPInput(converseRequest)
-            && converseRequest.getInferenceConfig().getTopP().equals(topP.floatValue());
+        return doesConverseRequestHaveAnyTopPInput(converseRequest) && converseRequest.inferenceConfig().topP().equals(topP.floatValue());
     }
 
     public static boolean doesConverseRequestHaveMaxTokensInput(ConverseRequest converseRequest, Integer maxTokens) {
-        return doesConverseRequestHaveAnyMaxTokensInput(converseRequest)
-            && converseRequest.getInferenceConfig().getMaxTokens().equals(maxTokens);
+        return doesConverseRequestHaveAnyMaxTokensInput(converseRequest) && converseRequest.inferenceConfig().maxTokens().equals(maxTokens);
     }
 
     public static boolean doesConverseRequestHaveAnyTopKInput(ConverseRequest converseRequest) {
-        if (converseRequest.getAdditionalModelResponseFieldPaths() == null) {
+        if (converseRequest.additionalModelResponseFieldPaths() == null) {
             return false;
         }
 
-        for (String fieldPath : converseRequest.getAdditionalModelResponseFieldPaths()) {
+        for (String fieldPath : converseRequest.additionalModelResponseFieldPaths()) {
             if (fieldPath.contains("{\"top_k\":")) {
                 return true;
             }
@@ -84,7 +88,7 @@ public final class AmazonBedrockConverseRequestUtils {
         }
 
         var checkString = Strings.format("{\"top_k\":%f}", topK.floatValue());
-        for (String fieldPath : converseRequest.getAdditionalModelResponseFieldPaths()) {
+        for (String fieldPath : converseRequest.additionalModelResponseFieldPaths()) {
             if (fieldPath.contains(checkString)) {
                 return true;
             }

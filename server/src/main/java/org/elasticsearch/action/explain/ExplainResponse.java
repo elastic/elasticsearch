@@ -14,7 +14,6 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.rest.RestStatus;
@@ -138,10 +137,6 @@ public class ExplainResponse extends ActionResponse implements ToXContentObject 
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(_INDEX.getPreferredName(), index);
-        if (builder.getRestApiVersion() == RestApiVersion.V_7) {
-            builder.field(MapperService.TYPE_FIELD_NAME, MapperService.SINGLE_MAPPING_NAME);
-        }
-
         builder.field(_ID.getPreferredName(), id);
         builder.field(MATCHED.getPreferredName(), isMatch());
         if (hasExplanation()) {

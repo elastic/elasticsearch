@@ -151,11 +151,11 @@ public class DfsQueryPhaseTests extends ESTestCase {
             assertNotNull(responseRef.get());
             assertNotNull(responseRef.get().get(0));
             assertNull(responseRef.get().get(0).fetchResult());
-            assertEquals(1, responseRef.get().get(0).queryResult().topDocs().topDocs.totalHits.value);
+            assertEquals(1, responseRef.get().get(0).queryResult().topDocs().topDocs.totalHits.value());
             assertEquals(42, responseRef.get().get(0).queryResult().topDocs().topDocs.scoreDocs[0].doc);
             assertNotNull(responseRef.get().get(1));
             assertNull(responseRef.get().get(1).fetchResult());
-            assertEquals(1, responseRef.get().get(1).queryResult().topDocs().topDocs.totalHits.value);
+            assertEquals(1, responseRef.get().get(1).queryResult().topDocs().topDocs.totalHits.value());
             assertEquals(84, responseRef.get().get(1).queryResult().topDocs().topDocs.scoreDocs[0].doc);
             assertTrue(mockSearchPhaseContext.releasedSearchContexts.isEmpty());
             assertEquals(2, mockSearchPhaseContext.numSuccess.get());
@@ -236,7 +236,7 @@ public class DfsQueryPhaseTests extends ESTestCase {
             assertNotNull(responseRef.get());
             assertNotNull(responseRef.get().get(0));
             assertNull(responseRef.get().get(0).fetchResult());
-            assertEquals(1, responseRef.get().get(0).queryResult().topDocs().topDocs.totalHits.value);
+            assertEquals(1, responseRef.get().get(0).queryResult().topDocs().topDocs.totalHits.value());
             assertEquals(42, responseRef.get().get(0).queryResult().topDocs().topDocs.scoreDocs[0].doc);
             assertNull(responseRef.get().get(1));
 

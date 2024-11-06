@@ -13,6 +13,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.client.WarningFailureException;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
@@ -1118,6 +1119,117 @@ public class AutoFollowIT extends ESCCRRestTestCase {
             cleanUpLeader(List.of(regularIndex, mountedIndex), List.of(), List.of());
             cleanUpFollower(List.of(regularIndex), List.of(), List.of(autoFollowPattern));
         }
+    }
+
+    public void testNoWarningOnPromoteDatastreamWhenTemplateExistsOnFollower() throws Exception {
+        if ("follow".equals(targetCluster) == false) {
+            return;
+        }
+        testDataStreamPromotionWarnings(true);
+    }
+
+    public void testWarningOnPromoteDatastreamWhenTemplateDoesNotExistsOnFollower() {
+        if ("follow".equals(targetCluster) == false) {
+            return;
+        }
+        WarningFailureException exception = assertThrows(WarningFailureException.class, () -> testDataStreamPromotionWarnings(false));
+        assertThat(
+            exception.getMessage(),
+            containsString(
+                "does not have a matching index template. This will cause rollover to fail until a matching index template is created]"
+            )
+        );
+    }
+
+    private void testDataStreamPromotionWarnings(Boolean createFollowerTemplate) throws Exception {
+        final int numDocs = 64;
+        final String dataStreamName = getTestName().toLowerCase(Locale.ROOT) + "-dopromo";
+        final String autoFollowPatternName = getTestName().toLowerCase(Locale.ROOT);
+
+        int initialNumberOfSuccessfulFollowedIndices = getNumberOfSuccessfulFollowedIndices();
+        List<String> backingIndexNames = null;
+        try {
+            // Create index template
+            Request putComposableIndexTemplateRequest = new Request("POST", "/_index_template/" + getTestName().toLowerCase(Locale.ROOT));
+            putComposableIndexTemplateRequest.setJsonEntity("{\"index_patterns\":[\"" + dataStreamName + "*\"],\"data_stream\":{}}");
+
+            if (createFollowerTemplate) {
+                assertOK(client().performRequest(putComposableIndexTemplateRequest));
+            }
+
+            // Create auto follow pattern
+            createAutoFollowPattern(client(), autoFollowPatternName, dataStreamName + "*", "leader_cluster", null);
+
+            // Create data stream and ensure that it is auto followed
+            try (var leaderClient = buildLeaderClient()) {
+                assertOK(leaderClient.performRequest(putComposableIndexTemplateRequest));
+
+                for (int i = 0; i < numDocs; i++) {
+                    var indexRequest = new Request("POST", "/" + dataStreamName + "/_doc");
+                    indexRequest.addParameter("refresh", "true");
+                    indexRequest.setJsonEntity("{\"@timestamp\": \"" + DATE_FORMAT.format(new Date()) + "\",\"message\":\"abc\"}");
+                    assertOK(leaderClient.performRequest(indexRequest));
+                }
+                verifyDataStream(leaderClient, dataStreamName, backingIndexName(dataStreamName, 1));
+                verifyDocuments(leaderClient, dataStreamName, numDocs);
+            }
+            assertBusy(() -> {
+                assertThat(getNumberOfSuccessfulFollowedIndices(), equalTo(initialNumberOfSuccessfulFollowedIndices + 1));
+                verifyDataStream(client(), dataStreamName, backingIndexName(dataStreamName, 1));
+                ensureYellow(dataStreamName);
+                verifyDocuments(client(), dataStreamName, numDocs);
+            });
+
+            // Rollover in leader cluster and ensure second backing index is replicated:
+            try (var leaderClient = buildLeaderClient()) {
+                var rolloverRequest = new Request("POST", "/" + dataStreamName + "/_rollover");
+                assertOK(leaderClient.performRequest(rolloverRequest));
+                verifyDataStream(leaderClient, dataStreamName, backingIndexName(dataStreamName, 1), backingIndexName(dataStreamName, 2));
+
+                var indexRequest = new Request("POST", "/" + dataStreamName + "/_doc");
+                indexRequest.addParameter("refresh", "true");
+                indexRequest.setJsonEntity("{\"@timestamp\": \"" + DATE_FORMAT.format(new Date()) + "\",\"message\":\"abc\"}");
+                assertOK(leaderClient.performRequest(indexRequest));
+                verifyDocuments(leaderClient, dataStreamName, numDocs + 1);
+            }
+            assertBusy(() -> {
+                assertThat(getNumberOfSuccessfulFollowedIndices(), equalTo(initialNumberOfSuccessfulFollowedIndices + 2));
+                verifyDataStream(client(), dataStreamName, backingIndexName(dataStreamName, 1), backingIndexName(dataStreamName, 2));
+                ensureYellow(dataStreamName);
+                verifyDocuments(client(), dataStreamName, numDocs + 1);
+            });
+
+            backingIndexNames = verifyDataStream(
+                client(),
+                dataStreamName,
+                backingIndexName(dataStreamName, 1),
+                backingIndexName(dataStreamName, 2)
+            );
+
+            // Promote local data stream
+            var promoteRequest = new Request("POST", "/_data_stream/_promote/" + dataStreamName);
+            Response response = client().performRequest(promoteRequest);
+            assertOK(response);
+        } finally {
+            if (backingIndexNames == null) {
+                // we failed to compute the actual backing index names in the test because we failed earlier on, guessing them on a
+                // best-effort basis
+                backingIndexNames = List.of(backingIndexName(dataStreamName, 1), backingIndexName(dataStreamName, 2));
+            }
+
+            // These cleanup methods are copied from the finally block of other Data Stream tests in this class however
+            // they may no longer be required but have been included for completeness
+            cleanUpFollower(backingIndexNames, List.of(dataStreamName), List.of(autoFollowPatternName));
+            cleanUpLeader(backingIndexNames.subList(0, 1), List.of(dataStreamName), List.of());
+            Request deleteTemplateRequest = new Request("DELETE", "/_index_template/" + getTestName().toLowerCase(Locale.ROOT));
+            if (createFollowerTemplate) {
+                assertOK(client().performRequest(deleteTemplateRequest));
+            }
+            try (var leaderClient = buildLeaderClient()) {
+                assertOK(leaderClient.performRequest(deleteTemplateRequest));
+            }
+        }
+
     }
 
     private int getNumberOfSuccessfulFollowedIndices() throws IOException {

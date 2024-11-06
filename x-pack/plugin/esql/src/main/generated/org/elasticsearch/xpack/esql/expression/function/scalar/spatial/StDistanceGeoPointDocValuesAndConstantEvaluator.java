@@ -10,7 +10,6 @@ import java.lang.String;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.LongBlock;
-import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
@@ -26,63 +25,42 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 public final class StDistanceGeoPointDocValuesAndConstantEvaluator implements EvalOperator.ExpressionEvaluator {
   private final Source source;
 
-  private final EvalOperator.ExpressionEvaluator leftValue;
+  private final EvalOperator.ExpressionEvaluator left;
 
-  private final Point rightValue;
+  private final Point right;
 
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
   public StDistanceGeoPointDocValuesAndConstantEvaluator(Source source,
-      EvalOperator.ExpressionEvaluator leftValue, Point rightValue, DriverContext driverContext) {
+      EvalOperator.ExpressionEvaluator left, Point right, DriverContext driverContext) {
     this.source = source;
-    this.leftValue = leftValue;
-    this.rightValue = rightValue;
+    this.left = left;
+    this.right = right;
     this.driverContext = driverContext;
   }
 
   @Override
   public Block eval(Page page) {
-    try (LongBlock leftValueBlock = (LongBlock) leftValue.eval(page)) {
-      LongVector leftValueVector = leftValueBlock.asVector();
-      if (leftValueVector == null) {
-        return eval(page.getPositionCount(), leftValueBlock);
-      }
-      return eval(page.getPositionCount(), leftValueVector);
+    try (LongBlock leftBlock = (LongBlock) left.eval(page)) {
+      return eval(page.getPositionCount(), leftBlock);
     }
   }
 
-  public DoubleBlock eval(int positionCount, LongBlock leftValueBlock) {
+  public DoubleBlock eval(int positionCount, LongBlock leftBlock) {
     try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        if (leftValueBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
+        boolean allBlocksAreNulls = true;
+        if (!leftBlock.isNull(p)) {
+          allBlocksAreNulls = false;
         }
-        if (leftValueBlock.getValueCount(p) != 1) {
-          if (leftValueBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
+        if (allBlocksAreNulls) {
           result.appendNull();
           continue position;
         }
         try {
-          result.appendDouble(StDistance.processGeoPointDocValuesAndConstant(leftValueBlock.getLong(leftValueBlock.getFirstValueIndex(p)), this.rightValue));
-        } catch (IllegalArgumentException e) {
-          warnings().registerException(e);
-          result.appendNull();
-        }
-      }
-      return result.build();
-    }
-  }
-
-  public DoubleBlock eval(int positionCount, LongVector leftValueVector) {
-    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
-      position: for (int p = 0; p < positionCount; p++) {
-        try {
-          result.appendDouble(StDistance.processGeoPointDocValuesAndConstant(leftValueVector.getLong(p), this.rightValue));
+          StDistance.processGeoPointDocValuesAndConstant(result, p, leftBlock, this.right);
         } catch (IllegalArgumentException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -94,12 +72,12 @@ public final class StDistanceGeoPointDocValuesAndConstantEvaluator implements Ev
 
   @Override
   public String toString() {
-    return "StDistanceGeoPointDocValuesAndConstantEvaluator[" + "leftValue=" + leftValue + ", rightValue=" + rightValue + "]";
+    return "StDistanceGeoPointDocValuesAndConstantEvaluator[" + "left=" + left + ", right=" + right + "]";
   }
 
   @Override
   public void close() {
-    Releasables.closeExpectNoException(leftValue);
+    Releasables.closeExpectNoException(left);
   }
 
   private Warnings warnings() {
@@ -117,25 +95,24 @@ public final class StDistanceGeoPointDocValuesAndConstantEvaluator implements Ev
   static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory leftValue;
+    private final EvalOperator.ExpressionEvaluator.Factory left;
 
-    private final Point rightValue;
+    private final Point right;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory leftValue,
-        Point rightValue) {
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory left, Point right) {
       this.source = source;
-      this.leftValue = leftValue;
-      this.rightValue = rightValue;
+      this.left = left;
+      this.right = right;
     }
 
     @Override
     public StDistanceGeoPointDocValuesAndConstantEvaluator get(DriverContext context) {
-      return new StDistanceGeoPointDocValuesAndConstantEvaluator(source, leftValue.get(context), rightValue, context);
+      return new StDistanceGeoPointDocValuesAndConstantEvaluator(source, left.get(context), right, context);
     }
 
     @Override
     public String toString() {
-      return "StDistanceGeoPointDocValuesAndConstantEvaluator[" + "leftValue=" + leftValue + ", rightValue=" + rightValue + "]";
+      return "StDistanceGeoPointDocValuesAndConstantEvaluator[" + "left=" + left + ", right=" + right + "]";
     }
   }
 }

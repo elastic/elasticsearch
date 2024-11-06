@@ -152,14 +152,17 @@ teardown:
   - match: { results.0.ruleset_id: "test-query-ruleset-1" }
   - match: { results.0.rule_total_count: 3 }
   - match: { results.0.rule_criteria_types_counts: { exact: 3 } }
+  - match: { results.0.rule_type_counts: { pinned: 3, } }
 
   - match: { results.1.ruleset_id: "test-query-ruleset-2" }
   - match: { results.1.rule_total_count: 5 }
   - match: { results.1.rule_criteria_types_counts: { exact: 4, fuzzy: 1 } }
+  - match: { results.1.rule_type_counts: { pinned: 4, exclude: 1 } }
 
   - match: { results.2.ruleset_id: "test-query-ruleset-3" }
   - match: { results.2.rule_total_count: 2 }
   - match: { results.2.rule_criteria_types_counts: { exact: 2 } }
+  - match: { results.2.rule_type_counts: { pinned: 2 } }
 
 ---
 "List Query Rulesets - with from":
@@ -173,10 +176,12 @@ teardown:
   - match: { results.0.ruleset_id: "test-query-ruleset-2" }
   - match: { results.0.rule_total_count: 5 }
   - match: { results.0.rule_criteria_types_counts: { exact: 4, fuzzy: 1 } }
+  - match: { results.0.rule_type_counts: { pinned: 4, exclude: 1 } }
 
   - match: { results.1.ruleset_id: "test-query-ruleset-3" }
   - match: { results.1.rule_total_count: 2 }
   - match: { results.1.rule_criteria_types_counts: { exact: 2 } }
+  - match: { results.1.rule_type_counts: { pinned: 2 } }
 
 ---
 "List Query Rulesets - with size":
@@ -190,10 +195,12 @@ teardown:
   - match: { results.0.ruleset_id: "test-query-ruleset-1" }
   - match: { results.0.rule_total_count: 3 }
   - match: { results.0.rule_criteria_types_counts: { exact: 3 } }
+  - match: { results.0.rule_type_counts: { pinned: 3 } }
 
   - match: { results.1.ruleset_id: "test-query-ruleset-2" }
   - match: { results.1.rule_total_count: 5 }
   - match: { results.1.rule_criteria_types_counts: { exact: 4, fuzzy: 1 } }
+  - match: { results.1.rule_type_counts: { pinned: 4, exclude: 1 } }
 
 ---
 "List Query Rulesets - empty":
@@ -222,7 +229,7 @@ teardown:
         body:
           rules:
             - rule_id: query-rule-id1
-              type: pinned
+              type: exclude
               criteria:
                 - type: exact
                   metadata: query_string
@@ -294,6 +301,7 @@ teardown:
         prefix: 1
         suffix: 1
         always: 1
+  - match: { results.0.rule_type_counts: { pinned: 4, exclude: 1 } }
 
 ---
 'List Query Rulesets - Insufficient privilege':

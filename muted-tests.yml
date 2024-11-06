@@ -288,6 +288,8 @@ tests:
 - class: org.elasticsearch.packaging.test.ArchiveTests
   method: test43AutoconfigurationNotTriggeredWhenTlsAlreadyConfigured
   issue: https://github.com/elastic/elasticsearch/issues/116317
+- class: org.elasticsearch.xpack.downsample.DownsampleRestIT
+  issue: https://github.com/elastic/elasticsearch/issues/116326
 
 # Examples:
 #

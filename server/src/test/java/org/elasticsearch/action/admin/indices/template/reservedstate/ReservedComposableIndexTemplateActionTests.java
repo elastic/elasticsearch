@@ -700,7 +700,8 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
             threadPool,
             null,
             mock(ActionFilters.class),
-            null
+            null,
+            TestProjectResolvers.singleProjectOnly()
         );
         assertEquals(ReservedComposableIndexTemplateAction.NAME, delIndexAction.reservedStateHandlerName().get());
         assertThat(

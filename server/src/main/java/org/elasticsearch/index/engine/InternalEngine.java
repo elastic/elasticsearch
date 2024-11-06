@@ -2709,8 +2709,7 @@ public class InternalEngine extends Engine {
         // always configure soft-deletes field so an engine with soft-deletes disabled can open a Lucene index with soft-deletes.
         iwc.setSoftDeletesField(Lucene.SOFT_DELETES_FIELD);
         mergePolicy = new RecoverySourcePruneMergePolicy(
-            engineConfig.getMapperService().mappingLookup().isSourceSynthetic()
-                && engineConfig.getIndexSettings().isRecoverySourceSyntheticEnabled() ? null : SourceFieldMapper.RECOVERY_SOURCE_NAME,
+            useSyntheticSourceForRecovery() ? null : SourceFieldMapper.RECOVERY_SOURCE_NAME,
             SourceFieldMapper.RECOVERY_SOURCE_SIZE_NAME,
             engineConfig.getIndexSettings().getMode() == IndexMode.TIME_SERIES,
             softDeletesPolicy::getRetentionQuery,
@@ -2753,6 +2752,13 @@ public class InternalEngine extends Engine {
             iwc.setLeafSorter(engineConfig.getLeafSorter());
         }
         return iwc;
+    }
+
+    private boolean useSyntheticSourceForRecovery() {
+        return engineConfig.getMapperService() != null
+                && engineConfig.getMapperService().mappingLookup().isSourceSynthetic()
+                && engineConfig.getIndexSettings().isRecoverySourceSyntheticEnabled();
+
     }
 
     /** A listener that warms the segments if needed when acquiring a new reader */
@@ -3156,8 +3162,7 @@ public class InternalEngine extends Engine {
         Searcher searcher = acquireSearcher(source, SearcherScope.INTERNAL);
         try {
             final Translog.Snapshot snapshot;
-            if (engineConfig.getMapperService().mappingLookup().isSourceSynthetic()
-                && engineConfig.getIndexSettings().isRecoverySourceSyntheticEnabled()) {
+            if (useSyntheticSourceForRecovery()) {
                 snapshot = new LuceneSyntheticSourceChangesSnapshot(
                     engineConfig.getMapperService().mappingLookup(),
                     searcher,

@@ -368,7 +368,7 @@ public final class UnigramTokenizer extends Tokenizer {
                             Strings.format("<0x%02X>", bytes[i]),
                             pieces[i],
                             offsetCorrection.apply(node.startsAtCharPos),
-                            offsetCorrection.apply(startsAtBytes + i)
+                            offsetCorrection.apply(node.startsAtCharPos + i)
                         )
                     );
                 }

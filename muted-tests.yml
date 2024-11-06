@@ -179,9 +179,6 @@ tests:
 - class: org.elasticsearch.index.mapper.extras.TokenCountFieldMapperTests
   method: testBlockLoaderFromRowStrideReaderWithSyntheticSource
   issue: https://github.com/elastic/elasticsearch/issues/113427
-- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
-  method: test {categorize.Categorize}
-  issue: https://github.com/elastic/elasticsearch/issues/113428
 - class: org.elasticsearch.xpack.inference.InferenceCrudIT
   method: testSupportedStream
   issue: https://github.com/elastic/elasticsearch/issues/113430
@@ -246,9 +243,6 @@ tests:
 - class: org.elasticsearch.xpack.inference.TextEmbeddingCrudIT
   method: testPutE5WithTrainedModelAndInference
   issue: https://github.com/elastic/elasticsearch/issues/114023
-- class: org.elasticsearch.threadpool.SimpleThreadPoolIT
-  method: testThreadPoolMetrics
-  issue: https://github.com/elastic/elasticsearch/issues/108320
 - class: org.elasticsearch.xpack.inference.TextEmbeddingCrudIT
   method: testPutE5Small_withPlatformAgnosticVariant
   issue: https://github.com/elastic/elasticsearch/issues/113983
@@ -289,6 +283,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
   method: test {categorize.Categorize ASYNC}
   issue: https://github.com/elastic/elasticsearch/issues/113055
+- class: org.elasticsearch.xpack.deprecation.DeprecationHttpIT
+  method: testDeprecatedSettingsReturnWarnings
+  issue: https://github.com/elastic/elasticsearch/issues/108628
 
 # Examples:
 #

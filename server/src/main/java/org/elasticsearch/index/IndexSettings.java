@@ -1690,8 +1690,7 @@ public final class IndexSettings {
      * @return Whether recovery source should always be bypassed in favor of using synthetic source.
      */
     public boolean isRecoverySourceSyntheticEnabled() {
-        return version.onOrAfter(IndexVersions.USE_SYNTHETIC_SOURCE_FOR_RECOVERY)
-                && recoverySourceSyntheticEnabled;
+        return version.onOrAfter(IndexVersions.USE_SYNTHETIC_SOURCE_FOR_RECOVERY) && recoverySourceSyntheticEnabled;
     }
 
     /**

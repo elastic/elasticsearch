@@ -411,9 +411,7 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
             assertThat(doc.rootDoc().getField("_recovery_source").binaryValue(), equalTo(new BytesRef("{\"field1\":\"value1\"}")));
         }
         {
-            Settings settings = Settings.builder()
-                .put(IndexSettings.RECOVERY_SOURCE_SYNTHETIC_ENABLED_SETTING.getKey(), true)
-                .build();
+            Settings settings = Settings.builder().put(IndexSettings.RECOVERY_SOURCE_SYNTHETIC_ENABLED_SETTING.getKey(), true).build();
             MapperService mapperService = createMapperService(
                 settings,
                 topMapping(b -> b.startObject(SourceFieldMapper.NAME).field("mode", "synthetic").endObject())

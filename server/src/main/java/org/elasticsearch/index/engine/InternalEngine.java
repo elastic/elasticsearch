@@ -3157,7 +3157,7 @@ public class InternalEngine extends Engine {
         try {
             final Translog.Snapshot snapshot;
             if (engineConfig.getMapperService().mappingLookup().isSourceSynthetic()
-                    && engineConfig.getIndexSettings().isRecoverySourceSyntheticEnabled()) {
+                && engineConfig.getIndexSettings().isRecoverySourceSyntheticEnabled()) {
                 snapshot = new LuceneSyntheticSourceChangesSnapshot(
                     engineConfig.getMapperService().mappingLookup(),
                     searcher,

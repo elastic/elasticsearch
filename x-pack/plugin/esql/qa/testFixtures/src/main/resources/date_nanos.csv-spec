@@ -364,6 +364,8 @@ v:date_nanos
 ;
 
 Date trunc on date nanos
+required_capability: date_trunc_date_nanos
+
 FROM date_nanos 
 | WHERE millis > "2020-01-01" 
 | EVAL yr = DATE_TRUNC(1 year, nanos), mo = DATE_TRUNC(1 month, nanos), mn = DATE_TRUNC(10 minutes, nanos), ms = DATE_TRUNC(1 millisecond, nanos)

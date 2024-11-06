@@ -273,7 +273,10 @@ tag::rrf-retriever-with-aggs[]
 
 Retrievers support both composability and most of the standard `_search` functionality. For instance,
 we can compute aggregations with the `rrf` retriever. When using a compound retriever,
-the aggregations are computed based on its nested retrievers. Here's an example:
+the aggregations are computed based on its nested retrievers. In the following example,
+the `terms` aggregation for the `topic` field will include all results, not just the top `rank_window_size`,
+from the 2 nested retrievers, i.e. all documents whose `year` field is greater then 2023, and whose `topic` field
+matches the term `elastic`. 
 
 [source,js]
 ----

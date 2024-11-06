@@ -25,7 +25,7 @@ public class KqlParser {
     private static final Logger log = LogManager.getLogger(KqlParser.class);
 
     public QueryBuilder parseKqlQuery(String kqlQuery, KqlParsingContext kqlParserContext) {
-        if (log.isDebugEnabled()) {
+        if (log.isTraceEnabled()) {
             log.debug("Parsing KQL query: {}", kqlQuery);
         }
 

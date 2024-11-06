@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.kql.parser;
 
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.mapper.AbstractScriptFieldType;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
@@ -15,12 +14,10 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryRewriteContext;
 
 import java.time.ZoneId;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.function.Predicate;
-import java.util.stream.Collectors;
-
-import static org.elasticsearch.core.Tuple.tuple;
 
 public class KqlParsingContext {
 
@@ -31,11 +28,6 @@ public class KqlParsingContext {
         "_ignored",
         "_nested_path",
         "_field_names"
-    );
-
-    private static final Predicate<Tuple<String, MappedFieldType>> searchableFieldFilter = (fieldDef) -> fieldDef.v2().isSearchable();
-    private static final Predicate<Tuple<String, MappedFieldType>> ignoredFieldFilter = (fieldDef) -> IGNORED_METADATA_FIELDS.contains(
-        fieldDef.v1()
     );
 
     public static Builder builder(QueryRewriteContext queryRewriteContext) {
@@ -54,31 +46,39 @@ public class KqlParsingContext {
         this.defaultField = defaultField;
     }
 
-    public Iterable<Tuple<String, MappedFieldType>> resolveFields(KqlBaseParser.FieldNameContext fieldNameContext) {
-        // TODO: use index settings default field.
-        String fieldNamePattern = fieldNameContext != null ? ParserUtils.extractText(fieldNameContext) : "*";
-        Set<String> matchingFieldNames = queryRewriteContext.getMatchingFieldNames(fieldNamePattern);
-
-        if (fieldNameContext != null && fieldNameContext.value != null && fieldNameContext.value.getType() == KqlBaseParser.QUOTED_STRING) {
-            if (matchingFieldNames.isEmpty() || fieldNamePattern.contains("*")) {
-                return List.of();
-            }
-
-            return List.of(tuple(fieldNamePattern, queryRewriteContext.getFieldType(fieldNamePattern)));
-        }
-
-        return matchingFieldNames.stream()
-            .map(fieldName -> tuple(fieldName, queryRewriteContext.getFieldType(fieldName)))
-            .filter(searchableFieldFilter.and(Predicate.not(ignoredFieldFilter)))
-            .collect(Collectors.toList());
-    }
-
     public boolean caseInsensitive() {
         return caseInsensitive;
     }
 
     public ZoneId timeZone() {
         return timeZone;
+    }
+
+    public String defaultField() {
+        return defaultField;
+    }
+
+    public Set<String> resolveFieldNames(String fieldNamePattern) {
+        if (fieldNamePattern == null) {
+            return resolveDefaultFieldNames();
+        }
+
+        return queryRewriteContext.getMatchingFieldNames(fieldNamePattern);
+    }
+
+    public Set<String> resolveDefaultFieldNames() {
+        Set<String> resolvedFieldNames = new HashSet<>();
+        List<String> defaultFields = defaultField != null
+            ? List.of(defaultField)
+            : queryRewriteContext.getIndexSettings().getDefaultFields();
+
+        defaultFields.forEach(fieldNamePattern -> resolvedFieldNames.addAll(resolveFieldNames(fieldNamePattern)));
+
+        return Collections.unmodifiableSet(resolvedFieldNames);
+    }
+
+    public MappedFieldType fieldType(String fieldName) {
+        return queryRewriteContext.getFieldType(fieldName);
     }
 
     public static boolean isRuntimeField(MappedFieldType fieldType) {
@@ -91,6 +91,14 @@ public class KqlParsingContext {
 
     public static boolean isKeywordField(MappedFieldType fieldType) {
         return fieldType.typeName().equals(KeywordFieldMapper.CONTENT_TYPE);
+    }
+
+    public static boolean isSearchableField(String fieldName, MappedFieldType fieldType) {
+        return IGNORED_METADATA_FIELDS.contains(fieldName) == false && fieldType.isSearchable();
+    }
+
+    public boolean isSearchableField(String fieldName) {
+        return isSearchableField(fieldName, fieldType(fieldName));
     }
 
     public static class Builder {

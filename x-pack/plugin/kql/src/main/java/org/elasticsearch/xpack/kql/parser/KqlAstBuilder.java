@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.kql.parser;
 
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.Token;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
@@ -16,8 +17,10 @@ import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.QueryStringQueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 
+import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 
@@ -25,6 +28,7 @@ import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.kql.parser.KqlParsingContext.isDateField;
 import static org.elasticsearch.xpack.kql.parser.KqlParsingContext.isKeywordField;
 import static org.elasticsearch.xpack.kql.parser.KqlParsingContext.isRuntimeField;
+import static org.elasticsearch.xpack.kql.parser.KqlParsingContext.isSearchableField;
 import static org.elasticsearch.xpack.kql.parser.ParserUtils.escapeLuceneQueryString;
 import static org.elasticsearch.xpack.kql.parser.ParserUtils.hasWildcard;
 
@@ -142,16 +146,27 @@ class KqlAstBuilder extends KqlBaseBaseVisitor<QueryBuilder> {
         String queryText = ParserUtils.extractText(ctx.fieldQueryValue());
 
         if (hasWildcard(ctx.fieldQueryValue())) {
-            // TODO: set default fields.
-            return QueryBuilders.queryStringQuery(escapeLuceneQueryString(queryText, true));
+            QueryStringQueryBuilder queryString = QueryBuilders.queryStringQuery(escapeLuceneQueryString(queryText, true));
+            if (kqlParsingContext.defaultField() != null) {
+                queryString.defaultField(kqlParsingContext.defaultField());
+            }
+            return queryString;
         }
 
         boolean isPhraseMatch = ctx.fieldQueryValue().QUOTED_STRING() != null;
 
-        return QueryBuilders.multiMatchQuery(queryText)
-            // TODO: add default fields?
+        MultiMatchQueryBuilder multiMatchQuery = QueryBuilders.multiMatchQuery(queryText)
             .type(isPhraseMatch ? MultiMatchQueryBuilder.Type.PHRASE : MultiMatchQueryBuilder.Type.BEST_FIELDS)
             .lenient(true);
+
+        if (kqlParsingContext.defaultField() != null) {
+            kqlParsingContext.resolveDefaultFieldNames()
+                .stream()
+                .filter(kqlParsingContext::isSearchableField)
+                .forEach(multiMatchQuery::field);
+        }
+
+        return multiMatchQuery;
     }
 
     @Override
@@ -199,7 +214,25 @@ class KqlAstBuilder extends KqlBaseBaseVisitor<QueryBuilder> {
     }
 
     private void withFields(KqlBaseParser.FieldNameContext ctx, BiConsumer<String, MappedFieldType> fieldConsummer) {
-        kqlParsingContext.resolveFields(ctx).forEach(fieldDef -> fieldConsummer.accept(fieldDef.v1(), fieldDef.v2()));
+        String fieldNamePattern = ctx != null ? ParserUtils.extractText(ctx) : null;
+        Set<String> fieldNames = kqlParsingContext.resolveFieldNames(fieldNamePattern);
+
+        if (ctx != null && ctx.value.getType() == KqlBaseParser.QUOTED_STRING && Regex.isSimpleMatchPattern(fieldNamePattern)) {
+            // When using quoted string, wildcards are not expanded.
+            // No field can match and we can return early.
+            return;
+        }
+
+        if (ctx != null && ctx.value.getType() == KqlBaseParser.QUOTED_STRING) {
+            assert fieldNames.size() < 2 : "only one matching field is expected";
+        }
+
+        fieldNames.forEach(fieldName -> {
+            MappedFieldType fieldType = kqlParsingContext.fieldType(fieldName);
+            if (isSearchableField(fieldName, fieldType)) {
+                fieldConsummer.accept(fieldName, fieldType);
+            }
+        });
     }
 
     private QueryBuilder rewriteDisjunctionQuery(BoolQueryBuilder boolQueryBuilder) {

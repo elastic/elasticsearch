@@ -1,8 +1,15 @@
 setup:
+  - skip:
+      features:
+        - close_to
+
   - requires:
-      cluster_features: 'rrf_retriever_composition_supported'
-      reason: 'test requires rrf retriever composition support'
-      test_runner_features: "close_to"
+      capabilities:
+        - method: POST
+          path: /_search
+          capabilities: [ transform_rank_rrf_to_retriever ]
+      test_runner_features: capabilities
+      reason: "Support for transforming deprecated rank_rrf queries to the corresponding rrf retriever is required"
 
   - do:
       indices.create:

@@ -434,14 +434,13 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
     }
 
     private void tryExecuteNext() {
+        assert Thread.holdsLock(this);
         final MergeTask task;
-        synchronized (this) {
-            if (hasFailure() || runningTask.get() != null) {
-                return;
-            }
-            task = queue.poll();
-            runningTask.set(task);
+        if (hasFailure() || runningTask.get() != null) {
+            return;
         }
+        task = queue.poll();
+        runningTask.set(task);
         if (task == null) {
             return;
         }

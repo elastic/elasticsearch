@@ -1,0 +1,66 @@
+[[esql-time-spans]]
+=== {esql} time spans
+
+++++
+<titleabbrev>Time spans</titleabbrev>
+++++
+
+Time spans provide a way of describing a specific period of time that separates two datetime values. There are currently two supported types of time spans, `DATE_PERIOD` specifies intervals in years, quarters, months, weeks and days, and `TIME_DURATION` specifies intervals in hours, minutes, seconds and milliseconds.
+
+The time span contains two elements, an integer value and a temporal unit, both of them are required when specifying a time span.
+
+Time spans are often used in datetime related grouping functions like <<esql-bucket, BUCKET>>, scalar functions like <<esql-date_trunc, DATE_TRUNC>> and arithmetic operators like `+` and `-`. There are two conversions functions that can convert string literals to time spans, <<esql-to_dateperiod, TO_DATEPERIOD>> and <<esql-to_timeduration, TO_TIMEDURATION>>.
+
+[float]
+=== Examples of using time spans in {esql}
+
+With `BUCKET`
+[source,txt]
+----
+FROM employees
+| STATS hires_per_week = COUNT(*) BY week = BUCKET(hire_date, 1 week)
+| SORT week
+----
+
+With `DATE_TRUNC`
+[source,txt]
+----
+FROM employees
+| EVAL x = date_trunc(240 hours, hire_date)
+----
+
+With `+` and/or `-`
+[source,txt]
+----
+FROM employees
+| EVAL x = hire_date + 1 month - 1 day
+----
+
+When a time span is provided as a string literal, `TO_DATEPERIOD`, `::DATE_PERIOD`, `TO_TIMEDURATION` or `::TIME_DURATION` can be used to convert it to its corresponding time span value.
+[source,txt]
+----
+FROM employees
+| EVAL x = hire_date + TO_DATEPERIOD("1 month") - "1 day":DATE_PERIOD
+----
+
+
+[float]
+=== Supported Temporal Units
+
+The supported temporal units are listed in the following table
+
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+Temporal Units|Valid Abbreviations
+year|y, yr, years
+quarter|q, quarters
+month|mo, months
+week|w, weeks
+day|d, days
+hour|h, hours,
+minute|min, minutes
+second|s, sec, seconds
+millisecond|ms, milliseconds
+|===
+
+

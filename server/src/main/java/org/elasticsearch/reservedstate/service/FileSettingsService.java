@@ -15,6 +15,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
@@ -154,6 +155,9 @@ public class FileSettingsService extends MasterNodeFileWatchingService implement
                 return;
             } else if (cause instanceof XContentParseException) {
                 logger.error("Unable to parse settings", e);
+                return;
+            } else if (cause instanceof NotMasterException) {
+                logger.error("Node is no longer master", e);
                 return;
             }
         }

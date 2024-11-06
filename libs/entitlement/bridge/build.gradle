@@ -9,8 +9,6 @@
 
 apply plugin: 'elasticsearch.build'
 
-dependencies {
-}
 
 tasks.named('forbiddenApisMain').configure {
   replaceSignatureFiles 'jdk-signatures'

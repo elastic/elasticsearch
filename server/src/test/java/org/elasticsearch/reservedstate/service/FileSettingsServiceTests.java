@@ -9,6 +9,9 @@
 
 package org.elasticsearch.reservedstate.service;
 
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
@@ -22,6 +25,8 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.Lifecycle;
+import org.elasticsearch.common.file.AbstractFileWatchingService;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
@@ -67,6 +72,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 public class FileSettingsServiceTests extends ESTestCase {
+    private static final Logger logger = LogManager.getLogger(FileSettingsServiceTests.class);
     private Environment env;
     private ClusterService clusterService;
     private ReservedClusterStateService controller;
@@ -76,6 +82,8 @@ public class FileSettingsServiceTests extends ESTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
+        // TODO remove me once https://github.com/elastic/elasticsearch/issues/115280 is closed
+        Loggers.setLevel(LogManager.getLogger(AbstractFileWatchingService.class), Level.DEBUG);
 
         threadpool = new TestThreadPool("file_settings_service_tests");
 
@@ -120,16 +128,23 @@ public class FileSettingsServiceTests extends ESTestCase {
 
     @After
     public void tearDown() throws Exception {
-        if (fileSettingsService.lifecycleState() == Lifecycle.State.STARTED) {
-            fileSettingsService.stop();
-        }
-        if (fileSettingsService.lifecycleState() == Lifecycle.State.STOPPED) {
-            fileSettingsService.close();
-        }
+        try {
+            if (fileSettingsService.lifecycleState() == Lifecycle.State.STARTED) {
+                logger.info("Stopping file settings service");
+                fileSettingsService.stop();
+            }
+            if (fileSettingsService.lifecycleState() == Lifecycle.State.STOPPED) {
+                logger.info("Closing file settings service");
+                fileSettingsService.close();
+            }
 
-        super.tearDown();
-        clusterService.close();
-        threadpool.shutdownNow();
+            super.tearDown();
+            clusterService.close();
+            threadpool.shutdownNow();
+        } finally {
+            // TODO remove me once https://github.com/elastic/elasticsearch/issues/115280 is closed
+            Loggers.setLevel(LogManager.getLogger(AbstractFileWatchingService.class), Level.INFO);
+        }
     }
 
     public void testStartStop() {
@@ -355,17 +370,25 @@ public class FileSettingsServiceTests extends ESTestCase {
     private static void writeTestFile(Path path, String contents) {
         Path tempFile = null;
         try {
+            logger.info("Creating settings temp file under [{}]", path.toAbsolutePath());
             tempFile = Files.createTempFile(path.getParent(), path.getFileName().toString(), "tmp");
+            logger.info("Created settings temp file [{}]", tempFile.getFileName());
             Files.writeString(tempFile, contents);
 
             try {
+                logger.info("Moving settings temp file to replace [{}]", tempFile.getFileName());
                 Files.move(tempFile, path, REPLACE_EXISTING, ATOMIC_MOVE);
             } catch (AtomicMoveNotSupportedException e) {
+                logger.info(
+                    "Atomic move was not available. Falling back on non-atomic move for settings temp file to replace [{}]",
+                    tempFile.getFileName()
+                );
                 Files.move(tempFile, path, REPLACE_EXISTING);
             }
         } catch (final IOException e) {
             throw new UncheckedIOException(Strings.format("could not write file [%s]", path.toAbsolutePath()), e);
         } finally {
+            logger.info("Deleting settings temp file [{}]", tempFile != null ? tempFile.getFileName() : null);
             // we are ignoring exceptions here, so we do not need handle whether or not tempFile was initialized nor if the file exists
             IOUtils.deleteFilesIgnoringExceptions(tempFile);
         }

@@ -40,6 +40,7 @@ import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationComman
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.TimeSupplier;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -1206,7 +1207,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
     private void checkIterationLogging(int iterations, long eachIterationDuration, MockLog.AbstractEventExpectation expectation) {
 
         var currentTime = new AtomicLong(0L);
-        ThreadPool.TimeSupplier timeSupplier = () -> currentTime.addAndGet(eachIterationDuration);
+        TimeSupplier timeSupplier = () -> currentTime.addAndGet(eachIterationDuration);
 
         // Some runs of this test try to simulate a long desired balance computation. Setting a high value on the following setting
         // prevents interrupting a long computation.

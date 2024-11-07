@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
+import org.elasticsearch.common.TimeSupplier;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -26,7 +27,6 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -50,7 +50,7 @@ public class DesiredBalanceComputer {
     private static final Logger logger = LogManager.getLogger(DesiredBalanceComputer.class);
 
     private final ShardsAllocator delegateAllocator;
-    private final ThreadPool.TimeSupplier timeSupplier;
+    private final TimeSupplier timeSupplier;
 
     // stats
     protected final MeanMetric iterations = new MeanMetric();
@@ -75,7 +75,7 @@ public class DesiredBalanceComputer {
 
     public DesiredBalanceComputer(
         ClusterSettings clusterSettings,
-        ThreadPool.TimeSupplier timeSupplier,
+        TimeSupplier timeSupplier,
         ShardsAllocator delegateAllocator
     ) {
         this.delegateAllocator = delegateAllocator;

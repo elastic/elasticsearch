@@ -66,7 +66,7 @@ public class MultiVectorIndexFieldData implements IndexFieldData<MultiVectorDVLe
     @Override
     public SortField sortField(Object missingValue, MultiValueMode sortMode, XFieldComparatorSource.Nested nested, boolean reverse) {
         throw new IllegalArgumentException(
-            "Field [" + fieldName + "] of type [" + DenseVectorFieldMapper.CONTENT_TYPE + "] doesn't support sort"
+            "Field [" + fieldName + "] of type [" + MultiDenseVectorFieldMapper.CONTENT_TYPE + "] doesn't support sort"
         );
     }
 

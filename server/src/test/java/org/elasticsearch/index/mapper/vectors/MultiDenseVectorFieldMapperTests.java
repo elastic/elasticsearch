@@ -260,9 +260,7 @@ public class MultiDenseVectorFieldMapperTests extends MapperTestCase {
             }
             vecId++;
         }
-        expectThrows(
-            DocumentParsingException.class,
-            () -> mapper.parse(source(b -> {
+        expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> {
             b.startArray("field");
             b.startArray(); // double nested array should fail
             for (float[] vector : validVectors) {

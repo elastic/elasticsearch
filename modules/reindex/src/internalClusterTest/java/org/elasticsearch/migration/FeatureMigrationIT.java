@@ -208,7 +208,7 @@ public class FeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
 
         assertIndexHasCorrectProperties(
             finalMetadata,
-            ".int-man-old-reindexed-for-8",
+            ".int-man-old-reindexed-for-9",
             INTERNAL_MANAGED_FLAG_VALUE,
             true,
             true,
@@ -216,7 +216,7 @@ public class FeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
         );
         assertIndexHasCorrectProperties(
             finalMetadata,
-            ".int-unman-old-reindexed-for-8",
+            ".int-unman-old-reindexed-for-9",
             INTERNAL_UNMANAGED_FLAG_VALUE,
             false,
             true,
@@ -224,7 +224,7 @@ public class FeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
         );
         assertIndexHasCorrectProperties(
             finalMetadata,
-            ".ext-man-old-reindexed-for-8",
+            ".ext-man-old-reindexed-for-9",
             EXTERNAL_MANAGED_FLAG_VALUE,
             true,
             false,
@@ -232,7 +232,7 @@ public class FeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
         );
         assertIndexHasCorrectProperties(
             finalMetadata,
-            ".ext-unman-old-reindexed-for-8",
+            ".ext-unman-old-reindexed-for-9",
             EXTERNAL_UNMANAGED_FLAG_VALUE,
             false,
             false,

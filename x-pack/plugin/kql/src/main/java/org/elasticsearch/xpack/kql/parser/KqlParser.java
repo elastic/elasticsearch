@@ -14,6 +14,7 @@ import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.RecognitionException;
 import org.antlr.v4.runtime.Recognizer;
 import org.antlr.v4.runtime.atn.PredictionMode;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -25,10 +26,7 @@ public class KqlParser {
     private static final Logger log = LogManager.getLogger(KqlParser.class);
 
     public QueryBuilder parseKqlQuery(String kqlQuery, KqlParsingContext kqlParserContext) {
-        if (log.isTraceEnabled()) {
-            log.debug("Parsing KQL query: {}", kqlQuery);
-        }
-
+        log.trace("Parsing KQL query: {}", kqlQuery);
         return invokeParser(kqlQuery, kqlParserContext, KqlBaseParser::topLevelQuery, KqlAstBuilder::toQueryBuilder);
     }
 
@@ -53,9 +51,7 @@ public class KqlParser {
 
         ParserRuleContext tree = parseFunction.apply(parser);
 
-        if (log.isTraceEnabled()) {
-            log.trace("Parse tree: {}", tree.toStringTree());
-        }
+        log.trace(() -> Strings.format("Parse tree: %s", tree.toStringTree()));
 
         return visitor.apply(new KqlAstBuilder(kqlParsingContext), tree);
     }

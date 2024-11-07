@@ -87,7 +87,8 @@ public class BucketTests extends AbstractScalarFunctionTestCase {
                     args.add(dateBound("to", toType, "2023-03-01T09:00:00.00Z"));
                     return new TestCaseSupplier.TestCase(
                         args,
-                        "DateTruncEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding[DAY_OF_MONTH in Z][fixed to midnight]]",
+                        "DateTruncDatetimeEvaluator[fieldVal=Attribute[channel=0], "
+                            + "rounding=Rounding[DAY_OF_MONTH in Z][fixed to midnight]]",
                         DataType.DATETIME,
                         resultsMatcher(args)
                     );
@@ -101,7 +102,7 @@ public class BucketTests extends AbstractScalarFunctionTestCase {
                     args.add(dateBound("to", toType, "2023-02-17T12:00:00Z"));
                     return new TestCaseSupplier.TestCase(
                         args,
-                        "DateTruncEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding[3600000 in Z][fixed]]",
+                        "DateTruncDatetimeEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding[3600000 in Z][fixed]]",
                         DataType.DATETIME,
                         equalTo(Rounding.builder(Rounding.DateTimeUnit.HOUR_OF_DAY).build().prepareForUnknown().round(date.getAsLong()))
                     );
@@ -134,7 +135,7 @@ public class BucketTests extends AbstractScalarFunctionTestCase {
             args.add(new TestCaseSupplier.TypedData(span, spanType, "buckets").forceLiteral());
             return new TestCaseSupplier.TestCase(
                 args,
-                "DateTruncEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding" + spanStr + "]",
+                "DateTruncDatetimeEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding" + spanStr + "]",
                 DataType.DATETIME,
                 resultsMatcher(args)
             );

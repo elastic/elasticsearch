@@ -251,7 +251,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         this.waitForCheckpoint = waitForCheckpoint;
         this.waitForCheckpointsTimeout = waitForCheckpointsTimeout;
         this.forceSyntheticSource = forceSyntheticSource;
-        this.innerHitsDisabled = source.innerHitsDisabled();
+        this.innerHitsDisabled = source != null && source.innerHitsDisabled();
     }
 
     @SuppressWarnings("this-escape")

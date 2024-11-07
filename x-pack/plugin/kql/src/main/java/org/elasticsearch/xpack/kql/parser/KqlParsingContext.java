@@ -14,8 +14,6 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryRewriteContext;
 
 import java.time.ZoneId;
-import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -59,22 +57,12 @@ public class KqlParsingContext {
     }
 
     public Set<String> resolveFieldNames(String fieldNamePattern) {
-        if (fieldNamePattern == null) {
-            return resolveDefaultFieldNames();
-        }
-
+        assert fieldNamePattern != null && fieldNamePattern.isEmpty() == false : "fieldNamePattern cannot be null or empty";
         return queryRewriteContext.getMatchingFieldNames(fieldNamePattern);
     }
 
     public Set<String> resolveDefaultFieldNames() {
-        Set<String> resolvedFieldNames = new HashSet<>();
-        List<String> defaultFields = defaultField != null
-            ? List.of(defaultField)
-            : queryRewriteContext.getIndexSettings().getDefaultFields();
-
-        defaultFields.forEach(fieldNamePattern -> resolvedFieldNames.addAll(resolveFieldNames(fieldNamePattern)));
-
-        return Collections.unmodifiableSet(resolvedFieldNames);
+        return resolveFieldNames(defaultField);
     }
 
     public MappedFieldType fieldType(String fieldName) {

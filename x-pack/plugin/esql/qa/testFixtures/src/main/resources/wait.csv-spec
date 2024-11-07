@@ -1,0 +1,7 @@
+WAIT
+required_capability: wait_debug_fn
+row a = 1 | where wait(1ms);
+
+a:integer
+1
+;

@@ -19,8 +19,6 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
-import org.elasticsearch.xpack.esql.expression.function.Example;
-import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
 
@@ -38,15 +36,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
 public class Wait extends UnaryScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Wait", Wait::new);
 
-    @FunctionInfo(
-        returnType = { "boolean" },
-        description = "Debug function to slow down processing. The function will sleep for the specified number of milliseconds.",
-        examples = { @Example(file = "null", tag = "wait") }
-    )
-    public Wait(
-        Source source,
-        @Param(name = "ms", type = { "integer", "long", "time_duration", }, description = "For how long") Expression ms
-    ) {
+    public Wait(Source source, @Param(name = "ms", type = { "time_duration" }, description = "For how long") Expression ms) {
         super(source, ms);
     }
 
@@ -75,15 +65,7 @@ public class Wait extends UnaryScalarFunction {
             return new TypeResolution("Unresolved children");
         }
 
-        return isType(
-            field(),
-            t -> t == DataType.TIME_DURATION || t.isWholeNumber(),
-            sourceText(),
-            FIRST,
-            "long",
-            "integer",
-            "time_duration"
-        );
+        return isType(field(), t -> t == DataType.TIME_DURATION, sourceText(), FIRST, "time_duration");
     }
 
     @Override

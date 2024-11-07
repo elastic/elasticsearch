@@ -1,0 +1,5 @@
+pr: 116383
+summary: Bump major version for feature migration system indices
+area: "Infra/Core, Security"
+type: enhancement
+issues: []

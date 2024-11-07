@@ -1336,7 +1336,7 @@ public final class Authentication implements ToXContentObject {
 
             if (authentication.getEffectiveSubject().getTransportVersion().onOrAfter(ROLE_REMOTE_CLUSTER_PRIVS)
                 && streamVersion.before(ROLE_REMOTE_CLUSTER_PRIVS)) {
-                // if the remote does not understand the remote_cluster field remove it
+                // the authentication understands the remote_cluster field but the stream does not
                 metadata = new HashMap<>(metadata);
                 metadata.put(
                     AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY,
@@ -1352,9 +1352,10 @@ public final class Authentication implements ToXContentObject {
                 );
             } else if (authentication.getEffectiveSubject()
                 .getTransportVersion()
-                .onOrAfter(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY)
-                && streamVersion.onOrAfter(ROLE_REMOTE_CLUSTER_PRIVS)) {
-                    // the remote does understand the remote_cluster field, so check each permission and remove permission as needed
+                .onOrAfter(ROLE_REMOTE_CLUSTER_PRIVS) //ensure the authentication object understands remote_cluster
+                && streamVersion.onOrAfter(ROLE_REMOTE_CLUSTER_PRIVS)) { //ensure stream understands remote_cluster
+                    // both the authentication object and the stream understand the remote_cluster field
+                    // check each individual permission and remove as needed
                     metadata = new HashMap<>(metadata);
                     metadata.put(
                         AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY,

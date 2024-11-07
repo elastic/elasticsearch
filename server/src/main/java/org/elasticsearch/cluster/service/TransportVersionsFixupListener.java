@@ -122,7 +122,7 @@ public class TransportVersionsFixupListener implements ClusterStateListener {
         }
     }
 
-    private static class TransportVersionUpdater implements ClusterStateTaskExecutor<NodeTransportVersionTask> {
+    static class TransportVersionUpdater implements ClusterStateTaskExecutor<NodeTransportVersionTask> {
         @Override
         public ClusterState execute(BatchExecutionContext<NodeTransportVersionTask> context) throws Exception {
             ClusterState.Builder builder = ClusterState.builder(context.initialState());
@@ -144,12 +144,12 @@ public class TransportVersionsFixupListener implements ClusterStateListener {
                         .map(CompatibilityVersions::systemIndexMappingsVersion)
                         .orElse(Map.of());
 
-                    if (Objects.equals(recordedTv, INFERRED_TRANSPORT_VERSION) ||
-                        systemIndexMappingsVersion.isEmpty()) {
+                    if (Objects.equals(recordedTv, INFERRED_TRANSPORT_VERSION) || systemIndexMappingsVersion.isEmpty()) {
                         builder.putCompatibilityVersions(
                             e.getKey(),
                             e.getValue().transportVersion(),
-                            e.getValue().systemIndexMappingsVersion());
+                            e.getValue().systemIndexMappingsVersion()
+                        );
                         modified = true;
                     }
                 }
@@ -178,10 +178,12 @@ public class TransportVersionsFixupListener implements ClusterStateListener {
             && event.state().getMinTransportVersion().equals(INFERRED_TRANSPORT_VERSION)) {
 
             // find all the relevant nodes
-            queries.add(compatibilityVersions.entrySet()
-                .stream()
-                .filter(e -> e.getValue().transportVersion().equals(INFERRED_TRANSPORT_VERSION))
-                .map(Map.Entry::getKey));
+            queries.add(
+                compatibilityVersions.entrySet()
+                    .stream()
+                    .filter(e -> e.getValue().transportVersion().equals(INFERRED_TRANSPORT_VERSION))
+                    .map(Map.Entry::getKey)
+            );
         }
 
         /*
@@ -198,12 +200,14 @@ public class TransportVersionsFixupListener implements ClusterStateListener {
          * This is ok here, as Serverless will never hit this case, so the node feature fetch action will never be called on Serverless.
          * This whole class will be removed in ES v9.
          */
-        queries.add(event.state()
-            .nodes()
-            .stream()
-            .filter(n -> n.getVersion().after(Version.V_8_16_0))
-            .map(DiscoveryNode::getId)
-            .filter(n -> compatibilityVersions.getOrDefault(n, CompatibilityVersions.EMPTY).systemIndexMappingsVersion().isEmpty()));
+        queries.add(
+            event.state()
+                .nodes()
+                .stream()
+                .filter(n -> n.getVersion().after(Version.V_8_16_0))
+                .map(DiscoveryNode::getId)
+                .filter(n -> compatibilityVersions.getOrDefault(n, CompatibilityVersions.EMPTY).systemIndexMappingsVersion().isEmpty())
+        );
 
         Set<String> queryNodes = queries.stream().flatMap(Function.identity()).collect(Collectors.toSet());
 
@@ -265,10 +269,12 @@ public class TransportVersionsFixupListener implements ClusterStateListener {
 
         Map<String, CompatibilityVersions> results = response.getNodes()
             .stream()
-            .collect(Collectors.toUnmodifiableMap(
-                n -> n.getNode().getId(),
-                n -> new CompatibilityVersions(n.getTransportVersion(), n.getCompatibilityVersions())
-            ));
+            .collect(
+                Collectors.toUnmodifiableMap(
+                    n -> n.getNode().getId(),
+                    n -> new CompatibilityVersions(n.getTransportVersion(), n.getCompatibilityVersions())
+                )
+            );
 
         if (results.isEmpty() == false) {
             taskQueue.submitTask("update-transport-version", new NodeTransportVersionTask(results, retryNum), null);

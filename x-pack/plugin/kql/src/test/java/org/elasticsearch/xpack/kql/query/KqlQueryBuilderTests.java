@@ -9,7 +9,9 @@ package org.elasticsearch.xpack.kql.query;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
+import org.elasticsearch.index.query.QueryStringQueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
@@ -26,6 +28,7 @@ import java.util.Locale;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -206,13 +209,59 @@ public class KqlQueryBuilderTests extends AbstractQueryTestCase<KqlQueryBuilder>
 
         for (String operator : List.of(":", "<", "<=", ">", ">=")) {
             KqlQueryBuilder kqlQuery = new KqlQueryBuilder(Strings.format("%s %s %s", DATE_FIELD_NAME, operator, "2018-03-28"));
-            assertThat(kqlQuery.timeZone(), nullValue()); // TimeZone is not set by default.
+            assertThat(kqlQuery.timeZone(), nullValue()); // timeZone is not set by default.
             kqlQuery.timeZone(timeZone);
 
             assertThat(
                 asInstanceOf(RangeQueryBuilder.class, rewriteQuery(kqlQuery, queryRewriteContext, searchExecutionContext)).timeZone(),
                 equalTo(timeZone)
             );
+        }
+    }
+
+    public void testDefaultFieldWildcardQuery() throws IOException {
+        QueryRewriteContext queryRewriteContext = createQueryRewriteContext();
+        SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
+        KqlQueryBuilder kqlQuery = new KqlQueryBuilder(Strings.format("foo*"));
+        assertThat(kqlQuery.defaultField(), nullValue()); // default_field is not set by default.
+
+        kqlQuery.defaultField(TEXT_FIELD_NAME);
+
+        assertThat(
+            asInstanceOf(QueryStringQueryBuilder.class, rewriteQuery(kqlQuery, queryRewriteContext, searchExecutionContext)).defaultField(),
+            equalTo(TEXT_FIELD_NAME)
+        );
+    }
+
+    public void testDefaultFieldMatchQuery() throws IOException {
+
+        QueryRewriteContext queryRewriteContext = createQueryRewriteContext();
+        SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
+
+        {
+            // Using a specific field name
+            KqlQueryBuilder kqlQuery = new KqlQueryBuilder(Strings.format("foo"));
+            assertThat(kqlQuery.defaultField(), nullValue()); // default_field is not set by default.
+
+            kqlQuery.defaultField(TEXT_FIELD_NAME);
+            MultiMatchQueryBuilder rewritenQuery = asInstanceOf(
+                MultiMatchQueryBuilder.class,
+                rewriteQuery(kqlQuery, queryRewriteContext, searchExecutionContext)
+            );
+            assertThat(rewritenQuery.fields().keySet(), contains(TEXT_FIELD_NAME));
+        }
+
+        {
+            // Using a pattern for as the field name
+            KqlQueryBuilder kqlQuery = new KqlQueryBuilder(Strings.format("foo"));
+            assertThat(kqlQuery.defaultField(), nullValue()); // default_field is not set by default.
+
+            kqlQuery.defaultField("mapped_object.*");
+            MultiMatchQueryBuilder rewritenQuery = asInstanceOf(
+                MultiMatchQueryBuilder.class,
+                rewriteQuery(kqlQuery, queryRewriteContext, searchExecutionContext)
+            );
+            assertThat(rewritenQuery.fields().keySet(), contains("mapped_object.mapped_date", "mapped_object.mapped_int"));
         }
     }
 }

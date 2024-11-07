@@ -41,7 +41,7 @@ public class RoutingPathFields implements RoutingFields {
 
     private static final int SEED = 0;
 
-    public static final int MAX_ROUTING_FIELDS = 512;
+    private static final int MAX_ROUTING_FIELDS = 512;
 
     private static final int MAX_HASH_LEN_BYTES = 2;
     static {
@@ -71,6 +71,72 @@ public class RoutingPathFields implements RoutingFields {
 
     final IndexRouting.ExtractFromSource.Builder routingBuilder() {
         return routingBuilder;
+    }
+
+    /**
+     * Here we build the hash of the routing values using a similarity function so that we have a result
+     * with the following pattern:
+     *
+     * hash128(concatenate(routing field names)) +
+     * foreach(routing field value, limit = MAX_ROUTING_FIELDS) { hash32(routing field value) } +
+     * hash128(concatenate(routing field values))
+     *
+     * The idea is to be able to place 'similar' values close to each other.
+     */
+    public BytesReference buildHash() {
+        Murmur3Hasher hasher = new Murmur3Hasher(SEED);
+
+        // NOTE: hash all routing field names
+        int numberOfFields = Math.min(MAX_ROUTING_FIELDS, routingValues.size());
+        int len = hashLen(numberOfFields);
+        // either one or two bytes are occupied by the vint since we're bounded by #MAX_ROUTING_FIELDS
+        byte[] hash = new byte[MAX_HASH_LEN_BYTES + len];
+        int index = StreamOutput.putVInt(hash, len, 0);
+
+        hasher.reset();
+        for (final BytesRef name : routingValues.keySet()) {
+            hasher.update(name.bytes);
+        }
+        index = writeHash128(hasher.digestHash(), hash, index);
+
+        // NOTE: concatenate all routing field value hashes up to a certain number of fields
+        int startIndex = index;
+        for (final List<BytesReference> values : routingValues.values()) {
+            if ((index - startIndex) >= 4 * numberOfFields) {
+                break;
+            }
+            assert values.isEmpty() == false : "routing values are empty";
+            final BytesRef routingValue = values.get(0).toBytesRef();
+            ByteUtils.writeIntLE(
+                StringHelper.murmurhash3_x86_32(routingValue.bytes, routingValue.offset, routingValue.length, SEED),
+                hash,
+                index
+            );
+            index += 4;
+        }
+
+        // NOTE: hash all routing field allValues
+        hasher.reset();
+        for (final List<BytesReference> values : routingValues.values()) {
+            for (BytesReference v : values) {
+                hasher.update(v.toBytesRef().bytes);
+            }
+        }
+        index = writeHash128(hasher.digestHash(), hash, index);
+
+        return new BytesArray(hash, 0, index);
+    }
+
+    private static int hashLen(int numberOfFields) {
+        return 16 + 16 + 4 * numberOfFields;
+    }
+
+    private static int writeHash128(final MurmurHash3.Hash128 hash128, byte[] buffer, int index) {
+        ByteUtils.writeLongLE(hash128.h1, buffer, index);
+        index += 8;
+        ByteUtils.writeLongLE(hash128.h2, buffer, index);
+        index += 8;
+        return index;
     }
 
     @Override
@@ -199,71 +265,5 @@ public class RoutingPathFields implements RoutingFields {
         } catch (IOException | IllegalArgumentException e) {
             throw new IllegalArgumentException("Routing field cannot be deserialized:" + e.getMessage(), e);
         }
-    }
-
-    /**
-     * Here we build the hash of the routing values using a similarity function so that we have a result
-     * with the following pattern:
-     *
-     * hash128(concatenate(routing field names)) +
-     * foreach(routing field value, limit = MAX_ROUTING_FIELDS) { hash32(routing field value) } +
-     * hash128(concatenate(routing field values))
-     *
-     * The idea is to be able to place 'similar' values close to each other.
-     */
-    public BytesReference buildHash() {
-        Murmur3Hasher hasher = new Murmur3Hasher(SEED);
-
-        // NOTE: hash all routing field names
-        int numberOfFields = Math.min(MAX_ROUTING_FIELDS, routingValues.size());
-        int len = hashLen(numberOfFields);
-        // either one or two bytes are occupied by the vint since we're bounded by #MAX_ROUTING_FIELDS
-        byte[] hash = new byte[MAX_HASH_LEN_BYTES + len];
-        int index = StreamOutput.putVInt(hash, len, 0);
-
-        hasher.reset();
-        for (final BytesRef name : routingValues.keySet()) {
-            hasher.update(name.bytes);
-        }
-        index = writeHash128(hasher.digestHash(), hash, index);
-
-        // NOTE: concatenate all routing field value hashes up to a certain number of fields
-        int startIndex = index;
-        for (final List<BytesReference> values : routingValues.values()) {
-            if ((index - startIndex) >= 4 * numberOfFields) {
-                break;
-            }
-            assert values.isEmpty() == false : "routing values are empty";
-            final BytesRef routingValue = values.get(0).toBytesRef();
-            ByteUtils.writeIntLE(
-                StringHelper.murmurhash3_x86_32(routingValue.bytes, routingValue.offset, routingValue.length, SEED),
-                hash,
-                index
-            );
-            index += 4;
-        }
-
-        // NOTE: hash all routing field allValues
-        hasher.reset();
-        for (final List<BytesReference> values : routingValues.values()) {
-            for (BytesReference v : values) {
-                hasher.update(v.toBytesRef().bytes);
-            }
-        }
-        index = writeHash128(hasher.digestHash(), hash, index);
-
-        return new BytesArray(hash, 0, index);
-    }
-
-    private static int hashLen(int numberOfFields) {
-        return 16 + 16 + 4 * numberOfFields;
-    }
-
-    private static int writeHash128(final MurmurHash3.Hash128 hash128, byte[] buffer, int index) {
-        ByteUtils.writeLongLE(hash128.h1, buffer, index);
-        index += 8;
-        ByteUtils.writeLongLE(hash128.h2, buffer, index);
-        index += 8;
-        return index;
     }
 }

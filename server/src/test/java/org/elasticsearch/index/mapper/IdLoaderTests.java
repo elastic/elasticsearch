@@ -27,11 +27,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.analysis.MockAnalyzer;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -72,8 +68,6 @@ public class IdLoaderTests extends ESTestCase {
     }
 
     public void testSynthesizeIdMultipleSegments() throws Exception {
-        var routingPaths = List.of("dim1");
-        var routing = createRouting(routingPaths);
         var idLoader = IdLoader.createTsIdLoader(null, null);
 
         long startTime = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2023-01-01T00:00:00Z");
@@ -144,8 +138,6 @@ public class IdLoaderTests extends ESTestCase {
     }
 
     public void testSynthesizeIdRandom() throws Exception {
-        var routingPaths = List.of("dim1");
-        var routing = createRouting(routingPaths);
         var idLoader = IdLoader.createTsIdLoader(null, null);
 
         long startTime = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2023-01-01T00:00:00Z");
@@ -153,7 +145,6 @@ public class IdLoaderTests extends ESTestCase {
         List<Doc> randomDocs = new ArrayList<>();
         int numberOfTimeSeries = randomIntBetween(8, 64);
         for (int i = 0; i < numberOfTimeSeries; i++) {
-            long routingId = 0;
             int numberOfDimensions = randomIntBetween(1, 6);
             List<Dimension> dimensions = new ArrayList<>(numberOfDimensions);
             for (int j = 1; j <= numberOfDimensions; j++) {
@@ -165,7 +156,6 @@ public class IdLoaderTests extends ESTestCase {
                     value = randomAlphaOfLength(4);
                 }
                 dimensions.add(new Dimension(fieldName, value));
-                routingId = value.hashCode();
             }
             int numberOfSamples = randomIntBetween(1, 16);
             for (int j = 0; j < numberOfSamples; j++) {
@@ -260,16 +250,6 @@ public class IdLoaderTests extends ESTestCase {
             }
         }
         return TsidExtractingIdFieldMapper.createId(routingHash, routingFields.buildHash().toBytesRef(), doc.timestamp);
-    }
-
-    private static IndexRouting.ExtractFromSource createRouting(List<String> routingPaths) {
-        var settings = indexSettings(IndexVersion.current(), 2, 1).put(IndexSettings.MODE.getKey(), "time_series")
-            .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2000-01-01T00:00:00.000Z")
-            .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2001-01-01T00:00:00.000Z")
-            .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), routingPaths)
-            .build();
-        var indexMetadata = IndexMetadata.builder("index").settings(settings).build();
-        return (IndexRouting.ExtractFromSource) IndexRouting.fromIndexMetadata(indexMetadata);
     }
 
     record Doc(long timestamp, List<Dimension> dimensions) {}

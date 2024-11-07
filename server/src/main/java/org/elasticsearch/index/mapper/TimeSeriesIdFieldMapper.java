@@ -158,13 +158,13 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
      */
     public static Object encodeTsid(StreamInput in) {
         try {
-            return encode(in.readSlicedBytesReference().toBytesRef());
+            return base64Encode(in.readSlicedBytesReference().toBytesRef());
         } catch (IOException e) {
             throw new IllegalArgumentException("Unable to read tsid");
         }
     }
 
-    public static Object encode(final BytesRef bytesRef) {
+    public static Object encodeTsid(final BytesRef bytesRef) {
         return base64Encode(bytesRef);
     }
 

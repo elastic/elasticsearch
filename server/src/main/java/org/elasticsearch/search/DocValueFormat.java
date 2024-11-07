@@ -707,7 +707,7 @@ public interface DocValueFormat extends NamedWriteable {
                 return RoutingPathFields.decodeAsMap(value);
             } catch (Exception e) {
                 // NOTE: otherwise the _tsid field is just a hash and we can't decode it
-                return TimeSeriesIdFieldMapper.encode(value);
+                return TimeSeriesIdFieldMapper.encodeTsid(value);
             }
         }
 

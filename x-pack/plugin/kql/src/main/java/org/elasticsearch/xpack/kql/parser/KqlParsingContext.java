@@ -11,10 +11,12 @@ import org.elasticsearch.index.mapper.AbstractScriptFieldType;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.query.QueryRewriteContext;
 
 import java.time.ZoneId;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 public class KqlParsingContext {
@@ -54,6 +56,15 @@ public class KqlParsingContext {
 
     public String defaultField() {
         return defaultField;
+    }
+
+    public String nestedParent(String fieldName) {
+        return queryRewriteContext.getMappingLookup().nestedLookup().getNestedParent(fieldName);
+    }
+
+    public boolean isNestedField(String fieldName) {
+        Map<String, ObjectMapper> objectMappers = this.queryRewriteContext.getMappingLookup().objectMappers();
+        return objectMappers.containsKey(fieldName) && objectMappers.get(fieldName).isNested();
     }
 
     public Set<String> resolveFieldNames(String fieldNamePattern) {

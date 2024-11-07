@@ -125,30 +125,31 @@ public class RemoteClusterPermissions implements NamedWriteable, ToXContentObjec
      */
     public RemoteClusterPermissions removeUnsupportedPrivileges(TransportVersion outboundVersion) {
 
-        RemoteClusterPermissions copyForOutBoundVersion = new RemoteClusterPermissions();
+        RemoteClusterPermissions copyForOutboundVersion = new RemoteClusterPermissions();
 
         Set<String> allowedPermissionsPerVersion = getAllowedPermissionsPerVersion(outboundVersion);
         for (RemoteClusterPermissionGroup group : remoteClusterPermissionGroups) {
             String[] privileges = group.clusterPrivileges();
-            List<String> privilegesMutated = new ArrayList<>(privileges.length);
+            List<String> outboundPrivileges = new ArrayList<>(privileges.length);
             for (String privilege : privileges) {
                 if (allowedPermissionsPerVersion.contains(privilege.toLowerCase(Locale.ROOT))) {
-                    privilegesMutated.add(privilege);
+                    outboundPrivileges.add(privilege);
                 }
             }
-            if (privilegesMutated.isEmpty() == false) {
-                RemoteClusterPermissionGroup mutatedGroup = new RemoteClusterPermissionGroup(
-                    privilegesMutated.toArray(new String[0]),
+            if (outboundPrivileges.isEmpty() == false) {
+                RemoteClusterPermissionGroup outboundGroup = new RemoteClusterPermissionGroup(
+                    outboundPrivileges.toArray(new String[0]),
                     group.remoteClusterAliases()
                 );
-                copyForOutBoundVersion.addGroup(mutatedGroup);
+                copyForOutboundVersion.addGroup(outboundGroup);
                 if (logger.isDebugEnabled()) {
-                    if (group.equals(mutatedGroup) == false) {
+                    if (group.equals(outboundGroup) == false) {
                         logger.debug(
-                            "Removed unsupported remote cluster permissions {} for remote cluster [{}]. "
+                            "Removed unsupported remote cluster permissions. Remaining {} for remote cluster [{}] for version [{}]."
                                 + "Due to the remote cluster version, only the following permissions are allowed: {}",
-                            privilegesMutated,
+                            outboundPrivileges,
                             group.remoteClusterAliases(),
+                            outboundVersion,
                             allowedPermissionsPerVersion
                         );
                     }
@@ -162,7 +163,7 @@ public class RemoteClusterPermissions implements NamedWriteable, ToXContentObjec
                 );
             }
         }
-        return copyForOutBoundVersion;
+        return copyForOutboundVersion;
     }
 
     /**

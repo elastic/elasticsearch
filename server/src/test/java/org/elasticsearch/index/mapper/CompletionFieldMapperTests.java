@@ -16,6 +16,7 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.suggest.document.Completion101PostingsFormat;
 import org.apache.lucene.search.suggest.document.Completion912PostingsFormat;
 import org.apache.lucene.search.suggest.document.CompletionAnalyzer;
 import org.apache.lucene.search.suggest.document.ContextSuggestField;
@@ -151,7 +152,7 @@ public class CompletionFieldMapperTests extends MapperTestCase {
         Codec codec = codecService.codec("default");
         if (CodecService.ZSTD_STORED_FIELDS_FEATURE_FLAG.isEnabled()) {
             assertThat(codec, instanceOf(PerFieldMapperCodec.class));
-            assertThat(((PerFieldMapperCodec) codec).getPostingsFormatForField("field"), instanceOf(Completion912PostingsFormat.class));
+            assertThat(((PerFieldMapperCodec) codec).getPostingsFormatForField("field"), instanceOf(Completion101PostingsFormat.class));
         } else {
             if (codec instanceof CodecService.DeduplicateFieldInfosCodec deduplicateFieldInfosCodec) {
                 codec = deduplicateFieldInfosCodec.delegate();

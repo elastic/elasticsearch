@@ -10,6 +10,7 @@
 package org.elasticsearch.reservedstate.service;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
@@ -20,6 +21,7 @@ import org.elasticsearch.cluster.metadata.ReservedStateErrorMetadata;
 import org.elasticsearch.cluster.metadata.ReservedStateHandlerMetadata;
 import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
@@ -27,7 +29,7 @@ import org.elasticsearch.reservedstate.action.ReservedClusterSettingsAction;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Before;
 
-import java.nio.charset.StandardCharsets;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -50,6 +52,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, autoManageMasterNodes = false)
+@LuceneTestCase.SuppressFileSystems("*")
 public class FileSettingsServiceIT extends ESIntegTestCase {
 
     private final AtomicLong versionCounter = new AtomicLong(1);
@@ -138,11 +141,30 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
         Files.createDirectories(fileSettingsService.watchedFileDir());
         Path tempFilePath = createTempFile();
 
-        String settingsFileContent = Strings.format(json, version);
-        Files.write(tempFilePath, settingsFileContent.getBytes(StandardCharsets.UTF_8));
-        logger.info("--> Before writing new settings file with version [{}]", version);
-        Files.move(tempFilePath, fileSettingsService.watchedFile(), StandardCopyOption.ATOMIC_MOVE);
-        logger.info("--> After writing new settings file: [{}]", settingsFileContent);
+        logger.info("--> before writing JSON config to node {} with path {}", node, tempFilePath);
+        logger.info(Strings.format(json, version));
+
+        Files.writeString(tempFilePath, Strings.format(json, version));
+        int retryCount = 0;
+        do {
+            try {
+                // this can fail on Windows because of timing
+                Files.move(tempFilePath, fileSettingsService.watchedFile(), StandardCopyOption.ATOMIC_MOVE);
+                logger.info("--> after writing JSON config to node {} with path {}", node, tempFilePath);
+                return;
+            } catch (IOException e) {
+                logger.info("--> retrying writing a settings file [{}]", retryCount);
+                if (retryCount == 4) { // retry 5 times
+                    throw e;
+                }
+                Thread.sleep(retryDelay(retryCount));
+                retryCount++;
+            }
+        } while (true);
+    }
+
+    private static long retryDelay(int retryCount) {
+        return 100 * (1 << retryCount) + Randomness.get().nextInt(10);
     }
 
     public static void writeJSONFile(String node, String json, AtomicLong versionCounter, Logger logger) throws Exception {

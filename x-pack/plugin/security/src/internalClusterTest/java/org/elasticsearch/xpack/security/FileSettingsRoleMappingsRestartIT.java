@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.security;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.core.Tuple;
@@ -35,6 +36,7 @@ import static org.elasticsearch.xpack.core.security.authz.RoleMappingMetadata.ME
 import static org.hamcrest.Matchers.containsInAnyOrder;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, autoManageMasterNodes = false)
+@LuceneTestCase.SuppressFileSystems("*")
 public class FileSettingsRoleMappingsRestartIT extends SecurityIntegTestCase {
 
     private static final int MAX_WAIT_TIME_SECONDS = 20;

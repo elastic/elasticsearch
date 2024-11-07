@@ -37,6 +37,11 @@ public class SyntheticSourceDocumentParserListener implements DocumentParserList
     }
 
     @Override
+    public boolean isActive() {
+        return state instanceof Storing;
+    }
+
+    @Override
     public void consume(Token token) throws IOException {
         if (token == null) {
             return;
@@ -46,7 +51,7 @@ public class SyntheticSourceDocumentParserListener implements DocumentParserList
     }
 
     @Override
-    public void consume(Event event) {
+    public void consume(Event event) throws IOException {
         if (event == null) {
             return;
         }
@@ -62,17 +67,17 @@ public class SyntheticSourceDocumentParserListener implements DocumentParserList
     interface State {
         State consume(Token token) throws IOException;
 
-        State consume(Event event);
+        State consume(Event event) throws IOException;
     }
 
     class Storing implements State {
         private final State returnState;
         private final String fullPath;
         private final ObjectMapper parentMapper;
-        private final LuceneDocument document;
 
         private final XContentBuilder data;
 
+        private LuceneDocument document;
         private int depth;
 
         Storing(State returnState, Token startingToken, String fullPath, ObjectMapper parentMapper, LuceneDocument document)
@@ -124,8 +129,12 @@ public class SyntheticSourceDocumentParserListener implements DocumentParserList
         }
 
         public State consume(Event event) {
-            // We don't expect ignored source values to span multiple documents
-            assert event instanceof Event.DocumentSwitch == false : "Lucene document was changed while storing ignored source value";
+            // Due to the order of execution for nested objects we receive this after we start storing.
+            if (event instanceof Event.DocumentSwitch documentSwitch) {
+//                assert depth == 1 : "Lucene document was changed while storing ignored source value";
+//                this.document = documentSwitch.document();
+            }
+
             return this;
         }
 
@@ -164,73 +173,73 @@ public class SyntheticSourceDocumentParserListener implements DocumentParserList
         }
 
         public State consume(Token token) throws IOException {
-            switch (token) {
-                case Token.StartObject startObject -> {
-                    if (currentMapper instanceof ObjectMapper om && om.isEnabled() == false) {
-                        ObjectMapper parentMapper = parents.peek().parentMapper();
-                        String fullPath = parentMapper.isRoot()
-                            ? currentMapper.leafName()
-                            : parentMapper.fullPath() + "." + currentMapper.leafName();
-
-                        prepare();
-
-                        return new Storing(this, startObject, fullPath, parents.peek().parentMapper(), documents.peek().document());
-                    }
-
-                    if (currentMapper instanceof ObjectMapper om) {
-                        parents.push(new Parent(om, depth));
-                        prepare();
-                    }
-                    depth += 1;
-                }
-                case Token.EndObject endObject -> {
-                    assert depth > 0;
-
-                    if (documents.peek().depth == depth) {
-                        documents.pop();
-                    }
-
-                    depth -= 1;
-
-                    if (parents.peek().depth() == depth) {
-                        parents.pop();
-                    }
-                }
-                case Token.StartArray startArray -> {
-                    if (currentMapper instanceof ObjectMapper om
-                        && (sourceKeepMode(om) == Mapper.SourceKeepMode.ALL
-                            || (om.isNested() == false && sourceKeepMode(om) == Mapper.SourceKeepMode.ARRAYS))) {
-                        ObjectMapper parentMapper = parents.peek().parentMapper();
-                        String fullPath = parentMapper.isRoot()
-                            ? currentMapper.leafName()
-                            : parentMapper.fullPath() + "." + currentMapper.leafName();
-
-                        prepare();
-
-                        return new Storing(this, startArray, fullPath, parents.peek().parentMapper(), documents.peek().document());
-                    }
-
-                    if (currentMapper instanceof ObjectMapper om) {
-                        parents.push(new Parent(om, depth));
-                        prepare();
-                    }
-                    depth += 1;
-                }
-                case Token.EndArray endArray -> {
-                    assert depth > 0;
-                    depth -= 1;
-
-                    if (parents.peek().depth() == depth) {
-                        parents.pop();
-                    }
-                }
-                case Token.FieldName fieldName -> {
-                    ObjectMapper parentMapper = parents.peek().parentMapper();
-                    currentMapper = parentMapper.getMapper(fieldName.name());
-                }
-                default -> {
-                }
-            }
+//            switch (token) {
+//                case Token.StartObject startObject -> {
+//                    if (currentMapper instanceof ObjectMapper om && om.isEnabled() == false) {
+//                        ObjectMapper parentMapper = parents.peek().parentMapper();
+//                        String fullPath = parentMapper.isRoot()
+//                            ? currentMapper.leafName()
+//                            : parentMapper.fullPath() + "." + currentMapper.leafName();
+//
+//                        prepare();
+//
+//                        return new Storing(this, startObject, fullPath, parents.peek().parentMapper(), documents.peek().document());
+//                    }
+//
+//                    if (currentMapper instanceof ObjectMapper om) {
+//                        parents.push(new Parent(om, depth));
+//                        prepare();
+//                    }
+//                    depth += 1;
+//                }
+//                case Token.EndObject endObject -> {
+//                    assert depth > 0;
+//
+//                    if (documents.peek().depth == depth) {
+//                        documents.pop();
+//                    }
+//
+//                    depth -= 1;
+//
+//                    if (parents.peek().depth() == depth) {
+//                        parents.pop();
+//                    }
+//                }
+//                case Token.StartArray startArray -> {
+//                    if (currentMapper instanceof ObjectMapper om
+//                        && (sourceKeepMode(om) == Mapper.SourceKeepMode.ALL
+//                            || (om.isNested() == false && sourceKeepMode(om) == Mapper.SourceKeepMode.ARRAYS))) {
+//                        ObjectMapper parentMapper = parents.peek().parentMapper();
+//                        String fullPath = parentMapper.isRoot()
+//                            ? currentMapper.leafName()
+//                            : parentMapper.fullPath() + "." + currentMapper.leafName();
+//
+//                        prepare();
+//
+//                        return new Storing(this, startArray, fullPath, parents.peek().parentMapper(), documents.peek().document());
+//                    }
+//
+//                    if (currentMapper instanceof ObjectMapper om) {
+//                        parents.push(new Parent(om, depth));
+//                        prepare();
+//                    }
+//                    depth += 1;
+//                }
+//                case Token.EndArray endArray -> {
+//                    assert depth > 0;
+//                    depth -= 1;
+//
+//                    if (parents.peek().depth() == depth) {
+//                        parents.pop();
+//                    }
+//                }
+//                case Token.FieldName fieldName -> {
+//                    ObjectMapper parentMapper = parents.peek().parentMapper();
+//                    currentMapper = parentMapper.getMapper(fieldName.name());
+//                }
+//                default -> {
+//                }
+//            }
 
             return this;
         }
@@ -242,16 +251,67 @@ public class SyntheticSourceDocumentParserListener implements DocumentParserList
             currentMapper = null;
         }
 
-        private Mapper.SourceKeepMode sourceKeepMode(ObjectMapper mapper) {
-            return mapper.sourceKeepMode().orElseGet(indexSettings::sourceKeepMode);
-        }
-
-        public State consume(Event event) {
+        public State consume(Event event) throws IOException {
             switch (event) {
-                case Event.DocumentSwitch ds -> documents.push(new Document(ds.document(), depth));
+                case Event.DocumentSwitch documentSwitch ->
+                        documents.push(new Document(documentSwitch.document(), depth));
+                case Event.DocumentStart documentStart -> {
+                    if (documentStart.rootObjectMapper().isEnabled() == false) {
+                        prepare();
+
+                        return new Storing(this, Token.START_OBJECT, documentStart.rootObjectMapper().fullPath(), documentStart.rootObjectMapper(), documents.peek().document());
+                    }
+                }
+                case Event.ObjectStart objectStart -> {
+                    depth += 1;
+
+                    // TODO when any of our parents are arrays (we can change parents to a Deque, add more context and check that)
+                    // and is SourceKeepMode.ARRAYS, we need to do Storing too
+                    // and then later filter out if we stored too much (in finish())
+                    // same for single element arrays
+                    // if we store an array, we need to remember its length
+
+                    if (objectStart.objectMapper().isEnabled() == false || sourceKeepMode(objectStart.objectMapper()) == Mapper.SourceKeepMode.ALL) {
+                        prepare();
+
+                        return new Storing(this, Token.START_OBJECT, objectStart.objectMapper().fullPath(), parents.peek().parentMapper(), documents.peek().document());
+                    }
+
+                    parents.push(new Parent(objectStart.objectMapper(), depth));
+                }
+                case Event.ObjectEnd objectEnd -> {
+                    assert depth > 0;
+
+                    if (documents.peek().depth == depth) {
+                        documents.pop();
+                    }
+
+                    if (parents.peek().depth() == depth) {
+                        parents.pop();
+                    }
+
+                    depth -= 1;
+                }
+                case Event.ObjectArrayStart objectArrayStart -> {
+                    depth += 1;
+
+                    var sourceKeepMode = sourceKeepMode(objectArrayStart.objectMapper());
+                    if (sourceKeepMode == Mapper.SourceKeepMode.ALL || (sourceKeepMode == Mapper.SourceKeepMode.ARRAYS && objectArrayStart.objectMapper().isNested() == false)) {
+                        prepare();
+
+                        return new Storing(this, Token.START_ARRAY, objectArrayStart.objectMapper().fullPath(), parents.peek().parentMapper(), documents.peek().document());
+                    }
+                }
+                case Event.ObjectArrayEnd objectArrayEnd -> {
+                    depth -= 1;
+                }
             }
 
             return this;
+        }
+
+        private Mapper.SourceKeepMode sourceKeepMode(ObjectMapper mapper) {
+            return mapper.sourceKeepMode().orElseGet(indexSettings::sourceKeepMode);
         }
 
         record Parent(ObjectMapper parentMapper, int depth) {}

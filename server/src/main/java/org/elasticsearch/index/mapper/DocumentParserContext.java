@@ -476,8 +476,12 @@ public abstract class DocumentParserContext {
         return copyToFields;
     }
 
-    public void initListeners() {
+    public void initListeners() throws IOException {
         listeners.publish(new DocumentParserListener.Event.DocumentSwitch(doc()));
+    }
+
+    public void publishEvent(DocumentParserListener.Event event) throws IOException {
+        listeners.publish(event);
     }
 
     public void finishListeners() {
@@ -674,7 +678,7 @@ public abstract class DocumentParserContext {
     /**
      * Return a new context that will be used within a nested document.
      */
-    public final DocumentParserContext createNestedContext(NestedObjectMapper nestedMapper) {
+    public final DocumentParserContext createNestedContext(NestedObjectMapper nestedMapper) throws IOException {
         if (isWithinCopyTo()) {
             // nested context will already have been set up for copy_to fields
             return this;
@@ -703,7 +707,7 @@ public abstract class DocumentParserContext {
     /**
      * Return a new context that has the provided document as the current document.
      */
-    public final DocumentParserContext switchDoc(final LuceneDocument document) {
+    public final DocumentParserContext switchDoc(final LuceneDocument document) throws IOException {
         listeners.publish(new DocumentParserListener.Event.DocumentSwitch(document));
 
         DocumentParserContext cloned = new Wrapper(this.parent, this) {

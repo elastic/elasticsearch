@@ -19,6 +19,7 @@ import java.util.List;
 public interface DocumentParserListener {
     sealed interface Token permits Token.FieldName, Token.StartObject, Token.EndObject, Token.StartArray, Token.EndArray,
         Token.StringAsCharArrayValue, Token.NullValue, Token.ValueToken {
+
         record FieldName(String name) implements Token {}
 
         record StartObject() implements Token {}
@@ -55,12 +56,17 @@ public interface DocumentParserListener {
             T value() throws IOException;
         }
 
+        public static Token START_OBJECT = new StartObject();
+        public static Token END_OBJECT = new EndObject();
+        public static Token START_ARRAY = new StartArray();
+        public static Token END_ARRAY = new EndArray();
+
         static Token current(XContentParser parser) throws IOException {
             return switch (parser.currentToken()) {
-                case START_OBJECT -> new StartObject();
-                case END_OBJECT -> new EndObject();
-                case START_ARRAY -> new StartArray();
-                case END_ARRAY -> new EndArray();
+                case START_OBJECT -> Token.START_OBJECT;
+                case END_OBJECT -> Token.END_OBJECT;
+                case START_ARRAY -> Token.START_ARRAY;
+                case END_ARRAY -> Token.END_ARRAY;
                 case FIELD_NAME -> new FieldName(parser.currentName());
                 case VALUE_STRING -> {
                     if (parser.hasTextCharacters()) {
@@ -89,8 +95,18 @@ public interface DocumentParserListener {
         }
     }
 
-    sealed interface Event permits Event.DocumentSwitch {
+    sealed interface Event permits Event.DocumentSwitch, Event.DocumentStart, Event.ObjectStart, Event.ObjectEnd, Event.ObjectArrayStart, Event.ObjectArrayEnd {
         record DocumentSwitch(LuceneDocument document) implements Event {}
+
+        record DocumentStart(RootObjectMapper rootObjectMapper) implements Event {}
+
+        record ObjectStart(ObjectMapper objectMapper) implements Event {}
+
+        record ObjectEnd(ObjectMapper objectMapper) implements Event {}
+
+        record ObjectArrayStart(ObjectMapper objectMapper) implements Event {}
+
+        record ObjectArrayEnd() implements Event {}
     }
 
     record Output(List<IgnoredSourceFieldMapper.NameValue> ignoredSourceValues) {
@@ -103,9 +119,16 @@ public interface DocumentParserListener {
         }
     }
 
+    /**
+     * Specifies if this listener is currently actively consuming tokens.
+     * This is used to avoid doing unnecessary work.
+     * @return
+     */
+    boolean isActive();
+
     void consume(Token token) throws IOException;
 
-    void consume(Event event);
+    void consume(Event event) throws IOException;
 
     Output finish();
 }

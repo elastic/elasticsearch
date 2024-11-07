@@ -148,8 +148,10 @@ public final class DocumentParser {
         public Token nextToken() throws IOException {
             var token = delegate().nextToken();
 
-            var listenerToken = DocumentParserListener.Token.current(delegate());
-            listeners.publish(listenerToken);
+            if (listeners.anyActive()) {
+                var listenerToken = DocumentParserListener.Token.current(delegate());
+                listeners.publish(listenerToken);
+            }
 
             return token;
         }
@@ -181,13 +183,15 @@ public final class DocumentParser {
     }
 
     public interface Listeners {
-        void publish(DocumentParserListener.Event event);
+        void publish(DocumentParserListener.Event event) throws IOException;
 
         void publish(DocumentParserListener.Token token) throws IOException;
 
         DocumentParserListener.Output finish();
 
         boolean isNoop();
+
+        boolean anyActive();
 
         Listeners NOOP = new Listeners() {
             @Override
@@ -209,6 +213,11 @@ public final class DocumentParser {
             public boolean isNoop() {
                 return true;
             }
+
+            @Override
+            public boolean anyActive() {
+                return false;
+            }
         };
 
         class ListenerCollection implements Listeners {
@@ -219,8 +228,10 @@ public final class DocumentParser {
             }
 
             @Override
-            public void publish(DocumentParserListener.Event event) {
-                listeners.forEach(l -> l.consume(event));
+            public void publish(DocumentParserListener.Event event) throws IOException {
+                for (DocumentParserListener l : listeners) {
+                    l.consume(event);
+                }
             }
 
             @Override
@@ -246,6 +257,17 @@ public final class DocumentParser {
             public boolean isNoop() {
                 return false;
             }
+
+            @Override
+            public boolean anyActive() {
+                for (DocumentParserListener l : listeners) {
+                    if (l.isActive()) {
+                        return true;
+                    }
+                }
+
+                return false;
+            }
         }
     }
 
@@ -256,6 +278,8 @@ public final class DocumentParser {
             for (MetadataFieldMapper metadataMapper : metadataFieldsMappers) {
                 metadataMapper.preParse(context);
             }
+
+            context.publishEvent(new DocumentParserListener.Event.DocumentStart(context.root()));
 
             if (context.root().isEnabled() == false) {
                 // entire type is disabled
@@ -393,16 +417,22 @@ public final class DocumentParser {
     }
 
     static void parseObjectOrNested(DocumentParserContext context) throws IOException {
+        context.publishEvent(new DocumentParserListener.Event.ObjectStart(context.parent()));
+
         XContentParser parser = context.parser();
         String currentFieldName = parser.currentName();
         if (context.parent().isEnabled() == false) {
             // entire type is disabled
             parser.skipChildren();
+
+            context.publishEvent(new DocumentParserListener.Event.ObjectEnd(context.parent()));
             return;
         }
         XContentParser.Token token = parser.currentToken();
         if (token == XContentParser.Token.VALUE_NULL) {
             // the object is null ("obj1" : null), simply bail
+
+            context.publishEvent(new DocumentParserListener.Event.ObjectEnd(context.parent()));
             return;
         }
 
@@ -410,19 +440,19 @@ public final class DocumentParser {
             throwOnConcreteValue(context.parent(), currentFieldName, context);
         }
 
-        var sourceKeepMode = getSourceKeepMode(context, context.parent().sourceKeepMode());
-        if (context.canAddIgnoredField() && (sourceKeepMode == Mapper.SourceKeepMode.ALL)) {
-            context = context.addIgnoredFieldFromContext(
-                new IgnoredSourceFieldMapper.NameValue(
-                    context.parent().fullPath(),
-                    context.parent().fullPath().lastIndexOf(context.parent().leafName()),
-                    null,
-                    context.doc()
-                )
-            );
-            token = context.parser().currentToken();
-            parser = context.parser();
-        }
+//        var sourceKeepMode = getSourceKeepMode(context, context.parent().sourceKeepMode());
+//        if (context.canAddIgnoredField() && (sourceKeepMode == Mapper.SourceKeepMode.ALL)) {
+//            context = context.addIgnoredFieldFromContext(
+//                new IgnoredSourceFieldMapper.NameValue(
+//                    context.parent().fullPath(),
+//                    context.parent().fullPath().lastIndexOf(context.parent().leafName()),
+//                    null,
+//                    context.doc()
+//                )
+//            );
+//            token = context.parser().currentToken();
+//            parser = context.parser();
+//        }
 
         if (context.parent().isNested()) {
             // Handle a nested object that doesn't contain an array. Arrays are handled in #parseNonDynamicArray.
@@ -443,6 +473,8 @@ public final class DocumentParser {
         if (context.parent().isNested()) {
             copyNestedFields(context, (NestedObjectMapper) context.parent());
         }
+
+        context.publishEvent(new DocumentParserListener.Event.ObjectEnd(context.parent()));
     }
 
     private static void throwOnConcreteValue(ObjectMapper mapper, String currentFieldName, DocumentParserContext context) {
@@ -562,9 +594,9 @@ public final class DocumentParser {
                         || sourceKeepMode == Mapper.SourceKeepMode.ALL
                         || (sourceKeepMode == Mapper.SourceKeepMode.ARRAYS && context.inArrayScope())
                         || (context.isWithinCopyTo() == false && context.isCopyToDestinationField(mapper.fullPath())))) {
-                    context = context.addIgnoredFieldFromContext(
-                        IgnoredSourceFieldMapper.NameValue.fromContext(context, fieldMapper.fullPath(), null)
-                    );
+//                    context = context.addIgnoredFieldFromContext(
+//                        IgnoredSourceFieldMapper.NameValue.fromContext(context, fieldMapper.fullPath(), null)
+//                    );
                     fieldMapper.parse(context);
                 } else {
                     fieldMapper.parse(context);
@@ -794,6 +826,10 @@ public final class DocumentParser {
         boolean canRemoveSingleLeafElement = false;
         if (context.canAddIgnoredField()) {
             Mapper.SourceKeepMode mode = Mapper.SourceKeepMode.NONE;
+            if (mapper instanceof ObjectMapper objectMapper) {
+                context.publishEvent(new DocumentParserListener.Event.ObjectArrayStart(objectMapper));
+            }
+
             boolean fieldWithFallbackSyntheticSource = false;
             boolean fieldWithStoredArraySource = false;
             if (mapper instanceof FieldMapper fieldMapper) {
@@ -848,6 +884,10 @@ public final class DocumentParser {
             context.removeLastIgnoredField(fullPath);
         }
         postProcessDynamicArrayMapping(context, lastFieldName);
+
+        if (mapper instanceof ObjectMapper) {
+            context.publishEvent(new DocumentParserListener.Event.ObjectArrayEnd());
+        }
     }
 
     /**

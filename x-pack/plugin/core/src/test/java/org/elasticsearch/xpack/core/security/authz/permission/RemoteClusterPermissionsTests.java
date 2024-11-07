@@ -33,6 +33,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.TransportVersions.ROLE_MONITOR_STATS;
 import static org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions.ROLE_REMOTE_CLUSTER_PRIVS;
+import static org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions.lastTransportVersionPermission;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -243,6 +244,15 @@ public class RemoteClusterPermissionsTests extends AbstractXContentSerializingTe
         assertEquals(expected, remoteClusterPermissions.removeUnsupportedPrivileges(ROLE_REMOTE_CLUSTER_PRIVS));
         // both privileges allowed in the newer version, so it should not change the permission
         assertEquals(remoteClusterPermissions, remoteClusterPermissions.removeUnsupportedPrivileges(ROLE_MONITOR_STATS));
+    }
+
+    public void testShortCircuitRemoveUnsupportedPrivileges(){
+        RemoteClusterPermissions remoteClusterPermissions = new RemoteClusterPermissions();
+        assertSame(remoteClusterPermissions, remoteClusterPermissions.removeUnsupportedPrivileges(TransportVersion.current()));
+        assertSame(remoteClusterPermissions, remoteClusterPermissions.removeUnsupportedPrivileges(lastTransportVersionPermission));
+        assertNotSame(
+            remoteClusterPermissions,
+            remoteClusterPermissions.removeUnsupportedPrivileges(TransportVersionUtils.getPreviousVersion(lastTransportVersionPermission)));
     }
 
     private List<RemoteClusterPermissionGroup> generateRandomGroups(boolean fuzzyCluster) {

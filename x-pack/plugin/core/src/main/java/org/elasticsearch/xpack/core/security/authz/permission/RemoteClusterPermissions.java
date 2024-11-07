@@ -83,6 +83,10 @@ public class RemoteClusterPermissions implements NamedWriteable, ToXContentObjec
         ROLE_MONITOR_STATS,
         Set.of(ClusterPrivilegeResolver.MONITOR_STATS.name())
     );
+    static final TransportVersion lastTransportVersionPermission = allowedRemoteClusterPermissions.keySet()
+        .stream()
+        .max(TransportVersion::compareTo)
+        .orElseThrow();
 
     public static final RemoteClusterPermissions NONE = new RemoteClusterPermissions();
 
@@ -124,9 +128,11 @@ public class RemoteClusterPermissions implements NamedWriteable, ToXContentObjec
      * @return a new instance of RemoteClusterPermissions with the unsupported privileges removed
      */
     public RemoteClusterPermissions removeUnsupportedPrivileges(TransportVersion outboundVersion) {
-
+        Objects.requireNonNull(outboundVersion, "outboundVersion must not be null");
+        if(outboundVersion.onOrAfter(lastTransportVersionPermission)) {
+            return this;
+        }
         RemoteClusterPermissions copyForOutboundVersion = new RemoteClusterPermissions();
-
         Set<String> allowedPermissionsPerVersion = getAllowedPermissionsPerVersion(outboundVersion);
         for (RemoteClusterPermissionGroup group : remoteClusterPermissionGroups) {
             String[] privileges = group.clusterPrivileges();

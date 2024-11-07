@@ -33,6 +33,8 @@ import org.elasticsearch.search.sort.GeoDistanceSortBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.EsqlTestUtils.TestConfigurableSearchStats;
+import org.elasticsearch.xpack.esql.EsqlTestUtils.TestConfigurableSearchStats.Config;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
@@ -190,10 +192,12 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     private TestDataSource testData;
     private int allFieldRowSize;    // TODO: Move this into testDataSource so tests that load other indexes can also assert on this
     private TestDataSource airports;
-    private TestDataSource airportsNoDocValues;
-    private TestDataSource airportsWeb;
-    private TestDataSource countriesBbox;
-    private TestDataSource countriesBboxWeb;
+    private TestDataSource airportsNoDocValues; // Test when spatial field is indexed but has no doc values
+    private TestDataSource airportsNotIndexed;  // Test when spatial field has doc values but is not indexed
+    private TestDataSource airportsNotIndexedNorDocValues;  // Test when spatial field is neither indexed nor has doc-values
+    private TestDataSource airportsWeb;         // Cartesian point field tests
+    private TestDataSource countriesBbox;       // geo_shape field tests
+    private TestDataSource countriesBboxWeb;    // cartesian_shape field tests
 
     private final Configuration config;
 
@@ -241,10 +245,24 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         this.airports = makeTestDataSource("airports", "mapping-airports.json", functionRegistry, enrichResolution);
         this.airportsNoDocValues = makeTestDataSource(
             "airports-no-doc-values",
-            "mapping-airports-no-doc-values.json",
+            "mapping-airports_no_doc_values.json",
             functionRegistry,
             enrichResolution,
-            statsWithFieldsWithoutDocValues("location")
+            new TestConfigurableSearchStats().exclude(Config.DOC_VALUES, "location")
+        );
+        this.airportsNotIndexed = makeTestDataSource(
+            "airports-not-indexed",
+            "mapping-airports_not_indexed.json",
+            functionRegistry,
+            enrichResolution,
+            new TestConfigurableSearchStats().exclude(Config.INDEXED, "location")
+        );
+        this.airportsNotIndexedNorDocValues = makeTestDataSource(
+            "airports-not-indexed-nor-doc-values",
+            "mapping-airports_not_indexed_nor_doc_values.json",
+            functionRegistry,
+            enrichResolution,
+            new TestConfigurableSearchStats().exclude(Config.INDEXED, "location").exclude(Config.DOC_VALUES, "location")
         );
         this.airportsWeb = makeTestDataSource("airports_web", "mapping-airports_web.json", functionRegistry, enrichResolution);
         this.countriesBbox = makeTestDataSource("countriesBbox", "mapping-countries_bbox.json", functionRegistry, enrichResolution);
@@ -3533,44 +3551,64 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             | STATS centroid=ST_CENTROID_AGG(location), count=COUNT()
             """ }) {
 
-            for (boolean useDocValues : new boolean[] { true, false }) {
-                var testData = useDocValues ? airports : airportsNoDocValues;
-                var plan = this.physicalPlan(query, testData);
-                var limit = as(plan, LimitExec.class);
-                var agg = as(limit.child(), AggregateExec.class);
-                assertThat("No groupings in aggregation", agg.groupings().size(), equalTo(0));
-                // Before optimization the aggregation does not use doc-values
-                assertAggregation(agg, "count", Count.class);
-                assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, false);
+            for (boolean isIndexed : new boolean[] { true, false }) {
+                for (boolean useDocValues : new boolean[] { true, false }) {
+                    var testData = useDocValues
+                        ? (isIndexed ? airports : airportsNotIndexed)
+                        : (isIndexed ? airportsNoDocValues : airportsNotIndexedNorDocValues);
+                    var plan = this.physicalPlan(query, testData);
+                    var limit = as(plan, LimitExec.class);
+                    var agg = as(limit.child(), AggregateExec.class);
+                    assertThat("No groupings in aggregation", agg.groupings().size(), equalTo(0));
+                    // Before optimization the aggregation does not use doc-values
+                    assertAggregation(agg, "count", Count.class);
+                    assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, false);
 
-                var exchange = as(agg.child(), ExchangeExec.class);
-                var fragment = as(exchange.child(), FragmentExec.class);
-                var fAgg = as(fragment.fragment(), Aggregate.class);
-                var filter = as(fAgg.child(), Filter.class);
-                assertThat("filter contains ST_INTERSECTS", filter.condition(), instanceOf(SpatialIntersects.class));
+                    var exchange = as(agg.child(), ExchangeExec.class);
+                    var fragment = as(exchange.child(), FragmentExec.class);
+                    var fAgg = as(fragment.fragment(), Aggregate.class);
+                    var filter = as(fAgg.child(), Filter.class);
+                    assertThat("filter contains ST_INTERSECTS", filter.condition(), instanceOf(SpatialIntersects.class));
 
-                // Now verify that optimization re-writes the ExchangeExec and pushed down the filter into the Lucene query
-                var optimized = optimizedPlan(plan, testData.stats);
-                limit = as(optimized, LimitExec.class);
-                agg = as(limit.child(), AggregateExec.class);
-                // Above the exchange (in coordinator) the aggregation is not using doc-values
-                assertAggregation(agg, "count", Count.class);
-                assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, false);
-                exchange = as(agg.child(), ExchangeExec.class);
-                agg = as(exchange.child(), AggregateExec.class);
-                assertThat("Aggregation is PARTIAL", agg.getMode(), equalTo(INITIAL));
-                // below the exchange (in data node) the aggregation is using doc-values
-                assertAggregation(agg, "count", Count.class);
-                assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, useDocValues);
-                var source = assertChildIsGeoPointExtract(agg, useDocValues);
-                // Query is pushed to lucene if field is indexed (and does not require doc-values or isAggregatable)
-                var condition = as(source.query(), SpatialRelatesQuery.ShapeQueryBuilder.class);
-                assertThat("Geometry field name", condition.fieldName(), equalTo("location"));
-                assertThat("Spatial relationship", condition.relation(), equalTo(ShapeRelation.INTERSECTS));
-                assertThat("Geometry is Polygon", condition.shape().type(), equalTo(ShapeType.POLYGON));
-                var polygon = as(condition.shape(), Polygon.class);
-                assertThat("Polygon shell length", polygon.getPolygon().length(), equalTo(5));
-                assertThat("Polygon holes", polygon.getNumberOfHoles(), equalTo(0));
+                    // Now verify that optimization re-writes the ExchangeExec and pushed down the filter into the Lucene query
+                    var optimized = optimizedPlan(plan, testData.stats);
+                    limit = as(optimized, LimitExec.class);
+                    agg = as(limit.child(), AggregateExec.class);
+                    // Above the exchange (in coordinator) the aggregation is not using doc-values
+                    assertAggregation(agg, "count", Count.class);
+                    assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, false);
+                    exchange = as(agg.child(), ExchangeExec.class);
+                    agg = as(exchange.child(), AggregateExec.class);
+                    assertThat("Aggregation is PARTIAL", agg.getMode(), equalTo(INITIAL));
+                    // below the exchange (in data node) the aggregation is using doc-values
+                    assertAggregation(agg, "count", Count.class);
+                    assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, useDocValues);
+                    if (isIndexed) {
+                        var source = assertChildIsGeoPointExtract(agg, useDocValues);
+                        // Query is pushed to lucene if field is indexed (and does not require doc-values or isAggregatable)
+                        var condition = as(source.query(), SpatialRelatesQuery.ShapeQueryBuilder.class);
+                        assertThat("Geometry field name", condition.fieldName(), equalTo("location"));
+                        assertThat("Spatial relationship", condition.relation(), equalTo(ShapeRelation.INTERSECTS));
+                        assertThat("Geometry is Polygon", condition.shape().type(), equalTo(ShapeType.POLYGON));
+                        var polygon = as(condition.shape(), Polygon.class);
+                        assertThat("Polygon shell length", polygon.getPolygon().length(), equalTo(5));
+                        assertThat("Polygon holes", polygon.getNumberOfHoles(), equalTo(0));
+                    } else {
+                        // If the field is not indexed, we cannot push the filter down to source, so assert that we need to have an explicit
+                        // filter as well as extract the field needed for that filter.
+                        var filterExec = as(agg.child(), FilterExec.class);
+                        assertThat("filter contains ST_INTERSECTS", filterExec.condition(), instanceOf(SpatialIntersects.class));
+                        var fieldExtractLocation = as(filterExec.child(), FieldExtractExec.class);
+                        assertThat("location field is extracted", fieldExtractLocation.attributesToExtract().size(), equalTo(1));
+                        assertThat(
+                            "location field is extracted",
+                            fieldExtractLocation.attributesToExtract().get(0).name(),
+                            equalTo("location")
+                        );
+                        var source = source(fieldExtractLocation.child());
+                        assertThat("source query is null", source.query(), equalTo(null));
+                    }
+                }
             }
         }
     }
@@ -6664,25 +6702,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     static SearchStats statsWithIndexedFields(String... names) {
-        return new EsqlTestUtils.TestSearchStats() {
-            private final Set<String> indexedFields = Set.of(names);
-
-            @Override
-            public boolean isIndexed(String field) {
-                return indexedFields.contains(field);
-            }
-        };
-    }
-
-    static SearchStats statsWithFieldsWithoutDocValues(String... names) {
-        return new EsqlTestUtils.TestSearchStats() {
-            private final Set<String> missingDocValues = Set.of(names);
-
-            @Override
-            public boolean hasDocValues(String field) {
-                return missingDocValues.contains(field) == false;
-            }
-        };
+        return new TestConfigurableSearchStats().include(Config.INDEXED, names);
     }
 
     static PhysicalPlan localRelationshipAlignment(PhysicalPlan l) {

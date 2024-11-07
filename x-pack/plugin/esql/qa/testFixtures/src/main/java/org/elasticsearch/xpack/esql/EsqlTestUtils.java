@@ -89,6 +89,8 @@ import java.time.Duration;
 import java.time.Period;
 import java.util.ArrayList;
 import java.util.EnumSet;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -210,6 +212,10 @@ public final class EsqlTestUtils {
         return new EsRelation(EMPTY, new EsIndex(randomAlphaOfLength(8), emptyMap()), IndexMode.STANDARD, randomBoolean());
     }
 
+    /**
+     * This version of SearchStats always returns true for all fields for all boolean methods.
+     * For custom behaviour either use {@link TestConfigurableSearchStats} or override the specific methods.
+     */
     public static class TestSearchStats implements SearchStats {
 
         @Override
@@ -260,6 +266,77 @@ public final class EsqlTestUtils {
         @Override
         public boolean isSingleValue(String field) {
             return false;
+        }
+    }
+
+    /**
+     * This version of SearchStats can be preconfigured to return true/false for various combinations of the four field settings:
+     * <ol>
+     *     <li>exists</li>
+     *     <li>isIndexed</li>
+     *     <li>hasDocValues</li>
+     *     <li>hasIdenticalDelegate</li>
+     * </ol>
+     * The default will return true for all fields. The include/exclude methods can be used to configure the settings for specific fields.
+     * If you call 'include' with no fields, it will switch to return false for all fields.
+     */
+    public static class TestConfigurableSearchStats extends TestSearchStats {
+        public enum Config {
+            EXISTS,
+            INDEXED,
+            DOC_VALUES,
+            IDENTICAL_DELEGATE
+        }
+
+        private final Map<Config, Set<String>> includes = new HashMap<>();
+        private final Map<Config, Set<String>> excludes = new HashMap<>();
+
+        public TestConfigurableSearchStats include(Config key, String... fields) {
+            // If this method is called with no fields, it is interpreted to mean include none, so we include a dummy field
+            for (String field : fields.length == 0 ? new String[] { "-" } : fields) {
+                includes.computeIfAbsent(key, k -> new HashSet<>()).add(field);
+                excludes.computeIfAbsent(key, k -> new HashSet<>()).remove(field);
+            }
+            return this;
+        }
+
+        public TestConfigurableSearchStats exclude(Config key, String... fields) {
+            for (String field : fields) {
+                includes.computeIfAbsent(key, k -> new HashSet<>()).remove(field);
+                excludes.computeIfAbsent(key, k -> new HashSet<>()).add(field);
+            }
+            return this;
+        }
+
+        private boolean isConfigationSet(Config config, String field) {
+            Set<String> in = includes.getOrDefault(config, Set.of());
+            Set<String> ex = excludes.getOrDefault(config, Set.of());
+            return (in.isEmpty() || in.contains(field)) && ex.contains(field) == false;
+        }
+
+        @Override
+        public boolean exists(String field) {
+            return isConfigationSet(Config.EXISTS, field);
+        }
+
+        @Override
+        public boolean isIndexed(String field) {
+            return isConfigationSet(Config.INDEXED, field);
+        }
+
+        @Override
+        public boolean hasDocValues(String field) {
+            return isConfigationSet(Config.DOC_VALUES, field);
+        }
+
+        @Override
+        public boolean hasIdenticalDelegate(String field) {
+            return isConfigationSet(Config.IDENTICAL_DELEGATE, field);
+        }
+
+        @Override
+        public String toString() {
+            return "TestConfigurableSearchStats{" + "includes=" + includes + ", excludes=" + excludes + '}';
         }
     }
 

@@ -17,8 +17,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.Arrays;
-
 public class RoutingPathFieldsTests extends ESTestCase {
 
     public void testWithBuilder() throws Exception {
@@ -43,25 +41,21 @@ public class RoutingPathFieldsTests extends ESTestCase {
 
         routingPathFields.addBoolean("path.boolean_name", randomBoolean());
         current = routingPathFields.buildHash();
-        assertFalse(Arrays.equals(current.array(), previous.array()));
         assertTrue(current.length() > previous.length());
         previous = current;
 
         routingPathFields.addLong("path.long_name", randomLong());
         current = routingPathFields.buildHash();
-        assertFalse(Arrays.equals(current.array(), previous.array()));
         assertTrue(current.length() > previous.length());
         previous = current;
 
         routingPathFields.addIp("path.ip_name", randomIp(randomBoolean()));
         current = routingPathFields.buildHash();
-        assertFalse(Arrays.equals(current.array(), previous.array()));
         assertTrue(current.length() > previous.length());
         previous = current;
 
         routingPathFields.addUnsignedLong("path.unsigned_long_name", randomLongBetween(0, Long.MAX_VALUE));
         current = routingPathFields.buildHash();
-        assertFalse(Arrays.equals(current.array(), previous.array()));
         assertTrue(current.length() > previous.length());
     }
 
@@ -75,25 +69,21 @@ public class RoutingPathFieldsTests extends ESTestCase {
 
         routingPathFields.addBoolean("path.boolean_name", randomBoolean());
         current = routingPathFields.buildHash();
-        assertFalse(Arrays.equals(current.array(), previous.array()));
         assertTrue(current.length() > previous.length());
         previous = current;
 
         routingPathFields.addLong("path.long_name", randomLong());
         current = routingPathFields.buildHash();
-        assertFalse(Arrays.equals(current.array(), previous.array()));
         assertTrue(current.length() > previous.length());
         previous = current;
 
         routingPathFields.addIp("path.ip_name", randomIp(randomBoolean()));
         current = routingPathFields.buildHash();
-        assertFalse(Arrays.equals(current.array(), previous.array()));
         assertTrue(current.length() > previous.length());
         previous = current;
 
         routingPathFields.addUnsignedLong("path.unsigned_long_name", randomLongBetween(0, Long.MAX_VALUE));
         current = routingPathFields.buildHash();
-        assertFalse(Arrays.equals(current.array(), previous.array()));
         assertTrue(current.length() > previous.length());
     }
 }

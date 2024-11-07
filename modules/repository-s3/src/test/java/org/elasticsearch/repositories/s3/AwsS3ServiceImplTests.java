@@ -17,6 +17,7 @@ import com.amazonaws.auth.AWSCredentialsProviderChain;
 import com.amazonaws.auth.AWSStaticCredentialsProvider;
 import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.auth.EC2ContainerCredentialsProviderWrapper;
+import com.amazonaws.retry.PredefinedRetryPolicies;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.util.Supplier;
@@ -211,7 +212,7 @@ public class AwsS3ServiceImplTests extends ESTestCase {
     ) {
 
         final S3ClientSettings clientSettings = S3ClientSettings.getClientSettings(settings, "default");
-        final ClientConfiguration configuration = S3Service.buildConfiguration(clientSettings);
+        final ClientConfiguration configuration = S3Service.buildConfiguration(clientSettings, false);
 
         assertThat(configuration.getResponseMetadataCacheSize(), is(0));
         assertThat(configuration.getProtocol(), is(expectedProtocol));
@@ -222,6 +223,7 @@ public class AwsS3ServiceImplTests extends ESTestCase {
         assertThat(configuration.getMaxErrorRetry(), is(expectedMaxRetries));
         assertThat(configuration.useThrottledRetries(), is(expectedUseThrottleRetries));
         assertThat(configuration.getSocketTimeout(), is(expectedReadTimeout));
+        assertThat(configuration.getRetryPolicy(), is(PredefinedRetryPolicies.DEFAULT));
     }
 
     public void testEndpointSetting() {

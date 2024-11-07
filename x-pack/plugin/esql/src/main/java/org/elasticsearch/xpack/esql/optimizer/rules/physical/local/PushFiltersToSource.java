@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.esql.core.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.core.expression.predicate.Range;
-import org.elasticsearch.xpack.esql.core.expression.predicate.fulltext.MatchQueryPredicate;
 import org.elasticsearch.xpack.esql.core.expression.predicate.fulltext.StringQueryPredicate;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.BinaryLogic;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Not;
@@ -247,8 +246,6 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
             return isAttributePushable(cidrMatch.ipField(), cidrMatch, hasIdenticalDelegate) && Expressions.foldable(cidrMatch.matches());
         } else if (exp instanceof SpatialRelatesFunction spatial) {
             return canPushSpatialFunctionToSource(spatial);
-        } else if (exp instanceof MatchQueryPredicate mqp) {
-            return mqp.field() instanceof FieldAttribute && DataType.isString(mqp.field().dataType());
         } else if (exp instanceof StringQueryPredicate) {
             return true;
         } else if (exp instanceof QueryString) {

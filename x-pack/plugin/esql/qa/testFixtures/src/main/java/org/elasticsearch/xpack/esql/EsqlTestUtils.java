@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -96,7 +97,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.jar.JarInputStream;
-import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
 
 import static java.util.Collections.emptyList;
@@ -117,8 +117,6 @@ import static org.elasticsearch.test.ESTestCase.randomLongBetween;
 import static org.elasticsearch.test.ESTestCase.randomMillisUpToYear9999;
 import static org.elasticsearch.test.ESTestCase.randomShort;
 import static org.elasticsearch.test.ESTestCase.randomZone;
-import static org.elasticsearch.test.ListMatcher.matchesList;
-import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
@@ -128,7 +126,6 @@ import static org.elasticsearch.xpack.esql.parser.ParserUtils.ParamClassificatio
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.ParamClassification.PATTERN;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.ParamClassification.VALUE;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.junit.Assert.assertTrue;
 
 public final class EsqlTestUtils {
 
@@ -406,16 +403,6 @@ public final class EsqlTestUtils {
         return String.join(" | ", all);
     }
 
-    public static void assertWarnings(List<String> warnings, List<String> allowedWarnings, List<Pattern> allowedWarningsRegex) {
-        if (allowedWarningsRegex.isEmpty()) {
-            assertMap(warnings.stream().sorted().toList(), matchesList(allowedWarnings.stream().sorted().toList()));
-        } else {
-            for (String warning : warnings) {
-                assertTrue("Unexpected warning: " + warning, allowedWarningsRegex.stream().anyMatch(x -> x.matcher(warning).matches()));
-            }
-        }
-    }
-
     /**
      * "tables" provided in the context for the LOOKUP command. If you
      * add to this, you must also add to {@code EsqlSpecTestCase#tables};
@@ -600,7 +587,10 @@ public final class EsqlTestUtils {
                 Files.walkFileTree(path, EnumSet.allOf(FileVisitOption.class), 1, new SimpleFileVisitor<>() {
                     @Override
                     public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-                        if (Regex.simpleMatch(filePattern, file.toString())) {
+                        // remove the path folder from the URL
+                        String name = Strings.replace(file.toUri().toString(), path.toUri().toString(), StringUtils.EMPTY);
+                        Tuple<String, String> entrySplit = pathAndName(name);
+                        if (root.equals(entrySplit.v1()) && Regex.simpleMatch(filePattern, entrySplit.v2())) {
                             matches.add(file.toUri().toURL());
                         }
                         return FileVisitResult.CONTINUE;

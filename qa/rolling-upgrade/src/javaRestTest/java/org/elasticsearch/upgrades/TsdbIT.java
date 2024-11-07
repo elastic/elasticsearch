@@ -33,7 +33,7 @@ public class TsdbIT extends AbstractRollingUpgradeTestCase {
         super(upgradedNodes);
     }
 
-    private static final String TEMPLATE = """
+    static final String TEMPLATE = """
         {
             "settings":{
                 "index": {
@@ -289,7 +289,7 @@ public class TsdbIT extends AbstractRollingUpgradeTestCase {
         assertThat(ObjectPath.evaluate(responseBody, "hits.total.value"), equalTo(expectedHitCount));
     }
 
-    private static String formatInstant(Instant instant) {
+    static String formatInstant(Instant instant) {
         return DateFormatter.forPattern(FormatNames.STRICT_DATE_OPTIONAL_TIME.getName()).format(instant);
     }
 

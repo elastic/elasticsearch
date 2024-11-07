@@ -40,7 +40,7 @@ PUT my-index-000001
   }
 }
 --------------------------------
-
+// REVIEWED[11.06.24]
 [TIP]
 .Mapping numeric identifiers
 ====
@@ -205,7 +205,7 @@ PUT idx/_doc/1
 }
 ----
 // TEST[s/$/\nGET idx\/_doc\/1?filter_path=_source\n/]
-
+// REVIEWED[11.06.24]
 Will become:
 
 [source,console-result]
@@ -215,7 +215,7 @@ Will become:
 }
 ----
 // TEST[s/^/{"_source":/ s/\n$/}/]
-
+// REVIEWED[11.06.24]
 If a `keyword` field sets `store` to `true` then order and duplicates
 are preserved. For example:
 [source,console,id=synthetic-source-keyword-example-stored]
@@ -243,7 +243,7 @@ PUT idx/_doc/1
 }
 ----
 // TEST[s/$/\nGET idx\/_doc\/1?filter_path=_source\n/]
-
+// REVIEWED[11.06.24]
 Will become:
 
 [source,console-result]
@@ -253,7 +253,7 @@ Will become:
 }
 ----
 // TEST[s/^/{"_source":/ s/\n$/}/]
-
+// REVIEWED[11.06.24]
 Values longer than `ignore_above` are preserved but sorted to the end.
 For example:
 [source,console,id=synthetic-source-keyword-example-ignore-above]
@@ -281,7 +281,7 @@ PUT idx/_doc/1
 }
 ----
 // TEST[s/$/\nGET idx\/_doc\/1?filter_path=_source\n/]
-
+// REVIEWED[11.06.24]
 Will become:
 
 [source,console-result]
@@ -291,7 +291,7 @@ Will become:
 }
 ----
 // TEST[s/^/{"_source":/ s/\n$/}/]
-
+// REVIEWED[11.06.24]
 
 include::constant-keyword.asciidoc[]
 

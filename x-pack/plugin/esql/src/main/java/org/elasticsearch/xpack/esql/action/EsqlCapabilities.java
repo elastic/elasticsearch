@@ -27,6 +27,12 @@ import java.util.Set;
  */
 public class EsqlCapabilities {
     public enum Cap {
+
+        /**
+         * Support for function {@code BIT_LENGTH}. Done in #115792
+         */
+        FN_BIT_LENGTH,
+
         /**
          * Support for function {@code REVERSE}.
          */

@@ -75,7 +75,7 @@ that begin with `_` are reserved for system usage.
 For more information, see
 <<run-as-privilege>>.
 
-`remote_indices`:: beta:[] (list) A list of remote indices permissions entries.
+`remote_indices`:: (list) A list of remote indices permissions entries.
 +
 --
 NOTE: Remote indices are effective for <<remote-clusters-api-key,remote clusters configured with the API key based model>>.
@@ -93,6 +93,18 @@ have on the specified indices.
 `query`::: A search query that defines the documents the owners of the role have
 read access to. A document within the specified indices must match this query in
 order for it to be accessible by the owners of the role.
+
+`remote_cluster`:: (list) A list of remote cluster permissions entries.
++
+--
+NOTE: Remote cluster permissions are effective for <<remote-clusters-api-key,remote clusters configured with the API key based model>>.
+They have no effect for remote clusters configured with the <<remote-clusters-cert,certificate based model>>.
+--
+`clusters` (required)::: (list) A list of cluster aliases to which the permissions
+in this entry apply.
+`privileges`(required)::: (list) The cluster level privileges that the owners of the role
+have in the specified clusters.
+
 
 For more information, see <<defining-roles>>.
 ====

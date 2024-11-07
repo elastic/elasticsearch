@@ -137,7 +137,6 @@ public abstract class QueryList {
     }
 
     private static class TermQueryList extends QueryList {
-        private final BytesRef scratch = new BytesRef();
         private final MappedFieldType field;
         private final SearchExecutionContext searchExecutionContext;
         private final IntFunction<Object> blockValueReader;

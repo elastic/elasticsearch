@@ -35,7 +35,7 @@ public class MalformedDynamicTemplateIT extends ESIntegTestCase {
      * contains unknown parameters. We were able to create those templates in 7.x still, so we need
      * to be able to index new documents into them. Indexing should issue a deprecation warning though.
      */
-    @UpdateForV9
+    @UpdateForV9(owner = UpdateForV9.Owner.DATA_MANAGEMENT)
     @AwaitsFix(bugUrl = "this is testing 7.x specific compatibility which may be n/a now after 9.0 bump")
     public void testBWCMalformedDynamicTemplate() {
         // this parameter is not supported by "keyword" field type

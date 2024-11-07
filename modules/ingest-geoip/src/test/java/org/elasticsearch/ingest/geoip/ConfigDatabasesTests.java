@@ -11,7 +11,6 @@ package org.elasticsearch.ingest.geoip;
 
 import com.maxmind.geoip2.model.CityResponse;
 
-import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
@@ -127,7 +126,7 @@ public class ConfigDatabasesTests extends ESTestCase {
 
             DatabaseReaderLazyLoader loader = configDatabases.getDatabase("GeoLite2-City.mmdb");
             assertThat(loader.getDatabaseType(), equalTo("GeoLite2-City"));
-            CityResponse cityResponse = loader.getCity(InetAddresses.forString("89.160.20.128"));
+            CityResponse cityResponse = loader.getResponse("89.160.20.128", GeoIpTestUtils::getCity);
             assertThat(cityResponse.getCity().getName(), equalTo("Tumba"));
             assertThat(cache.count(), equalTo(1));
         }
@@ -139,7 +138,7 @@ public class ConfigDatabasesTests extends ESTestCase {
 
             DatabaseReaderLazyLoader loader = configDatabases.getDatabase("GeoLite2-City.mmdb");
             assertThat(loader.getDatabaseType(), equalTo("GeoLite2-City"));
-            CityResponse cityResponse = loader.getCity(InetAddresses.forString("89.160.20.128"));
+            CityResponse cityResponse = loader.getResponse("89.160.20.128", GeoIpTestUtils::getCity);
             assertThat(cityResponse.getCity().getName(), equalTo("Linköping"));
             assertThat(cache.count(), equalTo(1));
         });

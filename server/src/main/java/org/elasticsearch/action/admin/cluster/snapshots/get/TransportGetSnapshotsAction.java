@@ -322,7 +322,6 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                                 })
                             ),
                             getSnapshotInfoExecutor.getMaxRunningTasks(),
-                            () -> {},
                             () -> {}
                         );
                     }));

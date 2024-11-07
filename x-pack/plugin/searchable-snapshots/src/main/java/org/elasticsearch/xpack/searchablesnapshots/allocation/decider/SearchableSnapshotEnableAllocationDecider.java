@@ -28,7 +28,8 @@ public class SearchableSnapshotEnableAllocationDecider extends AllocationDecider
      * ongoing is determined by cluster.routing.allocation.enable=primaries. Notice that other values for that setting except "all" mean
      * that no searchable snapshots are allocated anyway.
      */
-    @UpdateForV9 // xpack.searchable.snapshot.allocate_on_rolling_restart was only temporary, remove it in the next major
+    @UpdateForV9(owner = UpdateForV9.Owner.DISTRIBUTED_COORDINATION)
+    // xpack.searchable.snapshot.allocate_on_rolling_restart was only temporary, remove it in the next major
     public static final Setting<Boolean> SEARCHABLE_SNAPSHOTS_ALLOCATE_ON_ROLLING_RESTART = Setting.boolSetting(
         "xpack.searchable.snapshot.allocate_on_rolling_restart",
         false,

@@ -191,7 +191,7 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
             metas.add(md);
         }
         Store targetStore = newStore(createTempDir());
-        MultiFileWriter multiFileWriter = new MultiFileWriter(targetStore, mock(RecoveryState.Index.class), "", logger, () -> {});
+        MultiFileWriter multiFileWriter = new MultiFileWriter(targetStore, mock(RecoveryState.Index.class), "", logger);
         RecoveryTargetHandler target = new TestRecoveryTargetHandler() {
             @Override
             public void writeFileChunk(
@@ -578,7 +578,7 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
             )
         );
         Store targetStore = newStore(createTempDir(), false);
-        MultiFileWriter multiFileWriter = new MultiFileWriter(targetStore, mock(RecoveryState.Index.class), "", logger, () -> {});
+        MultiFileWriter multiFileWriter = new MultiFileWriter(targetStore, mock(RecoveryState.Index.class), "", logger);
         RecoveryTargetHandler target = new TestRecoveryTargetHandler() {
             @Override
             public void writeFileChunk(
@@ -1077,50 +1077,6 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
             assertNotNull(ExceptionsHelper.unwrap(e, CancellableThreads.ExecutionCancelledException.class));
         }
         store.close();
-    }
-
-    public void testVerifySeqNoStatsWhenRecoverWithSyncId() throws Exception {
-        IndexShard shard = mock(IndexShard.class);
-        when(shard.state()).thenReturn(IndexShardState.STARTED);
-        RecoverySourceHandler handler = new RecoverySourceHandler(
-            shard,
-            new TestRecoveryTargetHandler(),
-            threadPool,
-            getStartRecoveryRequest(),
-            between(1, 16),
-            between(1, 4),
-            between(1, 4),
-            between(1, 4),
-            false,
-            recoveryPlannerService
-        );
-
-        String syncId = UUIDs.randomBase64UUID();
-        int numDocs = between(0, 1000);
-        long localCheckpoint = randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, Long.MAX_VALUE);
-        long maxSeqNo = randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, Long.MAX_VALUE);
-        assertTrue(
-            handler.hasSameLegacySyncId(
-                newMetadataSnapshot(syncId, Long.toString(localCheckpoint), Long.toString(maxSeqNo), numDocs),
-                newMetadataSnapshot(syncId, Long.toString(localCheckpoint), Long.toString(maxSeqNo), numDocs)
-            )
-        );
-
-        AssertionError error = expectThrows(AssertionError.class, () -> {
-            long localCheckpointOnTarget = randomValueOtherThan(
-                localCheckpoint,
-                () -> randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, Long.MAX_VALUE)
-            );
-            long maxSeqNoOnTarget = randomValueOtherThan(
-                maxSeqNo,
-                () -> randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, Long.MAX_VALUE)
-            );
-            handler.hasSameLegacySyncId(
-                newMetadataSnapshot(syncId, Long.toString(localCheckpoint), Long.toString(maxSeqNo), numDocs),
-                newMetadataSnapshot(syncId, Long.toString(localCheckpointOnTarget), Long.toString(maxSeqNoOnTarget), numDocs)
-            );
-        });
-        assertThat(error.getMessage(), containsString("try to recover [index][1] with sync id but seq_no stats are mismatched:"));
     }
 
     public void testRecoveryPlannerServiceIsUsed() throws Exception {
@@ -1784,7 +1740,6 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
 
     private Store.MetadataSnapshot newMetadataSnapshot(String syncId, String localCheckpoint, String maxSeqNo, int numDocs) {
         Map<String, String> userData = new HashMap<>();
-        userData.put(Engine.SYNC_COMMIT_ID, syncId);
         if (localCheckpoint != null) {
             userData.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, localCheckpoint);
         }

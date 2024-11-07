@@ -434,6 +434,30 @@
         },
         {
           "name" : "trueValue",
+          "type" : "keyword",
+          "optional" : false,
+          "description" : "The value that's returned when the corresponding condition is the first to evaluate to `true`. The default value is returned when no condition matches."
+        },
+        {
+          "name" : "elseValue",
+          "type" : "text",
+          "optional" : true,
+          "description" : "The value that's returned when no condition evaluates to `true`."
+        }
+      ],
+      "variadic" : true,
+      "returnType" : "keyword"
+    },
+    {
+      "params" : [
+        {
+          "name" : "condition",
+          "type" : "boolean",
+          "optional" : false,
+          "description" : "A condition."
+        },
+        {
+          "name" : "trueValue",
           "type" : "long",
           "optional" : false,
           "description" : "The value that's returned when the corresponding condition is the first to evaluate to `true`. The default value is returned when no condition matches."
@@ -482,7 +506,31 @@
         }
       ],
       "variadic" : true,
-      "returnType" : "text"
+      "returnType" : "keyword"
+    },
+    {
+      "params" : [
+        {
+          "name" : "condition",
+          "type" : "boolean",
+          "optional" : false,
+          "description" : "A condition."
+        },
+        {
+          "name" : "trueValue",
+          "type" : "text",
+          "optional" : false,
+          "description" : "The value that's returned when the corresponding condition is the first to evaluate to `true`. The default value is returned when no condition matches."
+        },
+        {
+          "name" : "elseValue",
+          "type" : "keyword",
+          "optional" : true,
+          "description" : "The value that's returned when no condition evaluates to `true`."
+        }
+      ],
+      "variadic" : true,
+      "returnType" : "keyword"
     },
     {
       "params" : [
@@ -506,7 +554,7 @@
         }
       ],
       "variadic" : true,
-      "returnType" : "text"
+      "returnType" : "keyword"
     },
     {
       "params" : [
@@ -598,5 +646,6 @@
     "FROM sample_data\n| EVAL successful = CASE(\n    STARTS_WITH(message, \"Connected to\"), 1,\n    message == \"Connection error\", 0\n  )\n| STATS success_rate = AVG(successful)",
     "FROM sample_data\n| EVAL error = CASE(message LIKE \"*error*\", 1, 0)\n| EVAL hour = DATE_TRUNC(1 hour, @timestamp)\n| STATS error_rate = AVG(error) by hour\n| SORT hour"
   ],
-  "preview" : false
+  "preview" : false,
+  "snapshot_only" : false
 }

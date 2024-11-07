@@ -10,7 +10,6 @@
 package org.elasticsearch.ingest;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ingest.PutPipelineTransportAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -61,17 +60,13 @@ public class IngestProcessorNotInstalledOnAllNodesIT extends ESIntegTestCase {
         ensureStableCluster(2, node2);
 
         assertThat(
-            asInstanceOf(
+            safeAwaitAndUnwrapFailure(
                 ElasticsearchParseException.class,
-                ExceptionsHelper.unwrapCause(
-                    safeAwaitFailure(
-                        AcknowledgedResponse.class,
-                        l -> client().execute(
-                            PutPipelineTransportAction.TYPE,
-                            IngestPipelineTestUtils.putJsonPipelineRequest("id", pipelineSource),
-                            l
-                        )
-                    )
+                AcknowledgedResponse.class,
+                l -> client().execute(
+                    PutPipelineTransportAction.TYPE,
+                    IngestPipelineTestUtils.putJsonPipelineRequest("id", pipelineSource),
+                    l
                 )
             ).getMessage(),
             containsString("Processor type [test] is not installed on node")
@@ -84,17 +79,13 @@ public class IngestProcessorNotInstalledOnAllNodesIT extends ESIntegTestCase {
         internalCluster().startNode();
 
         assertThat(
-            asInstanceOf(
+            safeAwaitAndUnwrapFailure(
                 ElasticsearchParseException.class,
-                ExceptionsHelper.unwrapCause(
-                    safeAwaitFailure(
-                        AcknowledgedResponse.class,
-                        l -> client().execute(
-                            PutPipelineTransportAction.TYPE,
-                            IngestPipelineTestUtils.putJsonPipelineRequest("id", pipelineSource),
-                            l
-                        )
-                    )
+                AcknowledgedResponse.class,
+                l -> client().execute(
+                    PutPipelineTransportAction.TYPE,
+                    IngestPipelineTestUtils.putJsonPipelineRequest("id", pipelineSource),
+                    l
                 )
             ).getMessage(),
             equalTo("No processor type exists with name [test]")

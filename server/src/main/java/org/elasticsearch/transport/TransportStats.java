@@ -166,7 +166,8 @@ public class TransportStats implements Writeable, ChunkedToXContent {
         return transportActionStats;
     }
 
-    @UpdateForV9 // Review and simplify the if-else blocks containing this symbol once v9 is released
+    @UpdateForV9(owner = UpdateForV9.Owner.DISTRIBUTED_COORDINATION)
+    // Review and simplify the if-else blocks containing this symbol once v9 is released
     private static final boolean IMPOSSIBLE_IN_V9 = true;
 
     private boolean assertHistogramsConsistent() {
@@ -181,7 +182,8 @@ public class TransportStats implements Writeable, ChunkedToXContent {
     }
 
     @Override
-    @UpdateForV9 // review the "if" blocks checking for non-empty once we have
+    @UpdateForV9(owner = UpdateForV9.Owner.DISTRIBUTED_COORDINATION)
+    // review the "if" blocks checking for non-empty once we have
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params outerParams) {
         return Iterators.concat(Iterators.single((builder, params) -> {
             builder.startObject(Fields.TRANSPORT);

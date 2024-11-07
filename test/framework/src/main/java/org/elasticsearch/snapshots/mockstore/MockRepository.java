@@ -664,16 +664,17 @@ public class MockRepository extends FsRepository {
 
             @Override
             public void writeBlobAtomic(
-                final OperationPurpose purpose,
-                final String blobName,
-                final BytesReference bytes,
-                final boolean failIfAlreadyExists
+                OperationPurpose purpose,
+                String blobName,
+                InputStream inputStream,
+                long blobSize,
+                boolean failIfAlreadyExists
             ) throws IOException {
                 final Random random = beforeAtomicWrite(blobName);
                 if ((delegate() instanceof FsBlobContainer) && (random.nextBoolean())) {
                     // Simulate a failure between the write and move operation in FsBlobContainer
                     final String tempBlobName = FsBlobContainer.tempBlobName(blobName);
-                    super.writeBlob(purpose, tempBlobName, bytes, failIfAlreadyExists);
+                    super.writeBlob(purpose, tempBlobName, inputStream, blobSize, failIfAlreadyExists);
                     maybeIOExceptionOrBlock(blobName);
                     final FsBlobContainer fsBlobContainer = (FsBlobContainer) delegate();
                     fsBlobContainer.moveBlobAtomic(purpose, tempBlobName, blobName, failIfAlreadyExists);
@@ -681,8 +682,18 @@ public class MockRepository extends FsRepository {
                     // Atomic write since it is potentially supported
                     // by the delegating blob container
                     maybeIOExceptionOrBlock(blobName);
-                    super.writeBlobAtomic(purpose, blobName, bytes, failIfAlreadyExists);
+                    super.writeBlobAtomic(purpose, blobName, inputStream, blobSize, failIfAlreadyExists);
                 }
+            }
+
+            @Override
+            public void writeBlobAtomic(
+                final OperationPurpose purpose,
+                final String blobName,
+                final BytesReference bytes,
+                final boolean failIfAlreadyExists
+            ) throws IOException {
+                writeBlobAtomic(purpose, blobName, bytes.streamInput(), bytes.length(), failIfAlreadyExists);
             }
 
             private Random beforeAtomicWrite(String blobName) throws IOException {

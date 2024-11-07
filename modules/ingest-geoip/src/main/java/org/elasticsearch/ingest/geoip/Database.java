@@ -18,18 +18,21 @@ import java.util.Locale;
 import java.util.Set;
 
 /**
- * A high-level representation of a kind of geoip database that is supported by the {@link GeoIpProcessor}.
+ * A high-level representation of a kind of ip location database that is supported by the {@link GeoIpProcessor}.
  * <p>
  * A database has a set of properties that are valid to use with it (see {@link Database#properties()}),
  * as well as a list of default properties to use if no properties are specified (see {@link Database#defaultProperties()}).
  * <p>
- * See especially {@link Database#getDatabase(String, String)} which is used to obtain instances of this class.
+ * Some database providers have similar concepts but might have slightly different properties associated with those types.
+ * This can be accommodated, for example, by having a Foo value and a separate FooV2 value where the 'V' should be read as
+ * 'variant' or 'variation'. A V-less Database type is inherently the first variant/variation (i.e. V1).
  */
 enum Database {
 
     City(
         Set.of(
             Property.IP,
+            Property.COUNTRY_IN_EUROPEAN_UNION,
             Property.COUNTRY_ISO_CODE,
             Property.CONTINENT_CODE,
             Property.COUNTRY_NAME,
@@ -38,7 +41,12 @@ enum Database {
             Property.REGION_NAME,
             Property.CITY_NAME,
             Property.TIMEZONE,
-            Property.LOCATION
+            Property.LOCATION,
+            Property.POSTAL_CODE,
+            Property.ACCURACY_RADIUS,
+            Property.REGISTERED_COUNTRY_IN_EUROPEAN_UNION,
+            Property.REGISTERED_COUNTRY_ISO_CODE,
+            Property.REGISTERED_COUNTRY_NAME
         ),
         Set.of(
             Property.COUNTRY_ISO_CODE,
@@ -51,7 +59,17 @@ enum Database {
         )
     ),
     Country(
-        Set.of(Property.IP, Property.CONTINENT_CODE, Property.CONTINENT_NAME, Property.COUNTRY_NAME, Property.COUNTRY_ISO_CODE),
+        Set.of(
+            Property.IP,
+            Property.CONTINENT_CODE,
+            Property.CONTINENT_NAME,
+            Property.COUNTRY_NAME,
+            Property.COUNTRY_IN_EUROPEAN_UNION,
+            Property.COUNTRY_ISO_CODE,
+            Property.REGISTERED_COUNTRY_IN_EUROPEAN_UNION,
+            Property.REGISTERED_COUNTRY_ISO_CODE,
+            Property.REGISTERED_COUNTRY_NAME
+        ),
         Set.of(Property.CONTINENT_NAME, Property.COUNTRY_NAME, Property.COUNTRY_ISO_CODE)
     ),
     Asn(
@@ -82,12 +100,15 @@ enum Database {
     Enterprise(
         Set.of(
             Property.IP,
+            Property.COUNTRY_CONFIDENCE,
+            Property.COUNTRY_IN_EUROPEAN_UNION,
             Property.COUNTRY_ISO_CODE,
             Property.COUNTRY_NAME,
             Property.CONTINENT_CODE,
             Property.CONTINENT_NAME,
             Property.REGION_ISO_CODE,
             Property.REGION_NAME,
+            Property.CITY_CONFIDENCE,
             Property.CITY_NAME,
             Property.TIMEZONE,
             Property.LOCATION,
@@ -106,7 +127,13 @@ enum Database {
             Property.MOBILE_COUNTRY_CODE,
             Property.MOBILE_NETWORK_CODE,
             Property.USER_TYPE,
-            Property.CONNECTION_TYPE
+            Property.CONNECTION_TYPE,
+            Property.POSTAL_CODE,
+            Property.POSTAL_CONFIDENCE,
+            Property.ACCURACY_RADIUS,
+            Property.REGISTERED_COUNTRY_IN_EUROPEAN_UNION,
+            Property.REGISTERED_COUNTRY_ISO_CODE,
+            Property.REGISTERED_COUNTRY_NAME
         ),
         Set.of(
             Property.COUNTRY_ISO_CODE,
@@ -139,54 +166,39 @@ enum Database {
             Property.MOBILE_COUNTRY_CODE,
             Property.MOBILE_NETWORK_CODE
         )
+    ),
+    AsnV2(
+        Set.of(
+            Property.IP,
+            Property.ASN,
+            Property.ORGANIZATION_NAME,
+            Property.NETWORK,
+            Property.DOMAIN,
+            Property.COUNTRY_ISO_CODE,
+            Property.TYPE
+        ),
+        Set.of(Property.IP, Property.ASN, Property.ORGANIZATION_NAME, Property.NETWORK)
+    ),
+    CityV2(
+        Set.of(
+            Property.IP,
+            Property.COUNTRY_ISO_CODE,
+            Property.REGION_NAME,
+            Property.CITY_NAME,
+            Property.TIMEZONE,
+            Property.LOCATION,
+            Property.POSTAL_CODE
+        ),
+        Set.of(Property.COUNTRY_ISO_CODE, Property.REGION_NAME, Property.CITY_NAME, Property.LOCATION)
+    ),
+    CountryV2(
+        Set.of(Property.IP, Property.CONTINENT_CODE, Property.CONTINENT_NAME, Property.COUNTRY_NAME, Property.COUNTRY_ISO_CODE),
+        Set.of(Property.CONTINENT_NAME, Property.COUNTRY_NAME, Property.COUNTRY_ISO_CODE)
+    ),
+    PrivacyDetection(
+        Set.of(Property.IP, Property.HOSTING, Property.PROXY, Property.RELAY, Property.TOR, Property.VPN, Property.SERVICE),
+        Set.of(Property.HOSTING, Property.PROXY, Property.RELAY, Property.TOR, Property.VPN, Property.SERVICE)
     );
-
-    private static final String CITY_DB_SUFFIX = "-City";
-    private static final String COUNTRY_DB_SUFFIX = "-Country";
-    private static final String ASN_DB_SUFFIX = "-ASN";
-    private static final String ANONYMOUS_IP_DB_SUFFIX = "-Anonymous-IP";
-    private static final String CONNECTION_TYPE_DB_SUFFIX = "-Connection-Type";
-    private static final String DOMAIN_DB_SUFFIX = "-Domain";
-    private static final String ENTERPRISE_DB_SUFFIX = "-Enterprise";
-    private static final String ISP_DB_SUFFIX = "-ISP";
-
-    /**
-     * Parses the passed-in databaseType (presumably from the passed-in databaseFile) and return the Database instance that is
-     * associated with that databaseType.
-     *
-     * @param databaseType the database type String from the metadata of the database file
-     * @param databaseFile the database file from which the database type was obtained
-     * @throws IllegalArgumentException if the databaseType is not associated with a Database instance
-     * @return the Database instance that is associated with the databaseType
-     */
-    public static Database getDatabase(final String databaseType, final String databaseFile) {
-        Database database = null;
-        if (databaseType != null) {
-            if (databaseType.endsWith(Database.CITY_DB_SUFFIX)) {
-                database = Database.City;
-            } else if (databaseType.endsWith(Database.COUNTRY_DB_SUFFIX)) {
-                database = Database.Country;
-            } else if (databaseType.endsWith(Database.ASN_DB_SUFFIX)) {
-                database = Database.Asn;
-            } else if (databaseType.endsWith(Database.ANONYMOUS_IP_DB_SUFFIX)) {
-                database = Database.AnonymousIp;
-            } else if (databaseType.endsWith(Database.CONNECTION_TYPE_DB_SUFFIX)) {
-                database = Database.ConnectionType;
-            } else if (databaseType.endsWith(Database.DOMAIN_DB_SUFFIX)) {
-                database = Database.Domain;
-            } else if (databaseType.endsWith(Database.ENTERPRISE_DB_SUFFIX)) {
-                database = Database.Enterprise;
-            } else if (databaseType.endsWith(Database.ISP_DB_SUFFIX)) {
-                database = Database.Isp;
-            }
-        }
-
-        if (database == null) {
-            throw new IllegalArgumentException("Unsupported database type [" + databaseType + "] for file [" + databaseFile + "]");
-        }
-
-        return database;
-    }
 
     private final Set<Property> properties;
     private final Set<Property> defaultProperties;
@@ -236,12 +248,15 @@ enum Database {
     enum Property {
 
         IP,
+        COUNTRY_CONFIDENCE,
+        COUNTRY_IN_EUROPEAN_UNION,
         COUNTRY_ISO_CODE,
         COUNTRY_NAME,
         CONTINENT_CODE,
         CONTINENT_NAME,
         REGION_ISO_CODE,
         REGION_NAME,
+        CITY_CONFIDENCE,
         CITY_NAME,
         TIMEZONE,
         LOCATION,
@@ -260,7 +275,20 @@ enum Database {
         MOBILE_COUNTRY_CODE,
         MOBILE_NETWORK_CODE,
         CONNECTION_TYPE,
-        USER_TYPE;
+        USER_TYPE,
+        TYPE,
+        POSTAL_CODE,
+        POSTAL_CONFIDENCE,
+        ACCURACY_RADIUS,
+        HOSTING,
+        TOR,
+        PROXY,
+        RELAY,
+        VPN,
+        SERVICE,
+        REGISTERED_COUNTRY_IN_EUROPEAN_UNION,
+        REGISTERED_COUNTRY_ISO_CODE,
+        REGISTERED_COUNTRY_NAME;
 
         /**
          * Parses a string representation of a property into an actual Property instance. Not all properties that exist are

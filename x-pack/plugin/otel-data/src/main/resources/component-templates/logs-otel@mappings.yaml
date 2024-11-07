@@ -8,9 +8,25 @@ template:
     index:
       mode: logsdb
       sort:
-        field: [ "resource.attributes.host.name" ]
+        field: [ "resource.attributes.host.name", "@timestamp" ]
   mappings:
     properties:
+      attributes:
+        type: passthrough
+        dynamic: true
+        priority: 20
+        properties:
+          exception.type:
+            type: keyword
+            ignore_above: 1024
+          exception.message:
+            type: keyword
+            ignore_above: 1024
+          exception.stacktrace:
+            type: wildcard
+            fields:
+              text:
+                type: match_only_text
       data_stream.type:
         type: constant_keyword
         value: logs
@@ -23,13 +39,28 @@ template:
       log.level:
         type: alias
         path: severity_text
-      body_text:
-        type: match_only_text
+      body:
+        type: object
+        properties:
+          text:
+            type: match_only_text
+          flattened:
+            # this is used for complex bodies of regular log records
+            # using the flattened field type avoids mapping issues which can be caused by logs containing arbitrary JSON objects
+            # the tradeoff is that the flattened field type is currently not supported well by Kibana and has other limitations
+            type: flattened
+          structured:
+            # this is used for events
+            # events are also represented as log records
+            # the event.name attribute uniquely identifies event structure / type of the payload (body)
+            # see also https://github.com/open-telemetry/semantic-conventions/blob/main/docs/general/events.md
+            # this makes them less prone to mapping issues, which is why we're enabling dynamic mappings
+            type: passthrough
+            dynamic: true
+            priority: 10
       message:
         type: alias
-        path: body_text
-      body_structured:
-        type: flattened
+        path: body.text
       trace_id:
         type: keyword
       trace.id:
@@ -40,3 +71,12 @@ template:
       span.id:
         type: alias
         path: span_id
+      error.exception.type:
+        type: alias
+        path: attributes.exception.type
+      error.exception.message:
+        type: alias
+        path: attributes.exception.message
+      error.stack_trace:
+        type: alias
+        path: attributes.exception.stacktrace

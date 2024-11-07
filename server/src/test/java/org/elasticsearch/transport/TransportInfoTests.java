@@ -24,44 +24,31 @@ import java.util.Map;
 
 public class TransportInfoTests extends ESTestCase {
 
-    private TransportInfo createTransportInfo(InetAddress address, int port, boolean cnameInPublishAddressProperty) {
+    private TransportInfo createTransportInfo(InetAddress address, int port) {
         BoundTransportAddress boundAddress = new BoundTransportAddress(
             new TransportAddress[] { new TransportAddress(address, port) },
             new TransportAddress(address, port)
         );
         Map<String, BoundTransportAddress> profiles = Collections.singletonMap("test_profile", boundAddress);
-        return new TransportInfo(boundAddress, profiles, cnameInPublishAddressProperty);
+        return new TransportInfo(boundAddress, profiles);
     }
 
     public void testCorrectlyDisplayPublishedCname() throws Exception {
         InetAddress address = InetAddress.getByName("localhost");
         int port = 9200;
-        assertPublishAddress(createTransportInfo(address, port, false), "localhost/" + NetworkAddress.format(address) + ':' + port);
-    }
-
-    public void testDeprecatedWarningIfPropertySpecified() throws Exception {
-        InetAddress address = InetAddress.getByName("localhost");
-        int port = 9200;
-        assertPublishAddress(createTransportInfo(address, port, true), "localhost/" + NetworkAddress.format(address) + ':' + port);
-        assertWarnings(
-            "es.transport.cname_in_publish_address system property is deprecated and no longer affects "
-                + "transport.publish_address formatting. Remove this property to get rid of this deprecation warning.",
-
-            "es.transport.cname_in_publish_address system property is deprecated and no longer affects "
-                + "transport.test_profile.publish_address formatting. Remove this property to get rid of this deprecation warning."
-        );
+        assertPublishAddress(createTransportInfo(address, port), "localhost/" + NetworkAddress.format(address) + ':' + port);
     }
 
     public void testCorrectDisplayPublishedIp() throws Exception {
         InetAddress address = InetAddress.getByName(NetworkAddress.format(InetAddress.getByName("localhost")));
         int port = 9200;
-        assertPublishAddress(createTransportInfo(address, port, false), NetworkAddress.format(address) + ':' + port);
+        assertPublishAddress(createTransportInfo(address, port), NetworkAddress.format(address) + ':' + port);
     }
 
     public void testCorrectDisplayPublishedIpv6() throws Exception {
         InetAddress address = InetAddress.getByName(NetworkAddress.format(InetAddress.getByName("0:0:0:0:0:0:0:1")));
         int port = 9200;
-        assertPublishAddress(createTransportInfo(address, port, false), new TransportAddress(address, port).toString());
+        assertPublishAddress(createTransportInfo(address, port), new TransportAddress(address, port).toString());
     }
 
     @SuppressWarnings("unchecked")

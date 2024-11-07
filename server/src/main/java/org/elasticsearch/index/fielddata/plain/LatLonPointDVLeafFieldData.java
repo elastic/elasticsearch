@@ -32,11 +32,6 @@ final class LatLonPointDVLeafFieldData extends LeafGeoPointFieldData {
     }
 
     @Override
-    public void close() {
-        // noop
-    }
-
-    @Override
     public SortedNumericDocValues getSortedNumericDocValues() {
         try {
             return DocValues.getSortedNumeric(reader, fieldName);

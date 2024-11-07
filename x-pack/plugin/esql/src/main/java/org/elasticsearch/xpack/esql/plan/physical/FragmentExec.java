@@ -16,7 +16,6 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.io.IOException;
@@ -58,7 +57,7 @@ public class FragmentExec extends LeafExec implements EstimatesRowSize {
             in.readNamedWriteable(LogicalPlan.class),
             in.readOptionalNamedWriteable(QueryBuilder.class),
             in.readOptionalVInt(),
-            in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0) ? ((PlanStreamInput) in).readOptionalPhysicalPlanNode() : null
+            in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0) ? in.readOptionalNamedWriteable(PhysicalPlan.class) : null
         );
     }
 
@@ -69,7 +68,7 @@ public class FragmentExec extends LeafExec implements EstimatesRowSize {
         out.writeOptionalNamedWriteable(esFilter());
         out.writeOptionalVInt(estimatedRowSize());
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
-            ((PlanStreamOutput) out).writeOptionalPhysicalPlanNode(reducer());
+            out.writeOptionalNamedWriteable(reducer);
         }
     }
 
@@ -110,6 +109,10 @@ public class FragmentExec extends LeafExec implements EstimatesRowSize {
         return Objects.equals(estimatedRowSize, this.estimatedRowSize)
             ? this
             : new FragmentExec(source(), fragment, esFilter, estimatedRowSize, reducer);
+    }
+
+    public FragmentExec withFragment(LogicalPlan fragment) {
+        return Objects.equals(fragment, this.fragment) ? this : new FragmentExec(source(), fragment, esFilter, estimatedRowSize, reducer);
     }
 
     public FragmentExec withFilter(QueryBuilder filter) {

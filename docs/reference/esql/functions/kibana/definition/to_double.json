@@ -140,5 +140,6 @@
   "examples" : [
     "ROW str1 = \"5.20128E11\", str2 = \"foo\"\n| EVAL dbl = TO_DOUBLE(\"520128000000\"), dbl1 = TO_DOUBLE(str1), dbl2 = TO_DOUBLE(str2)"
   ],
-  "preview" : false
+  "preview" : false,
+  "snapshot_only" : false
 }

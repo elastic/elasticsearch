@@ -16,14 +16,11 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.search.profile.ProfileResult;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-
-import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
 /**
  * A container class to hold the profile results for a single shard in the request.
@@ -87,13 +84,4 @@ public final class AggregationProfileShardResult implements Writeable, ToXConten
         return Strings.toString(this);
     }
 
-    public static AggregationProfileShardResult fromXContent(XContentParser parser) throws IOException {
-        XContentParser.Token token = parser.currentToken();
-        ensureExpectedToken(XContentParser.Token.START_ARRAY, token, parser);
-        List<ProfileResult> aggProfileResults = new ArrayList<>();
-        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-            aggProfileResults.add(ProfileResult.fromXContent(parser));
-        }
-        return new AggregationProfileShardResult(aggProfileResults);
-    }
 }

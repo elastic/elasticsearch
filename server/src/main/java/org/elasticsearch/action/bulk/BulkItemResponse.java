@@ -22,7 +22,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
@@ -57,12 +56,9 @@ public class BulkItemResponse implements Writeable, ToXContentObject {
             builder.field(STATUS, response.status().getStatus());
         } else {
             builder.field(_INDEX, failure.getIndex());
-            if (builder.getRestApiVersion() == RestApiVersion.V_7) {
-                builder.field(MapperService.TYPE_FIELD_NAME, MapperService.SINGLE_MAPPING_NAME);
-            }
-
             builder.field(_ID, failure.getId());
             builder.field(STATUS, failure.getStatus().getStatus());
+            failure.getFailureStoreStatus().toXContent(builder, params);
             builder.startObject(ERROR);
             ElasticsearchException.generateThrowableXContent(builder, params, failure.getCause());
             builder.endObject();
@@ -88,6 +84,7 @@ public class BulkItemResponse implements Writeable, ToXContentObject {
         private final long seqNo;
         private final long term;
         private final boolean aborted;
+        private IndexDocFailureStoreStatus failureStoreStatus;
 
         /**
          * For write failures before operation was assigned a sequence number.
@@ -103,7 +100,27 @@ public class BulkItemResponse implements Writeable, ToXContentObject {
                 ExceptionsHelper.status(cause),
                 SequenceNumbers.UNASSIGNED_SEQ_NO,
                 SequenceNumbers.UNASSIGNED_PRIMARY_TERM,
-                false
+                false,
+                IndexDocFailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN
+            );
+        }
+
+        /**
+         * For write failures before operation was assigned a sequence number.
+         *
+         * use @{link {@link #Failure(String, String, Exception, long, long)}}
+         * to record operation sequence no with failure
+         */
+        public Failure(String index, String id, Exception cause, IndexDocFailureStoreStatus failureStoreStatus) {
+            this(
+                index,
+                id,
+                cause,
+                ExceptionsHelper.status(cause),
+                SequenceNumbers.UNASSIGNED_SEQ_NO,
+                SequenceNumbers.UNASSIGNED_PRIMARY_TERM,
+                false,
+                failureStoreStatus
             );
         }
 
@@ -115,20 +132,48 @@ public class BulkItemResponse implements Writeable, ToXContentObject {
                 ExceptionsHelper.status(cause),
                 SequenceNumbers.UNASSIGNED_SEQ_NO,
                 SequenceNumbers.UNASSIGNED_PRIMARY_TERM,
-                aborted
+                aborted,
+                IndexDocFailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN
             );
         }
 
         public Failure(String index, String id, Exception cause, RestStatus status) {
-            this(index, id, cause, status, SequenceNumbers.UNASSIGNED_SEQ_NO, SequenceNumbers.UNASSIGNED_PRIMARY_TERM, false);
+            this(
+                index,
+                id,
+                cause,
+                status,
+                SequenceNumbers.UNASSIGNED_SEQ_NO,
+                SequenceNumbers.UNASSIGNED_PRIMARY_TERM,
+                false,
+                IndexDocFailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN
+            );
         }
 
         /** For write failures after operation was assigned a sequence number. */
         public Failure(String index, String id, Exception cause, long seqNo, long term) {
-            this(index, id, cause, ExceptionsHelper.status(cause), seqNo, term, false);
+            this(
+                index,
+                id,
+                cause,
+                ExceptionsHelper.status(cause),
+                seqNo,
+                term,
+                false,
+                IndexDocFailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN
+            );
         }
 
-        private Failure(String index, String id, Exception cause, RestStatus status, long seqNo, long term, boolean aborted) {
+        private Failure(
+            String index,
+            String id,
+            Exception cause,
+            RestStatus status,
+            long seqNo,
+            long term,
+            boolean aborted,
+            IndexDocFailureStoreStatus failureStoreStatus
+        ) {
             this.index = index;
             this.id = id;
             this.cause = cause;
@@ -136,6 +181,7 @@ public class BulkItemResponse implements Writeable, ToXContentObject {
             this.seqNo = seqNo;
             this.term = term;
             this.aborted = aborted;
+            this.failureStoreStatus = failureStoreStatus;
         }
 
         /**
@@ -154,6 +200,11 @@ public class BulkItemResponse implements Writeable, ToXContentObject {
             seqNo = in.readZLong();
             term = in.readVLong();
             aborted = in.readBoolean();
+            if (in.getTransportVersion().onOrAfter(TransportVersions.FAILURE_STORE_STATUS_IN_INDEX_RESPONSE)) {
+                failureStoreStatus = IndexDocFailureStoreStatus.read(in);
+            } else {
+                failureStoreStatus = IndexDocFailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN;
+            }
         }
 
         @Override
@@ -167,6 +218,9 @@ public class BulkItemResponse implements Writeable, ToXContentObject {
             out.writeZLong(seqNo);
             out.writeVLong(term);
             out.writeBoolean(aborted);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.FAILURE_STORE_STATUS_IN_INDEX_RESPONSE)) {
+                failureStoreStatus.writeTo(out);
+            }
         }
 
         /**
@@ -231,12 +285,17 @@ public class BulkItemResponse implements Writeable, ToXContentObject {
             return aborted;
         }
 
+        public IndexDocFailureStoreStatus getFailureStoreStatus() {
+            return failureStoreStatus;
+        }
+
+        public void setFailureStoreStatus(IndexDocFailureStoreStatus failureStoreStatus) {
+            this.failureStoreStatus = failureStoreStatus;
+        }
+
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.field(INDEX_FIELD, index);
-            if (builder.getRestApiVersion() == RestApiVersion.V_7) {
-                builder.field("type", MapperService.SINGLE_MAPPING_NAME);
-            }
             if (id != null) {
                 builder.field(ID_FIELD, id);
             }
@@ -244,6 +303,7 @@ public class BulkItemResponse implements Writeable, ToXContentObject {
             ElasticsearchException.generateThrowableXContent(builder, params, cause);
             builder.endObject();
             builder.field(STATUS_FIELD, status.getStatus());
+            failureStoreStatus.toXContent(builder, params);
             return builder;
         }
 
@@ -339,6 +399,14 @@ public class BulkItemResponse implements Writeable, ToXContentObject {
             return -1;
         }
         return response.getVersion();
+    }
+
+    public IndexDocFailureStoreStatus getFailureStoreStatus() {
+        if (response != null) {
+            return response.getFailureStoreStatus();
+        } else {
+            return failure.getFailureStoreStatus();
+        }
     }
 
     /**

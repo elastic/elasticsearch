@@ -32,5 +32,6 @@
   "examples" : [
     "row a = \"ZWxhc3RpYw==\" \n| eval d = from_base64(a)"
   ],
-  "preview" : false
+  "preview" : false,
+  "snapshot_only" : false
 }

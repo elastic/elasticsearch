@@ -12,13 +12,16 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.xcontent.FilterXContentParserWrapper;
 import org.elasticsearch.xcontent.FlatteningXContentParser;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -101,11 +104,24 @@ public abstract class DocumentParserContext {
         }
     }
 
+    /**
+     * Defines the scope parser is currently in.
+     * This is used for synthetic source related logic during parsing.
+     */
+    private enum Scope {
+        SINGLETON,
+        ARRAY,
+        NESTED
+    }
+
     private final MappingLookup mappingLookup;
     private final MappingParserContext mappingParserContext;
     private final SourceToParse sourceToParse;
+
     private final Set<String> ignoredFields;
     private final List<IgnoredSourceFieldMapper.NameValue> ignoredFieldValues;
+    private Scope currentScope;
+
     private final Map<String, List<Mapper>> dynamicMappers;
     private final DynamicMapperSize dynamicMappersSize;
     private final Map<String, ObjectMapper> dynamicObjectMappers;
@@ -117,6 +133,7 @@ public abstract class DocumentParserContext {
     private Field version;
     private final SeqNoFieldMapper.SequenceIDFields seqID;
     private final Set<String> fieldsAppliedFromTemplates;
+
     /**
      * Fields that are copied from values of other fields via copy_to.
      * This per-document state is needed since it is possible
@@ -125,8 +142,8 @@ public abstract class DocumentParserContext {
      */
     private final Set<String> copyToFields;
 
-    // Indicates if the source for this context has been cloned and gets parsed multiple times.
-    private boolean clonedSource;
+    // Indicates if the source for this context has been marked to be recorded. Applies to synthetic source only.
+    private boolean recordedSource;
 
     private DocumentParserContext(
         MappingLookup mappingLookup,
@@ -134,6 +151,7 @@ public abstract class DocumentParserContext {
         SourceToParse sourceToParse,
         Set<String> ignoreFields,
         List<IgnoredSourceFieldMapper.NameValue> ignoredFieldValues,
+        Scope currentScope,
         Map<String, List<Mapper>> dynamicMappers,
         Map<String, ObjectMapper> dynamicObjectMappers,
         Map<String, List<RuntimeField>> dynamicRuntimeFields,
@@ -146,13 +164,14 @@ public abstract class DocumentParserContext {
         Set<String> fieldsAppliedFromTemplates,
         Set<String> copyToFields,
         DynamicMapperSize dynamicMapperSize,
-        boolean clonedSource
+        boolean recordedSource
     ) {
         this.mappingLookup = mappingLookup;
         this.mappingParserContext = mappingParserContext;
         this.sourceToParse = sourceToParse;
         this.ignoredFields = ignoreFields;
         this.ignoredFieldValues = ignoredFieldValues;
+        this.currentScope = currentScope;
         this.dynamicMappers = dynamicMappers;
         this.dynamicObjectMappers = dynamicObjectMappers;
         this.dynamicRuntimeFields = dynamicRuntimeFields;
@@ -165,7 +184,7 @@ public abstract class DocumentParserContext {
         this.fieldsAppliedFromTemplates = fieldsAppliedFromTemplates;
         this.copyToFields = copyToFields;
         this.dynamicMappersSize = dynamicMapperSize;
-        this.clonedSource = clonedSource;
+        this.recordedSource = recordedSource;
     }
 
     private DocumentParserContext(ObjectMapper parent, ObjectMapper.Dynamic dynamic, DocumentParserContext in) {
@@ -175,6 +194,7 @@ public abstract class DocumentParserContext {
             in.sourceToParse,
             in.ignoredFields,
             in.ignoredFieldValues,
+            in.currentScope,
             in.dynamicMappers,
             in.dynamicObjectMappers,
             in.dynamicRuntimeFields,
@@ -187,7 +207,7 @@ public abstract class DocumentParserContext {
             in.fieldsAppliedFromTemplates,
             in.copyToFields,
             in.dynamicMappersSize,
-            in.clonedSource
+            in.recordedSource
         );
     }
 
@@ -204,6 +224,7 @@ public abstract class DocumentParserContext {
             source,
             new HashSet<>(),
             new ArrayList<>(),
+            Scope.SINGLETON,
             new HashMap<>(),
             new HashMap<>(),
             new HashMap<>(),
@@ -280,11 +301,83 @@ public abstract class DocumentParserContext {
         }
     }
 
+    final void removeLastIgnoredField(String name) {
+        if (ignoredFieldValues.isEmpty() == false && ignoredFieldValues.getLast().name().equals(name)) {
+            ignoredFieldValues.removeLast();
+        }
+    }
+
     /**
      * Return the collection of values for fields that have been ignored so far.
      */
     public final Collection<IgnoredSourceFieldMapper.NameValue> getIgnoredFieldValues() {
         return Collections.unmodifiableCollection(ignoredFieldValues);
+    }
+
+    /**
+     * Adds an ignored field from the parser context, capturing an object or an array.
+     *
+     * In case of nested arrays, i.e. capturing an array within an array, elements tracked as ignored fields may interfere with
+     * the rest, as ignored source contents take precedence over regular field contents with the same leaf name. To prevent
+     * missing array elements from synthetic source, all array elements get recorded in ignored source. Otherwise, just the value in
+     * the current parsing context gets captured.
+     *
+     * In both cases, a new parser sub-context gets created from the current {@link DocumentParserContext} and returned, indicating
+     * that the source for the sub-context has been captured, to avoid double-storing parts of its contents to ignored source.
+     */
+    public final DocumentParserContext addIgnoredFieldFromContext(IgnoredSourceFieldMapper.NameValue ignoredFieldWithNoSource)
+        throws IOException {
+        if (canAddIgnoredField()) {
+            assert ignoredFieldWithNoSource != null;
+            assert ignoredFieldWithNoSource.value() == null;
+            Tuple<DocumentParserContext, XContentBuilder> tuple = XContentDataHelper.cloneSubContext(this);
+            addIgnoredField(ignoredFieldWithNoSource.cloneWithValue(XContentDataHelper.encodeXContentBuilder(tuple.v2())));
+            return tuple.v1();
+        }
+        return this;
+    }
+
+    /**
+     * Wraps {@link XContentDataHelper#encodeToken}, disabling dot expansion from {@link DotExpandingXContentParser}.
+     * This helps avoid producing duplicate names in the same scope, due to expanding dots to objects.
+     * For instance: { "a.b": "b", "a.c": "c" } => { "a": { "b": "b" }, "a": { "c": "c" } }
+     * This can happen when storing parts of document source that are not indexed (e.g. disabled objects).
+     */
+    BytesRef encodeFlattenedToken() throws IOException {
+        boolean old = path().isWithinLeafObject();
+        path().setWithinLeafObject(true);
+        BytesRef encoded = XContentDataHelper.encodeToken(parser());
+        path().setWithinLeafObject(old);
+        return encoded;
+    }
+
+    /**
+     * Clones the current context to mark it as an array, if it's not already marked, or restore it if it's within a nested object.
+     * Applies to synthetic source only.
+     */
+    public final DocumentParserContext maybeCloneForArray(Mapper mapper) throws IOException {
+        if (canAddIgnoredField()
+            && mapper instanceof ObjectMapper
+            && mapper instanceof NestedObjectMapper == false
+            && currentScope != Scope.ARRAY) {
+            DocumentParserContext subcontext = switchParser(parser());
+            subcontext.currentScope = Scope.ARRAY;
+            return subcontext;
+        }
+        return this;
+    }
+
+    /**
+     * Creates a sub-context from the current {@link DocumentParserContext} to indicate that the source for the sub-context has been
+     * recorded and avoid duplicate recording for parts of the sub-context. Applies to synthetic source only.
+     */
+    public final DocumentParserContext cloneWithRecordedSource() throws IOException {
+        if (canAddIgnoredField()) {
+            DocumentParserContext subcontext = createChildContext(parent());
+            subcontext.setRecordedSource();  // Avoids double-storing parts of the source for the same parser subtree.
+            return subcontext;
+        }
+        return this;
     }
 
     /**
@@ -324,16 +417,16 @@ public abstract class DocumentParserContext {
         return this.seqID;
     }
 
-    final void setClonedSource() {
-        this.clonedSource = true;
+    final void setRecordedSource() {
+        this.recordedSource = true;
     }
 
-    final boolean getClonedSource() {
-        return clonedSource;
+    final boolean getRecordedSource() {
+        return recordedSource;
     }
 
     public final boolean canAddIgnoredField() {
-        return mappingLookup.isSourceSynthetic() && clonedSource == false;
+        return mappingLookup.isSourceSynthetic() && recordedSource == false && indexSettings().getSkipIgnoredSourceWrite() == false;
     }
 
     Mapper.SourceKeepMode sourceKeepModeFromIndexSettings() {
@@ -367,24 +460,14 @@ public abstract class DocumentParserContext {
 
     public void markFieldAsCopyTo(String fieldName) {
         copyToFields.add(fieldName);
-        if (mappingLookup.isSourceSynthetic()) {
-            /*
-            Mark this field as containing copied data meaning it should not be present
-            in synthetic _source (to be consistent with stored _source).
-            Ignored source values take precedence over standard synthetic source implementation
-            so by adding this nothing entry we "disable" field in synthetic source.
-            Otherwise, it would be constructed f.e. from doc_values which leads to duplicate values
-            in copied field after reindexing.
-
-            Note that this applies to fields that are copied from fields using ignored source themselves
-            and therefore we don't check for canAddIgnoredField().
-            */
-            ignoredFieldValues.add(IgnoredSourceFieldMapper.NameValue.fromContext(this, fieldName, XContentDataHelper.nothing()));
-        }
     }
 
     public boolean isCopyToDestinationField(String name) {
         return copyToFields.contains(name);
+    }
+
+    public Set<String> getCopyToFields() {
+        return copyToFields;
     }
 
     /**
@@ -414,11 +497,7 @@ public abstract class DocumentParserContext {
                     if (canAddIgnoredField()) {
                         try {
                             addIgnoredField(
-                                IgnoredSourceFieldMapper.NameValue.fromContext(
-                                    this,
-                                    mapper.fullPath(),
-                                    XContentDataHelper.encodeToken(parser())
-                                )
+                                IgnoredSourceFieldMapper.NameValue.fromContext(this, mapper.fullPath(), encodeFlattenedToken())
                             );
                         } catch (IOException e) {
                             throw new IllegalArgumentException("failed to parse field [" + mapper.fullPath() + " ]", e);
@@ -569,6 +648,10 @@ public abstract class DocumentParserContext {
         return false;
     }
 
+    boolean inArrayScope() {
+        return currentScope == Scope.ARRAY;
+    }
+
     public final DocumentParserContext createChildContext(ObjectMapper parent) {
         return new Wrapper(parent, this);
     }
@@ -606,12 +689,15 @@ public abstract class DocumentParserContext {
      * Return a new context that has the provided document as the current document.
      */
     public final DocumentParserContext switchDoc(final LuceneDocument document) {
-        return new Wrapper(this.parent, this) {
+        DocumentParserContext cloned = new Wrapper(this.parent, this) {
             @Override
             public LuceneDocument doc() {
                 return document;
             }
         };
+
+        cloned.currentScope = Scope.NESTED;
+        return cloned;
     }
 
     /**

@@ -211,7 +211,7 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
                 MlTasks.dataFrameAnalyticsTaskId(request.getId()),
                 MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME,
                 taskParams,
-                null,
+                request.masterNodeTimeout(),
                 waitForAnalyticsToStart
             );
         }, listener::onFailure);
@@ -433,7 +433,7 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
             TransportSearchAction.TYPE,
             destEmptySearch,
             ActionListener.wrap(searchResponse -> {
-                if (searchResponse.getHits().getTotalHits().value > 0) {
+                if (searchResponse.getHits().getTotalHits().value() > 0) {
                     listener.onFailure(ExceptionsHelper.badRequestException("dest index [{}] must be empty", destIndex));
                 } else {
                     listener.onResponse(startContext);
@@ -603,8 +603,8 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
     ) {
         persistentTasksService.sendRemoveRequest(
             persistentTask.getId(),
-            null,
-            new ActionListener<PersistentTasksCustomMetadata.PersistentTask<?>>() {
+            MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT,
+            new ActionListener<>() {
                 @Override
                 public void onResponse(PersistentTasksCustomMetadata.PersistentTask<?> task) {
                     // We succeeded in cancelling the persistent task, but the

@@ -9,7 +9,8 @@ beta::[]
 
 Returns information about all stored connector sync jobs ordered by their creation date in ascending order.
 
-To get started with Connector APIs, check out the {enterprise-search-ref}/connectors-tutorial-api.html[tutorial^].
+To get started with Connector APIs, check out <<es-connectors-tutorial-api, our tutorial>>.
+
 
 [[list-connector-sync-jobs-api-request]]
 ==== {api-request-title}
@@ -19,7 +20,7 @@ To get started with Connector APIs, check out the {enterprise-search-ref}/connec
 [[list-connector-sync-jobs-api-prereq]]
 ==== {api-prereq-title}
 
-* To sync data using self-managed connectors, you need to deploy the {enterprise-search-ref}/build-connector.html[Elastic connector service] on your own infrastructure. This service runs automatically on Elastic Cloud for native connectors.
+* To sync data using self-managed connectors, you need to deploy the <<es-connectors-deploy-connector-service,Elastic connector service>>. on your own infrastructure. This service runs automatically on Elastic Cloud for Elastic managed connectors.
 
 [[list-connector-sync-jobs-api-path-params]]
 ==== {api-path-parms-title}

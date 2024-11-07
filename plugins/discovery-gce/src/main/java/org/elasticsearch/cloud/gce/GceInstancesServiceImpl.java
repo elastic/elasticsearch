@@ -41,7 +41,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.function.Function;
 
 public class GceInstancesServiceImpl implements GceInstancesService {
 
@@ -53,10 +52,9 @@ public class GceInstancesServiceImpl implements GceInstancesService {
         true,
         Property.NodeScope
     );
-    public static final Setting<String> GCE_ROOT_URL = new Setting<>(
+    public static final Setting<String> GCE_ROOT_URL = Setting.simpleString(
         "cloud.gce.root_url",
         "https://www.googleapis.com",
-        Function.identity(),
         Property.NodeScope
     );
 

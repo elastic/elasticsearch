@@ -18,7 +18,7 @@ import java.util.Collection;
 import java.util.List;
 
 /**
- * Allows configuring behavior of {@link  DataGenerator}.
+ * Allows configuring behavior of data generation components.
  * @param dataSource source of generated data
  * @param maxFieldCountPerLevel maximum number of fields that an individual object in mapping has.
  *                              Applies to subobjects.

@@ -127,9 +127,14 @@ public class TransportExplainLifecycleAction extends TransportClusterInfoAction<
         String policyName = indexMetadata.getLifecyclePolicyName();
         String currentPhase = lifecycleState.phase();
         String stepInfo = lifecycleState.stepInfo();
+        String previousStepInfo = lifecycleState.previousStepInfo();
         BytesArray stepInfoBytes = null;
         if (stepInfo != null) {
             stepInfoBytes = new BytesArray(stepInfo);
+        }
+        BytesArray previousStepInfoBytes = null;
+        if (previousStepInfo != null) {
+            previousStepInfoBytes = new BytesArray(previousStepInfo);
         }
         Long indexCreationDate = indexMetadata.getCreationDate();
 
@@ -182,6 +187,7 @@ public class TransportExplainLifecycleAction extends TransportClusterInfoAction<
                     lifecycleState.snapshotName(),
                     lifecycleState.shrinkIndexName(),
                     stepInfoBytes,
+                    previousStepInfoBytes,
                     phaseExecutionInfo
                 );
             } else {

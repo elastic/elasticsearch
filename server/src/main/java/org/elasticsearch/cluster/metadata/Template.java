@@ -291,4 +291,62 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
         );
         return Maps.deepEquals(thisUncompressedMapping, otherUncompressedMapping);
     }
+
+    public static Builder builder() {
+        return new Builder();
+    }
+
+    public static Builder builder(@Nullable Template template) {
+        return template == null ? new Builder() : new Builder(template);
+    }
+
+    public static class Builder {
+        private Settings settings = null;
+        private CompressedXContent mappings = null;
+        private Map<String, AliasMetadata> aliases = null;
+        private DataStreamLifecycle lifecycle = null;
+
+        private Builder() {}
+
+        private Builder(Template template) {
+            settings = template.settings;
+            mappings = template.mappings;
+            aliases = template.aliases;
+            lifecycle = template.lifecycle;
+        }
+
+        public Builder settings(Settings settings) {
+            this.settings = settings;
+            return this;
+        }
+
+        public Builder settings(Settings.Builder settings) {
+            this.settings = settings.build();
+            return this;
+        }
+
+        public Builder mappings(CompressedXContent mappings) {
+            this.mappings = mappings;
+            return this;
+        }
+
+        public Builder aliases(Map<String, AliasMetadata> aliases) {
+            this.aliases = aliases;
+            return this;
+        }
+
+        public Builder lifecycle(DataStreamLifecycle lifecycle) {
+            this.lifecycle = lifecycle;
+            return this;
+        }
+
+        public Builder lifecycle(DataStreamLifecycle.Builder lifecycle) {
+            this.lifecycle = lifecycle.build();
+            return this;
+        }
+
+        public Template build() {
+            return new Template(settings, mappings, aliases, lifecycle);
+        }
+    }
 }

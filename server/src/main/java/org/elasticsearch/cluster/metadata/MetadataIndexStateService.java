@@ -470,7 +470,7 @@ public class MetadataIndexStateService {
         }
 
         addBlocksQueue.submitTask(
-            "add-index-block-[" + request.getBlock().name + "]-" + Arrays.toString(concreteIndices),
+            "add-index-block-[" + request.block().name + "]-" + Arrays.toString(concreteIndices),
             new AddBlocksTask(request, listener),
             request.masterNodeTimeout()
         );
@@ -480,7 +480,7 @@ public class MetadataIndexStateService {
 
         @Override
         public Tuple<ClusterState, Map<Index, ClusterBlock>> executeTask(AddBlocksTask task, ClusterState clusterState) {
-            return addIndexBlock(task.request.indices(), clusterState, task.request.getBlock());
+            return addIndexBlock(task.request.indices(), clusterState, task.request.block());
         }
 
         @Override
@@ -497,7 +497,7 @@ public class MetadataIndexStateService {
                                 .delegateFailure(
                                     (delegate2, verifyResults) -> finalizeBlocksQueue.submitTask(
                                         "finalize-index-block-["
-                                            + task.request.getBlock().name
+                                            + task.request.block().name
                                             + "]-["
                                             + blockedIndices.keySet().stream().map(Index::getName).collect(Collectors.joining(", "))
                                             + "]",
@@ -529,7 +529,7 @@ public class MetadataIndexStateService {
                 clusterState,
                 task.blockedIndices,
                 task.verifyResults,
-                task.request.getBlock()
+                task.request.block()
             );
             assert finalizeResult.v2().size() == task.verifyResults.size();
             return finalizeResult;
@@ -797,9 +797,7 @@ public class MetadataIndexStateService {
                 block,
                 parentTaskId
             );
-            if (request.ackTimeout() != null) {
-                shardRequest.timeout(request.ackTimeout());
-            }
+            shardRequest.timeout(request.ackTimeout());
             client.executeLocally(TransportVerifyShardIndexBlockAction.TYPE, shardRequest, listener);
         }
     }

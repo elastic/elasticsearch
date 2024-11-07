@@ -17,7 +17,7 @@ public class AdaptiveAllocationSettingsTests extends AbstractWireSerializingTest
     public static AdaptiveAllocationsSettings testInstance() {
         return new AdaptiveAllocationsSettings(
             randomBoolean() ? null : randomBoolean(),
-            randomBoolean() ? null : randomIntBetween(1, 2),
+            randomBoolean() ? null : randomIntBetween(0, 2),
             randomBoolean() ? null : randomIntBetween(2, 4)
         );
     }

@@ -9,12 +9,13 @@ beta::[]
 Creates an Elastic connector.
 Connectors are {es} integrations that bring content from third-party data sources, which can be deployed on {ecloud} or hosted on your own infrastructure:
 
-* *Native connectors* are a managed service on {ecloud}
-* *Connector clients* are self-managed on your infrastructure
+* *Managed connectors* are a managed service on {ecloud}
+* *Self-managed connectors* are self-hosted on your infrastructure
 
-Find a list of all supported service types in the {enterprise-search-ref}/connectors.html[connectors documentation^].
+Find a list of all supported service types in the <<es-connectors,connectors documentation>>.
 
-To get started with Connector APIs, check out the {enterprise-search-ref}/connectors-tutorial-api.html[tutorial^].
+To get started with Connector APIs, check out <<es-connectors-tutorial-api, our tutorial>>.
+
 
 [source,console]
 --------------------------------------------------
@@ -43,8 +44,8 @@ DELETE _connector/my-connector
 [[create-connector-api-prereqs]]
 ==== {api-prereq-title}
 
-* To sync data using self-managed connectors, you need to deploy the {enterprise-search-ref}/build-connector.html[Elastic connector service] on your own infrastructure. This service runs automatically on Elastic Cloud for native connectors.
-* The `service_type` parameter should reference a supported third-party service. See the available service types for {enterprise-search-ref}/native-connectors.html[native] and {enterprise-search-ref}/build-connector.html[self-managed] connectors. This can also reference the service type of your custom connector.
+* To sync data using self-managed connectors, you need to deploy the <<es-connectors-deploy-connector-service,Elastic connector service>>. on your own infrastructure. This service runs automatically on Elastic Cloud for Elastic managed connectors.
+* The `service_type` parameter should reference a supported third-party service. See the available service types for <<es-native-connectors,Elastic managed>> and <<es-build-connector,self-managed>> connectors. This can also reference the service type of your custom connector.
 
 
 [[create-connector-api-desc]]
@@ -73,13 +74,13 @@ Creates a connector document in the internal index and initializes its configura
 (Optional, string) The name of the connector. Setting the connector name is recommended when managing connectors in {kib}.
 
 `is_native`::
-(Optional, boolean) Indicates if it's a native connector. Defaults to `false`.
+(Optional, boolean) Indicates if it's a managed connector. Defaults to `false`.
 
 `language`::
 (Optional, string) Language analyzer for the data. Limited to supported languages.
 
 `service_type`::
-(Optional, string) Connector service type. Can reference Elastic-supported third-party services or a custom connector type. See the available service types for {enterprise-search-ref}/native-connectors.html[native] and {enterprise-search-ref}/build-connector.html[self-managed] connectors.
+(Optional, string) Connector service type. Can reference Elastic-supported third-party services or a custom connector type. See the available service types for <<es-native-connectors,Elastic managed>> and <<es-build-connector,self-managed>> connectors.
 
 
 [role="child_attributes"]
@@ -115,7 +116,7 @@ PUT _connector/my-connector
   "name": "My Connector",
   "description": "My Connector to sync data to Elastic index from Google Drive",
   "service_type": "google_drive",
-  "language": "english"
+  "language": "en"
 }
 ----
 

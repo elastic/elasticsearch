@@ -23,11 +23,11 @@ import java.util.Random;
 
 public class ES87TSDBDocValuesEncoderTests extends LuceneTestCase {
 
-    private final ES87TSDBDocValuesEncoder encoder;
+    private final TSDBDocValuesEncoder encoder;
     private final int blockSize = ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE;
 
     public ES87TSDBDocValuesEncoderTests() {
-        this.encoder = new ES87TSDBDocValuesEncoder();
+        this.encoder = new TSDBDocValuesEncoder(blockSize);
     }
 
     public void testRandomValues() throws IOException {

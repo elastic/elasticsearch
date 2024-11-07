@@ -9,6 +9,7 @@
 package org.elasticsearch.search.aggregations.bucket;
 
 import org.apache.lucene.search.join.ScoreMode;
+import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.index.query.InnerHitBuilder;
@@ -18,11 +19,15 @@ import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
+import org.elasticsearch.search.aggregations.bucket.nested.InternalNested;
 import org.elasticsearch.search.aggregations.bucket.nested.Nested;
+import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.LongTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms.Bucket;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.CardinalityAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.Max;
 import org.elasticsearch.search.aggregations.metrics.Stats;
 import org.elasticsearch.search.aggregations.metrics.Sum;
@@ -346,7 +351,7 @@ public class NestedIT extends ESIntegTestCase {
             prepareSearch("empty_bucket_idx").setQuery(matchAllQuery())
                 .addAggregation(histogram("histo").field("value").interval(1L).minDocCount(0).subAggregation(nested("nested", "nested"))),
             response -> {
-                assertThat(response.getHits().getTotalHits().value, equalTo(2L));
+                assertThat(response.getHits().getTotalHits().value(), equalTo(2L));
                 Histogram histo = response.getAggregations().get("histo");
                 assertThat(histo, Matchers.notNullValue());
                 Histogram.Bucket bucket = histo.getBuckets().get(1);
@@ -889,5 +894,88 @@ public class NestedIT extends ESIntegTestCase {
             Map<String, ?> nested = (Map<String, ?>) searchHit.getSourceAsMap().get("nested");
             assertEquals("a", nested.get("number"));
         });
+    }
+
+    public void testScoring() throws Exception {
+        assertAcked(
+            prepareCreate("scoring").setMapping(
+                jsonBuilder().startObject()
+                    .startObject("properties")
+                    .startObject("tags")
+                    .field("type", "nested")
+                    .startObject("properties")
+                    .startObject("key")
+                    .field("type", "keyword")
+                    .endObject()
+                    .startObject("value")
+                    .field("type", "keyword")
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            )
+        );
+        ensureGreen("scoring");
+
+        prepareIndex("scoring").setId("1")
+            .setSource(
+                jsonBuilder().startObject()
+                    .startArray("tags")
+                    .startObject()
+                    .field("key", "state")
+                    .field("value", "texas")
+                    .endObject()
+                    .endArray()
+                    .endObject()
+            )
+            .get();
+        refresh("scoring");
+        prepareIndex("scoring").setId("2")
+            .setSource(
+                jsonBuilder().startObject()
+                    .startArray("tags")
+                    .startObject()
+                    .field("key", "state")
+                    .field("value", "utah")
+                    .endObject()
+                    .endArray()
+                    .endObject()
+            )
+            .get();
+        refresh("scoring");
+        prepareIndex("scoring").setId("3")
+            .setSource(
+                jsonBuilder().startObject()
+                    .startArray("tags")
+                    .startObject()
+                    .field("key", "state")
+                    .field("value", "texas")
+                    .endObject()
+                    .endArray()
+                    .endObject()
+            )
+            .get();
+        refresh("scoring");
+
+        assertResponse(
+            client().prepareSearch("scoring")
+                .setSize(0)
+                .addAggregation(
+                    new NestedAggregationBuilder("tags", "tags").subAggregation(
+                        new TermsAggregationBuilder("keys").field("tags.key")
+                            .executionHint("map")
+                            .subAggregation(new TermsAggregationBuilder("values").field("tags.value"))
+                            .subAggregation(new CardinalityAggregationBuilder("values_count").field("tags.value"))
+                    )
+                ),
+            searchResponse -> {
+                InternalNested nested = searchResponse.getAggregations().get("tags");
+                assertThat(nested.getDocCount(), equalTo(3L));
+                assertThat(nested.getAggregations().asList().size(), equalTo(1));
+            }
+        );
+
+        assertAcked(indicesAdmin().delete(new DeleteIndexRequest("scoring")).get());
     }
 }

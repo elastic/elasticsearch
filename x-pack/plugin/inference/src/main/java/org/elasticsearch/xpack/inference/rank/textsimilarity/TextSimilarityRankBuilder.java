@@ -23,8 +23,6 @@ import org.elasticsearch.search.rank.context.QueryPhaseRankShardContext;
 import org.elasticsearch.search.rank.context.RankFeaturePhaseRankCoordinatorContext;
 import org.elasticsearch.search.rank.context.RankFeaturePhaseRankShardContext;
 import org.elasticsearch.search.rank.feature.RankFeatureDoc;
-import org.elasticsearch.search.rank.rerank.RerankingQueryPhaseRankCoordinatorContext;
-import org.elasticsearch.search.rank.rerank.RerankingQueryPhaseRankShardContext;
 import org.elasticsearch.search.rank.rerank.RerankingRankFeaturePhaseRankShardContext;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -100,7 +98,7 @@ public class TextSimilarityRankBuilder extends RankBuilder {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.TEXT_SIMILARITY_RERANKER_RETRIEVER;
+        return TransportVersions.V_8_15_0;
     }
 
     @Override
@@ -157,12 +155,12 @@ public class TextSimilarityRankBuilder extends RankBuilder {
 
     @Override
     public QueryPhaseRankShardContext buildQueryPhaseShardContext(List<Query> queries, int from) {
-        return new RerankingQueryPhaseRankShardContext(queries, rankWindowSize());
+        return null;
     }
 
     @Override
     public QueryPhaseRankCoordinatorContext buildQueryPhaseCoordinatorContext(int size, int from) {
-        return new RerankingQueryPhaseRankCoordinatorContext(rankWindowSize());
+        return null;
     }
 
     @Override

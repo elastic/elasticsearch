@@ -141,7 +141,7 @@ public class ScriptService implements Closeable, ClusterStateApplier, ScriptComp
     public static final Setting.AffixSetting<ScriptCache.CompilationRate> SCRIPT_MAX_COMPILATIONS_RATE_SETTING = Setting.affixKeySetting(
         CONTEXT_PREFIX,
         "max_compilations_rate",
-        key -> new Setting<ScriptCache.CompilationRate>(
+        key -> new Setting<>(
             key,
             "75/5m",
             (String value) -> value.equals(UNLIMITED_COMPILATION_RATE_KEY)

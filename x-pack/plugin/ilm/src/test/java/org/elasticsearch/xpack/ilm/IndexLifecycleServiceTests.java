@@ -390,7 +390,10 @@ public class IndexLifecycleServiceTests extends ESTestCase {
         MockAction mockAction = new MockAction(Collections.singletonList(i2mockStep));
         Phase i2phase = new Phase("phase", TimeValue.ZERO, Collections.singletonMap("action", mockAction));
         LifecyclePolicy i2policy = newTestLifecyclePolicy(policy1, Collections.singletonMap(i2phase.getName(), i1phase));
-        Index index2 = new Index(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
+        Index index2 = new Index(
+            randomValueOtherThan(index1.getName(), () -> randomAlphaOfLengthBetween(1, 20)),
+            randomAlphaOfLengthBetween(1, 20)
+        );
         LifecycleExecutionState.Builder i2lifecycleState = LifecycleExecutionState.builder();
         i2lifecycleState.setPhase(i2currentStepKey.phase());
         i2lifecycleState.setAction(i2currentStepKey.action());

@@ -604,5 +604,6 @@
     "FROM hosts\n| STATS COUNT_DISTINCT(ip0, 80000), COUNT_DISTINCT(ip1, 5)",
     "ROW words=\"foo;bar;baz;qux;quux;foo\"\n| STATS distinct_word_count = COUNT_DISTINCT(SPLIT(words, \";\"))"
   ],
-  "preview" : false
+  "preview" : false,
+  "snapshot_only" : false
 }

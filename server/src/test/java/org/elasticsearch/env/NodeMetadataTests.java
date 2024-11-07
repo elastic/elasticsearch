@@ -80,7 +80,7 @@ public class NodeMetadataTests extends ESTestCase {
         );
     }
 
-    @UpdateForV9
+    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA)
     @AwaitsFix(bugUrl = "as mentioned in the comment below, the behavior here is changing for 9.0 so this test needs updating")
     public void testReadsFormatWithoutVersion() throws IOException {
         // the behaviour tested here is only appropriate if the current version is compatible with versions 7 and earlier
@@ -155,7 +155,7 @@ public class NodeMetadataTests extends ESTestCase {
         );
     }
 
-    @UpdateForV9
+    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA)
     @AwaitsFix(bugUrl = "Needs to be updated for 9.0 version bump")
     public void testUpgradeMarksPreviousVersion() {
         final String nodeId = randomAlphaOfLength(10);
@@ -167,20 +167,12 @@ public class NodeMetadataTests extends ESTestCase {
         assertThat(nodeMetadata.previousNodeVersion(), equalTo(buildVersion));
     }
 
-    public static Version tooNewVersion() {
-        return Version.fromId(between(Version.CURRENT.id + 1, 99999999));
-    }
-
     public static IndexVersion tooNewIndexVersion() {
         return IndexVersion.fromId(between(IndexVersion.current().id() + 1, 99999999));
     }
 
     public static BuildVersion tooNewBuildVersion() {
         return BuildVersion.fromVersionId(between(Version.CURRENT.id() + 1, 99999999));
-    }
-
-    public static Version tooOldVersion() {
-        return Version.fromId(between(1, Version.CURRENT.minimumCompatibilityVersion().id - 1));
     }
 
     public static BuildVersion tooOldBuildVersion() {

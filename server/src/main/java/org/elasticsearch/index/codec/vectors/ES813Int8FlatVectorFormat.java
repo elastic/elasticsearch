@@ -30,6 +30,8 @@ import org.apache.lucene.util.hnsw.RandomVectorScorer;
 
 import java.io.IOException;
 
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MAX_DIMS_COUNT;
+
 public class ES813Int8FlatVectorFormat extends KnnVectorsFormat {
 
     static final String NAME = "ES813Int8FlatVectorFormat";
@@ -59,6 +61,11 @@ public class ES813Int8FlatVectorFormat extends KnnVectorsFormat {
     }
 
     @Override
+    public int getMaxDimensions(String fieldName) {
+        return MAX_DIMS_COUNT;
+    }
+
+    @Override
     public String toString() {
         return NAME + "(name=" + NAME + ", innerFormat=" + format + ")";
     }
@@ -74,7 +81,7 @@ public class ES813Int8FlatVectorFormat extends KnnVectorsFormat {
 
         @Override
         public KnnFieldVectorsWriter<?> addField(FieldInfo fieldInfo) throws IOException {
-            return writer.addField(fieldInfo, null);
+            return writer.addField(fieldInfo);
         }
 
         @Override
@@ -153,11 +160,5 @@ public class ES813Int8FlatVectorFormat extends KnnVectorsFormat {
         public void close() throws IOException {
             reader.close();
         }
-
-        @Override
-        public long ramBytesUsed() {
-            return reader.ramBytesUsed();
-        }
-
     }
 }

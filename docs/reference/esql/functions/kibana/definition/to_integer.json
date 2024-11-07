@@ -116,5 +116,6 @@
   "examples" : [
     "ROW long = [5013792, 2147483647, 501379200000]\n| EVAL int = TO_INTEGER(long)"
   ],
-  "preview" : false
+  "preview" : false,
+  "snapshot_only" : false
 }

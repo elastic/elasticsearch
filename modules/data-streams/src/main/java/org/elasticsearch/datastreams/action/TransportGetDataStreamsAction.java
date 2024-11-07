@@ -19,6 +19,7 @@ import org.elasticsearch.action.datastreams.GetDataStreamAction.Response.Managed
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -90,7 +91,7 @@ public class TransportGetDataStreamsAction extends TransportMasterNodeReadAction
         this.systemIndices = systemIndices;
         this.globalRetentionSettings = globalRetentionSettings;
         clusterSettings = clusterService.getClusterSettings();
-        this.client = client;
+        this.client = new OriginSettingClient(client, "stack");
     }
 
     @Override

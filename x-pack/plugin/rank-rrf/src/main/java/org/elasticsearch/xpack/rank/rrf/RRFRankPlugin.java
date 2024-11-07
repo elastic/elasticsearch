@@ -25,7 +25,7 @@ public class RRFRankPlugin extends Plugin implements SearchPlugin {
     public static final LicensedFeature.Momentary RANK_RRF_FEATURE = LicensedFeature.momentary(
         null,
         "rank-rrf",
-        License.OperationMode.PLATINUM
+        License.OperationMode.ENTERPRISE
     );
 
     public static final String NAME = "rrf";

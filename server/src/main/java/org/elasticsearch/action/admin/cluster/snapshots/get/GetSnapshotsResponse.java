@@ -35,7 +35,7 @@ public class GetSnapshotsResponse extends ActionResponse implements ChunkedToXCo
 
     private final List<SnapshotInfo> snapshots;
 
-    @UpdateForV9 // always empty, can be dropped
+    @UpdateForV9(owner = UpdateForV9.Owner.DISTRIBUTED_COORDINATION) // always empty, can be dropped
     private final Map<String, ElasticsearchException> failures;
 
     @Nullable

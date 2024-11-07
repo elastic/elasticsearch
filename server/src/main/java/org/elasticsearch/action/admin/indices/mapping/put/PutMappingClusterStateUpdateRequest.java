@@ -9,33 +9,37 @@
 
 package org.elasticsearch.action.admin.indices.mapping.put;
 
-import org.elasticsearch.cluster.ack.IndicesClusterStateUpdateRequest;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.Index;
 
 import java.io.IOException;
+import java.util.Objects;
 
 /**
  * Cluster state update request that allows to put a mapping
  */
-public class PutMappingClusterStateUpdateRequest extends IndicesClusterStateUpdateRequest<PutMappingClusterStateUpdateRequest> {
-
-    private final CompressedXContent source;
-    private boolean autoUpdate;
-
-    public PutMappingClusterStateUpdateRequest(String source) throws IOException {
-        this.source = CompressedXContent.fromJSON(source);
+public record PutMappingClusterStateUpdateRequest(
+    TimeValue masterNodeTimeout,
+    TimeValue ackTimeout,
+    CompressedXContent source,
+    boolean autoUpdate,
+    Index[] indices
+) {
+    public PutMappingClusterStateUpdateRequest {
+        Objects.requireNonNull(masterNodeTimeout);
+        Objects.requireNonNull(ackTimeout);
+        Objects.requireNonNull(source);
+        Objects.requireNonNull(indices);
     }
 
-    public CompressedXContent source() {
-        return source;
-    }
-
-    public PutMappingClusterStateUpdateRequest autoUpdate(boolean autoUpdate) {
-        this.autoUpdate = autoUpdate;
-        return this;
-    }
-
-    public boolean autoUpdate() {
-        return autoUpdate;
+    public PutMappingClusterStateUpdateRequest(
+        TimeValue masterNodeTimeout,
+        TimeValue ackTimeout,
+        String source,
+        boolean autoUpdate,
+        Index... indices
+    ) throws IOException {
+        this(masterNodeTimeout, ackTimeout, CompressedXContent.fromJSON(source), autoUpdate, indices);
     }
 }

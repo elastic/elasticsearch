@@ -19,12 +19,10 @@ import org.apache.lucene.search.suggest.document.PrefixCompletionQuery;
 import org.apache.lucene.search.suggest.document.RegexCompletionQuery;
 import org.apache.lucene.search.suggest.document.SuggestField;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -213,29 +211,11 @@ public class CompletionFieldMapper extends FieldMapper {
 
         private void checkCompletionContextsLimit() {
             if (this.contexts.getValue() != null && this.contexts.getValue().size() > COMPLETION_CONTEXTS_LIMIT) {
-                if (indexVersionCreated.onOrAfter(IndexVersions.V_8_0_0)) {
-                    throw new IllegalArgumentException(
-                        "Limit of completion field contexts [" + COMPLETION_CONTEXTS_LIMIT + "] has been exceeded"
-                    );
-                } else {
-                    deprecationLogger.warn(
-                        DeprecationCategory.MAPPINGS,
-                        "excessive_completion_contexts",
-                        "You have defined more than ["
-                            + COMPLETION_CONTEXTS_LIMIT
-                            + "] completion contexts"
-                            + " in the mapping for field ["
-                            + leafName()
-                            + "]. "
-                            + "The maximum allowed number of completion contexts in a mapping will be limited to "
-                            + "["
-                            + COMPLETION_CONTEXTS_LIMIT
-                            + "] starting in version [8.0]."
-                    );
-                }
+                throw new IllegalArgumentException(
+                    "Limit of completion field contexts [" + COMPLETION_CONTEXTS_LIMIT + "] has been exceeded"
+                );
             }
         }
-
     }
 
     public static final Set<String> ALLOWED_CONTENT_FIELD_NAMES = Set.of(
@@ -365,7 +345,7 @@ public class CompletionFieldMapper extends FieldMapper {
     }
 
     static PostingsFormat postingsFormat() {
-        return PostingsFormat.forName("Completion99");
+        return PostingsFormat.forName("Completion912");
     }
 
     @Override

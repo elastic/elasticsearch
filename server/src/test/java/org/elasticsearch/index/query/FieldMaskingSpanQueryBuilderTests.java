@@ -9,13 +9,12 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.spans.FieldMaskingSpanQuery;
-import org.apache.lucene.queries.spans.SpanTermQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.lucene.queries.SpanMatchNoDocsQuery;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
@@ -105,7 +104,7 @@ public class FieldMaskingSpanQueryBuilderTests extends AbstractQueryTestCase<Fie
               }
             }""", NAME.getPreferredName());
         Query q = parseQuery(json).toQuery(createSearchExecutionContext());
-        assertEquals(new BoostQuery(new FieldMaskingSpanQuery(new SpanTermQuery(new Term("value", "foo")), "mapped_geo_shape"), 42.0f), q);
+        assertEquals(new BoostQuery(new FieldMaskingSpanQuery(new SpanMatchNoDocsQuery("value", null), "mapped_geo_shape"), 42.0f), q);
     }
 
     public void testJsonWithDeprecatedName() throws IOException {

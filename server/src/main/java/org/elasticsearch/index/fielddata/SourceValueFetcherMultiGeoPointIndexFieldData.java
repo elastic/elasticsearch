@@ -61,7 +61,7 @@ public class SourceValueFetcherMultiGeoPointIndexFieldData extends SourceValueFe
     }
 
     @Override
-    public SourceValueFetcherMultiGeoPointLeafFieldData loadDirect(LeafReaderContext context) throws Exception {
+    public SourceValueFetcherMultiGeoPointLeafFieldData loadDirect(LeafReaderContext context) {
         return new SourceValueFetcherMultiGeoPointLeafFieldData(toScriptFieldFactory, context, valueFetcher, sourceProvider);
     }
 

@@ -12,17 +12,17 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.expression.function.Warnings;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link MvSlice}.
  * This class is generated. Do not edit it.
  */
 public final class MvSliceIntEvaluator implements EvalOperator.ExpressionEvaluator {
-  private final Warnings warnings;
+  private final Source source;
 
   private final EvalOperator.ExpressionEvaluator field;
 
@@ -32,14 +32,16 @@ public final class MvSliceIntEvaluator implements EvalOperator.ExpressionEvaluat
 
   private final DriverContext driverContext;
 
+  private Warnings warnings;
+
   public MvSliceIntEvaluator(Source source, EvalOperator.ExpressionEvaluator field,
       EvalOperator.ExpressionEvaluator start, EvalOperator.ExpressionEvaluator end,
       DriverContext driverContext) {
+    this.source = source;
     this.field = field;
     this.start = start;
     this.end = end;
     this.driverContext = driverContext;
-    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override
@@ -67,7 +69,7 @@ public final class MvSliceIntEvaluator implements EvalOperator.ExpressionEvaluat
         }
         if (startBlock.getValueCount(p) != 1) {
           if (startBlock.getValueCount(p) > 1) {
-            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
           }
           result.appendNull();
           continue position;
@@ -78,7 +80,7 @@ public final class MvSliceIntEvaluator implements EvalOperator.ExpressionEvaluat
         }
         if (endBlock.getValueCount(p) != 1) {
           if (endBlock.getValueCount(p) > 1) {
-            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
           }
           result.appendNull();
           continue position;
@@ -90,7 +92,7 @@ public final class MvSliceIntEvaluator implements EvalOperator.ExpressionEvaluat
         try {
           MvSlice.process(result, p, fieldBlock, startBlock.getInt(startBlock.getFirstValueIndex(p)), endBlock.getInt(endBlock.getFirstValueIndex(p)));
         } catch (InvalidArgumentException e) {
-          warnings.registerException(e);
+          warnings().registerException(e);
           result.appendNull();
         }
       }
@@ -106,6 +108,18 @@ public final class MvSliceIntEvaluator implements EvalOperator.ExpressionEvaluat
   @Override
   public void close() {
     Releasables.closeExpectNoException(field, start, end);
+  }
+
+  private Warnings warnings() {
+    if (warnings == null) {
+      this.warnings = Warnings.createWarnings(
+              driverContext.warningsMode(),
+              source.source().getLineNumber(),
+              source.source().getColumnNumber(),
+              source.text()
+          );
+    }
+    return warnings;
   }
 
   static class Factory implements EvalOperator.ExpressionEvaluator.Factory {

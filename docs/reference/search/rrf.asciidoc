@@ -1,8 +1,6 @@
 [[rrf]]
 === Reciprocal rank fusion
 
-preview::["This functionality is in technical preview and may be changed or removed in a future release. The syntax will likely change before GA. Elastic will work to fix any issues, but features in technical preview are not subject to the support SLA of official GA features."]
-
 https://plg.uwaterloo.ca/~gvcormac/cormacksigir09-rrf.pdf[Reciprocal rank fusion (RRF)]
 is a method for combining multiple result sets with different relevance indicators into a single result set.
 RRF requires no tuning, and the different relevance indicators do not have to be related to each other to achieve high-quality results.
@@ -95,19 +93,21 @@ The `rrf` retriever supports:
 
 * <<search-aggregations, aggregations>>
 * <<search-from-param, from>>
-
-The `rrf` retriever does not currently support:
-
-* <<search-api-scroll-query-param, scroll>>
-* <<search-api-pit, point in time>>
-* <<search-sort-param, sort>>
-* <<rescore, rescore>>
 * <<search-suggesters, suggesters>>
 * <<highlighting, highlighting>>
 * <<collapse-search-results, collapse>>
 * <<profiling-queries, profiling>>
 
+The `rrf` retriever does not currently support:
+
+* <<search-api-scroll-query-param, scroll>>
+* <<search-sort-param, sort>>
+* <<rescore, rescore>>
+
 Using unsupported features as part of a search with an `rrf` retriever results in an exception.
++
+IMPORTANT: It is best to avoid providing a <<search-api-pit, point in time>> as part of the request, as
+RRF creates one internally that is shared by all sub-retrievers to ensure consistent results.
 
 [[rrf-using-multiple-standard-retrievers]]
 ==== Reciprocal rank fusion using multiple standard retrievers
@@ -300,13 +300,12 @@ We have both the ranker's `score` and the `_rank` option to show our top-ranked 
             "value" : 5,
             "relation" : "eq"
         },
-        "max_score" : null,
+        "max_score" : ...,
         "hits" : [
             {
                 "_index" : "example-index",
                 "_id" : "3",
                 "_score" : 0.8333334,
-                "_rank" : 1,
                 "_source" : {
                     "integer" : 1,
                     "vector" : [
@@ -319,7 +318,6 @@ We have both the ranker's `score` and the `_rank` option to show our top-ranked 
                 "_index" : "example-index",
                 "_id" : "2",
                 "_score" : 0.5833334,
-                "_rank" : 2,
                 "_source" : {
                     "integer" : 2,
                     "vector" : [
@@ -332,7 +330,6 @@ We have both the ranker's `score` and the `_rank` option to show our top-ranked 
                 "_index" : "example-index",
                 "_id" : "4",
                 "_score" : 0.5,
-                "_rank" : 3,
                 "_source" : {
                     "integer" : 2,
                     "text" : "rrf rrf rrf rrf"
@@ -499,7 +496,6 @@ Working with the example above, and by adding `explain=true` to the search reque
             "_index": "example-index",
             "_id": "3",
             "_score": 0.8333334,
-            "_rank": 1,
             "_explanation":
             {
                 "value": 0.8333334,                                                                                                                                               <1>
@@ -608,7 +604,6 @@ The response would now include the named query in the explanation:
             "_index": "example-index",
             "_id": "3",
             "_score": 0.8333334,
-            "_rank": 1,
             "_explanation":
             {
                 "value": 0.8333334,

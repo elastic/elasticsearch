@@ -11,11 +11,12 @@ package org.elasticsearch.server.cli;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.core.UpdateForV9;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 final class SystemJvmOptions {
@@ -23,8 +24,8 @@ final class SystemJvmOptions {
     static List<String> systemJvmOptions(Settings nodeSettings, final Map<String, String> sysprops) {
         String distroType = sysprops.get("es.distribution.type");
         boolean isHotspot = sysprops.getOrDefault("sun.management.compiler", "").contains("HotSpot");
-
-        return Stream.concat(
+        boolean useEntitlements = Boolean.parseBoolean(sysprops.getOrDefault("es.entitlements.enabled", "false"));
+        return Stream.of(
             Stream.of(
                 /*
                  * Cache ttl in seconds for positive DNS lookups noting that this overrides the JDK security property
@@ -36,8 +37,6 @@ final class SystemJvmOptions {
                  * networkaddress.cache.negative ttl; set to -1 to cache forever.
                  */
                 "-Des.networkaddress.cache.negative.ttl=10",
-                // Allow to set the security manager.
-                "-Djava.security.manager=allow",
                 // pre-touch JVM emory pages during initialization
                 "-XX:+AlwaysPreTouch",
                 // explicitly set the stack size
@@ -61,26 +60,18 @@ final class SystemJvmOptions {
                 "-Dlog4j.shutdownHookEnabled=false",
                 "-Dlog4j2.disable.jmx=true",
                 "-Dlog4j2.formatMsgNoLookups=true",
-                "-Djava.locale.providers=" + getLocaleProviders(),
-                maybeEnableNativeAccess(),
-                maybeOverrideDockerCgroup(distroType),
-                maybeSetActiveProcessorCount(nodeSettings),
-                setReplayFile(distroType, isHotspot),
+                "-Djava.locale.providers=CLDR",
                 // Pass through distribution type
                 "-Des.distribution.type=" + distroType
             ),
-            maybeWorkaroundG1Bug()
-        ).filter(e -> e.isEmpty() == false).collect(Collectors.toList());
-    }
-
-    @UpdateForV9    // only use CLDR in v9+
-    private static String getLocaleProviders() {
-        /*
-         * Specify SPI to load IsoCalendarDataProvider (see #48209), specifying the first day of week as Monday.
-         * When on pre-23, use COMPAT instead to maintain existing date formats as much as we can.
-         * When on JDK 23+, use the default CLDR locale database, as COMPAT was removed in JDK 23.
-         */
-        return Runtime.version().feature() >= 23 ? "SPI,CLDR" : "SPI,COMPAT";
+            maybeEnableNativeAccess(),
+            maybeOverrideDockerCgroup(distroType),
+            maybeSetActiveProcessorCount(nodeSettings),
+            maybeSetReplayFile(distroType, isHotspot),
+            maybeWorkaroundG1Bug(),
+            maybeAllowSecurityManager(),
+            maybeAttachEntitlementAgent(useEntitlements)
+        ).flatMap(s -> s).toList();
     }
 
     /*
@@ -97,42 +88,42 @@ final class SystemJvmOptions {
      * that cgroup statistics are available for the container this process
      * will run in.
      */
-    private static String maybeOverrideDockerCgroup(String distroType) {
+    private static Stream<String> maybeOverrideDockerCgroup(String distroType) {
         if ("docker".equals(distroType)) {
-            return "-Des.cgroups.hierarchy.override=/";
+            return Stream.of("-Des.cgroups.hierarchy.override=/");
         }
-        return "";
+        return Stream.empty();
     }
 
-    private static String setReplayFile(String distroType, boolean isHotspot) {
+    private static Stream<String> maybeSetReplayFile(String distroType, boolean isHotspot) {
         if (isHotspot == false) {
             // the replay file option is only guaranteed for hotspot vms
-            return "";
+            return Stream.empty();
         }
         String replayDir = "logs";
         if ("rpm".equals(distroType) || "deb".equals(distroType)) {
             replayDir = "/var/log/elasticsearch";
         }
-        return "-XX:ReplayDataFile=" + replayDir + "/replay_pid%p.log";
+        return Stream.of("-XX:ReplayDataFile=" + replayDir + "/replay_pid%p.log");
     }
 
     /*
      * node.processors determines thread pool sizes for Elasticsearch. When it
      * is set, we need to also tell the JVM to respect a different value
      */
-    private static String maybeSetActiveProcessorCount(Settings nodeSettings) {
+    private static Stream<String> maybeSetActiveProcessorCount(Settings nodeSettings) {
         if (EsExecutors.NODE_PROCESSORS_SETTING.exists(nodeSettings)) {
             int allocated = EsExecutors.allocatedProcessors(nodeSettings);
-            return "-XX:ActiveProcessorCount=" + allocated;
+            return Stream.of("-XX:ActiveProcessorCount=" + allocated);
         }
-        return "";
+        return Stream.empty();
     }
 
-    private static String maybeEnableNativeAccess() {
+    private static Stream<String> maybeEnableNativeAccess() {
         if (Runtime.version().feature() >= 21) {
-            return "--enable-native-access=org.elasticsearch.nativeaccess,org.apache.lucene.core";
+            return Stream.of("--enable-native-access=org.elasticsearch.nativeaccess,org.apache.lucene.core");
         }
-        return "";
+        return Stream.empty();
     }
 
     /*
@@ -144,5 +135,38 @@ final class SystemJvmOptions {
             return Stream.of("-XX:+UnlockDiagnosticVMOptions", "-XX:G1NumCollectionsKeepPinned=10000000");
         }
         return Stream.of();
+    }
+
+    private static Stream<String> maybeAllowSecurityManager() {
+        // Will become conditional on useEntitlements once entitlements can run without SM
+        return Stream.of("-Djava.security.manager=allow");
+    }
+
+    private static Stream<String> maybeAttachEntitlementAgent(boolean useEntitlements) {
+        if (useEntitlements == false) {
+            return Stream.empty();
+        }
+
+        Path dir = Path.of("lib", "entitlement-bridge");
+        if (Files.exists(dir) == false) {
+            throw new IllegalStateException("Directory for entitlement bridge jar does not exist: " + dir);
+        }
+        String bridgeJar;
+        try (var s = Files.list(dir)) {
+            var candidates = s.limit(2).toList();
+            if (candidates.size() != 1) {
+                throw new IllegalStateException("Expected one jar in " + dir + "; found " + candidates.size());
+            }
+            bridgeJar = candidates.get(0).toString();
+        } catch (IOException e) {
+            throw new IllegalStateException("Failed to list entitlement jars in: " + dir, e);
+        }
+        return Stream.of(
+            "-Des.entitlements.enabled=true",
+            "-XX:+EnableDynamicAgentLoading",
+            "-Djdk.attach.allowAttachSelf=true",
+            "--patch-module=java.base=" + bridgeJar,
+            "--add-exports=java.base/org.elasticsearch.entitlement.bridge=org.elasticsearch.entitlement"
+        );
     }
 }

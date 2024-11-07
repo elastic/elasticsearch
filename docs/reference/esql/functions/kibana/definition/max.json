@@ -98,7 +98,7 @@
         }
       ],
       "variadic" : false,
-      "returnType" : "text"
+      "returnType" : "keyword"
     },
     {
       "params" : [
@@ -117,5 +117,6 @@
     "FROM employees\n| STATS MAX(languages)",
     "FROM employees\n| STATS max_avg_salary_change = MAX(MV_AVG(salary_change))"
   ],
-  "preview" : false
+  "preview" : false,
+  "snapshot_only" : false
 }

@@ -18,7 +18,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.features.NodeFeature;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -56,15 +55,6 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
         true,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
-    );
-
-    /**
-     * if index.mode "logsdb" is applied by default in logs@settings for 'logs-*-*'
-     */
-    public static final Setting<Boolean> CLUSTER_LOGSDB_ENABLED = Setting.boolSetting(
-        "cluster.logsdb.enabled",
-        false,
-        Setting.Property.NodeScope
     );
 
     private final ClusterService clusterService;
@@ -138,10 +128,10 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
         this.clusterService = clusterService;
         this.featureService = featureService;
         this.stackTemplateEnabled = STACK_TEMPLATES_ENABLED.get(nodeSettings);
-        this.componentTemplateConfigs = loadComponentTemplateConfigs(CLUSTER_LOGSDB_ENABLED.get(nodeSettings));
+        this.componentTemplateConfigs = loadComponentTemplateConfigs();
     }
 
-    private Map<String, ComponentTemplate> loadComponentTemplateConfigs(boolean logsDbEnabled) {
+    private Map<String, ComponentTemplate> loadComponentTemplateConfigs() {
         final Map<String, ComponentTemplate> componentTemplates = new HashMap<>();
         for (IndexTemplateConfig config : List.of(
             new IndexTemplateConfig(
@@ -170,12 +160,7 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
                 "/logs@settings.json",
                 REGISTRY_VERSION,
                 TEMPLATE_VERSION_VARIABLE,
-                Map.of(
-                    "xpack.stack.template.deprecated",
-                    "false",
-                    "xpack.stack.template.logsdb.index.mode",
-                    logsDbEnabled ? IndexMode.LOGSDB.getName() : IndexMode.STANDARD.getName()
-                )
+                Map.of("xpack.stack.template.deprecated", "false")
             ),
             new IndexTemplateConfig(
                 METRICS_MAPPINGS_COMPONENT_TEMPLATE_NAME,

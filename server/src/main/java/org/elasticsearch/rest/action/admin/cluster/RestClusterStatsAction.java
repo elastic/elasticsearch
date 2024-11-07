@@ -23,12 +23,19 @@ import java.util.List;
 import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestUtils.REST_TIMEOUT_PARAM;
 import static org.elasticsearch.rest.RestUtils.getTimeout;
 
 @ServerlessScope(Scope.INTERNAL)
 public class RestClusterStatsAction extends BaseRestHandler {
 
-    private static final Set<String> SUPPORTED_CAPABILITIES = Set.of("human-readable-total-docs-size");
+    private static final Set<String> SUPPORTED_CAPABILITIES = Set.of(
+        "human-readable-total-docs-size",
+        "verbose-dense-vector-mapping-stats",
+        "ccs-stats",
+        "retrievers-usage-stats"
+    );
+    private static final Set<String> SUPPORTED_QUERY_PARAMETERS = Set.of("include_remotes", "nodeId", REST_TIMEOUT_PARAM);
 
     @Override
     public List<Route> routes() {
@@ -41,9 +48,17 @@ public class RestClusterStatsAction extends BaseRestHandler {
     }
 
     @Override
+    public Set<String> supportedQueryParameters() {
+        return SUPPORTED_QUERY_PARAMETERS;
+    }
+
+    @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        ClusterStatsRequest clusterStatsRequest = new ClusterStatsRequest(request.paramAsStringArray("nodeId", null));
-        clusterStatsRequest.timeout(getTimeout(request));
+        ClusterStatsRequest clusterStatsRequest = new ClusterStatsRequest(
+            request.paramAsBoolean("include_remotes", false),
+            request.paramAsStringArray("nodeId", null)
+        );
+        clusterStatsRequest.setTimeout(getTimeout(request));
         return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).admin()
             .cluster()
             .clusterStats(clusterStatsRequest, new NodesResponseRestListener<>(channel));

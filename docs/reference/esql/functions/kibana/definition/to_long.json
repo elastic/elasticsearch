@@ -128,5 +128,6 @@
   "examples" : [
     "ROW str1 = \"2147483648\", str2 = \"2147483648.2\", str3 = \"foo\"\n| EVAL long1 = TO_LONG(str1), long2 = TO_LONG(str2), long3 = TO_LONG(str3)"
   ],
-  "preview" : false
+  "preview" : false,
+  "snapshot_only" : false
 }

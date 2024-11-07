@@ -46,7 +46,7 @@ public final class PercentileDoubleAggregatorFunction implements AggregatorFunct
 
   public static PercentileDoubleAggregatorFunction create(DriverContext driverContext,
       List<Integer> channels, double percentile) {
-    return new PercentileDoubleAggregatorFunction(driverContext, channels, PercentileDoubleAggregator.initSingle(percentile), percentile);
+    return new PercentileDoubleAggregatorFunction(driverContext, channels, PercentileDoubleAggregator.initSingle(driverContext, percentile), percentile);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -60,11 +60,11 @@ public final class PercentileDoubleAggregatorFunction implements AggregatorFunct
 
   @Override
   public void addRawInput(Page page, BooleanVector mask) {
-    if (mask.isConstant()) {
-      if (mask.getBoolean(0) == false) {
-        // Entire page masked away
-        return;
-      }
+    if (mask.allFalse()) {
+      // Entire page masked away
+      return;
+    }
+    if (mask.allTrue()) {
       // No masking
       DoubleBlock block = page.getBlock(channels.get(0));
       DoubleVector vector = block.asVector();

@@ -1,0 +1,6 @@
+pr: 113314
+summary: "[ES|QL] Check expression resolved before checking its data type in `ImplicitCasting`"
+area: ES|QL
+type: bug
+issues:
+ - 113242

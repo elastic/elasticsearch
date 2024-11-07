@@ -176,6 +176,11 @@ public final class EvalMapper {
                 public String toString() {
                     return "Attribute[channel=" + channel + "]";
                 }
+
+                @Override
+                public boolean eagerEvalSafeInLazy() {
+                    return true;
+                }
             }
             return new AttributeFactory(layout.get(attr.id()).channel());
         }
@@ -208,6 +213,11 @@ public final class EvalMapper {
                 @Override
                 public String toString() {
                     return "LiteralsEvaluator[lit=" + lit + "]";
+                }
+
+                @Override
+                public boolean eagerEvalSafeInLazy() {
+                    return true;
                 }
             }
             return new LiteralsEvaluatorFactory(lit);

@@ -130,6 +130,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -1249,27 +1250,29 @@ public final class InternalTestCluster extends TestCluster {
                 .isTimedOut()
         );
         try {
+            final Object[] previousStates = new Object[1];
             assertBusy(() -> {
                 final List<ClusterState> states = nodes.values()
                     .stream()
                     .map(node -> getInstanceFromNode(ClusterService.class, node.node()))
                     .map(ClusterService::state)
                     .toList();
-                final String debugString = ", expected nodes: " + expectedNodes + " and actual cluster states " + states;
+                if (previousStates[0] != null && previousStates[0].equals(states)) {
+                    throw new AssertionError("unchanged");
+                }
+                previousStates[0] = states;
+                final Supplier<String> debugString = () -> ", expected nodes: " + expectedNodes + " and actual cluster states " + states;
                 // all nodes have a master
-                assertTrue("Missing master" + debugString, states.stream().allMatch(cs -> cs.nodes().getMasterNodeId() != null));
+                assert states.stream().allMatch(cs -> cs.nodes().getMasterNodeId() != null) : "Missing master" + debugString.get();
                 // all nodes have the same master (in same term)
-                assertEquals(
-                    "Not all masters in same term" + debugString,
-                    1,
-                    states.stream().mapToLong(ClusterState::term).distinct().count()
-                );
+                assert 1L == states.stream().mapToLong(ClusterState::term).distinct().count()
+                    : "Not all masters in same term" + debugString.get();
                 // all nodes know about all other nodes
                 states.forEach(cs -> {
                     DiscoveryNodes discoveryNodes = cs.nodes();
-                    assertEquals("Node size mismatch" + debugString, expectedNodes.size(), discoveryNodes.getSize());
+                    assert expectedNodes.size() == discoveryNodes.getSize() : "Node size mismatch" + debugString.get();
                     for (DiscoveryNode expectedNode : expectedNodes) {
-                        assertTrue("Expected node to exist: " + expectedNode + debugString, discoveryNodes.nodeExists(expectedNode));
+                        assert discoveryNodes.nodeExists(expectedNode) : "Expected node to exist: " + expectedNode + debugString.get();
                     }
                 });
             }, 30, TimeUnit.SECONDS);
@@ -1533,7 +1536,9 @@ public final class InternalTestCluster extends TestCluster {
         // only reset the clients on nightly tests, it causes heavy load...
         if (RandomizedTest.isNightly() && rarely(random)) {
             final Collection<NodeAndClient> nodesAndClients = nodes.values();
+            logger.info("Resetting [{}] node clients on internal test cluster", nodesAndClients.size());
             for (NodeAndClient nodeAndClient : nodesAndClients) {
+                logger.info("Resetting [{}] node client on internal test cluster", nodeAndClient.name);
                 nodeAndClient.resetClient();
             }
         }

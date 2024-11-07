@@ -20,7 +20,6 @@ import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.Closeable;
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -90,7 +89,6 @@ public class IndexFieldDataService extends AbstractIndexComponent implements Clo
      * Returns fielddata for the provided field type, given the provided fully qualified index name, while also making
      * a {@link SearchLookup} supplier available that is required for runtime fields.
      */
-    @SuppressWarnings("unchecked")
     public <IFD extends IndexFieldData<?>> IFD getForField(MappedFieldType fieldType, FieldDataContext fieldDataContext) {
         return getFromBuilder(fieldType, fieldType.fielddataBuilder(fieldDataContext));
     }
@@ -134,7 +132,7 @@ public class IndexFieldDataService extends AbstractIndexComponent implements Clo
     }
 
     @Override
-    public void close() throws IOException {
+    public void close() {
         clear();
     }
 }

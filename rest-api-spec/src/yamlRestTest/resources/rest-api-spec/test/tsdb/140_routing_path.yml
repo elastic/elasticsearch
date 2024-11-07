@@ -119,11 +119,11 @@ missing dimension on routing path field:
                 type: keyword
 
 ---
-multi-value routing path field:
+multi-value routing path field succeeds:
   - requires:
       test_runner_features: close_to
-      cluster_features: ["gte_v8.13.0"]
-      reason: _tsid hashing introduced in 8.13
+      cluster_features: ["routing.multi_value_routing_path"]
+      reason: support for multi-value dimensions
 
   - do:
       indices.create:
@@ -172,12 +172,7 @@ multi-value routing path field:
           - '{"index": {}}'
           - '{"@timestamp": "2021-04-28T18:35:54.467Z", "uid": "df3145b3-0563-4d3b-a0f7-897eb2876ea9", "voltage": 6.8, "unmapped_field": 40, "tag": [ "one", "three" ] }'
 
-  - is_true: errors
-
-  - match: {items.1.index.error.reason: "Error extracting routing: Routing values must be strings but found [START_ARRAY]" }
-  - match: {items.3.index.error.reason: "Error extracting routing: Routing values must be strings but found [START_ARRAY]" }
-  - match: {items.4.index.error.reason: "Error extracting routing: Routing values must be strings but found [START_ARRAY]" }
-  - match: {items.7.index.error.reason: "Error extracting routing: Routing values must be strings but found [START_ARRAY]" }
+  - is_false: errors
 
   - do:
       search:
@@ -195,13 +190,21 @@ multi-value routing path field:
                   avg:
                     field: voltage
 
-  - match: {hits.total.value: 4}
-  - length: {aggregations.tsids.buckets: 2}
+  - match: {hits.total.value: 8}
+  - length: {aggregations.tsids.buckets: 4}
 
-  - match: {aggregations.tsids.buckets.0.key: "KDODRmbj7vu4rLWvjrJbpUuaET_vOYoRw6ImzKEcF4sEaGKnXSaKfM0" }
+  - match: {aggregations.tsids.buckets.0.key: "KDODRmbj7vu4rLWvjrJbpUtt0uPSOYoRw_LI4DD7DFEGEJ3NR3eQkMY" }
   - match: {aggregations.tsids.buckets.0.doc_count: 2 }
   - close_to: {aggregations.tsids.buckets.0.voltage.value: { value: 6.70, error: 0.01 }}
 
-  - match: { aggregations.tsids.buckets.1.key: "KDODRmbj7vu4rLWvjrJbpUvcUWJEddqA4Seo8jbBBBFxwC0lrefCb6A" }
+  - match: { aggregations.tsids.buckets.1.key: "KDODRmbj7vu4rLWvjrJbpUtt0uPSddqA4WYKglGPR_C0cJe8QGaiC2c" }
   - match: {aggregations.tsids.buckets.1.doc_count: 2 }
-  - close_to: {aggregations.tsids.buckets.1.voltage.value: { value: 7.30, error: 0.01 }}
+  - close_to: {aggregations.tsids.buckets.1.voltage.value: { value: 7.15, error: 0.01 }}
+
+  - match: { aggregations.tsids.buckets.2.key: "KDODRmbj7vu4rLWvjrJbpUuaET_vOYoRw6ImzKEcF4sEaGKnXSaKfM0" }
+  - match: {aggregations.tsids.buckets.2.doc_count: 2 }
+  - close_to: {aggregations.tsids.buckets.2.voltage.value: { value: 6.70, error: 0.01 }}
+
+  - match: { aggregations.tsids.buckets.3.key: "KDODRmbj7vu4rLWvjrJbpUvcUWJEddqA4Seo8jbBBBFxwC0lrefCb6A" }
+  - match: {aggregations.tsids.buckets.3.doc_count: 2 }
+  - close_to: {aggregations.tsids.buckets.3.voltage.value: { value: 7.30, error: 0.01 }}

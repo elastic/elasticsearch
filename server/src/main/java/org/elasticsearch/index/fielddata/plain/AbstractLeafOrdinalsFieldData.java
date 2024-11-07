@@ -44,9 +44,6 @@ public abstract class AbstractLeafOrdinalsFieldData implements LeafOrdinalsField
             }
 
             @Override
-            public void close() {}
-
-            @Override
             public SortedSetDocValues getOrdinalsValues() {
                 return DocValues.emptySortedSet();
             }

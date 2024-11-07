@@ -28,7 +28,8 @@ public class TransportClearRolesCacheAction extends TransportNodesAction<
     ClearRolesCacheRequest,
     ClearRolesCacheResponse,
     ClearRolesCacheRequest.Node,
-    ClearRolesCacheResponse.Node> {
+    ClearRolesCacheResponse.Node,
+    Void> {
 
     private final CompositeRolesStore rolesStore;
 

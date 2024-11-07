@@ -8,6 +8,8 @@
  */
 package org.elasticsearch.datastreams.action;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.datastreams.PromoteDataStreamAction;
@@ -23,6 +25,8 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.logging.HeaderWarning;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.indices.SystemIndices;
@@ -31,7 +35,11 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import static org.elasticsearch.core.Strings.format;
+
 public class PromoteDataStreamTransportAction extends AcknowledgedTransportMasterNodeAction<PromoteDataStreamAction.Request> {
+
+    private static final Logger logger = LogManager.getLogger(PromoteDataStreamTransportAction.class);
 
     private final SystemIndices systemIndices;
 
@@ -94,14 +102,39 @@ public class PromoteDataStreamTransportAction extends AcknowledgedTransportMaste
 
     static ClusterState promoteDataStream(ClusterState currentState, PromoteDataStreamAction.Request request) {
         DataStream dataStream = currentState.getMetadata().dataStreams().get(request.getName());
+
         if (dataStream == null) {
             throw new ResourceNotFoundException("data stream [" + request.getName() + "] does not exist");
         }
+
+        warnIfTemplateMissingForDatastream(dataStream, currentState);
 
         DataStream promotedDataStream = dataStream.promoteDataStream();
         Metadata.Builder metadata = Metadata.builder(currentState.metadata());
         metadata.put(promotedDataStream);
         return ClusterState.builder(currentState).metadata(metadata).build();
+    }
+
+    private static void warnIfTemplateMissingForDatastream(DataStream dataStream, ClusterState currentState) {
+        var datastreamName = dataStream.getName();
+
+        var matchingIndex = currentState.metadata()
+            .templatesV2()
+            .values()
+            .stream()
+            .filter(cit -> cit.getDataStreamTemplate() != null)
+            .flatMap(cit -> cit.indexPatterns().stream())
+            .anyMatch(pattern -> Regex.simpleMatch(pattern, datastreamName));
+
+        if (matchingIndex == false) {
+            String warningMessage = format(
+                "Data stream [%s] does not have a matching index template. This will cause rollover to fail until a matching index "
+                    + "template is created",
+                datastreamName
+            );
+            logger.warn(() -> warningMessage);
+            HeaderWarning.addWarning(warningMessage);
+        }
     }
 
     @Override

@@ -8,32 +8,26 @@
  */
 package org.elasticsearch.action.admin.indices.readonly;
 
-import org.elasticsearch.cluster.ack.IndicesClusterStateUpdateRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata.APIBlock;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.Index;
+
+import java.util.Objects;
 
 /**
  * Cluster state update request that allows to add a block to one or more indices
  */
-public class AddIndexBlockClusterStateUpdateRequest extends IndicesClusterStateUpdateRequest<AddIndexBlockClusterStateUpdateRequest> {
-
-    private final APIBlock block;
-    private long taskId;
-
-    public AddIndexBlockClusterStateUpdateRequest(final APIBlock block, final long taskId) {
-        this.block = block;
-        this.taskId = taskId;
-    }
-
-    public long taskId() {
-        return taskId;
-    }
-
-    public APIBlock getBlock() {
-        return block;
-    }
-
-    public AddIndexBlockClusterStateUpdateRequest taskId(final long taskId) {
-        this.taskId = taskId;
-        return this;
+public record AddIndexBlockClusterStateUpdateRequest(
+    TimeValue masterNodeTimeout,
+    TimeValue ackTimeout,
+    APIBlock block,
+    long taskId,
+    Index[] indices
+) {
+    public AddIndexBlockClusterStateUpdateRequest {
+        Objects.requireNonNull(masterNodeTimeout);
+        Objects.requireNonNull(ackTimeout);
+        Objects.requireNonNull(block);
+        Objects.requireNonNull(indices);
     }
 }

@@ -11,11 +11,12 @@ Updates the `api_key_id` and/or `api_key_secret_id` field(s) of a connector, spe
 . The ID of the API key used for authorization
 . The ID of the Connector Secret where the API key is stored
 
-The Connector Secret ID is only required for native connectors.
-Connector clients do not use this field.
-See the documentation for {enterprise-search-ref}/native-connectors.html#native-connectors-manage-API-keys-programmatically[managing native connector API keys programmatically^] for more details.
+The Connector Secret ID is only required for Elastic managed connectors.
+Self-managed connectors do not use this field.
+See the documentation for <<es-native-connectors-manage-API-keys-programmatically,programmatically managed connector API keys>> for more details.
 
-To get started with Connector APIs, check out the {enterprise-search-ref}/connectors-tutorial-api.html[tutorial^].
+To get started with Connector APIs, check out <<es-connectors-tutorial-api, our tutorial>>.
+
 
 [[update-connector-api-key-id-api-request]]
 ==== {api-request-title}
@@ -25,7 +26,7 @@ To get started with Connector APIs, check out the {enterprise-search-ref}/connec
 [[update-connector-api-key-id-api-prereq]]
 ==== {api-prereq-title}
 
-* To sync data using self-managed connectors, you need to deploy the {enterprise-search-ref}/build-connector.html[Elastic connector service] on your own infrastructure. This service runs automatically on Elastic Cloud for native connectors.
+* To sync data using self-managed connectors, you need to deploy the <<es-connectors-deploy-connector-service,Elastic connector service>>. on your own infrastructure. This service runs automatically on Elastic Cloud for Elastic managed connectors.
 * The `connector_id` parameter should reference an existing connector.
 * The `api_key_id` parameter should reference an existing API key.
 * The `api_key_secret_id` parameter should reference an existing Connector Secret containing an encoded API key value.
@@ -44,7 +45,7 @@ To get started with Connector APIs, check out the {enterprise-search-ref}/connec
 (Optional, string) ID of the API key that the connector will use to authorize access to required indices. Each connector can be associated with at most one API key.
 
 `api_key_secret_id`::
-(Optional, string) ID of the Connector Secret that contains the encoded API key. This should be the same API key as `api_key_id` references. This is only required for native connectors.
+(Optional, string) ID of the Connector Secret that contains the encoded API key. This should be the same API key as `api_key_id` references. This is only required for Elastic managed connectors.
 
 [[update-connector-api-key-id-api-response-codes]]
 ==== {api-response-codes-title}

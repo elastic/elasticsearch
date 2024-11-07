@@ -54,12 +54,7 @@ public final class TransportSettings {
         "bind_host",
         key -> listSetting(key, BIND_HOST, Function.identity(), Setting.Property.NodeScope)
     );
-    public static final Setting<String> PORT = new Setting<>(
-        "transport.port",
-        "9300-9399",
-        Function.identity(),
-        Setting.Property.NodeScope
-    );
+    public static final Setting<String> PORT = Setting.simpleString("transport.port", "9300-9399", Setting.Property.NodeScope);
     public static final Setting.AffixSetting<String> PORT_PROFILE = affixKeySetting(
         "transport.profiles.",
         "port",

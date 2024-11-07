@@ -19,6 +19,7 @@ import org.apache.lucene.util.BitSet;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
@@ -48,11 +49,18 @@ public class NestedObjectMapper extends ObjectMapper {
         private Explicit<Boolean> includeInParent = Explicit.IMPLICIT_FALSE;
         private final IndexVersion indexCreatedVersion;
         private final Function<Query, BitSetProducer> bitSetProducer;
+        private final IndexSettings indexSettings;
 
-        public Builder(String name, IndexVersion indexCreatedVersion, Function<Query, BitSetProducer> bitSetProducer) {
+        public Builder(
+            String name,
+            IndexVersion indexCreatedVersion,
+            Function<Query, BitSetProducer> bitSetProducer,
+            IndexSettings indexSettings
+        ) {
             super(name, Optional.empty());
             this.indexCreatedVersion = indexCreatedVersion;
             this.bitSetProducer = bitSetProducer;
+            this.indexSettings = indexSettings;
         }
 
         Builder includeInRoot(boolean includeInRoot) {
@@ -90,6 +98,17 @@ public class NestedObjectMapper extends ObjectMapper {
             } else {
                 nestedTypePath = fullPath;
             }
+            if (sourceKeepMode.orElse(SourceKeepMode.NONE) == SourceKeepMode.ARRAYS) {
+                throw new MapperException(
+                    "parameter [ "
+                        + Mapper.SYNTHETIC_SOURCE_KEEP_PARAM
+                        + " ] can't be set to ["
+                        + SourceKeepMode.ARRAYS
+                        + "] for nested object ["
+                        + fullPath
+                        + "]"
+                );
+            }
             final Query nestedTypeFilter = NestedPathFieldMapper.filter(indexCreatedVersion, nestedTypePath);
             NestedMapperBuilderContext nestedContext = new NestedMapperBuilderContext(
                 context.buildFullName(leafName()),
@@ -107,13 +126,14 @@ public class NestedObjectMapper extends ObjectMapper {
                 buildMappers(nestedContext),
                 enabled,
                 dynamic,
-                storeArraySource,
+                sourceKeepMode,
                 includeInParent,
                 includeInRoot,
                 parentTypeFilter,
                 nestedTypePath,
                 nestedTypeFilter,
-                bitSetProducer
+                bitSetProducer,
+                indexSettings
             );
         }
     }
@@ -128,7 +148,8 @@ public class NestedObjectMapper extends ObjectMapper {
             NestedObjectMapper.Builder builder = new NestedObjectMapper.Builder(
                 name,
                 parserContext.indexVersionCreated(),
-                parserContext::bitSetProducer
+                parserContext::bitSetProducer,
+                parserContext.getIndexSettings()
             );
             parseNested(name, node, builder);
             parseObjectFields(node, parserContext, builder);
@@ -195,6 +216,7 @@ public class NestedObjectMapper extends ObjectMapper {
     private final Query nestedTypeFilter;
     // Function to create a bitset for identifying parent documents
     private final Function<Query, BitSetProducer> bitsetProducer;
+    private final IndexSettings indexSettings;
 
     NestedObjectMapper(
         String name,
@@ -202,21 +224,23 @@ public class NestedObjectMapper extends ObjectMapper {
         Map<String, Mapper> mappers,
         Explicit<Boolean> enabled,
         ObjectMapper.Dynamic dynamic,
-        Explicit<Boolean> storeArraySource,
+        Optional<SourceKeepMode> sourceKeepMode,
         Explicit<Boolean> includeInParent,
         Explicit<Boolean> includeInRoot,
         Query parentTypeFilter,
         String nestedTypePath,
         Query nestedTypeFilter,
-        Function<Query, BitSetProducer> bitsetProducer
+        Function<Query, BitSetProducer> bitsetProducer,
+        IndexSettings indexSettings
     ) {
-        super(name, fullPath, enabled, Optional.empty(), storeArraySource, dynamic, mappers);
+        super(name, fullPath, enabled, Optional.empty(), sourceKeepMode, dynamic, mappers);
         this.parentTypeFilter = parentTypeFilter;
         this.nestedTypePath = nestedTypePath;
         this.nestedTypeFilter = nestedTypeFilter;
         this.includeInParent = includeInParent;
         this.includeInRoot = includeInRoot;
         this.bitsetProducer = bitsetProducer;
+        this.indexSettings = indexSettings;
     }
 
     public Query parentTypeFilter() {
@@ -254,7 +278,7 @@ public class NestedObjectMapper extends ObjectMapper {
 
     @Override
     public ObjectMapper.Builder newBuilder(IndexVersion indexVersionCreated) {
-        NestedObjectMapper.Builder builder = new NestedObjectMapper.Builder(leafName(), indexVersionCreated, bitsetProducer);
+        NestedObjectMapper.Builder builder = new NestedObjectMapper.Builder(leafName(), indexVersionCreated, bitsetProducer, indexSettings);
         builder.enabled = enabled;
         builder.dynamic = dynamic;
         builder.includeInRoot = includeInRoot;
@@ -270,13 +294,14 @@ public class NestedObjectMapper extends ObjectMapper {
             Map.of(),
             enabled,
             dynamic,
-            storeArraySource,
+            sourceKeepMode,
             includeInParent,
             includeInRoot,
             parentTypeFilter,
             nestedTypePath,
             nestedTypeFilter,
-            bitsetProducer
+            bitsetProducer,
+            indexSettings
         );
     }
 
@@ -296,8 +321,8 @@ public class NestedObjectMapper extends ObjectMapper {
         if (isEnabled() != Defaults.ENABLED) {
             builder.field("enabled", enabled.value());
         }
-        if (storeArraySource != Defaults.STORE_ARRAY_SOURCE) {
-            builder.field(STORE_ARRAY_SOURCE_PARAM, storeArraySource.value());
+        if (sourceKeepMode.isPresent()) {
+            builder.field(Mapper.SYNTHETIC_SOURCE_KEEP_PARAM, sourceKeepMode.get());
         }
         serializeMappers(builder, params);
         return builder.endObject();
@@ -345,13 +370,14 @@ public class NestedObjectMapper extends ObjectMapper {
             mergeResult.mappers(),
             mergeResult.enabled(),
             mergeResult.dynamic(),
-            mergeResult.trackArraySource(),
+            mergeResult.sourceKeepMode(),
             incInParent,
             incInRoot,
             parentTypeFilter,
             nestedTypePath,
             nestedTypeFilter,
-            bitsetProducer
+            bitsetProducer,
+            indexSettings
         );
     }
 
@@ -378,13 +404,15 @@ public class NestedObjectMapper extends ObjectMapper {
 
     @Override
     public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-        if (storeArraySource()) {
-            // IgnoredSourceFieldMapper integration takes care of writing the source for nested objects that enabled store_array_source.
+        if (sourceKeepMode.orElse(SourceKeepMode.NONE) == SourceKeepMode.ALL) {
+            // IgnoredSourceFieldMapper integration takes care of writing the source for the nested object.
             return SourceLoader.SyntheticFieldLoader.NOTHING;
         }
 
         SourceLoader sourceLoader = new SourceLoader.Synthetic(() -> super.syntheticFieldLoader(mappers.values().stream(), true), NOOP);
-        var storedFieldLoader = org.elasticsearch.index.fieldvisitor.StoredFieldLoader.create(false, sourceLoader.requiredStoredFields());
+        // Some synthetic source use cases require using _ignored_source field
+        var requiredStoredFields = IgnoredSourceFieldMapper.ensureLoaded(sourceLoader.requiredStoredFields(), indexSettings);
+        var storedFieldLoader = org.elasticsearch.index.fieldvisitor.StoredFieldLoader.create(false, requiredStoredFields);
         return new NestedSyntheticFieldLoader(
             storedFieldLoader,
             sourceLoader,

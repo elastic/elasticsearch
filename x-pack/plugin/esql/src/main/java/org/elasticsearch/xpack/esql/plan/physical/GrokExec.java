@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 
 import java.io.IOException;
@@ -46,7 +45,7 @@ public class GrokExec extends RegexExtractExec {
         Source source = Source.readFrom((PlanStreamInput) in);
         return new GrokExec(
             source,
-            ((PlanStreamInput) in).readPhysicalPlanNode(),
+            in.readNamedWriteable(PhysicalPlan.class),
             in.readNamedWriteable(Expression.class),
             Grok.pattern(source, in.readString()),
             in.readNamedWriteableCollectionAsList(Attribute.class)
@@ -56,7 +55,7 @@ public class GrokExec extends RegexExtractExec {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         Source.EMPTY.writeTo(out);
-        ((PlanStreamOutput) out).writePhysicalPlanNode(child());
+        out.writeNamedWriteable(child());
         out.writeNamedWriteable(inputExpression());
         out.writeString(pattern().pattern());
         out.writeNamedWriteableCollection(extractedFields());

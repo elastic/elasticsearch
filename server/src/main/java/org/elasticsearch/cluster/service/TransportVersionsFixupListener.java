@@ -50,7 +50,7 @@ import static org.elasticsearch.cluster.ClusterState.INFERRED_TRANSPORT_VERSION;
  * due to the master node not understanding cluster state with transport versions added in 8.8.0.
  * Any nodes with the inferred placeholder cluster state is then refreshed with their actual transport version
  */
-@UpdateForV9    // this can be removed in v9
+@UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA) // this can be removed in v9
 public class TransportVersionsFixupListener implements ClusterStateListener {
 
     private static final Logger logger = LogManager.getLogger(TransportVersionsFixupListener.class);

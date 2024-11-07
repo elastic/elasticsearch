@@ -18,6 +18,9 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.esql.core.util.PlanStreamInput.readCachedStringWithVersionCheck;
+import static org.elasticsearch.xpack.esql.core.util.PlanStreamOutput.writeCachedStringWithVersionCheck;
+
 /**
  * Representation of field mapped differently across indices.
  * Used during mapping discovery only.
@@ -52,7 +55,7 @@ public class InvalidMappedField extends EsField {
     }
 
     protected InvalidMappedField(StreamInput in) throws IOException {
-        this(in.readString(), in.readString(), in.readImmutableMap(StreamInput::readString, EsField::readFrom));
+        this(readCachedStringWithVersionCheck(in), in.readString(), in.readImmutableMap(StreamInput::readString, EsField::readFrom));
     }
 
     public Set<DataType> types() {
@@ -60,8 +63,8 @@ public class InvalidMappedField extends EsField {
     }
 
     @Override
-    protected void writeContent(StreamOutput out) throws IOException {
-        out.writeString(getName());
+    public void writeContent(StreamOutput out) throws IOException {
+        writeCachedStringWithVersionCheck(out, getName());
         out.writeString(errorMessage);
         out.writeMap(getProperties(), (o, x) -> x.writeTo(out));
     }

@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractC
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToBoolean;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCartesianPoint;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCartesianShape;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDateNanos;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatePeriod;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetime;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
@@ -63,6 +64,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_SHAPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
@@ -72,7 +74,6 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
-import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TIME_DURATION;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
@@ -96,6 +97,7 @@ import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.UNSP
 public class EsqlDataTypeConverter {
 
     public static final DateFormatter DEFAULT_DATE_TIME_FORMATTER = DateFormatter.forPattern("strict_date_optional_time");
+    public static final DateFormatter DEFAULT_DATE_NANOS_FORMATTER = DateFormatter.forPattern("strict_date_optional_time_nanos");
 
     public static final DateFormatter HOUR_MINUTE_SECOND = DateFormatter.forPattern("strict_hour_minute_second_fraction");
 
@@ -104,6 +106,7 @@ public class EsqlDataTypeConverter {
         entry(CARTESIAN_POINT, ToCartesianPoint::new),
         entry(CARTESIAN_SHAPE, ToCartesianShape::new),
         entry(DATETIME, ToDatetime::new),
+        entry(DATE_NANOS, ToDateNanos::new),
         // ToDegrees, typeless
         entry(DOUBLE, ToDouble::new),
         entry(GEO_POINT, ToGeoPoint::new),
@@ -113,7 +116,6 @@ public class EsqlDataTypeConverter {
         entry(LONG, ToLong::new),
         // ToRadians, typeless
         entry(KEYWORD, ToString::new),
-        entry(TEXT, ToString::new),
         entry(UNSIGNED_LONG, ToUnsignedLong::new),
         entry(VERSION, ToVersion::new),
         entry(DATE_PERIOD, ToDatePeriod::new),
@@ -362,10 +364,8 @@ public class EsqlDataTypeConverter {
             }
         }
         if (isString(left) && isString(right)) {
-            if (left == TEXT || right == TEXT) {
-                return TEXT;
-            }
-            return right;
+            // Both TEXT and SEMANTIC_TEXT are processed as KEYWORD
+            return KEYWORD;
         }
         if (left.isNumeric() && right.isNumeric()) {
             int lsize = left.estimatedSize().orElseThrow();
@@ -499,7 +499,7 @@ public class EsqlDataTypeConverter {
     }
 
     public static String nanoTimeToString(long dateTime) {
-        return DateFormatter.forPattern("strict_date_optional_time_nanos").formatNanos(dateTime);
+        return DEFAULT_DATE_NANOS_FORMATTER.formatNanos(dateTime);
     }
 
     public static String dateTimeToString(long dateTime, DateFormatter formatter) {

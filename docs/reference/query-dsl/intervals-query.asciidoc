@@ -73,7 +73,9 @@ Valid rules include:
 * <<intervals-match,`match`>>
 * <<intervals-prefix,`prefix`>>
 * <<intervals-wildcard,`wildcard`>>
+* <<intervals-regexp,`regexp`>>
 * <<intervals-fuzzy,`fuzzy`>>
+* <<intervals-range,`range`>>
 * <<intervals-all_of,`all_of`>>
 * <<intervals-any_of,`any_of`>>
 --
@@ -122,8 +124,9 @@ unstemmed ones.
 ==== `prefix` rule parameters
 
 The `prefix` rule matches terms that start with a specified set of characters.
-This prefix can expand to match at most 128 terms. If the prefix matches more
-than 128 terms, {es} returns an error. You can use the
+This prefix can expand to match at most `indices.query.bool.max_clause_count`
+<<search-settings,search setting>> terms. If the prefix matches more terms,
+{es} returns an error. You can use the
 <<index-prefixes,`index-prefixes`>> option in the field mapping to avoid this
 limit.
 
@@ -149,7 +152,8 @@ separate `analyzer` is specified.
 ==== `wildcard` rule parameters
 
 The `wildcard` rule matches terms using a wildcard pattern. This pattern can
-expand to match at most 128 terms. If the pattern matches more than 128 terms,
+expand to match at most  `indices.query.bool.max_clause_count`
+<<search-settings,search setting>> terms. If the pattern matches more terms,
 {es} returns an error.
 
 `pattern`::
@@ -178,12 +182,44 @@ The `pattern` is normalized using the search analyzer from this field, unless
 `analyzer` is specified separately.
 --
 
+[[intervals-regexp]]
+==== `regexp` rule parameters
+
+The `regexp` rule matches terms using a regular expression pattern.
+This pattern can expand to match at most  `indices.query.bool.max_clause_count`
+<<search-settings,search setting>> terms.
+If the pattern matches more terms,{es} returns an error.
+
+`pattern`::
+(Required, string) Regexp pattern used to find matching terms.
+For a list of operators supported by the
+`regexp` pattern, see <<regexp-syntax, Regular expression syntax>>.
+
+WARNING: Avoid using wildcard patterns, such as `.*` or `.*?+``. This can
+increase the iterations needed to find matching terms and slow search
+performance.
+--
+`analyzer`::
+(Optional, string) <<analysis, analyzer>> used to normalize the `pattern`.
+Defaults to the top-level `<field>`'s analyzer.
+--
+`use_field`::
++
+--
+(Optional, string) If specified, match intervals from this field rather than the
+top-level `<field>`.
+
+The `pattern` is normalized using the search analyzer from this field, unless
+`analyzer` is specified separately.
+--
+
 [[intervals-fuzzy]]
 ==== `fuzzy` rule parameters
 
 The `fuzzy` rule matches terms that are similar to the provided term, within an
 edit distance defined by <<fuzziness>>. If the fuzzy expansion matches more than
-128 terms, {es} returns an error.
+`indices.query.bool.max_clause_count`
+<<search-settings,search setting>> terms, {es} returns an error.
 
 `term`::
 (Required, string) The term to match
@@ -213,6 +249,41 @@ top-level `<field>`.
 The `term` is normalized using the search analyzer from this field, unless
 `analyzer` is specified separately.
 --
+
+[[intervals-range]]
+==== `range` rule parameters
+
+The `range` rule matches terms contained within a provided range.
+This range can expand to match at most  `indices.query.bool.max_clause_count`
+<<search-settings,search setting>> terms.
+If the range matches more terms,{es} returns an error.
+
+`gt`::
+(Optional, string) Greater than: match terms greater than the provided term.
+
+`gte`::
+(Optional, string) Greater than or equal to: match terms greater than or
+equal to the provided term.
+
+`lt`::
+(Optional, string) Less than: match terms less than the provided term.
+
+`lte`::
+(Optional, string) Less than or equal to: match terms less than or
+equal to the provided term.
+
+NOTE: It is required to provide one of `gt` or `gte` params.
+It is required to provide one of `lt` or `lte` params.
+
+
+`analyzer`::
+(Optional, string) <<analysis, analyzer>> used to normalize the `pattern`.
+Defaults to the top-level `<field>`'s analyzer.
+
+`use_field`::
+(Optional, string) If specified, match intervals from this field rather than the
+top-level `<field>`.
+
 
 [[intervals-all_of]]
 ==== `all_of` rule parameters

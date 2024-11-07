@@ -75,7 +75,7 @@ public abstract class StoredFieldSortedBinaryIndexFieldData extends StoredFieldI
         }
 
         @Override
-        public BytesRef nextValue() throws IOException {
+        public BytesRef nextValue() {
             assert current < docValueCount;
             return sorted.get(current++);
         }

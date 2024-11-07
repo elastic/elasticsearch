@@ -30,7 +30,6 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToVersion;
-import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -101,16 +100,10 @@ public class MultiTypeEsFieldTests extends AbstractWireTestCase<MultiTypeEsField
 
     @Override
     protected final MultiTypeEsField copyInstance(MultiTypeEsField instance, TransportVersion version) throws IOException {
-        return copyInstance(
-            instance,
-            getNamedWriteableRegistry(),
-            (out, v) -> v.writeTo(new PlanStreamOutput(out, new PlanNameRegistry(), config)),
-            in -> {
-                PlanStreamInput pin = new PlanStreamInput(in, new PlanNameRegistry(), in.namedWriteableRegistry(), config);
-                return EsField.readFrom(pin);
-            },
-            version
-        );
+        return copyInstance(instance, getNamedWriteableRegistry(), (out, v) -> v.writeTo(new PlanStreamOutput(out, config)), in -> {
+            PlanStreamInput pin = new PlanStreamInput(in, in.namedWriteableRegistry(), config);
+            return EsField.readFrom(pin);
+        }, version);
     }
 
     private static Map<String, Expression> randomConvertExpressions(String name, boolean toString, DataType dataType) {

@@ -20,8 +20,8 @@ esplugin {
 
 dependencies {
   compileOnly project(':modules:lang-painless:spi')
-  api project(':libs:elasticsearch-grok')
-  api project(':libs:elasticsearch-dissect')
+  api project(':libs:grok')
+  api project(':libs:dissect')
   implementation "org.apache.httpcomponents:httpclient:${versions.httpclient}"
   implementation "org.apache.httpcomponents:httpcore:${versions.httpcore}"
 }
@@ -50,3 +50,7 @@ tasks.named("thirdPartyAudit").configure {
     'org.apache.commons.logging.LogFactory',
   )
 }
+
+tasks.named("yamlRestCompatTestTransform").configure({ task ->
+  task.skipTest("ingest/30_date_processor/Test week based date parsing", "week-date behaviour has changed")
+})

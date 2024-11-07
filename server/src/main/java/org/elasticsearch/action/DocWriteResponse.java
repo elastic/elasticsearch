@@ -9,6 +9,7 @@
 package org.elasticsearch.action;
 
 import org.elasticsearch.TransportVersions;
+import org.elasticsearch.action.bulk.IndexDocFailureStoreStatus;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.support.WriteResponse;
@@ -17,7 +18,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -249,6 +249,10 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
         return location.toString();
     }
 
+    public IndexDocFailureStoreStatus getFailureStoreStatus() {
+        return IndexDocFailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN;
+    }
+
     public void writeThin(StreamOutput out) throws IOException {
         super.writeTo(out);
         writeWithoutShardId(out);
@@ -292,9 +296,6 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
         if (getSeqNo() >= 0) {
             builder.field(_SEQ_NO, getSeqNo());
             builder.field(_PRIMARY_TERM, getPrimaryTerm());
-        }
-        if (builder.getRestApiVersion() == RestApiVersion.V_7) {
-            builder.field(MapperService.TYPE_FIELD_NAME, MapperService.SINGLE_MAPPING_NAME);
         }
         return builder;
     }

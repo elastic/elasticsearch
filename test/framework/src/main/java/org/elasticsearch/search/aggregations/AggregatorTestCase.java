@@ -33,6 +33,7 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.search.Collector;
+import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
@@ -80,6 +81,7 @@ import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.cache.query.DisabledQueryCache;
 import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
@@ -158,6 +160,7 @@ import java.io.UncheckedIOException;
 import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -212,7 +215,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
     @Before
     public final void initPlugins() {
         threadPool = new TestThreadPool(AggregatorTestCase.class.getName());
-        threadPoolExecutor = (ThreadPoolExecutor) threadPool.executor(ThreadPool.Names.SEARCH_WORKER);
+        threadPoolExecutor = (ThreadPoolExecutor) threadPool.executor(ThreadPool.Names.SEARCH);
         List<SearchPlugin> plugins = new ArrayList<>(getSearchPlugins());
         plugins.add(new AggCardinalityUpperBoundPlugin());
         SearchModule searchModule = new SearchModule(Settings.EMPTY, plugins);
@@ -747,6 +750,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                     new SortField(TimeSeriesIdFieldMapper.NAME, SortField.Type.STRING, false),
                     new SortedNumericSortField(DataStreamTimestampFieldMapper.DEFAULT_PATH, SortField.Type.LONG, true)
                 );
+                config.setParentField(Engine.ROOT_DOC_FIELD_NAME);
                 config.setIndexSort(sort);
             }
             RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory, config);
@@ -831,11 +835,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
         QueryCachingPolicy queryCachingPolicy,
         MappedFieldType... fieldTypes
     ) throws IOException {
-        // Don't use searchAndReduce because we only want a single aggregator.
-        IndexSearcher searcher = newIndexSearcher(
-            reader,
-            aggregationBuilder.supportsParallelCollection(field -> getCardinality(reader, field))
-        );
+        // Don't use searchAndReduce because we only want a single aggregator, disable parallel collection too.
+        IndexSearcher searcher = newIndexSearcher(reader, false);
         if (queryCachingPolicy != null) {
             searcher.setQueryCachingPolicy(queryCachingPolicy);
         }
@@ -854,7 +855,21 @@ public abstract class AggregatorTestCase extends ESTestCase {
         try {
             Aggregator aggregator = createAggregator(builder, context);
             aggregator.preCollection();
-            searcher.search(context.query(), aggregator.asCollector());
+            searcher.search(context.query(), new CollectorManager<Collector, Void>() {
+                boolean called = false;
+
+                @Override
+                public Collector newCollector() {
+                    assert called == false : "newCollector called multiple times";
+                    called = true;
+                    return aggregator.asCollector();
+                }
+
+                @Override
+                public Void reduce(Collection<Collector> collectors) {
+                    return null;
+                }
+            });
             InternalAggregation r = aggregator.buildTopLevel();
             r = doReduce(
                 List.of(r),
@@ -959,11 +974,11 @@ public abstract class AggregatorTestCase extends ESTestCase {
     }
 
     private static class ShardSearcher extends IndexSearcher {
-        private final List<LeafReaderContext> ctx;
+        private final LeafReaderContextPartition[] ctx;
 
         ShardSearcher(LeafReaderContext ctx, IndexReaderContext parent) {
             super(parent);
-            this.ctx = Collections.singletonList(ctx);
+            this.ctx = new LeafReaderContextPartition[] { IndexSearcher.LeafReaderContextPartition.createForEntireSegment(ctx) };
         }
 
         public void search(Weight weight, Collector collector) throws IOException {
@@ -972,7 +987,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
 
         @Override
         public String toString() {
-            return "ShardSearcher(" + ctx.get(0) + ")";
+            return "ShardSearcher(" + ctx[0] + ")";
         }
     }
 

@@ -578,7 +578,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
         );
     }
 
-    @UpdateForV9
+    @UpdateForV9(owner = UpdateForV9.Owner.SEARCH_FOUNDATIONS)
     @AwaitsFix(bugUrl = "this is testing legacy functionality so can likely be removed in 9.0")
     public void testDeprecatedParameters() {
         // 'index' is declared explicitly, 'store' is not, but is one of the previously always-accepted params

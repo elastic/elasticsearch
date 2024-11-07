@@ -62,7 +62,7 @@ public class SourceValueFetcherSortedNumericIndexFieldData extends SourceValueFe
     }
 
     @Override
-    public SourceValueFetcherSortedNumericLeafFieldData loadDirect(LeafReaderContext context) throws Exception {
+    public SourceValueFetcherSortedNumericLeafFieldData loadDirect(LeafReaderContext context) {
         return new SourceValueFetcherSortedNumericLeafFieldData(toScriptFieldFactory, context, valueFetcher, sourceProvider);
     }
 
@@ -129,7 +129,7 @@ public class SourceValueFetcherSortedNumericIndexFieldData extends SourceValueFe
         }
 
         @Override
-        public long nextValue() throws IOException {
+        public long nextValue() {
             assert iterator.hasNext();
             return iterator.next();
         }
@@ -140,12 +140,12 @@ public class SourceValueFetcherSortedNumericIndexFieldData extends SourceValueFe
         }
 
         @Override
-        public int nextDoc() throws IOException {
+        public int nextDoc() {
             throw new UnsupportedOperationException("not supported for source fallback");
         }
 
         @Override
-        public int advance(int target) throws IOException {
+        public int advance(int target) {
             throw new UnsupportedOperationException("not supported for source fallback");
         }
 

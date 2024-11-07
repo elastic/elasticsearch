@@ -16,7 +16,6 @@ import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -78,7 +77,7 @@ public final class DocumentParser {
         final RootDocumentParserContext context;
         final XContentType xContentType = source.getXContentType();
 
-        XContentMeteringParserDecorator meteringParserDecorator = source.getDocumentSizeObserver();
+        XContentMeteringParserDecorator meteringParserDecorator = source.getMeteringParserDecorator();
         try (
             XContentParser parser = meteringParserDecorator.decorate(
                 XContentHelper.createParser(parserConfiguration, source.source(), xContentType)
@@ -118,8 +117,7 @@ public final class DocumentParser {
         };
     }
 
-    private static void internalParseDocument(MetadataFieldMapper[] metadataFieldsMappers, DocumentParserContext context) {
-
+    private void internalParseDocument(MetadataFieldMapper[] metadataFieldsMappers, DocumentParserContext context) {
         try {
             final boolean emptyDoc = isEmptyDoc(context.root(), context.parser());
 
@@ -134,7 +132,7 @@ public final class DocumentParser {
                         new IgnoredSourceFieldMapper.NameValue(
                             MapperService.SINGLE_MAPPING_NAME,
                             0,
-                            XContentDataHelper.encodeToken(context.parser()),
+                            context.encodeFlattenedToken(),
                             context.doc()
                         )
                     );
@@ -218,6 +216,10 @@ public final class DocumentParser {
         }
     }
 
+    private static Mapper.SourceKeepMode getSourceKeepMode(DocumentParserContext context, Optional<Mapper.SourceKeepMode> mapperMode) {
+        return mapperMode.orElseGet(context::sourceKeepModeFromIndexSettings);
+    }
+
     private static void throwNotAtEnd(XContentParser.Token token) {
         throw new IllegalArgumentException("Malformed content, found extra data after parsing: " + token);
     }
@@ -276,8 +278,8 @@ public final class DocumentParser {
                 context.addIgnoredField(
                     new IgnoredSourceFieldMapper.NameValue(
                         context.parent().fullPath(),
-                        context.parent().fullPath().lastIndexOf(currentFieldName),
-                        XContentDataHelper.encodeToken(parser),
+                        context.parent().fullPath().lastIndexOf(context.parent().leafName()),
+                        context.encodeFlattenedToken(),
                         context.doc()
                     )
                 );
@@ -296,22 +298,24 @@ public final class DocumentParser {
             throwOnConcreteValue(context.parent(), currentFieldName, context);
         }
 
+        var sourceKeepMode = getSourceKeepMode(context, context.parent().sourceKeepMode());
+        if (context.canAddIgnoredField()
+            && (sourceKeepMode == Mapper.SourceKeepMode.ALL
+                || (sourceKeepMode == Mapper.SourceKeepMode.ARRAYS && context.inArrayScope()))) {
+            context = context.addIgnoredFieldFromContext(
+                new IgnoredSourceFieldMapper.NameValue(
+                    context.parent().fullPath(),
+                    context.parent().fullPath().lastIndexOf(context.parent().leafName()),
+                    null,
+                    context.doc()
+                )
+            );
+            token = context.parser().currentToken();
+            parser = context.parser();
+        }
+
         if (context.parent().isNested()) {
             // Handle a nested object that doesn't contain an array. Arrays are handled in #parseNonDynamicArray.
-            if (context.parent().storeArraySource() && context.canAddIgnoredField()) {
-                Tuple<DocumentParserContext, XContentBuilder> tuple = XContentDataHelper.cloneSubContext(context);
-                context.addIgnoredField(
-                    new IgnoredSourceFieldMapper.NameValue(
-                        context.parent().fullPath(),
-                        context.parent().fullPath().lastIndexOf(context.parent().leafName()),
-                        XContentDataHelper.encodeXContentBuilder(tuple.v2()),
-                        context.doc()
-                    )
-                );
-                context = tuple.v1();
-                token = context.parser().currentToken();
-                parser = context.parser();
-            }
             context = context.createNestedContext((NestedObjectMapper) context.parent());
         }
 
@@ -442,20 +446,16 @@ public final class DocumentParser {
                 parseObjectOrNested(context.createFlattenContext(currentFieldName));
                 context.path().add(currentFieldName);
             } else {
+                var sourceKeepMode = getSourceKeepMode(context, fieldMapper.sourceKeepMode());
                 if (context.canAddIgnoredField()
                     && (fieldMapper.syntheticSourceMode() == FieldMapper.SyntheticSourceMode.FALLBACK
+                        || sourceKeepMode == Mapper.SourceKeepMode.ALL
+                        || (sourceKeepMode == Mapper.SourceKeepMode.ARRAYS && context.inArrayScope())
                         || (context.isWithinCopyTo() == false && context.isCopyToDestinationField(mapper.fullPath())))) {
-                    Tuple<DocumentParserContext, XContentBuilder> contextWithSourceToStore = XContentDataHelper.cloneSubContext(context);
-
-                    context.addIgnoredField(
-                        IgnoredSourceFieldMapper.NameValue.fromContext(
-                            context,
-                            fieldMapper.fullPath(),
-                            XContentDataHelper.encodeXContentBuilder(contextWithSourceToStore.v2())
-                        )
+                    context = context.addIgnoredFieldFromContext(
+                        IgnoredSourceFieldMapper.NameValue.fromContext(context, fieldMapper.fullPath(), null)
                     );
-
-                    fieldMapper.parse(contextWithSourceToStore.v1());
+                    fieldMapper.parse(context);
                 } else {
                     fieldMapper.parse(context);
                 }
@@ -534,12 +534,11 @@ public final class DocumentParser {
         if (context.dynamic() == ObjectMapper.Dynamic.FALSE) {
             failIfMatchesRoutingPath(context, currentFieldName);
             if (context.canAddIgnoredField()) {
-                // read everything up to end object and store it
                 context.addIgnoredField(
                     IgnoredSourceFieldMapper.NameValue.fromContext(
                         context,
                         context.path().pathAsText(currentFieldName),
-                        XContentDataHelper.encodeToken(context.parser())
+                        context.encodeFlattenedToken()
                     )
                 );
             } else {
@@ -553,16 +552,9 @@ public final class DocumentParser {
                 // hence we don't dynamically create empty objects under properties, but rather carry around an artificial object mapper
                 dynamicObjectMapper = new NoOpObjectMapper(currentFieldName, context.path().pathAsText(currentFieldName));
                 if (context.canAddIgnoredField()) {
-                    // Clone the DocumentParserContext to parse its subtree twice.
-                    Tuple<DocumentParserContext, XContentBuilder> tuple = XContentDataHelper.cloneSubContext(context);
-                    context.addIgnoredField(
-                        IgnoredSourceFieldMapper.NameValue.fromContext(
-                            context,
-                            context.path().pathAsText(currentFieldName),
-                            XContentDataHelper.encodeXContentBuilder(tuple.v2())
-                        )
+                    context = context.addIgnoredFieldFromContext(
+                        IgnoredSourceFieldMapper.NameValue.fromContext(context, context.path().pathAsText(currentFieldName), null)
                     );
-                    context = tuple.v1();
                 }
             } else {
                 dynamicObjectMapper = DynamicFieldsBuilder.createDynamicObjectMapper(context, currentFieldName);
@@ -632,7 +624,7 @@ public final class DocumentParser {
                     IgnoredSourceFieldMapper.NameValue.fromContext(
                         context,
                         context.path().pathAsText(currentFieldName),
-                        XContentDataHelper.encodeToken(context.parser())
+                        context.encodeFlattenedToken()
                     )
                 );
             } else {
@@ -650,7 +642,7 @@ public final class DocumentParser {
                             IgnoredSourceFieldMapper.NameValue.fromContext(
                                 context,
                                 context.path().pathAsText(currentFieldName),
-                                XContentDataHelper.encodeToken(context.parser())
+                                context.encodeFlattenedToken()
                             )
                         );
                     } catch (IOException e) {
@@ -686,55 +678,73 @@ public final class DocumentParser {
         final String lastFieldName,
         String arrayFieldName
     ) throws IOException {
-        // Check if we need to record the array source. This only applies to synthetic source.
-        if (context.canAddIgnoredField()) {
-            String fullPath = context.path().pathAsText(arrayFieldName);
+        String fullPath = context.path().pathAsText(arrayFieldName);
 
-            boolean objectRequiresStoringSource = mapper instanceof ObjectMapper objectMapper
-                && (objectMapper.storeArraySource()
-                    || (context.sourceKeepModeFromIndexSettings() == Mapper.SourceKeepMode.ARRAYS
-                        && objectMapper instanceof NestedObjectMapper == false)
-                    || objectMapper.dynamic == ObjectMapper.Dynamic.RUNTIME);
-            boolean fieldWithFallbackSyntheticSource = mapper instanceof FieldMapper fieldMapper
-                && fieldMapper.syntheticSourceMode() == FieldMapper.SyntheticSourceMode.FALLBACK;
-            boolean fieldWithStoredArraySource = mapper instanceof FieldMapper
-                && context.sourceKeepModeFromIndexSettings() == Mapper.SourceKeepMode.ARRAYS;
-            boolean dynamicRuntimeContext = context.dynamic() == ObjectMapper.Dynamic.RUNTIME;
+        // Check if we need to record the array source. This only applies to synthetic source.
+        boolean canRemoveSingleLeafElement = false;
+        if (context.canAddIgnoredField()) {
+            Mapper.SourceKeepMode mode = Mapper.SourceKeepMode.NONE;
+            boolean objectWithFallbackSyntheticSource = false;
+            if (mapper instanceof ObjectMapper objectMapper) {
+                mode = getSourceKeepMode(context, objectMapper.sourceKeepMode());
+                objectWithFallbackSyntheticSource = mode == Mapper.SourceKeepMode.ALL
+                    || (mode == Mapper.SourceKeepMode.ARRAYS && objectMapper instanceof NestedObjectMapper == false);
+            }
+            boolean fieldWithFallbackSyntheticSource = false;
+            boolean fieldWithStoredArraySource = false;
+            if (mapper instanceof FieldMapper fieldMapper) {
+                mode = getSourceKeepMode(context, fieldMapper.sourceKeepMode());
+                fieldWithFallbackSyntheticSource = fieldMapper.syntheticSourceMode() == FieldMapper.SyntheticSourceMode.FALLBACK;
+                fieldWithStoredArraySource = mode != Mapper.SourceKeepMode.NONE;
+            }
             boolean copyToFieldHasValuesInDocument = context.isWithinCopyTo() == false && context.isCopyToDestinationField(fullPath);
-            if (objectRequiresStoringSource
+
+            canRemoveSingleLeafElement = mapper instanceof FieldMapper
+                && mode == Mapper.SourceKeepMode.ARRAYS
+                && fieldWithFallbackSyntheticSource == false
+                && copyToFieldHasValuesInDocument == false;
+
+            if (objectWithFallbackSyntheticSource
                 || fieldWithFallbackSyntheticSource
-                || dynamicRuntimeContext
                 || fieldWithStoredArraySource
                 || copyToFieldHasValuesInDocument) {
-                Tuple<DocumentParserContext, XContentBuilder> tuple = XContentDataHelper.cloneSubContext(context);
-                context.addIgnoredField(
-                    IgnoredSourceFieldMapper.NameValue.fromContext(context, fullPath, XContentDataHelper.encodeXContentBuilder(tuple.v2()))
-                );
-                context = tuple.v1();
-            } else if (mapper instanceof ObjectMapper objectMapper
-                && (objectMapper.isEnabled() == false || objectMapper.dynamic == ObjectMapper.Dynamic.FALSE)) {
-                    context.addIgnoredField(
-                        IgnoredSourceFieldMapper.NameValue.fromContext(context, fullPath, XContentDataHelper.encodeToken(context.parser()))
-                    );
-                    return;
-                }
+                context = context.addIgnoredFieldFromContext(IgnoredSourceFieldMapper.NameValue.fromContext(context, fullPath, null));
+            } else if (mapper instanceof ObjectMapper objectMapper && (objectMapper.isEnabled() == false)) {
+                // No need to call #addIgnoredFieldFromContext as both singleton and array instances of this object
+                // get tracked through ignored source.
+                context.addIgnoredField(IgnoredSourceFieldMapper.NameValue.fromContext(context, fullPath, context.encodeFlattenedToken()));
+                return;
+            }
         }
+
+        // In synthetic source, if any array element requires storing its source as-is, it takes precedence over
+        // elements from regular source loading that are then skipped from the synthesized array source.
+        // To prevent this, we track that parsing sub-context is within array scope.
+        context = context.maybeCloneForArray(mapper);
 
         XContentParser parser = context.parser();
         XContentParser.Token token;
+        int elements = 0;
         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
             if (token == XContentParser.Token.START_OBJECT) {
+                elements = Integer.MAX_VALUE;
                 parseObject(context, lastFieldName);
             } else if (token == XContentParser.Token.START_ARRAY) {
+                elements = Integer.MAX_VALUE;
                 parseArray(context, lastFieldName);
             } else if (token == XContentParser.Token.VALUE_NULL) {
+                elements++;
                 parseNullValue(context, lastFieldName);
             } else if (token == null) {
                 throwEOFOnParseArray(arrayFieldName, context);
             } else {
                 assert token.isValue();
+                elements++;
                 parseValue(context, lastFieldName);
             }
+        }
+        if (elements <= 1 && canRemoveSingleLeafElement) {
+            context.removeLastIgnoredField(fullPath);
         }
         postProcessDynamicArrayMapping(context, lastFieldName);
     }
@@ -824,7 +834,7 @@ public final class DocumentParser {
                     IgnoredSourceFieldMapper.NameValue.fromContext(
                         context,
                         context.path().pathAsText(currentFieldName),
-                        XContentDataHelper.encodeToken(context.parser())
+                        context.encodeFlattenedToken()
                     )
                 );
             }
@@ -835,7 +845,7 @@ public final class DocumentParser {
                 IgnoredSourceFieldMapper.NameValue.fromContext(
                     context,
                     context.path().pathAsText(currentFieldName),
-                    XContentDataHelper.encodeToken(context.parser())
+                    context.encodeFlattenedToken()
                 )
             );
         }
@@ -872,7 +882,6 @@ public final class DocumentParser {
                 // ignore copy_to that targets inference fields, values are already extracted in the coordinating node to perform inference.
                 continue;
             }
-
             // In case of a hierarchy of nested documents, we need to figure out
             // which document the field should go to
             LuceneDocument targetDoc = null;
@@ -935,7 +944,7 @@ public final class DocumentParser {
                 if (context.dynamic() == ObjectMapper.Dynamic.RUNTIME && context.canAddIgnoredField()) {
                     try {
                         context.addIgnoredField(
-                            IgnoredSourceFieldMapper.NameValue.fromContext(context, path, XContentDataHelper.encodeToken(context.parser()))
+                            IgnoredSourceFieldMapper.NameValue.fromContext(context, path, context.encodeFlattenedToken())
                         );
                     } catch (IOException e) {
                         throw new IllegalArgumentException(
@@ -1007,15 +1016,7 @@ public final class DocumentParser {
 
     private static class NoOpObjectMapper extends ObjectMapper {
         NoOpObjectMapper(String name, String fullPath) {
-            super(
-                name,
-                fullPath,
-                Explicit.IMPLICIT_TRUE,
-                Optional.empty(),
-                Explicit.IMPLICIT_FALSE,
-                Dynamic.RUNTIME,
-                Collections.emptyMap()
-            );
+            super(name, fullPath, Explicit.IMPLICIT_TRUE, Optional.empty(), Optional.empty(), Dynamic.RUNTIME, Collections.emptyMap());
         }
 
         @Override

@@ -13,10 +13,11 @@ import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.core.expression.predicate.nulls.IsNotNull;
-import org.elasticsearch.xpack.esql.core.rule.Rule;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
+import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.rule.Rule;
 
 import java.util.LinkedHashSet;
 import java.util.Set;
@@ -24,8 +25,7 @@ import java.util.Set;
 import static java.util.Collections.emptySet;
 
 /**
- * Simplify IsNotNull targets by resolving the underlying expression to its root fields with unknown
- * nullability.
+ * Simplify IsNotNull targets by resolving the underlying expression to its root fields.
  * e.g.
  * (x + 1) / 2 IS NOT NULL --> x IS NOT NULL AND (x+1) / 2 IS NOT NULL
  * SUBSTRING(x, 3) > 4 IS NOT NULL --> x IS NOT NULL AND SUBSTRING(x, 3) > 4 IS NOT NULL
@@ -85,7 +85,7 @@ public class InferIsNotNull extends Rule<LogicalPlan, LogicalPlan> {
 
     private boolean doResolve(Expression exp, AttributeMap<Expression> aliases, Set<Expression> resolvedExpressions) {
         boolean changed = false;
-        // check if the expression can be skipped or is not nullabe
+        // check if the expression can be skipped
         if (skipExpression(exp)) {
             resolvedExpressions.add(exp);
         } else {
@@ -106,6 +106,13 @@ public class InferIsNotNull extends Rule<LogicalPlan, LogicalPlan> {
     }
 
     private static boolean skipExpression(Expression e) {
-        return e instanceof Coalesce;
+        // These two functions can have a complex set of expressions as arguments that can mess up the simplification we are trying to add.
+        // If there is a "case(f is null, null, ...) is not null" expression,
+        // assuming that "case(f is null.....) is not null AND f is not null" (what this rule is doing) is a wrong assumption because
+        // the "case" function will want both null "f" and not null "f". Doing it like this contradicts the condition inside case, so we
+        // must avoid these cases.
+        // We could be smarter and look inside "case" and "coalesce" to see if there is any comparison of fields with "null" but,
+        // the complexity is too high to warrant an attempt _now_.
+        return e instanceof Coalesce || e instanceof Case;
     }
 }

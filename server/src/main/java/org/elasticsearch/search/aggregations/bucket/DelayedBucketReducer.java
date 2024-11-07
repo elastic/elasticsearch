@@ -68,7 +68,9 @@ public final class DelayedBucketReducer<B extends MultiBucketsAggregation.Bucket
      * returns the reduced {@link InternalAggregations}.
      */
     public InternalAggregations getAggregations() {
-        try (AggregatorsReducer aggregatorsReducer = new AggregatorsReducer(context, internalAggregations.size())) {
+        try (
+            AggregatorsReducer aggregatorsReducer = new AggregatorsReducer(proto.getAggregations(), context, internalAggregations.size())
+        ) {
             for (InternalAggregations agg : internalAggregations) {
                 aggregatorsReducer.accept(agg);
             }

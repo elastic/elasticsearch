@@ -121,7 +121,8 @@ naming scheme].
 * Specify a mapping that defines your dimensions and metrics:
 
 ** One or more <<time-series-dimension,dimension fields>> with a `time_series_dimension` value of `true`.
-   At least one of these dimensions must be a plain `keyword` field.
+   Alternatively, one or more <<passthrough-dimensions, pass-through>> fields configured as dimension containers,
+   provided that they will contain at least one sub-field (mapped statically or dynamically).
 
 ** One or more <<time-series-metric,metric fields>>, marked using the `time_series_metric` mapping parameter.
 
@@ -203,10 +204,9 @@ DELETE _ilm/policy/my-weather-sensor-lifecycle-policy
 Documents in a TSDS must include:
 
 * A `@timestamp` field
-* One or more dimension fields. At least one dimension must be a `keyword` field
-that matches the `index.routing_path` index setting, if specified. If not specified
-explicitly, `index.routing_path` is set automatically to whichever mappings have
- `time_series_dimension` set to `true`.
+* One or more dimension fields. At least one dimension must match the `index.routing_path` index setting,
+if specified. If not specified explicitly, `index.routing_path` is set automatically to whichever mappings have
+`time_series_dimension` set to `true`.
 
 To automatically create your TSDS, submit an indexing request that
 targets the TSDS's name. This name must match one of your index template's
@@ -285,13 +285,12 @@ POST metrics-weather_sensors-dev/_rollover
 
 Configuring a TSDS via an index template that uses component templates is a bit more complicated.
 Typically with component templates mappings and settings get scattered across multiple component templates.
-When configuring the `index.mode` setting in a component template, the `index.routing_path` setting needs to
-be defined in the same component template. Additionally the fields mentioned in the `index.routing_path`
-also need to be defined in the same component template with the `time_series_dimension` attribute enabled.
+If the `index.routing_path` is defined, the fields it references need to be defined in the same component
+template with the `time_series_dimension` attribute enabled.
 
-The reasons for this is that each component template needs to be valid on its own and the time series index mode
-requires the `index.routing_path` setting. When configuring the  `index.mode` setting in an index template, the `index.routing_path` setting is configured automatically. It is derived  from
-the field mappings with `time_series_dimension` attribute enabled.
+The reasons for this is that each component template needs to be valid on its own. When configuring the
+`index.mode` setting in an index template, the `index.routing_path` setting is configured automatically.
+It is derived from the field mappings with `time_series_dimension` attribute enabled.
 
 [discrete]
 [[set-up-tsds-whats-next]]

@@ -38,18 +38,10 @@ public class ThrottledIterator<T> implements Releasable {
      *                     background task previously called {@link RefCounted#decRef()} on its ref count. This operation should not throw
      *                     any exceptions.
      * @param maxConcurrency The maximum number of ongoing operations at any time.
-     * @param onItemCompletion Executed when each item is completed, which can be used for instance to report on progress. Must not throw
-     *                         exceptions.
-     * @param onCompletion     Executed when all items are completed.
+     * @param onCompletion   Executed when all items are completed.
      */
-    public static <T> void run(
-        Iterator<T> iterator,
-        BiConsumer<Releasable, T> itemConsumer,
-        int maxConcurrency,
-        Runnable onItemCompletion,
-        Runnable onCompletion
-    ) {
-        try (var throttledIterator = new ThrottledIterator<>(iterator, itemConsumer, maxConcurrency, onItemCompletion, onCompletion)) {
+    public static <T> void run(Iterator<T> iterator, BiConsumer<Releasable, T> itemConsumer, int maxConcurrency, Runnable onCompletion) {
+        try (var throttledIterator = new ThrottledIterator<>(iterator, itemConsumer, maxConcurrency, onCompletion)) {
             throttledIterator.run();
         }
     }
@@ -58,22 +50,14 @@ public class ThrottledIterator<T> implements Releasable {
     private final Iterator<T> iterator;
     private final BiConsumer<Releasable, T> itemConsumer;
     private final Semaphore permits;
-    private final Runnable onItemCompletion;
 
-    private ThrottledIterator(
-        Iterator<T> iterator,
-        BiConsumer<Releasable, T> itemConsumer,
-        int maxConcurrency,
-        Runnable onItemCompletion,
-        Runnable onCompletion
-    ) {
+    private ThrottledIterator(Iterator<T> iterator, BiConsumer<Releasable, T> itemConsumer, int maxConcurrency, Runnable onCompletion) {
         this.iterator = Objects.requireNonNull(iterator);
         this.itemConsumer = Objects.requireNonNull(itemConsumer);
         if (maxConcurrency <= 0) {
             throw new IllegalArgumentException("maxConcurrency must be positive");
         }
         this.permits = new Semaphore(maxConcurrency);
-        this.onItemCompletion = Objects.requireNonNull(onItemCompletion);
         this.refs = AbstractRefCounted.of(onCompletion);
     }
 
@@ -114,26 +98,19 @@ public class ThrottledIterator<T> implements Releasable {
 
         @Override
         protected void closeInternal() {
+            permits.release();
             try {
-                onItemCompletion.run();
-            } catch (Exception e) {
-                logger.error("exception in onItemCompletion", e);
-                assert false : e;
-            } finally {
-                permits.release();
-                try {
-                    // Someone must now pick up the next item. Here we might be called from the run() invocation which started processing
-                    // the just-completed item (via close() -> decRef()) if that item's processing didn't fork or all its forked tasks
-                    // finished first. If so, there's no need to call run() here, we can just return and the next iteration of the run()
-                    // loop will continue the processing; moreover calling run() in this situation could lead to a stack overflow. However
-                    // if we're not within that run() invocation then ...
-                    if (isRecursive() == false) {
-                        // ... we're not within any other run() invocation either, so it's safe (and necessary) to call run() here.
-                        run();
-                    }
-                } finally {
-                    refs.decRef();
+                // Someone must now pick up the next item. Here we might be called from the run() invocation which started processing the
+                // just-completed item (via close() -> decRef()) if that item's processing didn't fork or all its forked tasks finished
+                // first. If so, there's no need to call run() here, we can just return and the next iteration of the run() loop will
+                // continue the processing; moreover calling run() in this situation could lead to a stack overflow. However if we're not
+                // within that run() invocation then ...
+                if (isRecursive() == false) {
+                    // ... we're not within any other run() invocation either, so it's safe (and necessary) to call run() here.
+                    run();
                 }
+            } finally {
+                refs.decRef();
             }
         }
 

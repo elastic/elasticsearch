@@ -56,7 +56,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 @SuppressWarnings("deprecation")
-@UpdateForV9
+@UpdateForV9(owner = UpdateForV9.Owner.SEARCH_ANALYTICS)
 @AwaitsFix(bugUrl = "this is testing legacy functionality so can likely be removed in 9.0")
 public class LegacyGeoShapeFieldMapperTests extends MapperTestCase {
 

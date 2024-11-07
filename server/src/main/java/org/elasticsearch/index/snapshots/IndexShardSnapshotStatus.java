@@ -184,6 +184,10 @@ public class IndexShardSnapshotStatus {
         }
     }
 
+    public Stage getStage() {
+        return stage.get();
+    }
+
     public void addAbortListener(ActionListener<AbortStatus> listener) {
         abortListeners.addListener(listener);
     }
@@ -428,5 +432,32 @@ public class IndexShardSnapshotStatus {
                 + '\''
                 + ')';
         }
+    }
+
+    @Override
+    public String toString() {
+        return "index shard snapshot status ("
+            + "stage="
+            + stage
+            + ", startTime="
+            + startTime
+            + ", totalTime="
+            + totalTime
+            + ", incrementalFileCount="
+            + incrementalFileCount
+            + ", totalFileCount="
+            + totalFileCount
+            + ", processedFileCount="
+            + processedFileCount
+            + ", incrementalSize="
+            + incrementalSize
+            + ", totalSize="
+            + totalSize
+            + ", processedSize="
+            + processedSize
+            + ", failure='"
+            + failure
+            + '\''
+            + ')';
     }
 }

@@ -88,7 +88,6 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         public static final String ANALYZE = "analyze";
         public static final String WRITE = "write";
         public static final String SEARCH = "search";
-        public static final String SEARCH_WORKER = "search_worker";
         public static final String SEARCH_COORDINATION = "search_coordination";
         public static final String AUTO_COMPLETE = "auto_complete";
         public static final String SEARCH_THROTTLED = "search_throttled";
@@ -121,11 +120,11 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
 
     public enum ThreadPoolType {
         @Deprecated(forRemoval = true)
-        @UpdateForV9 // no longer used, remove in v9
+        @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA) // no longer used, remove in v9
         DIRECT("direct"),
         FIXED("fixed"),
         @Deprecated(forRemoval = true)
-        @UpdateForV9 // no longer used, remove in v9
+        @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA) // no longer used, remove in v9
         FIXED_AUTO_QUEUE_SIZE("fixed_auto_queue_size"),
         SCALING("scaling");
 
@@ -158,7 +157,6 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         entry(Names.ANALYZE, ThreadPoolType.FIXED),
         entry(Names.WRITE, ThreadPoolType.FIXED),
         entry(Names.SEARCH, ThreadPoolType.FIXED),
-        entry(Names.SEARCH_WORKER, ThreadPoolType.FIXED),
         entry(Names.SEARCH_COORDINATION, ThreadPoolType.FIXED),
         entry(Names.AUTO_COMPLETE, ThreadPoolType.FIXED),
         entry(Names.MANAGEMENT, ThreadPoolType.SCALING),

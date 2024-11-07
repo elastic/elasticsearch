@@ -9,25 +9,24 @@
 package org.elasticsearch.action.admin.indices.open;
 
 import org.elasticsearch.action.support.ActiveShardCount;
-import org.elasticsearch.cluster.ack.IndicesClusterStateUpdateRequest;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.Index;
+
+import java.util.Objects;
 
 /**
  * Cluster state update request that allows to open one or more indices
  */
-public class OpenIndexClusterStateUpdateRequest extends IndicesClusterStateUpdateRequest<OpenIndexClusterStateUpdateRequest> {
-
-    private ActiveShardCount waitForActiveShards = ActiveShardCount.DEFAULT;
-
-    public OpenIndexClusterStateUpdateRequest() {
-
-    }
-
-    public ActiveShardCount waitForActiveShards() {
-        return waitForActiveShards;
-    }
-
-    public OpenIndexClusterStateUpdateRequest waitForActiveShards(ActiveShardCount waitForActiveShards) {
-        this.waitForActiveShards = waitForActiveShards;
-        return this;
+public record OpenIndexClusterStateUpdateRequest(
+    TimeValue masterNodeTimeout,
+    TimeValue ackTimeout,
+    ActiveShardCount waitForActiveShards,
+    Index[] indices
+) {
+    public OpenIndexClusterStateUpdateRequest {
+        Objects.requireNonNull(masterNodeTimeout);
+        Objects.requireNonNull(ackTimeout);
+        Objects.requireNonNull(waitForActiveShards);
+        Objects.requireNonNull(indices);
     }
 }

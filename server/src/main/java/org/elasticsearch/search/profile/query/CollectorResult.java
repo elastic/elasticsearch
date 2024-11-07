@@ -19,15 +19,12 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
-
-import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
 /**
  * Public interface and serialization container for profiled timings of the
@@ -43,11 +40,11 @@ public class CollectorResult extends ProfilerCollectorResult implements ToXConte
     public static final String REASON_AGGREGATION = "aggregation";
     public static final String REASON_AGGREGATION_GLOBAL = "aggregation_global";
 
-    private static final ParseField NAME = new ParseField("name");
-    private static final ParseField REASON = new ParseField("reason");
-    private static final ParseField TIME = new ParseField("time");
-    private static final ParseField TIME_NANOS = new ParseField("time_in_nanos");
-    private static final ParseField CHILDREN = new ParseField("children");
+    public static final ParseField NAME = new ParseField("name");
+    public static final ParseField REASON = new ParseField("reason");
+    public static final ParseField TIME = new ParseField("time");
+    public static final ParseField TIME_NANOS = new ParseField("time_in_nanos");
+    public static final ParseField CHILDREN = new ParseField("children");
 
     public CollectorResult(String collectorName, String reason, long time, List<CollectorResult> children) {
         super(collectorName, reason, time, new ArrayList<>(children));
@@ -119,41 +116,4 @@ public class CollectorResult extends ProfilerCollectorResult implements ToXConte
         return builder;
     }
 
-    public static CollectorResult fromXContent(XContentParser parser) throws IOException {
-        XContentParser.Token token = parser.currentToken();
-        ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
-        String currentFieldName = null;
-        String name = null, reason = null;
-        long time = -1;
-        List<CollectorResult> children = new ArrayList<>();
-        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            if (token == XContentParser.Token.FIELD_NAME) {
-                currentFieldName = parser.currentName();
-            } else if (token.isValue()) {
-                if (NAME.match(currentFieldName, parser.getDeprecationHandler())) {
-                    name = parser.text();
-                } else if (REASON.match(currentFieldName, parser.getDeprecationHandler())) {
-                    reason = parser.text();
-                } else if (TIME.match(currentFieldName, parser.getDeprecationHandler())) {
-                    // we need to consume this value, but we use the raw nanosecond value
-                    parser.text();
-                } else if (TIME_NANOS.match(currentFieldName, parser.getDeprecationHandler())) {
-                    time = parser.longValue();
-                } else {
-                    parser.skipChildren();
-                }
-            } else if (token == XContentParser.Token.START_ARRAY) {
-                if (CHILDREN.match(currentFieldName, parser.getDeprecationHandler())) {
-                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        children.add(CollectorResult.fromXContent(parser));
-                    }
-                } else {
-                    parser.skipChildren();
-                }
-            } else {
-                parser.skipChildren();
-            }
-        }
-        return new CollectorResult(name, reason, time, children);
-    }
 }

@@ -18,6 +18,9 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.esql.core.util.PlanStreamInput.readCachedStringWithVersionCheck;
+import static org.elasticsearch.xpack.esql.core.util.PlanStreamOutput.writeCachedStringWithVersionCheck;
+
 /**
  * Information about a field in an ES index.
  */
@@ -59,8 +62,8 @@ public class EsField implements Writeable {
         this.isAlias = isAlias;
     }
 
-    protected EsField(StreamInput in) throws IOException {
-        this.name = in.readString();
+    public EsField(StreamInput in) throws IOException {
+        this.name = readCachedStringWithVersionCheck(in);
         this.esDataType = readDataType(in);
         this.properties = in.readImmutableMap(EsField::readFrom);
         this.aggregatable = in.readBoolean();
@@ -68,7 +71,7 @@ public class EsField implements Writeable {
     }
 
     private DataType readDataType(StreamInput in) throws IOException {
-        String name = in.readString();
+        String name = readCachedStringWithVersionCheck(in);
         if (in.getTransportVersion().before(TransportVersions.ESQL_NESTED_UNSUPPORTED) && name.equalsIgnoreCase("NESTED")) {
             /*
              * The "nested" data type existed in older versions of ESQL but was
@@ -97,8 +100,8 @@ public class EsField implements Writeable {
     /**
      * This needs to be overridden by subclasses for specific serialization
      */
-    protected void writeContent(StreamOutput out) throws IOException {
-        out.writeString(name);
+    public void writeContent(StreamOutput out) throws IOException {
+        writeCachedStringWithVersionCheck(out, name);
         esDataType.writeTo(out);
         out.writeMap(properties, (o, x) -> x.writeTo(out));
         out.writeBoolean(aggregatable);

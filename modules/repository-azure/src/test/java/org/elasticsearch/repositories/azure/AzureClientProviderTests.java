@@ -11,6 +11,7 @@ package org.elasticsearch.repositories.azure;
 
 import com.azure.storage.common.policy.RequestRetryOptions;
 
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
@@ -19,15 +20,13 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
 
-import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
-import java.util.function.BiConsumer;
 
 public class AzureClientProviderTests extends ESTestCase {
-    private static final BiConsumer<String, URL> EMPTY_CONSUMER = (method, url) -> {};
+    private static final AzureClientProvider.RequestMetricsHandler NOOP_HANDLER = (purpose, method, url, metrics) -> {};
 
     private ThreadPool threadPool;
     private AzureClientProvider azureClientProvider;
@@ -72,7 +71,14 @@ public class AzureClientProviderTests extends ESTestCase {
 
         LocationMode locationMode = LocationMode.SECONDARY_ONLY;
         RequestRetryOptions requestRetryOptions = new RequestRetryOptions();
-        azureClientProvider.createClient(storageSettings, locationMode, requestRetryOptions, null, EMPTY_CONSUMER);
+        azureClientProvider.createClient(
+            storageSettings,
+            locationMode,
+            requestRetryOptions,
+            null,
+            NOOP_HANDLER,
+            randomFrom(OperationPurpose.values())
+        );
     }
 
     public void testCanNotCreateAClientWithSecondaryLocationWithoutAProperEndpoint() {
@@ -95,7 +101,14 @@ public class AzureClientProviderTests extends ESTestCase {
         RequestRetryOptions requestRetryOptions = new RequestRetryOptions();
         expectThrows(
             IllegalArgumentException.class,
-            () -> azureClientProvider.createClient(storageSettings, locationMode, requestRetryOptions, null, EMPTY_CONSUMER)
+            () -> azureClientProvider.createClient(
+                storageSettings,
+                locationMode,
+                requestRetryOptions,
+                null,
+                NOOP_HANDLER,
+                randomFrom(OperationPurpose.values())
+            )
         );
     }
 

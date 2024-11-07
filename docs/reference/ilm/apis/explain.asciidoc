@@ -303,6 +303,12 @@ the case.
         "index_uuid": "H7lF9n36Rzqa-KfKcnGQMg",
         "index": "test-000057"
       },
+      "previous_step_info": { <5>
+        "type": "cluster_block_exception",
+        "reason": "index [test-000057/H7lF9n36Rzqa-KfKcnGQMg] blocked by: [FORBIDDEN/5/index read-only (api)",
+        "index_uuid": "H7lF9n36Rzqa-KfKcnGQMg",
+        "index": "test-000057"
+      },
       "phase_execution": {
         "policy": "my_lifecycle3",
         "phase_definition": {
@@ -329,3 +335,4 @@ is true, {ilm-init} will retry the failed step automatically.
 <3> Shows the number of attempted automatic retries to execute the failed
 step.
 <4> What went wrong
+<5> Contains a copy of the `step_info` field (when it exists) of the last attempted or executed step for diagnostic purposes, since the `step_info` is overwritten during each new attempt.

@@ -56,5 +56,6 @@
   "examples" : [
     "ROW a=[3, 5, 6]\n| EVAL sum_a = MV_SUM(a)"
   ],
-  "preview" : false
+  "preview" : false,
+  "snapshot_only" : false
 }

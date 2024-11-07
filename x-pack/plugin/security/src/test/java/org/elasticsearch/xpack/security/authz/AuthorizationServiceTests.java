@@ -115,7 +115,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
@@ -286,13 +285,13 @@ public class AuthorizationServiceTests extends ESTestCase {
 
         final NativePrivilegeStore privilegesStore = mock(NativePrivilegeStore.class);
         doAnswer(i -> {
-            assertThat(i.getArguments().length, equalTo(3));
-            final Object arg2 = i.getArguments()[2];
+            assertThat(i.getArguments().length, equalTo(4));
+            final Object arg2 = i.getArguments()[3];
             assertThat(arg2, instanceOf(ActionListener.class));
             ActionListener<Collection<ApplicationPrivilege>> listener = (ActionListener<Collection<ApplicationPrivilege>>) arg2;
             listener.onResponse(Collections.emptyList());
             return null;
-        }).when(privilegesStore).getPrivileges(any(Collection.class), any(Collection.class), anyActionListener());
+        }).when(privilegesStore).getPrivileges(any(Collection.class), any(Collection.class), eq(false), anyActionListener());
 
         final Map<Set<String>, Role> roleCache = new HashMap<>();
         final AnonymousUser anonymousUser = mock(AnonymousUser.class);
@@ -1580,7 +1579,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         TransportShardBulkAction.performOnPrimary(
             request,
             indexShard,
-            new UpdateHelper(mock(ScriptService.class), DocumentParsingProvider.EMPTY_INSTANCE),
+            new UpdateHelper(mock(ScriptService.class)),
             System::currentTimeMillis,
             mappingUpdater,
             waitForMappingUpdate,

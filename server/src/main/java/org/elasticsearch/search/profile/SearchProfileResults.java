@@ -16,6 +16,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -143,15 +144,10 @@ public final class SearchProfileResults implements Writeable, ToXContentFragment
         Matcher m = SHARD_ID_DECOMPOSITION.matcher(compositeId);
         if (m.find()) {
             String nodeId = m.group(1);
-            String indexName = m.group(2);
+            String[] tokens = RemoteClusterAware.splitIndexName(m.group(2));
+            String cluster = tokens[0];
+            String indexName = tokens[1];
             int shardId = Integer.parseInt(m.group(3));
-            String cluster = null;
-            if (indexName.contains(":")) {
-                // index names and cluster names cannot contain a ':', so this split should be accurate
-                String[] tokens = indexName.split(":", 2);
-                cluster = tokens[0];
-                indexName = tokens[1];
-            }
             return new ShardProfileId(nodeId, indexName, shardId, cluster);
         } else {
             assert false : "Unable to match input against expected pattern of [nodeId][indexName][shardId]. Input: " + compositeId;

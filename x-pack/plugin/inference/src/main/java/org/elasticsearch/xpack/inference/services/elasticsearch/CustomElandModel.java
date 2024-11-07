@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.services.elasticsearch;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
@@ -21,9 +22,10 @@ public class CustomElandModel extends ElasticsearchInternalModel {
         String inferenceEntityId,
         TaskType taskType,
         String service,
-        ElasticsearchInternalServiceSettings internalServiceSettings
+        ElasticsearchInternalServiceSettings internalServiceSettings,
+        ChunkingSettings chunkingSettings
     ) {
-        super(inferenceEntityId, taskType, service, internalServiceSettings);
+        super(inferenceEntityId, taskType, service, internalServiceSettings, chunkingSettings);
     }
 
     public CustomElandModel(

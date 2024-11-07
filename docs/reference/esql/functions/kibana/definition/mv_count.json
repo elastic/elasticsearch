@@ -176,5 +176,6 @@
   "examples" : [
     "ROW a=[\"foo\", \"zoo\", \"bar\"]\n| EVAL count_a = MV_COUNT(a)"
   ],
-  "preview" : false
+  "preview" : false,
+  "snapshot_only" : false
 }

@@ -430,7 +430,7 @@ public class FileSettingsServiceTests extends ESTestCase {
             Files.move(tempFilePath, path, REPLACE_EXISTING, ATOMIC_MOVE);
         } catch (AtomicMoveNotSupportedException e) {
             logger.info("Atomic move not available. Falling back on non-atomic move to write [{}]", path.toAbsolutePath());
-            Files.move(tempFilePath, path);
+            Files.move(tempFilePath, path, REPLACE_EXISTING);
         }
     }
 

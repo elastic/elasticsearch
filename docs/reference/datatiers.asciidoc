@@ -39,7 +39,7 @@ Review our recommendations for optimizing your storage for <<indexing-use-faster
 
 IMPORTANT: {es} assumes nodes within a data tier share the same hardware profile (such as CPU, RAM, disk capacity) 
 as it spreads the load equally across all nodes within the data tier.
-Variations not following this recommendation should be carefully architected to avoid <<hotspotting,hot spotting>>.
+Data tiers with unequally resourced nodes are at risk of <<hotspotting,hot spotting>>.
 
 The way data tiers are used often depends on the data's category:
 

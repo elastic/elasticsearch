@@ -16,6 +16,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
@@ -57,9 +58,11 @@ public abstract class QueryList {
     abstract Query getQuery(int position);
 
     /**
-     * Returns a list of term queries for the given field and the input block.
+     * Returns a list of term queries for the given field and the input block
+     * using only the {@link ElementType} of the {@link Block} to determine the
+     * query.
      */
-    public static QueryList termQueryList(MappedFieldType field, SearchExecutionContext searchExecutionContext, Block block) {
+    public static QueryList rawTermQueryList(MappedFieldType field, SearchExecutionContext searchExecutionContext, Block block) {
         IntFunction<Object> blockToJavaObject = switch (block.elementType()) {
             case BOOLEAN -> {
                 BooleanBlock booleanBlock = (BooleanBlock) block;
@@ -94,7 +97,8 @@ public abstract class QueryList {
     }
 
     /**
-     * Returns a list of term queries for the given field and the input block.
+     * Returns a list of term queries for the given field and the input block of
+     * {@code ip} field values.
      */
     public static QueryList ipTermQueryList(MappedFieldType field, SearchExecutionContext searchExecutionContext, BytesRefBlock block) {
         BytesRef scratch = new BytesRef();
@@ -111,9 +115,10 @@ public abstract class QueryList {
     }
 
     /**
-     * Returns a list of term queries for the given field and the input block.
+     * Returns a list of term queries for the given field and the input block of
+     * {@code date} field values.
      */
-    public static QueryList longTermQueryList(MappedFieldType field, SearchExecutionContext searchExecutionContext, LongBlock block) {
+    public static QueryList dateTermQueryList(MappedFieldType field, SearchExecutionContext searchExecutionContext, LongBlock block) {
         return new TermQueryList(
             field,
             searchExecutionContext,
@@ -127,7 +132,7 @@ public abstract class QueryList {
     /**
      * Returns a list of geo_shape queries for the given field and the input block.
      */
-    public static QueryList geoShapeQuery(MappedFieldType field, SearchExecutionContext searchExecutionContext, Block block) {
+    public static QueryList geoShapeQueryList(MappedFieldType field, SearchExecutionContext searchExecutionContext, Block block) {
         return new GeoShapeQueryList(field, searchExecutionContext, block);
     }
 

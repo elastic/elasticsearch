@@ -80,7 +80,7 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
         MappedFieldType fieldType = context.getFieldType(request.matchField);
         return switch (request.matchType) {
             case "match", "range" -> termQueryList(fieldType, context, inputBlock, inputDataType);
-            case "geo_match" -> QueryList.geoShapeQuery(fieldType, context, inputBlock);
+            case "geo_match" -> QueryList.geoShapeQueryList(fieldType, context, inputBlock);
             default -> throw new EsqlIllegalArgumentException("illegal match type " + request.matchType);
         };
     }

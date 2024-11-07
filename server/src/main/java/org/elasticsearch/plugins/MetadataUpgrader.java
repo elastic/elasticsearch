@@ -12,18 +12,24 @@ package org.elasticsearch.plugins;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 
-import java.util.Collection;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.function.UnaryOperator;
+import java.util.stream.Collectors;
 
 /**
  * Upgrades {@link Metadata} on startup on behalf of installed {@link Plugin}s
  */
 public class MetadataUpgrader {
     public final UnaryOperator<Map<String, IndexTemplateMetadata>> indexTemplateMetadataUpgraders;
+    public final Map<String, Function<Metadata.Custom, Metadata.Custom>> customMetadataUpgraders;
 
-    public MetadataUpgrader(Collection<UnaryOperator<Map<String, IndexTemplateMetadata>>> indexTemplateMetadataUpgraders) {
+    public MetadataUpgrader(
+        List<UnaryOperator<Map<String, IndexTemplateMetadata>>> indexTemplateMetadataUpgraders,
+        List<Map<String, UnaryOperator<Metadata.Custom>>> customMetadataUpgraders
+    ) {
         this.indexTemplateMetadataUpgraders = templates -> {
             Map<String, IndexTemplateMetadata> upgradedTemplates = new HashMap<>(templates);
             for (UnaryOperator<Map<String, IndexTemplateMetadata>> upgrader : indexTemplateMetadataUpgraders) {
@@ -31,5 +37,8 @@ public class MetadataUpgrader {
             }
             return upgradedTemplates;
         };
+        this.customMetadataUpgraders = customMetadataUpgraders.stream()
+            .flatMap(map -> map.entrySet().stream())
+            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, Function::andThen));
     }
 }

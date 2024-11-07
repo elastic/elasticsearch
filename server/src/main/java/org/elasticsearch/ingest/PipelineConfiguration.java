@@ -156,4 +156,40 @@ public final class PipelineConfiguration implements SimpleDiffable<PipelineConfi
         result = 31 * result + getConfigAsMap().hashCode();
         return result;
     }
+
+    /**
+     * Returns a copy of this object with processor upgrades applied, if necessary. Otherwise, returns this object.
+     *
+     * <p>The given upgrader is applied to the config map for any processor of the given type.
+     */
+    PipelineConfiguration maybeUpgradeProcessors(String type, IngestMetadata.ProcessorConfigUpgrader upgrader) {
+        Map<String, Object> mutableConfigMap = getConfigAsMap();
+        boolean changed = false;
+        // This should be a List of Maps, where the keys are processor types and the values are config maps.
+        // But we'll skip upgrading rather than fail if not.
+        Object processorList = mutableConfigMap.get(Pipeline.PROCESSORS_KEY);
+        if (processorList instanceof Iterable) {
+            for (Object processorMap : (Iterable<?>) processorList) {
+                if (processorMap instanceof Map) {
+                    Object processorConfig = ((Map<?, ?>) processorMap).get(type);
+                    if (processorConfig instanceof Map) {
+                        @SuppressWarnings("unchecked") // All XContent maps will be <String, Object>
+                        Map<String, Object> processorConfigMap = (Map<String, Object>) processorConfig;
+                        if (upgrader.maybeUpgrade(processorConfigMap)) {
+                            changed = true;
+                        }
+                    }
+                }
+            }
+        }
+        if (changed) {
+            try (XContentBuilder builder = XContentBuilder.builder(xContentType.xContent())) {
+                return new PipelineConfiguration(id, BytesReference.bytes(builder.map(mutableConfigMap)), xContentType);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        } else {
+            return this;
+        }
+    }
 }

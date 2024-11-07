@@ -260,4 +260,8 @@ public class UserAgentProcessor extends AbstractProcessor {
             }
         }
     }
+
+    static boolean maybeUpgradeConfig(Map<String, Object> config) {
+        return config.remove("ecs") != null;
+    }
 }

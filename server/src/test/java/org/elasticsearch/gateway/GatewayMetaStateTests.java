@@ -31,8 +31,10 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.function.UnaryOperator;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -47,7 +49,7 @@ public class GatewayMetaStateTests extends ESTestCase {
                 IndexTemplateMetadata.builder("added_test_template").patterns(randomIndexPatterns()).build()
             );
             return templates;
-        }));
+        }), List.of());
 
         Metadata upgrade = GatewayMetaState.upgradeMetadata(metadata, new MockIndexMetadataVerifier(false), metadataUpgrader);
         assertNotSame(upgrade, metadata);
@@ -57,7 +59,7 @@ public class GatewayMetaStateTests extends ESTestCase {
 
     public void testNoMetadataUpgrade() {
         Metadata metadata = randomMetadata(new CustomMetadata1("data"));
-        MetadataUpgrader metadataUpgrader = new MetadataUpgrader(Collections.emptyList());
+        MetadataUpgrader metadataUpgrader = new MetadataUpgrader(Collections.emptyList(), List.of());
         Metadata upgrade = GatewayMetaState.upgradeMetadata(metadata, new MockIndexMetadataVerifier(false), metadataUpgrader);
         assertSame(upgrade, metadata);
         assertTrue(Metadata.isGlobalStateEquals(upgrade, metadata));
@@ -68,7 +70,7 @@ public class GatewayMetaStateTests extends ESTestCase {
 
     public void testCustomMetadataValidation() {
         Metadata metadata = randomMetadata(new CustomMetadata1("data"));
-        MetadataUpgrader metadataUpgrader = new MetadataUpgrader(Collections.emptyList());
+        MetadataUpgrader metadataUpgrader = new MetadataUpgrader(Collections.emptyList(), List.of());
         try {
             GatewayMetaState.upgradeMetadata(metadata, new MockIndexMetadataVerifier(false), metadataUpgrader);
         } catch (IllegalStateException e) {
@@ -78,7 +80,7 @@ public class GatewayMetaStateTests extends ESTestCase {
 
     public void testIndexMetadataUpgrade() {
         Metadata metadata = randomMetadata();
-        MetadataUpgrader metadataUpgrader = new MetadataUpgrader(Collections.emptyList());
+        MetadataUpgrader metadataUpgrader = new MetadataUpgrader(Collections.emptyList(), List.of());
         Metadata upgrade = GatewayMetaState.upgradeMetadata(metadata, new MockIndexMetadataVerifier(true), metadataUpgrader);
         assertNotSame(upgrade, metadata);
         assertTrue(Metadata.isGlobalStateEquals(upgrade, metadata));
@@ -89,7 +91,7 @@ public class GatewayMetaStateTests extends ESTestCase {
 
     public void testCustomMetadataNoChange() {
         Metadata metadata = randomMetadata(new CustomMetadata1("data"));
-        MetadataUpgrader metadataUpgrader = new MetadataUpgrader(Collections.singletonList(HashMap::new));
+        MetadataUpgrader metadataUpgrader = new MetadataUpgrader(Collections.singletonList(HashMap::new), List.of());
         Metadata upgrade = GatewayMetaState.upgradeMetadata(metadata, new MockIndexMetadataVerifier(false), metadataUpgrader);
         assertSame(upgrade, metadata);
         assertTrue(Metadata.isGlobalStateEquals(upgrade, metadata));
@@ -98,11 +100,37 @@ public class GatewayMetaStateTests extends ESTestCase {
         }
     }
 
+    public void testCustomMetadata_appliesUpgraders() {
+        CustomMetadata1 originalCustom1 = new CustomMetadata1("old data");
+        CustomMetadata1 upgradedCustom1 = new CustomMetadata1("new data");
+        CustomMetadata2 custom2 = new CustomMetadata2("some data");
+        Metadata originalMetadata = randomMetadata(originalCustom1, custom2);
+        Map<String, UnaryOperator<Metadata.Custom>> customUpgraders = Map.of(CustomMetadata1.TYPE, toUpgrade -> {
+            assertSame(originalCustom1, toUpgrade);
+            return upgradedCustom1;
+        }, "not_" + CustomMetadata1.TYPE, toUpgrade -> {
+            fail("This upgrader should not be invoked");
+            return toUpgrade;
+        });
+        Map<String, UnaryOperator<Metadata.Custom>> moreCustomUpgraders = Map.of("also_not_" + CustomMetadata1.TYPE, toUpgrade -> {
+            fail("This upgrader should not be invoked");
+            return toUpgrade;
+        });
+        MetadataUpgrader metadataUpgrader = new MetadataUpgrader(List.of(HashMap::new), List.of(customUpgraders, moreCustomUpgraders));
+        Metadata upgradedMetadata = GatewayMetaState.upgradeMetadata(
+            originalMetadata,
+            new MockIndexMetadataVerifier(false),
+            metadataUpgrader
+        );
+        assertEquals(upgradedCustom1, upgradedMetadata.custom(CustomMetadata1.TYPE));
+        assertSame(custom2, upgradedMetadata.custom(CustomMetadata2.TYPE));
+    }
+
     public void testIndexTemplateValidation() {
         Metadata metadata = randomMetadata();
         MetadataUpgrader metadataUpgrader = new MetadataUpgrader(Collections.singletonList(customs -> {
             throw new IllegalStateException("template is incompatible");
-        }));
+        }), List.of());
         String message = expectThrows(
             IllegalStateException.class,
             () -> GatewayMetaState.upgradeMetadata(metadata, new MockIndexMetadataVerifier(false), metadataUpgrader)
@@ -136,8 +164,7 @@ public class GatewayMetaStateTests extends ESTestCase {
                     .build()
             );
             return indexTemplateMetadatas;
-
-        }));
+        }), List.of());
         Metadata upgrade = GatewayMetaState.upgradeMetadata(metadata, new MockIndexMetadataVerifier(false), metadataUpgrader);
         assertNotSame(upgrade, metadata);
         assertFalse(Metadata.isGlobalStateEquals(upgrade, metadata));
@@ -209,6 +236,29 @@ public class GatewayMetaStateTests extends ESTestCase {
         public static final String TYPE = "custom_md_1";
 
         CustomMetadata1(String data) {
+            super(data);
+        }
+
+        @Override
+        public String getWriteableName() {
+            return TYPE;
+        }
+
+        @Override
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersion.current();
+        }
+
+        @Override
+        public EnumSet<Metadata.XContentContext> context() {
+            return EnumSet.of(Metadata.XContentContext.GATEWAY);
+        }
+    }
+
+    private static class CustomMetadata2 extends TestCustomMetadata {
+        public static final String TYPE = "custom_md_2";
+
+        CustomMetadata2(String data) {
             super(data);
         }
 

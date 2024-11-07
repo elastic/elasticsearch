@@ -341,8 +341,6 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
     public void testOneClosedIndex() {
         boolean ignoreUnavailable = false;
         IndicesOptions options = IndicesOptions.fromOptions(ignoreUnavailable, true, true, false, true, true, false, false);
-
-        // IndicesOptions options = IndicesOptions.fromOptions(ignoreUnavailable, true, true, false);
         client().admin().indices().close(new CloseIndexRequest("old_index")).actionGet();
         IndexClosedException ex = expectThrows(
             IndexClosedException.class,

@@ -235,7 +235,7 @@ public class RemoteClusterPermissionsTests extends AbstractXContentSerializingTe
         for (int i = 0; i < groupCount; i++) {
             remoteClusterPermissions.addGroup(group);
         }
-        // one of the newer privilege is not allowed in the older version, so it should result in as group with only the allowed privilege
+        // one of the newer privilege is not allowed in the older version, so it should result in a group with only the allowed privilege
         RemoteClusterPermissions expected = new RemoteClusterPermissions();
         for (int i = 0; i < groupCount; i++) {
             expected.addGroup(new RemoteClusterPermissionGroup(new String[] { "monitor_enrich" }, new String[] { "*" }));

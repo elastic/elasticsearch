@@ -834,7 +834,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
                 } else if (Fields.PRIVILEGES.match(currentFieldName, parser.getDeprecationHandler())) {
                     privileges = readStringArray(roleName, parser, false);
                     if (Arrays.stream(privileges)
-                        .map(s -> s.toLowerCase(Locale.ROOT))
+                        .map(s -> s.toLowerCase(Locale.ROOT).trim())
                         .allMatch(RemoteClusterPermissions.getSupportedRemoteClusterPermissions()::contains) == false) {
                         final String message = String.format(
                             Locale.ROOT,

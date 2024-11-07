@@ -30,6 +30,7 @@ public class EqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
     private final EqlSearchTask task;
     private final int fetchSize;
     private final int maxSamplesPerKey;
+    private final boolean allowPartialSearchResults;
 
     @Nullable
     private final QueryBuilder filter;
@@ -50,6 +51,7 @@ public class EqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
         IndicesOptions indicesOptions,
         int fetchSize,
         int maxSamplesPerKey,
+        boolean allowPartialSearchResults,
         String clientId,
         TaskId taskId,
         EqlSearchTask task
@@ -67,6 +69,7 @@ public class EqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
         this.task = task;
         this.fetchSize = fetchSize;
         this.maxSamplesPerKey = maxSamplesPerKey;
+        this.allowPartialSearchResults = allowPartialSearchResults;
     }
 
     public String[] indices() {
@@ -87,6 +90,10 @@ public class EqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
 
     public int maxSamplesPerKey() {
         return maxSamplesPerKey;
+    }
+
+    public boolean allowPartialSearchResults() {
+        return allowPartialSearchResults;
     }
 
     public QueryBuilder filter() {

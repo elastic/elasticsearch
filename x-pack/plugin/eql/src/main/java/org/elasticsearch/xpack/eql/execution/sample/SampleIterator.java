@@ -84,13 +84,16 @@ public class SampleIterator implements Executable {
      */
     private long previousTotalPageSize = 0;
 
+    private boolean allowPartialSearchResults;
+
     public SampleIterator(
         QueryClient client,
         List<SampleCriterion> criteria,
         int fetchSize,
         Limit limit,
         CircuitBreaker circuitBreaker,
-        int maxSamplesPerKey
+        int maxSamplesPerKey,
+        boolean allowPartialSearchResults
     ) {
         this.client = client;
         this.criteria = criteria;
@@ -100,6 +103,7 @@ public class SampleIterator implements Executable {
         this.limit = limit;
         this.circuitBreaker = circuitBreaker;
         this.maxSamplesPerKey = maxSamplesPerKey;
+        this.allowPartialSearchResults = allowPartialSearchResults;
     }
 
     @Override
@@ -209,7 +213,7 @@ public class SampleIterator implements Executable {
             for (SampleCriterion criterion : criteria) {
                 SampleQueryRequest r = criterion.finalQuery();
                 r.singleKeyPair(compositeKeyValues, maxCriteria, maxSamplesPerKey);
-                searches.add(prepareRequest(r.searchSource(), false, EMPTY_ARRAY));
+                searches.add(prepareRequest(r.searchSource(), false, allowPartialSearchResults, EMPTY_ARRAY));
             }
             sampleKeys.add(new SequenceKey(compositeKeyValues.toArray()));
         }

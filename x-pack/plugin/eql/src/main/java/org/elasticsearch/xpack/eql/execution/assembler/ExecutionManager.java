@@ -167,7 +167,8 @@ public class ExecutionManager {
             criteria.subList(0, completionStage),
             criteria.get(completionStage),
             matcher,
-            listOfKeys
+            listOfKeys,
+            cfg.allowPartialSearchResults()
         );
 
         return w;
@@ -235,7 +236,8 @@ public class ExecutionManager {
             cfg.fetchSize(),
             limit,
             session.circuitBreaker(),
-            cfg.maxSamplesPerKey()
+            cfg.maxSamplesPerKey(),
+            cfg.allowPartialSearchResults()
         );
     }
 

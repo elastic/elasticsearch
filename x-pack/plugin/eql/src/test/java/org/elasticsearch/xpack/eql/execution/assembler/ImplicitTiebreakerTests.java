@@ -141,7 +141,7 @@ public class ImplicitTiebreakerTests extends ESTestCase {
             booleanArrayOf(stages, false),
             NOOP_CIRCUIT_BREAKER
         );
-        TumblingWindow window = new TumblingWindow(client, criteria, null, matcher, Collections.emptyList());
+        TumblingWindow window = new TumblingWindow(client, criteria, null, matcher, Collections.emptyList(), randomBoolean());
         window.execute(wrap(p -> {}, ex -> { throw ExceptionsHelper.convertToRuntime(ex); }));
     }
 }

@@ -83,6 +83,7 @@ public class PITFailureTests extends ESTestCase {
                 null,
                 123,
                 1,
+                randomBoolean(),
                 "",
                 new TaskId("test", 123),
                 new EqlSearchTask(
@@ -132,7 +133,7 @@ public class PITFailureTests extends ESTestCase {
             );
 
             SequenceMatcher matcher = new SequenceMatcher(1, false, TimeValue.MINUS_ONE, null, booleanArrayOf(1, false), cb);
-            TumblingWindow window = new TumblingWindow(eqlClient, criteria, null, matcher, Collections.emptyList());
+            TumblingWindow window = new TumblingWindow(eqlClient, criteria, null, matcher, Collections.emptyList(), randomBoolean());
             window.execute(
                 wrap(
                     p -> { fail("Search succeeded despite PIT failure"); },

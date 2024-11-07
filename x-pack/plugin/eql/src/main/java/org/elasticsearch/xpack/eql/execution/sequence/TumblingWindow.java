@@ -103,6 +103,7 @@ public class TumblingWindow implements Executable {
 
     private final boolean hasKeys;
     private final List<List<Attribute>> listOfKeys;
+    private final boolean allowPartialSearchResults;
 
     // flag used for DESC sequences to indicate whether
     // the window needs to restart (since the DESC query still has results)
@@ -127,7 +128,8 @@ public class TumblingWindow implements Executable {
         List<SequenceCriterion> criteria,
         SequenceCriterion until,
         SequenceMatcher matcher,
-        List<List<Attribute>> listOfKeys
+        List<List<Attribute>> listOfKeys,
+        boolean allowPartialSearchResults
     ) {
         this.client = client;
 
@@ -141,6 +143,7 @@ public class TumblingWindow implements Executable {
         this.hasKeys = baseRequest.keySize() > 0;
         this.restartWindowFromTailQuery = baseRequest.descending();
         this.listOfKeys = listOfKeys;
+        this.allowPartialSearchResults = allowPartialSearchResults;
     }
 
     @Override
@@ -316,7 +319,14 @@ public class TumblingWindow implements Executable {
                     }
                     addKeyFilter(i, sequence, builder);
                     RuntimeUtils.combineFilters(builder, range);
-                    result.add(RuntimeUtils.prepareRequest(builder.size(1).trackTotalHits(false), false, Strings.EMPTY_ARRAY));
+                    result.add(
+                        RuntimeUtils.prepareRequest(
+                            builder.size(1).trackTotalHits(false),
+                            false,
+                            allowPartialSearchResults,
+                            Strings.EMPTY_ARRAY
+                        )
+                    );
                 } else {
                     leading = false;
                 }

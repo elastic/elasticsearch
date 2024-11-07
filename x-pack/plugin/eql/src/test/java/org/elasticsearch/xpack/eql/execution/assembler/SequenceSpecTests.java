@@ -277,7 +277,7 @@ public class SequenceSpecTests extends ESTestCase {
         );
 
         QueryClient testClient = new TestQueryClient();
-        TumblingWindow window = new TumblingWindow(testClient, criteria, null, matcher, Collections.emptyList());
+        TumblingWindow window = new TumblingWindow(testClient, criteria, null, matcher, Collections.emptyList(), randomBoolean());
 
         // finally make the assertion at the end of the listener
         window.execute(ActionTestUtils.assertNoFailureListener(this::checkResults));

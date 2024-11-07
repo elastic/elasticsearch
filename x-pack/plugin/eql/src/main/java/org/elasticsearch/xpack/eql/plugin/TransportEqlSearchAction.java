@@ -231,6 +231,7 @@ public final class TransportEqlSearchAction extends HandledTransportAction<EqlSe
                 request.indicesOptions(),
                 request.fetchSize(),
                 request.maxSamplesPerKey(),
+                request.allowPartialSearchResults(),
                 clientId,
                 new TaskId(nodeId, task.getId()),
                 task

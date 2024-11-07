@@ -48,8 +48,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Executor;
-import java.util.concurrent.LinkedTransferQueue;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -751,7 +751,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
 
     private static final class PendingExecutions {
         private final Semaphore semaphore;
-        private final LinkedTransferQueue<Consumer<Releasable>> queue = new LinkedTransferQueue<>();
+        private final ConcurrentLinkedQueue<Consumer<Releasable>> queue = new ConcurrentLinkedQueue<>();
 
         PendingExecutions(int permits) {
             assert permits > 0 : "not enough permits: " + permits;
@@ -770,11 +770,10 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                     }
                 }
             }
-
         }
 
         private void executeAndRelease(Consumer<Releasable> task) {
-            while (task != null) {
+            do {
                 final SubscribableListener<Void> onDone = new SubscribableListener<>();
                 task.accept(() -> onDone.onResponse(null));
                 if (onDone.isDone()) {
@@ -797,13 +796,21 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                     });
                     return;
                 }
-            }
+            } while (task != null);
         }
 
         private Consumer<Releasable> pollNextTaskOrReleasePermit() {
             var task = queue.poll();
             if (task == null) {
                 semaphore.release();
+                while (queue.peek() != null && semaphore.tryAcquire()) {
+                    task = queue.poll();
+                    if (task == null) {
+                        semaphore.release();
+                    } else {
+                        return task;
+                    }
+                }
             }
             return task;
         }

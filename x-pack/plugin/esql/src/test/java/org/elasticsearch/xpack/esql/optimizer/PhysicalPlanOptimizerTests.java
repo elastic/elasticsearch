@@ -115,8 +115,8 @@ import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.RowExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
-import org.elasticsearch.xpack.esql.planner.Mapper;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
+import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.esql.querydsl.query.SpatialRelatesQuery;
@@ -172,7 +172,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
-// @TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
+// @TestLogging(value = "org.elasticsearch.xpack.esql:DEBUG", reason = "debug")
 public class PhysicalPlanOptimizerTests extends ESTestCase {
 
     private static final String PARAM_FORMATTING = "%1$s";
@@ -220,7 +220,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         logicalOptimizer = new LogicalPlanOptimizer(new LogicalOptimizerContext(EsqlTestUtils.TEST_CFG));
         physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(config));
         EsqlFunctionRegistry functionRegistry = new EsqlFunctionRegistry();
-        mapper = new Mapper(functionRegistry);
+        mapper = new Mapper();
         var enrichResolution = setupEnrichResolution();
         // Most tests used data from the test index, so we load it here, and use it in the plan() function.
         this.testData = makeTestDataSource("test", "mapping-basic.json", functionRegistry, enrichResolution);
@@ -4769,12 +4769,24 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var exchange = asRemoteExchange(topN.child());
 
         project = as(exchange.child(), ProjectExec.class);
-        assertThat(names(project.projections()), contains("abbrev", "name", "location", "country", "city", "$$order_by$0$0"));
+        // Depending on what is run before this test, the synthetic name could have variable suffixes, so we must only assert on the prefix
+        assertThat(
+            names(project.projections()),
+            contains(
+                equalTo("abbrev"),
+                equalTo("name"),
+                equalTo("location"),
+                equalTo("country"),
+                equalTo("city"),
+                startsWith("$$order_by$0$")
+            )
+        );
         var extract = as(project.child(), FieldExtractExec.class);
         assertThat(names(extract.attributesToExtract()), contains("abbrev", "name", "country", "city"));
         var evalExec = as(extract.child(), EvalExec.class);
         var alias = as(evalExec.fields().get(0), Alias.class);
-        assertThat(alias.name(), is("$$order_by$0$0"));
+        assertThat(alias.name(), startsWith("$$order_by$0$"));
+        var aliasName = alias.name();  // We need this name to know what to assert on later when comparing the Order to the Sort
         var stDistance = as(alias.child(), StDistance.class);
         assertThat(stDistance.left().toString(), startsWith("location"));
         extract = as(evalExec.child(), FieldExtractExec.class);
@@ -4784,7 +4796,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         // Assert that the TopN(distance) is pushed down as geo-sort(location)
         assertThat(source.limit(), is(topN.limit()));
         Set<String> orderSet = orderAsSet(topN.order());
-        Set<String> sortsSet = sortsAsSet(source.sorts(), Map.of("location", "$$order_by$0$0"));
+        Set<String> sortsSet = sortsAsSet(source.sorts(), Map.of("location", aliasName));
         assertThat(orderSet, is(sortsSet));
 
         // Fine-grained checks on the pushed down sort
@@ -4972,8 +4984,101 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     /**
-     * This test shows that with an additional EVAL used in the filter, we can no longer push down the SORT distance.
-     * TODO: This could be optimized in future work. Consider moving much of EnableSpatialDistancePushdown into logical planning.
+     * Tests that multiple sorts, including distance and a field, are pushed down to the source.
+     * <code>
+     * ProjectExec[[abbrev{f}#25, name{f}#26, location{f}#29, country{f}#30, city{f}#31, scalerank{f}#27, scale{r}#7]]
+     * \_TopNExec[[
+     *     Order[distance{r}#4,ASC,LAST],
+     *     Order[scalerank{f}#27,ASC,LAST],
+     *     Order[scale{r}#7,DESC,FIRST],
+     *     Order[loc{r}#10,DESC,FIRST]
+     *   ],5[INTEGER],0]
+     *   \_ExchangeExec[[abbrev{f}#25, name{f}#26, location{f}#29, country{f}#30, city{f}#31, scalerank{f}#27, scale{r}#7,
+     *       distance{r}#4, loc{r}#10],false]
+     *     \_ProjectExec[[abbrev{f}#25, name{f}#26, location{f}#29, country{f}#30, city{f}#31, scalerank{f}#27, scale{r}#7,
+     *         distance{r}#4, loc{r}#10]]
+     *       \_FieldExtractExec[abbrev{f}#25, name{f}#26, country{f}#30, city{f}#31][]
+     *         \_EvalExec[[
+     *             STDISTANCE(location{f}#29,[1 1 0 0 0 e1 7a 14 ae 47 21 29 40 a0 1a 2f dd 24 d6 4b 40][GEO_POINT]) AS distance,
+     *             10[INTEGER] - scalerank{f}#27 AS scale, TOSTRING(location{f}#29) AS loc
+     *           ]]
+     *           \_FieldExtractExec[location{f}#29, scalerank{f}#27][]
+     *             \_EsQueryExec[airports], indexMode[standard], query[{
+     *               "bool":{
+     *                 "filter":[
+     *                   {"esql_single_value":{"field":"scalerank","next":{...},"source":"scalerank &lt; 6@3:31"}},
+     *                   {"bool":{
+     *                     "must":[
+     *                       {"geo_shape":{"location":{"relation":"INTERSECTS","shape":{...}}}},
+     *                       {"geo_shape":{"location":{"relation":"DISJOINT","shape":{...}}}}
+     *                     ],"boost":1.0}}],"boost":1.0}}][_doc{f}#44], limit[5], sort[[
+     *                       GeoDistanceSort[field=location{f}#29, direction=ASC, lat=55.673, lon=12.565],
+     *                       FieldSort[field=scalerank{f}#27, direction=ASC, nulls=LAST]
+     *                     ]] estimatedRowSize[303]
+     * </code>
+     */
+    public void testPushTopNDistanceAndPushableFieldWithCompoundFilterToSource() {
+        var optimized = optimizedPlan(physicalPlan("""
+            FROM airports
+            | EVAL distance = ST_DISTANCE(location, TO_GEOPOINT("POINT(12.565 55.673)")), scale = 10 - scalerank, loc = location::string
+            | WHERE distance < 500000 AND scalerank < 6 AND distance > 10000
+            | SORT distance ASC, scalerank ASC, scale DESC, loc DESC
+            | LIMIT 5
+            | KEEP abbrev, name, location, country, city, scalerank, scale
+            """, airports));
+
+        var project = as(optimized, ProjectExec.class);
+        var topN = as(project.child(), TopNExec.class);
+        assertThat(topN.order().size(), is(4));
+        var exchange = asRemoteExchange(topN.child());
+
+        project = as(exchange.child(), ProjectExec.class);
+        assertThat(
+            names(project.projections()),
+            contains("abbrev", "name", "location", "country", "city", "scalerank", "scale", "distance", "loc")
+        );
+        var extract = as(project.child(), FieldExtractExec.class);
+        assertThat(names(extract.attributesToExtract()), contains("abbrev", "name", "country", "city"));
+        var evalExec = as(extract.child(), EvalExec.class);
+        var alias = as(evalExec.fields().get(0), Alias.class);
+        assertThat(alias.name(), is("distance"));
+        var stDistance = as(alias.child(), StDistance.class);
+        assertThat(stDistance.left().toString(), startsWith("location"));
+        extract = as(evalExec.child(), FieldExtractExec.class);
+        assertThat(names(extract.attributesToExtract()), contains("location", "scalerank"));
+        var source = source(extract.child());
+
+        // Assert that the TopN(distance) is pushed down as geo-sort(location)
+        assertThat(source.limit(), is(topN.limit()));
+        Set<String> orderSet = orderAsSet(topN.order().subList(0, 2));
+        Set<String> sortsSet = sortsAsSet(source.sorts(), Map.of("location", "distance"));
+        assertThat(orderSet, is(sortsSet));
+
+        // Fine-grained checks on the pushed down sort
+        assertThat(source.limit(), is(l(5)));
+        assertThat(source.sorts().size(), is(2));
+        EsQueryExec.Sort sort = source.sorts().get(0);
+        assertThat(sort.direction(), is(Order.OrderDirection.ASC));
+        assertThat(name(sort.field()), is("location"));
+        assertThat(sort.sortBuilder(), isA(GeoDistanceSortBuilder.class));
+        sort = source.sorts().get(1);
+        assertThat(sort.direction(), is(Order.OrderDirection.ASC));
+        assertThat(name(sort.field()), is("scalerank"));
+        assertThat(sort.sortBuilder(), isA(FieldSortBuilder.class));
+
+        // Fine-grained checks on the pushed down query
+        var bool = as(source.query(), BoolQueryBuilder.class);
+        var rangeQueryBuilders = bool.filter().stream().filter(p -> p instanceof SingleValueQuery.Builder).toList();
+        assertThat("Expected one range query builder", rangeQueryBuilders.size(), equalTo(1));
+        assertThat(((SingleValueQuery.Builder) rangeQueryBuilders.get(0)).field(), equalTo("scalerank"));
+        var filterBool = bool.filter().stream().filter(p -> p instanceof BoolQueryBuilder).toList();
+        var fb = as(filterBool.get(0), BoolQueryBuilder.class);
+        var shapeQueryBuilders = fb.must().stream().filter(p -> p instanceof SpatialRelatesQuery.ShapeQueryBuilder).toList();
+        assertShapeQueryRange(shapeQueryBuilders, 10000.0, 500000.0);
+    }
+
+    /**
+     * This test shows that if the filter contains a predicate on the same field that is sorted, we cannot push down the sort.
      * <code>
      * ProjectExec[[abbrev{f}#23, name{f}#24, location{f}#27, country{f}#28, city{f}#29, scalerank{f}#25 AS scale]]
      * \_TopNExec[[Order[distance{r}#4,ASC,LAST], Order[scalerank{f}#25,ASC,LAST]],5[INTEGER],0]
@@ -5009,6 +5114,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         var project = as(optimized, ProjectExec.class);
         var topN = as(project.child(), TopNExec.class);
+        assertThat(topN.order().size(), is(2));
         var exchange = asRemoteExchange(topN.child());
 
         project = as(exchange.child(), ProjectExec.class);
@@ -5047,7 +5153,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     /**
-     * This test further shows that with a non-aliasing function, with the same name, less gets pushed down.
+     * This test shows that if the filter contains a predicate on the same field that is sorted, we cannot push down the sort.
      * <code>
      * ProjectExec[[abbrev{f}#23, name{f}#24, location{f}#27, country{f}#28, city{f}#29, scale{r}#10]]
      * \_TopNExec[[Order[distance{r}#4,ASC,LAST], Order[scale{r}#10,ASC,LAST]],5[INTEGER],0]
@@ -5084,6 +5190,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             """, airports));
         var project = as(optimized, ProjectExec.class);
         var topN = as(project.child(), TopNExec.class);
+        assertThat(topN.order().size(), is(2));
         var exchange = asRemoteExchange(topN.child());
 
         project = as(exchange.child(), ProjectExec.class);
@@ -5121,7 +5228,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     /**
-     * This test shows that with if the top level AND'd predicate contains a non-pushable component, we should not push anything.
+     * This test shows that with if the top level predicate contains a non-pushable component (eg. disjunction),
+     * we should not push down the filter.
      * <code>
      * ProjectExec[[abbrev{f}#8612, name{f}#8613, location{f}#8616, country{f}#8617, city{f}#8618, scalerank{f}#8614 AS scale]]
      * \_TopNExec[[Order[distance{r}#8596,ASC,LAST], Order[scalerank{f}#8614,ASC,LAST]],5[INTEGER],0]
@@ -5159,6 +5267,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         var project = as(optimized, ProjectExec.class);
         var topN = as(project.child(), TopNExec.class);
+        assertThat(topN.order().size(), is(2));
         var exchange = asRemoteExchange(topN.child());
 
         project = as(exchange.child(), ProjectExec.class);
@@ -5839,14 +5948,14 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 | EVAL employee_id = to_str(emp_no)
                 | ENRICH _remote:departments
                 | LIMIT 10""");
-            var enrich = as(plan, EnrichExec.class);
-            assertThat(enrich.mode(), equalTo(Enrich.Mode.REMOTE));
-            assertThat(enrich.concreteIndices(), equalTo(Map.of("cluster_1", ".enrich-departments-2")));
-            var eval = as(enrich.child(), EvalExec.class);
-            var finalLimit = as(eval.child(), LimitExec.class);
+            var finalLimit = as(plan, LimitExec.class);
             var exchange = as(finalLimit.child(), ExchangeExec.class);
             var fragment = as(exchange.child(), FragmentExec.class);
-            var partialLimit = as(fragment.fragment(), Limit.class);
+            var enrich = as(fragment.fragment(), Enrich.class);
+            assertThat(enrich.mode(), equalTo(Enrich.Mode.REMOTE));
+            assertThat(enrich.concreteIndices(), equalTo(Map.of("cluster_1", ".enrich-departments-2")));
+            var evalFragment = as(enrich.child(), Eval.class);
+            var partialLimit = as(evalFragment.child(), Limit.class);
             as(partialLimit.child(), EsRelation.class);
         }
     }
@@ -5889,13 +5998,21 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testLimitThenEnrichRemote() {
-        var error = expectThrows(VerificationException.class, () -> physicalPlan("""
+        var plan = physicalPlan("""
             FROM test
             | LIMIT 10
             | EVAL employee_id = to_str(emp_no)
             | ENRICH _remote:departments
-            """));
-        assertThat(error.getMessage(), containsString("line 4:3: ENRICH with remote policy can't be executed after LIMIT"));
+            """);
+        var finalLimit = as(plan, LimitExec.class);
+        var exchange = as(finalLimit.child(), ExchangeExec.class);
+        var fragment = as(exchange.child(), FragmentExec.class);
+        var enrich = as(fragment.fragment(), Enrich.class);
+        assertThat(enrich.mode(), equalTo(Enrich.Mode.REMOTE));
+        assertThat(enrich.concreteIndices(), equalTo(Map.of("cluster_1", ".enrich-departments-2")));
+        var evalFragment = as(enrich.child(), Eval.class);
+        var partialLimit = as(evalFragment.child(), Limit.class);
+        as(partialLimit.child(), EsRelation.class);
     }
 
     public void testEnrichBeforeTopN() {
@@ -5930,6 +6047,23 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             var exchange = as(enrich.child(), ExchangeExec.class);
             var fragment = as(exchange.child(), FragmentExec.class);
             var eval = as(fragment.fragment(), Eval.class);
+            as(eval.child(), EsRelation.class);
+        }
+        {
+            var plan = physicalPlan("""
+                FROM test
+                | EVAL employee_id = to_str(emp_no)
+                | ENRICH _remote:departments
+                | SORT department
+                | LIMIT 10""");
+            var topN = as(plan, TopNExec.class);
+            var exchange = as(topN.child(), ExchangeExec.class);
+            var fragment = as(exchange.child(), FragmentExec.class);
+            var partialTopN = as(fragment.fragment(), TopN.class);
+            var enrich = as(partialTopN.child(), Enrich.class);
+            assertThat(enrich.mode(), equalTo(Enrich.Mode.REMOTE));
+            assertThat(enrich.concreteIndices(), equalTo(Map.of("cluster_1", ".enrich-departments-2")));
+            var eval = as(enrich.child(), Eval.class);
             as(eval.child(), EsRelation.class);
         }
         {
@@ -5986,6 +6120,24 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             var exchange = as(topN.child(), ExchangeExec.class);
             var fragment = as(exchange.child(), FragmentExec.class);
             var partialTopN = as(fragment.fragment(), TopN.class);
+            as(partialTopN.child(), EsRelation.class);
+        }
+        {
+            var plan = physicalPlan("""
+                FROM test
+                | SORT emp_no
+                | LIMIT 10
+                | EVAL employee_id = to_str(emp_no)
+                | ENRICH _remote:departments
+                """);
+            var topN = as(plan, TopNExec.class);
+            var exchange = as(topN.child(), ExchangeExec.class);
+            var fragment = as(exchange.child(), FragmentExec.class);
+            var enrich = as(fragment.fragment(), Enrich.class);
+            assertThat(enrich.mode(), equalTo(Enrich.Mode.REMOTE));
+            assertThat(enrich.concreteIndices(), equalTo(Map.of("cluster_1", ".enrich-departments-2")));
+            var evalFragment = as(enrich.child(), Eval.class);
+            var partialTopN = as(evalFragment.child(), TopN.class);
             as(partialTopN.child(), EsRelation.class);
         }
     }
@@ -6245,7 +6397,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 .item(startsWith("last_name{f}"))
                 .item(startsWith("long_noidx{f}"))
                 .item(startsWith("salary{f}"))
-                .item(startsWith("name{r}"))
+                .item(startsWith("name{f}"))
         );
     }
 
@@ -6297,10 +6449,10 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 .item(startsWith("last_name{f}"))
                 .item(startsWith("long_noidx{f}"))
                 .item(startsWith("salary{f}"))
-                .item(startsWith("name{r}"))
+                .item(startsWith("name{f}"))
         );
 
-        var middleProject = as(join.child(), ProjectExec.class);
+        var middleProject = as(join.left(), ProjectExec.class);
         assertThat(middleProject.projections().stream().map(Objects::toString).toList(), not(hasItem(startsWith("name{f}"))));
         /*
          * At the moment we don't push projections past the HashJoin so we still include first_name here
@@ -6347,7 +6499,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         TopN innerTopN = as(opt, TopN.class);
         assertMap(
             innerTopN.order().stream().map(o -> o.child().toString()).toList(),
-            matchesList().item(startsWith("name{r}")).item(startsWith("emp_no{f}"))
+            matchesList().item(startsWith("name{f}")).item(startsWith("emp_no{f}"))
         );
         Join join = as(innerTopN.child(), Join.class);
         assertThat(join.config().type(), equalTo(JoinType.LEFT));

@@ -288,20 +288,6 @@ void addBuildDockerContextTask(Architecture architecture, DockerBase base) {
         }
       }
 
-      if (base == DockerBase.CLOUD) {
-        // If we're performing a release build, but `build.id` hasn't been set, we can
-        // infer that we're not at the Docker building stage of the build, and therefore
-        // we should skip the beats part of the build.
-        String buildId = providers.systemProperty('build.id').getOrNull()
-        boolean includeBeats = VersionProperties.isElasticsearchSnapshot() == true || buildId != null || useDra
-
-        if (includeBeats) {
-          from configurations.getByName("filebeat_${architecture.classifier}")
-          from configurations.getByName("metricbeat_${architecture.classifier}")
-        }
-        // For some reason, the artifact name can differ depending on what repository we used.
-        rename ~/((?:file|metric)beat)-.*\.tar\.gz$/, "\$1-${VersionProperties.elasticsearch}.tar.gz"
-      }
       Provider<DockerSupportService> serviceProvider = GradleUtils.getBuildService(
         project.gradle.sharedServices,
         DockerSupportPlugin.DOCKER_SUPPORT_SERVICE_NAME
@@ -381,7 +367,7 @@ private static List<String> generateTags(DockerBase base, Architecture architect
   String image = "elasticsearch${base.suffix}"
 
   String namespace = 'elasticsearch'
-  if (base == DockerBase.CLOUD || base == DockerBase.CLOUD_ESS) {
+  if (base == base == DockerBase.CLOUD_ESS) {
     namespace += '-ci'
   }
 
@@ -439,7 +425,7 @@ void addBuildDockerImageTask(Architecture architecture, DockerBase base) {
 
     }
 
-  if (base != DockerBase.IRON_BANK && base != DockerBase.CLOUD && base != DockerBase.CLOUD_ESS) {
+  if (base != DockerBase.IRON_BANK && base != DockerBase.CLOUD_ESS) {
     tasks.named("assemble").configure {
       dependsOn(buildDockerImageTask)
     }
@@ -548,10 +534,6 @@ subprojects { Project subProject ->
       base = DockerBase.IRON_BANK
     } else if (subProject.name.contains('cloud-ess-')) {
       base = DockerBase.CLOUD_ESS
-    } else if (subProject.name.contains('cloud-')) {
-      base = DockerBase.CLOUD
-    } else if (subProject.name.contains('wolfi-ess')) {
-      base = DockerBase.WOLFI_ESS
     } else if (subProject.name.contains('wolfi-')) {
       base = DockerBase.WOLFI
     }
@@ -559,10 +541,9 @@ subprojects { Project subProject ->
     final String arch = architecture == Architecture.AARCH64 ? '-aarch64' : ''
     final String extension = base == DockerBase.UBI ? 'ubi.tar' :
       (base == DockerBase.IRON_BANK ? 'ironbank.tar' :
-        (base == DockerBase.CLOUD ? 'cloud.tar' :
           (base == DockerBase.CLOUD_ESS ? 'cloud-ess.tar' :
             (base == DockerBase.WOLFI ? 'wolfi.tar' :
-                'docker.tar'))))
+                'docker.tar')))
     final String artifactName = "elasticsearch${arch}${base.suffix}_test"
 
     final String exportTaskName = taskName("export", architecture, base, 'DockerImage')

@@ -62,7 +62,6 @@ public class MvAppend extends EsqlScalarFunction implements EvaluatorMapper {
             "ip",
             "keyword",
             "long",
-            "text",
             "version" },
         description = "Concatenates values of two multi-value fields."
     )
@@ -134,12 +133,12 @@ public class MvAppend extends EsqlScalarFunction implements EvaluatorMapper {
         if (resolution.unresolved()) {
             return resolution;
         }
-        dataType = field1.dataType();
+        dataType = field1.dataType().noText();
         if (dataType == DataType.NULL) {
-            dataType = field2.dataType();
+            dataType = field2.dataType().noText();
             return isType(field2, DataType::isRepresentable, sourceText(), SECOND, "representable");
         }
-        return isType(field2, t -> t == dataType, sourceText(), SECOND, dataType.typeName());
+        return isType(field2, t -> t.noText() == dataType, sourceText(), SECOND, dataType.typeName());
     }
 
     @Override

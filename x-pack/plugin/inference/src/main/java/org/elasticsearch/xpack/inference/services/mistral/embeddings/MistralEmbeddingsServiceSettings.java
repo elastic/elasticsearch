@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.services.mistral.embeddings;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -26,7 +27,6 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.TransportVersions.ADD_MISTRAL_EMBEDDINGS_INFERENCE;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSIONS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT_TOKENS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARITY;
@@ -104,7 +104,7 @@ public class MistralEmbeddingsServiceSettings extends FilteredXContentObject imp
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return ADD_MISTRAL_EMBEDDINGS_INFERENCE;
+        return TransportVersions.V_8_15_0;
     }
 
     @Override

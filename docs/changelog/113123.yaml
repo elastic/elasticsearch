@@ -1,6 +1,0 @@
-pr: 113123
-summary: "ES|QL: Skip CASE function from `InferIsNotNull` rule checks"
-area: ES|QL
-type: bug
-issues:
- - 112704

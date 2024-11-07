@@ -38,6 +38,56 @@ emp_no:integer | l:integer
 10003 | 5
 ;
 
+bitLength
+required_capability: fn_bit_length
+row a = "hello", b = "" | eval y = bit_length(a) + bit_length(b);
+
+a:keyword | b:keyword | y:integer
+hello | | 40
+;
+
+bitLengthWithNonAsciiChars
+required_capability: fn_bit_length
+row a = "¡", b = "❗️" | eval y = bit_length(a) | eval z = bit_length(b);
+
+a:keyword | b:keyword | y:integer | z:integer
+¡ | ❗️ | 16 | 48
+;
+
+foldBitLength
+required_capability: fn_bit_length
+row a = 1 | eval b = bit_length("hello");
+
+a:integer | b:integer
+1 | 40
+;
+
+bitLengthAndSourceQuoting
+required_capability: fn_bit_length
+from "employees" | sort emp_no | limit 3 | eval l = bit_length(first_name) | keep emp_no, l;
+
+emp_no:integer | l:integer
+10001 | 48
+10002 | 56
+10003 | 40
+;
+
+bitLengthInsideOtherFunction
+required_capability: fn_bit_length
+row a = "abc", b = "de" | eval g = greatest(bit_length(a), bit_length(b), bit_length("fghi"));
+
+a:keyword | b:keyword | g:integer
+abc | de | 32
+;
+
+bitLengthNull
+required_capability: fn_bit_length
+row a = "abc" | eval l = bit_length(null);
+
+a:string | l:integer
+abc | null
+;
+
 startsWithConstant
 from employees | sort emp_no | limit 10 | eval f_S = starts_with(first_name, "S") | keep emp_no, first_name, f_S;
 
@@ -1236,6 +1286,7 @@ off_on_holiday:keyword | back_home_again:keyword
 
 reverseGraphemeClusters
 required_capability: fn_reverse
+required_capability: fn_reverse_grapheme_clusters
 ROW message = "áéíóúàèìòùâêîôû😊👍🏽🎉💖कंठाी" | EVAL message_reversed = REVERSE(message);
 
 message:keyword                | message_reversed:keyword
@@ -1288,6 +1339,7 @@ x:integer   | y:string
 
 reverseWithTextFields
 required_capability: fn_reverse
+required_capability: functions_never_emit_text
 FROM books 
 | EVAL title_reversed = REVERSE(title), author_reversed_twice = REVERSE(REVERSE(author)), eq = author_reversed_twice == author 
 | KEEP title, title_reversed, author, author_reversed_twice, eq, book_no
@@ -1295,7 +1347,7 @@ FROM books
 | WHERE book_no IN ("1211", "1463")
 | LIMIT 2;
 
-title:text                                      | title_reversed:text                           | author:text               | author_reversed_twice:text    | eq:boolean    | book_no:keyword
+title:text                                      | title_reversed:keyword                        | author:text               | author_reversed_twice:keyword | eq:boolean    | book_no:keyword
 The brothers Karamazov                          | vozamaraK srehtorb ehT                        | Fyodor Dostoevsky         | Fyodor Dostoevsky             | true          | 1211
 Realms of Tolkien: Images of Middle-earth       | htrae-elddiM fo segamI :neikloT fo smlaeR     | J. R. R. Tolkien          | J. R. R. Tolkien              | true          | 1463
 ;
@@ -1798,4 +1850,60 @@ warning:Line 1:29: java.lang.IllegalArgumentException: single-value function enc
 
 x:keyword
 null
+;
+
+
+likeEscapingSingleQuotes
+// tag::likeEscapingSingleQuotes[]
+ROW message = "foo * bar"
+| WHERE message LIKE "foo \\* bar"
+// end::likeEscapingSingleQuotes[]
+;
+
+// tag::likeEscapingSingleQuotes-result[]
+message:keyword
+foo * bar
+// end::likeEscapingSingleQuotes-result[]
+;
+
+
+likeEscapingTripleQuotes
+// tag::likeEscapingTripleQuotes[]
+ROW message = "foo * bar"
+| WHERE message LIKE """foo \* bar"""
+// end::likeEscapingTripleQuotes[]
+;
+
+// tag::likeEscapingTripleQuotes-result[]
+message:keyword
+foo * bar
+// end::likeEscapingTripleQuotes-result[]
+;
+
+
+rlikeEscapingSingleQuotes
+// tag::rlikeEscapingSingleQuotes[]
+ROW message = "foo ( bar"
+| WHERE message RLIKE "foo \\( bar"
+// end::rlikeEscapingSingleQuotes[]
+;
+
+// tag::rlikeEscapingSingleQuotes-result[]
+message:keyword
+foo ( bar
+// end::rlikeEscapingSingleQuotes-result[]
+;
+
+
+rlikeEscapingTripleQuotes
+// tag::rlikeEscapingTripleQuotes[]
+ROW message = "foo ( bar"
+| WHERE message RLIKE """foo \( bar"""
+// end::rlikeEscapingTripleQuotes[]
+;
+
+// tag::rlikeEscapingTripleQuotes-result[]
+message:keyword
+foo ( bar
+// end::rlikeEscapingTripleQuotes-result[]
 ;

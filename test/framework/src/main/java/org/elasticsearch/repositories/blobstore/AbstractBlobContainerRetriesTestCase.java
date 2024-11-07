@@ -418,7 +418,9 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
         if (bytesToSend > 0) {
             exchange.getResponseBody().write(bytes, rangeStart, bytesToSend);
         }
-        if (randomBoolean()) {
+        if (randomBoolean() || Runtime.version().feature() >= 23) {
+            // For now in JDK23 we need to always flush. See https://bugs.openjdk.org/browse/JDK-8331847.
+            // TODO: remove the JDK version check once that issue is fixed
             exchange.getResponseBody().flush();
         }
         return bytesToSend;

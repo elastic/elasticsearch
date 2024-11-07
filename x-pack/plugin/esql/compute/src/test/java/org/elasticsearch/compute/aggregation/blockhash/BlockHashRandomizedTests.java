@@ -475,17 +475,14 @@ public class BlockHashRandomizedTests extends ESTestCase {
 
         @Override
         public BasicBlockTests.RandomBlock randomBlock(int positionCount, int maxValuesPerPosition, int dups) {
-            List<Map.Entry<String, Integer>> dictionary = new ArrayList<>();
+            Map<String, Integer> dictionary = new HashMap<>();
+            Set<String> keys = dictionary(maxValuesPerPosition);
             List<List<Object>> values = new ArrayList<>(positionCount);
             try (
                 IntBlock.Builder ordinals = TestBlockFactory.getNonBreakingInstance()
                     .newIntBlockBuilder(positionCount * maxValuesPerPosition);
                 BytesRefVector.Builder bytes = TestBlockFactory.getNonBreakingInstance().newBytesRefVectorBuilder(maxValuesPerPosition);
             ) {
-                for (String value : dictionary(maxValuesPerPosition)) {
-                    bytes.appendBytesRef(new BytesRef(value));
-                    dictionary.add(Map.entry(value, dictionary.size()));
-                }
                 for (int p = 0; p < positionCount; p++) {
                     int valueCount = between(1, maxValuesPerPosition);
                     int dupCount = between(0, dups);
@@ -497,10 +494,14 @@ public class BlockHashRandomizedTests extends ESTestCase {
                         ordinals.beginPositionEntry();
                     }
                     for (int v = 0; v < valueCount; v++) {
-                        Map.Entry<String, Integer> value = randomFrom(dictionary);
-                        valuesAtPosition.add(new BytesRef(value.getKey()));
-                        ordinals.appendInt(value.getValue());
-                        ordsAtPosition.add(value.getValue());
+                        String key = randomFrom(keys);
+                        int ordinal = dictionary.computeIfAbsent(key, k -> {
+                            bytes.appendBytesRef(new BytesRef(k));
+                            return dictionary.size();
+                        });
+                        valuesAtPosition.add(new BytesRef(key));
+                        ordinals.appendInt(ordinal);
+                        ordsAtPosition.add(ordinal);
                     }
                     for (int v = 0; v < dupCount; v++) {
                         ordinals.appendInt(randomFrom(ordsAtPosition));

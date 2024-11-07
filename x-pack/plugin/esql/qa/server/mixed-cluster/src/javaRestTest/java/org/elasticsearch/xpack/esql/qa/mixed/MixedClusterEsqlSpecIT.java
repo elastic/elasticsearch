@@ -86,4 +86,20 @@ public class MixedClusterEsqlSpecIT extends EsqlSpecTestCase {
     protected boolean enableRoundingDoubleValuesOnAsserting() {
         return true;
     }
+
+    @Override
+    protected boolean supportsInferenceTestService() {
+        return false;
+    }
+
+    @Override
+    protected boolean deduplicateExactWarnings() {
+        /*
+         * In ESQL's main tests we shouldn't have to deduplicate but in
+         * serverless, where we reuse this test case exactly with *slightly*
+         * different configuration, we must deduplicate. So we do it here.
+         * It's a bit of a loss of precision, but that's ok.
+         */
+        return true;
+    }
 }

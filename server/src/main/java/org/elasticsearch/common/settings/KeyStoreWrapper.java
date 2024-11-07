@@ -254,7 +254,7 @@ public class KeyStoreWrapper implements SecureSettings {
         }
 
         Directory directory = new NIOFSDirectory(configDir);
-        try (ChecksumIndexInput input = directory.openChecksumInput(KEYSTORE_FILENAME, IOContext.READONCE)) {
+        try (ChecksumIndexInput input = directory.openChecksumInput(KEYSTORE_FILENAME)) {
             final int formatVersion;
             try {
                 formatVersion = CodecUtil.checkHeader(input, KEYSTORE_FILENAME, MIN_FORMAT_VERSION, CURRENT_VERSION);

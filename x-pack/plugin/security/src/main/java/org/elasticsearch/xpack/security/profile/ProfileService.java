@@ -414,19 +414,19 @@ public class ProfileService {
                             logger.debug("error on counting total profiles", items[0].getFailure());
                             usage.put("total", 0L);
                         } else {
-                            usage.put("total", items[0].getResponse().getHits().getTotalHits().value);
+                            usage.put("total", items[0].getResponse().getHits().getTotalHits().value());
                         }
                         if (items[1].isFailure()) {
                             logger.debug("error on counting enabled profiles", items[0].getFailure());
                             usage.put("enabled", 0L);
                         } else {
-                            usage.put("enabled", items[1].getResponse().getHits().getTotalHits().value);
+                            usage.put("enabled", items[1].getResponse().getHits().getTotalHits().value());
                         }
                         if (items[2].isFailure()) {
                             logger.debug("error on counting recent profiles", items[0].getFailure());
                             usage.put("recent", 0L);
                         } else {
-                            usage.put("recent", items[2].getResponse().getHits().getTotalHits().value);
+                            usage.put("recent", items[2].getResponse().getHits().getTotalHits().value());
                         }
                         listener.onResponse(usage);
                     }, listener::onFailure)

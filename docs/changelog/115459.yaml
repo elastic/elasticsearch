@@ -1,0 +1,5 @@
+pr: 115459
+summary: Guard blob store local directory creation with `doPrivileged`
+area: Infra/Core
+type: bug
+issues: []

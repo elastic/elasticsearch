@@ -9,6 +9,7 @@
 package org.elasticsearch.search.aggregations.bucket.global;
 
 import org.apache.lucene.search.BulkScorer;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Scorable;
@@ -45,6 +46,7 @@ public final class GlobalAggregator extends BucketsAggregator implements SingleB
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
         grow(1);
+
         scorer.score(new LeafCollector() {
             @Override
             public void collect(int doc) throws IOException {
@@ -55,7 +57,7 @@ public final class GlobalAggregator extends BucketsAggregator implements SingleB
             public void setScorer(Scorable scorer) throws IOException {
                 sub.setScorer(scorer);
             }
-        }, aggCtx.getLeafReaderContext().reader().getLiveDocs());
+        }, aggCtx.getLeafReaderContext().reader().getLiveDocs(), 0, DocIdSetIterator.NO_MORE_DOCS);
         return LeafBucketCollector.NO_OP_COLLECTOR;
     }
 

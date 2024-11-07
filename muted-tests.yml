@@ -273,6 +273,9 @@ tests:
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=ml/jobs_crud/Test put job deprecated bucket span}
   issue: https://github.com/elastic/elasticsearch/issues/116419
+- class: org.elasticsearch.xpack.test.rest.XPackRestIT
+  method: test {p0=ml/explain_data_frame_analytics/Test both job id and body}
+  issue: https://github.com/elastic/elasticsearch/issues/116433
 
 # Examples:
 #

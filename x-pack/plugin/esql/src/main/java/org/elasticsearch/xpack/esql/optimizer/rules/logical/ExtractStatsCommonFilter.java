@@ -44,7 +44,7 @@ public final class ExtractStatsCommonFilter extends OptimizerRules.OptimizerRule
         if (aggregate.groupings().isEmpty() == false) {
             return aggregate; // no optimization for grouped stats
         }
-        
+
         // extract predicates common in all the filters
         List<Expression> commonFilters = null;
         @SuppressWarnings({ "rawtypes", "unchecked" })

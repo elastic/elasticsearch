@@ -202,7 +202,7 @@ public final class StandardRetrieverBuilder extends RetrieverBuilder implements 
             searchSourceBuilder.collapse(collapseBuilder);
         }
         if (compoundUsed) {
-            searchSourceBuilder.innerHitsDisabled(true);
+            searchSourceBuilder.skipInnerHits(true);
         }
     }
 

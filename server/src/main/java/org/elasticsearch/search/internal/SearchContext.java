@@ -409,7 +409,7 @@ public abstract class SearchContext implements Releasable {
      * that won't actually be used.
      * Instead, we only compute inner hits for the top-level compound retriever.
      */
-    public boolean innerHitsDisabled() {
-        return request() != null && request().innerHitsDisabled();
+    public boolean skipInnerHits() {
+        return request() != null && request().skipInnerHits();
     }
 }

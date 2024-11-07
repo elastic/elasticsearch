@@ -82,7 +82,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
     private Boolean requestCache;
     private final long nowInMillis;
     private final boolean allowPartialSearchResults;
-    public final boolean innerHitsDisabled;
+    public final boolean skipInnerHits;
     private final OriginalIndices originalIndices;
 
     private boolean canReturnNullResponseIfMatchNoDocs;
@@ -251,7 +251,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         this.waitForCheckpoint = waitForCheckpoint;
         this.waitForCheckpointsTimeout = waitForCheckpointsTimeout;
         this.forceSyntheticSource = forceSyntheticSource;
-        this.innerHitsDisabled = source != null && source.innerHitsDisabled();
+        this.skipInnerHits = source != null && source.skipInnerHits();
     }
 
     @SuppressWarnings("this-escape")
@@ -277,7 +277,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         this.waitForCheckpoint = clone.waitForCheckpoint;
         this.waitForCheckpointsTimeout = clone.waitForCheckpointsTimeout;
         this.forceSyntheticSource = clone.forceSyntheticSource;
-        this.innerHitsDisabled = clone.innerHitsDisabled;
+        this.skipInnerHits = clone.skipInnerHits;
     }
 
     public ShardSearchRequest(StreamInput in) throws IOException {
@@ -345,9 +345,9 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
             forceSyntheticSource = false;
         }
         if (in.getTransportVersion().onOrAfter(TransportVersions.INNER_HITS_DISABLED_FOR_REQUEST)) {
-            innerHitsDisabled = in.readBoolean();
+            skipInnerHits = in.readBoolean();
         } else {
-            innerHitsDisabled = false;
+            skipInnerHits = false;
         }
         originalIndices = OriginalIndices.readOriginalIndices(in);
     }
@@ -410,7 +410,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
             }
         }
         if (out.getTransportVersion().onOrAfter(TransportVersions.INNER_HITS_DISABLED_FOR_REQUEST)) {
-            out.writeBoolean(innerHitsDisabled);
+            out.writeBoolean(skipInnerHits);
         }
     }
 
@@ -493,8 +493,8 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         return allowPartialSearchResults;
     }
 
-    public boolean innerHitsDisabled() {
-        return innerHitsDisabled;
+    public boolean skipInnerHits() {
+        return skipInnerHits;
     }
 
     public Scroll scroll() {

@@ -265,8 +265,8 @@ public class FetchContext {
         return sourceLoader;
     }
 
-    public boolean innerHitsDisabled() {
-        return searchContext.innerHitsDisabled();
+    public boolean skipInnerHits() {
+        return searchContext.skipInnerHits();
     }
 
     /**

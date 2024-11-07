@@ -40,7 +40,7 @@ public final class InnerHitsPhase implements FetchSubPhase {
 
     @Override
     public FetchSubPhaseProcessor getProcessor(FetchContext searchContext) {
-        if (searchContext.innerHitsDisabled() || searchContext.innerHits() == null || searchContext.innerHits().getInnerHits().isEmpty()) {
+        if (searchContext.skipInnerHits() || searchContext.innerHits() == null || searchContext.innerHits().getInnerHits().isEmpty()) {
             return null;
         }
         Map<String, InnerHitsContext.InnerHitSubContext> innerHits = searchContext.innerHits().getInnerHits();

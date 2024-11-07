@@ -254,7 +254,7 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
         }
         sortBuilders.add(new FieldSortBuilder(FieldSortBuilder.SHARD_DOC_FIELD_NAME));
         sourceBuilder.sort(sortBuilders);
-        sourceBuilder.innerHitsDisabled(true);
+        sourceBuilder.skipInnerHits(true);
         return sourceBuilder;
     }
 

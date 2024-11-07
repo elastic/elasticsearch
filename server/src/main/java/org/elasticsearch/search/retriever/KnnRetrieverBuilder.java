@@ -241,7 +241,7 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
         knnSearchBuilders.add(knnSearchBuilder);
         searchSourceBuilder.knnSearch(knnSearchBuilders);
         if (compoundUsed) {
-            searchSourceBuilder.innerHitsDisabled(true);
+            searchSourceBuilder.skipInnerHits(true);
         }
     }
 

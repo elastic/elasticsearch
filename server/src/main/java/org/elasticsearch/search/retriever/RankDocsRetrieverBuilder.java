@@ -142,7 +142,7 @@ public class RankDocsRetrieverBuilder extends RetrieverBuilder {
             searchSourceBuilder.size(Math.max(0, rankDocResults.length - searchSourceBuilder.from()));
         }
         if (compoundUsed) {
-            searchSourceBuilder.innerHitsDisabled(true);
+            searchSourceBuilder.skipInnerHits(true);
         }
     }
 

@@ -10,8 +10,6 @@ steps:
         matrix:
           setup:
             image:
-              - windows-2016
-              - windows-2019
               - windows-2022
             PACKAGING_TASK:
               - default-windows-archive

@@ -182,6 +182,7 @@ public class TransportVersions {
     public static final TransportVersion SIMULATE_MAPPING_ADDITION = def(8_777_00_0);
     public static final TransportVersion INTRODUCE_ALL_APPLICABLE_SELECTOR = def(8_778_00_0);
     public static final TransportVersion INDEX_MODE_LOOKUP = def(8_779_00_0);
+    public static final TransportVersion ADD_COMPATIBILITY_VERSIONS_TO_NODE_INFO = def(8_780_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

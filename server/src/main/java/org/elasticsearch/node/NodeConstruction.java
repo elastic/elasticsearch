@@ -64,7 +64,6 @@ import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.TransportVersionsFixupListener;
 import org.elasticsearch.cluster.version.CompatibilityVersions;
-import org.elasticsearch.cluster.version.SystemIndexMappingsVersionFixupListener;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -791,7 +790,6 @@ class NodeConstruction {
                 new TransportVersionsFixupListener(clusterService, client.admin().cluster(), featureService, threadPool)
             );
             clusterService.addListener(new NodeFeaturesFixupListener(clusterService, client.admin().cluster(), threadPool));
-            clusterService.addListener(new SystemIndexMappingsVersionFixupListener(clusterService, client.admin().cluster(), threadPool));
         }
 
         SourceFieldMetrics sourceFieldMetrics = new SourceFieldMetrics(
@@ -1084,7 +1082,8 @@ class NodeConstruction {
             searchTransportService,
             indexingLimits,
             searchModule.getValuesSourceRegistry().getUsageService(),
-            repositoriesService
+            repositoriesService,
+            compatibilityVersions
         );
 
         final TimeValue metricsInterval = settings.getAsTime("telemetry.agent.metrics_interval", TimeValue.timeValueSeconds(10));

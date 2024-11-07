@@ -35,6 +35,11 @@ setup:
                 properties:
                   views:
                     type: long
+              nested_inner_hits:
+                type: nested
+                properties:
+                  data:
+                    type: keyword
 
   - do:
       index:
@@ -125,6 +130,7 @@ setup:
           integer: 2
           keyword: "technology"
           nested: { views: 10}
+          nested_inner_hits: [{"data": "foo"}, {"data": "bar"}, {"data": "baz"}]
   - do:
       indices.refresh: {}
 
@@ -960,3 +966,55 @@ setup:
   - length: { hits.hits : 1 }
 
   - match: { hits.hits.0._id: "1" }
+
+---
+"rrf retriever with inner_hits for sub-retriever":
+
+  - do:
+      search:
+        _source: false
+        index: test
+        body:
+          retriever:
+            rrf:
+              retrievers: [
+                {
+                  standard: {
+                    query: {
+                      nested: {
+                        path: nested_inner_hits,
+                        inner_hits: {
+                          _source: false,
+                          "sort": [ {
+                              "nested_inner_hits.data": "asc"
+                            }
+                          ],
+                          fields: [ nested_inner_hits.data ]
+                        },
+                        query: {
+                          match_all: { }
+                        }
+                      }
+                    }
+                  }
+                },
+                {
+                  standard: {
+                    query: {
+                      match_all: { }
+                    }
+                  }
+                }
+              ]
+              rank_window_size: 10
+              rank_constant: 10
+          size: 2
+
+  - match: { hits.total.value: 9 }
+
+  - match: { hits.hits.0.inner_hits.nested_inner_hits.hits.total.value: 3 }
+  - match: { hits.hits.0.inner_hits.nested_inner_hits.hits.hits.0.fields.nested_inner_hits.0.data.0: bar }
+  - match: { hits.hits.0.inner_hits.nested_inner_hits.hits.hits.1.fields.nested_inner_hits.0.data.0: baz }
+  - match: { hits.hits.0.inner_hits.nested_inner_hits.hits.hits.2.fields.nested_inner_hits.0.data.0: foo }
+
+  - match: { hits.hits.1.inner_hits.nested_inner_hits.hits.total.value: 0 }

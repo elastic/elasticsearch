@@ -402,4 +402,8 @@ public abstract class SearchContext implements Releasable {
     public abstract SourceLoader newSourceLoader();
 
     public abstract IdLoader newIdLoader();
+
+    public boolean innerHitsDisabled() {
+        return request() != null && request().innerHitsDisabled();
+    }
 }

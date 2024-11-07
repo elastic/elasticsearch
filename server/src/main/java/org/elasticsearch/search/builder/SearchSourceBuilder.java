@@ -214,6 +214,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
 
     private Map<String, Object> runtimeMappings = emptyMap();
 
+    private boolean innerHitsDisabled = false;
+
     /**
      * Constructs a new search source builder.
      */
@@ -1836,6 +1838,14 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         innerToXContent(builder, params);
         builder.endObject();
         return builder;
+    }
+
+    public void innerHitsDisabled(boolean innerHitsDisabled) {
+        this.innerHitsDisabled = innerHitsDisabled;
+    }
+
+    public boolean innerHitsDisabled() {
+        return this.innerHitsDisabled;
     }
 
     public static class IndexBoost implements Writeable, ToXContentObject {

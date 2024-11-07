@@ -82,6 +82,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
     private Boolean requestCache;
     private final long nowInMillis;
     private final boolean allowPartialSearchResults;
+    public final boolean innerHitsDisabled;
     private final OriginalIndices originalIndices;
 
     private boolean canReturnNullResponseIfMatchNoDocs;
@@ -250,6 +251,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         this.waitForCheckpoint = waitForCheckpoint;
         this.waitForCheckpointsTimeout = waitForCheckpointsTimeout;
         this.forceSyntheticSource = forceSyntheticSource;
+        this.innerHitsDisabled = source.innerHitsDisabled();
     }
 
     @SuppressWarnings("this-escape")
@@ -275,6 +277,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         this.waitForCheckpoint = clone.waitForCheckpoint;
         this.waitForCheckpointsTimeout = clone.waitForCheckpointsTimeout;
         this.forceSyntheticSource = clone.forceSyntheticSource;
+        this.innerHitsDisabled = clone.innerHitsDisabled;
     }
 
     public ShardSearchRequest(StreamInput in) throws IOException {
@@ -341,6 +344,11 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
              */
             forceSyntheticSource = false;
         }
+        if (in.getTransportVersion().onOrAfter(TransportVersion.current())) {
+            innerHitsDisabled = in.readBoolean();
+        } else {
+            innerHitsDisabled = false;
+        }
         originalIndices = OriginalIndices.readOriginalIndices(in);
     }
 
@@ -400,6 +408,9 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
             if (forceSyntheticSource) {
                 throw new IllegalArgumentException("force_synthetic_source is not supported before 8.4.0");
             }
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersion.current())) {
+            out.writeBoolean(innerHitsDisabled);
         }
     }
 
@@ -480,6 +491,10 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
 
     public boolean allowPartialSearchResults() {
         return allowPartialSearchResults;
+    }
+
+    public boolean innerHitsDisabled() {
+        return innerHitsDisabled;
     }
 
     public Scroll scroll() {

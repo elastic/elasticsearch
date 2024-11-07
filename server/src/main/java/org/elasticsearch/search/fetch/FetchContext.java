@@ -265,6 +265,10 @@ public class FetchContext {
         return sourceLoader;
     }
 
+    public boolean innerHitsDisabled() {
+        return searchContext.innerHitsDisabled();
+    }
+
     /**
      * For a hit document that's being processed, return the source lookup representing the
      * root document. This method is used to pass down the root source when processing this

@@ -27,6 +27,12 @@ import java.util.Set;
  */
 public class EsqlCapabilities {
     public enum Cap {
+
+        /**
+         * Support for function {@code BIT_LENGTH}. Done in #115792
+         */
+        FN_BIT_LENGTH,
+
         /**
          * Support for function {@code REVERSE}.
          */
@@ -289,9 +295,9 @@ public class EsqlCapabilities {
         MV_PSERIES_WEIGHTED_SUM,
 
         /**
-         * Support for match operator
+         * Support for match operator as a colon. Previous support for match operator as MATCH has been removed
          */
-        MATCH_OPERATOR(Build.current().isSnapshot()),
+        MATCH_OPERATOR_COLON(Build.current().isSnapshot()),
 
         /**
          * Removing support for the {@code META} keyword.
@@ -312,6 +318,11 @@ public class EsqlCapabilities {
          * Support for to_date_nanos function
          */
         TO_DATE_NANOS(EsqlCorePlugin.DATE_NANOS_FEATURE_FLAG),
+
+        /**
+         * Support for date nanos type in binary comparisons
+         */
+        DATE_NANOS_BINARY_COMPARISON(EsqlCorePlugin.DATE_NANOS_FEATURE_FLAG),
 
         /**
          * Support Least and Greatest functions on Date Nanos type

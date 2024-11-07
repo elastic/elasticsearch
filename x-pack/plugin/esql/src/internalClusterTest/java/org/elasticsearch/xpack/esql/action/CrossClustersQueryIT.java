@@ -260,7 +260,7 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
 
             // missing concrete remote index is not fatal when skip_unavailable=true (as long as an index matches on another cluster)
             {
-                String q = String.format("FROM %s,cluster-a:nomatch", localIndex);
+                String q = Strings.format("FROM %s,cluster-a:nomatch", localIndex);
                 try (EsqlQueryResponse resp = runQuery(q, requestIncludeMeta)) {
                     assertThat(getValuesList(resp).size(), greaterThanOrEqualTo(1));
                     EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
@@ -282,7 +282,6 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
                     EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
                     assertThat(executionInfo.isCrossClusterSearch(), is(true));
                     assertThat(executionInfo.includeCCSMetadata(), equalTo(responseExpectMeta));
-                    System.err.println(executionInfo);
                     assertExpectedClustersForMissingIndicesTests(
                         executionInfo,
                         List.of(
@@ -337,7 +336,7 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
 
             // since at least one index of the query matches on some cluster, a wildcarded index on skip_un=true is not an error
             {
-                String q = String.format("FROM %s,cluster-a:nomatch*", localIndex);
+                String q = Strings.format("FROM %s,cluster-a:nomatch*", localIndex);
                 try (EsqlQueryResponse resp = runQuery(q, requestIncludeMeta)) {
                     assertThat(getValuesList(resp).size(), greaterThanOrEqualTo(1));
                     EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
@@ -441,7 +440,7 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
             // since cluster-a is skip_unavailable=true and at least one cluster has a matching indices, no error is thrown
             {
                 // TODO solve in follow-on PR which does skip_unavailable handling at execution time
-                // String q = String.format("FROM %s,cluster-a:nomatch,cluster-a:%s*", localIndex, remote1Index);
+                // String q = Strings.format("FROM %s,cluster-a:nomatch,cluster-a:%s*", localIndex, remote1Index);
                 // try (EsqlQueryResponse resp = runQuery(q, requestIncludeMeta)) {
                 // assertThat(getValuesList(resp).size(), greaterThanOrEqualTo(1));
                 // EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
@@ -475,7 +474,7 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
             // since cluster-a is skip_unavailable=true and at least one cluster has a matching indices, no error is thrown
             // cluster-a should be marked as SKIPPED with VerificationException
             {
-                String q = String.format("FROM nomatch*,cluster-a:nomatch,%s:%s", REMOTE_CLUSTER_2, remote2Index);
+                String q = Strings.format("FROM nomatch*,cluster-a:nomatch,%s:%s", REMOTE_CLUSTER_2, remote2Index);
                 try (EsqlQueryResponse resp = runQuery(q, requestIncludeMeta)) {
                     assertThat(getValuesList(resp).size(), greaterThanOrEqualTo(1));
                     EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
@@ -519,7 +518,7 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
             // since cluster-a is skip_unavailable=true and at least one cluster has a matching indices, no error is thrown
             // cluster-a should be marked as SKIPPED with a "NoMatchingIndicesException" since a wildcard index was requested
             {
-                String q = String.format("FROM nomatch*,cluster-a:nomatch*,%s:%s", REMOTE_CLUSTER_2, remote2Index);
+                String q = Strings.format("FROM nomatch*,cluster-a:nomatch*,%s:%s", REMOTE_CLUSTER_2, remote2Index);
                 try (EsqlQueryResponse resp = runQuery(q, requestIncludeMeta)) {
                     assertThat(getValuesList(resp).size(), greaterThanOrEqualTo(1));
                     EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
@@ -604,7 +603,7 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
 
             // No error since local non-matching has wildcard and the remote cluster matches
             {
-                String q = String.format("FROM nomatch*,%s:%s", REMOTE_CLUSTER_1, remote1Index);
+                String q = Strings.format("FROM nomatch*,%s:%s", REMOTE_CLUSTER_1, remote1Index);
                 try (EsqlQueryResponse resp = runQuery(q, requestIncludeMeta)) {
                     assertThat(getValuesList(resp).size(), greaterThanOrEqualTo(1));
                     EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
@@ -646,7 +645,7 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
 
             // query is fatal since cluster-a has skip_unavailable=false and has no matching indices
             {
-                String q = String.format("FROM %s,cluster-a:nomatch*", localIndex);
+                String q = Strings.format("FROM %s,cluster-a:nomatch*", localIndex);
                 VerificationException e = expectThrows(VerificationException.class, () -> runQuery(q, requestIncludeMeta));
                 assertThat(e.getDetailedMessage(), containsString("Unknown index [cluster-a:nomatch*]"));
 
@@ -724,7 +723,7 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
             // Missing concrete index on skip_unavailable=false cluster is a fatal error, even when another index expression
             // against that cluster matches
             {
-                String q = String.format("FROM %s,cluster-a:nomatch,cluster-a:%s*", localIndex, remote2Index);
+                String q = Strings.format("FROM %s,cluster-a:nomatch,cluster-a:%s*", localIndex, remote2Index);
                 IndexNotFoundException e = expectThrows(IndexNotFoundException.class, () -> runQuery(q, requestIncludeMeta));
                 assertThat(e.getDetailedMessage(), containsString("no such index [nomatch]"));
 
@@ -739,7 +738,7 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
             // skip_unavailable=false cluster having no matching indices is a fatal error. This error
             // is fatal at plan time, so it throws VerificationException, not IndexNotFoundException (thrown at execution time)
             {
-                String q = String.format("FROM %s*,cluster-a:nomatch,%s:%s*", localIndex, REMOTE_CLUSTER_2, remote2Index);
+                String q = Strings.format("FROM %s*,cluster-a:nomatch,%s:%s*", localIndex, REMOTE_CLUSTER_2, remote2Index);
                 VerificationException e = expectThrows(VerificationException.class, () -> runQuery(q, requestIncludeMeta));
                 assertThat(e.getDetailedMessage(), containsString("Unknown index [cluster-a:nomatch]"));
 
@@ -750,7 +749,7 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
 
             // skip_unavailable=false cluster having no matching indices is a fatal error (even if wildcarded)
             {
-                String q = String.format("FROM %s*,cluster-a:nomatch*,%s:%s*", localIndex, REMOTE_CLUSTER_2, remote2Index);
+                String q = Strings.format("FROM %s*,cluster-a:nomatch*,%s:%s*", localIndex, REMOTE_CLUSTER_2, remote2Index);
                 VerificationException e = expectThrows(VerificationException.class, () -> runQuery(q, requestIncludeMeta));
                 assertThat(e.getDetailedMessage(), containsString("Unknown index [cluster-a:nomatch*]"));
 
@@ -874,11 +873,7 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
      * This one is mostly focuses on took time values.
      */
     public void testCCSExecutionOnSearchesWithLimit0() {
-        Map<String, Object> setupMap = setupTwoClusters();
-        boolean skipUnavailable = (Boolean) setupMap.get("remote.skip_unavailable");
-
-        System.err.println(skipUnavailable);
-
+        setupTwoClusters();
         Tuple<Boolean, Boolean> includeCCSMetadata = randomIncludeCCSMetadata();
         Boolean requestIncludeMeta = includeCCSMetadata.v1();
         boolean responseExpectMeta = includeCCSMetadata.v2();

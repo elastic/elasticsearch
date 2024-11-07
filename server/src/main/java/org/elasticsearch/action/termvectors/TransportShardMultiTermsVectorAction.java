@@ -13,7 +13,6 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.project.ProjectResolver;
@@ -38,7 +37,6 @@ public class TransportShardMultiTermsVectorAction extends TransportSingleShardAc
     MultiTermVectorsShardResponse> {
 
     private final IndicesService indicesService;
-    private final ProjectResolver projectResolver;
 
     private static final String ACTION_NAME = MultiTermVectorsAction.NAME + "[shard]";
     public static final ActionType<MultiTermVectorsShardResponse> TYPE = new ActionType<>(ACTION_NAME);
@@ -59,12 +57,12 @@ public class TransportShardMultiTermsVectorAction extends TransportSingleShardAc
             clusterService,
             transportService,
             actionFilters,
+            projectResolver,
             indexNameExpressionResolver,
             MultiTermVectorsShardRequest::new,
             threadPool.executor(ThreadPool.Names.GET)
         );
         this.indicesService = indicesService;
-        this.projectResolver = projectResolver;
     }
 
     @Override
@@ -83,8 +81,7 @@ public class TransportShardMultiTermsVectorAction extends TransportSingleShardAc
     }
 
     @Override
-    protected ShardIterator shards(ClusterState state, InternalRequest request) {
-        ProjectState project = projectResolver.getProjectState(state);
+    protected ShardIterator shards(ProjectState project, InternalRequest request) {
         ShardIterator shards = clusterService.operationRouting()
             .getShards(project, request.concreteIndex(), request.request().shardId(), request.request().preference());
         return clusterService.operationRouting().useOnlyPromotableShardsForStateless(shards);

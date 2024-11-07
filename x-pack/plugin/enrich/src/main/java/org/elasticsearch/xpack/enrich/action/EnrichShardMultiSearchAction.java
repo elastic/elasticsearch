@@ -23,7 +23,6 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.single.shard.SingleShardRequest;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.project.ProjectResolver;
@@ -176,7 +175,6 @@ public class EnrichShardMultiSearchAction extends ActionType<MultiSearchResponse
 
     public static class TransportAction extends TransportSingleShardAction<Request, MultiSearchResponse> {
 
-        private final ProjectResolver projectResolver;
         private final IndicesService indicesService;
 
         @Inject
@@ -195,11 +193,11 @@ public class EnrichShardMultiSearchAction extends ActionType<MultiSearchResponse
                 clusterService,
                 transportService,
                 actionFilters,
+                projectResolver,
                 indexNameExpressionResolver,
                 Request::new,
                 threadPool.executor(ThreadPool.Names.SEARCH)
             );
-            this.projectResolver = projectResolver;
             this.indicesService = indicesService;
         }
 
@@ -214,9 +212,8 @@ public class EnrichShardMultiSearchAction extends ActionType<MultiSearchResponse
         }
 
         @Override
-        protected ShardsIterator shards(ClusterState state, InternalRequest request) {
+        protected ShardsIterator shards(ProjectState project, InternalRequest request) {
             String index = request.concreteIndex();
-            ProjectState project = projectResolver.getProjectState(state);
             IndexRoutingTable indexRouting = project.routingTable().index(index);
             int numShards = indexRouting.size();
             if (numShards != 1) {

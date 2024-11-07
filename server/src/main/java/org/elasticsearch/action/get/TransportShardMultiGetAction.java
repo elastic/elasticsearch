@@ -64,7 +64,6 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
     private static final Logger logger = LogManager.getLogger(TransportShardMultiGetAction.class);
 
     private final IndicesService indicesService;
-    private final ProjectResolver projectResolver;
     private final ExecutorSelector executorSelector;
     private final NodeClient client;
 
@@ -86,12 +85,12 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
             clusterService,
             transportService,
             actionFilters,
+            projectResolver,
             indexNameExpressionResolver,
             MultiGetShardRequest::new,
             threadPool.executor(ThreadPool.Names.GET)
         );
         this.indicesService = indicesService;
-        this.projectResolver = projectResolver;
         this.executorSelector = executorSelector;
         this.client = client;
     }
@@ -112,8 +111,7 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
     }
 
     @Override
-    protected ShardIterator shards(ClusterState state, InternalRequest request) {
-        ProjectState project = projectResolver.getProjectState(state);
+    protected ShardIterator shards(ProjectState project, InternalRequest request) {
         ShardIterator iterator = clusterService.operationRouting()
             .getShards(project, request.request().index(), request.request().shardId(), request.request().preference());
         if (iterator == null) {

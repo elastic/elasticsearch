@@ -54,6 +54,7 @@ public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
 
         return new HashAggregationOperator.HashAggregationOperatorFactory(
             List.of(new BlockHash.GroupSpec(0, ElementType.LONG)),
+            mode,
             List.of(
                 new SumLongAggregatorFunctionSupplier(sumChannels).groupingAggregatorFactory(mode),
                 new MaxLongAggregatorFunctionSupplier(maxChannels).groupingAggregatorFactory(mode)

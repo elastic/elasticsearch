@@ -113,7 +113,7 @@ public class VectorBuilderTests extends ESTestCase {
 
     private Vector.Builder vectorBuilder(int estimatedSize, BlockFactory blockFactory) {
         return switch (elementType) {
-            case NULL, DOC, COMPOSITE, UNKNOWN, CATEGORY_RAW, CATEGORY_INTERMEDIATE -> throw new UnsupportedOperationException();
+            case NULL, DOC, COMPOSITE, UNKNOWN, CATEGORY -> throw new UnsupportedOperationException();
             case BOOLEAN -> blockFactory.newBooleanVectorBuilder(estimatedSize);
             case BYTES_REF -> blockFactory.newBytesRefVectorBuilder(estimatedSize);
             case FLOAT -> blockFactory.newFloatVectorBuilder(estimatedSize);

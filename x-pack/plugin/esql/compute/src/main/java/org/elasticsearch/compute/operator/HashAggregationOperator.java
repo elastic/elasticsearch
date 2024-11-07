@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.Describable;
+import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
@@ -39,6 +40,7 @@ public class HashAggregationOperator implements Operator {
 
     public record HashAggregationOperatorFactory(
         List<BlockHash.GroupSpec> groups,
+        AggregatorMode aggregatorMode,
         List<GroupingAggregator.Factory> aggregators,
         int maxPageSize
     ) implements OperatorFactory {
@@ -46,7 +48,7 @@ public class HashAggregationOperator implements Operator {
         public Operator get(DriverContext driverContext) {
             return new HashAggregationOperator(
                 aggregators,
-                () -> BlockHash.build(groups, driverContext.blockFactory(), maxPageSize, false),
+                () -> BlockHash.build(groups, aggregatorMode, driverContext.blockFactory(), maxPageSize, false),
                 driverContext
             );
         }

@@ -192,7 +192,9 @@ public enum DataType {
      * inside alongside time-series aggregations. These fields are not parsable from the
      * mapping and should be hidden from users.
      */
-    PARTIAL_AGG(builder().esType("partial_agg").unknownSize());
+    PARTIAL_AGG(builder().esType("partial_agg").unknownSize()),
+
+    CATEGORY(builder().esType("???").unknownSize());
 
     /**
      * Types that are actively being built. These types are not returned

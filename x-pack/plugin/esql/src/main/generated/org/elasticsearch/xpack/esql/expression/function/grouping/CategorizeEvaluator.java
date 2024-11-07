@@ -7,21 +7,16 @@ package org.elasticsearch.xpack.esql.expression.function.grouping;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
-import java.util.function.Function;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
-import org.elasticsearch.compute.data.IntBlock;
-import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.Warnings;
-import org.elasticsearch.xpack.ml.aggs.categorization.TokenListCategorizer;
-import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzer;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Categorize}.
@@ -32,18 +27,11 @@ public final class CategorizeEvaluator implements EvalOperator.ExpressionEvaluat
 
   private final EvalOperator.ExpressionEvaluator v;
 
-  private final CategorizationAnalyzer analyzer;
-
-  private final TokenListCategorizer.CloseableTokenListCategorizer categorizer;
-
   private final DriverContext driverContext;
 
   public CategorizeEvaluator(Source source, EvalOperator.ExpressionEvaluator v,
-      CategorizationAnalyzer analyzer,
-      TokenListCategorizer.CloseableTokenListCategorizer categorizer, DriverContext driverContext) {
+      DriverContext driverContext) {
     this.v = v;
-    this.analyzer = analyzer;
-    this.categorizer = categorizer;
     this.driverContext = driverContext;
     this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
@@ -59,8 +47,8 @@ public final class CategorizeEvaluator implements EvalOperator.ExpressionEvaluat
     }
   }
 
-  public IntBlock eval(int positionCount, BytesRefBlock vBlock) {
-    try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
+  public BytesRefBlock eval(int positionCount, BytesRefBlock vBlock) {
+    try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       BytesRef vScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         if (vBlock.isNull(p)) {
@@ -74,17 +62,17 @@ public final class CategorizeEvaluator implements EvalOperator.ExpressionEvaluat
           result.appendNull();
           continue position;
         }
-        result.appendInt(Categorize.process(vBlock.getBytesRef(vBlock.getFirstValueIndex(p), vScratch), this.analyzer, this.categorizer));
+        result.appendBytesRef(Categorize.process(vBlock.getBytesRef(vBlock.getFirstValueIndex(p), vScratch)));
       }
       return result.build();
     }
   }
 
-  public IntVector eval(int positionCount, BytesRefVector vVector) {
-    try(IntVector.FixedBuilder result = driverContext.blockFactory().newIntVectorFixedBuilder(positionCount)) {
+  public BytesRefVector eval(int positionCount, BytesRefVector vVector) {
+    try(BytesRefVector.Builder result = driverContext.blockFactory().newBytesRefVectorBuilder(positionCount)) {
       BytesRef vScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendInt(p, Categorize.process(vVector.getBytesRef(p, vScratch), this.analyzer, this.categorizer));
+        result.appendBytesRef(Categorize.process(vVector.getBytesRef(p, vScratch)));
       }
       return result.build();
     }
@@ -97,7 +85,7 @@ public final class CategorizeEvaluator implements EvalOperator.ExpressionEvaluat
 
   @Override
   public void close() {
-    Releasables.closeExpectNoException(v, analyzer, categorizer);
+    Releasables.closeExpectNoException(v);
   }
 
   static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
@@ -105,22 +93,14 @@ public final class CategorizeEvaluator implements EvalOperator.ExpressionEvaluat
 
     private final EvalOperator.ExpressionEvaluator.Factory v;
 
-    private final Function<DriverContext, CategorizationAnalyzer> analyzer;
-
-    private final Function<DriverContext, TokenListCategorizer.CloseableTokenListCategorizer> categorizer;
-
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory v,
-        Function<DriverContext, CategorizationAnalyzer> analyzer,
-        Function<DriverContext, TokenListCategorizer.CloseableTokenListCategorizer> categorizer) {
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory v) {
       this.source = source;
       this.v = v;
-      this.analyzer = analyzer;
-      this.categorizer = categorizer;
     }
 
     @Override
     public CategorizeEvaluator get(DriverContext context) {
-      return new CategorizeEvaluator(source, v.get(context), analyzer.apply(context), categorizer.apply(context), context);
+      return new CategorizeEvaluator(source, v.get(context), context);
     }
 
     @Override

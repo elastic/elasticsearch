@@ -13,6 +13,7 @@ import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.common.util.LongLongHash;
+import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.data.Block;
@@ -92,9 +93,15 @@ public abstract class BlockHash implements Releasable, SeenGroupIds {
      *                                 production until we can. And this lets us continue to compile and
      *                                 test them.
      */
-    public static BlockHash build(List<GroupSpec> groups, BlockFactory blockFactory, int emitBatchSize, boolean allowBrokenOptimizations) {
+    public static BlockHash build(
+        List<GroupSpec> groups,
+        AggregatorMode aggregatorMode,
+        BlockFactory blockFactory,
+        int emitBatchSize,
+        boolean allowBrokenOptimizations
+    ) {
         if (groups.size() == 1) {
-            return newForElementType(groups.get(0).channel(), groups.get(0).elementType(), blockFactory);
+            return newForElementType(groups.get(0).channel(), groups.get(0).elementType(), aggregatorMode, blockFactory);
         }
         if (groups.size() == 3 && groups.stream().allMatch(g -> g.elementType == ElementType.BYTES_REF)) {
             return new BytesRef3BlockHash(blockFactory, groups.get(0).channel, groups.get(1).channel, groups.get(2).channel, emitBatchSize);
@@ -125,7 +132,7 @@ public abstract class BlockHash implements Releasable, SeenGroupIds {
     /**
      * Creates a specialized hash table that maps a {@link Block} of the given input element type to ids.
      */
-    private static BlockHash newForElementType(int channel, ElementType type, BlockFactory blockFactory) {
+    private static BlockHash newForElementType(int channel, ElementType type, AggregatorMode aggregatorMode, BlockFactory blockFactory) {
         return switch (type) {
             case NULL -> new NullBlockHash(channel, blockFactory);
             case BOOLEAN -> new BooleanBlockHash(channel, blockFactory);
@@ -133,8 +140,9 @@ public abstract class BlockHash implements Releasable, SeenGroupIds {
             case LONG -> new LongBlockHash(channel, blockFactory);
             case DOUBLE -> new DoubleBlockHash(channel, blockFactory);
             case BYTES_REF -> new BytesRefBlockHash(channel, blockFactory);
-            case CATEGORY_RAW -> new CategorizeRawBlockHash(channel, blockFactory, true);
-            case CATEGORY_INTERMEDIATE -> new CategorizedIntermediateBlockHash(channel, blockFactory, false);
+            case CATEGORY -> aggregatorMode.isInputPartial()
+                ? new CategorizedIntermediateBlockHash(channel, blockFactory, aggregatorMode.isOutputPartial())
+                : new CategorizeRawBlockHash(channel, blockFactory, aggregatorMode.isOutputPartial());
             default -> throw new IllegalArgumentException("unsupported grouping element type [" + type + "]");
         };
     }

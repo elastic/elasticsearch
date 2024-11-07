@@ -287,7 +287,8 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
             new LocalSourceOperator(input1),
             List.of(
                 new HashAggregationOperator.HashAggregationOperatorFactory(
-                    List.of(new BlockHash.GroupSpec(0, ElementType.CATEGORY_RAW)),
+                    List.of(new BlockHash.GroupSpec(0, ElementType.CATEGORY)),
+                    AggregatorMode.INITIAL,
                     List.of(
                         new SumLongAggregatorFunctionSupplier(List.of(1)).groupingAggregatorFactory(AggregatorMode.INITIAL),
                         new MaxLongAggregatorFunctionSupplier(List.of(1)).groupingAggregatorFactory(AggregatorMode.INITIAL)
@@ -305,7 +306,8 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
             new LocalSourceOperator(input2),
             List.of(
                 new HashAggregationOperator.HashAggregationOperatorFactory(
-                    List.of(new BlockHash.GroupSpec(0, ElementType.CATEGORY_RAW)),
+                    List.of(new BlockHash.GroupSpec(0, ElementType.CATEGORY)),
+                    AggregatorMode.INITIAL,
                     List.of(
                         new SumLongAggregatorFunctionSupplier(List.of(1)).groupingAggregatorFactory(AggregatorMode.INITIAL),
                         new MaxLongAggregatorFunctionSupplier(List.of(1)).groupingAggregatorFactory(AggregatorMode.INITIAL)
@@ -325,7 +327,8 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
             new CannedSourceOperator(intermediateOutput.iterator()),
             List.of(
                 new HashAggregationOperator.HashAggregationOperatorFactory(
-                    List.of(new BlockHash.GroupSpec(0, ElementType.CATEGORY_INTERMEDIATE)),
+                    List.of(new BlockHash.GroupSpec(0, ElementType.CATEGORY)),
+                    AggregatorMode.FINAL,
                     List.of(
                         new SumLongAggregatorFunctionSupplier(List.of(1, 2)).groupingAggregatorFactory(AggregatorMode.FINAL),
                         new MaxLongAggregatorFunctionSupplier(List.of(3, 4)).groupingAggregatorFactory(AggregatorMode.FINAL)

@@ -146,7 +146,7 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
     }
 
     public static class Response extends ActionResponse implements ToXContentObject {
-        static final Set<String> RESERVED_NAMES = Set.of("cluster_settings", "node_settings", "index_settings", "data_stream_settings");
+        static final Set<String> RESERVED_NAMES = Set.of("cluster_settings", "node_settings", "index_settings", "data_streams");
         private final List<DeprecationIssue> clusterSettingsIssues;
         private final List<DeprecationIssue> nodeSettingsIssues;
         private final Map<String, List<DeprecationIssue>> indexSettingsIssues;
@@ -232,7 +232,7 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
                 .array("node_settings", nodeSettingsIssues.toArray())
                 .field("index_settings")
                 .map(indexSettingsIssues)
-                .field("data_stream_settings")
+                .field("data_streams")
                 .map(dataStreamIssues)
                 .mapContents(pluginSettingsIssues)
                 .endObject();

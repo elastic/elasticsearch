@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference;
 
+import org.elasticsearch.client.Request;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService;
@@ -27,8 +28,15 @@ public class DefaultEndPointsIT extends InferenceBaseRestTest {
     private TestThreadPool threadPool;
 
     @Before
-    public void createThreadPool() {
+    public void setupTest() throws IOException {
         threadPool = new TestThreadPool(DefaultEndPointsIT.class.getSimpleName());
+
+        Request loggingSettings = new Request("PUT", "_cluster/settings");
+        loggingSettings.setJsonEntity("""
+            {"persistent" : {
+                    "logger.org.elasticsearch.xpack.ml.packageloader" : "DEBUG"
+                }}""");
+        client().performRequest(loggingSettings);
     }
 
     @After
@@ -64,7 +72,7 @@ public class DefaultEndPointsIT extends InferenceBaseRestTest {
         assertThat(
             modelConfig.toString(),
             adaptiveAllocations,
-            Matchers.is(Map.of("enabled", true, "min_number_of_allocations", 0, "max_number_of_allocations", 8))
+            Matchers.is(Map.of("enabled", true, "min_number_of_allocations", 0, "max_number_of_allocations", 32))
         );
     }
 
@@ -99,7 +107,7 @@ public class DefaultEndPointsIT extends InferenceBaseRestTest {
         assertThat(
             modelConfig.toString(),
             adaptiveAllocations,
-            Matchers.is(Map.of("enabled", true, "min_number_of_allocations", 0, "max_number_of_allocations", 8))
+            Matchers.is(Map.of("enabled", true, "min_number_of_allocations", 0, "max_number_of_allocations", 32))
         );
     }
 }

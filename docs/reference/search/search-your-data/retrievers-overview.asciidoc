@@ -71,8 +71,8 @@ When using compound retrievers, only the query element is allowed, which enforce
 
 Let's work through some examples to see how we can use and leverage retrievers to build an awesome search experience!
 
-To show the full functionality, in this exercise, we'll assume that we have access to a reranker model through the inference service,
-as well as access to Elser, for building semantic queries!
+To show the full functionality, in this exercise, we'll assume that we have access to a <<semantic-reranking-models,reranker model>> through the inference service,
+as well as access to <<infer-service-elser,ELSER>>, for building semantic queries!
 
 So, first things first, let's start by setting up these services and have them in place for later use!
 

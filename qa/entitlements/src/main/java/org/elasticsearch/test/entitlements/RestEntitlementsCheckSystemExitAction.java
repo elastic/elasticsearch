@@ -9,6 +9,8 @@
 
 package org.elasticsearch.test.entitlements;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -18,6 +20,8 @@ import java.util.List;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestEntitlementsCheckSystemExitAction extends BaseRestHandler {
+
+    private static final Logger logger = LogManager.getLogger(RestEntitlementsCheckSystemExitAction.class);
 
     RestEntitlementsCheckSystemExitAction() {}
 
@@ -33,6 +37,10 @@ public class RestEntitlementsCheckSystemExitAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
-        return channel -> { System.exit(123); };
+        logger.info("RestEntitlementsCheckSystemExitAction rest handler");
+        return channel -> {
+            logger.info("Calling System.exit(123);");
+            System.exit(123);
+        };
     }
 }

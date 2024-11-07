@@ -66,10 +66,10 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
     }
 
     private static boolean isTriviallyAllowed(Module requestingModule) {
-        if (isActive == false) {
-            logger.debug("Trivially allowed: entitlements are inactive");
-            return true;
-        }
+        // if (isActive == false) {
+        // logger.debug("Trivially allowed: entitlements are inactive");
+        // return true;
+        // }
         if (requestingModule == null) {
             logger.debug("Trivially allowed: Entire call stack is in the boot module layer");
             return true;

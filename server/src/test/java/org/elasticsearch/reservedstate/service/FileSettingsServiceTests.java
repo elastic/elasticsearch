@@ -12,6 +12,7 @@ package org.elasticsearch.reservedstate.service;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
@@ -30,7 +31,6 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.env.BuildVersion;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.reservedstate.action.ReservedClusterSettingsAction;
 import org.elasticsearch.tasks.TaskManager;
@@ -278,7 +278,7 @@ public class FileSettingsServiceTests extends ESTestCase {
                     throw new RuntimeException(e);
                 }
             }).start();
-            return new ReservedStateChunk(Map.of(), new ReservedStateVersion(1L, BuildVersion.current()));
+            return new ReservedStateChunk(Map.of(), new ReservedStateVersion(1L, Version.CURRENT));
         }).when(controller).parse(any(String.class), any());
 
         doAnswer((Answer<Void>) invocation -> {

@@ -12,6 +12,7 @@ package org.elasticsearch.upgrades;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RestClient;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
@@ -23,6 +24,7 @@ import org.junit.rules.RuleChain;
 import org.junit.rules.TemporaryFolder;
 import org.junit.rules.TestRule;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
@@ -92,26 +94,34 @@ public class FileSettingsRoleMappingUpgradeIT extends ParameterizedRollingUpgrad
     }
 
     private static void waitForSecurityMigrationCompletionIfIndexExists() throws Exception {
-        final Request request = new Request("GET", "_cluster/state/metadata/.security-7");
+        final Request request = new Request("GET", "_cluster/state/metadata/.security");
         assertBusy(() -> {
             Map<String, Object> indices = new XContentTestUtils.JsonMapView(entityAsMap(client().performRequest(request))).get(
                 "metadata.indices"
             );
             assertNotNull(indices);
+            String securityIndexName = getConcreteSecurityIndexName();
+            assertNotNull(securityIndexName);
             // If the security index exists, migration needs to happen. There is a bug in pre cluster state role mappings code that tries
             // to write file based role mappings before security index manager state is recovered, this makes it look like the security
             // index is outdated (isIndexUpToDate == false). Because we can't rely on the index being there for old versions, this check
             // is needed.
-            if (indices.containsKey(".security-7")) {
+            if (indices.containsKey(securityIndexName)) {
                 // JsonMapView doesn't support . prefixed indices (splits on .)
                 @SuppressWarnings("unchecked")
-                String responseVersion = new XContentTestUtils.JsonMapView((Map<String, Object>) indices.get(".security-7")).get(
+                String responseVersion = new XContentTestUtils.JsonMapView((Map<String, Object>) indices.get(securityIndexName)).get(
                     "migration_version.version"
                 );
                 assertNotNull(responseVersion);
                 assertTrue(Integer.parseInt(responseVersion) >= ROLE_MAPPINGS_CLEANUP_MIGRATION_VERSION);
             }
         });
+    }
+
+    protected static String getConcreteSecurityIndexName() throws IOException {
+        final Request request = new Request("GET", ".security/_alias");
+        Map<String, Object> aliasByConcreteName = entityAsMap(client().performRequest(request));
+        return aliasByConcreteName.keySet().stream().findFirst().orElse(null);
     }
 
     public void testRoleMappingsAppliedOnUpgrade() throws Exception {

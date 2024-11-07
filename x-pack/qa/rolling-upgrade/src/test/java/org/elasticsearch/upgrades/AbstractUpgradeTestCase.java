@@ -20,6 +20,7 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.test.SecuritySettingsSourceField;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -154,20 +155,28 @@ public abstract class AbstractUpgradeTestCase extends ESRestTestCase {
     }
 
     protected static void waitForSecurityMigrationCompletion(RestClient adminClient, int version) throws Exception {
-        final Request request = new Request("GET", "_cluster/state/metadata/.security-7");
+        final Request request = new Request("GET", "_cluster/state/metadata/.security");
         assertBusy(() -> {
             Map<String, Object> indices = new XContentTestUtils.JsonMapView(entityAsMap(adminClient.performRequest(request))).get(
                 "metadata.indices"
             );
             assertNotNull(indices);
-            assertTrue(indices.containsKey(".security-7"));
+            String securityIndexName = getConcreteSecurityIndexName(adminClient);
+            assertNotNull(securityIndexName);
+            assertTrue(indices.containsKey(securityIndexName));
             // JsonMapView doesn't support . prefixed indices (splits on .)
             @SuppressWarnings("unchecked")
-            String responseVersion = new XContentTestUtils.JsonMapView((Map<String, Object>) indices.get(".security-7")).get(
+            String responseVersion = new XContentTestUtils.JsonMapView((Map<String, Object>) indices.get(securityIndexName)).get(
                 "migration_version.version"
             );
             assertNotNull(responseVersion);
             assertTrue(Integer.parseInt(responseVersion) >= version);
         });
+    }
+
+    protected static String getConcreteSecurityIndexName(RestClient adminClient) throws IOException {
+        final Request request = new Request("GET", ".security/_alias");
+        Map<String, Object> aliasByConcreteName = entityAsMap(adminClient.performRequest(request));
+        return aliasByConcreteName.keySet().stream().findFirst().orElse(null);
     }
 }

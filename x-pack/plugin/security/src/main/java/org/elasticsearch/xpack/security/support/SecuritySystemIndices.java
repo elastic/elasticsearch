@@ -20,6 +20,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.ExecutorNames;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -51,11 +52,11 @@ public class SecuritySystemIndices {
     private static final int INTERNAL_PROFILE_INDEX_MAPPINGS_FORMAT = 2;
 
     public static final String SECURITY_MAIN_ALIAS = ".security";
-    private static final String MAIN_INDEX_CONCRETE_NAME = ".security-7";
+    private static final String MAIN_INDEX_CONCRETE_NAME = ".security-" + IndexVersion.current().luceneVersion().major;
     public static final String SECURITY_TOKENS_ALIAS = ".security-tokens";
-    private static final String TOKENS_INDEX_CONCRETE_NAME = ".security-tokens-7";
+    private static final String TOKENS_INDEX_CONCRETE_NAME = ".security-tokens-" + IndexVersion.current().luceneVersion().major;
 
-    public static final String INTERNAL_SECURITY_PROFILE_INDEX_8 = ".security-profile-8";
+    public static final String INTERNAL_SECURITY_PROFILE_INDEX_8 = ".security-profile-" + IndexVersion.current().luceneVersion().major;
     public static final String SECURITY_PROFILE_ALIAS = ".security-profile";
     public static final Version VERSION_SECURITY_PROFILE_ORIGIN = Version.V_8_3_0;
     public static final NodeFeature SECURITY_PROFILE_ORIGIN_FEATURE = new NodeFeature("security.security_profile_origin");

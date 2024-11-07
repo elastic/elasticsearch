@@ -820,7 +820,7 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
     }
 
     private Map<String, Object> getApiKeyDocument(String apiKeyId) {
-        final GetResponse getResponse = client().execute(TransportGetAction.TYPE, new GetRequest(".security-7", apiKeyId)).actionGet();
+        final GetResponse getResponse = client().execute(TransportGetAction.TYPE, new GetRequest(".security", apiKeyId)).actionGet();
         return getResponse.getSource();
     }
 }

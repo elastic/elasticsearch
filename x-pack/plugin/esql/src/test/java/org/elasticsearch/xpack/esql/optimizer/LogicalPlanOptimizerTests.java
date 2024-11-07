@@ -589,7 +589,63 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var source = as(filter.child(), EsRelation.class);
     }
 
-    public void testExtractStatsCommonFilterNotSame() {
+    public void testExtractStatsCommonFilterUsingAliases() {
+        var plan = plan("""
+            from test
+            | eval eno = emp_no
+            | drop emp_no
+            | stats min(salary) where eno > 1,
+                    max(salary) where eno > 1
+            """);
+
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        assertThat(agg.aggregates().size(), is(2));
+
+        var alias = as(agg.aggregates().get(0), Alias.class);
+        var aggFunc = as(alias.child(), AggregateFunction.class);
+        assertThat(aggFunc.filter(), is(Literal.TRUE));
+
+        alias = as(agg.aggregates().get(1), Alias.class);
+        aggFunc = as(alias.child(), AggregateFunction.class);
+        assertThat(aggFunc.filter(), is(Literal.TRUE));
+
+        var filter = as(agg.child(), Filter.class);
+        assertThat(Expressions.name(filter.condition()), is("eno > 1"));
+
+        var source = as(filter.child(), EsRelation.class);
+    }
+
+    public void testExtractStatsCommonFilterUsingJustOneAlias() {
+        var plan = plan("""
+            from test
+            | eval eno = emp_no
+            | stats min(salary) where emp_no > 1,
+                    max(salary) where eno > 1
+            """);
+
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        assertThat(agg.aggregates().size(), is(2));
+
+        var alias = as(agg.aggregates().get(0), Alias.class);
+        var aggFunc = as(alias.child(), AggregateFunction.class);
+        assertThat(aggFunc.filter(), is(Literal.TRUE));
+
+        alias = as(agg.aggregates().get(1), Alias.class);
+        aggFunc = as(alias.child(), AggregateFunction.class);
+        assertThat(aggFunc.filter(), is(Literal.TRUE));
+
+        var filter = as(agg.child(), Filter.class);
+        var gt = as(filter.condition(), GreaterThan.class);
+        assertThat(Expressions.name(gt.left()), is("emp_no"));
+        assertTrue(gt.right().foldable());
+        assertThat(gt.right().fold(), is(1));
+
+        var source = as(filter.child(), EsRelation.class);
+    }
+
+    public void testExtractStatsCommonFilterSkippedNotSameFilter() {
         var plan = plan("""
             from test
             | stats min(salary) where emp_no > 1,
@@ -611,7 +667,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var source = as(agg.child(), EsRelation.class);
     }
 
-    public void testExtractStatsCommonFilterAsymetrical() {
+    public void testExtractStatsCommonFilterSkippedOnLackingFilter() {
         var plan = plan("""
             from test
             | stats min(salary),
@@ -633,7 +689,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var source = as(agg.child(), EsRelation.class);
     }
 
-    public void testExtractStatsCommonFilterWithGroups() {
+    public void testExtractStatsCommonFilterSkippedWithGroups() {
         var plan = plan("""
             from test
             | stats min(salary) where emp_no > 2,
@@ -655,12 +711,12 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var source = as(agg.child(), EsRelation.class);
     }
 
-    public void testExtractStatsCommonFilterCombine() {
+    public void testExtractStatsCommonFilterNormalizeAndCombineWithExistingFilter() {
         var plan = plan("""
             from test
             | where emp_no > 3
             | stats min(salary) where emp_no > 2,
-                    max(salary) where emp_no > 2
+                    max(salary) where 2 < emp_no
             """);
 
         var limit = as(plan, Limit.class);
@@ -679,6 +735,92 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(Expressions.name(filter.condition()), is("emp_no > 3"));
 
         var source = as(filter.child(), EsRelation.class);
+    }
+
+    public void testExtractStatsCommonFilterInConjunction() {
+        var plan = plan("""
+            from test
+            | stats min(salary) where emp_no > 2 and first_name == "John",
+                    max(salary) where emp_no > 1 + 1 and length(last_name) < 19
+            """);
+
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        assertThat(agg.aggregates().size(), is(2));
+
+        var alias = as(agg.aggregates().get(0), Alias.class);
+        var aggFunc = as(alias.child(), AggregateFunction.class);
+        assertThat(Expressions.name(aggFunc.filter()), is("first_name == \"John\""));
+
+        alias = as(agg.aggregates().get(1), Alias.class);
+        aggFunc = as(alias.child(), AggregateFunction.class);
+        assertThat(Expressions.name(aggFunc.filter()), is("length(last_name) < 19"));
+
+        var filter = as(agg.child(), Filter.class);
+        var gt = as(filter.condition(), GreaterThan.class); // name is "emp_no > 1 + 1"
+        assertThat(Expressions.name(gt.left()), is("emp_no"));
+        assertTrue(gt.right().foldable());
+        assertThat(gt.right().fold(), is(2));
+
+        var source = as(filter.child(), EsRelation.class);
+    }
+
+    public void testExtractStatsCommonFilterInConjunctionWithMultipleCommonConjunctions() {
+        var plan = plan("""
+            from test
+            | stats min(salary) where emp_no < 10 and first_name == "John" and last_name == "Doe",
+                    max(salary) where emp_no - 1 < 2 + 7 and length(last_name) < 19 and last_name == "Doe"
+            """);
+
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        assertThat(agg.aggregates().size(), is(2));
+
+        var alias = as(agg.aggregates().get(0), Alias.class);
+        var aggFunc = as(alias.child(), AggregateFunction.class);
+        assertThat(Expressions.name(aggFunc.filter()), is("first_name == \"John\""));
+
+        alias = as(agg.aggregates().get(1), Alias.class);
+        aggFunc = as(alias.child(), AggregateFunction.class);
+        assertThat(Expressions.name(aggFunc.filter()), is("length(last_name) < 19"));
+
+        var filter = as(agg.child(), Filter.class);
+        var and = as(filter.condition(), And.class);
+
+        var lt = as(and.left(), LessThan.class);
+        assertThat(Expressions.name(lt.left()), is("emp_no"));
+        assertTrue(lt.right().foldable());
+        assertThat(lt.right().fold(), is(10));
+
+        var equals = as(and.right(), Equals.class);
+        assertThat(Expressions.name(equals.left()), is("last_name"));
+        assertTrue(equals.right().foldable());
+        assertThat(equals.right().fold(), is(BytesRefs.toBytesRef("Doe")));
+
+        var source = as(filter.child(), EsRelation.class);
+    }
+
+    public void testExtractStatsCommonFilterSkippedDueToDisjunction() {
+        // same query as in testExtractStatsCommonFilterInConjunction, except for the OR in the filter
+        var plan = plan("""
+            from test
+            | stats min(salary) where emp_no > 2 OR first_name == "John",
+                    max(salary) where emp_no > 1 + 1 and length(last_name) < 19
+            """);
+
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        assertThat(agg.aggregates().size(), is(2));
+
+        var alias = as(agg.aggregates().get(0), Alias.class);
+        var aggFunc = as(alias.child(), AggregateFunction.class);
+        assertThat(aggFunc.filter(), instanceOf(Or.class));
+
+        alias = as(agg.aggregates().get(1), Alias.class);
+        aggFunc = as(alias.child(), AggregateFunction.class);
+        assertThat(aggFunc.filter(), instanceOf(And.class));
+
+        var source = as(agg.child(), EsRelation.class);
     }
 
     public void testQlComparisonOptimizationsApply() {

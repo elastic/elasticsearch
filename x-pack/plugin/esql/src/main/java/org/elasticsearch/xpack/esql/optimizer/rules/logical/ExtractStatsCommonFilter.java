@@ -19,6 +19,11 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.elasticsearch.xpack.esql.core.expression.predicate.Predicates.combineAnd;
+import static org.elasticsearch.xpack.esql.core.expression.predicate.Predicates.inCommon;
+import static org.elasticsearch.xpack.esql.core.expression.predicate.Predicates.splitAnd;
+import static org.elasticsearch.xpack.esql.core.expression.predicate.Predicates.subtract;
+
 /**
  * Extract a per-function expression filter applied to all the aggs as a query {@link Filter}, when no groups are provided.
  * <p>
@@ -39,27 +44,39 @@ public final class ExtractStatsCommonFilter extends OptimizerRules.OptimizerRule
         if (aggregate.groupings().isEmpty() == false) {
             return aggregate; // no optimization for grouped stats
         }
-        Expression filter = null;
-        List<NamedExpression> newAggs = new ArrayList<>(aggregate.aggregates().size());
+        
+        // extract predicates common in all the filters
+        List<Expression> commonFilters = null;
+        @SuppressWarnings({ "rawtypes", "unchecked" })
+        List<Expression>[] splitAnds = new List[aggregate.aggregates().size()];
+        int i = 0;
         for (NamedExpression ne : aggregate.aggregates()) {
             if (ne instanceof Alias alias && alias.child() instanceof AggregateFunction aggFunction && aggFunction.hasFilter()) {
-                if (filter == null) {
-                    filter = aggFunction.filter();
-                } else if (aggFunction.filter().semanticEquals(filter) == false) {
-                    return aggregate; // different filters -- skip optimization
+                var split = splitAnd(aggFunction.filter());
+                commonFilters = commonFilters == null ? split : inCommon(split, commonFilters);
+                if (commonFilters.isEmpty()) {
+                    return aggregate; // no common filter -- skip optimization
                 }
-                // first or same filter -- remove it from the agg function
-                newAggs.add(alias.replaceChild(aggFunction.withFilter(Literal.TRUE)));
+                splitAnds[i++] = split;
             } else {
                 return aggregate; // (at least one) agg function has no filter -- skip optimization
             }
         }
-        if (filter == null) { // no agg has any filter
-            return aggregate;
+
+        // remove common filters from the agg functions
+        List<NamedExpression> newAggs = new ArrayList<>(aggregate.aggregates().size());
+        i = 0;
+        for (NamedExpression ne : aggregate.aggregates()) {
+            var alias = (Alias) ne;
+            List<Expression> diffed = subtract(splitAnds[i++], commonFilters);
+            Expression newFilter = diffed.isEmpty() ? Literal.TRUE : combineAnd(diffed);
+            newAggs.add(alias.replaceChild(((AggregateFunction) alias.child()).withFilter(newFilter)));
         }
+
+        // build the new agg on top of extracted filter
         return new Aggregate(
             aggregate.source(),
-            new Filter(aggregate.source(), aggregate.child(), filter),
+            new Filter(aggregate.source(), aggregate.child(), combineAnd(commonFilters)),
             aggregate.aggregateType(),
             aggregate.groupings(),
             newAggs

@@ -102,7 +102,7 @@ public class TransportPutComponentTemplateAction extends AcknowledgedTransportMa
         final ActionListener<AcknowledgedResponse> listener
     ) {
         ComponentTemplate componentTemplate = normalizeComponentTemplate(request.componentTemplate(), indexScopedSettings);
-        var projectId = projectResolver.getProjectId(state);
+        var projectId = projectResolver.getProjectId();
         indexTemplateService.putComponentTemplate(
             request.cause(),
             request.create(),

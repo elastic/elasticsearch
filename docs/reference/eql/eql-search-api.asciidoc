@@ -88,6 +88,22 @@ request that targets only `bar*` still returns an error.
 +
 Defaults to `true`.
 
+`allow_partial_search_results`::
+(Optional, Boolean)
+
+If `false`, the request returns an error if one or more shards involved in the query are unavailable.
++
+If `true`, the query is executed only on the available shards, ignoring shard request timeouts and
+<<shard-failures,shard failures>>.
++
+Defaults to `false`.
+
+[IMPORTANT]
+====
+You can also specify this value using the `allow_partial_search_results` request body parameter.
+If both parameters are specified, only the query parameter is used.
+====
+
 `ccs_minimize_roundtrips`::
 (Optional, Boolean) If `true`, network round-trips between the local and the
 remote cluster are minimized when running cross-cluster search (CCS) requests.

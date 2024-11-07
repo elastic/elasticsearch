@@ -37,11 +37,11 @@ FROM employees
 ----
 
 When a time span is provided as a name parameter in string format, `TO_DATEPERIOD`, `::DATE_PERIOD`, `TO_TIMEDURATION` or `::TIME_DURATION` can be used to convert it to its corresponding time span value.
-[source,console,id=esql-time-span-named-parameter]
+[source,console]
 ----
 POST /_query
 {
- "query": """
+   "query": """
    FROM employees
    | EVAL x = hire_date + ?timespan::DATE_PERIOD, y = hire_date - TO_DATEPERIOD(?timespan)
    """,

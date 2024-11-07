@@ -12,7 +12,6 @@ package org.elasticsearch.action.termvectors;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.project.ProjectResolver;
@@ -38,7 +37,6 @@ import java.util.concurrent.Executor;
 public class TransportTermVectorsAction extends TransportSingleShardAction<TermVectorsRequest, TermVectorsResponse> {
 
     private final IndicesService indicesService;
-    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportTermVectorsAction(
@@ -56,17 +54,16 @@ public class TransportTermVectorsAction extends TransportSingleShardAction<TermV
             clusterService,
             transportService,
             actionFilters,
+            projectResolver,
             indexNameExpressionResolver,
             TermVectorsRequest::new,
             threadPool.executor(ThreadPool.Names.GET)
         );
         this.indicesService = indicesService;
-        this.projectResolver = projectResolver;
     }
 
     @Override
-    protected ShardIterator shards(ClusterState state, InternalRequest request) {
-        ProjectState project = projectResolver.getProjectState(state);
+    protected ShardIterator shards(ProjectState project, InternalRequest request) {
         if (request.request().doc() != null && request.request().routing() == null) {
             // artificial document without routing specified, ignore its "id" and use either random shard or according to preference
             GroupShardsIterator<ShardIterator> groupShardsIter = clusterService.operationRouting()
@@ -91,10 +88,9 @@ public class TransportTermVectorsAction extends TransportSingleShardAction<TermV
     }
 
     @Override
-    protected void resolveRequest(ClusterState state, InternalRequest request) {
+    protected void resolveRequest(ProjectState state, InternalRequest request) {
         // update the routing (request#index here is possibly an alias or a parent)
-        request.request()
-            .routing(state.metadata().getProject().resolveIndexRouting(request.request().routing(), request.request().index()));
+        request.request().routing(state.metadata().resolveIndexRouting(request.request().routing(), request.request().index()));
     }
 
     @Override

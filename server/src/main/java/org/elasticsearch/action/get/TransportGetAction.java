@@ -63,7 +63,6 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
     private static final Logger logger = LogManager.getLogger(TransportGetAction.class);
 
     private final IndicesService indicesService;
-    private final ProjectResolver projectResolver;
     private final ExecutorSelector executorSelector;
     private final NodeClient client;
 
@@ -85,12 +84,12 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
             clusterService,
             transportService,
             actionFilters,
+            projectResolver,
             indexNameExpressionResolver,
             GetRequest::new,
             threadPool.executor(ThreadPool.Names.GET)
         );
         this.indicesService = indicesService;
-        this.projectResolver = projectResolver;
         this.executorSelector = executorSelector;
         this.client = client;
         // register the internal TransportGetFromTranslogAction
@@ -103,8 +102,7 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
     }
 
     @Override
-    protected ShardIterator shards(ClusterState state, InternalRequest request) {
-        ProjectState project = projectResolver.getProjectState(state);
+    protected ShardIterator shards(ProjectState project, InternalRequest request) {
         ShardIterator iterator = clusterService.operationRouting()
             .getShards(
                 project,
@@ -126,10 +124,9 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
     }
 
     @Override
-    protected void resolveRequest(ClusterState state, InternalRequest request) {
+    protected void resolveRequest(ProjectState state, InternalRequest request) {
         // update the routing (request#index here is possibly an alias)
-        request.request()
-            .routing(projectResolver.getProjectMetadata(state).resolveIndexRouting(request.request().routing(), request.request().index()));
+        request.request().routing(state.metadata().resolveIndexRouting(request.request().routing(), request.request().index()));
     }
 
     @Override

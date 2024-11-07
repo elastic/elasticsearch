@@ -16,12 +16,13 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
@@ -54,7 +55,6 @@ import java.util.function.LongSupplier;
 public class TransportExplainAction extends TransportSingleShardAction<ExplainRequest, ExplainResponse> {
 
     public static final ActionType<ExplainResponse> TYPE = new ActionType<>("indices:data/read/explain");
-    private final ProjectResolver projectResolver;
     private final SearchService searchService;
     private final RemoteClusterService remoteClusterService;
 
@@ -74,11 +74,11 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
             clusterService,
             transportService,
             actionFilters,
+            projectResolver,
             indexNameExpressionResolver,
             ExplainRequest::new,
             threadPool.executor(ThreadPool.Names.GET)
         );
-        this.projectResolver = projectResolver;
         this.searchService = searchService;
         this.remoteClusterService = transportService.getRemoteClusterService();
     }
@@ -112,9 +112,10 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
     }
 
     @Override
-    protected void resolveRequest(ClusterState state, InternalRequest request) {
-        final Set<String> indicesAndAliases = indexNameExpressionResolver.resolveExpressions(state, request.request().index());
-        final AliasFilter aliasFilter = searchService.buildAliasFilter(state, request.concreteIndex(), indicesAndAliases);
+    protected void resolveRequest(ProjectState state, InternalRequest request) {
+        final Set<String> indicesAndAliases = indexNameExpressionResolver.resolveExpressions(state.metadata(), request.request().index());
+        @FixForMultiProject
+        final AliasFilter aliasFilter = searchService.buildAliasFilter(state.cluster(), request.concreteIndex(), indicesAndAliases);
         request.request().filteringAlias(aliasFilter);
     }
 
@@ -175,15 +176,9 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
     }
 
     @Override
-    protected ShardIterator shards(ClusterState state, InternalRequest request) {
+    protected ShardIterator shards(ProjectState state, InternalRequest request) {
         return clusterService.operationRouting()
-            .getShards(
-                projectResolver.getProjectState(state),
-                request.concreteIndex(),
-                request.request().id(),
-                request.request().routing(),
-                request.request().preference()
-            );
+            .getShards(state, request.concreteIndex(), request.request().id(), request.request().routing(), request.request().preference());
     }
 
     @Override

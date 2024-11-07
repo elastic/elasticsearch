@@ -9,7 +9,7 @@ Time spans provide a way of describing a specific period of time that separates 
 
 The time span contains two elements, an integer value and a temporal unit, both of them are required when specifying a time span.
 
-Time spans are often used in datetime related grouping functions like <<esql-bucket, BUCKET>>, scalar functions like <<esql-date_trunc, DATE_TRUNC>> and arithmetic operators like `+` and `-`. There are two conversions functions that can convert string literals to time spans, <<esql-to_dateperiod, TO_DATEPERIOD>> and <<esql-to_timeduration, TO_TIMEDURATION>>.
+Time spans are often used in datetime related grouping functions like <<esql-bucket, BUCKET>>, scalar functions like <<esql-date_trunc, DATE_TRUNC>> and arithmetic operators like `+` and `-`. There are conversions functions that can convert string literals to time spans, <<esql-to_dateperiod, TO_DATEPERIOD>>, <<esql-to_timeduration, TO_TIMEDURATION>> and their corresponding cast operators `::DATE_PERIOD` and `::TIME_DURATION`.
 
 [float]
 === Examples of using time spans in {esql}
@@ -36,11 +36,17 @@ FROM employees
 | EVAL x = hire_date + 1 month - 1 day
 ----
 
-When a time span is provided as a string literal, `TO_DATEPERIOD`, `::DATE_PERIOD`, `TO_TIMEDURATION` or `::TIME_DURATION` can be used to convert it to its corresponding time span value.
-[source,txt]
+When a time span is provided as a name parameter in string format, `TO_DATEPERIOD`, `::DATE_PERIOD`, `TO_TIMEDURATION` or `::TIME_DURATION` can be used to convert it to its corresponding time span value.
+[source,console,id=esql-time-span-named-parameter]
 ----
-FROM employees
-| EVAL x = hire_date + TO_DATEPERIOD("1 month") - "1 day":DATE_PERIOD
+POST /_query
+{
+ "query": """
+   FROM employees
+   | EVAL x = hire_date + ?timespan::DATE_PERIOD, y = hire_date - TO_DATEPERIOD(?timespan)
+   """,
+   "params": [{"timespan" : "1 day"}]
+}
 ----
 
 

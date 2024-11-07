@@ -1165,7 +1165,7 @@ public class AuthenticationTests extends ESTestCase {
         final TransportVersion olderVersion = TransportVersionUtils.randomVersionBetween(
             random(),
             ROLE_REMOTE_CLUSTER_PRIVS,
-            ROLE_MONITOR_STATS
+            TransportVersionUtils.getPreviousVersion(ROLE_MONITOR_STATS)
         );
 
         Map<String, Object> rewrittenMetadata = with2privs.maybeRewriteForOlderVersion(olderVersion).getEffectiveSubject().getMetadata();

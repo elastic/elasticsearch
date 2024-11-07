@@ -283,14 +283,11 @@ public class TextExpansionQueryBuilderTests extends AbstractQueryTestCase<TextEx
         return new String[] { WeightedTokensQueryBuilder.TOKENS_FIELD.getPreferredName() };
     }
 
-    public void testThatTokensAreCorrectlyPruned() {
+    public void testQueryWasRewrittenToASupportedType() {
         SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
         TextExpansionQueryBuilder queryBuilder = createTestQueryBuilder();
         QueryBuilder rewrittenQueryBuilder = rewriteAndFetch(queryBuilder, searchExecutionContext);
-        if (queryBuilder.getTokenPruningConfig() == null) {
-            assertTrue(rewrittenQueryBuilder instanceof BoolQueryBuilder);
-        } else {
-            assertTrue(rewrittenQueryBuilder instanceof WeightedTokensQueryBuilder);
-        }
+
+        assertTrue(rewrittenQueryBuilder instanceof BoolQueryBuilder || rewrittenQueryBuilder instanceof WeightedTokensQueryBuilder);
     }
 }

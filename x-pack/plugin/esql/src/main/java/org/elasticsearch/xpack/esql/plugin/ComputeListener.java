@@ -189,23 +189,33 @@ final class ComputeListener implements Releasable {
         });
     }
 
+    boolean shouldIgnoreRemoteErrors(@Nullable String computeClusterAlias) {
+        return computeClusterAlias != null
+            && esqlExecutionInfo.isCrossClusterSearch()
+            && computeClusterAlias.equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY) == false
+            && runningOnRemoteCluster() == false
+            && esqlExecutionInfo.isSkipUnavailable(computeClusterAlias);
+    }
+
+    void markAsPartial(String computeClusterAlias, Exception e) {
+        // We use PARTIAL here because we can not know whether the cluster have already sent any data.
+        esqlExecutionInfo.swapCluster(computeClusterAlias, (k, v) -> {
+            assert v.getStatus() != EsqlExecutionInfo.Cluster.Status.SKIPPED
+                : "We shouldn't be running compute on a cluster that's already marked as skipped";
+            return new EsqlExecutionInfo.Cluster.Builder(v).setStatus(EsqlExecutionInfo.Cluster.Status.PARTIAL)
+                .setFailures(List.of(new ShardSearchFailure(e)))
+                .build();
+        });
+    }
+
     ActionListener<Void> acquireSkipUnavailable(@Nullable String computeClusterAlias) {
-        if (computeClusterAlias == null
-            || esqlExecutionInfo.isCrossClusterSearch() == false
-            || runningOnRemoteCluster()
-            || computeClusterAlias.equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY)
-            || esqlExecutionInfo.isSkipUnavailable(computeClusterAlias) == false) {
+        if (shouldIgnoreRemoteErrors(computeClusterAlias) == false) {
             return acquireAvoid();
         }
         return refs.acquire().delegateResponse((l, e) -> {
-            LOGGER.error("Skipping unavailable cluster {} in ESQL query: {}", computeClusterAlias, e);
-            esqlExecutionInfo.swapCluster(computeClusterAlias, (k, v) -> {
-                assert v.getStatus() != EsqlExecutionInfo.Cluster.Status.SKIPPED
-                    : "We shouldn't be running compute on a cluster that's already marked as skipped";
-                return new EsqlExecutionInfo.Cluster.Builder(v).setStatus(EsqlExecutionInfo.Cluster.Status.PARTIAL)
-                    .setFailures(List.of(new ShardSearchFailure(e)))
-                    .build();
-            });
+            // TODO: drop this in final patch
+            LOGGER.error("Marking failed cluster {} as partial: {}", computeClusterAlias, e);
+            markAsPartial(computeClusterAlias, e);
             l.onResponse(null);
         });
     }

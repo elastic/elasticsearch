@@ -325,7 +325,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
             }
         }
         this.roles = Collections.unmodifiableSortedSet(roles);
-        versionInfo = new VersionInformation(BuildVersion.fromStream(in), IndexVersion.readVersion(in), IndexVersion.readVersion(in));
+        versionInfo = new VersionInformation(Version.readVersion(in), IndexVersion.readVersion(in), IndexVersion.readVersion(in));
         if (in.getTransportVersion().onOrAfter(EXTERNAL_ID_VERSION)) {
             this.externalId = readStringLiteral.read(in);
         } else {

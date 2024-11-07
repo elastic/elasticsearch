@@ -51,6 +51,7 @@ public record VersionInformation(
          * before we can remove Version from here.
          */
         // for the moment, check this is only called with current() so the implied Version is correct
+        // TODO: work out what needs to happen for other versions. Maybe we can only remove this once the nodeVersion field is gone
         assert version.equals(BuildVersion.current()) : version + " is not " + BuildVersion.current();
     }
 

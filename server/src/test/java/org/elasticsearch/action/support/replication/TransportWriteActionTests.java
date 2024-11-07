@@ -431,7 +431,7 @@ public class TransportWriteActionTests extends ESTestCase {
                 PrimaryActionExecution.RejectOnOverload,
                 new IndexingPressure(Settings.EMPTY),
                 EmptySystemIndices.INSTANCE,
-                TestProjectResolvers.singleProjectOnly(),
+                TestProjectResolvers.DEFAULT_PROJECT_ONLY,
                 ReplicaActionExecution.SubjectToCircuitBreaker
             );
             this.withDocumentFailureOnPrimary = withDocumentFailureOnPrimary;
@@ -461,7 +461,7 @@ public class TransportWriteActionTests extends ESTestCase {
                 PrimaryActionExecution.RejectOnOverload,
                 new IndexingPressure(settings),
                 EmptySystemIndices.INSTANCE,
-                TestProjectResolvers.singleProjectOnly(),
+                TestProjectResolvers.DEFAULT_PROJECT_ONLY,
                 ReplicaActionExecution.SubjectToCircuitBreaker
             );
             this.withDocumentFailureOnPrimary = false;

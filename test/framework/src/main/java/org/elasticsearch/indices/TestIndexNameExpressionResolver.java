@@ -10,6 +10,7 @@
 package org.elasticsearch.indices;
 
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -30,8 +31,12 @@ public class TestIndexNameExpressionResolver {
         return new IndexNameExpressionResolver(
             new ThreadContext(Settings.EMPTY),
             EmptySystemIndices.INSTANCE,
-            TestProjectResolvers.singleProjectOnly()
+            TestProjectResolvers.DEFAULT_PROJECT_ONLY
         );
+    }
+
+    public static IndexNameExpressionResolver newInstance(ProjectResolver projectResolver) {
+        return new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY), EmptySystemIndices.INSTANCE, projectResolver);
     }
 
     /**
@@ -51,7 +56,7 @@ public class TestIndexNameExpressionResolver {
      * the provided {@link SystemIndices} instance
      */
     public static IndexNameExpressionResolver newInstance(SystemIndices systemIndices) {
-        return new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY), systemIndices, TestProjectResolvers.singleProjectOnly());
+        return new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY), systemIndices, TestProjectResolvers.DEFAULT_PROJECT_ONLY);
     }
 
     /**

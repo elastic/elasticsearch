@@ -97,7 +97,7 @@ public class TransportPutComposableIndexTemplateAction extends AcknowledgedTrans
     ) {
         verifyIfUsingReservedComponentTemplates(request, state);
         ComposableIndexTemplate indexTemplate = request.indexTemplate();
-        ProjectId projectId = projectResolver.getProjectId(state);
+        ProjectId projectId = projectResolver.getProjectId();
         indexTemplateService.putIndexTemplateV2(
             request.cause(),
             request.create(),

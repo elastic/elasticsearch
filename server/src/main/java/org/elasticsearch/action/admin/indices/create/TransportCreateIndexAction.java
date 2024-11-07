@@ -133,7 +133,8 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
             }
         }
 
-        final ProjectId projectId = projectResolver.getProjectId(state);
+        // TODO: This really needs the ID. But the current test depends on it going through the metadata to trigger more checks
+        final ProjectId projectId = projectResolver.getProjectMetadata(state.metadata()).id();
         final CreateIndexClusterStateUpdateRequest updateRequest;
 
         // Requests that a cluster generates itself are permitted to create a system index with

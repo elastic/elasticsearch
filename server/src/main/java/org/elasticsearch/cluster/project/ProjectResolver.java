@@ -17,34 +17,28 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.core.CheckedRunnable;
 
 import java.util.Collection;
+import java.util.Objects;
 import java.util.Set;
 
 /**
  * This exposes methods for accessing project-scoped data from the global one.
  * The project in question is implied from the thread context.
  */
-public interface ProjectResolver {
-    ProjectMetadata getProjectMetadata(Metadata metadata);
+public interface ProjectResolver extends ProjectIdResolver {
+    default ProjectMetadata getProjectMetadata(Metadata metadata) {
+        return metadata.getProject(getProjectId());
+    }
 
     default ProjectMetadata getProjectMetadata(ClusterState clusterState) {
         return getProjectMetadata(clusterState.metadata());
     }
 
+    // TODO: What happens if the context does not have a project? throw or return null?
     default ProjectState getProjectState(ClusterState clusterState) {
-        final ProjectId id = getProjectId(clusterState);
+        final ProjectId id = getProjectId();
         final ProjectState projectState = clusterState.projectState(id);
         assert projectState != null : "Received null project state for [" + id + "] from " + clusterState;
         return projectState;
-    }
-
-    // TODO multi-project: change this so it doesn't take in any parameters
-    /**
-     * @return The identifier of the current project. This will be the same value as
-     * {@link #getProjectMetadata(Metadata)}{@code .}{@link ProjectMetadata#id() id()}, but the resolver may implement it more efficiently
-     * and/or perform additional checks.
-     */
-    default ProjectId getProjectId(ClusterState clusterState) {
-        return getProjectMetadata(clusterState).id();
     }
 
     /**
@@ -52,7 +46,7 @@ public interface ProjectResolver {
      * In practice, this will either be:
      * <ul>
      *     <li>If the request is tied to a single project, then a collection with a single item that is the same as
-     *         {@link #getProjectId(ClusterState)}</li>
+     *         {@link #getProjectId()} if the project exists in the cluster state</li>
      *     <li>If the request is not tied to a single project and it is allowed to access all projects,
      *         then a collection of all the project ids in the cluster</li>
      *     <li>Otherwise an exception is thrown</li>
@@ -61,14 +55,18 @@ public interface ProjectResolver {
      * @throws SecurityException if this request is required to provide a project id, but none was provided
      */
     default Collection<ProjectId> getProjectIds(ClusterState clusterState) {
-        return Set.of(this.getProjectId(clusterState));
+        final ProjectId projectId = Objects.requireNonNull(getProjectId());
+        if (clusterState.metadata().hasProject(projectId) == false) {
+            throw new IllegalArgumentException("Project [" + projectId + "] does not exist");
+        }
+        return Set.of(getProjectId());
     }
 
     /**
      * Execute a block in the context of a specific project.
      *
      * This method: <ol>
-     *   <li> Configures the execution (thread) context so that any calls to resolve a project (e.g. {@link #getProjectId(ClusterState)}
+     *   <li> Configures the execution (thread) context so that any calls to resolve a project (e.g. {@link #getProjectId()}
      *        or {@link #getProjectMetadata(Metadata)}) will return the project specified by {@code projectId}.</li>
      *   <li>Executes the {@link CheckedRunnable#run()} method on the supplied {@code body}</li>
      *   <li>Restores the context to its original state</li>

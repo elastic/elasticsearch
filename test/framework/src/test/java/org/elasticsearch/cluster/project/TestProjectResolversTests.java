@@ -16,192 +16,88 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.Collection;
-import java.util.List;
-import java.util.Set;
-
 import static org.hamcrest.Matchers.contains;
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class TestProjectResolversTests extends ESTestCase {
 
-    public void testAllProjects_getProjectMetadata() {
-        {
-            ClusterState state = buildClusterState(1);
-            assertThat(state.metadata().projects().values(), hasSize(1));
+    public void testAllProjects() {
+        final int numberOfProjects = randomIntBetween(1, 10);
+        ClusterState state = buildClusterState(numberOfProjects);
+        assertThat(state.metadata().projects().values(), hasSize(numberOfProjects));
 
-            ProjectMetadata project = TestProjectResolvers.allProjects().getProjectMetadata(state);
-            assertThat(project, notNullValue());
-            assertThat(project, in(state.metadata().projects().values()));
-        }
-        {
-            ClusterState state = buildClusterState(randomIntBetween(2, 10));
-            assertThat(state.metadata().projects().values().size(), greaterThan(1));
-
-            expectThrows(IllegalStateException.class, () -> TestProjectResolvers.allProjects().getProjectMetadata(state));
-        }
+        expectThrows(UnsupportedOperationException.class, () -> TestProjectResolvers.allProjects().getProjectMetadata(state));
+        expectThrows(UnsupportedOperationException.class, () -> TestProjectResolvers.allProjects().getProjectId());
+        assertThat(TestProjectResolvers.allProjects().getProjectIds(state), equalTo(state.metadata().projects().keySet()));
     }
 
-    public void testAllProjects_getProjectId() {
-        {
-            ClusterState state = buildClusterState(1);
-            assertThat(state.metadata().projects().values(), hasSize(1));
+    public void testSingleProject() {
+        final ProjectId projectId = new ProjectId(randomUUID());
+        final ProjectResolver projectResolver = TestProjectResolvers.singleProject(projectId);
+        assertThat(projectResolver.getProjectId(), equalTo(projectId));
 
-            ProjectId project = TestProjectResolvers.allProjects().getProjectId(state);
-            assertThat(project, notNullValue());
-            assertThat(project, in(state.metadata().projects().keySet()));
-        }
-        {
-            ClusterState state = buildClusterState(randomIntBetween(2, 10));
-            assertThat(state.metadata().projects().values().size(), greaterThan(1));
-
-            expectThrows(IllegalStateException.class, () -> TestProjectResolvers.allProjects().getProjectId(state));
-        }
+        ClusterState state = buildClusterState(projectId, randomIntBetween(0, 10));
+        assertThat(projectResolver.getProjectMetadata(state), notNullValue());
     }
 
-    public void testAllProjects_getProjectIds() {
-        for (int numberOfProjects : List.of(1, 3, 8)) {
-            ClusterState state = buildClusterState(numberOfProjects);
-            assertThat(state.metadata().projects().values(), hasSize(numberOfProjects));
+    public void testSingleProjectOnly_getProjectIdAndMetadata() {
+        final ProjectId projectId = new ProjectId(randomUUID());
+        final ClusterState state = buildClusterState(projectId);
 
-            Collection<ProjectId> projects = TestProjectResolvers.allProjects().getProjectIds(state);
-            assertThat(projects, notNullValue());
-            assertThat(projects, hasSize(numberOfProjects));
-            assertThat(projects, equalTo(state.metadata().projects().keySet()));
-        }
-    }
+        final ProjectResolver projectResolver = TestProjectResolvers.singleProjectOnly();
+        expectThrows(UnsupportedOperationException.class, projectResolver::getProjectId);
+        expectThrows(UnsupportedOperationException.class, () -> projectResolver.getProjectMetadata(state));
 
-    public void testSingleProjectOnly_getProjectMetadata() {
-        {
-            ClusterState state = buildClusterState(1);
-            assertThat(state.metadata().projects().values(), hasSize(1));
-
-            ProjectMetadata project = TestProjectResolvers.singleProjectOnly().getProjectMetadata(state);
-            assertThat(project, notNullValue());
-            assertThat(project, in(state.metadata().projects().values()));
-        }
-        {
-            ClusterState state = buildClusterState(randomIntBetween(2, 10));
-            assertThat(state.metadata().projects().values().size(), greaterThan(1));
-
-            expectThrows(IllegalStateException.class, () -> TestProjectResolvers.singleProjectOnly().getProjectMetadata(state));
-        }
-    }
-
-    public void testSingleProjectOnly_getProjectId() {
-        {
-            ClusterState state = buildClusterState(1);
-            assertThat(state.metadata().projects().values(), hasSize(1));
-
-            ProjectId project = TestProjectResolvers.singleProjectOnly().getProjectId(state);
-            assertThat(project, notNullValue());
-            assertThat(project, in(state.metadata().projects().keySet()));
-        }
-        {
-            ClusterState state = buildClusterState(randomIntBetween(2, 10));
-            assertThat(state.metadata().projects().values().size(), greaterThan(1));
-
-            expectThrows(IllegalStateException.class, () -> TestProjectResolvers.singleProjectOnly().getProjectId(state));
-        }
+        projectResolver.executeOnProject(projectId, () -> {
+            assertThat(projectResolver.getProjectId(), equalTo(projectId));
+            assertThat(projectResolver.getProjectMetadata(state), equalTo(state.metadata().getProject(projectId)));
+        });
     }
 
     public void testSingleProjectOnly_getProjectIds() {
         {
-            ClusterState state = buildClusterState(1);
+            final ProjectResolver projectResolver = TestProjectResolvers.singleProjectOnly();
+            final ProjectId projectId = new ProjectId(randomUUID());
+            ClusterState state = buildClusterState(projectId);
             assertThat(state.metadata().projects().values(), hasSize(1));
 
-            Collection<ProjectId> projects = TestProjectResolvers.singleProjectOnly().getProjectIds(state);
-            assertThat(projects, notNullValue());
-            assertThat(projects, hasSize(1));
-            assertThat(projects, equalTo(state.metadata().projects().keySet()));
+            expectThrows(UnsupportedOperationException.class, () -> projectResolver.getProjectIds(state));
+            projectResolver.executeOnProject(projectId, () -> assertThat(projectResolver.getProjectIds(state), contains(projectId)));
+            projectResolver.executeOnProject(new ProjectId(randomUUID()), () -> {
+                expectThrows(IllegalArgumentException.class, () -> projectResolver.getProjectIds(state));
+            });
         }
         {
-            ClusterState state = buildClusterState(randomIntBetween(2, 10));
+            final ProjectResolver projectResolver = TestProjectResolvers.singleProjectOnly();
+            final ProjectId projectId = new ProjectId(randomUUID());
+            ClusterState state = buildClusterState(projectId, randomIntBetween(1, 10));
             assertThat(state.metadata().projects().values().size(), greaterThan(1));
 
-            expectThrows(IllegalStateException.class, () -> TestProjectResolvers.singleProjectOnly().getProjectIds(state));
+            projectResolver.executeOnProject(
+                projectId,
+                () -> expectThrows(IllegalStateException.class, () -> projectResolver.getProjectIds(state))
+            );
         }
     }
 
-    public void testSpecifiedProjects_getProjectMetadata() {
-        for (int numberOfProjects : List.of(1, 3, 8)) {
-            ClusterState state = buildClusterState(numberOfProjects);
-            assertThat(state.metadata().projects().values(), hasSize(numberOfProjects));
-            final Set<ProjectId> allIds = state.metadata().projects().keySet();
-
-            final ProjectId id = randomFrom(allIds);
-            ProjectMetadata project = TestProjectResolvers.projects(Set.of(id)).getProjectMetadata(state);
-            assertThat(project, notNullValue());
-            assertThat(project, in(state.metadata().projects().values()));
-            assertThat(project.id(), equalTo(id));
-
-            final ProjectId other = randomValueOtherThanMany(allIds::contains, () -> new ProjectId(randomUUID()));
-            expectThrows(IllegalStateException.class, () -> TestProjectResolvers.projects(Set.of(other)).getProjectMetadata(state));
-
-            project = TestProjectResolvers.projects(Set.of(id, other)).getProjectMetadata(state);
-            assertThat(project, notNullValue());
-            assertThat(project, in(state.metadata().projects().values()));
-            assertThat(project.id(), equalTo(id));
-
-            if (numberOfProjects > 1) {
-                expectThrows(IllegalStateException.class, () -> TestProjectResolvers.projects(allIds).getProjectMetadata(state));
-            }
+    private ClusterState buildClusterState(ProjectId... projectIds) {
+        Metadata.Builder metadata = Metadata.builder();
+        for (var projectId : projectIds) {
+            metadata.put(ProjectMetadata.builder(projectId).build());
         }
+        return ClusterState.builder(new ClusterName(randomAlphaOfLengthBetween(4, 8))).metadata(metadata).build();
     }
 
-    public void testSpecifiedProjects_getProjectId() {
-        for (int numberOfProjects : List.of(1, 3, 8)) {
-            ClusterState state = buildClusterState(numberOfProjects);
-            assertThat(state.metadata().projects().values(), hasSize(numberOfProjects));
-            final Set<ProjectId> allIds = state.metadata().projects().keySet();
-
-            final ProjectId id = randomFrom(allIds);
-            ProjectId project = TestProjectResolvers.projects(Set.of(id)).getProjectId(state);
-            assertThat(project, notNullValue());
-            assertThat(project, equalTo(id));
-
-            final ProjectId other = randomValueOtherThanMany(allIds::contains, () -> new ProjectId(randomUUID()));
-            expectThrows(IllegalStateException.class, () -> TestProjectResolvers.projects(Set.of(other)).getProjectId(state));
-
-            project = TestProjectResolvers.projects(Set.of(id, other)).getProjectId(state);
-            assertThat(project, notNullValue());
-            assertThat(project, equalTo(id));
-
-            if (numberOfProjects > 1) {
-                expectThrows(IllegalStateException.class, () -> TestProjectResolvers.projects(allIds).getProjectId(state));
-            }
+    private ClusterState buildClusterState(ProjectId projectId, int numberOfExtraProjects) {
+        Metadata.Builder metadata = Metadata.builder();
+        metadata.put(ProjectMetadata.builder(projectId).build());
+        for (int i = 0; i < numberOfExtraProjects; i++) {
+            metadata.put(ProjectMetadata.builder(new ProjectId("p" + i + "_" + randomAlphaOfLength(8))).build());
         }
-    }
-
-    public void testSpecifiedProjects_getProjectIds() {
-        for (int numberOfProjects : List.of(1, 3, 8)) {
-            ClusterState state = buildClusterState(numberOfProjects);
-            assertThat(state.metadata().projects().values(), hasSize(numberOfProjects));
-            final Set<ProjectId> allIds = state.metadata().projects().keySet();
-
-            Collection<ProjectId> projects = TestProjectResolvers.projects(allIds).getProjectIds(state);
-            assertThat(projects, notNullValue());
-            assertThat(projects, equalTo(allIds));
-
-            final ProjectId id = randomFrom(allIds);
-            projects = TestProjectResolvers.projects(Set.of(id)).getProjectIds(state);
-            assertThat(projects, notNullValue());
-            assertThat(projects, hasSize(1));
-            assertThat(projects, contains(id));
-
-            final ProjectId other = randomValueOtherThanMany(allIds::contains, () -> new ProjectId(randomUUID()));
-            assertThat(TestProjectResolvers.projects(Set.of(other)).getProjectIds(state), empty());
-
-            projects = TestProjectResolvers.projects(Set.of(id, other)).getProjectIds(state);
-            assertThat(projects, notNullValue());
-            assertThat(projects, hasSize(1));
-            assertThat(projects, contains(id));
-        }
+        return ClusterState.builder(new ClusterName(randomAlphaOfLengthBetween(4, 8))).metadata(metadata).build();
     }
 
     private ClusterState buildClusterState(int numberOfProjects) {

@@ -92,7 +92,7 @@ public class TransportSimulateBulkActionTests extends ESTestCase {
                 new ActionFilters(Set.of()),
                 new IndexingPressure(Settings.EMPTY),
                 EmptySystemIndices.INSTANCE,
-                TestProjectResolvers.singleProjectOnly(),
+                TestProjectResolvers.DEFAULT_PROJECT_ONLY,
                 indicesService,
                 NamedXContentRegistry.EMPTY,
                 new IndexSettingProviders(Set.of())

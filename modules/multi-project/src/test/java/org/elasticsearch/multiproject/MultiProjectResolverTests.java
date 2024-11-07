@@ -78,7 +78,7 @@ public class MultiProjectResolverTests extends ESTestCase {
         var projects = createProjects();
         var metadata = Metadata.builder().projectMetadata(projects).build();
         threadPool.getThreadContext().putHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER, randomUUID());
-        assertThrows(IllegalArgumentException.class, () -> resolver.getProjectMetadata(metadata));
+        assertThrows(AssertionError.class, () -> resolver.getProjectMetadata(metadata));
     }
 
     public void testGetAllProjectIds() {
@@ -130,7 +130,7 @@ public class MultiProjectResolverTests extends ESTestCase {
 
         resolver.executeOnProject(projectId1, () -> {
             assertThat(resolver.getProjectMetadata(state).id(), equalTo(projectId1));
-            assertThat(resolver.getProjectId(state), equalTo(projectId1));
+            assertThat(resolver.getProjectId(), equalTo(projectId1));
             assertThat(threadContext.getHeader(Task.X_OPAQUE_ID_HTTP_HEADER), equalTo(opaqueId));
             assertThat(threadContext.getHeader(randomHeaderName), equalTo(randomHeaderValue));
 
@@ -152,7 +152,7 @@ public class MultiProjectResolverTests extends ESTestCase {
         // Can set a new project id, after the previous one has been cleared
         resolver.executeOnProject(projectId2, () -> {
             assertThat(resolver.getProjectMetadata(state).id(), equalTo(projectId2));
-            assertThat(resolver.getProjectId(state), equalTo(projectId2));
+            assertThat(resolver.getProjectId(), equalTo(projectId2));
             assertThat(threadContext.getHeader(Task.X_OPAQUE_ID_HTTP_HEADER), equalTo(opaqueId));
             assertThat(threadContext.getHeader(randomHeaderName), equalTo(randomHeaderValue));
 

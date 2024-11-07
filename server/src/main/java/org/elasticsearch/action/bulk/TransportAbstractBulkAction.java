@@ -190,7 +190,7 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
         throws IOException {
         boolean hasIndexRequestsWithPipelines = false;
         ClusterState state = clusterService.state();
-        ProjectId projectId = projectResolver.getProjectId(state);
+        ProjectId projectId = projectResolver.getProjectId();
         final Metadata metadata;
         Map<String, ComponentTemplate> componentTemplateSubstitutions = bulkRequest.getComponentTemplateSubstitutions();
         Map<String, ComposableIndexTemplate> indexTemplateSubstitutions = bulkRequest.getIndexTemplateSubstitutions();

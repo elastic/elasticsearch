@@ -221,7 +221,7 @@ public class TransportBulkActionTookTests extends ESTestCase {
 
     static class Resolver extends IndexNameExpressionResolver {
         Resolver() {
-            super(new ThreadContext(Settings.EMPTY), EmptySystemIndices.INSTANCE, TestProjectResolvers.singleProjectOnly());
+            super(new ThreadContext(Settings.EMPTY), EmptySystemIndices.INSTANCE, TestProjectResolvers.DEFAULT_PROJECT_ONLY);
         }
 
         @Override
@@ -252,7 +252,7 @@ public class TransportBulkActionTookTests extends ESTestCase {
                 indexNameExpressionResolver,
                 new IndexingPressure(Settings.EMPTY),
                 EmptySystemIndices.INSTANCE,
-                TestProjectResolvers.singleProjectOnly(),
+                TestProjectResolvers.DEFAULT_PROJECT_ONLY,
                 relativeTimeProvider,
                 FailureStoreMetrics.NOOP
             );

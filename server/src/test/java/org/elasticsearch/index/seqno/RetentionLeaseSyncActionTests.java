@@ -111,7 +111,7 @@ public class RetentionLeaseSyncActionTests extends ESTestCase {
             new ActionFilters(Collections.emptySet()),
             new IndexingPressure(Settings.EMPTY),
             EmptySystemIndices.INSTANCE,
-            TestProjectResolvers.singleProjectOnly()
+            TestProjectResolvers.DEFAULT_PROJECT_ONLY
         );
         final RetentionLeases retentionLeases = mock(RetentionLeases.class);
         final RetentionLeaseSyncAction.Request request = new RetentionLeaseSyncAction.Request(indexShard.shardId(), retentionLeases);
@@ -149,7 +149,7 @@ public class RetentionLeaseSyncActionTests extends ESTestCase {
             new ActionFilters(Collections.emptySet()),
             new IndexingPressure(Settings.EMPTY),
             EmptySystemIndices.INSTANCE,
-            TestProjectResolvers.singleProjectOnly()
+            TestProjectResolvers.DEFAULT_PROJECT_ONLY
         );
         final RetentionLeases retentionLeases = mock(RetentionLeases.class);
         final RetentionLeaseSyncAction.Request request = new RetentionLeaseSyncAction.Request(indexShard.shardId(), retentionLeases);
@@ -191,7 +191,7 @@ public class RetentionLeaseSyncActionTests extends ESTestCase {
             new ActionFilters(Collections.emptySet()),
             new IndexingPressure(Settings.EMPTY),
             EmptySystemIndices.INSTANCE,
-            TestProjectResolvers.singleProjectOnly()
+            TestProjectResolvers.DEFAULT_PROJECT_ONLY
         );
 
         assertNull(action.indexBlockLevel());

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.kql.query;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryStringQueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
@@ -263,5 +264,23 @@ public class KqlQueryBuilderTests extends AbstractQueryTestCase<KqlQueryBuilder>
             );
             assertThat(rewritenQuery.fields().keySet(), contains("mapped_object.mapped_date", "mapped_object.mapped_int"));
         }
+    }
+
+    public void testQueryNameIsPreserved() throws IOException {
+        QueryRewriteContext queryRewriteContext = createQueryRewriteContext();
+        SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
+
+        KqlQueryBuilder kqlQuery = new KqlQueryBuilder(generateRandomKqlQuery()).queryName(randomIdentifier());
+        QueryBuilder rewrittenQuery = rewriteQuery(kqlQuery, queryRewriteContext, searchExecutionContext);
+        assertThat(rewrittenQuery.queryName(), equalTo(kqlQuery.queryName()));
+    }
+
+    public void testQueryBoostIsPreserved() throws IOException {
+        QueryRewriteContext queryRewriteContext = createQueryRewriteContext();
+        SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
+
+        KqlQueryBuilder kqlQuery = new KqlQueryBuilder(generateRandomKqlQuery()).boost(randomFloatBetween(0, Float.MAX_VALUE, true));
+        QueryBuilder rewrittenQuery = rewriteQuery(kqlQuery, queryRewriteContext, searchExecutionContext);
+        assertThat(rewrittenQuery.boost(), equalTo(kqlQuery.boost()));
     }
 }

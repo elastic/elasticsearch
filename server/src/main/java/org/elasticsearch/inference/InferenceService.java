@@ -16,6 +16,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 
 import java.io.Closeable;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -70,6 +71,14 @@ public interface InferenceService extends Closeable {
      * @return The parsed {@link Model}
      */
     Model parsePersistedConfig(String modelId, TaskType taskType, Map<String, Object> config);
+
+    InferenceServiceConfiguration getConfiguration();
+
+    /**
+     * The task types supported by the service
+     * @return Set of supported.
+     */
+    EnumSet<TaskType> supportedTaskTypes();
 
     /**
      * Perform inference on the model.
@@ -166,6 +175,15 @@ public interface InferenceService extends Closeable {
      * @return The model with updated embedding details
      */
     default Model updateModelWithEmbeddingDetails(Model model, int embeddingSize) {
+        return model;
+    }
+
+    /**
+     * Update a chat completion model's max tokens if required. The default behaviour is to just return the model.
+     * @param model The original model without updated embedding details
+     * @return The model with updated chat completion details
+     */
+    default Model updateModelWithChatCompletionDetails(Model model) {
         return model;
     }
 

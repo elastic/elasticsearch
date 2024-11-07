@@ -29,7 +29,7 @@ import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsAction;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
-import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.session.EsqlSession;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.elasticsearch.xpack.esql.session.Result;
 import org.junit.After;
@@ -40,7 +40,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.BiConsumer;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.hamcrest.Matchers.instanceOf;
@@ -109,7 +108,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
         var request = new EsqlQueryRequest();
         // test a failed query: xyz field doesn't exist
         request.query("from test | stats m = max(xyz)");
-        BiConsumer<PhysicalPlan, ActionListener<Result>> runPhase = (p, r) -> fail("this shouldn't happen");
+        EsqlSession.PlanRunner runPhase = (p, r) -> fail("this shouldn't happen");
         IndicesExpressionGrouper groupIndicesByCluster = (indicesOptions, indexExpressions) -> Map.of(
             "",
             new OriginalIndices(new String[] { "test" }, IndicesOptions.DEFAULT)

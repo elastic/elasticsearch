@@ -65,10 +65,6 @@ final class DfsQueryPhase extends SearchPhase {
         this.nextPhaseFactory = nextPhaseFactory;
         this.context = context;
         this.searchTransportService = context.getSearchTransport();
-
-        // register the release of the query consumer to free up the circuit breaker memory
-        // at the end of the search
-        context.addReleasable(queryResult);
     }
 
     @Override
@@ -78,7 +74,7 @@ final class DfsQueryPhase extends SearchPhase {
         final CountedCollector<SearchPhaseResult> counter = new CountedCollector<>(
             queryResult,
             searchResults.size(),
-            () -> context.executeNextPhase(this, nextPhaseFactory.apply(queryResult)),
+            () -> context.executeNextPhase(this, () -> nextPhaseFactory.apply(queryResult)),
             context
         );
 
@@ -96,7 +92,7 @@ final class DfsQueryPhase extends SearchPhase {
                 connection = context.getConnection(shardTarget.getClusterAlias(), shardTarget.getNodeId());
             } catch (Exception e) {
                 shardFailure(e, querySearchRequest, shardIndex, shardTarget, counter);
-                return;
+                continue;
             }
             searchTransportService.sendExecuteQuery(
                 connection,

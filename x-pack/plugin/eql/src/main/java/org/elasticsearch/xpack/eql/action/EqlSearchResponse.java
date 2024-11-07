@@ -7,8 +7,11 @@
 package org.elasticsearch.xpack.eql.action;
 
 import org.apache.lucene.search.TotalHits;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ShardOperationFailedException;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -17,6 +20,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Nullable;
@@ -42,6 +46,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.action.search.ShardSearchFailure.readShardSearchFailure;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.xpack.eql.util.SearchHitUtils.qualifiedIndex;
@@ -54,6 +59,7 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
     private final String asyncExecutionId;
     private final boolean isRunning;
     private final boolean isPartial;
+    private final ShardSearchFailure[] shardFailures;
 
     private static final class Fields {
         static final String TOOK = "took";
@@ -62,6 +68,7 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
         static final String ID = "id";
         static final String IS_RUNNING = "is_running";
         static final String IS_PARTIAL = "is_partial";
+        static final String SHARD_FAILURES = "shard_failures";
     }
 
     private static final ParseField TOOK = new ParseField(Fields.TOOK);
@@ -70,8 +77,10 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
     private static final ParseField ID = new ParseField(Fields.ID);
     private static final ParseField IS_RUNNING = new ParseField(Fields.IS_RUNNING);
     private static final ParseField IS_PARTIAL = new ParseField(Fields.IS_PARTIAL);
+    private static final ParseField SHARD_FAILURES = new ParseField(Fields.SHARD_FAILURES);
 
     private static final InstantiatingObjectParser<EqlSearchResponse, Void> PARSER;
+
     static {
         InstantiatingObjectParser.Builder<EqlSearchResponse, Void> parser = InstantiatingObjectParser.builder(
             "eql/search_response",
@@ -84,11 +93,12 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
         parser.declareString(optionalConstructorArg(), ID);
         parser.declareBoolean(constructorArg(), IS_RUNNING);
         parser.declareBoolean(constructorArg(), IS_PARTIAL);
+        parser.declareObjectArray(optionalConstructorArg(), (p, c) -> ShardSearchFailure.EMPTY_ARRAY, SHARD_FAILURES); // TODO fix this
         PARSER = parser.build();
     }
 
-    public EqlSearchResponse(Hits hits, long tookInMillis, boolean isTimeout) {
-        this(hits, tookInMillis, isTimeout, null, false, false);
+    public EqlSearchResponse(Hits hits, long tookInMillis, boolean isTimeout, ShardSearchFailure[] shardFailures) {
+        this(hits, tookInMillis, isTimeout, null, false, false, shardFailures);
     }
 
     public EqlSearchResponse(
@@ -97,7 +107,8 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
         boolean isTimeout,
         String asyncExecutionId,
         boolean isRunning,
-        boolean isPartial
+        boolean isPartial,
+        ShardSearchFailure[] shardFailures
     ) {
         super();
         this.hits = hits == null ? Hits.EMPTY : hits;
@@ -106,6 +117,7 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
         this.asyncExecutionId = asyncExecutionId;
         this.isRunning = isRunning;
         this.isPartial = isPartial;
+        this.shardFailures = shardFailures;
     }
 
     public EqlSearchResponse(StreamInput in) throws IOException {
@@ -116,6 +128,19 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
         asyncExecutionId = in.readOptionalString();
         isPartial = in.readBoolean();
         isRunning = in.readBoolean();
+        if (in.getTransportVersion().onOrAfter(TransportVersions.EQL_ALLOW_PARTIAL_SEARCH_RESULTS)) {
+            int size = in.readVInt();
+            if (size == 0) {
+                shardFailures = ShardSearchFailure.EMPTY_ARRAY;
+            } else {
+                shardFailures = new ShardSearchFailure[size];
+                for (int i = 0; i < shardFailures.length; i++) {
+                    shardFailures[i] = readShardSearchFailure(in);
+                }
+            }
+        } else {
+            shardFailures = ShardSearchFailure.EMPTY_ARRAY;
+        }
     }
 
     public static EqlSearchResponse fromXContent(XContentParser parser) {
@@ -130,6 +155,12 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
         out.writeOptionalString(asyncExecutionId);
         out.writeBoolean(isPartial);
         out.writeBoolean(isRunning);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.EQL_ALLOW_PARTIAL_SEARCH_RESULTS)) {
+            out.writeVInt(shardFailures.length);
+            for (ShardSearchFailure shardSearchFailure : shardFailures) {
+                shardSearchFailure.writeTo(out);
+            }
+        }
     }
 
     @Override
@@ -147,6 +178,13 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
         builder.field(IS_RUNNING.getPreferredName(), isRunning);
         builder.field(TOOK.getPreferredName(), tookInMillis);
         builder.field(TIMED_OUT.getPreferredName(), isTimeout);
+        if (CollectionUtils.isEmpty(shardFailures) == false) {
+            builder.startArray(SHARD_FAILURES.getPreferredName());
+            for (ShardOperationFailedException shardFailure : ExceptionsHelper.groupBy(shardFailures)) {
+                shardFailure.toXContent(builder, params);
+            }
+            builder.endArray();
+        }
         hits.toXContent(builder, params);
         return builder;
     }
@@ -178,6 +216,10 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
         return isPartial;
     }
 
+    public ShardSearchFailure[] shardFailures() {
+        return shardFailures;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) {
@@ -190,12 +232,13 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
         return Objects.equals(hits, that.hits)
             && Objects.equals(tookInMillis, that.tookInMillis)
             && Objects.equals(isTimeout, that.isTimeout)
-            && Objects.equals(asyncExecutionId, that.asyncExecutionId);
+            && Objects.equals(asyncExecutionId, that.asyncExecutionId)
+            && Objects.equals(shardFailures, that.shardFailures);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(hits, tookInMillis, isTimeout, asyncExecutionId);
+        return Objects.hash(hits, tookInMillis, isTimeout, asyncExecutionId, shardFailures);
     }
 
     @Override

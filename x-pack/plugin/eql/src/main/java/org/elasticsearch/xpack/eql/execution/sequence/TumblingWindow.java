@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
@@ -41,6 +42,7 @@ import org.elasticsearch.xpack.ql.util.CollectionUtils;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -104,6 +106,7 @@ public class TumblingWindow implements Executable {
     private final boolean hasKeys;
     private final List<List<Attribute>> listOfKeys;
     private final boolean allowPartialSearchResults;
+    private Map<String, ShardSearchFailure> shardFailures = new HashMap<>();
 
     // flag used for DESC sequences to indicate whether
     // the window needs to restart (since the DESC query still has results)
@@ -227,6 +230,9 @@ public class TumblingWindow implements Executable {
 
     private void doCheckMissingEvents(List<Sequence> batchToCheck, MultiSearchResponse p, ActionListener<Payload> listener, Runnable next) {
         MultiSearchResponse.Item[] responses = p.getResponses();
+        for (MultiSearchResponse.Item response : responses) {
+            addShardFailures(response.getResponse());
+        }
         int nextResponse = 0;
         for (Sequence sequence : batchToCheck) {
             boolean leading = true;
@@ -371,6 +377,7 @@ public class TumblingWindow implements Executable {
      * Execute the base query.
      */
     private void baseCriterion(int baseStage, SearchResponse r, ActionListener<Payload> listener) {
+        addShardFailures(r);
         SequenceCriterion base = criteria.get(baseStage);
         SearchHits hits = r.getHits();
 
@@ -742,7 +749,7 @@ public class TumblingWindow implements Executable {
         log.trace("Sending payload for [{}] sequences", completed.size());
 
         if (completed.isEmpty()) {
-            listener.onResponse(new EmptyPayload(Type.SEQUENCE, timeTook()));
+            listener.onResponse(new EmptyPayload(Type.SEQUENCE, timeTook(), shardFailures.values().toArray(new ShardSearchFailure[0])));
             return;
         }
 
@@ -751,7 +758,13 @@ public class TumblingWindow implements Executable {
             if (criteria.get(matcher.firstPositiveStage).descending()) {
                 Collections.reverse(completed);
             }
-            return new SequencePayload(completed, addMissingEventPlaceholders(listOfHits), false, timeTook());
+            return new SequencePayload(
+                completed,
+                addMissingEventPlaceholders(listOfHits),
+                false,
+                timeTook(),
+                shardFailures.values().toArray(new ShardSearchFailure[0])
+            );
         }));
     }
 
@@ -928,4 +941,13 @@ public class TumblingWindow implements Executable {
             };
         };
     }
+
+    private void addShardFailures(SearchResponse r) {
+        if (r.getShardFailures() != null) {
+            for (ShardSearchFailure shardFailure : r.getShardFailures()) {
+                shardFailures.put(shardFailure.toString(), shardFailure); // TODO find a better way to deduplicate
+            }
+        }
+    }
+
 }

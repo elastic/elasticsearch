@@ -14,6 +14,8 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.SearchHit;
@@ -35,6 +37,7 @@ import org.elasticsearch.xpack.ql.util.ActionListeners;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -58,6 +61,7 @@ public class SampleIterator implements Executable {
     private final Limit limit;
     private final int maxSamplesPerKey;
     private long startTime;
+    private Map<String, ShardSearchFailure> shardFailures = new HashMap<>();
 
     // ---------- CIRCUIT BREAKER -----------
 
@@ -151,6 +155,7 @@ public class SampleIterator implements Executable {
 
     private void queryForCompositeAggPage(ActionListener<Payload> listener, final SampleQueryRequest request) {
         client.query(request, listener.delegateFailureAndWrap((delegate, r) -> {
+            addShardFailures(r);
             // either the fields values or the fields themselves are missing
             // or the filter applied on the eql query matches no documents
             if (r.hasAggregations() == false) {
@@ -176,6 +181,14 @@ public class SampleIterator implements Executable {
                 }
             }
         }));
+    }
+
+    private void addShardFailures(SearchResponse r) {
+        if (r.getShardFailures() != null) {
+            for (ShardSearchFailure shardFailure : r.getShardFailures()) {
+                shardFailures.put(shardFailure.toString(), shardFailure); // TODO find a better way to deduplicate
+            }
+        }
     }
 
     protected void pushToStack(Page nextPage) {
@@ -220,6 +233,9 @@ public class SampleIterator implements Executable {
 
         int initialSize = samples.size();
         client.multiQuery(searches, listener.delegateFailureAndWrap((delegate, r) -> {
+            for (MultiSearchResponse.Item item : r) {
+                addShardFailures(item.getResponse());
+            }
             List<List<SearchHit>> sample = new ArrayList<>(maxCriteria);
             MultiSearchResponse.Item[] response = r.getResponses();
             int docGroupsCounter = 1;
@@ -284,14 +300,23 @@ public class SampleIterator implements Executable {
         log.trace("Sending payload for [{}] samples", samples.size());
 
         if (samples.isEmpty()) {
-            listener.onResponse(new EmptyPayload(Type.SAMPLE, timeTook()));
+            listener.onResponse(new EmptyPayload(Type.SAMPLE, timeTook(), shardFailures.values().toArray(new ShardSearchFailure[0])));
             return;
         }
 
         // get results through search (to keep using PIT)
         client.fetchHits(
             hits(samples),
-            ActionListeners.map(listener, listOfHits -> new SamplePayload(samples, listOfHits, false, timeTook()))
+            ActionListeners.map(
+                listener,
+                listOfHits -> new SamplePayload(
+                    samples,
+                    listOfHits,
+                    false,
+                    timeTook(),
+                    shardFailures.values().toArray(new ShardSearchFailure[0])
+                )
+            )
         );
     }
 

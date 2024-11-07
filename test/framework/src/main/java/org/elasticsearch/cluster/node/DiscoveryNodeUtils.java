@@ -114,6 +114,7 @@ public class DiscoveryNodeUtils {
             return this;
         }
 
+        @Deprecated
         public Builder version(Version version) {
             this.version = version;
             return this;

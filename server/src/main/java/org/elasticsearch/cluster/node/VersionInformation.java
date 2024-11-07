@@ -37,6 +37,7 @@ public record VersionInformation(
 
     public VersionInformation {
         Objects.requireNonNull(buildVersion);
+        Objects.requireNonNull(nodeVersion);
         Objects.requireNonNull(minIndexVersion);
         Objects.requireNonNull(maxIndexVersion);
     }
@@ -58,6 +59,7 @@ public record VersionInformation(
         this(BuildVersion.fromVersionId(version.id()), version, minIndexVersion, maxIndexVersion);
     }
 
+    @Deprecated
     public static VersionInformation inferVersions(Version nodeVersion) {
         if (nodeVersion == null) {
             return null;

@@ -37,7 +37,7 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
-import org.elasticsearch.cluster.project.TestProjectResolvers;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.GlobalRoutingTableTestHelper;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -45,6 +45,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -73,6 +74,7 @@ import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.action.bulk.TransportBulkAction.prohibitCustomRoutingOnDataStream;
 import static org.elasticsearch.cluster.metadata.MetadataCreateDataStreamServiceTests.createDataStream;
@@ -95,6 +97,7 @@ public class TransportBulkActionTests extends ESTestCase {
 
     private TestTransportBulkAction bulkAction;
     private FeatureService mockFeatureService;
+    private AtomicReference<ProjectId> activeProjectId = new AtomicReference<>();
 
     class TestTransportBulkAction extends TransportBulkAction {
 
@@ -116,7 +119,17 @@ public class TransportBulkActionTests extends ESTestCase {
                 new Resolver(),
                 new IndexingPressure(Settings.EMPTY),
                 EmptySystemIndices.INSTANCE,
-                TestProjectResolvers.singleProjectOnly(),
+                new ProjectResolver() {
+                    @Override
+                    public <E extends Exception> void executeOnProject(ProjectId projectId, CheckedRunnable<E> body) throws E {
+                        throw new UnsupportedOperationException("");
+                    }
+
+                    @Override
+                    public ProjectId getProjectId() {
+                        return activeProjectId.get();
+                    }
+                },
                 FailureStoreMetrics.NOOP
             );
         }
@@ -173,6 +186,7 @@ public class TransportBulkActionTests extends ESTestCase {
         transportService.acceptIncomingRequests();
         mockFeatureService = mock(FeatureService.class);
         when(mockFeatureService.clusterHasFeature(any(), any())).thenReturn(true);
+        activeProjectId.set(Metadata.DEFAULT_PROJECT_ID);
         bulkAction = new TestTransportBulkAction();
     }
 
@@ -536,10 +550,11 @@ public class TransportBulkActionTests extends ESTestCase {
         // Construct a cluster state that contains the required data streams.
         // using a single, non-default project
         final ClusterState oldState = clusterService.state();
+        final ProjectId projectId = new ProjectId(randomUUID());
         final Metadata metadata = Metadata.builder(oldState.metadata())
             .removeProject(Metadata.DEFAULT_PROJECT_ID)
             .put(
-                ProjectMetadata.builder(new ProjectId(randomUUID()))
+                ProjectMetadata.builder(projectId)
                     .put(indexMetadata(".ds-data-stream-01"))
                     .put(indexMetadata(".ds-failure-store-01"))
                     .put(indexMetadata(".fs-failure-store-01"))
@@ -574,6 +589,7 @@ public class TransportBulkActionTests extends ESTestCase {
         // And wait for it to be applied.
         latch.await(10L, TimeUnit.SECONDS);
 
+        activeProjectId.set(projectId);
         // Set the exceptions that the transport action should encounter.
         bulkAction.failIndexCreationException = new IndexNotFoundException("index");
         bulkAction.failDataStreamRolloverException = new RuntimeException("data-stream-rollover-exception");

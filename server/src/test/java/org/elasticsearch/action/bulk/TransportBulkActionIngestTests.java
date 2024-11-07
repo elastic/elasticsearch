@@ -159,7 +159,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
                 TestIndexNameExpressionResolver.newInstance(),
                 new IndexingPressure(SETTINGS),
                 EmptySystemIndices.INSTANCE,
-                TestProjectResolvers.singleProjectOnly(),
+                TestProjectResolvers.DEFAULT_PROJECT_ONLY,
                 FailureStoreMetrics.NOOP
             );
         }

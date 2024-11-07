@@ -37,14 +37,14 @@ public class MultiProjectResolver implements ProjectResolver {
     }
 
     @Override
-    public ProjectMetadata getProjectMetadata(Metadata metadata) {
-        var headerValue = getProjectIdFromThreadContext();
+    public ProjectId getProjectId() {
+        final String headerValue = getProjectIdFromThreadContext();
         // TODO: we temporarily fall back to the default project id when there is no project id present in the thread context.
         // This fallback should be converted into an exception once we merge to public/serverless.
         if (headerValue == null) {
-            return metadata.getProject(Metadata.DEFAULT_PROJECT_ID);
+            return Metadata.DEFAULT_PROJECT_ID;
         }
-        return findProject(metadata, headerValue);
+        return new ProjectId(headerValue);
     }
 
     @Override

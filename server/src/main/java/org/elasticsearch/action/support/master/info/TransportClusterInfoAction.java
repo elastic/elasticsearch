@@ -56,7 +56,7 @@ public abstract class TransportClusterInfoAction<Request extends ClusterInfoRequ
 
     @Override
     protected ClusterBlockException checkBlock(Request request, ClusterState state) {
-        ProjectId projectId = projectResolver.getProjectId(state);
+        ProjectId projectId = projectResolver.getProjectId();
         return state.blocks()
             .indicesBlockedException(
                 ClusterBlockLevel.METADATA_READ,
@@ -71,7 +71,7 @@ public abstract class TransportClusterInfoAction<Request extends ClusterInfoRequ
         final ClusterState state,
         final ActionListener<Response> listener
     ) {
-        ProjectId projectId = projectResolver.getProjectId(state);
+        ProjectId projectId = projectResolver.getProjectId();
         String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(state.metadata().getProject(projectId), request);
         doMasterOperation(task, request, concreteIndices, state, listener);
     }

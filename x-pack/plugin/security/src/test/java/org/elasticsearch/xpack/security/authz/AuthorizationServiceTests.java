@@ -89,6 +89,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
@@ -265,6 +266,7 @@ public class AuthorizationServiceTests extends ESTestCase {
     private boolean setFakeOriginatingAction = true;
     private SecurityContext securityContext;
     private ProjectResolver projectResolver;
+    private IndexNameExpressionResolver indexNameExpressionResolver;
 
     @SuppressWarnings("unchecked")
     @Before
@@ -316,11 +318,8 @@ public class AuthorizationServiceTests extends ESTestCase {
         }).when(rolesStore).getRole(any(Subject.class), anyActionListener());
         roleMap.put(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName(), ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR);
         operatorPrivilegesService = mock(OperatorPrivileges.OperatorPrivilegesService.class);
-        projectResolver = mock(ProjectResolver.class);
-        when(projectResolver.getProjectMetadata(any(ClusterState.class))).thenAnswer(inv -> {
-            ClusterState clusterState = inv.getArgument(0);
-            return clusterState.metadata().getProject(projectId);
-        });
+        projectResolver = TestProjectResolvers.singleProject(projectId);
+        indexNameExpressionResolver = TestIndexNameExpressionResolver.newInstance(projectResolver);
         authorizationService = new AuthorizationService(
             settings,
             rolesStore,
@@ -333,7 +332,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             null,
             Collections.emptySet(),
             licenseState,
-            TestIndexNameExpressionResolver.newInstance(),
+            indexNameExpressionResolver,
             operatorPrivilegesService,
             RESTRICTED_INDICES,
             new AuthorizationDenialMessages.Default(),
@@ -1768,11 +1767,11 @@ public class AuthorizationServiceTests extends ESTestCase {
             null,
             Collections.emptySet(),
             new XPackLicenseState(() -> 0),
-            TestIndexNameExpressionResolver.newInstance(),
+            indexNameExpressionResolver,
             operatorPrivilegesService,
             RESTRICTED_INDICES,
             new AuthorizationDenialMessages.Default(),
-            TestProjectResolvers.singleProjectOnly()
+            projectResolver
         );
 
         RoleDescriptor role = new RoleDescriptor(
@@ -1818,11 +1817,11 @@ public class AuthorizationServiceTests extends ESTestCase {
             null,
             Collections.emptySet(),
             new XPackLicenseState(() -> 0),
-            TestIndexNameExpressionResolver.newInstance(),
+            indexNameExpressionResolver,
             operatorPrivilegesService,
             RESTRICTED_INDICES,
             new AuthorizationDenialMessages.Default(),
-            TestProjectResolvers.singleProjectOnly()
+            projectResolver
         );
 
         RoleDescriptor role = new RoleDescriptor(
@@ -2427,8 +2426,6 @@ public class AuthorizationServiceTests extends ESTestCase {
     }
 
     public void testSuperusersCanExecuteReadOperationAgainstSecurityIndexWithWildcard() {
-        // TODO This test depends on IndexAbstractionResolver (via IndicesAndAliasesResolver), which only works with the default project
-        projectId = Metadata.DEFAULT_PROJECT_ID;
         final User superuser = new User("custom_admin", ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName());
         final Authentication authentication = createAuthentication(superuser);
         roleMap.put(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName(), ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR);
@@ -3358,11 +3355,11 @@ public class AuthorizationServiceTests extends ESTestCase {
             engine,
             Collections.emptySet(),
             licenseState,
-            TestIndexNameExpressionResolver.newInstance(),
+            indexNameExpressionResolver,
             operatorPrivilegesService,
             RESTRICTED_INDICES,
             new AuthorizationDenialMessages.Default(),
-            TestProjectResolvers.singleProjectOnly()
+            projectResolver
         );
 
         Subject subject = new Subject(new User("test", "a role"), mock(RealmRef.class));
@@ -3515,11 +3512,11 @@ public class AuthorizationServiceTests extends ESTestCase {
             engine,
             Collections.emptySet(),
             licenseState,
-            TestIndexNameExpressionResolver.newInstance(),
+            indexNameExpressionResolver,
             operatorPrivilegesService,
             RESTRICTED_INDICES,
             new AuthorizationDenialMessages.Default(),
-            TestProjectResolvers.singleProjectOnly()
+            projectResolver
         );
         Authentication authentication;
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {

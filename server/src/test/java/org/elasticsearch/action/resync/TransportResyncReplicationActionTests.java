@@ -176,7 +176,7 @@ public class TransportResyncReplicationActionTests extends ESTestCase {
                     new ActionFilters(new HashSet<>()),
                     new IndexingPressure(Settings.EMPTY),
                     EmptySystemIndices.INSTANCE,
-                    TestProjectResolvers.singleProjectOnly()
+                    TestProjectResolvers.DEFAULT_PROJECT_ONLY
                 );
 
                 assertThat(action.globalBlockLevel(), nullValue());

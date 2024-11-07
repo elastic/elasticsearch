@@ -166,7 +166,7 @@ public class IndexNameExpressionResolver {
      * indices options in the context don't allow such a case; if a remote index is requested.
      */
     public String[] concreteIndexNames(ClusterState state, IndicesOptions options, String... indexExpressions) {
-        return concreteIndexNames(state.metadata().getProject(projectResolver.getProjectId(state)), options, indexExpressions);
+        return concreteIndexNames(state.metadata().getProject(projectResolver.getProjectId()), options, indexExpressions);
     }
 
     /**
@@ -195,7 +195,7 @@ public class IndexNameExpressionResolver {
 
     public String[] concreteIndexNames(ClusterState state, IndicesOptions options, boolean includeDataStreams, String... indexExpressions) {
         return concreteIndexNames(
-            state.metadata().getProject(projectResolver.getProjectId(state)),
+            state.metadata().getProject(projectResolver.getProjectId()),
             options,
             includeDataStreams,
             indexExpressions
@@ -222,7 +222,7 @@ public class IndexNameExpressionResolver {
     }
 
     public String[] concreteIndexNames(ClusterState state, IndicesOptions options, IndicesRequest request) {
-        return concreteIndexNames(state.metadata().getProject(projectResolver.getProjectId(state)), options, request);
+        return concreteIndexNames(state.metadata().getProject(projectResolver.getProjectId()), options, request);
     }
 
     public String[] concreteIndexNames(ProjectMetadata project, IndicesOptions options, IndicesRequest request) {

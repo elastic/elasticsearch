@@ -14,24 +14,28 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.tasks.Task;
 
 import java.util.Collection;
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * An implementation of {@link ProjectResolver} that handles multiple projects for testing purposes. Not usable in production
  */
 public final class TestProjectResolvers {
 
+    public static final ProjectResolver DEFAULT_PROJECT_ONLY = singleProject(Metadata.DEFAULT_PROJECT_ID, true);
+
+    /**
+     * @return a ProjectResolver that must only be used in a cluster context. It throws in single project related methods.
+     */
     public static ProjectResolver allProjects() {
         return new ProjectResolver() {
+
             @Override
-            public ProjectMetadata getProjectMetadata(Metadata metadata) {
-                return singleProjectMetadata(metadata);
+            public ProjectId getProjectId() {
+                throw new UnsupportedOperationException("This resolver can only be used to resolve multiple projects");
             }
 
             @Override
@@ -46,19 +50,29 @@ public final class TestProjectResolvers {
         };
     }
 
+    /**
+     * This method returns a ProjectResolver that is unable to provide the project-id unless explicitly specified
+     * with the executeOnProject method. This is mostly useful in places where we just need a placeholder to satisfy
+     * the constructor signature.
+     */
     public static ProjectResolver singleProjectOnly() {
         return new ProjectResolver() {
 
             private ProjectId enforceProjectId = null;
 
             @Override
-            public ProjectMetadata getProjectMetadata(Metadata metadata) {
-                final ProjectMetadata project = TestProjectResolvers.singleProjectMetadata(metadata);
-                if (enforceProjectId == null || enforceProjectId.equals(project.id())) {
-                    return project;
+            public ProjectId getProjectId() {
+                if (enforceProjectId == null) {
+                    throw new UnsupportedOperationException("Cannot get project-id before it is set");
                 } else {
-                    throw new IllegalArgumentException("Expected project-id [" + enforceProjectId + "] but was [" + project.id() + "]");
+                    return enforceProjectId;
                 }
+            }
+
+            @Override
+            public Collection<ProjectId> getProjectIds(ClusterState clusterState) {
+                checkSingleProject(clusterState.metadata());
+                return ProjectResolver.super.getProjectIds(clusterState);
             }
 
             @Override
@@ -76,12 +90,37 @@ public final class TestProjectResolvers {
         };
     }
 
+    /**
+     * This method returns a ProjectResolver that gives back the specified project-id when its getProjectId method is called.
+     * It also assumes it is the only project in the cluster state and throws if that is not the case.
+     */
     public static ProjectResolver singleProject(ProjectId projectId) {
+        return singleProject(projectId, false);
+    }
+
+    private static ProjectResolver singleProject(ProjectId projectId, boolean only) {
         Objects.requireNonNull(projectId);
         return new ProjectResolver() {
+
             @Override
             public ProjectMetadata getProjectMetadata(Metadata metadata) {
-                return metadata.getProject(projectId);
+                if (only) {
+                    checkSingleProject(metadata);
+                }
+                return ProjectResolver.super.getProjectMetadata(metadata);
+            }
+
+            @Override
+            public ProjectId getProjectId() {
+                return projectId;
+            }
+
+            @Override
+            public Collection<ProjectId> getProjectIds(ClusterState clusterState) {
+                if (only) {
+                    checkSingleProject(clusterState.metadata());
+                }
+                return ProjectResolver.super.getProjectIds(clusterState);
             }
 
             @Override
@@ -95,61 +134,23 @@ public final class TestProjectResolvers {
         };
     }
 
-    public static ProjectResolver projects(Set<ProjectId> allowedProjectIds) {
-        if (allowedProjectIds.isEmpty()) {
-            throw new IllegalArgumentException("Project Ids cannot be empty");
-        }
-        return new ProjectResolver() {
-            @Override
-            public ProjectMetadata getProjectMetadata(Metadata metadata) {
-                final Set<ProjectId> matchingProjects = getMatchingProjectIds(metadata);
-                switch (matchingProjects.size()) {
-                    case 1:
-                        return metadata.getProject(matchingProjects.iterator().next());
-                    case 0:
-                        throw new IllegalStateException(
-                            "No projects matching [" + allowedProjectIds + "] in [" + metadata.projects().keySet() + "]"
-                        );
-                    default:
-                        throw new IllegalStateException(
-                            "Multiple projects ("
-                                + matchingProjects
-                                + ") match ["
-                                + allowedProjectIds
-                                + "] in ["
-                                + metadata.projects().keySet()
-                                + "]"
-                        );
-                }
-            }
-
-            @Override
-            public Collection<ProjectId> getProjectIds(ClusterState clusterState) {
-                return getMatchingProjectIds(clusterState.metadata());
-            }
-
-            private Set<ProjectId> getMatchingProjectIds(Metadata metadata) {
-                return Sets.intersection(metadata.projects().keySet(), allowedProjectIds);
-            }
-
-            @Override
-            public <E extends Exception> void executeOnProject(ProjectId projectId, CheckedRunnable<E> body) throws E {
-                throw new UnsupportedOperationException("Cannot execute on a specific project when using a resolver with multiple ids");
-            }
-        };
-    }
-
     public static ProjectResolver usingRequestHeader(ThreadContext threadContext) {
         return new ProjectResolver() {
+
             @Override
             public ProjectMetadata getProjectMetadata(Metadata metadata) {
-                String headerValue = threadContext.getHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER);
-                var projectId = headerValue != null ? new ProjectId(headerValue) : Metadata.DEFAULT_PROJECT_ID;
+                final ProjectId projectId = getProjectId();
                 var project = metadata.projects().get(projectId);
                 if (project == null) {
-                    throw new IllegalArgumentException("Could not find project with id [" + headerValue + "]");
+                    throw new IllegalArgumentException("Could not find project with id [" + projectId.id() + "]");
                 }
                 return project;
+            }
+
+            @Override
+            public ProjectId getProjectId() {
+                String headerValue = threadContext.getHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER);
+                return headerValue != null ? new ProjectId(headerValue) : Metadata.DEFAULT_PROJECT_ID;
             }
 
             @Override
@@ -166,10 +167,5 @@ public final class TestProjectResolvers {
         if (metadata.projects().size() != 1) {
             throw new IllegalStateException("Cluster has multiple projects: [" + metadata.projects().keySet() + "]");
         }
-    }
-
-    private static ProjectMetadata singleProjectMetadata(Metadata metadata) {
-        checkSingleProject(metadata);
-        return metadata.projects().values().iterator().next();
     }
 }

@@ -85,7 +85,7 @@ public class TransportDeleteComposableIndexTemplateAction extends AcknowledgedTr
         final ClusterState state,
         final ActionListener<AcknowledgedResponse> listener
     ) {
-        final var projectId = projectResolver.getProjectId(state);
+        final var projectId = projectResolver.getProjectId();
         indexTemplateService.removeIndexTemplateV2(projectId, request.names(), request.masterNodeTimeout(), listener);
     }
 

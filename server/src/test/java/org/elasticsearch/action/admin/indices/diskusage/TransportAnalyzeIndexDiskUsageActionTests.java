@@ -298,7 +298,7 @@ public class TransportAnalyzeIndexDiskUsageActionTests extends ESTestCase {
             new IndexNameExpressionResolver(
                 new ThreadContext(Settings.EMPTY),
                 EmptySystemIndices.INSTANCE,
-                TestProjectResolvers.singleProjectOnly()
+                TestProjectResolvers.DEFAULT_PROJECT_ONLY
             ) {
                 @Override
                 public String[] concreteIndexNames(ProjectMetadata project, IndicesRequest request) {

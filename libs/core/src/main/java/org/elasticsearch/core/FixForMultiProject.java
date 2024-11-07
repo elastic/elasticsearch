@@ -23,4 +23,9 @@ import java.lang.annotation.Target;
     { ElementType.LOCAL_VARIABLE, ElementType.CONSTRUCTOR, ElementType.FIELD, ElementType.METHOD, ElementType.TYPE, ElementType.MODULE }
 )
 public @interface FixForMultiProject {
+
+    /**
+     * Some explanation on what and why for the future fix
+     */
+    String description() default "";
 }

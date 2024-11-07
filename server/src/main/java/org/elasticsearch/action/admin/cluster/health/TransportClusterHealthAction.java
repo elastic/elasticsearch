@@ -103,7 +103,7 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
         final CancellableTask cancellableTask = (CancellableTask) task;
 
         final int waitCount = getWaitCount(request);
-        final ProjectId projectId = projectResolver.getProjectId(state);
+        final ProjectId projectId = projectResolver.getProjectId();
 
         if (request.waitForEvents() != null) {
             waitForEventsAndExecuteHealth(

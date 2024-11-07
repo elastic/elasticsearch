@@ -272,7 +272,7 @@ public class TransformGetCheckpointTests extends ESSingleNodeTestCase {
 
     static class MockResolver extends IndexNameExpressionResolver {
         MockResolver() {
-            super(new ThreadContext(Settings.EMPTY), EmptySystemIndices.INSTANCE, TestProjectResolvers.singleProjectOnly());
+            super(new ThreadContext(Settings.EMPTY), EmptySystemIndices.INSTANCE, TestProjectResolvers.DEFAULT_PROJECT_ONLY);
         }
 
         @Override

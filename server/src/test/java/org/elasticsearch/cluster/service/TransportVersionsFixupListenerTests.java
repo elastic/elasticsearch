@@ -38,6 +38,7 @@ import org.mockito.ArgumentCaptor;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -275,7 +276,16 @@ public class TransportVersionsFixupListenerTests extends ESTestCase {
             );
         verify(taskQueue).submitTask(anyString(), task.capture(), any());
 
-        assertThat(task.getValue().results(), equalTo(Map.of("node1", NEXT_TRANSPORT_VERSION, "node2", NEXT_TRANSPORT_VERSION)));
+        assertThat(task.getValue().results().keySet(), equalTo(Set.of("node1", "node2")));
+        assertThat(
+            task.getValue().results().values(),
+            everyItem(
+                transformedMatch(
+                    CompatibilityVersions::transportVersion,
+                    equalTo(NEXT_TRANSPORT_VERSION)
+                )
+            )
+        );
     }
 
     public void testMappingVersionsFixedAfterNewMaster() throws Exception {

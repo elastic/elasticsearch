@@ -554,7 +554,7 @@ It then re-ranks the results based on semantic similarity to the text in the `in
 [[rule-retriever]]
 ==== Query Rules Retriever
 
-The `rule` retriever enables fine-grained control over search results by applying contextual <<query-rules>> to pin or exclude documents for specific queries.
+The `rule` retriever enables fine-grained control over search results by applying contextual <<query-rules,query rules>> to pin or exclude documents for specific queries.
 This retriever has similar functionality to the <<query-dsl-rule-query>>, but works out of the box with other retrievers.
 
 ===== Prerequisites

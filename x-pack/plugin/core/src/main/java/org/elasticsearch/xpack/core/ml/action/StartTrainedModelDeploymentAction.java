@@ -801,27 +801,8 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
     ) {
         if (numberOfAllocations == 0) {
             return 0;
-        }
-        // While loading the model in the process we need twice the model size.
-
-        // 1. If ELSER v1 or v2 then 2004MB
-        // 2. If static memory and dynamic memory are not set then 240MB + 2 * model size
-        // 3. Else static memory + dynamic memory * allocations + model size
-
-        // The model size is still added in option 3 to account for the temporary requirement to hold the zip file in memory
-        // in `pytorch_inference`.
-        if (isElserV1Or2Model(modelId)) {
-            return ELSER_1_OR_2_MEMORY_USAGE.getBytes();
         } else {
-            long baseSize = MEMORY_OVERHEAD.getBytes() + 2 * totalDefinitionLength;
-            if (perDeploymentMemoryBytes == 0 && perAllocationMemoryBytes == 0) {
-                return baseSize;
-            } else {
-                return Math.max(
-                    baseSize,
-                    perDeploymentMemoryBytes + perAllocationMemoryBytes * numberOfAllocations + totalDefinitionLength
-                );
-            }
+            return ByteSizeValue.ofMb(1).getBytes();
         }
     }
 

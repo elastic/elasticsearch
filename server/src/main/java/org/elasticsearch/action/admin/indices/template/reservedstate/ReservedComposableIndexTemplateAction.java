@@ -161,7 +161,7 @@ public class ReservedComposableIndexTemplateAction
                 indexScopedSettings
             );
 
-            state = indexTemplateService.addComponentTemplate(state, false, request.name(), template);
+            state = indexTemplateService.addComponentTemplate(state.projectState(projectId), false, request.name(), template);
         }
 
         // 2. create or update composable index templates, no overlap validation
@@ -200,7 +200,7 @@ public class ReservedComposableIndexTemplateAction
         // 5. delete component templates (this will check if there are any related composable index templates and fail)
         if (componentsToDelete.isEmpty() == false) {
             var componentNames = componentsToDelete.stream().map(c -> componentNameFromReservedName(c)).toArray(String[]::new);
-            state = MetadataIndexTemplateService.innerRemoveComponentTemplate(state, componentNames);
+            state = MetadataIndexTemplateService.innerRemoveComponentTemplate(state.projectState(projectId), componentNames);
         }
 
         return new TransformState(state, Sets.union(componentEntities, composableEntities));

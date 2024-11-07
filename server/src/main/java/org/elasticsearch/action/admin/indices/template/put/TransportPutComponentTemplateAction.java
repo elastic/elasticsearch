@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.Template;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -38,6 +39,7 @@ public class TransportPutComponentTemplateAction extends AcknowledgedTransportMa
 
     private final MetadataIndexTemplateService indexTemplateService;
     private final IndexScopedSettings indexScopedSettings;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportPutComponentTemplateAction(
@@ -47,7 +49,8 @@ public class TransportPutComponentTemplateAction extends AcknowledgedTransportMa
         MetadataIndexTemplateService indexTemplateService,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        IndexScopedSettings indexScopedSettings
+        IndexScopedSettings indexScopedSettings,
+        ProjectResolver projectResolver
     ) {
         super(
             PutComponentTemplateAction.NAME,
@@ -61,6 +64,7 @@ public class TransportPutComponentTemplateAction extends AcknowledgedTransportMa
         );
         this.indexTemplateService = indexTemplateService;
         this.indexScopedSettings = indexScopedSettings;
+        this.projectResolver = projectResolver;
     }
 
     @Override
@@ -98,12 +102,14 @@ public class TransportPutComponentTemplateAction extends AcknowledgedTransportMa
         final ActionListener<AcknowledgedResponse> listener
     ) {
         ComponentTemplate componentTemplate = normalizeComponentTemplate(request.componentTemplate(), indexScopedSettings);
+        var projectId = projectResolver.getProjectId(state);
         indexTemplateService.putComponentTemplate(
             request.cause(),
             request.create(),
             request.name(),
             request.masterNodeTimeout(),
             componentTemplate,
+            projectId,
             listener
         );
     }

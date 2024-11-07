@@ -269,7 +269,10 @@ public class DataStreamLifecycleWithRetentionWarningsTests extends ESTestCase {
         Settings settingsWithDefaultRetention = Settings.builder()
             .put(DataStreamGlobalRetentionSettings.DATA_STREAMS_DEFAULT_RETENTION_SETTING.getKey(), defaultRetention)
             .build();
-        ClusterState state = ClusterState.EMPTY_STATE;
+        var projectId = randomProjectId();
+        ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .putProjectMetadata(ProjectMetadata.builder(projectId).build())
+            .build();
         MetadataIndexTemplateService metadataIndexTemplateService = new MetadataIndexTemplateService(
             clusterService,
             createIndexService,
@@ -290,10 +293,10 @@ public class DataStreamLifecycleWithRetentionWarningsTests extends ESTestCase {
             .lifecycle(DataStreamLifecycle.DEFAULT)
             .build();
         ComponentTemplate componentTemplate = new ComponentTemplate(template, 1L, new HashMap<>());
-        state = metadataIndexTemplateService.addComponentTemplate(state, false, "foo", componentTemplate);
+        state = metadataIndexTemplateService.addComponentTemplate(state.projectState(projectId), false, "foo", componentTemplate);
 
-        assertNotNull(state.metadata().getProject().componentTemplates().get("foo"));
-        assertThat(state.metadata().getProject().componentTemplates().get("foo"), equalTo(componentTemplate));
+        assertNotNull(state.metadata().getProject(projectId).componentTemplates().get("foo"));
+        assertThat(state.metadata().getProject(projectId).componentTemplates().get("foo"), equalTo(componentTemplate));
         Map<String, List<String>> responseHeaders = threadContext.getResponseHeaders();
         assertThat(responseHeaders.size(), is(1));
         assertThat(

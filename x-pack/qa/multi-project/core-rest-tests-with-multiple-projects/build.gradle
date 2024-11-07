@@ -41,7 +41,6 @@ tasks.named("yamlRestTest").configure {
     'cat.shards/*/*',
     'cat.snapshots/*/*',
     'cat.templates/*/*',
-    'cluster.component_template/10_basic/*',
     'cluster.desired_balance/10_basic/*',
     'cluster.desired_nodes/*/*',
     'cluster.prevalidate_node_removal/*/*',
@@ -104,7 +103,8 @@ tasks.named("yamlRestTest").configure {
     'indices.open/*/*',
     'indices.open/*/*/*',
     'indices.put_alias/*/*',
-    'indices.put_index_template/15_composition/*',
+    // This test is blocked on the ability to add ingest pipelines in multiple projects.
+    'indices.put_index_template/15_composition/Using deprecated component templates and pipelines in index template',
     'indices.put_mapping/*/*',
     'indices.put_settings/*/*',
     'indices.put_template/*/*',

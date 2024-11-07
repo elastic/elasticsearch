@@ -748,7 +748,7 @@ public class Cron implements ToXContentFragment {
 
     @Override
     public int hashCode() {
-        return Objects.hash(expression);
+        return Objects.hash(expression, timeZone);
     }
 
     @Override
@@ -760,7 +760,7 @@ public class Cron implements ToXContentFragment {
             return false;
         }
         final Cron other = (Cron) obj;
-        return Objects.equals(this.expression, other.expression);
+        return Objects.equals(this.expression, other.expression) && Objects.equals(this.timeZone, other.timeZone);
     }
 
     /**
@@ -770,7 +770,7 @@ public class Cron implements ToXContentFragment {
      */
     @Override
     public String toString() {
-        return expression;
+        return "Cron{" + "timeZone=" + timeZone + ", expression='" + expression + '\'' + '}';
     }
 
     /**

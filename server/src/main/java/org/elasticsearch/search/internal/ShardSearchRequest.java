@@ -344,7 +344,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
              */
             forceSyntheticSource = false;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersion.current())) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.INNER_HITS_DISABLED_FOR_REQUEST)) {
             innerHitsDisabled = in.readBoolean();
         } else {
             innerHitsDisabled = false;
@@ -409,7 +409,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
                 throw new IllegalArgumentException("force_synthetic_source is not supported before 8.4.0");
             }
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersion.current())) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.INNER_HITS_DISABLED_FOR_REQUEST)) {
             out.writeBoolean(innerHitsDisabled);
         }
     }

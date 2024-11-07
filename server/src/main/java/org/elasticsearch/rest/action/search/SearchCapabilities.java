@@ -9,6 +9,9 @@
 
 package org.elasticsearch.rest.action.search;
 
+import org.elasticsearch.index.mapper.vectors.MultiDenseVectorFieldMapper;
+
+import java.util.HashSet;
 import java.util.Set;
 
 /**
@@ -22,9 +25,17 @@ public final class SearchCapabilities {
     private static final String RANGE_REGEX_INTERVAL_QUERY_CAPABILITY = "range_regexp_interval_queries";
     /** Support synthetic source with `bit` type in `dense_vector` field when `index` is set to `false`. */
     private static final String BIT_DENSE_VECTOR_SYNTHETIC_SOURCE_CAPABILITY = "bit_dense_vector_synthetic_source";
+    /** Support multi-dense-vector field mapper. */
+    private static final String MULTI_DENSE_VECTOR_FIELD_MAPPER = "multi_dense_vector_field_mapper";
 
-    public static final Set<String> CAPABILITIES = Set.of(
-        RANGE_REGEX_INTERVAL_QUERY_CAPABILITY,
-        BIT_DENSE_VECTOR_SYNTHETIC_SOURCE_CAPABILITY
-    );
+    public static final Set<String> CAPABILITIES;
+    static {
+        HashSet<String> capabilities = new HashSet<>();
+        capabilities.add(RANGE_REGEX_INTERVAL_QUERY_CAPABILITY);
+        capabilities.add(BIT_DENSE_VECTOR_SYNTHETIC_SOURCE_CAPABILITY);
+        if (MultiDenseVectorFieldMapper.FEATURE_FLAG.isEnabled()) {
+            capabilities.add(MULTI_DENSE_VECTOR_FIELD_MAPPER);
+        }
+        CAPABILITIES = Set.copyOf(capabilities);
+    }
 }

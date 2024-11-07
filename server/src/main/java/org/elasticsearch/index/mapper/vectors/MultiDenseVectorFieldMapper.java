@@ -10,10 +10,8 @@
 package org.elasticsearch.index.mapper.vectors;
 
 import org.apache.lucene.document.BinaryDocValuesField;
-import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.LeafReader;
-import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
@@ -55,7 +53,6 @@ import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.name
 
 public class MultiDenseVectorFieldMapper extends FieldMapper {
 
-    public static final String VECTOR_COUNT_SUFFIX = "._count";
     public static final String VECTOR_MAGNITUDES_SUFFIX = "._magnitude";
     public static final FeatureFlag FEATURE_FLAG = new FeatureFlag("multi_dense_vector");
     public static final String CONTENT_TYPE = "multi_dense_vector";
@@ -317,10 +314,8 @@ public class MultiDenseVectorFieldMapper extends FieldMapper {
             magnitudeBuffer.putFloat((float) Math.sqrt(elementType.computeSquaredMagnitude(vector)));
         }
         String vectorFieldName = fieldType().name();
-        String vectorCountFieldName = vectorFieldName + VECTOR_COUNT_SUFFIX;
         String vectorMagnitudeFieldName = vectorFieldName + VECTOR_MAGNITUDES_SUFFIX;
         context.doc().addWithKey(vectorFieldName, new BinaryDocValuesField(vectorFieldName, new BytesRef(buffer.array())));
-        context.doc().addWithKey(vectorCountFieldName, new NumericDocValuesField(vectorCountFieldName, vectors.size()));
         context.doc()
             .addWithKey(
                 vectorMagnitudeFieldName,
@@ -386,24 +381,16 @@ public class MultiDenseVectorFieldMapper extends FieldMapper {
 
     private class DocValuesSyntheticFieldLoader extends SourceLoader.DocValuesBasedSyntheticFieldLoader {
         private BinaryDocValues values;
-        private NumericDocValues numVecs;
         private boolean hasValue;
 
         @Override
         public DocValuesLoader docValuesLoader(LeafReader leafReader, int[] docIdsInLeaf) throws IOException {
             values = leafReader.getBinaryDocValues(fullPath());
-            numVecs = leafReader.getNumericDocValues(fullPath() + VECTOR_COUNT_SUFFIX);
             if (values == null) {
                 return null;
             }
             return docId -> {
                 hasValue = docId == values.advance(docId);
-                if (hasValue) {
-                    int numVecDocId = numVecs.advance(docId);
-                    if (numVecDocId != docId) {
-                        throw new IllegalStateException("Vector count doc values should be in sync with vector values");
-                    }
-                }
                 return hasValue;
             };
         }
@@ -421,8 +408,9 @@ public class MultiDenseVectorFieldMapper extends FieldMapper {
             b.startArray(leafName());
             BytesRef ref = values.binaryValue();
             ByteBuffer byteBuffer = ByteBuffer.wrap(ref.bytes, ref.offset, ref.length).order(ByteOrder.LITTLE_ENDIAN);
-            assert fieldType().elementType.getNumBytes(fieldType().dims) * numVecs.longValue() == ref.length;
-            for (int i = 0; i < numVecs.longValue(); i++) {
+            assert ref.length % fieldType().elementType.getNumBytes(fieldType().dims) == 0;
+            int numVecs = ref.length / fieldType().elementType.getNumBytes(fieldType().dims);
+            for (int i = 0; i < numVecs; i++) {
                 b.startArray();
                 int dims = fieldType().elementType == DenseVectorFieldMapper.ElementType.BIT
                     ? fieldType().dims / Byte.SIZE

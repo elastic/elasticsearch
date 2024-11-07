@@ -10,7 +10,6 @@
 package org.elasticsearch.index.mapper.vectors;
 
 import org.apache.lucene.document.BinaryDocValuesField;
-import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.Query;
@@ -247,11 +246,35 @@ public class MultiDenseVectorFieldMapperTests extends MapperTestCase {
         for (int i = 0; i < validVectors.length; i++) {
             assertArrayEquals("Decoded dense vector values is not equal to the indexed one.", validVectors[i], decodedValues[i], 0.001f);
         }
+    }
 
-        List<IndexableField> countFields = doc1.rootDoc().getFields("field" + MultiDenseVectorFieldMapper.VECTOR_COUNT_SUFFIX);
-        assertEquals(1, countFields.size());
-        assertThat(countFields.get(0), instanceOf(NumericDocValuesField.class));
-        assertEquals(validVectors.length, countFields.get(0).numericValue().intValue());
+    public void testPoorlyIndexedVector() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "multi_dense_vector").field("dims", 3)));
+
+        float[][] validVectors = { { -12.1f, 100.7f, -4 }, { 42f, .05f, -1f } };
+        double[] dotProduct = new double[2];
+        int vecId = 0;
+        for (float[] vector : validVectors) {
+            for (float value : vector) {
+                dotProduct[vecId] += value * value;
+            }
+            vecId++;
+        }
+        expectThrows(
+            DocumentParsingException.class,
+            () -> mapper.parse(source(b -> {
+            b.startArray("field");
+            b.startArray(); // double nested array should fail
+            for (float[] vector : validVectors) {
+                b.startArray();
+                for (float value : vector) {
+                    b.value(value);
+                }
+                b.endArray();
+            }
+            b.endArray();
+            b.endArray();
+        })));
     }
 
     public void testInvalidParameters() {
@@ -313,6 +336,26 @@ public class MultiDenseVectorFieldMapperTests extends MapperTestCase {
             b.endArray();
         })));
         assertThat(e2.getCause().getMessage(), containsString("has a different number of dimensions [2] than defined in the mapping [3]"));
+        // test that error is thrown when some of the vectors have correct number of dims, but others do not
+        DocumentParsingException e3 = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> {
+            b.startArray("field");
+            for (float[] vector : new float[4][dims]) {
+                b.startArray();
+                for (float value : vector) {
+                    b.value(value);
+                }
+                b.endArray();
+            }
+            for (float[] vector : invalidVector2) {
+                b.startArray();
+                for (float value : vector) {
+                    b.value(value);
+                }
+                b.endArray();
+            }
+            b.endArray();
+        })));
+        assertThat(e3.getCause().getMessage(), containsString("has a different number of dimensions [2] than defined in the mapping [3]"));
     }
 
     @Override
@@ -344,9 +387,7 @@ public class MultiDenseVectorFieldMapperTests extends MapperTestCase {
             MultiDenseVectorFieldMapper.MultiDenseVectorFieldType denseVectorFieldType =
                 (MultiDenseVectorFieldMapper.MultiDenseVectorFieldType) ft;
             switch (denseVectorFieldType.getElementType()) {
-                case BYTE -> {
-                    assumeFalse("byte element type testing not currently added", false);
-                }
+                case BYTE -> assumeFalse("byte element type testing not currently added", false);
                 case FLOAT -> {
                     List<float[]> fetchedFloatsList = new ArrayList<>();
                     for (var f : fromNative) {

@@ -89,8 +89,8 @@ public class RemoteClusterPermissionsTests extends AbstractXContentSerializingTe
         for (int i = 0; i < generateRandomGroups(true).size(); i++) {
             String[] clusters = groupClusters.get(i);
             for (String cluster : clusters) {
-                assertTrue(remoteClusterPermission.hasPrivileges(cluster));
-                assertFalse(remoteClusterPermission.hasPrivileges(randomAlphaOfLength(20)));
+                assertTrue(remoteClusterPermission.hasAnyPrivileges(cluster));
+                assertFalse(remoteClusterPermission.hasAnyPrivileges(randomAlphaOfLength(20)));
             }
         }
     }
@@ -221,7 +221,7 @@ public class RemoteClusterPermissionsTests extends AbstractXContentSerializingTe
         remoteClusterPermissions.addGroup(group);
         // this single newer privilege is not allowed in the older version, so it should result in an object with no groups
         assertNotEquals(remoteClusterPermissions, remoteClusterPermissions.removeUnsupportedPrivileges(ROLE_REMOTE_CLUSTER_PRIVS));
-        assertFalse(remoteClusterPermissions.removeUnsupportedPrivileges(ROLE_REMOTE_CLUSTER_PRIVS).hasPrivileges());
+        assertFalse(remoteClusterPermissions.removeUnsupportedPrivileges(ROLE_REMOTE_CLUSTER_PRIVS).hasAnyPrivileges());
         assertEquals(remoteClusterPermissions, remoteClusterPermissions.removeUnsupportedPrivileges(ROLE_MONITOR_STATS));
 
         int groupCount = randomIntBetween(1, 5);

@@ -194,7 +194,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
             ? Collections.unmodifiableMap(transientMetadata)
             : Collections.singletonMap("enabled", true);
         this.remoteIndicesPrivileges = remoteIndicesPrivileges != null ? remoteIndicesPrivileges : RemoteIndicesPrivileges.NONE;
-        this.remoteClusterPermissions = remoteClusterPermissions != null && remoteClusterPermissions.hasPrivileges()
+        this.remoteClusterPermissions = remoteClusterPermissions != null && remoteClusterPermissions.hasAnyPrivileges()
             ? remoteClusterPermissions
             : RemoteClusterPermissions.NONE;
         this.restriction = restriction != null ? restriction : Restriction.NONE;
@@ -266,7 +266,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
     }
 
     public boolean hasRemoteClusterPermissions() {
-        return remoteClusterPermissions.hasPrivileges();
+        return remoteClusterPermissions.hasAnyPrivileges();
     }
 
     public RemoteClusterPermissions getRemoteClusterPermissions() {

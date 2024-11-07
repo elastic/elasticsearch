@@ -1517,7 +1517,7 @@ public final class Authentication implements ToXContentObject {
                             // swap out the old value with the new value
                             modified.set(true);
                             Map<String, Object> remoteClusterMap = new HashMap<>((Map<String, Object>) roleDescriptorsMapMutated.get(key));
-                            if (mutated.hasPrivileges()) {
+                            if (mutated.hasAnyPrivileges()) {
                                 // has at least one group with privileges
                                 remoteClusterMap.put(innerKey, mutated.toMap());
                             } else {

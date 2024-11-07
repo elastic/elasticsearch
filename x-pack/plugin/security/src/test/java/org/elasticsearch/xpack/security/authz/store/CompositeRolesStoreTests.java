@@ -3322,10 +3322,10 @@ public class CompositeRolesStoreTests extends ESTestCase {
     }
 
     private void assertValidRemoteClusterPermissionsParent(RemoteClusterPermissions permissions, String[] aliases) {
-        assertTrue(permissions.hasPrivileges());
+        assertTrue(permissions.hasAnyPrivileges());
         for (String alias : aliases) {
-            assertTrue(permissions.hasPrivileges(alias));
-            assertFalse(permissions.hasPrivileges(randomValueOtherThan(alias, () -> randomAlphaOfLength(5))));
+            assertTrue(permissions.hasAnyPrivileges(alias));
+            assertFalse(permissions.hasAnyPrivileges(randomValueOtherThan(alias, () -> randomAlphaOfLength(5))));
             assertThat(
                 permissions.collapseAndRemoveUnsupportedPrivileges(alias, TransportVersion.current()),
                 arrayContaining(RemoteClusterPermissions.getSupportedRemoteClusterPermissions().toArray(new String[0]))

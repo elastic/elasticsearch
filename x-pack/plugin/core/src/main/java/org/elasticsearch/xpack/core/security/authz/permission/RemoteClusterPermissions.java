@@ -118,7 +118,7 @@ public class RemoteClusterPermissions implements NamedWriteable, ToXContentObjec
     /**
      * Will remove any unsupported privileges for the provided outbound version. This method will not modify the current instance.
      * This is useful for (normal) API keys role descriptors to help ensure that we don't send unsupported privileges. The result of
-     * this method may result in no groups if all privileges are removed. {@link #hasPrivileges()} can be used to check if there are
+     * this method may result in no groups if all privileges are removed. {@link #hasAnyPrivileges()} can be used to check if there are
      * any privileges left.
      * @param outboundVersion The version by which to remove unsupported privileges, this is typically the version of the remote cluster
      * @return a new instance of RemoteClusterPermissions with the unsupported privileges removed
@@ -216,7 +216,7 @@ public class RemoteClusterPermissions implements NamedWriteable, ToXContentObjec
      * Generally, this method is just a safety check and validity should be checked before adding the permissions to this class.
      */
     public void validate() {
-        assert hasPrivileges();
+        assert hasAnyPrivileges();
         Set<String> invalid = getUnsupportedPrivileges();
         if (invalid.isEmpty() == false) {
             throw new IllegalArgumentException(
@@ -246,11 +246,11 @@ public class RemoteClusterPermissions implements NamedWriteable, ToXContentObjec
         return invalid;
     }
 
-    public boolean hasPrivileges(final String remoteClusterAlias) {
+    public boolean hasAnyPrivileges(final String remoteClusterAlias) {
         return remoteClusterPermissionGroups.stream().anyMatch(remoteIndicesGroup -> remoteIndicesGroup.hasPrivileges(remoteClusterAlias));
     }
 
-    public boolean hasPrivileges() {
+    public boolean hasAnyPrivileges() {
         return remoteClusterPermissionGroups.isEmpty() == false;
     }
 

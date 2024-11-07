@@ -210,7 +210,7 @@ public class SimpleRole implements Role {
         final RemoteIndicesPermission remoteIndicesPermission = this.remoteIndicesPermission.forCluster(remoteClusterAlias);
 
         if (remoteIndicesPermission.remoteIndicesGroups().isEmpty()
-            && remoteClusterPermissions.hasPrivileges(remoteClusterAlias) == false) {
+            && remoteClusterPermissions.hasAnyPrivileges(remoteClusterAlias) == false) {
             return RoleDescriptorsIntersection.EMPTY;
         }
 

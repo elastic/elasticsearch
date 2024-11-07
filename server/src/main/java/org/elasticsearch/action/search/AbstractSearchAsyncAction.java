@@ -296,33 +296,23 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     }
 
     private void doPerformPhaseOnShard(int shardIndex, SearchShardIterator shardIt, SearchShardTarget shard, Releasable releasable) {
-        try {
-            executePhaseOnShard(shardIt, shard, new SearchActionListener<>(shard, shardIndex) {
-                @Override
-                public void innerOnResponse(Result result) {
-                    try (releasable) {
-                        onShardResult(result, shardIt);
-                    } catch (Exception exc) {
-                        onShardFailure(shardIndex, shard, shardIt, exc);
-                    }
+        executePhaseOnShard(shardIt, shard, new SearchActionListener<>(shard, shardIndex) {
+            @Override
+            public void innerOnResponse(Result result) {
+                try {
+                    releasable.close();
+                    onShardResult(result, shardIt);
+                } catch (Exception exc) {
+                    onShardFailure(shardIndex, shard, shardIt, exc);
                 }
+            }
 
-                @Override
-                public void onFailure(Exception e) {
-                    try (releasable) {
-                        onShardFailure(shardIndex, shard, shardIt, e);
-                    }
-                }
-            });
-        } catch (final Exception e) {
-            /*
-             * It is possible to run into connection exceptions here because we are getting the connection early and might
-             * run into nodes that are not connected. In this case, on shard failure will move us to the next shard copy.
-             */
-            try (releasable) {
+            @Override
+            public void onFailure(Exception e) {
+                releasable.close();
                 onShardFailure(shardIndex, shard, shardIt, e);
             }
-        }
+        });
     }
 
     private void failOnUnavailable(int shardIndex, SearchShardIterator shardIt) {
@@ -699,7 +689,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
      * @see #onShardResult(SearchPhaseResult, SearchShardIterator)
      */
     final void onPhaseDone() {  // as a tribute to @kimchy aka. finishHim()
-        executeNextPhase(this, () -> getNextPhase(results, this));
+        executeNextPhase(this, this::getNextPhase);
     }
 
     @Override
@@ -756,11 +746,8 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
 
     /**
      * Returns the next phase based on the results of the initial search phase
-     * @param results the results of the initial search phase. Each non null element in the result array represent a successfully
-     *                executed shard request
-     * @param context the search context for the next phase
      */
-    protected abstract SearchPhase getNextPhase(SearchPhaseResults<Result> results, SearchPhaseContext context);
+    protected abstract SearchPhase getNextPhase();
 
     private static final class PendingExecutions {
         private final Semaphore semaphore;

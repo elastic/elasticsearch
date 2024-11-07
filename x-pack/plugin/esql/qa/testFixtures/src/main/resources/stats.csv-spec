@@ -509,7 +509,9 @@ m:d  | languages:i
 ; 
 
 IfDuplicateNamesLastOneWins
+required_capability: stats_alias_collision_warnings
 from employees | stats h = avg(height), h = min(height) by languages | sort languages;
+warning:Line 1:24: Field 'h' shadowed by field at line 1:41
 
 h:d  | languages:i
 1.42 | 1
@@ -533,7 +535,10 @@ m:d  | l:i
 ; 
 
 IfDuplicateNamesGroupingHasPriority
+required_capability: stats_alias_collision_warnings
 from employees | stats languages = avg(height), languages = min(height) by languages | sort languages;
+warning:Line 1:24: Field 'languages' shadowed by field at line 1:76
+warning:Line 1:49: Field 'languages' shadowed by field at line 1:76
 
 languages:i
 1
@@ -1582,11 +1587,13 @@ e: i  | f:i   | g:l | a:i
 ;
 
 nestedAggsOverGroupingTwiceWithAlias#[skip:-8.13.99,reason:supported in 8.14]
+required_capability: stats_alias_collision_warnings
 FROM employees
 | STATS vals = COUNT() BY x = emp_no, x = languages
 | SORT x
 | LIMIT 3
 ;
+warning:Line 2:27: Field 'x' shadowed by field at line 2:39
 
 vals: l| x:i
 15     | 1
@@ -1623,11 +1630,13 @@ m:i | o:i   | l:i | s:i
 ;
 
 byTwoCalculatedSecondSameNameAsFirst#[skip:-8.13.99,reason:supported in 8.14]
+required_capability: stats_alias_collision_warnings
 FROM employees
 | STATS m = MAX(salary) by l = salary + 1, l = languages + 1
 | SORT m
 | LIMIT 5
 ;
+warning:Line 2:28: Field 'l' shadowed by field at line 2:44
 
  m:i  | l:i
 66817 | 6
@@ -1638,12 +1647,14 @@ FROM employees
 ;
 
 byTwoCalculatedSecondShadowingAndReferencingFirst#[skip:-8.13.99,reason:supported in 8.14]
+required_capability: stats_alias_collision_warnings
 FROM employees
 | EVAL l = languages
 | STATS m = MAX(salary) by l = l + 1, l = l + 1
 | SORT m
 | LIMIT 5
 ;
+warning:Line 3:28: Field 'l' shadowed by field at line 3:39
 
  m:i  | l:i
 66817 | 6
@@ -2013,12 +2024,14 @@ c:l| languages:i
 ;
 
 evalMultipleOverridingKeys#[skip:-8.13.99,reason:supported in 8.14]
+required_capability: stats_alias_collision_warnings
 FROM employees
 | EVAL k = languages, k1 = k
 | STATS c = COUNT() BY languages, k, k1, languages
 | DROP k
 | SORT languages
 ;
+warning:Line 3:24: Field 'languages' shadowed by field at line 3:42
 
 c:l | k1:i | languages:i
 15  | 1    | 1
@@ -2030,12 +2043,14 @@ c:l | k1:i | languages:i
 ;
 
 evalMultipleOverridingKeysWithAggregateExpr#[skip:-8.13.99,reason:supported in 8.14]
+required_capability: stats_alias_collision_warnings
 FROM employees
 | EVAL k = languages, k1 = k
 | STATS c = 3*COUNT() BY languages, k, k1, languages
 | DROP k
 | SORT languages
 ;
+warning:Line 3:26: Field 'languages' shadowed by field at line 3:44
 
 c:l | k1:i | languages:i
 45  | 1    | 1
@@ -2193,19 +2208,24 @@ null
 ;
 
 shadowingInternal
+required_capability: stats_alias_collision_warnings
 FROM employees
 | STATS x = MAX(emp_no), x = MIN(emp_no)
 ;
+warning:Line 2:9: Field 'x' shadowed by field at line 2:26
 
 x:integer
 10001
 ;
 
 shadowingInternalWithGroup#[skip:-8.14.1,reason:implemented in 8.14]
+required_capability: stats_alias_collision_warnings
 FROM employees
 | STATS x = MAX(emp_no), x = MIN(emp_no) BY x = gender
 | SORT x ASC
 ;
+warning:Line 2:26: Field 'x' shadowed by field at line 2:45
+warning:Line 2:9: Field 'x' shadowed by field at line 2:45
 
 x:keyword
 F
@@ -2214,10 +2234,13 @@ null
 ;
 
 shadowingInternalWithGroup2#[skip:-8.14.1,reason:implemented in 8.14]
+required_capability: stats_alias_collision_warnings
 FROM employees
 | STATS x = MAX(emp_no), y = count(x) BY x = emp_no, x = gender
 | SORT x ASC
 ;
+warning:Line 2:42: Field 'x' shadowed by field at line 2:54
+warning:Line 2:9: Field 'x' shadowed by field at line 2:54
 
 y:long | x:keyword
     33 | F
@@ -2227,10 +2250,13 @@ y:long | x:keyword
 
 
 shadowingTheGroup
+required_capability: stats_alias_collision_warnings
 FROM employees
 | STATS gender = MAX(emp_no), gender = MIN(emp_no) BY gender
 | SORT gender ASC
 ;
+warning:Line 2:31: Field 'gender' shadowed by field at line 2:55
+warning:Line 2:9: Field 'gender' shadowed by field at line 2:55
 
 gender:keyword
 F

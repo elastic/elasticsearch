@@ -188,7 +188,7 @@ testMultiValuedFieldWithConjunctionWithScore
 required_capability: match_function
 required_capability: metadata_score
 
-from employees METADATA _score
+from employees metadata _score
 | where match(job_positions, "Data Scientist") and match(job_positions, "Support Engineer")
 | keep emp_no, first_name, last_name, _score;
 ignoreOrder:true
@@ -216,7 +216,7 @@ required_capability: match_function
 required_capability: qstr_function
 required_capability: metadata_score
 
-from employees METADATA _score
+from employees metadata _score
 | where match(job_positions, "Data Scientist") and qstr("job_positions: (Support Engineer) and gender: F")
 | keep emp_no, first_name, last_name, _score;
 ignoreOrder:true

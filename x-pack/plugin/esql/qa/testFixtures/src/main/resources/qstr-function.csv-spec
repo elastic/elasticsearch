@@ -119,8 +119,12 @@ book_no:keyword | title:text                                                    
 singleQstrScoring
 required_capability: metadata_score
 required_capability: qstr_function
-from books METADATA _score | where qstr("author:William Faulkner") | keep book_no, author, _score 
-| sort book_no | LIMIT 4;
+
+from books metadata _score 
+| where qstr("author:William Faulkner") 
+| keep book_no, author, _score 
+| sort book_no 
+| LIMIT 4;
 
 book_no:keyword | author:text        | _score:double
 2713            | William Faulkner   | 5.9556169509887695
@@ -132,8 +136,13 @@ book_no:keyword | author:text        | _score:double
 singleQstrScoringManipulated
 required_capability: metadata_score
 required_capability: qstr_function
-from books METADATA _score | where qstr("author:William Faulkner") | eval add_score = ceil(_score) + 1 
-| keep book_no, author, add_score | sort book_no | LIMIT 4;
+
+from books metadata _score 
+| where qstr("author:William Faulkner") 
+| eval add_score = ceil(_score) + 1 
+| keep book_no, author, add_score 
+| sort book_no 
+| LIMIT 4;
 
 book_no:keyword | author:text | add_score:double
 2713            | William Faulkner                                   | 7.0
@@ -145,7 +154,12 @@ book_no:keyword | author:text | add_score:double
 singleQstrBoostScoringSorted
 required_capability: metadata_score
 required_capability: qstr_function
-from books METADATA _score | where qstr("author:Lord Rings^2") | keep book_no, title, _score | sort _score desc | LIMIT 3;
+
+from books metadata _score 
+| where qstr("author:Lord Rings^2") 
+| keep book_no, title, _score 
+| sort _score desc 
+| LIMIT 3;
 
 book_no:keyword | title:text | _score:double
 8875            | The Two Towers | 5.901181697845459
@@ -156,8 +170,13 @@ book_no:keyword | title:text | _score:double
 singleQstrScoringEval
 required_capability: metadata_score
 required_capability: qstr_function
-from books METADATA _score | where qstr("author:Lord Rings") | eval c_score = ceil(_score) | keep book_no, c_score 
-| sort book_no desc | LIMIT 3;
+
+from books metadata _score 
+| where qstr("author:Lord Rings") 
+| eval c_score = ceil(_score) 
+| keep book_no, c_score 
+| sort book_no desc 
+| LIMIT 3;
 
 book_no:keyword | c_score:double
 8875            | 3.0
@@ -168,9 +187,13 @@ book_no:keyword | c_score:double
 singleQstrScoringGrok
 required_capability: metadata_score
 required_capability: qstr_function
-from books METADATA _score | where qstr("author:Lord Rings") 
+
+from books metadata _score 
+| where qstr("author:Lord Rings") 
 | GROK title "%{WORD:title} %{WORD}" 
-| sort _score desc | keep book_no, title, _score | LIMIT 3;
+| sort _score desc 
+| keep book_no, title, _score 
+| LIMIT 3;
 
 book_no:keyword | title:keyword | _score:double
 8875            | The | 2.9505908489227295
@@ -181,8 +204,13 @@ book_no:keyword | title:keyword | _score:double
 singleQstrScoringRename
 required_capability: metadata_score
 required_capability: qstr_function
-from books METADATA _score | where qstr("author:Lord Rings") 
-| rename _score as rank | sort rank desc | keep book_no, rank | LIMIT 3;
+
+from books metadata _score 
+| where qstr("author:Lord Rings") 
+| rename _score as rank 
+| sort rank desc 
+| keep book_no, rank 
+| LIMIT 3;
 
 book_no:keyword | rank:double
 8875            | 2.9505908489227295

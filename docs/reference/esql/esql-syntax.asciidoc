@@ -175,3 +175,5 @@ Timespan literals are not whitespace sensitive. These expressions are all valid:
 * `1day`
 * `1 day`
 * `1       day`
+
+More examples of the usages of time spans can be found in <<esql-time-spans, Use time spans in ES|QL>>.

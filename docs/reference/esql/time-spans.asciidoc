@@ -15,7 +15,7 @@ Time spans are often used in datetime related grouping functions like <<esql-buc
 === Examples of using time spans in {esql}
 
 With `BUCKET`
-[source,txt]
+[source, esql]
 ----
 FROM employees
 | STATS hires_per_week = COUNT(*) BY week = BUCKET(hire_date, 1 week)
@@ -23,21 +23,21 @@ FROM employees
 ----
 
 With `DATE_TRUNC`
-[source,txt]
+[source, esql]
 ----
 FROM employees
 | EVAL x = date_trunc(240 hours, hire_date)
 ----
 
 With `+` and/or `-`
-[source,txt]
+[source, esql]
 ----
 FROM employees
 | EVAL x = hire_date + 1 month - 1 day
 ----
 
 When a time span is provided as a name parameter in string format, `TO_DATEPERIOD`, `::DATE_PERIOD`, `TO_TIMEDURATION` or `::TIME_DURATION` can be used to convert it to its corresponding time span value.
-[source,txt]
+[source, esql]
 ----
 POST /_query
 {

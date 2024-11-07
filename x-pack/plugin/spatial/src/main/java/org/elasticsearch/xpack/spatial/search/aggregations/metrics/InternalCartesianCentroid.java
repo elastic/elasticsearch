@@ -10,9 +10,7 @@ package org.elasticsearch.xpack.spatial.search.aggregations.metrics;
 import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalCentroid;
-import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.xpack.spatial.common.CartesianPoint;
 
 import java.io.IOException;
@@ -72,11 +70,6 @@ public class InternalCartesianCentroid extends InternalCentroid implements Carte
     protected InternalCartesianCentroid copyWith(double firstSum, double secondSum, long totalCount) {
         final CartesianPoint result = (Double.isNaN(firstSum)) ? null : new CartesianPoint(firstSum / totalCount, secondSum / totalCount);
         return copyWith(result, totalCount);
-    }
-
-    @Override
-    public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
-        return new InternalCartesianCentroid(name, centroid, samplingContext.scaleUp(count), getMetadata());
     }
 
     @Override

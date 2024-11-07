@@ -715,7 +715,7 @@ count:long  |  @timestamp:date
 4           |  2023-10-23T12:00:00.000Z
 ;
 
-multiIndexTsNanosStats
+multiIndexTsNanosToDatetimeStats
 required_capability: union_types
 required_capability: union_types_remove_fields
 
@@ -731,24 +731,41 @@ count:long  |  @timestamp:date
 4           |  2023-10-23T12:00:00.000Z
 ;
 
+Multi Index millis to nanos stats
+required_capability: union_types
+required_capability: union_types_remove_fields
+
+FROM sample_data, sample_data_ts_nanos
+| EVAL @timestamp = DATE_TRUNC(1 hour, TO_DATE_NANOS(@timestamp))
+| STATS count=count(*) BY @timestamp
+| SORT count DESC, @timestamp ASC
+| KEEP count, @timestamp
+;
+
+count:long  |  @timestamp:date_nanos
+10          |  2023-10-23T13:00:00.000Z
+4           |  2023-10-23T12:00:00.000Z
+;
+
+
 multiIndexTsLongStatsDrop
 required_capability: union_types
 required_capability: union_types_agg_cast
 required_capability: casting_operator
 
-FROM sample_data, sample_data_ts_long
+FROM sample_data, sample_data_ts_long, sample_data_ts_nanos
 | STATS count=count(*) BY @timestamp::datetime
 | KEEP count
 ;
 
 count:long
-2
-2
-2
-2
-2
-2
-2
+3
+3
+3
+3
+3
+3
+3
 ;
 
 multiIndexTsLongStatsInline2
@@ -756,19 +773,19 @@ required_capability: union_types
 required_capability: union_types_agg_cast
 required_capability: casting_operator
 
-FROM sample_data, sample_data_ts_long
+FROM sample_data, sample_data_ts_long, sample_data_ts_nanos
 | STATS count=count(*) BY @timestamp::datetime
 | SORT count DESC, `@timestamp::datetime` DESC
 ;
 
 count:long  |  @timestamp::datetime:datetime
-2           |  2023-10-23T13:55:01.543Z
-2           |  2023-10-23T13:53:55.832Z
-2           |  2023-10-23T13:52:55.015Z
-2           |  2023-10-23T13:51:54.732Z
-2           |  2023-10-23T13:33:34.937Z
-2           |  2023-10-23T12:27:28.948Z
-2           |  2023-10-23T12:15:03.360Z
+3           |  2023-10-23T13:55:01.543Z
+3           |  2023-10-23T13:53:55.832Z
+3           |  2023-10-23T13:52:55.015Z
+3           |  2023-10-23T13:51:54.732Z
+3           |  2023-10-23T13:33:34.937Z
+3           |  2023-10-23T12:27:28.948Z
+3           |  2023-10-23T12:15:03.360Z
 ;
 
 multiIndexTsLongStatsInline3

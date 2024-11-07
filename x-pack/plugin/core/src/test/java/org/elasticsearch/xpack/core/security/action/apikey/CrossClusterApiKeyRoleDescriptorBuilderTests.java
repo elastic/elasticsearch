@@ -379,7 +379,10 @@ public class CrossClusterApiKeyRoleDescriptorBuilderTests extends ESTestCase {
                     break;
                 }
             }
-            assertTrue(actionPassesRemoteClusterPermissionCheck);
+            assertTrue(
+                "privilege [" + privilege + "] does not cover any actions among [" + actionsToTest + "]",
+                actionPassesRemoteClusterPermissionCheck
+            );
         }
         // test that the actions pass the privilege check for CCS
         for (String privilege : Set.of(CCS_CLUSTER_PRIVILEGE_NAMES)) {

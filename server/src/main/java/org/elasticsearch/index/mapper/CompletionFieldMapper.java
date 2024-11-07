@@ -345,7 +345,7 @@ public class CompletionFieldMapper extends FieldMapper {
     }
 
     static PostingsFormat postingsFormat() {
-        return PostingsFormat.forName("Completion912");
+        return PostingsFormat.forName("Completion101");
     }
 
     @Override

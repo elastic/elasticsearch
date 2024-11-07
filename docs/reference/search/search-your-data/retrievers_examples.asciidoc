@@ -54,8 +54,7 @@ tag::rrf-retriever-with-collapse[]
 In our result set, we have many documents with the same `year` value. We can clean this
 up using the `collapse` parameter with our retriever. This enables grouping results by
 any field and returns only the highest-scoring document from each group. In this example
-we'll group by year.
-on a given value and pick just the top for each sub-group!
+we'll collapse our results based on the `year` field.
 
 [source,js]
 ----
@@ -276,7 +275,7 @@ we can compute aggregations with the `rrf` retriever. When using a compound retr
 the aggregations are computed based on its nested retrievers. In the following example,
 the `terms` aggregation for the `topic` field will include all results, not just the top `rank_window_size`,
 from the 2 nested retrievers, i.e. all documents whose `year` field is greater then 2023, and whose `topic` field
-matches the term `elastic`. 
+matches the term `elastic`.
 
 [source,js]
 ----

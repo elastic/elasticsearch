@@ -69,12 +69,12 @@ When using compound retrievers, only the query element is allowed, which enforce
 [[retrievers-overview-example]]
 ==== Examples
 
-Let's work through some examples to see how we can use and leverage retrievers to build an awesome search experience!
+The following example demonstrates the powerful queries that we can now compose, and how retrievers simplify this process.
 
 To show the full functionality, in this exercise, we'll assume that we have access to a <<semantic-reranking-models,reranker model>> through the inference service,
-as well as access to <<infer-service-elser,ELSER>>, for building semantic queries!
+as well as access to <<infer-service-elser,ELSER>>, for building semantic queries.
 
-So, first things first, let's start by setting up these services and have them in place for later use!
+To begin with, we'll set up the necessary services and have them in place for later use.
 
 [source,js]
 ----
@@ -105,7 +105,7 @@ PUT _inference/sparse_embedding/my-elser-endpoint
 ----
 //NOTCONSOLE
 
-Now that we have our services in place, lets create our `retrievers_example` index, and add some documents to it.
+Now that we have our services in place, lets create the `retrievers_example` index, and add some documents to it.
 [source,js]
 ----
 PUT retrievers_example
@@ -183,7 +183,7 @@ POST /retrievers_example/_doc/5
 ----
 //NOTCONSOLE
 
-Now that we also have our documents in place, let's try to run some queries using retrievers!
+Now that we also have our documents in place, let's try to run some queries using retrievers.
 
 include::retrievers_examples.asciidoc[tag=basic-rrf-retriever-with-semantic-query]
 include::retrievers_examples.asciidoc[tag=rrf-retriever-with-collapse]

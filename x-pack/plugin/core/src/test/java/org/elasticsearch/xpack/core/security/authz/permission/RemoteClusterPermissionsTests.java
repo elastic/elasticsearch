@@ -217,7 +217,12 @@ public class RemoteClusterPermissionsTests extends AbstractXContentSerializingTe
         assertEquals(remoteClusterPermissions, remoteClusterPermissions.removeUnsupportedPrivileges(ROLE_MONITOR_STATS));
 
         remoteClusterPermissions = new RemoteClusterPermissions();
-        group = new RemoteClusterPermissionGroup(new String[] { "monitor_stats" }, new String[] { "*" });
+        if(randomBoolean()){
+            group = new RemoteClusterPermissionGroup(new String[] { "monitor_stats" }, new String[] { "*" });
+        } else {
+            //if somehow duplicates end up here, they should not influence removal
+            group = new RemoteClusterPermissionGroup(new String[] { "monitor_stats", "monitor_stats" }, new String[] { "*" });
+        }
         remoteClusterPermissions.addGroup(group);
         // this single newer privilege is not allowed in the older version, so it should result in an object with no groups
         assertNotEquals(remoteClusterPermissions, remoteClusterPermissions.removeUnsupportedPrivileges(ROLE_REMOTE_CLUSTER_PRIVS));

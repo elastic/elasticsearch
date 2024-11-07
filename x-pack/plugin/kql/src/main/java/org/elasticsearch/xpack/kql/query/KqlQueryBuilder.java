@@ -154,9 +154,7 @@ public class KqlQueryBuilder extends AbstractQueryBuilder<KqlQueryBuilder> {
         KqlParser parser = new KqlParser();
         QueryBuilder rewrittenQuery = parser.parseKqlQuery(query, createKqlParserContext(context));
 
-        if (log.isTraceEnabled()) {
-            log.trace("KQL query {} translated to Query DSL: {}", query, Strings.toString(rewrittenQuery));
-        }
+        log.trace(() -> Strings.format("KQL query %s translated to Query DSL: %s", query, Strings.toString(rewrittenQuery)));
 
         return rewrittenQuery;
     }

@@ -96,4 +96,8 @@ public class TextExpansionResults extends NlpInferenceResults {
         map.put(outputField, weightedTokens.stream().collect(Collectors.toMap(WeightedToken::token, WeightedToken::weight)));
         return map;
     }
+
+    public boolean hasWeightedTokens() {
+        return this.getWeightedTokens().isEmpty() == false;
+    }
 }

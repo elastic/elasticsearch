@@ -214,17 +214,18 @@ class KqlAstBuilder extends KqlBaseBaseVisitor<QueryBuilder> {
     }
 
     private void withFields(KqlBaseParser.FieldNameContext ctx, BiConsumer<String, MappedFieldType> fieldConsummer) {
-        String fieldNamePattern = ctx != null ? ParserUtils.extractText(ctx) : null;
+        assert ctx != null : "Field ctx cannot be null";
+        String fieldNamePattern = ParserUtils.extractText(ctx);
         Set<String> fieldNames = kqlParsingContext.resolveFieldNames(fieldNamePattern);
 
-        if (ctx != null && ctx.value.getType() == KqlBaseParser.QUOTED_STRING && Regex.isSimpleMatchPattern(fieldNamePattern)) {
+        if (ctx.value.getType() == KqlBaseParser.QUOTED_STRING && Regex.isSimpleMatchPattern(fieldNamePattern)) {
             // When using quoted string, wildcards are not expanded.
             // No field can match and we can return early.
             return;
         }
 
-        if (ctx != null && ctx.value.getType() == KqlBaseParser.QUOTED_STRING) {
-            assert fieldNames.size() < 2 : "only one matching field is expected";
+        if (ctx.value.getType() == KqlBaseParser.QUOTED_STRING) {
+            assert fieldNames.size() < 2 : "expecting only one matching field";
         }
 
         fieldNames.forEach(fieldName -> {

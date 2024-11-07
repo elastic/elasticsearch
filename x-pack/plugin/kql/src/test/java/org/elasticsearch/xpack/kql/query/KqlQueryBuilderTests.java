@@ -8,7 +8,12 @@
 package org.elasticsearch.xpack.kql.query;
 
 import org.apache.lucene.search.Query;
+import org.elasticsearch.core.Strings;
+import org.elasticsearch.index.query.QueryRewriteContext;
+import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.query.TermQueryBuilder;
+import org.elasticsearch.index.query.WildcardQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.xpack.kql.KqlPlugin;
@@ -20,6 +25,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 public class KqlQueryBuilderTests extends AbstractQueryTestCase<KqlQueryBuilder> {
 
@@ -151,5 +159,60 @@ public class KqlQueryBuilderTests extends AbstractQueryTestCase<KqlQueryBuilder>
         KqlQueryBuilder queryBuilder = createTestQueryBuilder();
         IllegalStateException e = assertThrows(IllegalStateException.class, () -> queryBuilder.toQuery(context));
         assertThat(e.getMessage(), Matchers.containsString("The query should have been rewritten"));
+    }
+
+    public void testCaseInsensitiveWildcardQuery() throws IOException {
+        QueryRewriteContext queryRewriteContext = createQueryRewriteContext();
+        SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
+
+        for (boolean caseInsensitive : List.of(true, false)) {
+            KqlQueryBuilder kqlQuery = new KqlQueryBuilder(KEYWORD_FIELD_NAME + ": foo*");
+            // Check case case_insensitive is true by default
+            assertThat(kqlQuery.caseInsensitive(), equalTo(true));
+
+            kqlQuery.caseInsensitive(caseInsensitive);
+
+            ;
+            assertThat(
+                asInstanceOf(WildcardQueryBuilder.class, rewriteQuery(kqlQuery, queryRewriteContext, searchExecutionContext))
+                    .caseInsensitive(),
+                equalTo(caseInsensitive)
+            );
+        }
+    }
+
+    public void testCaseInsensitiveTermQuery() throws IOException {
+        QueryRewriteContext queryRewriteContext = createQueryRewriteContext();
+        SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
+
+        for (boolean caseInsensitive : List.of(true, false)) {
+            KqlQueryBuilder kqlQuery = new KqlQueryBuilder(KEYWORD_FIELD_NAME + ": foo");
+            // Check case case_insensitive is true by default
+            assertThat(kqlQuery.caseInsensitive(), equalTo(true));
+
+            kqlQuery.caseInsensitive(caseInsensitive);
+
+            assertThat(
+                asInstanceOf(TermQueryBuilder.class, rewriteQuery(kqlQuery, queryRewriteContext, searchExecutionContext)).caseInsensitive(),
+                equalTo(caseInsensitive)
+            );
+        }
+    }
+
+    public void testTimeZone() throws IOException {
+        QueryRewriteContext queryRewriteContext = createQueryRewriteContext();
+        SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
+        String timeZone = randomTimeZone().getID();
+
+        for (String operator : List.of(":", "<", "<=", ">", ">=")) {
+            KqlQueryBuilder kqlQuery = new KqlQueryBuilder(Strings.format("%s %s %s", DATE_FIELD_NAME, operator, "2018-03-28"));
+            assertThat(kqlQuery.timeZone(), nullValue()); // TimeZone is not set by default.
+            kqlQuery.timeZone(timeZone);
+
+            assertThat(
+                asInstanceOf(RangeQueryBuilder.class, rewriteQuery(kqlQuery, queryRewriteContext, searchExecutionContext)).timeZone(),
+                equalTo(timeZone)
+            );
+        }
     }
 }

@@ -69,7 +69,7 @@ public class KqlQueryBuilder extends AbstractQueryBuilder<KqlQueryBuilder> {
     }
 
     private final String query;
-    private boolean caseInsensitive;
+    private boolean caseInsensitive = true;
     private ZoneId timeZone;
     private String defaultField;
 

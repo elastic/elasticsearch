@@ -68,6 +68,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
 import static java.nio.file.StandardCopyOption.ATOMIC_MOVE;
+import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.hasEntry;
@@ -426,7 +427,7 @@ public class FileSettingsServiceTests extends ESTestCase {
         Path tempFilePath = createTempFile();
         Files.writeString(tempFilePath, contents);
         try {
-            Files.move(tempFilePath, path, ATOMIC_MOVE);
+            Files.move(tempFilePath, path, REPLACE_EXISTING, ATOMIC_MOVE);
         } catch (AtomicMoveNotSupportedException e) {
             logger.info("Atomic move not available. Falling back on non-atomic move to write [{}]", path.toAbsolutePath());
             Files.move(tempFilePath, path);

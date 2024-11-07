@@ -59,7 +59,7 @@ import java.util.function.Consumer;
 
 import static org.elasticsearch.indices.recovery.RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING;
 import static org.elasticsearch.xcontent.XContentType.JSON;
-import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7;
+import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -512,7 +512,7 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
         var savedClusterState = setupClusterStateListener(internalCluster().getMasterName(), "everyone_kibana");
 
         try {
-            var closeIndexResponse = indicesAdmin().close(new CloseIndexRequest(INTERNAL_SECURITY_MAIN_INDEX_7)).get();
+            var closeIndexResponse = indicesAdmin().close(new CloseIndexRequest(INTERNAL_SECURITY_MAIN_INDEX)).get();
             assertTrue(closeIndexResponse.isAcknowledged());
 
             writeJSONFile(internalCluster().getMasterName(), testJSON, logger, versionCounter);
@@ -554,7 +554,7 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
             boolean awaitSuccessful = savedClusterState.v1().await(20, TimeUnit.SECONDS);
             assertTrue(awaitSuccessful);
 
-            var openIndexResponse = indicesAdmin().open(new OpenIndexRequest(INTERNAL_SECURITY_MAIN_INDEX_7)).get();
+            var openIndexResponse = indicesAdmin().open(new OpenIndexRequest(INTERNAL_SECURITY_MAIN_INDEX)).get();
             assertTrue(openIndexResponse.isAcknowledged());
         }
     }

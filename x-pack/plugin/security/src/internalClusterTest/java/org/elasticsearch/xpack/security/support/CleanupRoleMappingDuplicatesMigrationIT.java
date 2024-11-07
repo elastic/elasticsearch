@@ -43,7 +43,7 @@ import static org.elasticsearch.integration.RoleMappingFileSettingsIT.setupClust
 import static org.elasticsearch.integration.RoleMappingFileSettingsIT.writeJSONFile;
 import static org.elasticsearch.xpack.core.security.action.UpdateIndexMigrationVersionAction.MIGRATION_VERSION_CUSTOM_DATA_KEY;
 import static org.elasticsearch.xpack.core.security.action.UpdateIndexMigrationVersionAction.MIGRATION_VERSION_CUSTOM_KEY;
-import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7;
+import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -368,7 +368,7 @@ public class CleanupRoleMappingDuplicatesMigrationIT extends SecurityIntegTestCa
         client().execute(
             UpdateIndexMigrationVersionAction.INSTANCE,
             // -1 is a hack, since running a migration on version 0 on a new cluster will cause all migrations to be skipped (not needed)
-            new UpdateIndexMigrationVersionAction.Request(TimeValue.MAX_VALUE, -1, INTERNAL_SECURITY_MAIN_INDEX_7)
+            new UpdateIndexMigrationVersionAction.Request(TimeValue.MAX_VALUE, -1, INTERNAL_SECURITY_MAIN_INDEX)
         ).actionGet();
     }
 
@@ -399,7 +399,7 @@ public class CleanupRoleMappingDuplicatesMigrationIT extends SecurityIntegTestCa
     }
 
     private int getCurrentMigrationVersion(ClusterState state) {
-        IndexMetadata indexMetadata = state.metadata().getIndices().get(INTERNAL_SECURITY_MAIN_INDEX_7);
+        IndexMetadata indexMetadata = state.metadata().getIndices().get(INTERNAL_SECURITY_MAIN_INDEX);
         if (indexMetadata == null || indexMetadata.getCustomData(MIGRATION_VERSION_CUSTOM_KEY) == null) {
             return 0;
         }

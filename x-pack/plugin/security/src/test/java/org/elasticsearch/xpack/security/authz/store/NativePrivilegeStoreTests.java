@@ -823,7 +823,7 @@ public class NativePrivilegeStoreTests extends ESTestCase {
     public void testCacheClearOnIndexHealthChange() {
         final String securityIndexName = randomFrom(
             TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_6,
-            TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7
+            TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX
         );
 
         long count = store.getNumInvalidation();

@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.ExecutorNames;
 import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.indices.SystemIndexDescriptor;
@@ -44,7 +45,7 @@ public class TestRestrictedIndices {
     public static final IndexNameExpressionResolver RESOLVER;
 
     public static final String SECURITY_MAIN_ALIAS = ".security";
-    public static final String INTERNAL_SECURITY_MAIN_INDEX_7 = ".security-7";
+    public static final String INTERNAL_SECURITY_MAIN_INDEX = ".security-" + IndexVersion.current().luceneVersion().major;
     public static final String INTERNAL_SECURITY_MAIN_INDEX_6 = ".security-6";
 
     public static final String SECURITY_TOKENS_ALIAS = ".security-tokens";
@@ -54,7 +55,7 @@ public class TestRestrictedIndices {
         Sets.newHashSet(
             SECURITY_MAIN_ALIAS,
             INTERNAL_SECURITY_MAIN_INDEX_6,
-            INTERNAL_SECURITY_MAIN_INDEX_7,
+            INTERNAL_SECURITY_MAIN_INDEX,
             INTERNAL_SECURITY_TOKENS_INDEX_7,
             SECURITY_TOKENS_ALIAS
         )
@@ -186,7 +187,7 @@ public class TestRestrictedIndices {
         return getInitializedDescriptorBuilder(7)
             // This can't just be `.security-*` because that would overlap with the tokens index pattern
             .setIndexPattern(".security-[0-9]+*")
-            .setPrimaryIndex(INTERNAL_SECURITY_MAIN_INDEX_7)
+            .setPrimaryIndex(INTERNAL_SECURITY_MAIN_INDEX)
             .setDescription("Contains Security configuration")
             .setAliasName(SECURITY_MAIN_ALIAS)
             .setIndexFormat(7)

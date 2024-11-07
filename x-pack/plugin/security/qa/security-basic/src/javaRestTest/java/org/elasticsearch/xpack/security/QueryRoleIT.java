@@ -35,7 +35,7 @@ import java.util.function.Supplier;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.security.action.UpdateIndexMigrationVersionAction.MIGRATION_VERSION_CUSTOM_DATA_KEY;
 import static org.elasticsearch.xpack.core.security.action.UpdateIndexMigrationVersionAction.MIGRATION_VERSION_CUSTOM_KEY;
-import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7;
+import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.is;
@@ -623,7 +623,7 @@ public final class QueryRoleIT extends SecurityInBasicRestTestCase {
 
     @SuppressWarnings("unchecked")
     public static void waitForMigrationCompletion(RestClient adminClient, Integer migrationVersion) throws Exception {
-        final Request request = new Request("GET", "_cluster/state/metadata/" + INTERNAL_SECURITY_MAIN_INDEX_7);
+        final Request request = new Request("GET", "_cluster/state/metadata/" + INTERNAL_SECURITY_MAIN_INDEX);
         assertBusy(() -> {
             Response response = adminClient.performRequest(request);
             assertOK(response);
@@ -631,18 +631,18 @@ public final class QueryRoleIT extends SecurityInBasicRestTestCase {
             Map<String, Object> indicesMetadataMap = (Map<String, Object>) ((Map<String, Object>) responseMap.get("metadata")).get(
                 "indices"
             );
-            assertTrue(indicesMetadataMap.containsKey(INTERNAL_SECURITY_MAIN_INDEX_7));
+            assertTrue(indicesMetadataMap.containsKey(INTERNAL_SECURITY_MAIN_INDEX));
             assertTrue(
-                ((Map<String, Object>) indicesMetadataMap.get(INTERNAL_SECURITY_MAIN_INDEX_7)).containsKey(MIGRATION_VERSION_CUSTOM_KEY)
+                ((Map<String, Object>) indicesMetadataMap.get(INTERNAL_SECURITY_MAIN_INDEX)).containsKey(MIGRATION_VERSION_CUSTOM_KEY)
             );
             if (migrationVersion != null) {
                 assertTrue(
-                    ((Map<String, Object>) ((Map<String, Object>) indicesMetadataMap.get(INTERNAL_SECURITY_MAIN_INDEX_7)).get(
+                    ((Map<String, Object>) ((Map<String, Object>) indicesMetadataMap.get(INTERNAL_SECURITY_MAIN_INDEX)).get(
                         MIGRATION_VERSION_CUSTOM_KEY
                     )).containsKey(MIGRATION_VERSION_CUSTOM_DATA_KEY)
                 );
                 Integer versionInteger = Integer.parseInt(
-                    (String) ((Map<String, Object>) ((Map<String, Object>) indicesMetadataMap.get(INTERNAL_SECURITY_MAIN_INDEX_7)).get(
+                    (String) ((Map<String, Object>) ((Map<String, Object>) indicesMetadataMap.get(INTERNAL_SECURITY_MAIN_INDEX)).get(
                         MIGRATION_VERSION_CUSTOM_KEY
                     )).get(MIGRATION_VERSION_CUSTOM_DATA_KEY)
                 );

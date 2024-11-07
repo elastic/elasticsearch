@@ -31,7 +31,7 @@ import static org.elasticsearch.test.SecuritySettingsSource.SECURITY_REQUEST_OPT
 import static org.elasticsearch.test.SecurityTestsUtils.assertThrowsAuthorizationException;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
-import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7;
+import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -63,7 +63,7 @@ public class SnapshotUserRoleIntegTests extends NativeRealmIntegTestCase {
         final String snapshotUserToken = basicAuthHeaderValue(user, new SecureString(password));
         client = client().filterWithHeader(Collections.singletonMap("Authorization", snapshotUserToken));
         getSecurityClient().putUser(new org.elasticsearch.xpack.core.security.user.User(user, "snapshot_user"), new SecureString(password));
-        ensureGreen(INTERNAL_SECURITY_MAIN_INDEX_7);
+        ensureGreen(INTERNAL_SECURITY_MAIN_INDEX);
     }
 
     public void testSnapshotUserRoleCanSnapshotAndSeeAllIndices() {
@@ -81,7 +81,7 @@ public class SnapshotUserRoleIntegTests extends NativeRealmIntegTestCase {
             .setIndices(randomFrom("_all", "*"))
             .setIndicesOptions(IndicesOptions.strictExpandHidden())
             .get();
-        assertThat(Arrays.asList(getIndexResponse.indices()), containsInAnyOrder(INTERNAL_SECURITY_MAIN_INDEX_7, ordinaryIndex));
+        assertThat(Arrays.asList(getIndexResponse.indices()), containsInAnyOrder(INTERNAL_SECURITY_MAIN_INDEX, ordinaryIndex));
         // create snapshot that includes restricted indices
         final CreateSnapshotResponse snapshotResponse = client.admin()
             .cluster()
@@ -91,12 +91,12 @@ public class SnapshotUserRoleIntegTests extends NativeRealmIntegTestCase {
             .setWaitForCompletion(true)
             .get();
         assertThat(snapshotResponse.getSnapshotInfo().state(), is(SnapshotState.SUCCESS));
-        assertThat(snapshotResponse.getSnapshotInfo().indices(), containsInAnyOrder(INTERNAL_SECURITY_MAIN_INDEX_7, ordinaryIndex));
+        assertThat(snapshotResponse.getSnapshotInfo().indices(), containsInAnyOrder(INTERNAL_SECURITY_MAIN_INDEX, ordinaryIndex));
         // view snapshots for repo
         final GetSnapshotsResponse getSnapshotResponse = client.admin().cluster().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, "repo").get();
         assertThat(getSnapshotResponse.getSnapshots().size(), is(1));
         assertThat(getSnapshotResponse.getSnapshots().get(0).snapshotId().getName(), is("snap"));
-        assertThat(getSnapshotResponse.getSnapshots().get(0).indices(), containsInAnyOrder(INTERNAL_SECURITY_MAIN_INDEX_7, ordinaryIndex));
+        assertThat(getSnapshotResponse.getSnapshots().get(0).indices(), containsInAnyOrder(INTERNAL_SECURITY_MAIN_INDEX, ordinaryIndex));
     }
 
     public void testSnapshotUserRoleIsReserved() {
@@ -160,7 +160,7 @@ public class SnapshotUserRoleIntegTests extends NativeRealmIntegTestCase {
             "snapshot_user"
         );
         // try destructive/revealing actions on all indices
-        for (final String indexToTest : Arrays.asList(INTERNAL_SECURITY_MAIN_INDEX_7, SECURITY_MAIN_ALIAS, ordinaryIndex)) {
+        for (final String indexToTest : Arrays.asList(INTERNAL_SECURITY_MAIN_INDEX, SECURITY_MAIN_ALIAS, ordinaryIndex)) {
             assertThrowsAuthorizationException(() -> client.prepareSearch(indexToTest).get(), "indices:data/read/search", "snapshot_user");
             assertThrowsAuthorizationException(() -> client.prepareGet(indexToTest, "1").get(), "indices:data/read/get", "snapshot_user");
             assertThrowsAuthorizationException(

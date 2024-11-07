@@ -52,7 +52,7 @@ import org.elasticsearch.xpack.core.security.test.TestRestrictedIndices;
 import java.util.Arrays;
 import java.util.List;
 
-import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7;
+import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX;
 import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.INTERNAL_SECURITY_TOKENS_INDEX_7;
 import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.SECURITY_MAIN_ALIAS;
 import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.SECURITY_TOKENS_ALIAS;
@@ -98,7 +98,7 @@ public class InternalUsersTests extends ESTestCase {
         checkIndexAccess(
             role,
             randomFrom(sampleIndexActions),
-            randomFrom(SECURITY_MAIN_ALIAS, INTERNAL_SECURITY_MAIN_INDEX_7, SECURITY_TOKENS_ALIAS, INTERNAL_SECURITY_TOKENS_INDEX_7),
+            randomFrom(SECURITY_MAIN_ALIAS, INTERNAL_SECURITY_MAIN_INDEX, SECURITY_TOKENS_ALIAS, INTERNAL_SECURITY_TOKENS_INDEX_7),
             false
         );
     }
@@ -132,7 +132,7 @@ public class InternalUsersTests extends ESTestCase {
         checkIndexAccess(
             role,
             randomFrom(sampleIndexActions),
-            randomFrom(SECURITY_MAIN_ALIAS, INTERNAL_SECURITY_MAIN_INDEX_7, SECURITY_TOKENS_ALIAS, INTERNAL_SECURITY_TOKENS_INDEX_7),
+            randomFrom(SECURITY_MAIN_ALIAS, INTERNAL_SECURITY_MAIN_INDEX, SECURITY_TOKENS_ALIAS, INTERNAL_SECURITY_TOKENS_INDEX_7),
             true
         );
         checkIndexAccess(role, randomFrom(sampleIndexActions), randomAlphaOfLengthBetween(3, 12), true);
@@ -161,7 +161,7 @@ public class InternalUsersTests extends ESTestCase {
         checkIndexAccess(
             role,
             randomFrom(sampleAllowedActions),
-            randomFrom(SECURITY_MAIN_ALIAS, INTERNAL_SECURITY_MAIN_INDEX_7, SECURITY_TOKENS_ALIAS, INTERNAL_SECURITY_TOKENS_INDEX_7),
+            randomFrom(SECURITY_MAIN_ALIAS, INTERNAL_SECURITY_MAIN_INDEX, SECURITY_TOKENS_ALIAS, INTERNAL_SECURITY_TOKENS_INDEX_7),
             false
         );
         checkIndexAccess(role, randomFrom(sampleAllowedActions), randomAlphaOfLengthBetween(3, 12), false);
@@ -210,7 +210,7 @@ public class InternalUsersTests extends ESTestCase {
         final List<String> sampleAllowedActions = List.of(RefreshAction.NAME, TransportUnpromotableShardRefreshAction.NAME);
         checkIndexAccess(role, randomFrom(sampleAllowedActions), randomAlphaOfLengthBetween(4, 8), true);
         checkIndexAccess(role, randomFrom(sampleAllowedActions), ".ds-" + randomAlphaOfLengthBetween(4, 8), true);
-        checkIndexAccess(role, randomFrom(sampleAllowedActions), INTERNAL_SECURITY_MAIN_INDEX_7, true);
+        checkIndexAccess(role, randomFrom(sampleAllowedActions), INTERNAL_SECURITY_MAIN_INDEX, true);
 
         final List<String> sampleDeniedActions = List.of(
             TransportGetAction.TYPE.name(),
@@ -220,7 +220,7 @@ public class InternalUsersTests extends ESTestCase {
         );
         checkIndexAccess(role, randomFrom(sampleDeniedActions), randomAlphaOfLengthBetween(4, 8), false);
         checkIndexAccess(role, randomFrom(sampleDeniedActions), ".ds-" + randomAlphaOfLengthBetween(4, 8), false);
-        checkIndexAccess(role, randomFrom(sampleDeniedActions), INTERNAL_SECURITY_MAIN_INDEX_7, false);
+        checkIndexAccess(role, randomFrom(sampleDeniedActions), INTERNAL_SECURITY_MAIN_INDEX, false);
     }
 
     public void testDataStreamLifecycleUser() {

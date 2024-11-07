@@ -71,7 +71,7 @@ public class ReservedRealmElasticAutoconfigIntegTests extends SecuritySingleNode
     }
 
     private boolean isMigrationComplete(ClusterState state) {
-        IndexMetadata indexMetadata = state.metadata().getIndices().get(TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7);
+        IndexMetadata indexMetadata = state.metadata().getIndices().get(TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX);
         return indexMetadata.getCustomData(MIGRATION_VERSION_CUSTOM_KEY) != null;
     }
 
@@ -106,7 +106,7 @@ public class ReservedRealmElasticAutoconfigIntegTests extends SecuritySingleNode
             GetIndexResponse getIndexResponse = client().admin().indices().getIndex(getIndexRequest).actionGet();
             if (getIndexResponse.getIndices().length > 0) {
                 assertThat(getIndexResponse.getIndices().length, is(1));
-                assertThat(getIndexResponse.getIndices()[0], is(TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7));
+                assertThat(getIndexResponse.getIndices()[0], is(TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX));
                 // Security migration needs to finish before deleting the index
                 awaitSecurityMigrationRanOnce();
                 DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest(getIndexResponse.getIndices());

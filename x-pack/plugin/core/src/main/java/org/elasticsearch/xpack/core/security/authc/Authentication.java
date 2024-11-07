@@ -1350,10 +1350,8 @@ public final class Authentication implements ToXContentObject {
                         (BytesReference) metadata.get(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY)
                     )
                 );
-            } else if (authentication.getEffectiveSubject()
-                .getTransportVersion()
-                .onOrAfter(ROLE_REMOTE_CLUSTER_PRIVS) //ensure the authentication object understands remote_cluster
-                && streamVersion.onOrAfter(ROLE_REMOTE_CLUSTER_PRIVS)) { //ensure stream understands remote_cluster
+            } else if (authentication.getEffectiveSubject().getTransportVersion().onOrAfter(ROLE_REMOTE_CLUSTER_PRIVS)
+                && streamVersion.onOrAfter(ROLE_REMOTE_CLUSTER_PRIVS)) {
                     // both the authentication object and the stream understand the remote_cluster field
                     // check each individual permission and remove as needed
                     metadata = new HashMap<>(metadata);

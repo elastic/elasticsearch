@@ -218,10 +218,10 @@ public class RemoteClusterPermissionsTests extends AbstractXContentSerializingTe
         assertEquals(remoteClusterPermissions, remoteClusterPermissions.removeUnsupportedPrivileges(ROLE_MONITOR_STATS));
 
         remoteClusterPermissions = new RemoteClusterPermissions();
-        if(randomBoolean()){
+        if (randomBoolean()) {
             group = new RemoteClusterPermissionGroup(new String[] { "monitor_stats" }, new String[] { "*" });
         } else {
-            //if somehow duplicates end up here, they should not influence removal
+            // if somehow duplicates end up here, they should not influence removal
             group = new RemoteClusterPermissionGroup(new String[] { "monitor_stats", "monitor_stats" }, new String[] { "*" });
         }
         remoteClusterPermissions.addGroup(group);
@@ -246,13 +246,14 @@ public class RemoteClusterPermissionsTests extends AbstractXContentSerializingTe
         assertEquals(remoteClusterPermissions, remoteClusterPermissions.removeUnsupportedPrivileges(ROLE_MONITOR_STATS));
     }
 
-    public void testShortCircuitRemoveUnsupportedPrivileges(){
+    public void testShortCircuitRemoveUnsupportedPrivileges() {
         RemoteClusterPermissions remoteClusterPermissions = new RemoteClusterPermissions();
         assertSame(remoteClusterPermissions, remoteClusterPermissions.removeUnsupportedPrivileges(TransportVersion.current()));
         assertSame(remoteClusterPermissions, remoteClusterPermissions.removeUnsupportedPrivileges(lastTransportVersionPermission));
         assertNotSame(
             remoteClusterPermissions,
-            remoteClusterPermissions.removeUnsupportedPrivileges(TransportVersionUtils.getPreviousVersion(lastTransportVersionPermission)));
+            remoteClusterPermissions.removeUnsupportedPrivileges(TransportVersionUtils.getPreviousVersion(lastTransportVersionPermission))
+        );
     }
 
     private List<RemoteClusterPermissionGroup> generateRandomGroups(boolean fuzzyCluster) {

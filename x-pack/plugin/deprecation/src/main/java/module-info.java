@@ -13,6 +13,7 @@ module org.elasticsearch.deprecation {
     requires org.apache.logging.log4j;
     requires org.apache.logging.log4j.core;
     requires log4j2.ecs.layout;
+    requires java.xml.crypto;
 
     exports org.elasticsearch.xpack.deprecation to org.elasticsearch.server;
     exports org.elasticsearch.xpack.deprecation.logging to org.elasticsearch.server;

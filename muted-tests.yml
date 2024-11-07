@@ -265,8 +265,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/116291
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   issue: https://github.com/elastic/elasticsearch/issues/114723
-- class: org.elasticsearch.xpack.search.AsyncSearchSecurityIT
-  issue: https://github.com/elastic/elasticsearch/issues/116293
 - class: org.elasticsearch.xpack.downsample.DownsampleRestIT
   issue: https://github.com/elastic/elasticsearch/issues/116326
 - class: org.elasticsearch.xpack.downsample.DownsampleWithBasicRestIT

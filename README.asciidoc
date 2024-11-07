@@ -254,11 +254,6 @@ To build a distribution for another platform, run the related command:
 ./gradlew :distribution:archives:windows-zip:assemble
 ----
 
-To build distributions for all supported platforms, run:
-----
-./gradlew assemblePublicArtifacts
-----
-
 Distributions are output to `distribution/archives`.
 
 To run the test suite, see xref:TESTING.asciidoc[TESTING].

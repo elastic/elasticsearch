@@ -464,35 +464,6 @@ tasks.register("buildReleaseArtifacts").configure {
     .findAll { it != null }
 }
 
-/**
- * This tasks allows third party open source user to build all artifacts
- * that are build from public available sources
- * We used to propose to run `./gradlew assemble` but this leads to:
- * - building artifacts that are not required for a user (e.g. internally used test fixtures)
- * - failure when building docker images with non public base images (e.g. wolfi)
- * */
-tasks.register("assemblePublicArtifacts").configure {
-  group = 'build'
-  description = 'Builds all artifacts including public docker images that are build from public available sources'
-
-  dependsOn allprojects.findAll {
-    it.path.startsWith(':distribution:docker') == false
-      && it.path.startsWith(':ml-cpp') == false
-      && it.path.startsWith(':distribution:bwc') == false
-      && it.path.startsWith(':test:fixture') == false
-  }
-    .collect { GradleUtils.findByName(it.tasks, 'assemble') }
-    .findAll { it != null }
-
-  dependsOn ":distribution:docker:buildDockerImage"
-  dependsOn ":distribution:docker:buildAarch64DockerImage"
-  dependsOn ":distribution:docker:buildAarch64IronBankDockerImage"
-  dependsOn ":distribution:docker:buildIronBankDockerImage"
-  dependsOn ":distribution:docker:buildAarch64UbiDockerImage"
-  dependsOn ":distribution:docker:buildUbiDockerImage"
-
-}
-
 tasks.register("spotlessApply").configure {
   dependsOn gradle.includedBuild('build-tools').task(':spotlessApply')
   dependsOn gradle.includedBuild('build-tools').task(':reaper:spotlessApply')

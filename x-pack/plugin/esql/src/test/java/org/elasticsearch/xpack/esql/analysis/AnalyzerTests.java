@@ -103,7 +103,7 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testIndexResolution() {
         EsIndex idx = new EsIndex("idx", Map.of());
-        Analyzer analyzer = analyzer(IndexResolution.valid(idx));
+        Analyzer analyzer = analyzer(IndexResolution.valid(idx, Set.of("idx")));
         var plan = analyzer.analyze(UNRESOLVED_RELATION);
         var limit = as(plan, Limit.class);
 
@@ -120,7 +120,8 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testIndexWithClusterResolution() {
         EsIndex idx = new EsIndex("cluster:idx", Map.of());
-        Analyzer analyzer = analyzer(IndexResolution.valid(idx));
+        // MP TODO: is this right? should it be "idx" or "cluster:idx"?
+        Analyzer analyzer = analyzer(IndexResolution.valid(idx, Set.of(idx.name())));
 
         var plan = analyzer.analyze(UNRESOLVED_RELATION);
         var limit = as(plan, Limit.class);
@@ -130,7 +131,7 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testAttributeResolution() {
         EsIndex idx = new EsIndex("idx", LoadMapping.loadMapping("mapping-one-field.json"));
-        Analyzer analyzer = analyzer(IndexResolution.valid(idx));
+        Analyzer analyzer = analyzer(IndexResolution.valid(idx, Set.of("idx")));
 
         var plan = analyzer.analyze(
             new Eval(EMPTY, UNRESOLVED_RELATION, List.of(new Alias(EMPTY, "e", new UnresolvedAttribute(EMPTY, "emp_no"))))
@@ -183,7 +184,7 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testRowAttributeResolution() {
         EsIndex idx = new EsIndex("idx", Map.of());
-        Analyzer analyzer = analyzer(IndexResolution.valid(idx));
+        Analyzer analyzer = analyzer(IndexResolution.valid(idx, Set.of("idx")));
 
         var plan = analyzer.analyze(
             new Eval(

@@ -72,6 +72,7 @@ import org.elasticsearch.xpack.esql.stats.PlanningMetrics;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -386,7 +387,7 @@ public class EsqlSession {
             String indexExpressionToResolve = EsqlSessionCCSUtils.createIndexExpressionFromAvailableClusters(executionInfo);
             if (indexExpressionToResolve.isEmpty()) {
                 // if this was a pure remote CCS request (no local indices) and all remotes are offline, return an empty IndexResolution
-                listener.onResponse(IndexResolution.valid(new EsIndex(table.index(), Map.of(), Map.of())));
+                listener.onResponse(IndexResolution.valid(new EsIndex(table.index(), Map.of(), Map.of()), Collections.emptySet()));
             } else {
                 // call the EsqlResolveFieldsAction (field-caps) to resolve indices and get field types
                 indexResolver.resolveAsMergedMapping(indexExpressionToResolve, fieldNames, listener);

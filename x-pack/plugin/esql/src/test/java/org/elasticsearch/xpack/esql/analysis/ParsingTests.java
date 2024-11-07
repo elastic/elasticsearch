@@ -30,6 +30,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
@@ -120,6 +121,6 @@ public class ParsingTests extends ESTestCase {
     }
 
     private static IndexResolution loadIndexResolution(String name) {
-        return IndexResolution.valid(new EsIndex(INDEX_NAME, LoadMapping.loadMapping(name)));
+        return IndexResolution.valid(new EsIndex(INDEX_NAME, LoadMapping.loadMapping(name)), Set.of(INDEX_NAME));
     }
 }

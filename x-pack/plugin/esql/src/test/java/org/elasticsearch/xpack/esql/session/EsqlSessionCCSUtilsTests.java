@@ -229,7 +229,8 @@ public class EsqlSessionCCSUtilsTests extends ESTestCase {
                     IndexMode.STANDARD
                 )
             );
-            IndexResolution indexResolution = IndexResolution.valid(esIndex, Map.of());
+
+            IndexResolution indexResolution = IndexResolution.valid(esIndex, esIndex.concreteIndices(), Map.of());
 
             EsqlSessionCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, indexResolution);
 
@@ -267,7 +268,7 @@ public class EsqlSessionCCSUtilsTests extends ESTestCase {
                     IndexMode.STANDARD
                 )
             );
-            IndexResolution indexResolution = IndexResolution.valid(esIndex, Map.of());
+            IndexResolution indexResolution = IndexResolution.valid(esIndex, esIndex.concreteIndices(), Map.of());
 
             EsqlSessionCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, indexResolution);
 
@@ -303,7 +304,7 @@ public class EsqlSessionCCSUtilsTests extends ESTestCase {
             );
             // remote1 is unavailable
             var failure = new FieldCapabilitiesFailure(new String[] { "logs-a" }, new NoSeedNodeLeftException("unable to connect"));
-            IndexResolution indexResolution = IndexResolution.valid(esIndex, Map.of(remote1Alias, failure));
+            IndexResolution indexResolution = IndexResolution.valid(esIndex, esIndex.concreteIndices(), Map.of(remote1Alias, failure));
 
             EsqlSessionCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, indexResolution);
 
@@ -342,7 +343,7 @@ public class EsqlSessionCCSUtilsTests extends ESTestCase {
             );
 
             var failure = new FieldCapabilitiesFailure(new String[] { "logs-a" }, new NoSeedNodeLeftException("unable to connect"));
-            IndexResolution indexResolution = IndexResolution.valid(esIndex, Map.of(remote1Alias, failure));
+            IndexResolution indexResolution = IndexResolution.valid(esIndex, esIndex.concreteIndices(), Map.of(remote1Alias, failure));
             VerificationException ve = expectThrows(
                 VerificationException.class,
                 () -> EsqlSessionCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, indexResolution)
@@ -406,6 +407,8 @@ public class EsqlSessionCCSUtilsTests extends ESTestCase {
             assertThat(unavailableClusters.keySet(), equalTo(Set.of()));
         }
     }
+
+    // MP TODO: need to add a test for the "bypass IndexMode" thingy in mergedMappings that the rest test caught
 
     public void testUpdateExecutionInfoAtEndOfPlanning() {
         String localClusterAlias = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;

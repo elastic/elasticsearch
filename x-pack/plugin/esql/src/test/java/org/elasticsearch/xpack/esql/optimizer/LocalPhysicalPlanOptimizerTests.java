@@ -140,7 +140,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
     private Analyzer makeAnalyzer(String mappingFileName, EnrichResolution enrichResolution) {
         var mapping = loadMapping(mappingFileName);
         EsIndex test = new EsIndex("test", mapping, Map.of("test", IndexMode.STANDARD));
-        IndexResolution getIndexResult = IndexResolution.valid(test);
+        IndexResolution getIndexResult = IndexResolution.valid(test, test.concreteIndices());
 
         return new Analyzer(
             new AnalyzerContext(config, new EsqlFunctionRegistry(), getIndexResult, enrichResolution),

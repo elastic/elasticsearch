@@ -26,6 +26,7 @@ import org.junit.BeforeClass;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
@@ -42,7 +43,7 @@ public class QueryTranslatorTests extends ESTestCase {
     private static Analyzer makeAnalyzer(String mappingFileName) {
         var mapping = loadMapping(mappingFileName);
         EsIndex test = new EsIndex("test", mapping, Map.of("test", IndexMode.STANDARD));
-        IndexResolution getIndexResult = IndexResolution.valid(test);
+        IndexResolution getIndexResult = IndexResolution.valid(test, Set.of("test"));
 
         return new Analyzer(
             new AnalyzerContext(EsqlTestUtils.TEST_CFG, new EsqlFunctionRegistry(), getIndexResult, new EnrichResolution()),

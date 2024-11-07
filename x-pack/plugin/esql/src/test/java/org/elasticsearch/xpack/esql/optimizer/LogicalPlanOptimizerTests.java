@@ -119,6 +119,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
@@ -210,7 +211,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         // Most tests used data from the test index, so we load it here, and use it in the plan() function.
         mapping = loadMapping("mapping-basic.json");
         EsIndex test = new EsIndex("test", mapping, Map.of("test", IndexMode.STANDARD));
-        IndexResolution getIndexResult = IndexResolution.valid(test);
+        IndexResolution getIndexResult = IndexResolution.valid(test, Set.of("test"));
         analyzer = new Analyzer(
             new AnalyzerContext(EsqlTestUtils.TEST_CFG, new EsqlFunctionRegistry(), getIndexResult, enrichResolution),
             TEST_VERIFIER
@@ -219,7 +220,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         // Some tests use data from the airports index, so we load it here, and use it in the plan_airports() function.
         mappingAirports = loadMapping("mapping-airports.json");
         EsIndex airports = new EsIndex("airports", mappingAirports, Map.of("airports", IndexMode.STANDARD));
-        IndexResolution getIndexResultAirports = IndexResolution.valid(airports);
+        IndexResolution getIndexResultAirports = IndexResolution.valid(airports, Set.of("airports"));
         analyzerAirports = new Analyzer(
             new AnalyzerContext(EsqlTestUtils.TEST_CFG, new EsqlFunctionRegistry(), getIndexResultAirports, enrichResolution),
             TEST_VERIFIER
@@ -228,7 +229,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         // Some tests need additional types, so we load that index here and use it in the plan_types() function.
         mappingTypes = loadMapping("mapping-all-types.json");
         EsIndex types = new EsIndex("types", mappingTypes, Map.of("types", IndexMode.STANDARD));
-        IndexResolution getIndexResultTypes = IndexResolution.valid(types);
+        IndexResolution getIndexResultTypes = IndexResolution.valid(types, Set.of("types"));
         analyzerTypes = new Analyzer(
             new AnalyzerContext(EsqlTestUtils.TEST_CFG, new EsqlFunctionRegistry(), getIndexResultTypes, enrichResolution),
             TEST_VERIFIER
@@ -237,14 +238,14 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         // Some tests use mappings from mapping-extra.json to be able to test more types so we load it here
         mappingExtra = loadMapping("mapping-extra.json");
         EsIndex extra = new EsIndex("extra", mappingExtra, Map.of("extra", IndexMode.STANDARD));
-        IndexResolution getIndexResultExtra = IndexResolution.valid(extra);
+        IndexResolution getIndexResultExtra = IndexResolution.valid(extra, Set.of("extra"));
         analyzerExtra = new Analyzer(
             new AnalyzerContext(EsqlTestUtils.TEST_CFG, new EsqlFunctionRegistry(), getIndexResultExtra, enrichResolution),
             TEST_VERIFIER
         );
 
         metricMapping = loadMapping("k8s-mappings.json");
-        var metricsIndex = IndexResolution.valid(new EsIndex("k8s", metricMapping, Map.of("k8s", IndexMode.TIME_SERIES)));
+        var metricsIndex = IndexResolution.valid(new EsIndex("k8s", metricMapping, Map.of("k8s", IndexMode.TIME_SERIES)), Set.of("k8s"));
         metricsAnalyzer = new Analyzer(
             new AnalyzerContext(EsqlTestUtils.TEST_CFG, new EsqlFunctionRegistry(), metricsIndex, enrichResolution),
             TEST_VERIFIER
@@ -4228,7 +4229,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
     public void testEmptyMappingIndex() {
         EsIndex empty = new EsIndex("empty_test", emptyMap(), Map.of());
-        IndexResolution getIndexResultAirports = IndexResolution.valid(empty);
+        IndexResolution getIndexResultAirports = IndexResolution.valid(empty, Set.of("empty_test"));
         var analyzer = new Analyzer(
             new AnalyzerContext(EsqlTestUtils.TEST_CFG, new EsqlFunctionRegistry(), getIndexResultAirports, enrichResolution),
             TEST_VERIFIER

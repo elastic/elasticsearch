@@ -183,7 +183,7 @@ class EsqlSessionCCSUtils {
     static void updateExecutionInfoWithClustersWithNoMatchingIndices(EsqlExecutionInfo executionInfo, IndexResolution indexResolution) {
         Set<String> clustersWithResolvedIndices = new HashSet<>();
         // determine missing clusters
-        for (String indexName : indexResolution.get().indexNameWithModes().keySet()) {
+        for (String indexName : indexResolution.getResolvedIndices()) {
             clustersWithResolvedIndices.add(RemoteClusterAware.parseClusterAlias(indexName));
         }
         Set<String> clustersRequested = executionInfo.clusterAliases();

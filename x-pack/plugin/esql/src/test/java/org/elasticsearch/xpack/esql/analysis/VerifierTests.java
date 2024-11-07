@@ -86,7 +86,8 @@ public class VerifierTests extends ESTestCase {
             new EsIndex(
                 "test*",
                 Map.of(unsupported, unsupportedField, multiTyped, multiTypedField, "int", unsupportedField, "double", multiTypedField)
-            )
+            ),
+            ipIndices
         );
         Analyzer analyzer = AnalyzerTestUtils.analyzer(indexWithUnsupportedAndMultiTypedField);
 

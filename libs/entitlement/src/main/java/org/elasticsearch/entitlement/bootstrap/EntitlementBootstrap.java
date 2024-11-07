@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
+import java.util.Objects;
 
 public class EntitlementBootstrap {
 
@@ -34,8 +35,10 @@ public class EntitlementBootstrap {
      */
     public static void bootstrap(Map<Path, Boolean> pluginData) {
         logger.debug("Loading entitlement agent");
-        EntitlementBootstrap.pluginData = pluginData;
-        //EntitlementInitialization.setPluginData(pluginData);
+        if (EntitlementBootstrap.pluginData != null) {
+            throw new IllegalStateException("plugin data is already set");
+        }
+        EntitlementBootstrap.pluginData = Objects.requireNonNull(pluginData);
         exportInitializationToAgent();
         loadAgent(findAgentJar());
     }

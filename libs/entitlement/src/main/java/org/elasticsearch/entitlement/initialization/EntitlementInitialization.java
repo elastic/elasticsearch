@@ -48,20 +48,12 @@ import java.util.Set;
 public class EntitlementInitialization {
 
     private static final String POLICY_FILE_NAME = "entitlement-policy.yaml";
-    //private static Map<Path, Boolean> pluginData;
 
     private static ElasticsearchEntitlementChecker manager;
 
     // Note: referenced by bridge reflectively
     public static EntitlementChecker checker() {
         return manager;
-    }
-
-    public static void setPluginData(Map<Path, Boolean> pluginData) {
-        if (EntitlementBootstrap.pluginData != null) {
-            throw new IllegalStateException("pluginData is already set");
-        }
-        EntitlementBootstrap.pluginData = Collections.unmodifiableMap(Objects.requireNonNull(pluginData));
     }
 
     // Note: referenced by agent reflectively

@@ -205,7 +205,7 @@ class Elasticsearch {
             VectorUtil.class
         );
 
-        //if (Boolean.parseBoolean(System.getProperty("es.entitlements.enabled"))) {
+        if (Boolean.parseBoolean(System.getProperty("es.entitlements.enabled"))) {
             Map<Path, Boolean> pluginData = new HashMap<>();
             Set<PluginBundle> moduleBundles = PluginsUtils.getModuleBundles(nodeEnv.modulesFile());
             for (PluginBundle moduleBundle : moduleBundles) {
@@ -216,14 +216,14 @@ class Elasticsearch {
                 pluginData.put(pluginBundle.getDir(), pluginBundle.pluginDescriptor().isModular());
             }
             EntitlementBootstrap.bootstrap(pluginData);
-        /*} else {
+        } else {
             // install SM after natives, shutdown hooks, etc.
             org.elasticsearch.bootstrap.Security.configure(
                 nodeEnv,
                 SECURITY_FILTER_BAD_DEFAULTS_SETTING.get(args.nodeSettings()),
                 args.pidFile()
             );
-        }*/
+        }
     }
 
     private static void ensureInitialized(Class<?>... classes) {

@@ -429,19 +429,15 @@ public abstract class ESRestTestCase extends ESTestCase {
         String[] stringUrls = hostsString.split(",");
         List<HttpHost> hosts = new ArrayList<>(stringUrls.length);
         for (String stringUrl : stringUrls) {
-            hosts.add(parseClusterHost(stringUrl));
+            int portSeparator = stringUrl.lastIndexOf(':');
+            if (portSeparator < 0) {
+                throw new IllegalArgumentException("Illegal cluster url [" + stringUrl + "]");
+            }
+            String host = stringUrl.substring(0, portSeparator);
+            int port = Integer.valueOf(stringUrl.substring(portSeparator + 1));
+            hosts.add(buildHttpHost(host, port));
         }
         return unmodifiableList(hosts);
-    }
-
-    protected HttpHost parseClusterHost(String stringUrl) {
-        int portSeparator = stringUrl.lastIndexOf(':');
-        if (portSeparator < 0) {
-            throw new IllegalArgumentException("Illegal cluster url [" + stringUrl + "]");
-        }
-        String host = stringUrl.substring(0, portSeparator);
-        int port = Integer.valueOf(stringUrl.substring(portSeparator + 1));
-        return buildHttpHost(host, port);
     }
 
     protected String getTestRestCluster() {

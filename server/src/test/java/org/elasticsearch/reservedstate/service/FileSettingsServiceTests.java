@@ -56,10 +56,12 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
@@ -292,41 +294,40 @@ public class FileSettingsServiceTests extends ESTestCase {
             return null;
         }).when(controller).process(any(), any(XContentParser.class), any(), any());
 
-        CyclicBarrier doneServiceStart = new CyclicBarrier(2);
-        CyclicBarrier doneFileChanged = new CyclicBarrier(2);
+        CyclicBarrier fileChangeBarrier = new CyclicBarrier(2);
+        fileSettingsService.addFileChangedListener(() -> awaitOrBust(fileChangeBarrier));
 
         Files.createDirectories(fileSettingsService.watchedFileDir());
         // contents of the JSON don't matter, we just need a file to exist
         writeTestFile(fileSettingsService.watchedFile(), "{}");
 
-        // Note: the name "processFileOnServiceStart" is a bit misleading because it is not
-        // referring to fileSettingsService.start(). Rather, it is referring to the watcher
-        // thread itself initializing, which occurs asynchronously when clusterChanged is first called.
         doAnswer((Answer<?>) invocation -> {
+            boolean returnedNormally = false;
             try {
-                return invocation.callRealMethod();
-            } finally {
-                doneServiceStart.await();
-            }
-        }).when(fileSettingsService).processFileOnServiceStart();
-        doAnswer((Answer<?>) invocation -> {
-            try {
-                return invocation.callRealMethod();
+                var result = invocation.callRealMethod();
+                returnedNormally = true;
+                return result;
             } catch (XContentParseException e) {
                 // We're expecting a parse error. processFileChanges specifies that this is supposed to throw ExecutionException.
                 throw new ExecutionException(e);
             } catch (Throwable e) {
                 throw new AssertionError("Unexpected exception", e);
             } finally {
-                doneFileChanged.await();
+                if (returnedNormally == false) {
+                    // Because of the exception, listeners aren't notified, so we need to activate the barrier ourselves
+                    awaitOrBust(fileChangeBarrier);
+                }
             }
         }).when(fileSettingsService).processFileChanges();
 
+        // Establish the initial valid JSON
         fileSettingsService.start();
         fileSettingsService.clusterChanged(new ClusterChangedEvent("test", clusterService.state(), ClusterState.EMPTY_STATE));
-        doneServiceStart.await(20, TimeUnit.SECONDS);
+        awaitOrBust(fileChangeBarrier);
+
+        // Now break the JSON
         writeTestFile(fileSettingsService.watchedFile(), "test_invalid_JSON");
-        doneFileChanged.await(20, TimeUnit.SECONDS);
+        awaitOrBust(fileChangeBarrier);
 
         verify(fileSettingsService, times(1)).processFileOnServiceStart(); // The initial state
         verify(fileSettingsService, times(1)).processFileChanges(); // The changed state
@@ -334,6 +335,17 @@ public class FileSettingsServiceTests extends ESTestCase {
             argThat(e -> e instanceof ExecutionException && e.getCause() instanceof XContentParseException)
         );
 
+        // Note: the name "processFileOnServiceStart" is a bit misleading because it is not
+        // referring to fileSettingsService.start(). Rather, it is referring to the initialization
+        // of the watcher thread itself, which occurs asynchronously when clusterChanged is first called.
+    }
+
+    private static void awaitOrBust(CyclicBarrier barrier) {
+        try {
+            barrier.await(20, TimeUnit.SECONDS);
+        } catch (InterruptedException | BrokenBarrierException | TimeoutException e) {
+            throw new AssertionError("Unexpected exception waiting for barrier", e);
+        }
     }
 
     @SuppressWarnings("unchecked")

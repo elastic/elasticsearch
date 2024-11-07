@@ -63,8 +63,6 @@ setup:
         body:
           name: moose.jpg
           vector1: [-0.5, 100.0, -13, 14.8, -156.0]
-          vector2: null
-          vector3: null
           vector4: [-1, 50, -1, 1, 120]
           vector5: [1, 111, -13, 15, -128]
           vector6: null
@@ -95,6 +93,7 @@ setup:
         index: test
         body:
           docvalue_fields: [name, vector1, vector2, vector3, vector4, vector5, vector6]
+          sort: name
 
 
   - match: {hits.hits.0._id: "1"}

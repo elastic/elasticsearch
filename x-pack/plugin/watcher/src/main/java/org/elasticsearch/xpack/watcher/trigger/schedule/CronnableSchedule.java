@@ -59,20 +59,21 @@ public abstract class CronnableSchedule implements Schedule {
     }
 
     @Override
-    public int hashCode() {
-        return Objects.hash((Object[]) crons);
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        CronnableSchedule that = (CronnableSchedule) o;
+        return Objects.deepEquals(crons, that.crons) && Objects.equals(timeZone, that.timeZone);
     }
 
     @Override
-    public boolean equals(Object obj) {
-        if (this == obj) {
-            return true;
-        }
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-        final CronnableSchedule other = (CronnableSchedule) obj;
-        return Objects.deepEquals(this.crons, other.crons);
+    public int hashCode() {
+        return Objects.hash(Arrays.hashCode(crons), timeZone);
+    }
+
+    @Override
+    public String toString() {
+        return "CronnableSchedule{" + "crons=" + Arrays.toString(crons) + ", timeZone=" + timeZone + '}';
     }
 
     static Cron[] crons(String... expressions) {

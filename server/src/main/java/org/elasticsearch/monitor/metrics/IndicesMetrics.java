@@ -18,11 +18,9 @@ import org.elasticsearch.common.util.SingleObjectCache;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.shard.IndexingStats;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
@@ -193,12 +191,36 @@ public class IndicesMetrics extends AbstractLifecycleComponent {
         });
     }
 
-    static class IndexStats {
-        int numIndices = 0;
-        long numDocs = 0;
-        long numBytes = 0;
-        SearchStats.Stats search = new SearchStats().getTotal();
-        IndexingStats.Stats indexing = new IndexingStats().getTotal();
+    static Map<IndexMode, IndexStats> getStatsWithoutCache(IndicesService indicesService) {
+        Map<IndexMode, IndexStats> stats = new EnumMap<>(IndexMode.class);
+        for (IndexMode mode : IndexMode.values()) {
+            stats.put(mode, new IndexStats());
+        }
+        for (IndexService indexService : indicesService) {
+            for (IndexShard indexShard : indexService) {
+                if (indexShard.isSystem()) {
+                    continue; // skip system indices
+                }
+                final ShardRouting shardRouting = indexShard.routingEntry();
+                final IndexMode indexMode = indexShard.indexSettings().getMode();
+                final IndexStats indexStats = stats.get(indexMode);
+                try {
+                    if (shardRouting.primary() && shardRouting.recoverySource() == null) {
+                        if (shardRouting.shardId().id() == 0) {
+                            indexStats.numIndices++;
+                        }
+                        final DocsStats docStats = indexShard.docStats();
+                        indexStats.numDocs += docStats.getCount();
+                        indexStats.numBytes += docStats.getTotalSizeInBytes();
+                        indexStats.indexing.add(indexShard.indexingStats().getTotal());
+                    }
+                    indexStats.search.add(indexShard.searchStats().getTotal());
+                } catch (IllegalIndexShardStateException | AlreadyClosedException ignored) {
+                    // ignored
+                }
+            }
+        }
+        return stats;
     }
 
     private static class IndicesStatsCache extends SingleObjectCache<Map<IndexMode, IndexStats>> {
@@ -219,41 +241,9 @@ public class IndicesMetrics extends AbstractLifecycleComponent {
             this.refresh = true;
         }
 
-        private Map<IndexMode, IndexStats> internalGetIndicesStats() {
-            Map<IndexMode, IndexStats> stats = new EnumMap<>(IndexMode.class);
-            for (IndexMode mode : IndexMode.values()) {
-                stats.put(mode, new IndexStats());
-            }
-            for (IndexService indexService : indicesService) {
-                for (IndexShard indexShard : indexService) {
-                    if (indexShard.isSystem()) {
-                        continue; // skip system indices
-                    }
-                    final ShardRouting shardRouting = indexShard.routingEntry();
-                    final IndexMode indexMode = indexShard.indexSettings().getMode();
-                    final IndexStats indexStats = stats.get(indexMode);
-                    try {
-                        if (shardRouting.primary() && shardRouting.recoverySource() == null) {
-                            if (shardRouting.shardId().id() == 0) {
-                                indexStats.numIndices++;
-                            }
-                            final DocsStats docStats = indexShard.docStats();
-                            indexStats.numDocs += docStats.getCount();
-                            indexStats.numBytes += docStats.getTotalSizeInBytes();
-                            indexStats.indexing.add(indexShard.indexingStats().getTotal());
-                        }
-                        indexStats.search.add(indexShard.searchStats().getTotal());
-                    } catch (IllegalIndexShardStateException | AlreadyClosedException ignored) {
-                        // ignored
-                    }
-                }
-            }
-            return stats;
-        }
-
         @Override
         protected Map<IndexMode, IndexStats> refresh() {
-            return refresh ? internalGetIndicesStats() : getNoRefresh();
+            return refresh ? getStatsWithoutCache(indicesService) : getNoRefresh();
         }
 
         @Override

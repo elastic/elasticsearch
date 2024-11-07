@@ -1179,7 +1179,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
             null,
             List.of(),
             RestExtension.allowAll(),
-            new IncrementalBulkService(null, null, new ThreadContext(Settings.EMPTY))
+            new IncrementalBulkService(null, null)
         );
     }
 

@@ -123,7 +123,7 @@ Once you're deployment is created, navigate to *Search*.
 The Elastic connector will sync your MongoDB data into a search-optimized Elasticsearch index.
 The first step is to create your index in the Kibana UI.
 
-In the main menu navigate to *Search > Content > Indices*.
+In the main menu, navigate to *Search > Content > Indices*, or use the {kibana-ref}/kibana-concepts-analysts.html#_finding_your_apps_and_objects[global search field].
 
 Follow these steps to create your index:
 
@@ -178,7 +178,7 @@ If all the configuration details are correct, the sync will begin and documents 
 
 As soon as your first documents are synced, you can view the documents and inspect the mapping for the index:
 
-* In Kibana, navigate to *Search* > *Content* > *Indices*.
+* In Kibana, navigate to *Search* > *Content* > *Indices* from the main menu, or use the {kibana-ref}/kibana-concepts-analysts.html#_finding_your_apps_and_objects[global search field].
 * Select your index, for example `search-mongo-sample`.
 * Choose the *Documents* tab to view the synced documents.
 Expand a document to view its fields.

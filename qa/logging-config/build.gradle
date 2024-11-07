@@ -7,32 +7,12 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 apply plugin: 'elasticsearch.build'
-apply plugin: 'elasticsearch.legacy-java-rest-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
 
 dependencies {
-  testImplementation project(":libs:elasticsearch-x-content")
+  testImplementation project(":libs:x-content")
   testImplementation project(":test:framework")
 
-}
-
-testClusters.all {
-  setting 'xpack.security.enabled', 'false'
-}
-
-testClusters.matching { it.name == "javaRestTest" }.configureEach {
-  /**
-   * Provide a custom log4j configuration where layout is an old style pattern and confirm that Elasticsearch
-   * can successfully startup.
-   */
-  extraConfigFile 'log4j2.properties', file('es-v7-log4j2.properties')
-}
-
-tasks.named("javaRestTest").configure {
-  nonInputProperties.systemProperty 'tests.logfile',
-    "${-> testClusters.javaRestTest.singleNode().getServerLog().absolutePath.replaceAll("_server.json", ".log")}"
-
-  nonInputProperties.systemProperty 'tests.jsonLogfile',
-    "${-> testClusters.javaRestTest.singleNode().getServerLog()}"
 }
 
 tasks.named("test").configure {

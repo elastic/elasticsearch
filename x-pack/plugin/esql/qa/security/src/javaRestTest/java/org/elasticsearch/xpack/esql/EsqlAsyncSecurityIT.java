@@ -154,6 +154,14 @@ public class EsqlAsyncSecurityIT extends EsqlSecurityIT {
                     } catch (InterruptedException ex) {
                         throw new RuntimeException(ex);
                     }
+                } else if (statusCode == 503 && message.contains("No shard available for [get [.async-search]")) {
+                    // Workaround for https://github.com/elastic/elasticsearch/issues/113419
+                    logger.warn(".async-search index shards not yet available", e);
+                    try {
+                        Thread.sleep(500);
+                    } catch (InterruptedException ex) {
+                        throw new RuntimeException(ex);
+                    }
                 } else {
                     throw e;
                 }

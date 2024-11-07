@@ -1622,7 +1622,8 @@ public class IndexShardTests extends IndexShardTestCase {
             shard.seqNoStats(),
             shard.getRetentionLeaseStats(),
             shard.isSearchIdle(),
-            shard.searchIdleTime()
+            shard.searchIdleTime(),
+            0
         );
         assertEquals(shard.shardPath().getRootDataPath().toString(), stats.getDataPath());
         assertEquals(shard.shardPath().getRootStatePath().toString(), stats.getStatePath());

@@ -671,7 +671,7 @@ public class NodeStatsTests extends ESTestCase {
             .resolve(shardRouting.shardId().getIndex().getUUID())
             .resolve(String.valueOf(shardRouting.shardId().id()));
         ShardPath shardPath = new ShardPath(false, path, path, shardRouting.shardId());
-        return new ShardStats(shardRouting, shardPath, createShardLevelCommonStats(), null, null, null, false, 0);
+        return new ShardStats(shardRouting, shardPath, createShardLevelCommonStats(), null, null, null, false, 0, 0);
     }
 
     public static NodeStats createNodeStats() {

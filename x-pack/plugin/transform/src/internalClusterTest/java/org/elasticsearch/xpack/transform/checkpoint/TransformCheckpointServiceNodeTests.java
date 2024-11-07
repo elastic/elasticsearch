@@ -394,7 +394,7 @@ public class TransformCheckpointServiceNodeTests extends TransformSingleNodeTest
                 Path path = createTempDir().resolve("indices").resolve(index.getUUID()).resolve(String.valueOf(i));
 
                 shardStats.add(
-                    new ShardStats(shardRouting, new ShardPath(false, path, path, shardId), stats, null, seqNoStats, null, false, 0)
+                    new ShardStats(shardRouting, new ShardPath(false, path, path, shardId), stats, null, seqNoStats, null, false, 0, 0)
                 );
             }
 

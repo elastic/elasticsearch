@@ -547,9 +547,11 @@ public class IndexStatsIT extends ESIntegTestCase {
         assertThat(stats.getIndex("test1").getPrimaries().getMerge(), notNullValue());
         assertThat(stats.getIndex("test1").getPrimaries().getFlush(), notNullValue());
         assertThat(stats.getIndex("test1").getPrimaries().getRefresh(), notNullValue());
+        assertThat(stats.getIndex("test1").getMappedFieldsCount(), equalTo(2L)); // field + field.keyword
 
         assertThat(stats.getIndex("test2").getPrimaries().getDocs().getCount(), equalTo(1L));
         assertThat(stats.getIndex("test2").getTotal().getDocs().getCount(), equalTo(test2ExpectedWrites));
+        assertThat(stats.getIndex("test2").getMappedFieldsCount(), equalTo(2L)); // field + field.keyword
 
         // make sure that number of requests in progress is 0
         assertThat(stats.getIndex("test1").getTotal().getIndexing().getTotal().getIndexCurrent(), equalTo(0L));

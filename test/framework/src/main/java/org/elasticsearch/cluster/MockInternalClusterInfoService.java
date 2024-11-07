@@ -124,7 +124,8 @@ public class MockInternalClusterInfoService extends InternalClusterInfoService {
                 shardStats.getStatePath(),
                 shardStats.isCustomDataPath(),
                 shardStats.isSearchIdle(),
-                shardStats.getSearchIdleTime()
+                shardStats.getSearchIdleTime(),
+                shardStats.getMappedFieldsCount()
             );
         }).toArray(ShardStats[]::new);
     }

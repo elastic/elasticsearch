@@ -677,7 +677,9 @@ public class TransportRolloverActionTests extends ESTestCase {
                 stats.warmer = new WarmerStats();
                 stats.denseVectorStats = new DenseVectorStats();
                 stats.sparseVectorStats = new SparseVectorStats();
-                shardStats.add(new ShardStats(shardRouting, new ShardPath(false, path, path, shardId), stats, null, null, null, false, 0));
+                shardStats.add(
+                    new ShardStats(shardRouting, new ShardPath(false, path, path, shardId), stats, null, null, null, false, 0, 0)
+                );
             }
         }
         return IndicesStatsTests.newIndicesStatsResponse(

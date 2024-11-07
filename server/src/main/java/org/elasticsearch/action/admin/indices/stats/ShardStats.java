@@ -47,6 +47,7 @@ public class ShardStats implements Writeable, ToXContentFragment {
     private final boolean isSearchIdle;
 
     private final long searchIdleTime;
+    private final long mappedFieldsCount;
 
     public ShardStats(StreamInput in) throws IOException {
         assert Transports.assertNotTransportThread("O(#shards) work must always fork to an appropriate executor");
@@ -69,6 +70,11 @@ public class ShardStats implements Writeable, ToXContentFragment {
             isSearchIdle = false;
             searchIdleTime = 0;
         }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.INDEX_STATS_MAPPED_FIELDS)) {
+            mappedFieldsCount = in.readVLong();
+        } else {
+            mappedFieldsCount = -1;
+        }
     }
 
     public ShardStats(
@@ -81,7 +87,8 @@ public class ShardStats implements Writeable, ToXContentFragment {
         String statePath,
         boolean isCustomDataPath,
         boolean isSearchIdle,
-        long searchIdleTime
+        long searchIdleTime,
+        long mappedFieldsCount
     ) {
         this.shardRouting = shardRouting;
         this.commonStats = commonStats;
@@ -93,6 +100,7 @@ public class ShardStats implements Writeable, ToXContentFragment {
         this.isCustomDataPath = isCustomDataPath;
         this.isSearchIdle = isSearchIdle;
         this.searchIdleTime = searchIdleTime;
+        this.mappedFieldsCount = mappedFieldsCount;
     }
 
     public ShardStats(
@@ -103,7 +111,8 @@ public class ShardStats implements Writeable, ToXContentFragment {
         final SeqNoStats seqNoStats,
         final RetentionLeaseStats retentionLeaseStats,
         boolean isSearchIdle,
-        long searchIdleTime
+        long searchIdleTime,
+        long mappedFieldsCount
     ) {
         this(
             shardRouting,
@@ -115,7 +124,8 @@ public class ShardStats implements Writeable, ToXContentFragment {
             shardPath.getRootStatePath().toString(),
             shardPath.isCustomDataPath(),
             isSearchIdle,
-            searchIdleTime
+            searchIdleTime,
+            mappedFieldsCount
         );
     }
 
@@ -133,7 +143,8 @@ public class ShardStats implements Writeable, ToXContentFragment {
             && Objects.equals(seqNoStats, that.seqNoStats)
             && Objects.equals(retentionLeaseStats, that.retentionLeaseStats)
             && Objects.equals(isSearchIdle, that.isSearchIdle)
-            && Objects.equals(searchIdleTime, that.searchIdleTime);
+            && Objects.equals(searchIdleTime, that.searchIdleTime)
+            && Objects.equals(mappedFieldsCount, that.mappedFieldsCount);
     }
 
     @Override
@@ -148,7 +159,8 @@ public class ShardStats implements Writeable, ToXContentFragment {
             seqNoStats,
             retentionLeaseStats,
             isSearchIdle,
-            searchIdleTime
+            searchIdleTime,
+            mappedFieldsCount
         );
     }
 
@@ -202,6 +214,10 @@ public class ShardStats implements Writeable, ToXContentFragment {
         return searchIdleTime;
     }
 
+    public long getMappedFieldsCount() {
+        return mappedFieldsCount;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         shardRouting.writeTo(out);
@@ -219,6 +235,9 @@ public class ShardStats implements Writeable, ToXContentFragment {
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
             out.writeBoolean(isSearchIdle);
             out.writeVLong(searchIdleTime);
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.INDEX_STATS_MAPPED_FIELDS)) {
+            out.writeVLong(mappedFieldsCount);
         }
     }
 

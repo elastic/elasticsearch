@@ -203,6 +203,9 @@ public class IndicesStatsResponse extends ChunkedBroadcastResponse {
                             if (indexStats.getState() != null) {
                                 builder.field("status", indexStats.getState().toString().toLowerCase(Locale.ROOT));
                             }
+                            if (indexStats.getMappedFieldsCount() != null) {
+                                builder.field("mapped_fields_count", indexStats.getMappedFieldsCount());
+                            }
                             builder.startObject("primaries");
                             indexStats.getPrimaries().toXContent(builder, p);
                             builder.endObject();

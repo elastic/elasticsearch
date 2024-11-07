@@ -283,6 +283,7 @@ public class TransformsCheckpointServiceTests extends ESTestCase {
                                 invalidSeqNoStats,
                                 null,
                                 false,
+                                0,
                                 0
                             )
                         );
@@ -296,6 +297,7 @@ public class TransformsCheckpointServiceTests extends ESTestCase {
                                 validSeqNoStats,
                                 null,
                                 false,
+                                0,
                                 0
                             )
                         );

@@ -31,6 +31,8 @@ public class IndexStats implements Iterable<IndexShardStats> {
 
     private final ShardStats shards[];
 
+    private Long mappedFieldsCount;
+
     public IndexStats(
         String index,
         String uuid,
@@ -122,6 +124,19 @@ public class IndexStats implements Iterable<IndexShardStats> {
         }
         primary = stats;
         return stats;
+    }
+
+    public Long getMappedFieldsCount() {
+        if (this.mappedFieldsCount != null) {
+            return mappedFieldsCount;
+        }
+        for (ShardStats shard : shards) {
+            if (shard.getShardRouting().primary()) {
+                mappedFieldsCount = shard.getMappedFieldsCount();
+                break;
+            }
+        }
+        return mappedFieldsCount;
     }
 
     public static class IndexStatsBuilder {

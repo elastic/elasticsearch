@@ -120,6 +120,7 @@ public class VersionStatsTests extends AbstractWireSerializingTestCase<VersionSt
             null,
             null,
             false,
+            0,
             0
         );
         ClusterStatsNodeResponse nodeResponse = new ClusterStatsNodeResponse(

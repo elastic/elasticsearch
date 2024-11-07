@@ -132,7 +132,8 @@ public class TransportIndicesStatsAction extends TransportBroadcastByNodeAction<
                 seqNoStats,
                 retentionLeaseStats,
                 indexShard.isSearchIdle(),
-                indexShard.searchIdleTime()
+                indexShard.searchIdleTime(),
+                indexShard.mapperService().mappingLookup().getTotalFieldsCount()
             );
         });
     }

@@ -122,8 +122,28 @@ public class DiskUsageTests extends ESTestCase {
         CommonStats commonStats2 = new CommonStats();
         commonStats2.store = new StoreStats(1000, 999, 0L);
         ShardStats[] stats = new ShardStats[] {
-            new ShardStats(test_0, new ShardPath(false, test0Path, test0Path, test_0.shardId()), commonStats0, null, null, null, false, 0),
-            new ShardStats(test_1, new ShardPath(false, test1Path, test1Path, test_1.shardId()), commonStats1, null, null, null, false, 0),
+            new ShardStats(
+                test_0,
+                new ShardPath(false, test0Path, test0Path, test_0.shardId()),
+                commonStats0,
+                null,
+                null,
+                null,
+                false,
+                0,
+                0
+            ),
+            new ShardStats(
+                test_1,
+                new ShardPath(false, test1Path, test1Path, test_1.shardId()),
+                commonStats1,
+                null,
+                null,
+                null,
+                false,
+                0,
+                0
+            ),
             new ShardStats(
                 test_1,
                 new ShardPath(false, test1Path, test1Path, test_1.shardId()),
@@ -132,6 +152,7 @@ public class DiskUsageTests extends ESTestCase {
                 null,
                 null,
                 false,
+                0,
                 0
             ) };
         Map<String, Long> shardSizes = new HashMap<>();

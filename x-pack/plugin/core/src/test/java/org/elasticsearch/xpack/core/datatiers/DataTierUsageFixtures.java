@@ -90,7 +90,7 @@ class DataTierUsageFixtures extends ESTestCase {
         CommonStats commonStats = new CommonStats(CommonStatsFlags.ALL);
         commonStats.getStore().add(storeStats);
         commonStats.getDocs().add(docsStats);
-        return new ShardStats(routing, fakeShardPath, commonStats, null, null, null, false, 0);
+        return new ShardStats(routing, fakeShardPath, commonStats, null, null, null, false, 0, 0);
     }
 
     static IndexMetadata indexMetadata(String indexName, int numberOfShards, int numberOfReplicas, String... dataTierPrefs) {

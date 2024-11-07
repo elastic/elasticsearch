@@ -494,7 +494,7 @@ public class DataStreamAutoshardingIT extends ESIntegTestCase {
         stats.docs = new DocsStats(100, 0, randomByteSizeValue().getBytes());
         stats.store = new StoreStats();
         stats.indexing = new IndexingStats(new IndexingStats.Stats(1, 1, 1, 1, 1, 1, 1, 1, false, 1, targetWriteLoad, 1));
-        return new ShardStats(shardRouting, new ShardPath(false, path, path, shardId), stats, null, null, null, false, 0);
+        return new ShardStats(shardRouting, new ShardPath(false, path, path, shardId), stats, null, null, null, false, 0, 0);
     }
 
     static void putComposableIndexTemplate(String id, List<String> patterns, @Nullable Settings settings) throws IOException {

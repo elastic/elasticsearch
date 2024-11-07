@@ -535,7 +535,8 @@ public class IndicesService extends AbstractLifecycleComponent
                     seqNoStats,
                     retentionLeaseStats,
                     indexShard.isSearchIdle(),
-                    indexShard.searchIdleTime()
+                    indexShard.searchIdleTime(),
+                    indexShard.mapperService().mappingLookup().getTotalFieldsCount()
                 ) }
         );
     }

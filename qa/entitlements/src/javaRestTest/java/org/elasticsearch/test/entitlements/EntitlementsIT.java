@@ -38,9 +38,11 @@ public class EntitlementsIT extends ESRestTestCase {
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.INTEG_TEST)
         .plugin("entitlement-qa")
-        .systemProperty("entitlement.enabled", "true")
+        .systemProperty("es.entitlements.enabled", "true")
         .setting("xpack.security.enabled", "false")
         .jvmArg("-Dentitlement.test=true")
+        .jvmArg("-Djdk.attach.allowAttachSelf=true")
+        .jvmArg("-XX:+EnableDynamicAgentLoading")
         .build();
 
     @Override

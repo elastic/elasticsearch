@@ -18,17 +18,18 @@ esplugin {
   classname 'org.elasticsearch.test.entitlements.EntitlementsCheckPlugin'
 }
 
-configurations {
-  agentJar {
-    canBeConsumed = false
-  }
-}
+//configurations {
+//  agentJar {
+//    canBeConsumed = false
+//  }
+//}
 
 dependencies {
   clusterPlugins project(':qa:entitlements')
-  agentJar(project(path: ":distribution:tools:entitlement-agent", configuration: 'entitlementAgentJar'))
-  runtimeOnly(project(":distribution:tools:entitlement-runtime"))
-  runtimeOnly(project(":distribution:tools:entitlement-agent"))
+  //agentJar(project(path: ":distribution:tools:entitlement-agent", configuration: 'entitlementAgentJar'))
+//  runtimeOnly(project(":libs:entitlement"))
+//  runtimeOnly(project(":libs:entitlement:agent"))
+//  runtimeOnly(project(":libs:entitlement:bridge"))
 }
 
 tasks.register('copyAgent', Copy) {
@@ -43,7 +44,6 @@ tasks.named('build') {
 tasks.named('javaRestTest') {
   usesDefaultDistribution()
   systemProperty "tests.security.manager", "false"
-  print(configurations.agentJar)
 }
 
 tasks.named("javadoc").configure {

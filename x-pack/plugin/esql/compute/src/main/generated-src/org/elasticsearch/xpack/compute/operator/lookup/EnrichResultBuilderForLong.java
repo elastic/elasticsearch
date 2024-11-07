@@ -5,49 +5,35 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.enrich;
+package org.elasticsearch.compute.operator.lookup;
 
-import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasables;
 
 import java.util.Arrays;
 
 /**
- * {@link EnrichResultBuilder} for BytesRefs.
+ * {@link EnrichResultBuilder} for Longs.
  * This class is generated. Edit `X-EnrichResultBuilder.java.st` instead.
  */
-final class EnrichResultBuilderForBytesRef extends EnrichResultBuilder {
-    private final BytesRefArray bytes; // shared between all cells
-    private BytesRef scratch = new BytesRef();
-    private ObjectArray<int[]> cells;
+final class EnrichResultBuilderForLong extends EnrichResultBuilder {
+    private ObjectArray<long[]> cells;
 
-    EnrichResultBuilderForBytesRef(BlockFactory blockFactory, int channel) {
+    EnrichResultBuilderForLong(BlockFactory blockFactory, int channel) {
         super(blockFactory, channel);
         this.cells = blockFactory.bigArrays().newObjectArray(1);
-        BytesRefArray bytes = null;
-        try {
-            bytes = new BytesRefArray(1L, blockFactory.bigArrays());
-            this.bytes = bytes;
-        } finally {
-            if (bytes == null) {
-                this.cells.close();
-            }
-        }
     }
 
     @Override
     void addInputPage(IntVector positions, Page page) {
-        BytesRefBlock block = page.getBlock(channel);
-        BytesRef scratch = new BytesRef();
+        LongBlock block = page.getBlock(channel);
         for (int i = 0; i < positions.getPositionCount(); i++) {
             int valueCount = block.getValueCount(i);
             if (valueCount == 0) {
@@ -61,57 +47,54 @@ final class EnrichResultBuilderForBytesRef extends EnrichResultBuilder {
             int dstIndex = oldCell != null ? oldCell.length : 0;
             adjustBreaker(RamUsageEstimator.sizeOf(newCell) - (oldCell != null ? RamUsageEstimator.sizeOf(oldCell) : 0));
             int firstValueIndex = block.getFirstValueIndex(i);
-            int bytesOrd = Math.toIntExact(bytes.size());
             for (int v = 0; v < valueCount; v++) {
-                scratch = block.getBytesRef(firstValueIndex + v, scratch);
-                bytes.append(scratch);
-                newCell[dstIndex + v] = bytesOrd + v;
+                newCell[dstIndex + v] = block.getLong(firstValueIndex + v);
             }
         }
     }
 
-    private int[] extendCell(int[] oldCell, int newValueCount) {
+    private long[] extendCell(long[] oldCell, int newValueCount) {
         if (oldCell == null) {
-            return new int[newValueCount];
+            return new long[newValueCount];
         } else {
             return Arrays.copyOf(oldCell, oldCell.length + newValueCount);
         }
     }
 
-    private int[] combineCell(int[] first, int[] second) {
+    private long[] combineCell(long[] first, long[] second) {
         if (first == null) {
             return second;
         }
         if (second == null) {
             return first;
         }
-        var result = new int[first.length + second.length];
+        var result = new long[first.length + second.length];
         System.arraycopy(first, 0, result, 0, first.length);
         System.arraycopy(second, 0, result, first.length, second.length);
         return result;
     }
 
-    private void appendGroupToBlockBuilder(BytesRefBlock.Builder builder, int[] group) {
+    private void appendGroupToBlockBuilder(LongBlock.Builder builder, long[] group) {
         if (group == null) {
             builder.appendNull();
         } else if (group.length == 1) {
-            builder.appendBytesRef(bytes.get(group[0], scratch));
+            builder.appendLong(group[0]);
         } else {
             builder.beginPositionEntry();
             // TODO: sort and dedup and set MvOrdering
             for (var v : group) {
-                builder.appendBytesRef(bytes.get(v, scratch));
+                builder.appendLong(v);
             }
             builder.endPositionEntry();
         }
     }
 
-    private int[] getCellOrNull(int position) {
+    private long[] getCellOrNull(int position) {
         return position < cells.size() ? cells.get(position) : null;
     }
 
     private Block buildWithSelected(IntBlock selected) {
-        try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(selected.getPositionCount())) {
+        try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(selected.getPositionCount())) {
             for (int i = 0; i < selected.getPositionCount(); i++) {
                 int selectedCount = selected.getValueCount(i);
                 switch (selectedCount) {
@@ -136,7 +119,7 @@ final class EnrichResultBuilderForBytesRef extends EnrichResultBuilder {
     }
 
     private Block buildWithSelected(IntVector selected) {
-        try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(selected.getPositionCount())) {
+        try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(selected.getPositionCount())) {
             for (int i = 0; i < selected.getPositionCount(); i++) {
                 appendGroupToBlockBuilder(builder, getCellOrNull(selected.getInt(i)));
             }
@@ -156,6 +139,6 @@ final class EnrichResultBuilderForBytesRef extends EnrichResultBuilder {
 
     @Override
     public void close() {
-        Releasables.close(bytes, cells, super::close);
+        Releasables.close(cells, super::close);
     }
 }

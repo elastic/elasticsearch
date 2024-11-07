@@ -44,6 +44,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.FakeThreadPoolMasterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.TimeSupplierUtils;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
 import org.elasticsearch.core.TimeValue;
@@ -350,6 +351,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
 
         var threadPool = new TestThreadPool(getTestName());
         var time = new AtomicLong(threadPool.relativeTimeInMillis());
+        var timeSupplier = TimeSupplierUtils.create(time::get);
         var clusterService = ClusterServiceUtils.createClusterService(initialState, threadPool);
         var allocationServiceRef = new SetOnce<AllocationService>();
         var reconcileAction = new DesiredBalanceReconcilerAction() {
@@ -396,7 +398,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             shardsAllocator,
             threadPool,
             clusterService,
-            new DesiredBalanceComputer(clusterSettings, time::get, shardsAllocator) {
+            new DesiredBalanceComputer(clusterSettings, timeSupplier, shardsAllocator) {
                 @Override
                 public DesiredBalance compute(
                     DesiredBalance previousDesiredBalance,
@@ -522,7 +524,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             shardsAllocator,
             threadPool,
             clusterService,
-            new DesiredBalanceComputer(clusterSettings, threadPool::relativeTimeInMillis, shardsAllocator) {
+            new DesiredBalanceComputer(clusterSettings, threadPool.relativeTimeSupplier(), shardsAllocator) {
                 @Override
                 public DesiredBalance compute(
                     DesiredBalance previousDesiredBalance,
@@ -625,7 +627,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             shardsAllocator,
             threadPool,
             clusterService,
-            new DesiredBalanceComputer(clusterSettings, threadPool::relativeTimeInMillis, shardsAllocator) {
+            new DesiredBalanceComputer(clusterSettings, threadPool.relativeTimeSupplier(), shardsAllocator) {
                 @Override
                 public DesiredBalance compute(
                     DesiredBalance previousDesiredBalance,
@@ -712,7 +714,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
         var delegateAllocator = createShardsAllocator();
         var clusterSettings = createBuiltInClusterSettings();
 
-        var desiredBalanceComputer = new DesiredBalanceComputer(clusterSettings, threadPool::relativeTimeInMillis, delegateAllocator) {
+        var desiredBalanceComputer = new DesiredBalanceComputer(clusterSettings, threadPool.relativeTimeSupplier(), delegateAllocator) {
 
             final AtomicReference<DesiredBalance> lastComputationInput = new AtomicReference<>();
 
@@ -782,7 +784,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
         var delegateAllocator = createShardsAllocator();
         var desiredBalanceComputer = new DesiredBalanceComputer(
             createBuiltInClusterSettings(),
-            threadPool::relativeTimeInMillis,
+            threadPool.relativeTimeSupplier(),
             delegateAllocator
         );
         var desiredBalanceShardsAllocator = new DesiredBalanceShardsAllocator(
@@ -835,7 +837,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
         var delegateAllocator = createShardsAllocator();
         var desiredBalanceComputer = new DesiredBalanceComputer(
             createBuiltInClusterSettings(),
-            threadPool::relativeTimeInMillis,
+            threadPool.relativeTimeSupplier(),
             delegateAllocator
         );
         var desiredBalanceAllocator = new DesiredBalanceShardsAllocator(

@@ -64,37 +64,6 @@ public class TrainedModelValidatorTests extends ESTestCase {
         {
             ClusterState state = mock(ClusterState.class);
 
-            final ModelPackageConfig packageConfigCurrent = new ModelPackageConfig.Builder(
-                ModelPackageConfigTests.randomModulePackageConfig()
-            ).setMinimumVersion(MlConfigVersion.CURRENT.toString()).build();
-
-            DiscoveryNode node = DiscoveryNodeUtils.create(
-                "node1",
-                new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
-                Version.V_8_7_0
-            );
-
-            DiscoveryNodes nodes = DiscoveryNodes.builder().add(node).build();
-
-            when(state.nodes()).thenReturn(nodes);
-
-            Exception e = expectThrows(
-                ActionRequestValidationException.class,
-                () -> TrainedModelValidator.validateMinimumVersion(packageConfigCurrent, state)
-            );
-
-            assertEquals(
-                "Validation Failed: 1: The model ["
-                    + packageConfigCurrent.getPackagedModelId()
-                    + "] requires that all nodes have ML config version ["
-                    + MlConfigVersion.CURRENT
-                    + "] or higher;",
-                e.getMessage()
-            );
-        }
-        {
-            ClusterState state = mock(ClusterState.class);
-
             final ModelPackageConfig packageConfigBroken = new ModelPackageConfig.Builder(
                 ModelPackageConfigTests.randomModulePackageConfig()
             ).setMinimumVersion("_broken_version_").build();

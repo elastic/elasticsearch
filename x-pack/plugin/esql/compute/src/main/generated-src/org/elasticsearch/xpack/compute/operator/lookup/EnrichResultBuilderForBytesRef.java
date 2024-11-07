@@ -5,50 +5,34 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.enrich;
+package org.elasticsearch.compute.operator.lookup;
 
-$if(BytesRef)$
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.util.BytesRefArray;
-$else$
-import org.apache.lucene.util.RamUsageEstimator;
-$endif$
 import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-$if(long)$
+import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
-import org.elasticsearch.compute.data.$Type$Block;
-$elseif(int)$
-import org.elasticsearch.compute.data.IntBlock;
-import org.elasticsearch.compute.data.IntVector;
-$else$
-import org.elasticsearch.compute.data.$Type$Block;
-import org.elasticsearch.compute.data.IntBlock;
-import org.elasticsearch.compute.data.IntVector;
-$endif$
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasables;
 
 import java.util.Arrays;
 
 /**
- * {@link EnrichResultBuilder} for $Type$s.
+ * {@link EnrichResultBuilder} for BytesRefs.
  * This class is generated. Edit `X-EnrichResultBuilder.java.st` instead.
  */
-final class EnrichResultBuilderFor$Type$ extends EnrichResultBuilder {
-$if(BytesRef)$
+final class EnrichResultBuilderForBytesRef extends EnrichResultBuilder {
     private final BytesRefArray bytes; // shared between all cells
     private BytesRef scratch = new BytesRef();
-$endif$
-    private ObjectArray<$if(BytesRef)$int$else$$type$$endif$[]> cells;
+    private ObjectArray<int[]> cells;
 
-    EnrichResultBuilderFor$Type$(BlockFactory blockFactory, int channel) {
+    EnrichResultBuilderForBytesRef(BlockFactory blockFactory, int channel) {
         super(blockFactory, channel);
         this.cells = blockFactory.bigArrays().newObjectArray(1);
-$if(BytesRef)$
         BytesRefArray bytes = null;
         try {
             bytes = new BytesRefArray(1L, blockFactory.bigArrays());
@@ -58,15 +42,12 @@ $if(BytesRef)$
                 this.cells.close();
             }
         }
-$endif$
     }
 
     @Override
     void addInputPage(IntVector positions, Page page) {
-        $Type$Block block = page.getBlock(channel);
-$if(BytesRef)$
+        BytesRefBlock block = page.getBlock(channel);
         BytesRef scratch = new BytesRef();
-$endif$
         for (int i = 0; i < positions.getPositionCount(); i++) {
             int valueCount = block.getValueCount(i);
             if (valueCount == 0) {
@@ -80,71 +61,57 @@ $endif$
             int dstIndex = oldCell != null ? oldCell.length : 0;
             adjustBreaker(RamUsageEstimator.sizeOf(newCell) - (oldCell != null ? RamUsageEstimator.sizeOf(oldCell) : 0));
             int firstValueIndex = block.getFirstValueIndex(i);
-$if(BytesRef)$
             int bytesOrd = Math.toIntExact(bytes.size());
             for (int v = 0; v < valueCount; v++) {
                 scratch = block.getBytesRef(firstValueIndex + v, scratch);
                 bytes.append(scratch);
                 newCell[dstIndex + v] = bytesOrd + v;
             }
-$else$
-            for (int v = 0; v < valueCount; v++) {
-                newCell[dstIndex + v] = block.get$Type$(firstValueIndex + v);
-            }
-$endif$
         }
     }
 
-    private $if(BytesRef)$int$else$$type$$endif$[] extendCell($if(BytesRef)$int$else$$type$$endif$[] oldCell, int newValueCount) {
+    private int[] extendCell(int[] oldCell, int newValueCount) {
         if (oldCell == null) {
-            return new $if(BytesRef)$int$else$$type$$endif$[newValueCount];
+            return new int[newValueCount];
         } else {
             return Arrays.copyOf(oldCell, oldCell.length + newValueCount);
         }
     }
 
-    private $if(BytesRef)$int$else$$type$$endif$[] combineCell($if(BytesRef)$int$else$$type$$endif$[] first, $if(BytesRef)$int$else$$type$$endif$[] second) {
+    private int[] combineCell(int[] first, int[] second) {
         if (first == null) {
             return second;
         }
         if (second == null) {
             return first;
         }
-        var result = new $if(BytesRef)$int$else$$type$$endif$[first.length + second.length];
+        var result = new int[first.length + second.length];
         System.arraycopy(first, 0, result, 0, first.length);
         System.arraycopy(second, 0, result, first.length, second.length);
         return result;
     }
 
-    private void appendGroupToBlockBuilder($Type$Block.Builder builder, $if(BytesRef)$int$else$$type$$endif$[] group) {
+    private void appendGroupToBlockBuilder(BytesRefBlock.Builder builder, int[] group) {
         if (group == null) {
             builder.appendNull();
         } else if (group.length == 1) {
-$if(BytesRef)$
             builder.appendBytesRef(bytes.get(group[0], scratch));
-$else$
-            builder.append$Type$(group[0]);
-$endif$
         } else {
             builder.beginPositionEntry();
             // TODO: sort and dedup and set MvOrdering
             for (var v : group) {
-$if(BytesRef)$
                 builder.appendBytesRef(bytes.get(v, scratch));
-$else$
-                builder.append$Type$(v);
-$endif$
             }
             builder.endPositionEntry();
         }
     }
 
-    private $if(BytesRef)$int$else$$type$$endif$[] getCellOrNull(int position) {
+    private int[] getCellOrNull(int position) {
         return position < cells.size() ? cells.get(position) : null;
     }
 
     private Block buildWithSelected(IntBlock selected) {
-        try ($Type$Block.Builder builder = blockFactory.new$Type$BlockBuilder(selected.getPositionCount())) {
+        try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(selected.getPositionCount())) {
             for (int i = 0; i < selected.getPositionCount(); i++) {
                 int selectedCount = selected.getValueCount(i);
                 switch (selectedCount) {
@@ -169,7 +136,7 @@ $endif$
     }
 
     private Block buildWithSelected(IntVector selected) {
-        try ($Type$Block.Builder builder = blockFactory.new$Type$BlockBuilder(selected.getPositionCount())) {
+        try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(selected.getPositionCount())) {
             for (int i = 0; i < selected.getPositionCount(); i++) {
                 appendGroupToBlockBuilder(builder, getCellOrNull(selected.getInt(i)));
             }
@@ -189,6 +156,6 @@ $endif$
 
     @Override
     public void close() {
-        Releasables.close($if(BytesRef)$bytes, $endif$cells, super::close);
+        Releasables.close(bytes, cells, super::close);
     }
 }

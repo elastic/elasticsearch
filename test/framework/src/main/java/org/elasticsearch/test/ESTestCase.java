@@ -65,6 +65,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.DelayableWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -1849,7 +1850,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         );
     }
 
-    protected static <T> T copyInstance(
+    protected static <T extends Writeable> T copyInstance(
         T original,
         NamedWriteableRegistry namedWriteableRegistry,
         Writeable.Writer<T> writer,
@@ -1859,9 +1860,20 @@ public abstract class ESTestCase extends LuceneTestCase {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             output.setTransportVersion(version);
             writer.write(output, original);
-            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
-                in.setTransportVersion(version);
-                return reader.read(in);
+            if (randomBoolean()) {
+                try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
+                    in.setTransportVersion(version);
+                    return reader.read(in);
+                }
+            } else {
+                BytesReference bytesReference = output.copyBytes();
+                output.reset();
+                output.writeBytesReference(bytesReference);
+                try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
+                    in.setTransportVersion(version);
+                    DelayableWriteable<T> delayableWriteable = DelayableWriteable.delayed(reader, in);
+                    return delayableWriteable.expand();
+                }
             }
         }
     }

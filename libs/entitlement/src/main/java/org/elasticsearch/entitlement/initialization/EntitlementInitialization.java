@@ -10,6 +10,7 @@
 package org.elasticsearch.entitlement.initialization;
 
 import org.elasticsearch.core.internal.provider.ProviderLocator;
+import org.elasticsearch.entitlement.bootstrap.EntitlementBootstrap;
 import org.elasticsearch.entitlement.bridge.EntitlementChecker;
 import org.elasticsearch.entitlement.instrumentation.InstrumentationService;
 import org.elasticsearch.entitlement.instrumentation.MethodKey;
@@ -47,7 +48,7 @@ import java.util.Set;
 public class EntitlementInitialization {
 
     private static final String POLICY_FILE_NAME = "entitlement-policy.yaml";
-    private static Map<Path, Boolean> pluginData;
+    //private static Map<Path, Boolean> pluginData;
 
     private static ElasticsearchEntitlementChecker manager;
 
@@ -57,17 +58,17 @@ public class EntitlementInitialization {
     }
 
     public static void setPluginData(Map<Path, Boolean> pluginData) {
-        if (EntitlementInitialization.pluginData != null) {
+        if (EntitlementBootstrap.pluginData != null) {
             throw new IllegalStateException("pluginData is already set");
         }
-        EntitlementInitialization.pluginData = Collections.unmodifiableMap(Objects.requireNonNull(pluginData));
+        EntitlementBootstrap.pluginData = Collections.unmodifiableMap(Objects.requireNonNull(pluginData));
     }
 
     // Note: referenced by agent reflectively
     public static void initialize(Instrumentation inst) throws Exception {
         Map<String, Policy> pluginPolicies = new HashMap<>();
 
-        for (Map.Entry<Path, Boolean> entry : EntitlementInitialization.pluginData.entrySet()) {
+        for (Map.Entry<Path, Boolean> entry : EntitlementBootstrap.pluginData.entrySet()) {
             Path pluginRoot = entry.getKey();
 
             String pluginName = pluginRoot.getFileName().toString();

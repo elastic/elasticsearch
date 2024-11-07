@@ -26,13 +26,16 @@ import java.util.Map;
 
 public class EntitlementBootstrap {
 
+    public static Map<Path, Boolean> pluginData;
+
     /**
      * Activates entitlement checking. Once this method returns, calls to forbidden methods
      * will throw {@link org.elasticsearch.entitlement.runtime.api.NotEntitledException}.
      */
     public static void bootstrap(Map<Path, Boolean> pluginData) {
         logger.debug("Loading entitlement agent");
-        EntitlementInitialization.setPluginData(pluginData);
+        EntitlementBootstrap.pluginData = pluginData;
+        //EntitlementInitialization.setPluginData(pluginData);
         exportInitializationToAgent();
         loadAgent(findAgentJar());
     }

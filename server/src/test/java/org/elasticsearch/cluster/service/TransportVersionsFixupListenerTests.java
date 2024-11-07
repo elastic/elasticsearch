@@ -279,12 +279,7 @@ public class TransportVersionsFixupListenerTests extends ESTestCase {
         assertThat(task.getValue().results().keySet(), equalTo(Set.of("node1", "node2")));
         assertThat(
             task.getValue().results().values(),
-            everyItem(
-                transformedMatch(
-                    CompatibilityVersions::transportVersion,
-                    equalTo(NEXT_TRANSPORT_VERSION)
-                )
-            )
+            everyItem(transformedMatch(CompatibilityVersions::transportVersion, equalTo(NEXT_TRANSPORT_VERSION)))
         );
     }
 

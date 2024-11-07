@@ -65,10 +65,6 @@ final class DfsQueryPhase extends SearchPhase {
         this.nextPhaseFactory = nextPhaseFactory;
         this.context = context;
         this.searchTransportService = context.getSearchTransport();
-
-        // register the release of the query consumer to free up the circuit breaker memory
-        // at the end of the search
-        context.addReleasable(queryResult);
     }
 
     @Override

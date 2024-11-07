@@ -98,7 +98,7 @@ final class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction
     }
 
     @Override
-    protected SearchPhase getNextPhase(final SearchPhaseResults<DfsSearchResult> results, SearchPhaseContext context) {
+    protected SearchPhase getNextPhase() {
         final List<DfsSearchResult> dfsSearchResults = results.getAtomicArray().asList();
         final AggregatedDfs aggregatedDfs = SearchPhaseController.aggregateDfs(dfsSearchResults);
         final List<DfsKnnResults> mergedKnnResults = SearchPhaseController.mergeKnnResults(getRequest(), dfsSearchResults);
@@ -107,8 +107,8 @@ final class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction
             aggregatedDfs,
             mergedKnnResults,
             queryPhaseResultConsumer,
-            (queryResults) -> SearchQueryThenFetchAsyncAction.nextPhase(client, context, queryResults, aggregatedDfs),
-            context
+            (queryResults) -> SearchQueryThenFetchAsyncAction.nextPhase(client, this, queryResults, aggregatedDfs),
+            this
         );
     }
 

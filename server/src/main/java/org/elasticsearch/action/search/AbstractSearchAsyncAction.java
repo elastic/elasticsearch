@@ -767,7 +767,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
      * @see #onShardResult(SearchPhaseResult, SearchShardIterator)
      */
     final void onPhaseDone() {  // as a tribute to @kimchy aka. finishHim()
-        executeNextPhase(this, () -> getNextPhase(results, this));
+        executeNextPhase(this, this::getNextPhase);
     }
 
     /**
@@ -835,11 +835,8 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
 
     /**
      * Returns the next phase based on the results of the initial search phase
-     * @param results the results of the initial search phase. Each non null element in the result array represent a successfully
-     *                executed shard request
-     * @param context the search context for the next phase
      */
-    protected abstract SearchPhase getNextPhase(SearchPhaseResults<Result> results, SearchPhaseContext context);
+    protected abstract SearchPhase getNextPhase();
 
     private static final class PendingExecutions {
         private final Semaphore semaphore;

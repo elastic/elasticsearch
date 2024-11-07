@@ -82,8 +82,8 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
     private Boolean requestCache;
     private final long nowInMillis;
     private final boolean allowPartialSearchResults;
-    public final boolean skipInnerHits;
     private final OriginalIndices originalIndices;
+    private final boolean skipInnerHits;
 
     private boolean canReturnNullResponseIfMatchNoDocs;
     private SearchSortValuesAndFormats bottomSortValues;

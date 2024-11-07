@@ -29,7 +29,7 @@ GET /_search
   }
 }
 ----
-
+// REVIEWED[11.06.24]
 [[terms-top-level-params]]
 ==== Top-level parameters for `terms`
 `<field>`::
@@ -142,7 +142,7 @@ PUT my-index-000001
 }
 ----
 --
-
+// REVIEWED[11.06.24]
 . Index a document with an ID of 1 and values of `["blue", "green"]` in the
 `color` field.
 +
@@ -157,7 +157,7 @@ PUT my-index-000001/_doc/1
 ----
 // TEST[continued]
 --
-
+// REVIEWED[11.06.24]
 . Index another document with an ID of 2 and value of `blue` in the `color`
 field.
 +
@@ -172,7 +172,7 @@ PUT my-index-000001/_doc/2
 ----
 // TEST[continued]
 --
-
+// REVIEWED[11.06.24]
 . Use the `terms` query with terms lookup parameters to find documents
 containing one or more of the same terms as document 2. Include the `pretty`
 parameter so the response is more readable.
@@ -205,7 +205,7 @@ GET my-index-000001/_search?pretty
 }
 ----
 // TEST[continued]
-
+// REVIEWED[11.06.24]
 Because document 2 and document 1 both contain `blue` as a value in the `color`
 field, {es} returns both documents.
 
@@ -252,3 +252,4 @@ field, {es} returns both documents.
 ----
 // TESTRESPONSE[s/"took" : 17/"took" : $body.took/]
 --
+// REVIEWED[11.06.24]

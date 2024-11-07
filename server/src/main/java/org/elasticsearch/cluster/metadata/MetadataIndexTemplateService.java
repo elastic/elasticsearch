@@ -242,6 +242,7 @@ public class MetadataIndexTemplateService {
         final String name,
         final TimeValue masterTimeout,
         final ComponentTemplate template,
+        final ProjectId projectId,
         final ActionListener<AcknowledgedResponse> listener
     ) {
         taskQueue.submitTask(
@@ -249,7 +250,7 @@ public class MetadataIndexTemplateService {
             new TemplateClusterStateUpdateTask(listener) {
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
-                    return addComponentTemplate(currentState, create, name, template);
+                    return addComponentTemplate(currentState.projectState(projectId), create, name, template);
                 }
             },
             masterTimeout
@@ -258,12 +259,13 @@ public class MetadataIndexTemplateService {
 
     // Public visible for testing
     public ClusterState addComponentTemplate(
-        final ClusterState currentState,
+        final ProjectState projectState,
         final boolean create,
         final String name,
         final ComponentTemplate template
     ) throws Exception {
-        final ComponentTemplate existing = currentState.metadata().getProject().componentTemplates().get(name);
+        final var project = projectState.metadata();
+        final ComponentTemplate existing = project.componentTemplates().get(name);
         if (create && existing != null) {
             throw new IllegalArgumentException("component template [" + name + "] already exists");
         }
@@ -280,9 +282,7 @@ public class MetadataIndexTemplateService {
         // Collect all the composable (index) templates that use this component template, we'll use
         // this for validating that they're still going to be valid after this component template
         // has been updated
-        final Map<String, ComposableIndexTemplate> templatesUsingComponent = currentState.metadata()
-            .getProject()
-            .templatesV2()
+        final Map<String, ComposableIndexTemplate> templatesUsingComponent = project.templatesV2()
             .entrySet()
             .stream()
             .filter(e -> e.getValue().composedOf().contains(name))
@@ -329,7 +329,7 @@ public class MetadataIndexTemplateService {
         );
 
         if (finalComponentTemplate.equals(existing)) {
-            return currentState;
+            return projectState.cluster();
         }
 
         validateTemplate(finalSettings, wrappedMappings, indicesService);
@@ -337,8 +337,8 @@ public class MetadataIndexTemplateService {
 
         // Validate all composable index templates that use this component template
         if (templatesUsingComponent.size() > 0) {
-            ClusterState tempStateWithComponentTemplateAdded = ClusterState.builder(currentState)
-                .metadata(Metadata.builder(currentState.metadata()).put(name, finalComponentTemplate))
+            ProjectMetadata tempProjectWithComponentTemplateAdded = ProjectMetadata.builder(project)
+                .put(name, finalComponentTemplate)
                 .build();
             Exception validationFailure = null;
             for (Map.Entry<String, ComposableIndexTemplate> entry : templatesUsingComponent.entrySet()) {
@@ -346,14 +346,14 @@ public class MetadataIndexTemplateService {
                 final ComposableIndexTemplate composableTemplate = entry.getValue();
                 try {
                     validateLifecycle(
-                        tempStateWithComponentTemplateAdded.metadata().getProject(),
+                        tempProjectWithComponentTemplateAdded,
                         composableTemplateName,
                         composableTemplate,
                         globalRetentionSettings.get()
                     );
                     validateIndexTemplateV2(
-                        tempStateWithComponentTemplateAdded.getMetadata().getProject(),
-                        tempStateWithComponentTemplateAdded.getMinTransportVersion(),
+                        tempProjectWithComponentTemplateAdded,
+                        projectState.cluster().getMinTransportVersion(),
                         composableTemplateName,
                         composableTemplate
                     );
@@ -383,8 +383,8 @@ public class MetadataIndexTemplateService {
         }
 
         logger.info("{} component template [{}]", existing == null ? "adding" : "updating", name);
-        return ClusterState.builder(currentState)
-            .metadata(Metadata.builder(currentState.metadata()).put(name, finalComponentTemplate))
+        return ClusterState.builder(projectState.cluster())
+            .putProjectMetadata(ProjectMetadata.builder(project).put(name, finalComponentTemplate))
             .build();
     }
 
@@ -421,27 +421,28 @@ public class MetadataIndexTemplateService {
     public void removeComponentTemplate(
         final String[] names,
         final TimeValue masterTimeout,
-        ClusterState state,
+        final ProjectMetadata project,
         final ActionListener<AcknowledgedResponse> listener
     ) {
-        validateCanBeRemoved(state.metadata(), names);
+        validateCanBeRemoved(project, names);
         taskQueue.submitTask("remove-component-template [" + String.join(",", names) + "]", new TemplateClusterStateUpdateTask(listener) {
             @Override
             public ClusterState execute(ClusterState currentState) {
-                return innerRemoveComponentTemplate(currentState, names);
+                return innerRemoveComponentTemplate(currentState.projectState(project.id()), names);
             }
         }, masterTimeout);
     }
 
     // Exposed for ReservedComponentTemplateAction
-    public static ClusterState innerRemoveComponentTemplate(ClusterState currentState, String... names) {
-        validateCanBeRemoved(currentState.metadata(), names);
+    public static ClusterState innerRemoveComponentTemplate(ProjectState projectState, String... names) {
+        var project = projectState.metadata();
+        validateCanBeRemoved(project, names);
 
         final Set<String> templateNames = new HashSet<>();
         if (names.length > 1) {
             Set<String> missingNames = null;
             for (String name : names) {
-                if (currentState.metadata().getProject().componentTemplates().containsKey(name)) {
+                if (project.componentTemplates().containsKey(name)) {
                     templateNames.add(name);
                 } else {
                     // wildcards are not supported, so if a name with a wildcard is specified then
@@ -457,7 +458,7 @@ public class MetadataIndexTemplateService {
                 throw new ResourceNotFoundException(String.join(",", missingNames));
             }
         } else {
-            for (String templateName : currentState.metadata().getProject().componentTemplates().keySet()) {
+            for (String templateName : project.componentTemplates().keySet()) {
                 if (Regex.simpleMatch(names[0], templateName)) {
                     templateNames.add(templateName);
                 }
@@ -466,17 +467,17 @@ public class MetadataIndexTemplateService {
                 // if its a match all pattern, and no templates are found (we have none), don't
                 // fail with index missing...
                 if (Regex.isMatchAllPattern(names[0])) {
-                    return currentState;
+                    return projectState.cluster();
                 }
                 throw new ResourceNotFoundException(names[0]);
             }
         }
-        Metadata.Builder metadata = Metadata.builder(currentState.metadata());
+        ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(project);
         for (String templateName : templateNames) {
             logger.info("removing component template [{}]", templateName);
-            metadata.removeComponentTemplate(templateName);
+            projectBuilder.removeComponentTemplate(templateName);
         }
-        return ClusterState.builder(currentState).metadata(metadata).build();
+        return ClusterState.builder(projectState.cluster()).putProjectMetadata(projectBuilder).build();
     }
 
     /**
@@ -484,21 +485,20 @@ public class MetadataIndexTemplateService {
      * A component template should not be removed if it is <b>required</b> by any index templates,
      * that is- it is used AND NOT specified as {@code ignore_missing_component_templates}.
      */
-    static void validateCanBeRemoved(Metadata metadata, String... templateNameOrWildcard) {
+    static void validateCanBeRemoved(ProjectMetadata project, String... templateNameOrWildcard) {
         final Predicate<String> predicate;
         if (templateNameOrWildcard.length > 1) {
             predicate = name -> Arrays.asList(templateNameOrWildcard).contains(name);
         } else {
             predicate = name -> Regex.simpleMatch(templateNameOrWildcard[0], name);
         }
-        final Set<String> matchingComponentTemplates = metadata.getProject()
-            .componentTemplates()
+        final Set<String> matchingComponentTemplates = project.componentTemplates()
             .keySet()
             .stream()
             .filter(predicate)
             .collect(Collectors.toSet());
         final Set<String> componentsBeingUsed = new HashSet<>();
-        final List<String> templatesStillUsing = metadata.getProject().templatesV2().entrySet().stream().filter(e -> {
+        final List<String> templatesStillUsing = project.templatesV2().entrySet().stream().filter(e -> {
             Set<String> intersecting = Sets.intersection(
                 new HashSet<>(e.getValue().getRequiredComponentTemplates()),
                 matchingComponentTemplates

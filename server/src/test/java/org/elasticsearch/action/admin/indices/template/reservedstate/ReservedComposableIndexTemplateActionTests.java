@@ -716,7 +716,8 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
             null,
             mock(ActionFilters.class),
             null,
-            indexScopedSettings
+            indexScopedSettings,
+            TestProjectResolvers.singleProjectOnly()
         );
         assertEquals(ReservedComposableIndexTemplateAction.NAME, putComponentAction.reservedStateHandlerName().get());
         assertThat(
@@ -730,7 +731,8 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
             threadPool,
             null,
             mock(ActionFilters.class),
-            null
+            null,
+            TestProjectResolvers.singleProjectOnly()
         );
         assertEquals(ReservedComposableIndexTemplateAction.NAME, delComponentAction.reservedStateHandlerName().get());
         assertThat(

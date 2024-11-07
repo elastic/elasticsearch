@@ -680,7 +680,10 @@ public class MetadataCreateIndexService {
     ) throws Exception {
         logger.debug("applying create index request using composable template [{}]", templateName);
 
-        ComposableIndexTemplate template = currentState.getMetadata().getProject().templatesV2().get(templateName);
+        final ProjectMetadata projectMetadata = currentState.getMetadata().getProject(request.projectId());
+        final RoutingTable routingTable = currentState.routingTable(request.projectId());
+
+        ComposableIndexTemplate template = projectMetadata.templatesV2().get(templateName);
         final boolean isDataStream = template.getDataStreamTemplate() != null;
         if (isDataStream && request.dataStreamName() == null) {
             throw new IllegalArgumentException(
@@ -692,9 +695,6 @@ public class MetadataCreateIndexService {
                     + "use create data stream api instead"
             );
         }
-
-        final ProjectMetadata projectMetadata = currentState.getMetadata().getProject(request.projectId());
-        final RoutingTable routingTable = currentState.routingTable(request.projectId());
 
         final List<CompressedXContent> mappings = collectV2Mappings(
             request.mappings(),

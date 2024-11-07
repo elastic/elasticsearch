@@ -215,6 +215,7 @@ class Elasticsearch {
             for (PluginBundle pluginBundle : pluginBundles) {
                 pluginData.put(pluginBundle.getDir(), pluginBundle.pluginDescriptor().isModular());
             }
+            // TODO: add a functor to map module to plugin name
             EntitlementBootstrap.bootstrap(pluginData);
         } else {
             // install SM after natives, shutdown hooks, etc.

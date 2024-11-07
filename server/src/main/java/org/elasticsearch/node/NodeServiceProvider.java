@@ -51,6 +51,7 @@ import java.util.function.LongSupplier;
  */
 class NodeServiceProvider {
 
+    // TODO: add plugin descriptors to node environment
     PluginsService newPluginService(Environment environment, Settings settings) {
         // this creates a PluginsService with an empty list of classpath plugins
         return new PluginsService(settings, environment.configFile(), environment.modulesFile(), environment.pluginsFile());

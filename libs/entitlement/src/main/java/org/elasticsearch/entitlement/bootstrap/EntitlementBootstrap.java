@@ -39,6 +39,7 @@ public class EntitlementBootstrap {
             throw new IllegalStateException("plugin data is already set");
         }
         EntitlementBootstrap.pluginData = Objects.requireNonNull(pluginData);
+        if (true) throw new IllegalStateException(pluginData.toString());
         exportInitializationToAgent();
         loadAgent(findAgentJar());
     }

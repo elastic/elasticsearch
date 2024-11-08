@@ -207,5 +207,6 @@ tasks.named("yamlRestTestV7CompatTransform").configure({ task ->
   task.skipTest("esql/60_usage/Basic ESQL usage output (telemetry) non-snapshot version", "The number of functions is constantly increasing")
   task.skipTest("esql/80_text/reverse text", "The output type changed from TEXT to KEYWORD.")
   task.skipTest("esql/80_text/values function", "The output type changed from TEXT to KEYWORD.")
+  task.skipTest("privileges/11_builtin/Test get builtin privileges" ,"unnecessary to test compatibility")
 })
 

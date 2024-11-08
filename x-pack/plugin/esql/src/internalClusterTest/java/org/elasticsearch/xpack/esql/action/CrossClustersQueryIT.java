@@ -40,6 +40,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
@@ -230,6 +231,64 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
             String limit0 = q + " | LIMIT 0";
             e = expectThrows(VerificationException.class, () -> runQuery(limit0, false));
             assertThat(e.getDetailedMessage(), containsString("Unknown index [nomatch*]"));
+        }
+    }
+
+    public void testSearchesAgainstIndicesWithNoMappingsSkipUnavailableTrue() {
+        int numClusters = 2;
+        setupClusters(numClusters);
+        Map<String, String> clusterToEmptyIndexMap = createEmptyIndicesWithNoMappings(numClusters);
+        setSkipUnavailable(REMOTE_CLUSTER_1, randomBoolean());
+
+        Tuple<Boolean, Boolean> includeCCSMetadata = randomIncludeCCSMetadata();
+        Boolean requestIncludeMeta = includeCCSMetadata.v1();
+        boolean responseExpectMeta = includeCCSMetadata.v2();
+
+        try {
+            String emptyIndex = clusterToEmptyIndexMap.get(REMOTE_CLUSTER_1);
+            String q = Strings.format("FROM cluster-a:%s", emptyIndex);
+            // query without referring to fields should work
+            {
+                String limit1 = q + " | LIMIT 1";
+                try (EsqlQueryResponse resp = runQuery(limit1, requestIncludeMeta)) {
+                    assertThat(resp.columns().size(), equalTo(1));
+                    assertThat(resp.columns().get(0).name(), equalTo("<no-fields>"));
+                    assertThat(getValuesList(resp).size(), equalTo(0));
+                    EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
+                    assertThat(executionInfo.isCrossClusterSearch(), is(true));
+                    assertThat(executionInfo.includeCCSMetadata(), equalTo(responseExpectMeta));
+                    assertExpectedClustersForMissingIndicesTests(
+                        executionInfo,
+                        List.of(new ExpectedCluster(REMOTE_CLUSTER_1, emptyIndex, EsqlExecutionInfo.Cluster.Status.SUCCESSFUL, 0))
+                    );
+                }
+
+                String limit0 = q + " | LIMIT 0";
+                try (EsqlQueryResponse resp = runQuery(limit0, requestIncludeMeta)) {
+                    assertThat(resp.columns().size(), equalTo(1));
+                    assertThat(resp.columns().get(0).name(), equalTo("<no-fields>"));
+                    assertThat(getValuesList(resp).size(), equalTo(0));
+                    EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
+                    assertThat(executionInfo.isCrossClusterSearch(), is(true));
+                    assertThat(executionInfo.includeCCSMetadata(), equalTo(responseExpectMeta));
+                    assertExpectedClustersForMissingIndicesTests(
+                        executionInfo,
+                        List.of(new ExpectedCluster(REMOTE_CLUSTER_1, emptyIndex, EsqlExecutionInfo.Cluster.Status.SUCCESSFUL, 0))
+                    );
+                }
+            }
+
+            // query that refers to missing fields should throw:
+            // "type": "verification_exception",
+            // "reason": "Found 1 problem\nline 2:7: Unknown column [foo]",
+            {
+                String keepQuery = q + " | KEEP foo | LIMIT 100";
+                VerificationException e = expectThrows(VerificationException.class, () -> runQuery(keepQuery, requestIncludeMeta));
+                assertThat(e.getDetailedMessage(), containsString("Unknown column [foo]"));
+            }
+
+        } finally {
+            clearSkipUnavailable();
         }
     }
 
@@ -1311,6 +1370,40 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
                 .get();
             assertFalse(indicesAliasesResponse.hasErrors());
         }
+    }
+
+    Map<String, String> createEmptyIndicesWithNoMappings(int numClusters) {
+        assert numClusters == 2 || numClusters == 3 : "Only 2 or 3 clusters supported in createEmptyIndicesWithNoMappings";
+
+        Map<String, String> clusterToEmptyIndexMap = new HashMap<>();
+
+        String localIndexName = randomAlphaOfLength(14).toLowerCase(Locale.ROOT) + "1";
+        clusterToEmptyIndexMap.put(LOCAL_CLUSTER, localIndexName);
+        Client localClient = client(LOCAL_CLUSTER);
+        assertAcked(
+            localClient.admin().indices().prepareCreate(localIndexName).setSettings(Settings.builder().put("index.number_of_shards", 1))
+        );
+
+        String remote1IndexName = randomAlphaOfLength(14).toLowerCase(Locale.ROOT) + "2";
+        clusterToEmptyIndexMap.put(REMOTE_CLUSTER_1, remote1IndexName);
+        Client remote1Client = client(REMOTE_CLUSTER_1);
+        assertAcked(
+            remote1Client.admin().indices().prepareCreate(remote1IndexName).setSettings(Settings.builder().put("index.number_of_shards", 1))
+        );
+
+        if (numClusters == 3) {
+            String remote2IndexName = randomAlphaOfLength(14).toLowerCase(Locale.ROOT) + "3";
+            clusterToEmptyIndexMap.put(REMOTE_CLUSTER_2, remote2IndexName);
+            Client remote2Client = client(REMOTE_CLUSTER_2);
+            assertAcked(
+                remote2Client.admin()
+                    .indices()
+                    .prepareCreate(remote2IndexName)
+                    .setSettings(Settings.builder().put("index.number_of_shards", 1))
+            );
+        }
+
+        return clusterToEmptyIndexMap;
     }
 
     void populateLocalIndices(String indexName, int numShards) {

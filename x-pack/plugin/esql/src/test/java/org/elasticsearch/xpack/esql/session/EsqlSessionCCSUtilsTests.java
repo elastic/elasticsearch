@@ -408,8 +408,6 @@ public class EsqlSessionCCSUtilsTests extends ESTestCase {
         }
     }
 
-    // MP TODO: need to add a test for the "bypass IndexMode" thingy in mergedMappings that the rest test caught
-
     public void testUpdateExecutionInfoAtEndOfPlanning() {
         String localClusterAlias = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
         String remote1Alias = "remote1";

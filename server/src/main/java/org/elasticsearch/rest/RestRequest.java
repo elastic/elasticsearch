@@ -19,6 +19,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
@@ -28,6 +29,8 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.http.HttpBody;
 import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.HttpRequest;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.telemetry.tracing.Traceable;
 import org.elasticsearch.xcontent.ParsedMediaType;
 import org.elasticsearch.xcontent.ToXContent;
@@ -51,6 +54,8 @@ import static org.elasticsearch.common.unit.ByteSizeValue.parseBytesSizeValue;
 import static org.elasticsearch.core.TimeValue.parseTimeValue;
 
 public class RestRequest implements ToXContent.Params, Traceable {
+
+    private static final Logger logger = LogManager.getLogger(RestRequest.class);
 
     /**
      * Internal marker request parameter to indicate that a request was made in serverless mode. Use this parameter, together with
@@ -300,31 +305,24 @@ public class RestRequest implements ToXContent.Params, Traceable {
 
     /**
      * Returns a copy of HTTP content. The copy is GC-managed and does not require reference counting.
-     * Please use {@link #retainedContent()} to avoid content copy.
+     * Please use {@link #releasableContent()} to avoid content copy.
      */
     public BytesReference content() {
-        return BytesReference.copyBytes(unsafeContent());
+        return BytesReference.copyBytes(releasableContent());
     }
 
     /**
-     * Returns a reference to the network buffer of HTTP content. To retain content please use {@link #retainedContent()}
-     * or increment reference count.
+     * Returns a reference to the network buffer of HTTP content.
      */
-    public ReleasableBytesReference unsafeContent() {
+    public ReleasableBytesReference releasableContent() {
         this.contentConsumed = true;
         var bytes = httpRequest.body().asFull().bytes();
-        assert bytes.hasReferences() : "cannot access http content, ref count reached 0";
-        return httpRequest.body().asFull().bytes();
-    }
-
-    /**
-     * Reruns a reference to the network buffer of HTTP content and increment ref count.
-     * The caller is responsible to decrement(close) reference. It's a recommended method to handle
-     * HTTP content without copying it.
-     */
-    public ReleasableBytesReference retainedContent() {
-        var bytes = unsafeContent();
-        bytes.retain();
+        assert bytes.hasReferences() : AbstractRefCounted.ALREADY_CLOSED_MESSAGE;
+        if (bytes.hasReferences() == false) {
+            var e = new IllegalStateException(AbstractRefCounted.ALREADY_CLOSED_MESSAGE);
+            logger.error(e.getMessage(), e);
+            throw e;
+        }
         return bytes;
     }
 
@@ -334,13 +332,6 @@ public class RestRequest implements ToXContent.Params, Traceable {
 
     public HttpBody.Stream contentStream() {
         return httpRequest.body().asStream();
-    }
-
-    /**
-     * Release underlying HTTP request and related buffers.
-     */
-    void close() {
-        httpRequest.release();
     }
 
     private void ensureContent() {
@@ -353,7 +344,7 @@ public class RestRequest implements ToXContent.Params, Traceable {
 
     /**
      * @return copy of the request body or throw an exception if the body or content type is missing.
-     * See {@link #content()}. Please use {@link #tryRetainedContent()} to avoid content copy.
+     * See {@link #content()}. Please use {@link #requiredReleasableContent()} to avoid content copy.
      */
     public final BytesReference requiredContent() {
         ensureContent();
@@ -362,11 +353,11 @@ public class RestRequest implements ToXContent.Params, Traceable {
 
     /**
      * Returns reference to the network buffer of HTTP content or throw an exception if the body or content type is missing.
-     * See {@link #retainedContent()}. It's a recommended method to handle HTTP content without copying it.
+     * See {@link #releasableContent()}. It's a recommended method to handle HTTP content without copying it.
      */
-    public ReleasableBytesReference tryRetainedContent() {
+    public ReleasableBytesReference requiredReleasableContent() {
         ensureContent();
-        return retainedContent();
+        return releasableContent();
     }
 
     private static void throwValidationException(String msg) {

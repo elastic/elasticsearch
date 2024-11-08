@@ -122,6 +122,7 @@ public abstract class BaseRestHandler implements RestHandler {
                 );
             }
 
+            usageCount.increment();
             if (request.isStreamedContent()) {
                 assert action instanceof RequestBodyChunkConsumer;
                 var chunkConsumer = (RequestBodyChunkConsumer) action;
@@ -137,14 +138,11 @@ public abstract class BaseRestHandler implements RestHandler {
                         chunkConsumer.streamClose();
                     }
                 });
+                action.accept(channel);
             } else {
-                // if content is needed it must be copied or retained in prepareRequest
-                request.close();
+                action.accept(channel);
+                request.getHttpRequest().release();
             }
-
-            usageCount.increment();
-            // execute the action
-            action.accept(channel);
         }
     }
 

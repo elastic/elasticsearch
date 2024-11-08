@@ -22,6 +22,7 @@ import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.lucene.IndexDirectory;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.common.Strings;
@@ -129,7 +130,7 @@ public class IndexShardCacheWarmer {
 
     private static void logException(ShardId shardId, Exception e) {
         logger.log(
-            e instanceof FileNotFoundException || e instanceof NoSuchFileException ? Level.DEBUG : Level.INFO,
+            ExceptionsHelper.unwrap(e, FileNotFoundException.class, NoSuchFileException.class) != null ? Level.DEBUG : Level.INFO,
             () -> Strings.format("%s early indexing cache prewarming failed", shardId),
             e
         );

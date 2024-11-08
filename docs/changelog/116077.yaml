@@ -8,5 +8,7 @@ breaking:
   area: Ingest
   details: >-
     The `user_agent` ingest processor no longer accepts the `ecs` option. (It was previously deprecated and ignored.)
-  impact: Users should remove the `ecs` option from usages of the `user_agent` ingest processor.
+  impact: >-
+    Users should stop using the `ecs` option when creating instances of the `user_agent` ingest processor.
+    The option will be removed from existing processors stored in the cluster state on upgrade.
   notable: false

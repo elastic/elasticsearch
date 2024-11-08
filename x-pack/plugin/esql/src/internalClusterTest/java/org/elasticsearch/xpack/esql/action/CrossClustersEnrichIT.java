@@ -61,8 +61,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
-// MP TODO: what to do about missing enrich policies on skip_unavailable=true clusters? Should that be fatal or non-fatal?
-//  Write tests for those cases.
 public class CrossClustersEnrichIT extends AbstractMultiClustersTestCase {
 
     @Override

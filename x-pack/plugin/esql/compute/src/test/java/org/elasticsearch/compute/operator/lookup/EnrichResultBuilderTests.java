@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.enrich;
+package org.elasticsearch.compute.operator.lookup;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -29,7 +29,6 @@ import java.util.Map;
 import static org.hamcrest.Matchers.equalTo;
 
 public class EnrichResultBuilderTests extends ESTestCase {
-
     public void testBytesRef() {
         BlockFactory blockFactory = blockFactory();
         Map<Integer, List<BytesRef>> inputValues = new HashMap<>();

@@ -16,7 +16,6 @@ import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryStringQueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
-import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.WildcardQueryBuilder;
 import org.elasticsearch.test.AbstractBuilderTestCase;
@@ -111,9 +110,8 @@ public abstract class AbstractKqlParserTestCase extends AbstractBuilderTestCase 
 
     protected QueryBuilder parseKqlQuery(String kqlQuery) {
         KqlParser parser = new KqlParser();
-        SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
-
-        return parser.parseKqlQuery(kqlQuery, searchExecutionContext);
+        KqlParsingContext kqlParserContext = KqlParsingContext.builder(createQueryRewriteContext()).build();
+        return parser.parseKqlQuery(kqlQuery, kqlParserContext);
     }
 
     protected static void assertMultiMatchQuery(QueryBuilder query, String expectedValue, MultiMatchQueryBuilder.Type expectedType) {

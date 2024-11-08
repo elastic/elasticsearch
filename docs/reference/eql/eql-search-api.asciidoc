@@ -97,6 +97,10 @@ If `true`, the query is executed only on the available shards, ignoring shard re
 <<shard-failures,shard failures>>.
 +
 Defaults to `false`.
++
+To override the default for this field, set the
+`xpack.eql.default_allow_partial_results` cluster setting to `true`.
+
 
 [IMPORTANT]
 ====

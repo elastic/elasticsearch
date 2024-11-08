@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.eql.action;
 
+import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsAction;
+import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
@@ -15,13 +18,16 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.xpack.eql.plugin.EqlPlugin;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 public class PartialSearchResultsIT extends AbstractEqlIntegTestCase {
@@ -180,7 +186,44 @@ public class PartialSearchResultsIT extends AbstractEqlIntegTestCase {
         internalCluster().stopNode(assignedNodeForIndex1);
 
         // ------------------------------------------------------------------------
-        // same queries, with missing shards
+        // same queries, with missing shards. Let them fail
+        // ------------------------------------------------------------------------
+
+        // event query
+        request = new EqlSearchRequest().indices("test-*").query("process where true");
+        shouldFail(request);
+
+        // sequence query on both shards
+        request = new EqlSearchRequest().indices("test-*").query("sequence [process where value == 1] [process where value == 2]");
+        shouldFail(request);
+
+        // sequence query on the available shard only
+        request = new EqlSearchRequest().indices("test-*").query("sequence [process where value == 1] [process where value == 3]");
+        shouldFail(request);
+
+        // sequence query on the unavailable shard only
+        request = new EqlSearchRequest().indices("test-*").query("sequence [process where value == 0] [process where value == 2]");
+        shouldFail(request);
+
+        // sequence query with missing event on unavailable shard. THIS IS A FALSE POSITIVE
+        request = new EqlSearchRequest().indices("test-*")
+            .query("sequence with maxspan=10s  [process where value == 1] ![process where value == 2] [process where value == 3]");
+        shouldFail(request);
+
+        // sample query on both shards
+        request = new EqlSearchRequest().indices("test-*").query("sample by key [process where value == 2] [process where value == 1]");
+        shouldFail(request);
+
+        // sample query on the available shard only
+        request = new EqlSearchRequest().indices("test-*").query("sample by key [process where value == 3] [process where value == 1]");
+        shouldFail(request);
+
+        // sample query on the unavailable shard only
+        request = new EqlSearchRequest().indices("test-*").query("sample by key [process where value == 2] [process where value == 0]");
+        shouldFail(request);
+
+        // ------------------------------------------------------------------------
+        // same queries, with missing shards and allow_partial_search_results=true
         // ------------------------------------------------------------------------
 
         // event query
@@ -270,6 +313,109 @@ public class PartialSearchResultsIT extends AbstractEqlIntegTestCase {
         assertThat(response.shardFailures().length, is(1));
         assertThat(response.shardFailures()[0].index(), is("test-1"));
         assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
+
+        // ------------------------------------------------------------------------
+        // same queries, with missing shards and with default xpack.eql.default_allow_partial_results=true
+        // ------------------------------------------------------------------------
+
+        client().execute(
+            ClusterUpdateSettingsAction.INSTANCE,
+            new ClusterUpdateSettingsRequest(TimeValue.THIRTY_SECONDS, TimeValue.THIRTY_SECONDS).persistentSettings(
+                Settings.builder().put(EqlPlugin.DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS.getKey(), true)
+            )
+        ).get();
+
+        // event query
+        request = new EqlSearchRequest().indices("test-*").query("process where true");
+        response = client().execute(EqlSearchAction.INSTANCE, request).get();
+        assertThat(response.hits().events().size(), equalTo(5));
+        for (int i = 0; i < 5; i++) {
+            assertThat(response.hits().events().get(i).toString(), containsString("\"value\" : " + (i * 2 + 1)));
+        }
+        assertThat(response.shardFailures().length, is(1));
+
+        // sequence query on both shards
+        request = new EqlSearchRequest().indices("test-*").query("sequence [process where value == 1] [process where value == 2]");
+        response = client().execute(EqlSearchAction.INSTANCE, request).get();
+        assertThat(response.hits().sequences().size(), equalTo(0));
+        assertThat(response.shardFailures().length, is(1));
+        assertThat(response.shardFailures()[0].index(), is("test-1"));
+        assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
+
+        // sequence query on the available shard only
+        request = new EqlSearchRequest().indices("test-*").query("sequence [process where value == 1] [process where value == 3]");
+        response = client().execute(EqlSearchAction.INSTANCE, request).get();
+        assertThat(response.hits().sequences().size(), equalTo(1));
+        sequence = response.hits().sequences().get(0);
+        assertThat(sequence.events().get(0).toString(), containsString("\"value\" : 1"));
+        assertThat(sequence.events().get(1).toString(), containsString("\"value\" : 3"));
+        assertThat(response.shardFailures().length, is(1));
+        assertThat(response.shardFailures()[0].index(), is("test-1"));
+        assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
+
+        // sequence query on the unavailable shard only
+        request = new EqlSearchRequest().indices("test-*").query("sequence [process where value == 0] [process where value == 2]");
+        response = client().execute(EqlSearchAction.INSTANCE, request).get();
+        assertThat(response.hits().sequences().size(), equalTo(0));
+        assertThat(response.shardFailures().length, is(1));
+        assertThat(response.shardFailures()[0].index(), is("test-1"));
+        assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
+
+        // sequence query with missing event on unavailable shard. THIS IS A FALSE POSITIVE
+        request = new EqlSearchRequest().indices("test-*")
+            .query("sequence with maxspan=10s  [process where value == 1] ![process where value == 2] [process where value == 3]");
+        response = client().execute(EqlSearchAction.INSTANCE, request).get();
+        assertThat(response.hits().sequences().size(), equalTo(1));
+        sequence = response.hits().sequences().get(0);
+        assertThat(sequence.events().get(0).toString(), containsString("\"value\" : 1"));
+        assertThat(sequence.events().get(2).toString(), containsString("\"value\" : 3"));
+        assertThat(response.shardFailures().length, is(1));
+        assertThat(response.shardFailures()[0].index(), is("test-1"));
+        assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
+
+        // sample query on both shards
+        request = new EqlSearchRequest().indices("test-*").query("sample by key [process where value == 2] [process where value == 1]");
+        response = client().execute(EqlSearchAction.INSTANCE, request).get();
+        assertThat(response.hits().sequences().size(), equalTo(0));
+        assertThat(response.shardFailures().length, is(1));
+        assertThat(response.shardFailures()[0].index(), is("test-1"));
+        assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
+
+        // sample query on the available shard only
+        request = new EqlSearchRequest().indices("test-*").query("sample by key [process where value == 3] [process where value == 1]");
+        response = client().execute(EqlSearchAction.INSTANCE, request).get();
+        assertThat(response.hits().sequences().size(), equalTo(1));
+        sample = response.hits().sequences().get(0);
+        assertThat(sample.events().get(0).toString(), containsString("\"value\" : 3"));
+        assertThat(sample.events().get(1).toString(), containsString("\"value\" : 1"));
+        assertThat(response.shardFailures().length, is(1));
+        assertThat(response.shardFailures()[0].index(), is("test-1"));
+        assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
+
+        // sample query on the unavailable shard only
+        request = new EqlSearchRequest().indices("test-*").query("sample by key [process where value == 2] [process where value == 0]");
+        response = client().execute(EqlSearchAction.INSTANCE, request).get();
+        assertThat(response.hits().sequences().size(), equalTo(0));
+        assertThat(response.shardFailures().length, is(1));
+        assertThat(response.shardFailures()[0].index(), is("test-1"));
+        assertThat(response.shardFailures()[0].reason(), containsString("NoShardAvailableActionException"));
+
+        client().execute(
+            ClusterUpdateSettingsAction.INSTANCE,
+            new ClusterUpdateSettingsRequest(TimeValue.THIRTY_SECONDS, TimeValue.THIRTY_SECONDS).persistentSettings(
+                Settings.builder().putNull(EqlPlugin.DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS.getKey())
+            )
+        ).get();
+
+    }
+
+    private static void shouldFail(EqlSearchRequest request) throws InterruptedException {
+        try {
+            client().execute(EqlSearchAction.INSTANCE, request).get();
+            fail();
+        } catch (ExecutionException e) {
+            assertThat(e.getCause(), instanceOf(SearchPhaseExecutionException.class));
+        }
     }
 
 }

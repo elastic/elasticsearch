@@ -63,7 +63,7 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
     private List<FieldAndFormat> fetchFields;
     private Map<String, Object> runtimeMappings = emptyMap();
     private int maxSamplesPerKey = RequestDefaults.MAX_SAMPLES_PER_KEY;
-    private boolean allowPartialSearchResults;
+    private Boolean allowPartialSearchResults;
 
     // Async settings
     private TimeValue waitForCompletionTimeout = null;
@@ -139,7 +139,9 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
             maxSamplesPerKey = in.readInt();
         }
         if (in.getTransportVersion().onOrAfter(TransportVersions.EQL_ALLOW_PARTIAL_SEARCH_RESULTS)) {
-            allowPartialSearchResults = in.readBoolean();
+            allowPartialSearchResults = in.readOptionalBoolean();
+        } else {
+            allowPartialSearchResults = false;
         }
     }
 
@@ -435,12 +437,12 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
         return this;
     }
 
-    public boolean allowPartialSearchResults() {
+    public Boolean allowPartialSearchResults() {
         return allowPartialSearchResults;
     }
 
     public EqlSearchRequest allowPartialSearchResults(Boolean val) {
-        this.allowPartialSearchResults = Boolean.TRUE.equals(val);
+        this.allowPartialSearchResults = val;
         return this;
     }
 
@@ -488,7 +490,7 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
             out.writeInt(maxSamplesPerKey);
         }
         if (out.getTransportVersion().onOrAfter(TransportVersions.EQL_ALLOW_PARTIAL_SEARCH_RESULTS)) {
-            out.writeBoolean(allowPartialSearchResults);
+            out.writeOptionalBoolean(allowPartialSearchResults);
         }
     }
 

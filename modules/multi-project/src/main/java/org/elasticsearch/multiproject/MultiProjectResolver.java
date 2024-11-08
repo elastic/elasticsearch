@@ -90,4 +90,9 @@ public class MultiProjectResolver implements ProjectResolver {
             body.run();
         }
     }
+
+    @Override
+    public boolean supportsMultipleProjects() {
+        return true;
+    }
 }

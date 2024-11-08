@@ -188,7 +188,8 @@ public class TransportVersions {
     public static final TransportVersion ESQL_CCS_EXEC_INFO_WITH_FAILURES = def(8_783_00_0);
     public static final TransportVersion LOGSDB_TELEMETRY = def(8_784_00_0);
     public static final TransportVersion LOGSDB_TELEMETRY_STATS = def(8_785_00_0);
-    public static final TransportVersion DATA_STREAM_INDEX_VERSION_DEPRECATION_CHECK = def(8_786_00_0);
+    public static final TransportVersion KQL_QUERY_ADDED = def(8_786_00_0);
+    public static final TransportVersion DATA_STREAM_INDEX_VERSION_DEPRECATION_CHECK = def(8_787_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

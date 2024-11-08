@@ -396,6 +396,19 @@ public class VerifierTests extends ESTestCase {
         assertEquals("1:60: Unknown column [m]", error("from test | stats m = max(languages), min(languages) WHERE m + 2 > 1 by emp_no"));
     }
 
+    public void testAggWithNonBooleanFilter() {
+        for (String filter : List.of("\"true\"", "1", "1 + 0", "concat(\"a\", \"b\")")) {
+            String type = (filter.equals("1") || filter.equals("1 + 0")) ? "INTEGER" : "KEYWORD";
+            assertEquals("1:19: Condition expression needs to be boolean, found [" + type + "]", error("from test | where " + filter));
+            for (String by : List.of("", " by languages", " by bucket(salary, 10)")) {
+                assertEquals(
+                    "1:34: Condition expression needs to be boolean, found [" + type + "]",
+                    error("from test | stats count(*) where " + filter + by)
+                );
+            }
+        }
+    }
+
     public void testGroupingInsideAggsAsAgg() {
         assertEquals(
             "1:18: can only use grouping function [bucket(emp_no, 5.)] part of the BY clause",

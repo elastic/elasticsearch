@@ -28,6 +28,8 @@ import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetadataIndexAliasesService;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -341,12 +343,15 @@ public class MetadataRolloverServiceTests extends ESTestCase {
             .putAlias(AliasMetadata.builder("foo-write"))
             .putAlias(AliasMetadata.builder("bar-write").writeIndex(randomBoolean()))
             .build();
-        final Metadata metadata = Metadata.builder().put(createMetadata(randomAlphaOfLengthBetween(5, 7)), false).put(template).build();
+        final ProjectMetadata projectMetadata = ProjectMetadata.builder(new ProjectId(randomUUID()))
+            .put(createMetadata(randomAlphaOfLengthBetween(5, 7)), false)
+            .put(template)
+            .build();
         String indexName = randomFrom("foo-123", "bar-xyz");
         String aliasName = randomFrom("foo-write", "bar-write");
         final IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
-            () -> MetadataRolloverService.checkNoDuplicatedAliasInIndexTemplate(metadata, indexName, aliasName, randomBoolean())
+            () -> MetadataRolloverService.checkNoDuplicatedAliasInIndexTemplate(projectMetadata, indexName, aliasName, randomBoolean())
         );
         assertThat(ex.getMessage(), containsString("index template [test-template]"));
     }
@@ -360,7 +365,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
             .template(new Template(null, null, aliases))
             .build();
 
-        final Metadata metadata = Metadata.builder()
+        final ProjectMetadata projectMetadata = ProjectMetadata.builder(new ProjectId(randomUUID()))
             .put(createMetadata(randomAlphaOfLengthBetween(5, 7)), false)
             .put("test-template", template)
             .build();
@@ -368,7 +373,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
         String aliasName = randomFrom("foo-write", "bar-write");
         final IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
-            () -> MetadataRolloverService.checkNoDuplicatedAliasInIndexTemplate(metadata, indexName, aliasName, randomBoolean())
+            () -> MetadataRolloverService.checkNoDuplicatedAliasInIndexTemplate(projectMetadata, indexName, aliasName, randomBoolean())
         );
         assertThat(ex.getMessage(), containsString("index template [test-template]"));
     }
@@ -383,7 +388,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
             .componentTemplates(Collections.singletonList("ct"))
             .build();
 
-        final Metadata metadata = Metadata.builder()
+        final ProjectMetadata projectMetadata = ProjectMetadata.builder(new ProjectId(randomUUID()))
             .put(createMetadata(randomAlphaOfLengthBetween(5, 7)), false)
             .put("ct", ct)
             .put("test-template", template)
@@ -392,7 +397,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
         String aliasName = randomFrom("foo-write", "bar-write");
         final IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
-            () -> MetadataRolloverService.checkNoDuplicatedAliasInIndexTemplate(metadata, indexName, aliasName, randomBoolean())
+            () -> MetadataRolloverService.checkNoDuplicatedAliasInIndexTemplate(projectMetadata, indexName, aliasName, randomBoolean())
         );
         assertThat(ex.getMessage(), containsString("index template [test-template]"));
     }
@@ -410,7 +415,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
             .template(new Template(null, null, null))
             .build();
 
-        final Metadata metadata = Metadata.builder()
+        final ProjectMetadata projectMetadata = ProjectMetadata.builder(new ProjectId(randomUUID()))
             .put(createMetadata(randomAlphaOfLengthBetween(5, 7)), false)
             .put(legacyTemplate)
             .put("composable-template", composableTemplate)
@@ -419,7 +424,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
         String aliasName = randomFrom("foo-write", "bar-write");
 
         // the valid v2 template takes priority over the v1 template so the validation should not throw any exception
-        MetadataRolloverService.checkNoDuplicatedAliasInIndexTemplate(metadata, indexName, aliasName, randomBoolean());
+        MetadataRolloverService.checkNoDuplicatedAliasInIndexTemplate(projectMetadata, indexName, aliasName, randomBoolean());
     }
 
     public void testHiddenAffectsResolvedTemplates() {
@@ -428,17 +433,20 @@ public class MetadataRolloverServiceTests extends ESTestCase {
             .putAlias(AliasMetadata.builder("foo-write"))
             .putAlias(AliasMetadata.builder("bar-write").writeIndex(randomBoolean()))
             .build();
-        final Metadata metadata = Metadata.builder().put(createMetadata(randomAlphaOfLengthBetween(5, 7)), false).put(template).build();
+        final ProjectMetadata projectMetadata = ProjectMetadata.builder(new ProjectId(randomUUID()))
+            .put(createMetadata(randomAlphaOfLengthBetween(5, 7)), false)
+            .put(template)
+            .build();
         String indexName = randomFrom("foo-123", "bar-xyz");
         String aliasName = randomFrom("foo-write", "bar-write");
 
         // hidden shouldn't throw
-        MetadataRolloverService.checkNoDuplicatedAliasInIndexTemplate(metadata, indexName, aliasName, Boolean.TRUE);
+        MetadataRolloverService.checkNoDuplicatedAliasInIndexTemplate(projectMetadata, indexName, aliasName, Boolean.TRUE);
         // not hidden will throw
         final IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
             () -> MetadataRolloverService.checkNoDuplicatedAliasInIndexTemplate(
-                metadata,
+                projectMetadata,
                 indexName,
                 aliasName,
                 randomFrom(Boolean.FALSE, null)
@@ -456,7 +464,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
             .template(new Template(null, null, aliases))
             .build();
 
-        final Metadata metadata = Metadata.builder()
+        final ProjectMetadata projectMetadata = ProjectMetadata.builder(new ProjectId(randomUUID()))
             .put(createMetadata(randomAlphaOfLengthBetween(5, 7)), false)
             .put("test-template", template)
             .build();
@@ -464,12 +472,12 @@ public class MetadataRolloverServiceTests extends ESTestCase {
         String aliasName = randomFrom("foo-write", "bar-write");
 
         // hidden shouldn't throw
-        MetadataRolloverService.checkNoDuplicatedAliasInIndexTemplate(metadata, indexName, aliasName, Boolean.TRUE);
+        MetadataRolloverService.checkNoDuplicatedAliasInIndexTemplate(projectMetadata, indexName, aliasName, Boolean.TRUE);
         // not hidden will throw
         final IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
             () -> MetadataRolloverService.checkNoDuplicatedAliasInIndexTemplate(
-                metadata,
+                projectMetadata,
                 indexName,
                 aliasName,
                 randomFrom(Boolean.FALSE, null)
@@ -488,7 +496,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
             .componentTemplates(Collections.singletonList("ct"))
             .build();
 
-        final Metadata metadata = Metadata.builder()
+        final ProjectMetadata projectMetadata = ProjectMetadata.builder(new ProjectId(randomUUID()))
             .put(createMetadata(randomAlphaOfLengthBetween(5, 7)), false)
             .put("ct", ct)
             .put("test-template", template)
@@ -497,12 +505,12 @@ public class MetadataRolloverServiceTests extends ESTestCase {
         String aliasName = randomFrom("foo-write", "bar-write");
 
         // hidden shouldn't throw
-        MetadataRolloverService.checkNoDuplicatedAliasInIndexTemplate(metadata, indexName, aliasName, Boolean.TRUE);
+        MetadataRolloverService.checkNoDuplicatedAliasInIndexTemplate(projectMetadata, indexName, aliasName, Boolean.TRUE);
         // not hidden will throw
         final IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
             () -> MetadataRolloverService.checkNoDuplicatedAliasInIndexTemplate(
-                metadata,
+                projectMetadata,
                 indexName,
                 aliasName,
                 randomFrom(Boolean.FALSE, null)
@@ -566,18 +574,18 @@ public class MetadataRolloverServiceTests extends ESTestCase {
             assertEquals(sourceIndexName, rolloverResult.sourceIndexName());
             assertEquals(newIndexName, rolloverResult.rolloverIndexName());
             Metadata rolloverMetadata = rolloverResult.clusterState().metadata();
-            assertEquals(2, rolloverMetadata.indices().size());
-            IndexMetadata rolloverIndexMetadata = rolloverMetadata.index(newIndexName);
+            assertEquals(2, rolloverMetadata.getProject().indices().size());
+            IndexMetadata rolloverIndexMetadata = rolloverMetadata.getProject().index(newIndexName);
             assertThat(rolloverIndexMetadata.getNumberOfShards(), equalTo(numberOfShards));
 
-            IndexAbstraction alias = rolloverMetadata.getIndicesLookup().get(aliasName);
+            IndexAbstraction alias = rolloverMetadata.getProject().getIndicesLookup().get(aliasName);
             assertThat(alias.getType(), equalTo(IndexAbstraction.Type.ALIAS));
             assertThat(alias.getIndices(), hasSize(2));
-            assertThat(alias.getIndices(), hasItem(rolloverMetadata.index(sourceIndexName).getIndex()));
+            assertThat(alias.getIndices(), hasItem(rolloverMetadata.getProject().index(sourceIndexName).getIndex()));
             assertThat(alias.getIndices(), hasItem(rolloverIndexMetadata.getIndex()));
             assertThat(alias.getWriteIndex(), equalTo(rolloverIndexMetadata.getIndex()));
 
-            RolloverInfo info = rolloverMetadata.index(sourceIndexName).getRolloverInfos().get(aliasName);
+            RolloverInfo info = rolloverMetadata.getProject().index(sourceIndexName).getRolloverInfos().get(aliasName);
             assertThat(info.getTime(), lessThanOrEqualTo(after));
             assertThat(info.getTime(), greaterThanOrEqualTo(before));
             assertThat(info.getMetConditions(), hasSize(1));
@@ -643,17 +651,17 @@ public class MetadataRolloverServiceTests extends ESTestCase {
             assertEquals(sourceIndexName, rolloverResult.sourceIndexName());
             assertEquals(newIndexName, rolloverResult.rolloverIndexName());
             Metadata rolloverMetadata = rolloverResult.clusterState().metadata();
-            assertEquals(dataStream.getIndices().size() + 1, rolloverMetadata.indices().size());
-            IndexMetadata rolloverIndexMetadata = rolloverMetadata.index(newIndexName);
+            assertEquals(dataStream.getIndices().size() + 1, rolloverMetadata.getProject().indices().size());
+            IndexMetadata rolloverIndexMetadata = rolloverMetadata.getProject().index(newIndexName);
 
-            IndexAbstraction ds = rolloverMetadata.getIndicesLookup().get(dataStream.getName());
+            IndexAbstraction ds = rolloverMetadata.getProject().getIndicesLookup().get(dataStream.getName());
             assertThat(ds.getType(), equalTo(IndexAbstraction.Type.DATA_STREAM));
             assertThat(ds.getIndices(), hasSize(dataStream.getIndices().size() + 1));
-            assertThat(ds.getIndices(), hasItem(rolloverMetadata.index(sourceIndexName).getIndex()));
+            assertThat(ds.getIndices(), hasItem(rolloverMetadata.getProject().index(sourceIndexName).getIndex()));
             assertThat(ds.getIndices(), hasItem(rolloverIndexMetadata.getIndex()));
             assertThat(ds.getWriteIndex(), equalTo(rolloverIndexMetadata.getIndex()));
 
-            RolloverInfo info = rolloverMetadata.index(sourceIndexName).getRolloverInfos().get(dataStream.getName());
+            RolloverInfo info = rolloverMetadata.getProject().index(sourceIndexName).getRolloverInfos().get(dataStream.getName());
             assertThat(info.getTime(), lessThanOrEqualTo(after));
             assertThat(info.getTime(), greaterThanOrEqualTo(before));
             assertThat(info.getMetConditions(), hasSize(1));
@@ -719,19 +727,19 @@ public class MetadataRolloverServiceTests extends ESTestCase {
             Metadata rolloverMetadata = rolloverResult.clusterState().metadata();
             assertEquals(
                 dataStream.getIndices().size() + dataStream.getFailureIndices().getIndices().size() + 1,
-                rolloverMetadata.indices().size()
+                rolloverMetadata.getProject().indices().size()
             );
-            IndexMetadata rolloverIndexMetadata = rolloverMetadata.index(newIndexName);
+            IndexMetadata rolloverIndexMetadata = rolloverMetadata.getProject().index(newIndexName);
 
-            var ds = (DataStream) rolloverMetadata.getIndicesLookup().get(dataStream.getName());
+            var ds = (DataStream) rolloverMetadata.getProject().getIndicesLookup().get(dataStream.getName());
             assertThat(ds.getType(), equalTo(IndexAbstraction.Type.DATA_STREAM));
             assertThat(ds.getIndices(), hasSize(dataStream.getIndices().size()));
             assertThat(ds.getFailureIndices().getIndices(), hasSize(dataStream.getFailureIndices().getIndices().size() + 1));
-            assertThat(ds.getFailureIndices().getIndices(), hasItem(rolloverMetadata.index(sourceIndexName).getIndex()));
+            assertThat(ds.getFailureIndices().getIndices(), hasItem(rolloverMetadata.getProject().index(sourceIndexName).getIndex()));
             assertThat(ds.getFailureIndices().getIndices(), hasItem(rolloverIndexMetadata.getIndex()));
             assertThat(ds.getFailureStoreWriteIndex(), equalTo(rolloverIndexMetadata.getIndex()));
 
-            RolloverInfo info = rolloverMetadata.index(sourceIndexName).getRolloverInfos().get(dataStream.getName());
+            RolloverInfo info = rolloverMetadata.getProject().index(sourceIndexName).getRolloverInfos().get(dataStream.getName());
             assertThat(info.getTime(), lessThanOrEqualTo(after));
             assertThat(info.getTime(), greaterThanOrEqualTo(before));
             assertThat(info.getMetConditions(), hasSize(1));

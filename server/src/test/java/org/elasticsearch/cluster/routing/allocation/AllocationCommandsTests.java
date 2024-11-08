@@ -88,7 +88,7 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
             .put(IndexMetadata.builder("test").settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(0))
             .build();
         RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-            .addAsNew(metadata.index("test"))
+            .addAsNew(metadata.getProject().index("test"))
             .build();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(routingTable).build();
 
@@ -160,10 +160,10 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
         // shard routing is added as "from recovery" instead of "new index creation" so that we can test below that allocating an empty
         // primary with accept_data_loss flag set to false fails
         RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-            .addAsRecovery(metadata.index(index))
+            .addAsRecovery(metadata.getProject().index(index))
             .build();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(routingTable).build();
-        final ShardId shardId = new ShardId(metadata.index(index).getIndex(), 0);
+        final ShardId shardId = new ShardId(metadata.getProject().index(index).getIndex(), 0);
 
         logger.info("--> adding 3 nodes on same rack and do rerouting");
         clusterState = ClusterState.builder(clusterState)
@@ -376,7 +376,7 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
         // shard routing is added as "from recovery" instead of "new index creation" so that we can test below that allocating an empty
         // primary with accept_data_loss flag set to false fails
         RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-            .addAsRecovery(metadata.index(index))
+            .addAsRecovery(metadata.getProject().index(index))
             .build();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(routingTable).build();
 
@@ -401,14 +401,14 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
         RoutingNode routingNode1 = clusterState.getRoutingNodes().node(node1);
         assertThat(routingNode1.size(), equalTo(1));
         assertThat(routingNode1.numberOfShardsWithState(INITIALIZING), equalTo(1));
-        Set<String> inSyncAllocationIds = clusterState.metadata().index(index).inSyncAllocationIds(0);
+        Set<String> inSyncAllocationIds = clusterState.metadata().getProject().index(index).inSyncAllocationIds(0);
         assertThat(inSyncAllocationIds, equalTo(Collections.singleton(RecoverySource.ExistingStoreRecoverySource.FORCED_ALLOCATION_ID)));
 
         clusterState = startInitializingShardsAndReroute(allocation, clusterState);
         routingNode1 = clusterState.getRoutingNodes().node(node1);
         assertThat(routingNode1.size(), equalTo(1));
         assertThat(routingNode1.numberOfShardsWithState(STARTED), equalTo(1));
-        inSyncAllocationIds = clusterState.metadata().index(index).inSyncAllocationIds(0);
+        inSyncAllocationIds = clusterState.metadata().getProject().index(index).inSyncAllocationIds(0);
         assertThat(inSyncAllocationIds, hasSize(1));
         assertThat(inSyncAllocationIds, not(Collections.singleton(RecoverySource.ExistingStoreRecoverySource.FORCED_ALLOCATION_ID)));
     }
@@ -426,7 +426,7 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
             .put(IndexMetadata.builder("test").settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(1))
             .build();
         RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-            .addAsNew(metadata.index("test"))
+            .addAsNew(metadata.getProject().index("test"))
             .build();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(routingTable).build();
 
@@ -847,7 +847,7 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
             .put(IndexMetadata.builder("test").settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(0))
             .build();
         RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-            .addAsNew(metadata.index("test"))
+            .addAsNew(metadata.getProject().index("test"))
             .build();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(routingTable).build();
 
@@ -871,7 +871,7 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
         logger.info("start primary shard");
         clusterState = startInitializingShardsAndReroute(allocation, clusterState);
 
-        Index index = clusterState.getMetadata().index("test").getIndex();
+        Index index = clusterState.getMetadata().getProject().index("test").getIndex();
         MoveAllocationCommand command = new MoveAllocationCommand(index.getName(), 0, "node1", "node2");
         RoutingAllocation routingAllocation = new RoutingAllocation(
             new AllocationDeciders(Collections.emptyList()),
@@ -905,7 +905,7 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
             .put(IndexMetadata.builder("test").settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(0))
             .build();
         RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-            .addAsNew(metadata.index("test"))
+            .addAsNew(metadata.getProject().index("test"))
             .build();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(routingTable).build();
 
@@ -928,7 +928,7 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
         logger.info("start primary shard");
         clusterState = startInitializingShardsAndReroute(allocation, clusterState);
 
-        Index index = clusterState.getMetadata().index("test").getIndex();
+        Index index = clusterState.getMetadata().getProject().index("test").getIndex();
         MoveAllocationCommand command = new MoveAllocationCommand(index.getName(), 0, "node2", "node1");
         RoutingAllocation routingAllocation = new RoutingAllocation(
             new AllocationDeciders(Collections.emptyList()),
@@ -991,9 +991,9 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
             )
             .build();
         RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-            .addAsRecovery(metadata.index(index1))
-            .addAsRecovery(metadata.index(index2))
-            .addAsRecovery(metadata.index(index3))
+            .addAsRecovery(metadata.getProject().index(index1))
+            .addAsRecovery(metadata.getProject().index(index2))
+            .addAsRecovery(metadata.getProject().index(index3))
             .build();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(routingTable).build();
 

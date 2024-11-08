@@ -1186,6 +1186,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             .get()
             .getState()
             .getMetadata()
+            .getProject()
             .index(sourceIndex);
         final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         final MapperService mapperService = indicesService.createIndexMapperServiceForValidation(indexMetadata);

@@ -47,24 +47,24 @@ public class AutoCreateActionTests extends ESTestCase {
         }
 
         CreateIndexRequest request = new CreateIndexRequest("logs-foobar");
-        ComposableIndexTemplate result = AutoCreateAction.resolveTemplate(request, metadata);
+        ComposableIndexTemplate result = AutoCreateAction.resolveTemplate(request, metadata.getProject());
         assertThat(result, notNullValue());
         assertThat(result.getDataStreamTemplate(), notNullValue());
 
         request = new CreateIndexRequest("logs-barbaz");
-        result = AutoCreateAction.resolveTemplate(request, metadata);
+        result = AutoCreateAction.resolveTemplate(request, metadata.getProject());
         assertThat(result, notNullValue());
         assertThat(result.getDataStreamTemplate(), notNullValue());
 
         // An index that matches with a template without a data steam definition
         request = new CreateIndexRequest("legacy-logs-foobaz");
-        result = AutoCreateAction.resolveTemplate(request, metadata);
+        result = AutoCreateAction.resolveTemplate(request, metadata.getProject());
         assertThat(result, notNullValue());
         assertThat(result.getDataStreamTemplate(), nullValue());
 
         // An index that doesn't match with an index template
         request = new CreateIndexRequest("my-index");
-        result = AutoCreateAction.resolveTemplate(request, metadata);
+        result = AutoCreateAction.resolveTemplate(request, metadata.getProject());
         assertThat(result, nullValue());
     }
 

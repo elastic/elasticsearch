@@ -85,7 +85,7 @@ public class TransportSimulateBulkActionIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(0L));
         searchResponse.decRef();
         ClusterStateResponse clusterStateResponse = admin().cluster().state(new ClusterStateRequest(TEST_REQUEST_TIMEOUT)).actionGet();
-        Map<String, Object> indexMapping = clusterStateResponse.getState().metadata().index(indexName).mapping().sourceAsMap();
+        Map<String, Object> indexMapping = clusterStateResponse.getState().metadata().getProject().index(indexName).mapping().sourceAsMap();
         Map<String, Object> fields = (Map<String, Object>) indexMapping.get("properties");
         assertThat(fields.size(), equalTo(1));
     }
@@ -142,7 +142,7 @@ public class TransportSimulateBulkActionIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(0L));
         searchResponse.decRef();
         ClusterStateResponse clusterStateResponse = admin().cluster().state(new ClusterStateRequest(TEST_REQUEST_TIMEOUT)).actionGet();
-        Map<String, Object> indexMapping = clusterStateResponse.getState().metadata().index(indexName).mapping().sourceAsMap();
+        Map<String, Object> indexMapping = clusterStateResponse.getState().metadata().getProject().index(indexName).mapping().sourceAsMap();
         Map<String, Object> fields = (Map<String, Object>) indexMapping.get("properties");
         assertThat(fields.size(), equalTo(1));
     }

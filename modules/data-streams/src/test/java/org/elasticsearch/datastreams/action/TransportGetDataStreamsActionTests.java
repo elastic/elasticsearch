@@ -185,7 +185,7 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
         // Remove the middle backing index first data stream, so that there is time gap in the data stream:
         {
             Metadata.Builder mBuilder = Metadata.builder(state.getMetadata());
-            DataStream dataStream = state.getMetadata().dataStreams().get(dataStream1);
+            DataStream dataStream = state.getMetadata().getProject().dataStreams().get(dataStream1);
             mBuilder.put(dataStream.removeBackingIndex(dataStream.getIndices().get(1)));
             mBuilder.remove(dataStream.getIndices().get(1).getName());
             state = ClusterState.builder(state).metadata(mBuilder).build();

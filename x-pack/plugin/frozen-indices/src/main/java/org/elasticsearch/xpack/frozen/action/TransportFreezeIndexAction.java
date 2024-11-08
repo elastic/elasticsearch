@@ -91,7 +91,7 @@ public final class TransportFreezeIndexAction extends TransportMasterNodeAction<
     private Index[] resolveIndices(FreezeRequest request, ClusterState state) {
         List<Index> indices = new ArrayList<>();
         for (Index index : indexNameExpressionResolver.concreteIndices(state, request)) {
-            IndexMetadata metadata = state.metadata().index(index);
+            IndexMetadata metadata = state.metadata().getProject().index(index);
             Settings settings = metadata.getSettings();
             // only unfreeze if we are frozen and only freeze if we are not frozen already.
             // this prevents all indices that are already frozen that match a pattern to
@@ -169,7 +169,7 @@ public final class TransportFreezeIndexAction extends TransportMasterNodeAction<
                 @Override
                 public ClusterState execute(ClusterState currentState) {
                     List<String> writeIndices = new ArrayList<>();
-                    SortedMap<String, IndexAbstraction> lookup = currentState.metadata().getIndicesLookup();
+                    SortedMap<String, IndexAbstraction> lookup = currentState.metadata().getProject().getIndicesLookup();
                     for (Index index : concreteIndices) {
                         IndexAbstraction ia = lookup.get(index.getName());
                         if (ia != null && ia.getParentDataStream() != null && ia.getParentDataStream().getWriteIndex().equals(index)) {
@@ -187,7 +187,7 @@ public final class TransportFreezeIndexAction extends TransportMasterNodeAction<
                     final Metadata.Builder builder = Metadata.builder(currentState.metadata());
                     ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
                     for (Index index : concreteIndices) {
-                        final IndexMetadata indexMetadata = currentState.metadata().getIndexSafe(index);
+                        final IndexMetadata indexMetadata = currentState.metadata().getProject().getIndexSafe(index);
                         if (indexMetadata.getState() != IndexMetadata.State.CLOSE) {
                             throw new IllegalStateException("index [" + index.getName() + "] is not closed");
                         }

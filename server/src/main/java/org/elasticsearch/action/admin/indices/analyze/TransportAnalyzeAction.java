@@ -20,9 +20,10 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -74,6 +75,7 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
         TransportService transportService,
         IndicesService indicesService,
         ActionFilters actionFilters,
+        ProjectResolver projectResolver,
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(
@@ -82,6 +84,7 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
             clusterService,
             transportService,
             actionFilters,
+            projectResolver,
             indexNameExpressionResolver,
             AnalyzeAction.Request::new,
             threadPool.executor(ThreadPool.Names.ANALYZE)
@@ -101,7 +104,7 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
     }
 
     @Override
-    protected ClusterBlockException checkRequestBlock(ClusterState state, InternalRequest request) {
+    protected ClusterBlockException checkRequestBlock(ProjectState state, InternalRequest request) {
         if (request.concreteIndex() != null) {
             return super.checkRequestBlock(state, request);
         }
@@ -109,7 +112,7 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
     }
 
     @Override
-    protected ShardsIterator shards(ClusterState state, InternalRequest request) {
+    protected ShardsIterator shards(ProjectState state, InternalRequest request) {
         if (request.concreteIndex() == null) {
             // just execute locally....
             return null;

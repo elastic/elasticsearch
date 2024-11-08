@@ -59,12 +59,14 @@ public class Task implements Traceable {
 
     public static final String TRACE_START_TIME = "trace.starttime";
     public static final String TRACE_PARENT = "traceparent";
+    public static final String X_ELASTIC_PROJECT_ID_HTTP_HEADER = "X-Elastic-Project-Id";
 
     public static final Set<String> HEADERS_TO_COPY = Set.of(
         X_OPAQUE_ID_HTTP_HEADER,
         TRACE_PARENT_HTTP_HEADER,
         TRACE_ID,
-        X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER
+        X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER,
+        X_ELASTIC_PROJECT_ID_HTTP_HEADER
     );
 
     private final long id;

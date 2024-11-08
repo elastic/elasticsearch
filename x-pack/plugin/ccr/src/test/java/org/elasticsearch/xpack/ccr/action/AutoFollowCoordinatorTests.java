@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -150,7 +151,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             @Override
             void updateAutoFollowMetadata(Function<ClusterState, ClusterState> updateFunction, Consumer<Exception> handler) {
                 ClusterState resultCs = updateFunction.apply(currentState);
-                AutoFollowMetadata result = resultCs.metadata().custom(AutoFollowMetadata.TYPE);
+                AutoFollowMetadata result = resultCs.metadata().getProject().custom(AutoFollowMetadata.TYPE);
                 assertThat(result.getFollowedLeaderIndexUUIDs().size(), equalTo(1));
                 assertThat(result.getFollowedLeaderIndexUUIDs().get("remote").size(), equalTo(1));
                 handler.accept(null);
@@ -220,7 +221,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             @Override
             void updateAutoFollowMetadata(Function<ClusterState, ClusterState> updateFunction, Consumer<Exception> handler) {
                 ClusterState resultCs = updateFunction.apply(currentState);
-                AutoFollowMetadata result = resultCs.metadata().custom(AutoFollowMetadata.TYPE);
+                AutoFollowMetadata result = resultCs.metadata().getProject().custom(AutoFollowMetadata.TYPE);
                 assertThat(result.getFollowedLeaderIndexUUIDs().size(), equalTo(1));
                 assertThat(result.getFollowedLeaderIndexUUIDs().get("remote").size(), equalTo(1));
                 handler.accept(null);
@@ -634,18 +635,18 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         final ClusterState finalRemoteClusterState = remoteClusterState.get();
         final ClusterState finalLocalClusterState = localClusterState.get();
 
-        AutoFollowMetadata autoFollowMetadata = finalLocalClusterState.metadata().custom(AutoFollowMetadata.TYPE);
+        AutoFollowMetadata autoFollowMetadata = finalLocalClusterState.metadata().getProject().custom(AutoFollowMetadata.TYPE);
         assertThat(autoFollowMetadata.getPatterns().size(), equalTo(2));
         assertThat(autoFollowMetadata.getPatterns().values().stream().noneMatch(AutoFollowPattern::isActive), is(true));
 
         assertThat(
             autoFollowMetadata.getFollowedLeaderIndexUUIDs().get("patternLogs"),
             containsInAnyOrder(
-                finalRemoteClusterState.metadata().index("patternLogs-0").getIndexUUID(),
-                finalRemoteClusterState.metadata().index("patternLogs-1").getIndexUUID(),
-                finalRemoteClusterState.metadata().index("patternLogs-2").getIndexUUID(),
-                finalRemoteClusterState.metadata().index("patternLogs-3").getIndexUUID(),
-                finalRemoteClusterState.metadata().index("patternLogs-4").getIndexUUID()
+                finalRemoteClusterState.metadata().getProject().index("patternLogs-0").getIndexUUID(),
+                finalRemoteClusterState.metadata().getProject().index("patternLogs-1").getIndexUUID(),
+                finalRemoteClusterState.metadata().getProject().index("patternLogs-2").getIndexUUID(),
+                finalRemoteClusterState.metadata().getProject().index("patternLogs-3").getIndexUUID(),
+                finalRemoteClusterState.metadata().getProject().index("patternLogs-4").getIndexUUID()
                 // patternLogs-5 exists in remote cluster state but patternLogs was paused
             )
         );
@@ -654,11 +655,11 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             autoFollowMetadata.getFollowedLeaderIndexUUIDs().get("patternDocs"),
             containsInAnyOrder(
                 // patternDocs-0 does not exist in remote cluster state
-                finalRemoteClusterState.metadata().index("patternDocs-1").getIndexUUID(),
-                finalRemoteClusterState.metadata().index("patternDocs-2").getIndexUUID(),
-                finalRemoteClusterState.metadata().index("patternDocs-3").getIndexUUID(),
-                finalRemoteClusterState.metadata().index("patternDocs-4").getIndexUUID(),
-                finalRemoteClusterState.metadata().index("patternDocs-5").getIndexUUID()
+                finalRemoteClusterState.metadata().getProject().index("patternDocs-1").getIndexUUID(),
+                finalRemoteClusterState.metadata().getProject().index("patternDocs-2").getIndexUUID(),
+                finalRemoteClusterState.metadata().getProject().index("patternDocs-3").getIndexUUID(),
+                finalRemoteClusterState.metadata().getProject().index("patternDocs-4").getIndexUUID(),
+                finalRemoteClusterState.metadata().getProject().index("patternDocs-5").getIndexUUID()
             )
         );
     }
@@ -769,7 +770,9 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         assertThat(result.get(3).getName(), equalTo("metrics-3"));
         assertThat(result.get(4).getName(), equalTo("metrics-4"));
 
-        final List<String> followedIndexUUIDs = Collections.singletonList(remoteState.metadata().index("metrics-2").getIndexUUID());
+        final List<String> followedIndexUUIDs = Collections.singletonList(
+            remoteState.metadata().getProject().index("metrics-2").getIndexUUID()
+        );
         result = AutoFollower.getLeaderIndicesToFollow(autoFollowPattern, remoteState, followedIndexUUIDs);
         result.sort(Index.COMPARE_BY_NAME);
         assertThat(result.size(), equalTo(4));
@@ -824,7 +827,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
 
         // Start second shard:
         shardRouting = shardRouting.moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
-        indexRoutingTable = IndexRoutingTable.builder(remoteState.metadata().indices().get("index2").getIndex())
+        indexRoutingTable = IndexRoutingTable.builder(remoteState.metadata().getProject().indices().get("index2").getIndex())
             .addShard(shardRouting)
             .build();
         remoteState = ClusterState.builder(remoteState.getClusterName())
@@ -846,13 +849,18 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         ClusterState remoteState = ClusterStateCreationUtils.stateWithActivePrimary("test-index", true, randomIntBetween(1, 3), 0);
         List<Index> result = AutoFollower.getLeaderIndicesToFollow(autoFollowPattern, remoteState, Collections.emptyList());
         assertThat(result.size(), equalTo(1));
-        assertThat(result, hasItem(remoteState.metadata().index("test-index").getIndex()));
+        assertThat(result, hasItem(remoteState.metadata().getProject().index("test-index").getIndex()));
 
         // index is closed
         remoteState = ClusterState.builder(remoteState)
             .metadata(
                 Metadata.builder(remoteState.metadata())
-                    .put(IndexMetadata.builder(remoteState.metadata().index("test-index")).state(IndexMetadata.State.CLOSE).build(), true)
+                    .put(
+                        IndexMetadata.builder(remoteState.metadata().getProject().index("test-index"))
+                            .state(IndexMetadata.State.CLOSE)
+                            .build(),
+                        true
+                    )
                     .build()
             )
             .build();
@@ -872,7 +880,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         Function<ClusterState, ClusterState> function = recordLeaderIndexAsFollowFunction("pattern1", new Index("index1", "index1"));
 
         ClusterState result = function.apply(clusterState);
-        AutoFollowMetadata autoFollowMetadataResult = result.metadata().custom(AutoFollowMetadata.TYPE);
+        AutoFollowMetadata autoFollowMetadataResult = result.metadata().getProject().custom(AutoFollowMetadata.TYPE);
         assertThat(autoFollowMetadataResult.getFollowedLeaderIndexUUIDs().get("pattern1"), notNullValue());
         assertThat(autoFollowMetadataResult.getFollowedLeaderIndexUUIDs().get("pattern1").size(), equalTo(1));
         assertThat(autoFollowMetadataResult.getFollowedLeaderIndexUUIDs().get("pattern1").get(0), equalTo("index1"));
@@ -918,7 +926,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             .build();
 
         Function<ClusterState, ClusterState> function = cleanFollowedRemoteIndices(remoteMetadata, Collections.singletonList("pattern1"));
-        AutoFollowMetadata result = function.apply(clusterState).metadata().custom(AutoFollowMetadata.TYPE);
+        AutoFollowMetadata result = function.apply(clusterState).metadata().getProject().custom(AutoFollowMetadata.TYPE);
         assertThat(result.getFollowedLeaderIndexUUIDs().get("pattern1").size(), equalTo(2));
         assertThat(result.getFollowedLeaderIndexUUIDs().get("pattern1").get(0), equalTo("index1"));
         assertThat(result.getFollowedLeaderIndexUUIDs().get("pattern1").get(1), equalTo("index3"));
@@ -1837,7 +1845,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
                                 Ccr.CCR_CUSTOM_METADATA_KEY,
                                 Map.of(
                                     Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_UUID_KEY,
-                                    remoteState.metadata().index("logs-20190101").getIndexUUID()
+                                    remoteState.metadata().getProject().index("logs-20190101").getIndexUUID()
                                 )
                             )
                             .numberOfShards(1)
@@ -1869,7 +1877,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             @Override
             void updateAutoFollowMetadata(Function<ClusterState, ClusterState> updateFunction, Consumer<Exception> handler) {
                 ClusterState resultCs = updateFunction.apply(currentState);
-                AutoFollowMetadata result = resultCs.metadata().custom(AutoFollowMetadata.TYPE);
+                AutoFollowMetadata result = resultCs.metadata().getProject().custom(AutoFollowMetadata.TYPE);
                 assertThat(result.getFollowedLeaderIndexUUIDs().size(), equalTo(1));
                 assertThat(result.getFollowedLeaderIndexUUIDs().get("remote").size(), equalTo(1));
                 handler.accept(null);
@@ -1905,6 +1913,8 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         final ClusterState clusterState = mock(ClusterState.class);
         final Metadata metadata = mock(Metadata.class);
         when(clusterState.metadata()).thenReturn(metadata);
+        ProjectMetadata project = mock(ProjectMetadata.class);
+        when(metadata.getProject()).thenReturn(project);
         final AutoFollowPattern pattern = new AutoFollowPattern(
             "remote",
             List.of("*"),
@@ -1924,7 +1934,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             TimeValue.ZERO
         );
         final AutoFollowMetadata autoFollowMetadata = new AutoFollowMetadata(Map.of("remote", pattern), Map.of(), Map.of());
-        when(metadata.custom(AutoFollowMetadata.TYPE)).thenReturn(autoFollowMetadata);
+        when(project.custom(AutoFollowMetadata.TYPE)).thenReturn(autoFollowMetadata);
 
         final int iterations = randomIntBetween(16384, 32768); // sufficiently large to exercise that we do not stack overflow
         final AtomicInteger counter = new AtomicInteger();
@@ -2014,7 +2024,9 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
                     .metadata(
                         Metadata.builder(remoteState.metadata())
                             .put(
-                                IndexMetadata.builder(remoteState.metadata().index(indexName)).state(IndexMetadata.State.CLOSE).build(),
+                                IndexMetadata.builder(remoteState.metadata().getProject().index(indexName))
+                                    .state(IndexMetadata.State.CLOSE)
+                                    .build(),
                                 true
                             )
                             .build()
@@ -2067,7 +2079,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         assertThat(results, notNullValue());
         assertThat(results.size(), equalTo(1));
 
-        for (var index : remoteState.metadata().indices().entrySet()) {
+        for (var index : remoteState.metadata().getProject().indices().entrySet()) {
             boolean expect = index.getValue().getState() == IndexMetadata.State.OPEN;
             assertThat(results.get(0).autoFollowExecutionResults.containsKey(index.getValue().getIndex()), is(expect));
             assertThat(followedIndices.contains(index.getKey()), is(expect));
@@ -2170,11 +2182,11 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         assertThat(results, notNullValue());
         assertThat(results.size(), equalTo(1));
 
-        AutoFollowMetadata autoFollowMetadata = lastModifiedClusterState.get().metadata().custom(AutoFollowMetadata.TYPE);
+        AutoFollowMetadata autoFollowMetadata = lastModifiedClusterState.get().metadata().getProject().custom(AutoFollowMetadata.TYPE);
         final List<String> autoFollowedIndices = autoFollowMetadata.getFollowedLeaderIndexUUIDs().get(pattern);
         assertThat(autoFollowedIndices.size(), equalTo(nbLeaderIndices));
 
-        for (var index : remoteState.metadata().indices().entrySet()) {
+        for (var index : remoteState.metadata().getProject().indices().entrySet()) {
             final Index remoteIndex = index.getValue().getIndex();
             boolean followed = remoteIndex.getName().startsWith("docs-excluded") == false;
             assertThat(results.get(0).autoFollowExecutionResults.containsKey(index.getValue().getIndex()), is(followed));

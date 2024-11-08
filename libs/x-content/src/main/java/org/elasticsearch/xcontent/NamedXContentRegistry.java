@@ -149,6 +149,19 @@ public class NamedXContentRegistry {
         return categoryClass.cast(entry.parser.parse(parser, context));
     }
 
+    /**
+     * Returns {@code true} if this registry is able to {@link #parseNamedObject parse} the referenced object, false otherwise.
+     * Note: This method does not throw exceptions, even if the {@link RestApiVersion} or {@code categoryClass} are unknown.
+     */
+    public boolean hasParser(Class<?> categoryClass, String name, RestApiVersion apiVersion) {
+        final Map<Class<?>, Map<String, Entry>> versionMap = registry.get(apiVersion);
+        if (versionMap == null) {
+            return false;
+        }
+        final Map<String, Entry> parsers = versionMap.get(categoryClass);
+        return parsers != null && parsers.containsKey(name);
+    }
+
     // scope for testing
     public <T> Entry lookupParser(Class<T> categoryClass, String name, XContentParser parser) {
         Map<String, Entry> parsers = registry.getOrDefault(parser.getRestApiVersion(), emptyMap()).get(categoryClass);

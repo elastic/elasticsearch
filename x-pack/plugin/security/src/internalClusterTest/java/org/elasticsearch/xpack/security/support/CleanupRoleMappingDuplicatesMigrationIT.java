@@ -399,7 +399,7 @@ public class CleanupRoleMappingDuplicatesMigrationIT extends SecurityIntegTestCa
     }
 
     private int getCurrentMigrationVersion(ClusterState state) {
-        IndexMetadata indexMetadata = state.metadata().getIndices().get(INTERNAL_SECURITY_MAIN_INDEX_7);
+        IndexMetadata indexMetadata = state.metadata().getProject().index(INTERNAL_SECURITY_MAIN_INDEX_7);
         if (indexMetadata == null || indexMetadata.getCustomData(MIGRATION_VERSION_CUSTOM_KEY) == null) {
             return 0;
         }

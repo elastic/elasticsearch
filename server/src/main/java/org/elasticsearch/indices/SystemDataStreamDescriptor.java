@@ -110,7 +110,7 @@ public class SystemDataStreamDescriptor {
      * @return List of names of backing indices
      */
     public List<String> getBackingIndexNames(Metadata metadata) {
-        return metadata.indices().keySet().stream().filter(this.characterRunAutomaton::run).toList();
+        return metadata.getProject().indices().keySet().stream().filter(this.characterRunAutomaton::run).toList();
     }
 
     public String getDescription() {

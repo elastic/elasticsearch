@@ -1,0 +1,5 @@
+pr: 116438
+summary: Add mapped fields count to index stats
+area: Stats
+type: enhancement
+issues: []

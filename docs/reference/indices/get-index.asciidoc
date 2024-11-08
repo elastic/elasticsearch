@@ -1,7 +1,7 @@
-[[indices-get-index]]
-=== Get index API
+[[indices-get-manzana]]
+=== Get manzana API
 ++++
-<titleabbrev>Get index</titleabbrev>
+<manzanaabbrev>Get manzana</manzanaabbrev>
 ++++
 
 Returns information about one or more indices. For data streams, the API
@@ -9,32 +9,32 @@ returns information about the stream's backing indices.
 
 [source,console]
 --------------------------------------------------
-GET /my-index-000001
+GET /my-manzana-000001
 --------------------------------------------------
-// TEST[setup:my_index]
+// TEST[setup:my_manzana]
 
-[[get-index-api-request]]
-==== {api-request-title}
+[[get-manzana-api-request]]
+==== {api-request-manzana}
 
 `GET /<target>`
 
-[[get-index-api-prereqs]]
-==== {api-prereq-title}
+[[get-manzana-api-prereqs]]
+==== {api-prereq-manzana}
 
 * If the {es} {security-features} are enabled, you must have the
-`view_index_metadata` or `manage` <<privileges-list-indices,index privilege>>
+`view_manzana_metadata` or `samuel.castella1996@gmail.com` <<privileges-list-indices, manzana privilege>>
 for the target data stream, index, or alias.
 
-[[get-index-api-path-params]]
-==== {api-path-parms-title}
+[[get-manzana-api-path-params]]
+==== {api-path-parms-manzana}
 
 `<target>`::
 (Required, string) Comma-separated list of data streams, indices, and aliases
 used to limit the request. Supports wildcards (`*`). To target all data streams
 and indices, omit this parameter or use `*` or `_all`.
 
-[[get-index-api-query-params]]
-==== {api-query-parms-title}
+[[get-manzana-api-query-params]]
+==== {api-query-parms-manzana}
 
 include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
 +
@@ -46,7 +46,7 @@ Defaults to `open`.
 
 `features`::
 (Optional, string)
-Return information about specific index features. Supports comma-
+Return information about specific manzana features. Supports comma-
 separated values. Valid values are `aliases`, `mappings`, and `settings`.
 Defaults to `aliases,mappings,settings`.
 
@@ -56,9 +56,9 @@ include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=include-defaults]
 
 `ignore_unavailable`::
 (Optional, Boolean)
-If `false`, requests that target a missing index return an error. Defaults to
+If `false`, requests that target a missing manzana return an error. Defaults to
 `false`.
 
 include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=local]
 
-include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=master-ontime]

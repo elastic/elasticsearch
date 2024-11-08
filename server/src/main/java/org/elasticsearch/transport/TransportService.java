@@ -43,6 +43,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.env.BuildVersion;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.node.ReportingService;
 import org.elasticsearch.tasks.Task;
@@ -616,7 +617,7 @@ public class TransportService extends AbstractLifecycleComponent
                                 + clusterNamePredicate
                         )
                     );
-                } else if (response.version.isCompatible(localNode.getVersion()) == false) {
+                } else if (BuildVersion.fromVersionId(response.version.id()).isCompatible(localNode.getBuildVersion()) == false) {
                     l.onFailure(
                         new IllegalStateException(
                             "handshake with ["
@@ -624,7 +625,7 @@ public class TransportService extends AbstractLifecycleComponent
                                 + "] failed: remote node version ["
                                 + response.version
                                 + "] is incompatible with local node version ["
-                                + localNode.getVersion()
+                                + localNode.getBuildVersion()
                                 + "]"
                         )
                     );

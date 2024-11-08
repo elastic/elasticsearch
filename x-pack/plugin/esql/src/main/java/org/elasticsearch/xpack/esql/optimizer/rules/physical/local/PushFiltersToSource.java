@@ -220,8 +220,9 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
 
     /**
      * Check if the given expression can be pushed down to the source.
-     * This version of the check is called when we do not have SearchStats available, so assume no identical delegates
-     * and make the indexed/doc-values check using the isAggregatable flag only (has risks for indexed=false)
+     * This version of the check is called when we do not have SearchStats available. It assumes no exact subfields for TEXT fields,
+     * and makes the indexed/doc-values check using the isAggregatable flag only, which comes from field-caps, represents the field state
+     * over the entire cluster (is not node specific), and has risks for indexed=false/doc_values=true fields.
      */
     public static boolean canPushToSource(Expression exp) {
         return canPushToSource(exp, LucenePushdownPredicates.DEFAULT);

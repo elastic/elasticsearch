@@ -28,7 +28,7 @@ public class DisabledSearchStats implements SearchStats {
     }
 
     @Override
-    public boolean hasIdenticalDelegate(String field) {
+    public boolean hasExactSubfield(String field) {
         return true;
     }
 

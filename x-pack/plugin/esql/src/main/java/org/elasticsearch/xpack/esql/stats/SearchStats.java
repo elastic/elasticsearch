@@ -23,7 +23,7 @@ public interface SearchStats {
 
     boolean hasDocValues(String field);
 
-    boolean hasIdenticalDelegate(String field);
+    boolean hasExactSubfield(String field);
 
     long count();
 
@@ -58,7 +58,7 @@ public interface SearchStats {
         }
 
         @Override
-        public boolean hasIdenticalDelegate(String field) {
+        public boolean hasExactSubfield(String field) {
             return false;
         }
 

@@ -230,7 +230,7 @@ public final class EsqlTestUtils {
         }
 
         @Override
-        public boolean hasIdenticalDelegate(String field) {
+        public boolean hasExactSubfield(String field) {
             return exists(field);
         }
 
@@ -271,7 +271,7 @@ public final class EsqlTestUtils {
      *     <li>exists</li>
      *     <li>isIndexed</li>
      *     <li>hasDocValues</li>
-     *     <li>hasIdenticalDelegate</li>
+     *     <li>hasExactSubfield</li>
      * </ol>
      * The default will return true for all fields. The include/exclude methods can be used to configure the settings for specific fields.
      * If you call 'include' with no fields, it will switch to return false for all fields.
@@ -281,7 +281,7 @@ public final class EsqlTestUtils {
             EXISTS,
             INDEXED,
             DOC_VALUES,
-            IDENTICAL_DELEGATE
+            EXACT_SUBFIELD
         }
 
         private final Map<Config, Set<String>> includes = new HashMap<>();
@@ -326,8 +326,8 @@ public final class EsqlTestUtils {
         }
 
         @Override
-        public boolean hasIdenticalDelegate(String field) {
-            return isConfigationSet(Config.IDENTICAL_DELEGATE, field);
+        public boolean hasExactSubfield(String field) {
+            return isConfigationSet(Config.EXACT_SUBFIELD, field);
         }
 
         @Override

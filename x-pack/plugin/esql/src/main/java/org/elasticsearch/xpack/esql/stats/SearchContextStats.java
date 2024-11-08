@@ -49,7 +49,7 @@ public class SearchContextStats implements SearchStats {
 
     private final List<SearchExecutionContext> contexts;
 
-    private record FieldConfig(boolean exists, boolean hasIdenticalDelegate, boolean indexed, boolean hasDocValues) {}
+    private record FieldConfig(boolean exists, boolean hasExactSubfield, boolean indexed, boolean hasDocValues) {}
 
     private static class FieldStats {
         private Long count;
@@ -93,7 +93,7 @@ public class SearchContextStats implements SearchStats {
 
     private FieldConfig makeFieldConfig(String field) {
         boolean exists = false;
-        boolean hasIdenticalDelegate = true;
+        boolean hasExactSubfield = true;
         boolean indexed = true;
         boolean hasDocValues = true;
         // even if there are deleted documents, check the existence of a field
@@ -105,21 +105,21 @@ public class SearchContextStats implements SearchStats {
                 indexed = indexed && type.isIndexed();
                 hasDocValues = hasDocValues && type.hasDocValues();
                 if (type instanceof TextFieldMapper.TextFieldType t) {
-                    hasIdenticalDelegate = hasIdenticalDelegate && t.canUseSyntheticSourceDelegateForQuerying();
+                    hasExactSubfield = hasExactSubfield && t.canUseSyntheticSourceDelegateForQuerying();
                 } else {
-                    hasIdenticalDelegate = false;
+                    hasExactSubfield = false;
                 }
             } else {
                 indexed = false;
                 hasDocValues = false;
-                hasIdenticalDelegate = false;
+                hasExactSubfield = false;
             }
         }
         if (exists == false) {
             // if it does not exist on any context, no other settings are valid
             return new FieldConfig(false, false, false, false);
         } else {
-            return new FieldConfig(exists, hasIdenticalDelegate, indexed, hasDocValues);
+            return new FieldConfig(exists, hasExactSubfield, indexed, hasDocValues);
         }
     }
 
@@ -133,9 +133,9 @@ public class SearchContextStats implements SearchStats {
         return stat.config.hasDocValues;
     }
 
-    public boolean hasIdenticalDelegate(String field) {
+    public boolean hasExactSubfield(String field) {
         var stat = cache.computeIfAbsent(field, this::makeFieldStats);
-        return stat.config.hasIdenticalDelegate;
+        return stat.config.hasExactSubfield;
     }
 
     public long count() {

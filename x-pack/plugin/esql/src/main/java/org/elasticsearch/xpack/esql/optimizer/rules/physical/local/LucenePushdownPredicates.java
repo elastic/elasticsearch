@@ -22,21 +22,21 @@ import org.elasticsearch.xpack.esql.stats.SearchStats;
  *         and do not need doc values.</li>
  *     <li>A TopN will be pushed down if the field is indexed and has doc values.</li>
  *     <li>Filters with TEXT fields can only be pushed down if the TEXT field has a nested KEYWORD field,
- *         referred to here as IdenticalDelegate. This that this is related to normal ES|QL predicates,
+ *         referred to here as ExactSubfield. This that this is related to normal ES|QL predicates,
  *         not the full-text search provided by the MATCH and QSTR functions, which are pushed down separately.</li>
  * </ol>
  */
 public interface LucenePushdownPredicates {
     /**
-     * For TEXT fields, we need to check if the field has an identical delegate.
+     * For TEXT fields, we need to check if the field has a subfield of type KEYWORD that can be used instead.
      */
-    boolean hasIdenticalDelegate(FieldAttribute attr);
+    boolean hasExactSubfield(FieldAttribute attr);
 
     /**
      * For pushing down TopN and for pushing down filters with SingleValueQuery,
      * we need to check if the field is indexed and has doc values.
      */
-    boolean isIndexedAndDocValues(FieldAttribute attr);
+    boolean isIndexedAndHasDocValues(FieldAttribute attr);
 
     /**
      * For pushing down filters when multi-value results are allowed (spatial functions like ST_INTERSECTS),
@@ -53,25 +53,25 @@ public interface LucenePushdownPredicates {
      * support it, and relying on the compute engine for the nodes that do not.
      */
     default boolean isPushableFieldAttribute(Expression exp) {
-        if (exp instanceof FieldAttribute fa && fa.getExactInfo().hasExact() && isIndexedAndDocValues(fa)) {
-            return (fa.dataType() != DataType.TEXT && fa.dataType() != DataType.SEMANTIC_TEXT) || hasIdenticalDelegate(fa);
+        if (exp instanceof FieldAttribute fa && fa.getExactInfo().hasExact() && isIndexedAndHasDocValues(fa)) {
+            return (fa.dataType() != DataType.TEXT && fa.dataType() != DataType.SEMANTIC_TEXT) || hasExactSubfield(fa);
         }
         return false;
     }
 
     /**
      * The default implementation of this has no access to SearchStats, so it can only make decisions based on the FieldAttribute itself.
-     * In particular, it assumes TEXT fields have no identical delegate (underlying keyword field),
+     * In particular, it assumes TEXT fields have no exact subfields (underlying keyword field),
      * and that isAggregatable means indexed and has hasDocValues.
      */
     LucenePushdownPredicates DEFAULT = new LucenePushdownPredicates() {
         @Override
-        public boolean hasIdenticalDelegate(FieldAttribute attr) {
+        public boolean hasExactSubfield(FieldAttribute attr) {
             return false;
         }
 
         @Override
-        public boolean isIndexedAndDocValues(FieldAttribute attr) {
+        public boolean isIndexedAndHasDocValues(FieldAttribute attr) {
             // Is the FieldType.isAggregatable() check correct here? In FieldType isAggregatable usually only means hasDocValues
             return attr.field().isAggregatable();
         }
@@ -85,17 +85,17 @@ public interface LucenePushdownPredicates {
 
     /**
      * If we have access to SearchStats over a collection of shards, we can make more fine-grained decisions about what can be pushed down.
-     * This should open up more opportunities for pushdown.
+     * This should open up more opportunities for lucene pushdown.
      */
     static LucenePushdownPredicates from(SearchStats stats) {
         return new LucenePushdownPredicates() {
             @Override
-            public boolean hasIdenticalDelegate(FieldAttribute attr) {
-                return stats.hasIdenticalDelegate(attr.name());
+            public boolean hasExactSubfield(FieldAttribute attr) {
+                return stats.hasExactSubfield(attr.name());
             }
 
             @Override
-            public boolean isIndexedAndDocValues(FieldAttribute attr) {
+            public boolean isIndexedAndHasDocValues(FieldAttribute attr) {
                 // We still consider the value of isAggregatable here, because some fields like ScriptFieldTypes are always aggregatable
                 // But this could hide issues with fields that are not indexed but are aggregatable
                 // This is the original behaviour for ES|QL, but is it correct?

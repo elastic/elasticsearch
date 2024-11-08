@@ -136,7 +136,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.Substring;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToLower;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToUpper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Trim;
-import org.elasticsearch.xpack.esql.expression.function.scalar.util.Wait;
+import org.elasticsearch.xpack.esql.expression.function.scalar.util.Delay;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.lang.reflect.Constructor;
@@ -400,8 +400,9 @@ public class EsqlFunctionRegistry {
     private static FunctionDefinition[][] snapshotFunctions() {
         return new FunctionDefinition[][] {
             new FunctionDefinition[] {
-                // The wait() function is for debug/snapshot environments only and should never be enabled in a non-snapshot build
-                def(Wait.class, Wait::new, "wait"),
+                // The delay() function is for debug/snapshot environments only and should never be enabled in a non-snapshot build.
+                // This is an experimental function and can be removed without notice.
+                def(Delay.class, Delay::new, "delay"),
                 def(Categorize.class, Categorize::new, "categorize"),
                 def(Rate.class, Rate::withUnresolvedTimestamp, "rate") } };
     }

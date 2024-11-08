@@ -15,10 +15,10 @@ import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Wait}.
+ * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Delay}.
  * This class is generated. Do not edit it.
  */
-public final class WaitEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class DelayEvaluator implements EvalOperator.ExpressionEvaluator {
   private final Source source;
 
   private final long ms;
@@ -27,7 +27,7 @@ public final class WaitEvaluator implements EvalOperator.ExpressionEvaluator {
 
   private Warnings warnings;
 
-  public WaitEvaluator(Source source, long ms, DriverContext driverContext) {
+  public DelayEvaluator(Source source, long ms, DriverContext driverContext) {
     this.source = source;
     this.ms = ms;
     this.driverContext = driverContext;
@@ -41,7 +41,7 @@ public final class WaitEvaluator implements EvalOperator.ExpressionEvaluator {
   public BooleanVector eval(int positionCount) {
     try(BooleanVector.FixedBuilder result = driverContext.blockFactory().newBooleanVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendBoolean(p, Wait.process(this.ms));
+        result.appendBoolean(p, Delay.process(this.ms));
       }
       return result.build();
     }
@@ -49,7 +49,7 @@ public final class WaitEvaluator implements EvalOperator.ExpressionEvaluator {
 
   @Override
   public String toString() {
-    return "WaitEvaluator[" + "ms=" + ms + "]";
+    return "DelayEvaluator[" + "ms=" + ms + "]";
   }
 
   @Override
@@ -79,13 +79,13 @@ public final class WaitEvaluator implements EvalOperator.ExpressionEvaluator {
     }
 
     @Override
-    public WaitEvaluator get(DriverContext context) {
-      return new WaitEvaluator(source, ms, context);
+    public DelayEvaluator get(DriverContext context) {
+      return new DelayEvaluator(source, ms, context);
     }
 
     @Override
     public String toString() {
-      return "WaitEvaluator[" + "ms=" + ms + "]";
+      return "DelayEvaluator[" + "ms=" + ms + "]";
     }
   }
 }

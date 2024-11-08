@@ -33,20 +33,20 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
  * Slowdown function - for debug purposes only.
  * Syntax: WAIT(ms) - will sleep for ms milliseconds.
  */
-public class Wait extends UnaryScalarFunction {
-    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Wait", Wait::new);
+public class Delay extends UnaryScalarFunction {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Delay", Delay::new);
 
-    public Wait(Source source, @Param(name = "ms", type = { "time_duration" }, description = "For how long") Expression ms) {
+    public Delay(Source source, @Param(name = "ms", type = { "time_duration" }, description = "For how long") Expression ms) {
         super(source, ms);
     }
 
-    private Wait(StreamInput in) throws IOException {
+    private Delay(StreamInput in) throws IOException {
         super(in);
     }
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new Wait(source(), newChildren.getFirst());
+        return new Delay(source(), newChildren.getFirst());
     }
 
     @Override
@@ -75,7 +75,7 @@ public class Wait extends UnaryScalarFunction {
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, Wait::new, field());
+        return NodeInfo.create(this, Delay::new, field());
     }
 
     @Override
@@ -101,7 +101,7 @@ public class Wait extends UnaryScalarFunction {
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(EvaluatorMapper.ToEvaluator toEvaluator) {
-        return new WaitEvaluator.Factory(source(), msValue());
+        return new DelayEvaluator.Factory(source(), msValue());
     }
 
     @Evaluator
@@ -114,7 +114,7 @@ public class Wait extends UnaryScalarFunction {
                 return true;
             }
         } else {
-            throw new IllegalArgumentException("Wait function is only available in snapshot builds");
+            throw new IllegalArgumentException("Delay function is only available in snapshot builds");
         }
         return true;
     }

@@ -15,6 +15,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.lookup.QueryList;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.ShardId;
@@ -74,7 +75,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
     @Override
     protected QueryList queryList(TransportRequest request, SearchExecutionContext context, Block inputBlock, DataType inputDataType) {
         MappedFieldType fieldType = context.getFieldType(request.matchField);
-        return QueryList.termQueryList(fieldType, context, inputBlock, inputDataType);
+        return termQueryList(fieldType, context, inputBlock, inputDataType);
     }
 
     public static class Request extends AbstractLookupService.Request {

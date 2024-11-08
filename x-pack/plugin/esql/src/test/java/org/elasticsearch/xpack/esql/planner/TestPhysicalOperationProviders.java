@@ -11,6 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.Describable;
+import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
@@ -87,6 +88,7 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
         PhysicalOperation source,
         AggregateExec aggregateExec,
         List<GroupingAggregator.Factory> aggregatorFactories,
+        AggregatorMode aggregatorMode,
         Attribute attrSource,
         ElementType groupElementType,
         LocalExecutionPlannerContext context
@@ -95,6 +97,7 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
         return new TestOrdinalsGroupingAggregationOperatorFactory(
             channelIndex,
             aggregatorFactories,
+            aggregatorMode,
             groupElementType,
             context.bigArrays(),
             attrSource.name()
@@ -251,6 +254,7 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
     private class TestOrdinalsGroupingAggregationOperatorFactory implements Operator.OperatorFactory {
         private int groupByChannel;
         private List<GroupingAggregator.Factory> aggregators;
+        private AggregatorMode aggregatorMode;
         private ElementType groupElementType;
         private BigArrays bigArrays;
         private String columnName;
@@ -258,12 +262,14 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
         TestOrdinalsGroupingAggregationOperatorFactory(
             int channelIndex,
             List<GroupingAggregator.Factory> aggregatorFactories,
+            AggregatorMode aggregatorMode,
             ElementType groupElementType,
             BigArrays bigArrays,
             String name
         ) {
             this.groupByChannel = channelIndex;
             this.aggregators = aggregatorFactories;
+            this.aggregatorMode = aggregatorMode;
             this.groupElementType = groupElementType;
             this.bigArrays = bigArrays;
             this.columnName = name;
@@ -277,6 +283,7 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
                 aggregators,
                 () -> BlockHash.build(
                     List.of(new BlockHash.GroupSpec(groupByChannel, groupElementType)),
+                    aggregatorMode,
                     driverContext.blockFactory(),
                     pageSize,
                     false

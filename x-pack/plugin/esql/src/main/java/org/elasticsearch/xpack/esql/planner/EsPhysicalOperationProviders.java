@@ -17,6 +17,7 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.ElementType;
@@ -225,6 +226,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         LocalExecutionPlanner.PhysicalOperation source,
         AggregateExec aggregateExec,
         List<GroupingAggregator.Factory> aggregatorFactories,
+        AggregatorMode aggregatorMode,
         Attribute attrSource,
         ElementType groupElementType,
         LocalExecutionPlannerContext context

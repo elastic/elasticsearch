@@ -14,7 +14,7 @@
         }
       ],
       "variadic" : false,
-      "returnType" : "integer"
+      "returnType" : "category"
     },
     {
       "params" : [
@@ -26,7 +26,7 @@
         }
       ],
       "variadic" : false,
-      "returnType" : "integer"
+      "returnType" : "category"
     }
   ],
   "preview" : false,

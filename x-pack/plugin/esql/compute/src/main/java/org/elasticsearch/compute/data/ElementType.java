@@ -24,7 +24,7 @@ public enum ElementType {
     NULL("Null", (blockFactory, estimatedSize) -> new ConstantNullBlock.Builder(blockFactory)),
 
     BYTES_REF("BytesRef", BlockFactory::newBytesRefBlockBuilder),
-    CATEGORY("CategoryRaw", BlockFactory::newBytesRefBlockBuilder),
+    CATEGORY("Category", BlockFactory::newBytesRefBlockBuilder),
 
     /**
      * Blocks that reference individual lucene documents.

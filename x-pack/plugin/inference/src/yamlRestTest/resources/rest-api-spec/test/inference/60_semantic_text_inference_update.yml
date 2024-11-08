@@ -647,7 +647,7 @@ setup:
   - match: { _source.dense_field.text: "another inference test" }
   - exists: _source.dense_field.inference.chunks.0.embeddings
   - match: { _source.dense_field.inference.chunks.0.text: "another inference test" }
-  - match: { _source.non_inference_field: "non inference test" }
+  - match: { _source.non_inference_field: "another value" }
 
   - do:
       bulk:

@@ -257,7 +257,7 @@ public class QueryableRolesSynchronizationExecutor implements ClusterStateListen
         ActionListener<Void> listener
     ) {
         Index concreteSecurityIndex = resolveConcreteSecurityIndex(state.metadata());
-        if(concreteSecurityIndex == null){
+        if (concreteSecurityIndex == null) {
             listener.onFailure(new IndexNotFoundException("concrete security index not found"));
             return;
         }
@@ -273,8 +273,6 @@ public class QueryableRolesSynchronizationExecutor implements ClusterStateListen
             null
         );
     }
-
-
 
     private Map<String, String> readIndexedRolesVersion(ClusterState state) {
         final IndexMetadata indexMetadata = resolveSecurityIndexMetadata(state.metadata());

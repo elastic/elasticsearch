@@ -298,7 +298,7 @@ public class CsvTests extends ESTestCase {
             Releasables.close(() -> Iterators.map(actualResults.pages().iterator(), p -> p::releaseBlocks));
             // Give the breaker service some time to clear in case we got results before the rest of the driver had cleaned up
             // NOCOMMIT: looks like something isn't cleaned up properly!
-            //assertBusy(() -> assertThat(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST).getUsed(), equalTo(0L)));
+            assertBusy(() -> assertThat(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST).getUsed(), equalTo(0L)));
         }
     }
 

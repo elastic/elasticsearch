@@ -41,8 +41,9 @@ public class CategorizedIntermediateBlockHash extends AbstractCategorizeBlockHas
             for (int i = 0; i < idMap.size(); i++) {
                 newIdsBuilder.appendInt(idMap.get(i));
             }
-            IntBlock newIds = newIdsBuilder.build();
-            addInput.add(0, newIds);
+            try (IntBlock newIds = newIdsBuilder.build()) {
+                addInput.add(0, newIds);
+            }
         }
     }
 

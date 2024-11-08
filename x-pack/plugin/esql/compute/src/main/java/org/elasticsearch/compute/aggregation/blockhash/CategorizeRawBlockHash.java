@@ -46,8 +46,9 @@ public class CategorizeRawBlockHash extends AbstractCategorizeBlockHash {
 
     @Override
     public void add(Page page, GroupingAggregatorFunction.AddInput addInput) {
-        IntBlock result = (IntBlock) evaluator.eval(page.getBlock(channel()));
-        addInput.add(0, result);
+        try (IntBlock result = (IntBlock) evaluator.eval(page.getBlock(channel()))) {
+            addInput.add(0, result);
+        }
     }
 
     @Override
@@ -88,9 +89,8 @@ public class CategorizeRawBlockHash extends AbstractCategorizeBlockHash {
             if (vVector == null) {
                 return eval(vBlock.getPositionCount(), vBlock);
             }
-            try (IntVector vector = eval(vBlock.getPositionCount(), vVector)) {
-                return vector.asBlock();
-            }
+            IntVector vector = eval(vBlock.getPositionCount(), vVector);
+            return vector.asBlock();
         }
 
         public IntBlock eval(int positionCount, BytesRefBlock vBlock) {

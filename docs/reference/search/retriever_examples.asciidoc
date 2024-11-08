@@ -125,7 +125,11 @@ GET /retrievers_example/_search
                {
                    "knn": {
                        "field": "vector",
-                       "query_vector": [0.23, 0.67, 0.89],
+                       "query_vector": [
+                           0.23,
+                           0.67,
+                           0.89
+                       ],
                        "k": 3,
                        "num_candidates": 5
                    }
@@ -168,7 +172,11 @@ GET /retrievers_example/_search
                {
                    "knn": {
                        "field": "vector",
-                       "query_vector": [0.23, 0.67, 0.89],
+                       "query_vector": [
+                           0.23,
+                           0.67,
+                           0.89
+                       ],
                        "k": 3,
                        "num_candidates": 5
                    }

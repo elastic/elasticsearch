@@ -6,8 +6,8 @@ To begin with, we'll set up the necessary services and have them in place for la
 
 [source,js]
 ----
-// Setup rerank task stored as `my-awesome-rerank-model`
-PUT _inference/rerank/my-awesome-rerank-model
+// Setup rerank task stored as `my-rerank-model`
+PUT _inference/rerank/my-rerank-model
 {
  "service": "cohere",
  "service_settings": {
@@ -234,7 +234,7 @@ GET retrievers_example/_search
                }
            },
            "field": "text",
-           "inference_id": "my-awesome-rerank-model",
+           "inference_id": "my-rerank-model",
            "inference_text": "What are the state of the art applications of AI in information retrieval?"
        }
    },
@@ -247,7 +247,7 @@ GET retrievers_example/_search
 [discrete]
 === RRF with semantic reranker
 
-For this example, we'll replace our semantic query with the `my-awesome-rerank-model`
+For this example, we'll replace our semantic query with the `my-rerank-model`
 reranker we previously configured. Since this is a reranker, it needs an initial pool of
 documents to work with. In this case, we'll filter for documents about `ai` topics.
 
@@ -282,7 +282,7 @@ GET /retrievers_example/_search
                             }
                         },
                         "field": "text",
-                        "inference_id": "my-awesome-rerank-model",
+                        "inference_id": "my-rerank-model",
                         "inference_text": "Can I use generative AI to identify user intent and improve search relevance?"
                     }
                 }
@@ -326,7 +326,7 @@ GET retrievers_example/_search
                    },
                    "rank_window_size": 100,
                    "field": "text",
-                   "inference_id": "my-awesome-rerank-model",
+                   "inference_id": "my-rerank-model",
                    "inference_text": "What are the state of the art applications of AI in information retrieval?"
                }
            },
@@ -346,7 +346,7 @@ GET retrievers_example/_search
 
 
 Note that our example applies two reranking steps. First, we rerank the top 100
-documents from the `knn` search using the `my-awesome-rerank-model` reranker. Then we
+documents from the `knn` search using the `my-rerank-model` reranker. Then we
 pick the top 10 results and rerank them using the more fine-grained
 `my-other-more-expensive-rerank-model`.
 

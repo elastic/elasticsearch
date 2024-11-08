@@ -30,7 +30,9 @@ import static org.elasticsearch.xpack.kql.parser.KqlParsingContext.isKeywordFiel
 import static org.elasticsearch.xpack.kql.parser.KqlParsingContext.isRuntimeField;
 import static org.elasticsearch.xpack.kql.parser.KqlParsingContext.isSearchableField;
 import static org.elasticsearch.xpack.kql.parser.ParserUtils.escapeLuceneQueryString;
+import static org.elasticsearch.xpack.kql.parser.ParserUtils.extractText;
 import static org.elasticsearch.xpack.kql.parser.ParserUtils.hasWildcard;
+import static org.elasticsearch.xpack.kql.parser.ParserUtils.typedParsing;
 
 class KqlAstBuilder extends KqlBaseBaseVisitor<QueryBuilder> {
     private final KqlParsingContext kqlParsingContext;
@@ -42,7 +44,7 @@ class KqlAstBuilder extends KqlBaseBaseVisitor<QueryBuilder> {
     public QueryBuilder toQueryBuilder(ParserRuleContext ctx) {
         if (ctx instanceof KqlBaseParser.TopLevelQueryContext topLeveQueryContext) {
             if (topLeveQueryContext.query() != null) {
-                return ParserUtils.typedParsing(this, topLeveQueryContext.query(), QueryBuilder.class);
+                return typedParsing(this, topLeveQueryContext.query(), QueryBuilder.class);
             }
 
             return new MatchAllQueryBuilder();
@@ -63,9 +65,9 @@ class KqlAstBuilder extends KqlBaseBaseVisitor<QueryBuilder> {
         // TODO: KQLContext has an option to wrap the clauses into a filter instead of a must clause. Do we need it?
         for (ParserRuleContext subQueryCtx : ctx.query()) {
             if (subQueryCtx instanceof KqlBaseParser.BooleanQueryContext booleanSubQueryCtx && isAndQuery(booleanSubQueryCtx)) {
-                ParserUtils.typedParsing(this, subQueryCtx, BoolQueryBuilder.class).must().forEach(builder::must);
+                typedParsing(this, subQueryCtx, BoolQueryBuilder.class).must().forEach(builder::must);
             } else {
-                builder.must(ParserUtils.typedParsing(this, subQueryCtx, QueryBuilder.class));
+                builder.must(typedParsing(this, subQueryCtx, QueryBuilder.class));
             }
         }
 
@@ -77,9 +79,9 @@ class KqlAstBuilder extends KqlBaseBaseVisitor<QueryBuilder> {
 
         for (ParserRuleContext subQueryCtx : ctx.query()) {
             if (subQueryCtx instanceof KqlBaseParser.BooleanQueryContext booleanSubQueryCtx && isOrQuery(booleanSubQueryCtx)) {
-                ParserUtils.typedParsing(this, subQueryCtx, BoolQueryBuilder.class).should().forEach(builder::should);
+                typedParsing(this, subQueryCtx, BoolQueryBuilder.class).should().forEach(builder::should);
             } else {
-                builder.should(ParserUtils.typedParsing(this, subQueryCtx, QueryBuilder.class));
+                builder.should(typedParsing(this, subQueryCtx, QueryBuilder.class));
             }
         }
 
@@ -88,12 +90,12 @@ class KqlAstBuilder extends KqlBaseBaseVisitor<QueryBuilder> {
 
     @Override
     public QueryBuilder visitNotQuery(KqlBaseParser.NotQueryContext ctx) {
-        return QueryBuilders.boolQuery().mustNot(ParserUtils.typedParsing(this, ctx.simpleQuery(), QueryBuilder.class));
+        return QueryBuilders.boolQuery().mustNot(typedParsing(this, ctx.simpleQuery(), QueryBuilder.class));
     }
 
     @Override
     public QueryBuilder visitParenthesizedQuery(KqlBaseParser.ParenthesizedQueryContext ctx) {
-        return ParserUtils.typedParsing(this, ctx.query(), QueryBuilder.class);
+        return typedParsing(this, ctx.query(), QueryBuilder.class);
     }
 
     @Override
@@ -125,7 +127,7 @@ class KqlAstBuilder extends KqlBaseBaseVisitor<QueryBuilder> {
     public QueryBuilder visitRangeQuery(KqlBaseParser.RangeQueryContext ctx) {
         BoolQueryBuilder boolQueryBuilder = QueryBuilders.boolQuery().minimumShouldMatch(1);
 
-        String queryText = ParserUtils.extractText(ctx.rangeQueryValue());
+        String queryText = extractText(ctx.rangeQueryValue());
         BiFunction<RangeQueryBuilder, String, RangeQueryBuilder> rangeOperation = rangeOperation(ctx.operator);
 
         withFields(ctx.fieldName(), (fieldName, mappedFieldType) -> {
@@ -143,7 +145,7 @@ class KqlAstBuilder extends KqlBaseBaseVisitor<QueryBuilder> {
 
     @Override
     public QueryBuilder visitFieldLessQuery(KqlBaseParser.FieldLessQueryContext ctx) {
-        String queryText = ParserUtils.extractText(ctx.fieldQueryValue());
+        String queryText = extractText(ctx.fieldQueryValue());
 
         if (hasWildcard(ctx.fieldQueryValue())) {
             QueryStringQueryBuilder queryString = QueryBuilders.queryStringQuery(escapeLuceneQueryString(queryText, true));
@@ -173,7 +175,7 @@ class KqlAstBuilder extends KqlBaseBaseVisitor<QueryBuilder> {
     public QueryBuilder visitFieldQuery(KqlBaseParser.FieldQueryContext ctx) {
 
         BoolQueryBuilder boolQueryBuilder = QueryBuilders.boolQuery().minimumShouldMatch(1);
-        String queryText = ParserUtils.extractText(ctx.fieldQueryValue());
+        String queryText = extractText(ctx.fieldQueryValue());
         boolean hasWildcard = hasWildcard(ctx.fieldQueryValue());
 
         withFields(ctx.fieldName(), (fieldName, mappedFieldType) -> {
@@ -215,7 +217,7 @@ class KqlAstBuilder extends KqlBaseBaseVisitor<QueryBuilder> {
 
     private void withFields(KqlBaseParser.FieldNameContext ctx, BiConsumer<String, MappedFieldType> fieldConsummer) {
         assert ctx != null : "Field ctx cannot be null";
-        String fieldNamePattern = ParserUtils.extractText(ctx);
+        String fieldNamePattern = extractText(ctx);
         Set<String> fieldNames = kqlParsingContext.resolveFieldNames(fieldNamePattern);
 
         if (ctx.value.getType() == KqlBaseParser.QUOTED_STRING && Regex.isSimpleMatchPattern(fieldNamePattern)) {

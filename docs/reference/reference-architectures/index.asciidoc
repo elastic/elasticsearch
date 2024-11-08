@@ -19,16 +19,17 @@ These reference architectures are recommendations and should be adapted to fit y
 [cols="50, 50"]
 |===
 | *Architecture* | *When to use*
-| <<elastic-cloud-architecture>>
+| <<hot-frozen>>
 
-This architecture uses the Elasticsearch Service to simplify deployment and management. It uses a multi-availability zone architecture and is optimized for time-series datasets.
+The Hot / Frozen – High Availability architecture is cost optimized for large time-series datasets. 
 
 a| 
-* You want to use the best practices Elastic Cloud implements to run your cluster.
-* You want to leverage cloud provider hardware that have been extensively tested.
-* You need long retention periods with the ability to search indices in an object store cost-effectively.
-* Use cloud provider's highly available object stores for data integrity so you don't have to depend on your own.
+* Have a requirement for cost effective long term data storage (many months or years) 
+* Provide insights and alerts using logs, metrics, traces, or various event types to ensure optimal performance and quick issue resolution for applications.
+* Apply Machine Learning and Search AI to assist in dealing with the large amount of data.
+* Deploy an architecture model that allows for maximum flexibility between storage cost and performance.
+
 
 |===
 
-include::elastic-cloud-architecture.asciidoc[]
+include::hot-frozen.asciidoc[]

@@ -475,8 +475,7 @@ public class IndexTemplateRegistryTests extends ESTestCase {
         assertBusy(() -> assertThat(putIndexTemplateCounter.get(), equalTo(1)));
         // rollover should be triggered even for the first installation, since the template
         // may now take precedence over a data stream's existing index template
-        Thread.sleep(100L);
-        assertThat(rolloverCounter.get(), equalTo(2));
+        assertBusy(() -> assertThat(rolloverCounter.get(), equalTo(2)));
     }
 
     public void testThatTemplatesAreNotUpgradedWhenNotNeeded() throws Exception {

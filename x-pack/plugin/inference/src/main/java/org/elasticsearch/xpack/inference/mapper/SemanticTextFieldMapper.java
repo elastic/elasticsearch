@@ -681,9 +681,9 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         }
     }
 
-    public record SuffixMap(String suffix, Map<String, Object> map) {}
+    private record SuffixMap(String suffix, Map<String, Object> map) {}
 
-    public static List<SuffixMap> extractSuffixMaps(String[] pathElements, int index, Object currentValue) {
+    private static List<SuffixMap> extractSuffixMaps(String[] pathElements, int index, Object currentValue) {
         if (currentValue instanceof List<?> valueList) {
             List<SuffixMap> suffixMaps = new ArrayList<>(valueList.size());
             for (Object o : valueList) {

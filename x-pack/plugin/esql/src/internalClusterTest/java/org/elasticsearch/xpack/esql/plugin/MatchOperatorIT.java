@@ -125,14 +125,9 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
             """;
 
         try (var resp = run(query)) {
-            assertThat(resp.columns().stream().map(ColumnInfoImpl::name).toList(), equalTo(List.of("id", "_score")));
-            assertThat(
-                resp.columns().stream().map(ColumnInfoImpl::type).map(DataType::toString).toList(),
-                equalTo(List.of("INTEGER", "DOUBLE"))
-            );
-            // values
-            List<List<Object>> values = getValuesList(resp);
-            assertMap(values, matchesList().item(List.of(1, 1.156558871269226)).item(List.of(6, 0.9114001989364624)));
+            assertColumnNames(resp.columns(), List.of("id", "_score"));
+            assertColumnTypes(resp.columns(), List.of("integer", "double"));
+            assertValues(resp.values(), List.of(List.of(1, 1.156558871269226), List.of(6, 0.9114001989364624)));
         }
     }
 
@@ -147,14 +142,9 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
             """;
 
         try (var resp = run(query)) {
-            assertThat(resp.columns().stream().map(ColumnInfoImpl::name).toList(), equalTo(List.of("id", "_score")));
-            assertThat(
-                resp.columns().stream().map(ColumnInfoImpl::type).map(DataType::toString).toList(),
-                equalTo(List.of("INTEGER", "DOUBLE"))
-            );
-            // values
-            List<List<Object>> values = getValuesList(resp);
-            assertMap(values, matchesList().item(List.of(1, 1.156558871269226)).item(List.of(6, 0.9114001989364624)));
+            assertColumnNames(resp.columns(), List.of("id", "_score"));
+            assertColumnTypes(resp.columns(), List.of("integer", "double"));
+            assertValues(resp.values(), List.of(List.of(1, 1.156558871269226), List.of(6, 0.9114001989364624)));
         }
     }
 
@@ -168,12 +158,9 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
             """;
 
         try (var resp = run(query)) {
-            assertThat(resp.columns().stream().map(ColumnInfoImpl::name).toList(), equalTo(List.of("id", "_score")));
-            assertThat(
-                resp.columns().stream().map(ColumnInfoImpl::type).map(DataType::toString).toList(),
-                equalTo(List.of("INTEGER", "DOUBLE"))
-            );
-            assertMap(getValuesList(resp), containsInAnyOrder(List.of(1, 1.156558871269226), List.of(6, 0.9114001989364624)));
+            assertColumnNames(resp.columns(), List.of("id", "_score"));
+            assertColumnTypes(resp.columns(), List.of("integer", "double"));
+            assertValuesInAnyOrder(resp.values(), List.of(List.of(1, 1.156558871269226), List.of(6, 0.9114001989364624)));
         }
     }
 

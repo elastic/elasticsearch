@@ -1982,6 +1982,14 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
         } else {
             assertNull(settingValue);
             assertNotNull(clusterSettingsResponse.<String>evaluate("persistent.archived." + THRESHOLD_SETTING.getKey()));
+            // Remove the archived setting to not interfere other tests in this test class
+            client().performRequest(
+                newXContentRequest(
+                    HttpMethod.PUT,
+                    "/_cluster/settings",
+                    (builder, params) -> builder.startObject("persistent").nullField("archived." + THRESHOLD_SETTING.getKey()).endObject()
+                )
+            );
         }
     }
 }

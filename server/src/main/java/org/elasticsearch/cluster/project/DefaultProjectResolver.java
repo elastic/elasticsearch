@@ -36,7 +36,6 @@ public class DefaultProjectResolver implements ProjectResolver {
 
     @Override
     public ProjectId getProjectId() {
-        // TODO: We can assert the cluster state really has such one project if we let DefaultProjectResolver reference a clusterService
         return Metadata.DEFAULT_PROJECT_ID;
     }
 

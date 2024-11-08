@@ -78,7 +78,7 @@ public class MultiProjectResolverTests extends ESTestCase {
         var projects = createProjects();
         var metadata = Metadata.builder().projectMetadata(projects).build();
         threadPool.getThreadContext().putHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER, randomUUID());
-        assertThrows(AssertionError.class, () -> resolver.getProjectMetadata(metadata));
+        assertThrows(IllegalArgumentException.class, () -> resolver.getProjectMetadata(metadata));
     }
 
     public void testGetAllProjectIds() {

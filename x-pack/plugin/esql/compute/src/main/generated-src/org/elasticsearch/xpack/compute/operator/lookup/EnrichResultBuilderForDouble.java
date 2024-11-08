@@ -5,35 +5,35 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.enrich;
+package org.elasticsearch.compute.operator.lookup;
 
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
-import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasables;
 
 import java.util.Arrays;
 
 /**
- * {@link EnrichResultBuilder} for Longs.
+ * {@link EnrichResultBuilder} for Doubles.
  * This class is generated. Edit `X-EnrichResultBuilder.java.st` instead.
  */
-final class EnrichResultBuilderForLong extends EnrichResultBuilder {
-    private ObjectArray<long[]> cells;
+final class EnrichResultBuilderForDouble extends EnrichResultBuilder {
+    private ObjectArray<double[]> cells;
 
-    EnrichResultBuilderForLong(BlockFactory blockFactory, int channel) {
+    EnrichResultBuilderForDouble(BlockFactory blockFactory, int channel) {
         super(blockFactory, channel);
         this.cells = blockFactory.bigArrays().newObjectArray(1);
     }
 
     @Override
     void addInputPage(IntVector positions, Page page) {
-        LongBlock block = page.getBlock(channel);
+        DoubleBlock block = page.getBlock(channel);
         for (int i = 0; i < positions.getPositionCount(); i++) {
             int valueCount = block.getValueCount(i);
             if (valueCount == 0) {
@@ -48,53 +48,53 @@ final class EnrichResultBuilderForLong extends EnrichResultBuilder {
             adjustBreaker(RamUsageEstimator.sizeOf(newCell) - (oldCell != null ? RamUsageEstimator.sizeOf(oldCell) : 0));
             int firstValueIndex = block.getFirstValueIndex(i);
             for (int v = 0; v < valueCount; v++) {
-                newCell[dstIndex + v] = block.getLong(firstValueIndex + v);
+                newCell[dstIndex + v] = block.getDouble(firstValueIndex + v);
             }
         }
     }
 
-    private long[] extendCell(long[] oldCell, int newValueCount) {
+    private double[] extendCell(double[] oldCell, int newValueCount) {
         if (oldCell == null) {
-            return new long[newValueCount];
+            return new double[newValueCount];
         } else {
             return Arrays.copyOf(oldCell, oldCell.length + newValueCount);
         }
     }
 
-    private long[] combineCell(long[] first, long[] second) {
+    private double[] combineCell(double[] first, double[] second) {
         if (first == null) {
             return second;
         }
         if (second == null) {
             return first;
         }
-        var result = new long[first.length + second.length];
+        var result = new double[first.length + second.length];
         System.arraycopy(first, 0, result, 0, first.length);
         System.arraycopy(second, 0, result, first.length, second.length);
         return result;
     }
 
-    private void appendGroupToBlockBuilder(LongBlock.Builder builder, long[] group) {
+    private void appendGroupToBlockBuilder(DoubleBlock.Builder builder, double[] group) {
         if (group == null) {
             builder.appendNull();
         } else if (group.length == 1) {
-            builder.appendLong(group[0]);
+            builder.appendDouble(group[0]);
         } else {
             builder.beginPositionEntry();
             // TODO: sort and dedup and set MvOrdering
             for (var v : group) {
-                builder.appendLong(v);
+                builder.appendDouble(v);
             }
             builder.endPositionEntry();
         }
     }
 
-    private long[] getCellOrNull(int position) {
+    private double[] getCellOrNull(int position) {
         return position < cells.size() ? cells.get(position) : null;
     }
 
     private Block buildWithSelected(IntBlock selected) {
-        try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(selected.getPositionCount())) {
+        try (DoubleBlock.Builder builder = blockFactory.newDoubleBlockBuilder(selected.getPositionCount())) {
             for (int i = 0; i < selected.getPositionCount(); i++) {
                 int selectedCount = selected.getValueCount(i);
                 switch (selectedCount) {
@@ -119,7 +119,7 @@ final class EnrichResultBuilderForLong extends EnrichResultBuilder {
     }
 
     private Block buildWithSelected(IntVector selected) {
-        try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(selected.getPositionCount())) {
+        try (DoubleBlock.Builder builder = blockFactory.newDoubleBlockBuilder(selected.getPositionCount())) {
             for (int i = 0; i < selected.getPositionCount(); i++) {
                 appendGroupToBlockBuilder(builder, getCellOrNull(selected.getInt(i)));
             }

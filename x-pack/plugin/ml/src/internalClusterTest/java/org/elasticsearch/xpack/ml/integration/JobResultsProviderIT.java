@@ -224,7 +224,6 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         );
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/40134")
     public void testMultipleSimultaneousJobCreations() {
 
         int numJobs = randomIntBetween(4, 7);

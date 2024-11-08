@@ -89,7 +89,6 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
     /**
      * test the queries are correct if from/to are adjacent and the range is exclusive of those values
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/86284")
     public void testRangeQueryIntersectsAdjacentValues() throws Exception {
         SearchExecutionContext context = createContext();
         ShapeRelation relation = randomFrom(ShapeRelation.values());
@@ -143,7 +142,6 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
     /**
      * check that we catch cases where the user specifies larger "from" than "to" value, not counting the include upper/lower settings
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/86284")
     public void testFromLargerToErrors() throws Exception {
         SearchExecutionContext context = createContext();
         RangeFieldType ft = createDefaultFieldType();

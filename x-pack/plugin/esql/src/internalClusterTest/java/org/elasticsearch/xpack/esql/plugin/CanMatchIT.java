@@ -205,7 +205,6 @@ public class CanMatchIT extends AbstractEsqlIntegTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/103749")
     public void testFailOnUnavailableShards() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(2);
         String logsOnlyNode = internalCluster().startDataOnlyNode();

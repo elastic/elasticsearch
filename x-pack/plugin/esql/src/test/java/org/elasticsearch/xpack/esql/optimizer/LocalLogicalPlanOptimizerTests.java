@@ -267,7 +267,6 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/110150")
     public void testMissingFieldInNewCommand() {
         var testStats = statsForMissingField("last_name");
         localPlan(

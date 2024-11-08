@@ -89,7 +89,6 @@ public class MlMigrationFullClusterRestartIT extends AbstractXpackFullClusterRes
         client().performRequest(createTestIndex);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/36816")
     public void testMigration() throws Exception {
         if (isRunningAgainstOldCluster()) {
             createTestIndex();

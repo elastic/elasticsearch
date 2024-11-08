@@ -1127,7 +1127,6 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
      * a random parameter of the test, but because of #107515 it fails when we include the global state. Keep them
      * separate until this is fixed.
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/107515")
     public void testPartialRestoreSnapshotThatIncludesDataStreamWithGlobalState() {
         final String snapshot = "test-snapshot";
         final String indexWithoutDataStream = "test-idx-no-ds";
@@ -1259,7 +1258,6 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
      * a random parameter of the test, but because of #107515 it fails when we include the global state. Keep them
      * separate until this is fixed.
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/107515")
     public void testExcludeDSFromSnapshotWhenExcludingItsIndicesWithGlobalState() {
         final String snapshot = "test-snapshot";
         final String indexWithoutDataStream = "test-idx-no-ds";
@@ -1432,7 +1430,6 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
     /**
      * This test is muted as it's awaiting the same fix as {@link #testPartialRestoreSnapshotThatIncludesDataStreamWithGlobalState()}
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/107515")
     public void testWarningHeaderOnRestoreTemplateFromSnapshot() throws Exception {
         String datastreamName = "ds";
 

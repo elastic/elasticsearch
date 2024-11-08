@@ -1532,7 +1532,6 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/80089")
     public void testAsyncTextPaginated() throws IOException, InterruptedException {
         final Map<String, String> acceptMap = Map.of("txt", "text/plain", "csv", "text/csv", "tsv", "text/tab-separated-values");
         final int fetchSize = randomIntBetween(1, 10);

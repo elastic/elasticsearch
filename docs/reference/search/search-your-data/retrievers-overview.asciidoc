@@ -187,8 +187,8 @@ Now that we also have our documents in place, let's try to run some queries usin
 
 include::retrievers_examples.asciidoc[tag=basic-rrf-retriever-with-semantic-query]
 include::retrievers_examples.asciidoc[tag=rrf-retriever-with-collapse]
-include::retrievers_examples.asciidoc[tag=rrf-on-top-of-semantic-reranker]
 include::retrievers_examples.asciidoc[tag=text-similarity-reranker-on-top-of-rrf]
+include::retrievers_examples.asciidoc[tag=rrf-on-top-of-semantic-reranker]
 include::retrievers_examples.asciidoc[tag=chaining-text-similarity-reranker-retrievers]
 include::retrievers_examples.asciidoc[tag=rrf-retriever-with-aggs]
 

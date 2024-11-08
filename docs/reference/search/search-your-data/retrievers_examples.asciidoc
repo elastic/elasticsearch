@@ -21,9 +21,9 @@ GET /retrievers_example/_search
                {
                    "standard":{
                        "query":{
-                           "semantic":{
-                               "field": "inference_field",
-                               "query": "Can I use generative AI to identify user intent and improve search relevance?"
+                           "query_string":{
+                              "query": "(information retrieval) OR (artificial intelligence)",
+                              "default_field": "text"
                            }
                        }
                    }
@@ -66,9 +66,9 @@ GET /retrievers_example/_search
                {
                    "standard":{
                        "query":{
-                           "semantic":{
-                               "field": "inference_field",
-                               "query": "Can I use generative AI to identify user intent and improve search relevance?"
+                           "query_string":{
+                              "query": "(information retrieval) OR (artificial intelligence)",
+                              "default_field": "text"
                            }
                        }
                    }
@@ -98,6 +98,62 @@ GET /retrievers_example/_search
 ----
 //NOTCONSOLE
 end::rrf-retriever-with-collapse[]
+
+tag::text-similarity-reranker-on-top-of-rrf[]
+[discrete]
+===  Rerank results of RRF retriever
+
+Previously, we used a `text_similarity_reranker` retriever within an `rrf` retriever.
+Because retrievers support full composability, we can also rerank the results of an
+`rrf` retriever. Let's apply this to our first example.
+
+[source,js]
+----
+GET retrievers_example/_search
+{
+   "retriever": {
+       "text_similarity_reranker": {
+           "retriever": {
+               "rrf": {
+                   "retrievers": [
+                       {
+                           "standard":{
+                               "query":{
+                                   "query_string":{
+                                      "query": "(information retrieval) OR (artificial intelligence)",
+                                      "default_field": "text"
+                                   }
+                               }
+                           }
+                       },
+                       {
+                           "knn": {
+                               "field": "vector",
+                               "query_vector": [
+                                   0.23,
+                                   0.67,
+                                   0.89
+                               ],
+                               "k": 3,
+                               "num_candidates": 5
+                           }
+                       }
+                   ],
+                   "rank_window_size": 10,
+                   "rank_constant": 1
+               }
+           },
+           "field": "text",
+           "inference_id": "my-awesome-rerank-model",
+           "inference_text": "What are the state of the art applications of AI in information retrieval?"
+       }
+   },
+   "_source": ["text", "topic"]
+}
+
+----
+//NOTCONSOLE
+end::text-similarity-reranker-on-top-of-rrf[]
 
 tag::rrf-on-top-of-semantic-reranker[]
 [discrete]
@@ -155,62 +211,6 @@ GET /retrievers_example/_search
 ----
 //NOTCONSOLE
 end::rrf-on-top-of-semantic-reranker[]
-
-tag::text-similarity-reranker-on-top-of-rrf[]
-[discrete]
-===  Rerank results of RRF retriever
-
-Previously, we used a `text_similarity_reranker` retriever within an `rrf` retriever.
-Because retrievers support full composability, we can also rerank the results of an
-`rrf` retriever. Let's apply this to our first example.
-
-[source,js]
-----
-GET retrievers_example/_search
-{
-   "retriever": {
-       "text_similarity_reranker": {
-           "retriever": {
-               "rrf": {
-                   "retrievers": [
-                       {
-                           "standard": {
-                               "query": {
-                                   "semantic": {
-                                       "field": "inference_field",
-                                       "query": "Can I use generative AI to identify user intent and improve search relevance?"
-                                   }
-                               }
-                           }
-                       },
-                       {
-                           "knn": {
-                               "field": "vector",
-                               "query_vector": [
-                                   0.23,
-                                   0.67,
-                                   0.89
-                               ],
-                               "k": 3,
-                               "num_candidates": 5
-                           }
-                       }
-                   ],
-                   "rank_window_size": 10,
-                   "rank_constant": 1
-               }
-           },
-           "field": "text",
-           "inference_id": "my-awesome-rerank-model",
-           "inference_text": "What are the state of the art applications of AI in information retrieval?"
-       }
-   },
-   "_source": ["text", "topic"]
-}
-
-----
-//NOTCONSOLE
-end::text-similarity-reranker-on-top-of-rrf[]
 
 tag::chaining-text-similarity-reranker-retrievers[]
 [discrete]

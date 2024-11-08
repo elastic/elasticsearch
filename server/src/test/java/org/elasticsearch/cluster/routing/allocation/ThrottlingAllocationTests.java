@@ -364,7 +364,7 @@ public class ThrottlingAllocationTests extends ESAllocationTestCase {
         Snapshot snapshot = new Snapshot("repo", new SnapshotId("snap", "randomId"));
         Set<String> snapshotIndices = new HashSet<>();
         String restoreUUID = UUIDs.randomBase64UUID();
-        for (IndexMetadata im : metadata.indices().values()) {
+        for (IndexMetadata im : metadata.getProject().indices().values()) {
             Index index = im.getIndex();
             IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(im);
             final int recoveryType = randomInt(5);

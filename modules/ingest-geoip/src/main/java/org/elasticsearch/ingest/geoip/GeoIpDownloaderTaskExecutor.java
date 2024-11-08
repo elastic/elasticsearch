@@ -220,8 +220,12 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
             return;
         }
 
-        boolean hasIndicesChanges = event.previousState().metadata().indices().equals(event.state().metadata().indices()) == false;
-        boolean hasIngestPipelineChanges = event.metadataChanged() && event.changedCustomMetadataSet().contains(IngestMetadata.TYPE);
+        boolean hasIndicesChanges = event.previousState()
+            .metadata()
+            .getProject()
+            .indices()
+            .equals(event.state().metadata().getProject().indices()) == false;
+        boolean hasIngestPipelineChanges = event.metadataChanged() && event.changedCustomProjectMetadataSet().contains(IngestMetadata.TYPE);
 
         if (hasIngestPipelineChanges || hasIndicesChanges) {
             boolean newAtLeastOneGeoipProcessor = hasAtLeastOneGeoipProcessor(event.state());
@@ -248,7 +252,7 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
             return false;
         }
 
-        return clusterState.getMetadata().indices().values().stream().anyMatch(indexMetadata -> {
+        return clusterState.getMetadata().getProject().indices().values().stream().anyMatch(indexMetadata -> {
             String defaultPipeline = IndexSettings.DEFAULT_PIPELINE.get(indexMetadata.getSettings());
             String finalPipeline = IndexSettings.FINAL_PIPELINE.get(indexMetadata.getSettings());
             return checkReferencedPipelines.contains(defaultPipeline) || checkReferencedPipelines.contains(finalPipeline);
@@ -392,7 +396,11 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
             GEOIP_DOWNLOADER,
             MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT,
             ActionListener.runAfter(listener, () -> {
-                IndexAbstraction databasesAbstraction = clusterService.state().metadata().getIndicesLookup().get(DATABASES_INDEX);
+                IndexAbstraction databasesAbstraction = clusterService.state()
+                    .metadata()
+                    .getProject()
+                    .getIndicesLookup()
+                    .get(DATABASES_INDEX);
                 if (databasesAbstraction != null) {
                     // regardless of whether DATABASES_INDEX is an alias, resolve it to a concrete index
                     Index databasesIndex = databasesAbstraction.getWriteIndex();

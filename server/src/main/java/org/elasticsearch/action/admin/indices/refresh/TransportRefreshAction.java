@@ -18,6 +18,7 @@ import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.support.replication.TransportBroadcastReplicationAction;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.injection.guice.Inject;
@@ -41,7 +42,8 @@ public class TransportRefreshAction extends TransportBroadcastReplicationAction<
         TransportService transportService,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        NodeClient client
+        NodeClient client,
+        ProjectResolver projectResolver
     ) {
         super(
             RefreshAction.NAME,
@@ -52,7 +54,8 @@ public class TransportRefreshAction extends TransportBroadcastReplicationAction<
             actionFilters,
             indexNameExpressionResolver,
             TransportShardRefreshAction.TYPE,
-            transportService.getThreadPool().executor(ThreadPool.Names.REFRESH)
+            transportService.getThreadPool().executor(ThreadPool.Names.REFRESH),
+            projectResolver
         );
     }
 

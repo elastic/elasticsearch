@@ -26,7 +26,7 @@ import java.util.EnumSet;
 import java.util.Iterator;
 import java.util.Objects;
 
-public class TrainedModelCacheMetadata extends AbstractNamedDiffable<Metadata.Custom> implements Metadata.Custom {
+public class TrainedModelCacheMetadata extends AbstractNamedDiffable<Metadata.ProjectCustom> implements Metadata.ProjectCustom {
     public static final String NAME = "trained_model_cache_metadata";
     public static final TrainedModelCacheMetadata EMPTY = new TrainedModelCacheMetadata(0L);
     private static final ParseField VERSION_FIELD = new ParseField("version");
@@ -47,12 +47,12 @@ public class TrainedModelCacheMetadata extends AbstractNamedDiffable<Metadata.Cu
     }
 
     public static TrainedModelCacheMetadata fromState(ClusterState clusterState) {
-        TrainedModelCacheMetadata cacheMetadata = clusterState.getMetadata().custom(NAME);
+        TrainedModelCacheMetadata cacheMetadata = clusterState.getMetadata().getProject().custom(NAME);
         return cacheMetadata == null ? EMPTY : cacheMetadata;
     }
 
-    public static NamedDiff<Metadata.Custom> readDiffFrom(StreamInput streamInput) throws IOException {
-        return readDiffFrom(Metadata.Custom.class, NAME, streamInput);
+    public static NamedDiff<Metadata.ProjectCustom> readDiffFrom(StreamInput streamInput) throws IOException {
+        return readDiffFrom(Metadata.ProjectCustom.class, NAME, streamInput);
     }
 
     private final long version;

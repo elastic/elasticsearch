@@ -156,7 +156,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
             SecuritySystemIndices.SECURITY_MAIN_ALIAS
         ).build();
         final ClusterState.Builder clusterStateBuilder = ClusterState.builder(cs);
-        Index index = cs.metadata().index(TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7).getIndex();
+        Index index = cs.metadata().getProject().index(TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7).getIndex();
         ShardRouting shardRouting = ShardRouting.newUnassigned(
             new ShardId(index, 0),
             true,
@@ -191,7 +191,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
             TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7,
             SecuritySystemIndices.SECURITY_MAIN_ALIAS
         ).build();
-        Index index = cs.metadata().index(TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7).getIndex();
+        Index index = cs.metadata().getProject().index(TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7).getIndex();
         ShardId shardId = new ShardId(index, 0);
         ShardRouting primary = ShardRouting.newUnassigned(
             shardId,
@@ -892,7 +892,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
         return ClusterState.builder(cs)
             .routingTable(
                 SecurityTestUtils.buildIndexRoutingTable(
-                    cs.metadata().index(TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7).getIndex()
+                    cs.metadata().getProject().index(TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7).getIndex()
                 )
             )
             .build();

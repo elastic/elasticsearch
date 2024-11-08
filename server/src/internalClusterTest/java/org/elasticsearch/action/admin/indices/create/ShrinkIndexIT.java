@@ -231,7 +231,7 @@ public class ShrinkIndexIT extends ESIntegTestCase {
             .cluster()
             .state(new ClusterStateRequest(TEST_REQUEST_TIMEOUT))
             .actionGet();
-        return clusterStateResponse.getState().metadata().index(index);
+        return clusterStateResponse.getState().metadata().getProject().index(index);
     }
 
     public void testCreateShrinkIndex() {
@@ -517,7 +517,7 @@ public class ShrinkIndexIT extends ESIntegTestCase {
             assertNoResizeSourceIndexSettings("target");
 
             ClusterStateResponse clusterStateResponse = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get();
-            IndexMetadata target = clusterStateResponse.getState().getMetadata().index("target");
+            IndexMetadata target = clusterStateResponse.getState().getMetadata().getProject().index("target");
             indicesAdmin().prepareForceMerge("target").setMaxNumSegments(1).setFlush(false).get();
             IndicesSegmentResponse targetSegStats = indicesAdmin().prepareSegments("target").get();
             ShardSegments segmentsStats = targetSegStats.getIndices().get("target").getShards().get(0).shards()[0];
@@ -617,7 +617,7 @@ public class ShrinkIndexIT extends ESIntegTestCase {
             .get();
         IndexRoutingTable indexRoutingTable = clusterStateResponse.getState().routingTable().index(index);
         assertThat("Index " + index + " should have all primaries started", indexRoutingTable.allPrimaryShardsActive(), equalTo(true));
-        IndexMetadata indexMetadata = clusterStateResponse.getState().metadata().index(index);
+        IndexMetadata indexMetadata = clusterStateResponse.getState().metadata().getProject().index(index);
         assertThat("Index " + index + " should have index metadata", indexMetadata, notNullValue());
         assertThat("Index " + index + " should have index metadata", indexMetadata, notNullValue());
         assertThat("Index " + index + " should not have resize source index", indexMetadata.getResizeSourceIndex(), nullValue());

@@ -108,7 +108,7 @@ public class DecisionsImpactOnClusterHealthTests extends ESAllocationTestCase {
             .build();
 
         RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-            .addAsNew(metadata.index(indexName))
+            .addAsNew(metadata.getProject().index(indexName))
             .build();
 
         ClusterState clusterState = ClusterState.builder(new ClusterName(clusterName))
@@ -131,7 +131,11 @@ public class DecisionsImpactOnClusterHealthTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         logger.info("--> assert cluster health");
-        ClusterStateHealth health = new ClusterStateHealth(clusterState);
+        ClusterStateHealth health = new ClusterStateHealth(
+            clusterState,
+            clusterState.metadata().getProject().getConcreteAllIndices(),
+            clusterState.metadata().getProject().id()
+        );
         assertThat(health.getStatus(), equalTo(expectedStatus));
 
         return clusterState;

@@ -76,7 +76,7 @@ public class TransportGetDataStreamOptionsAction extends TransportMasterNodeRead
             request.getNames(),
             request.indicesOptions()
         );
-        Map<String, DataStream> dataStreams = state.metadata().dataStreams();
+        Map<String, DataStream> dataStreams = state.metadata().getProject().dataStreams();
         for (String name : requestedDataStreams) {
             systemIndices.validateDataStreamAccess(name, threadPool.getThreadContext());
         }

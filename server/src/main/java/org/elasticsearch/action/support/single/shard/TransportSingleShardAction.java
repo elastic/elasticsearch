@@ -19,11 +19,13 @@ import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -56,6 +58,7 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
     protected final ThreadPool threadPool;
     protected final ClusterService clusterService;
     protected final TransportService transportService;
+    protected final ProjectResolver projectResolver;
     protected final IndexNameExpressionResolver indexNameExpressionResolver;
 
     private final String transportShardAction;
@@ -68,6 +71,7 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
         ClusterService clusterService,
         TransportService transportService,
         ActionFilters actionFilters,
+        ProjectResolver projectResolver,
         IndexNameExpressionResolver indexNameExpressionResolver,
         Writeable.Reader<Request> request,
         Executor executor
@@ -77,6 +81,7 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.transportService = transportService;
+        this.projectResolver = projectResolver;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
 
         this.transportShardAction = actionName + "[s]";
@@ -117,15 +122,15 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
 
     protected abstract boolean resolveIndex(Request request);
 
-    protected static ClusterBlockException checkGlobalBlock(ClusterState state) {
+    protected static ClusterBlockException checkGlobalBlock(ProjectState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.READ);
     }
 
-    protected ClusterBlockException checkRequestBlock(ClusterState state, InternalRequest request) {
+    protected ClusterBlockException checkRequestBlock(ProjectState state, InternalRequest request) {
         return state.blocks().indexBlockedException(ClusterBlockLevel.READ, request.concreteIndex());
     }
 
-    protected void resolveRequest(ClusterState state, InternalRequest request) {
+    protected void resolveRequest(ProjectState state, InternalRequest request) {
 
     }
 
@@ -134,7 +139,7 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
      * the operation locally (the node that received the request)
      */
     @Nullable
-    protected abstract ShardsIterator shards(ClusterState state, InternalRequest request);
+    protected abstract ShardsIterator shards(ProjectState state, InternalRequest request);
 
     class AsyncSingleAction {
 
@@ -152,26 +157,27 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
                 logger.trace("executing [{}] based on cluster state version [{}]", request, clusterState.version());
             }
             nodes = clusterState.nodes();
-            ClusterBlockException blockException = checkGlobalBlock(clusterState);
+            ProjectState project = projectResolver.getProjectState(clusterState);
+            ClusterBlockException blockException = checkGlobalBlock(project);
             if (blockException != null) {
                 throw blockException;
             }
 
             String concreteSingleIndex;
             if (resolveIndex(request)) {
-                concreteSingleIndex = indexNameExpressionResolver.concreteSingleIndex(clusterState, request).getName();
+                concreteSingleIndex = indexNameExpressionResolver.concreteSingleIndex(project.metadata(), request).getName();
             } else {
                 concreteSingleIndex = request.index();
             }
             this.internalRequest = new InternalRequest(request, concreteSingleIndex);
-            resolveRequest(clusterState, internalRequest);
+            resolveRequest(project, internalRequest);
 
-            blockException = checkRequestBlock(clusterState, internalRequest);
+            blockException = checkRequestBlock(project, internalRequest);
             if (blockException != null) {
                 throw blockException;
             }
 
-            this.shardIt = shards(clusterState, internalRequest);
+            this.shardIt = shards(project, internalRequest);
         }
 
         public void start() {

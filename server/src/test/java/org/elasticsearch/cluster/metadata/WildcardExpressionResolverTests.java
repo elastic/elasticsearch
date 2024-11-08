@@ -350,7 +350,7 @@ public class WildcardExpressionResolverTests extends ESTestCase {
             ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
 
             IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(
-                state,
+                state.metadata().getProject(),
                 indicesAndAliasesOptions,
                 false,
                 false,
@@ -375,7 +375,7 @@ public class WildcardExpressionResolverTests extends ESTestCase {
             ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
 
             IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(
-                state,
+                state.metadata().getProject(),
                 indicesAndAliasesOptions,
                 false,
                 false,
@@ -680,7 +680,7 @@ public class WildcardExpressionResolverTests extends ESTestCase {
                 false
             );
             IndexNameExpressionResolver.Context indicesAliasesAndDataStreamsContext = new IndexNameExpressionResolver.Context(
-                state,
+                state.metadata().getProject(),
                 indicesAndAliasesOptions,
                 false,
                 false,
@@ -737,7 +737,7 @@ public class WildcardExpressionResolverTests extends ESTestCase {
                 false
             );
             IndexNameExpressionResolver.Context indicesAliasesDataStreamsAndHiddenIndices = new IndexNameExpressionResolver.Context(
-                state,
+                state.metadata().getProject(),
                 indicesAliasesAndExpandHiddenOptions,
                 false,
                 false,

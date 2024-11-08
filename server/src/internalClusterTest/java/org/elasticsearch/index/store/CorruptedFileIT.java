@@ -694,7 +694,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
 
     private ShardRouting corruptRandomPrimaryFile(final boolean includePerCommitFiles) throws IOException {
         ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
-        Index test = state.metadata().index("test").getIndex();
+        Index test = state.metadata().getProject().index("test").getIndex();
         GroupShardsIterator<ShardIterator> shardIterators = state.getRoutingTable()
             .activePrimaryShardsGrouped(new String[] { "test" }, false);
         List<ShardIterator> iterators = iterableAsArrayList(shardIterators);
@@ -750,7 +750,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
     public List<Path> listShardFiles(ShardRouting routing) throws IOException {
         NodesStatsResponse nodeStatses = clusterAdmin().prepareNodesStats(routing.currentNodeId()).setFs(true).get();
         ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
-        final Index test = state.metadata().index("test").getIndex();
+        final Index test = state.metadata().getProject().index("test").getIndex();
         assertThat(routing.toString(), nodeStatses.getNodes().size(), equalTo(1));
         List<Path> files = new ArrayList<>();
         for (FsInfo.Path info : nodeStatses.getNodes().get(0).getFs()) {

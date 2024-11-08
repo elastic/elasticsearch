@@ -38,7 +38,7 @@ import java.util.Map;
  * {@link ScriptMetadata} is used to store user-defined scripts
  * as part of the {@link ClusterState} using only an id as the key.
  */
-public final class ScriptMetadata implements Metadata.Custom, Writeable {
+public final class ScriptMetadata implements Metadata.ProjectCustom, Writeable {
 
     /**
      * Standard logger used to warn about dropped scripts.
@@ -97,7 +97,7 @@ public final class ScriptMetadata implements Metadata.Custom, Writeable {
         }
     }
 
-    static final class ScriptMetadataDiff implements NamedDiff<Metadata.Custom> {
+    static final class ScriptMetadataDiff implements NamedDiff<Metadata.ProjectCustom> {
 
         final Diff<Map<String, StoredScriptSource>> pipelines;
 
@@ -120,7 +120,7 @@ public final class ScriptMetadata implements Metadata.Custom, Writeable {
         }
 
         @Override
-        public Metadata.Custom apply(Metadata.Custom part) {
+        public Metadata.ProjectCustom apply(Metadata.ProjectCustom part) {
             return new ScriptMetadata(pipelines.apply(((ScriptMetadata) part).scripts));
         }
 
@@ -228,7 +228,7 @@ public final class ScriptMetadata implements Metadata.Custom, Writeable {
         return new ScriptMetadata(scripts);
     }
 
-    public static NamedDiff<Metadata.Custom> readDiffFrom(StreamInput in) throws IOException {
+    public static NamedDiff<Metadata.ProjectCustom> readDiffFrom(StreamInput in) throws IOException {
         return new ScriptMetadataDiff(in);
     }
 
@@ -272,7 +272,7 @@ public final class ScriptMetadata implements Metadata.Custom, Writeable {
     }
 
     @Override
-    public Diff<Metadata.Custom> diff(Metadata.Custom before) {
+    public Diff<Metadata.ProjectCustom> diff(Metadata.ProjectCustom before) {
         return new ScriptMetadataDiff((ScriptMetadata) before, this);
     }
 

@@ -46,7 +46,7 @@ public class DataTierMigrationRoutedStep extends ClusterStateWaitStep {
 
     @Override
     public Result isConditionMet(Index index, ClusterState clusterState) {
-        IndexMetadata idxMeta = clusterState.metadata().index(index);
+        IndexMetadata idxMeta = clusterState.metadata().getProject().index(index);
         if (idxMeta == null) {
             // Index must have been since deleted, ignore it
             logger.debug("[{}] lifecycle action for index [{}] executed but index no longer exists", getKey().action(), index.getName());
@@ -60,7 +60,11 @@ public class DataTierMigrationRoutedStep extends ClusterStateWaitStep {
             clusterState.metadata().nodeShutdowns()
         );
 
-        if (ActiveShardCount.ALL.enoughShardsActive(clusterState, index.getName()) == false) {
+        if (ActiveShardCount.ALL.enoughShardsActive(
+            clusterState.metadata().getProject(),
+            clusterState.routingTable(),
+            index.getName()
+        ) == false) {
             if (preferredTierConfiguration.isEmpty()) {
                 logger.debug(
                     "[{}] lifecycle action for index [{}] cannot make progress because not all shards are active",

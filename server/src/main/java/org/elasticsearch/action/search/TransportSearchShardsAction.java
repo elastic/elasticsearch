@@ -15,8 +15,9 @@ import org.elasticsearch.action.RemoteClusterActionType;
 import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.index.Index;
@@ -56,6 +57,7 @@ public class TransportSearchShardsAction extends HandledTransportAction<SearchSh
     private final RemoteClusterService remoteClusterService;
     private final ClusterService clusterService;
     private final SearchTransportService searchTransportService;
+    private final ProjectResolver projectResolver;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final ThreadPool threadPool;
 
@@ -67,6 +69,7 @@ public class TransportSearchShardsAction extends HandledTransportAction<SearchSh
         ClusterService clusterService,
         TransportSearchAction transportSearchAction,
         SearchTransportService searchTransportService,
+        ProjectResolver projectResolver,
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(
@@ -82,6 +85,7 @@ public class TransportSearchShardsAction extends HandledTransportAction<SearchSh
         this.remoteClusterService = transportService.getRemoteClusterService();
         this.clusterService = clusterService;
         this.searchTransportService = searchTransportService;
+        this.projectResolver = projectResolver;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.threadPool = transportService.getThreadPool();
     }
@@ -110,10 +114,10 @@ public class TransportSearchShardsAction extends HandledTransportAction<SearchSh
             System::nanoTime
         );
 
-        final ClusterState clusterState = clusterService.state();
+        final ProjectState project = projectResolver.getProjectState(clusterService.state());
         final ResolvedIndices resolvedIndices = ResolvedIndices.resolveWithIndicesRequest(
             searchShardsRequest,
-            clusterState,
+            project.cluster(),
             indexNameExpressionResolver,
             remoteClusterService,
             timeProvider.absoluteStartMillis()
@@ -127,16 +131,19 @@ public class TransportSearchShardsAction extends HandledTransportAction<SearchSh
             searchService.getRewriteContext(timeProvider::absoluteStartMillis, resolvedIndices, null),
             listener.delegateFailureAndWrap((delegate, searchRequest) -> {
                 Index[] concreteIndices = resolvedIndices.getConcreteLocalIndices();
-                final Set<String> indicesAndAliases = indexNameExpressionResolver.resolveExpressions(clusterState, searchRequest.indices());
+                final Set<String> indicesAndAliases = indexNameExpressionResolver.resolveExpressions(
+                    project.metadata(),
+                    searchRequest.indices()
+                );
                 final Map<String, AliasFilter> aliasFilters = transportSearchAction.buildIndexAliasFilters(
-                    clusterState,
+                    project.cluster(),
                     indicesAndAliases,
                     concreteIndices
                 );
                 String[] concreteIndexNames = Arrays.stream(concreteIndices).map(Index::getName).toArray(String[]::new);
                 GroupShardsIterator<SearchShardIterator> shardIts = GroupShardsIterator.sortAndCreate(
                     transportSearchAction.getLocalShardsIterator(
-                        clusterState,
+                        project,
                         searchRequest,
                         searchShardsRequest.clusterAlias(),
                         indicesAndAliases,
@@ -144,11 +151,13 @@ public class TransportSearchShardsAction extends HandledTransportAction<SearchSh
                     )
                 );
                 if (SearchService.canRewriteToMatchNone(searchRequest.source()) == false) {
-                    delegate.onResponse(new SearchShardsResponse(toGroups(shardIts), clusterState.nodes().getAllNodes(), aliasFilters));
+                    delegate.onResponse(
+                        new SearchShardsResponse(toGroups(shardIts), project.cluster().nodes().getAllNodes(), aliasFilters)
+                    );
                 } else {
                     var canMatchPhase = new CanMatchPreFilterSearchPhase(logger, searchTransportService, (clusterAlias, node) -> {
                         assert Objects.equals(clusterAlias, searchShardsRequest.clusterAlias());
-                        return transportService.getConnection(clusterState.nodes().get(node));
+                        return transportService.getConnection(project.cluster().nodes().get(node));
                     },
                         aliasFilters,
                         Map.of(),
@@ -159,7 +168,7 @@ public class TransportSearchShardsAction extends HandledTransportAction<SearchSh
                         (SearchTask) task,
                         false,
                         searchService.getCoordinatorRewriteContextProvider(timeProvider::absoluteStartMillis),
-                        delegate.map(its -> new SearchShardsResponse(toGroups(its), clusterState.nodes().getAllNodes(), aliasFilters))
+                        delegate.map(its -> new SearchShardsResponse(toGroups(its), project.cluster().nodes().getAllNodes(), aliasFilters))
                     );
                     canMatchPhase.start();
                 }

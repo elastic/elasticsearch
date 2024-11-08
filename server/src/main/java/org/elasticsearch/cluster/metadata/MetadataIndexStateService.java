@@ -244,6 +244,7 @@ public class MetadataIndexStateService {
                         if (waitForIndices.length > 0) {
                             ActiveShardsObserver.waitForActiveShards(
                                 clusterService,
+                                Metadata.DEFAULT_PROJECT_ID,
                                 waitForIndices,
                                 task.request.waitForActiveShards(),
                                 task.request.ackTimeout(),
@@ -306,7 +307,7 @@ public class MetadataIndexStateService {
     ) {
         final Set<Index> indicesToClose = new HashSet<>();
         for (Index index : indices) {
-            final IndexMetadata indexMetadata = currentState.metadata().getIndexSafe(index);
+            final IndexMetadata indexMetadata = currentState.metadata().getProject().getIndexSafe(index);
             if (indexMetadata.getState() != IndexMetadata.State.CLOSE) {
                 indicesToClose.add(index);
             } else {
@@ -451,11 +452,11 @@ public class MetadataIndexStateService {
         }
         Metadata metadata = clusterService.state().metadata();
         List<String> writeIndices = new ArrayList<>();
-        SortedMap<String, IndexAbstraction> lookup = metadata.getIndicesLookup();
+        SortedMap<String, IndexAbstraction> lookup = metadata.getProject().getIndicesLookup();
         for (Index index : concreteIndices) {
             IndexAbstraction ia = lookup.get(index.getName());
             if (ia != null && ia.getParentDataStream() != null) {
-                Index writeIndex = metadata.index(ia.getParentDataStream().getWriteIndex()).getIndex();
+                Index writeIndex = metadata.getProject().index(ia.getParentDataStream().getWriteIndex()).getIndex();
                 if (writeIndex.equals(index)) {
                     writeIndices.add(index.getName());
                 }
@@ -600,7 +601,7 @@ public class MetadataIndexStateService {
             final ClusterState state,
             final Consumer<IndexResult> onResponse
         ) {
-            final IndexMetadata indexMetadata = state.metadata().index(index);
+            final IndexMetadata indexMetadata = state.metadata().getProject().index(index);
             if (indexMetadata == null) {
                 logger.debug("index {} has been blocked before closing and is now deleted, ignoring", index);
                 onResponse.accept(new IndexResult(index));
@@ -731,7 +732,7 @@ public class MetadataIndexStateService {
             final ClusterState state,
             final Consumer<AddBlockResult> onResponse
         ) {
-            final IndexMetadata indexMetadata = state.metadata().index(index);
+            final IndexMetadata indexMetadata = state.metadata().getProject().index(index);
             if (indexMetadata == null) {
                 logger.debug("index {} has since been deleted, ignoring", index);
                 onResponse.accept(new AddBlockResult(index));
@@ -910,6 +911,7 @@ public class MetadataIndexStateService {
                 String[] indexNames = Arrays.stream(request.indices()).map(Index::getName).toArray(String[]::new);
                 ActiveShardsObserver.waitForActiveShards(
                     clusterService,
+                    Metadata.DEFAULT_PROJECT_ID,
                     indexNames,
                     request.waitForActiveShards(),
                     request.ackTimeout(),
@@ -1091,7 +1093,7 @@ public class MetadataIndexStateService {
         private ClusterState openIndices(final Index[] indices, final ClusterState currentState) {
             final List<IndexMetadata> indicesToOpen = new ArrayList<>(indices.length);
             for (Index index : indices) {
-                final IndexMetadata indexMetadata = currentState.metadata().getIndexSafe(index);
+                final IndexMetadata indexMetadata = currentState.metadata().getProject().getIndexSafe(index);
                 if (indexMetadata.getState() != IndexMetadata.State.OPEN) {
                     indicesToOpen.add(indexMetadata);
                 } else if (currentState.blocks().hasIndexBlockWithId(index.getName(), INDEX_CLOSED_BLOCK_ID)) {
@@ -1099,7 +1101,7 @@ public class MetadataIndexStateService {
                 }
             }
 
-            shardLimitValidator.validateShardLimit(currentState.nodes(), currentState.metadata(), indices);
+            shardLimitValidator.validateShardLimit(currentState.nodes(), currentState.metadata().getProject(), indices);
             if (indicesToOpen.isEmpty()) {
                 return currentState;
             }
@@ -1158,7 +1160,7 @@ public class MetadataIndexStateService {
             );
             for (IndexMetadata previousIndexMetadata : indicesToOpen) {
                 if (previousIndexMetadata.getState() != IndexMetadata.State.OPEN) {
-                    routingTable.addAsFromCloseToOpen(updatedState.metadata().getIndexSafe(previousIndexMetadata.getIndex()));
+                    routingTable.addAsFromCloseToOpen(updatedState.metadata().getProject().getIndexSafe(previousIndexMetadata.getIndex()));
                 }
             }
             return ClusterState.builder(updatedState).routingTable(routingTable).build();

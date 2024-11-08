@@ -25,6 +25,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -417,8 +418,9 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
      * @return A list of index names that match this descriptor
      */
     @Override
+    @FixForMultiProject // how do system indices interact with projects?
     public List<String> getMatchingIndices(Metadata metadata) {
-        return metadata.indices().keySet().stream().filter(this::matchesIndexPattern).toList();
+        return metadata.projects().values().stream().flatMap(p -> p.indices().keySet().stream()).filter(this::matchesIndexPattern).toList();
     }
 
     /**

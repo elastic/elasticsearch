@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.enrich;
+package org.elasticsearch.compute.operator.lookup;
 
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -43,7 +43,7 @@ import java.util.Objects;
  * |  null      | null       |
  * |  d         | 2023       |
  */
-final class MergePositionsOperator implements Operator {
+public final class MergePositionsOperator implements Operator {
     private boolean finished = false;
     private final int positionChannel;
     private final EnrichResultBuilder[] builders;
@@ -51,7 +51,7 @@ final class MergePositionsOperator implements Operator {
 
     private Page outputPage;
 
-    MergePositionsOperator(
+    public MergePositionsOperator(
         int positionChannel,
         int[] mergingChannels,
         ElementType[] mergingTypes,

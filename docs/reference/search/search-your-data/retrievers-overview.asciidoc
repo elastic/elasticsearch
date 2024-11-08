@@ -66,110 +66,86 @@ When using compound retrievers, only the query element is allowed, which enforce
 
 [discrete]
 [[retrievers-overview-example]]
-==== Examples
+==== Example
 
-The following example demonstrates the powerful queries that we can now compose, and how retrievers simplify this process.
-
-To show the full functionality, in this exercise, we'll assume that we have access to a <<semantic-reranking-models,reranker model>> through the inference service.
-
-To begin with, we'll set up the necessary services and have them in place for later use.
+The following example demonstrates how using retrievers simplify the composability of queries for RRF ranking.
 
 [source,js]
 ----
-// Setup rerank task stored as `my-awesome-rerank-model`
-PUT _inference/rerank/my-awesome-rerank-model
+GET example-index/_search
 {
- "service": "cohere",
- "service_settings": {
-   "model_id": "rerank-english-v3.0",
-   "api_key": "{{COHERE_API_KEY}}"
- }
+  "retriever": {
+    "rrf": {
+      "retrievers": [
+        {
+          "standard": {
+            "query": {
+              "sparse_vector": {
+                "field": "vector.tokens",
+                "inference_id": "my-elser-endpoint",
+                "query": "What blue shoes are on sale?"
+              }
+            }
+          }
+        },
+        {
+          "standard": {
+            "query": {
+              "match": {
+                "text": "blue shoes sale"
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
 }
 ----
 //NOTCONSOLE
 
-Now that we have our reranking service in place, lets create the `retrievers_example` index, and add some documents to it.
-[source,js]
-----
-PUT retrievers_example
-{
-   "mappings": {
-       "properties": {
-           "vector": {
-               "type": "dense_vector",
-               "dims": 3,
-               "similarity": "l2_norm",
-               "index": true
-           },
-           "text": {
-               "type": "text"
-           },
-           "year": {
-               "type": "integer"
-           },
-           "topic": {
-               "type": "keyword"
-           }
-       }
-   }
-}
-----
-//NOTCONSOLE
+This example demonstrates how you can combine different retrieval strategies into a single `retriever` pipeline.
+
+Compare to `RRF` with `sub_searches` approach (which is deprecated as of 8.16.0):
+
+.*Expand* for example
+[%collapsible]
+==============
 
 [source,js]
 ----
-POST /retrievers_example/_doc/1
+GET example-index/_search
 {
- "vector": [0.23, 0.67, 0.89],
- "text": "Large language models are revolutionizing information retrieval by boosting search precision, deepening contextual understanding, and reshaping user experiences in data-rich environments.",
- "year": 2024,
- "topic": ["llm", "ai", "information_retrieval"]
+  "sub_searches":[
+    {
+      "query":{
+        "match":{
+          "text":"blue shoes sale"
+        }
+      }
+    },
+    {
+      "query":{
+        "sparse_vector": {
+            "field": "vector.tokens",
+            "inference_id": "my-elser-endoint",
+            "query": "What blue shoes are on sale?"
+          }
+        }
+      }
+  ],
+  "rank":{
+    "rrf":{
+      "rank_window_size":50,
+      "rank_constant":20
+    }
+  }
 }
-
-POST /retrievers_example/_doc/2
-{
- "vector": [0.12, 0.56, 0.78],
- "text": "Artificial intelligence is transforming medicine, from advancing diagnostics and tailoring treatment plans to empowering predictive patient care for improved health outcomes.",
- "year": 2023,
- "topic": ["ai", "medicine"]
-}
-
-POST /retrievers_example/_doc/3
-{
- "vector": [0.45, 0.32, 0.91],
-  "text": "AI is redefining security by enabling advanced threat detection, proactive risk analysis, and dynamic defenses against increasingly sophisticated cyber threats.",
- "year": 2024,
- "topic": ["ai", "security"]
-}
-
-POST /retrievers_example/_doc/4
-{
- "vector": [0.34, 0.21, 0.98],
- "text": "Elastic introduces Elastic AI Assistant, the open, generative AI sidekick powered by ESRE to democratize cybersecurity and enable users of every skill level.",
- "year": 2023,
- "topic": ["ai", "elastic", "assistant"]
-}
-
-POST /retrievers_example/_doc/5
-{
- "vector": [0.11, 0.65, 0.47],
- "text": "Learn how to spin up a deployment of our hosted Elasticsearch Service and use Elastic Observability to gain deeper insight into the behavior of your applications and systems.",
- "year": 2024,
- "topic": ["documentation", "observability", "elastic"]
-}
-
 ----
 //NOTCONSOLE
+==============
 
-Now that we also have our documents in place, let's try to run some queries using retrievers.
-
-include::retrievers_examples.asciidoc[tag=basic-rrf-retriever-with-simple-query-and-knn]
-include::retrievers_examples.asciidoc[tag=rrf-retriever-with-collapse]
-include::retrievers_examples.asciidoc[tag=text-similarity-reranker-on-top-of-rrf]
-include::retrievers_examples.asciidoc[tag=rrf-on-top-of-semantic-reranker]
-include::retrievers_examples.asciidoc[tag=chaining-text-similarity-reranker-retrievers]
-include::retrievers_examples.asciidoc[tag=rrf-retriever-with-aggs]
-
+For more examples on how to use retrievers, refer to <<retriever_examples,retriever examples>>.
 [discrete]
 [[retrievers-overview-glossary]]
 ==== Glossary

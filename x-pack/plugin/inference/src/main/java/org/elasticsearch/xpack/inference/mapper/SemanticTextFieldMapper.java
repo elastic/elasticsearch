@@ -91,6 +91,8 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
     public static final NodeFeature SEMANTIC_TEXT_DEFAULT_ELSER_2 = new NodeFeature("semantic_text.default_elser_2");
     public static final NodeFeature SEMANTIC_TEXT_IN_OBJECT_FIELD_FIX = new NodeFeature("semantic_text.in_object_field_fix");
 
+    public static final NodeFeature SEMANTIC_TEXT_SINGLE_FIELD_UPDATE_FIX = new NodeFeature("semantic_text.single_field_update_fix");
+
     public static final String CONTENT_TYPE = "semantic_text";
     public static final String DEFAULT_ELSER_2_INFERENCE_ID = DEFAULT_ELSER_ID;
 
@@ -679,9 +681,9 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         }
     }
 
-    private record SuffixMap(String suffix, Map<String, Object> map) {}
+    public record SuffixMap(String suffix, Map<String, Object> map) {}
 
-    private static List<SuffixMap> extractSuffixMaps(String[] pathElements, int index, Object currentValue) {
+    public static List<SuffixMap> extractSuffixMaps(String[] pathElements, int index, Object currentValue) {
         if (currentValue instanceof List<?> valueList) {
             List<SuffixMap> suffixMaps = new ArrayList<>(valueList.size());
             for (Object o : valueList) {

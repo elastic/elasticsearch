@@ -29,6 +29,7 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
 import org.elasticsearch.inference.ChunkingOptions;
 import org.elasticsearch.inference.InferenceService;
@@ -446,10 +447,12 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                     String field = entry.getName();
                     String inferenceId = entry.getInferenceId();
                     var originalFieldValue = XContentMapValues.extractValue(field, docMap);
-                    if (originalFieldValue instanceof Map) {
+                    if (originalFieldValue instanceof Map || (originalFieldValue == null && entry.getSourceFields().length == 1)) {
+                        // Inference has already been computed, or there is no inference required.
                         continue;
                     }
                     int order = 0;
+                    List<FieldInferenceRequest> fieldRequests = fieldRequestsMap.computeIfAbsent(inferenceId, k -> new ArrayList<>());
                     for (var sourceField : entry.getSourceFields()) {
                         boolean isOriginalFieldInput = sourceField.equals(field);
                         var valueObj = XContentMapValues.extractValue(sourceField, docMap);
@@ -476,7 +479,6 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                             addInferenceResponseFailure(item.id(), exc);
                             break;
                         }
-                        List<FieldInferenceRequest> fieldRequests = fieldRequestsMap.computeIfAbsent(inferenceId, k -> new ArrayList<>());
                         for (var v : values) {
                             fieldRequests.add(new FieldInferenceRequest(itemIndex, field, v, order++, isOriginalFieldInput));
                         }

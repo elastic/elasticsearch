@@ -71,6 +71,7 @@ public final class QueryRoleIT extends SecurityInBasicRestTestCase {
             try {
                 final Request request = new Request("GET", "_cluster/state/metadata/.security");
                 Map<String, String> roles = ObjectPath.createFromResponse(adminClient().performRequest(request))
+                    // TODO: do not depend on concrete security index name -> resolve it from .security alias
                     .evaluate("metadata.indices.\\.security-7.queryable_built_in_roles");
                 assertThat(roles, is(notNullValue()));
             } catch (ResponseException e) {

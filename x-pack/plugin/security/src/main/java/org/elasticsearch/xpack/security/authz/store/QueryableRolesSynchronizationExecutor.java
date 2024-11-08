@@ -106,29 +106,29 @@ public class QueryableRolesSynchronizationExecutor extends AbstractLifecycleComp
 
     private boolean shouldSyncBuiltInRoles(ClusterState state) {
         if (nativeRolesStore.isEnabled() == false) {
-            logger.debug("Native role management is not enabled, skipping built-in roles synchronization");
+            logger.info("Native role management is not enabled, skipping built-in roles synchronization");
             return false;
         }
         if (false == state.clusterRecovered()) {
-            logger.trace("Cluster state has not recovered yet, skipping built-in roles synchronization");
+            logger.info("Cluster state has not recovered yet, skipping built-in roles synchronization");
             return false;
         }
         if (false == state.nodes().isLocalNodeElectedMaster()) {
-            logger.trace("Local node is not the master, skipping built-in roles synchronization");
+            logger.info("Local node is not the master, skipping built-in roles synchronization");
             return false;
         }
         if (state.nodes().getDataNodes().isEmpty()) {
-            logger.trace("No data nodes in the cluster, skipping built-in roles synchronization");
+            logger.info("No data nodes in the cluster, skipping built-in roles synchronization");
             return false;
         }
         // to keep things simple and avoid potential overwrites with an older version of built-in roles,
         // we only sync built-in roles if all nodes are on the same version
         if (isMixedVersionCluster(state.nodes())) {
-            logger.debug("Not all nodes are on the same version, skipping built-in roles synchronization");
+            logger.info("Not all nodes are on the same version, skipping built-in roles synchronization");
             return false;
         }
         if (false == featureService.clusterHasFeature(state, QUERYABLE_BUILT_IN_ROLES_FEATURE)) {
-            logger.debug("Not all nodes support queryable built-in roles, skipping built-in roles synchronization");
+            logger.info("Not all nodes support queryable built-in roles, skipping built-in roles synchronization");
             return false;
         }
         return true;
@@ -155,7 +155,7 @@ public class QueryableRolesSynchronizationExecutor extends AbstractLifecycleComp
         final QueryableRoles roles = builtinRolesProvider.roles();
         final Map<String, String> currentRolesVersions = readIndexedRolesVersion(state);
         if (roles.roleVersions().equals(currentRolesVersions)) {
-            logger.debug("Security index already contains the latest built-in roles indexed, skipping synchronization");
+            logger.info("Security index already contains the latest built-in roles indexed, skipping synchronization");
             return;
         }
 
@@ -166,6 +166,8 @@ public class QueryableRolesSynchronizationExecutor extends AbstractLifecycleComp
             }, e -> {
                 if (false == e instanceof UnavailableShardsException && false == e instanceof IndexNotFoundException) {
                     logger.warn("Failed to sync built-in roles to security index", e);
+                } else {
+                    logger.info("Failed to sync built-in roles to security index", e);
                 }
                 synchronizationInProgress.set(false);
             })));
@@ -282,17 +284,19 @@ public class QueryableRolesSynchronizationExecutor extends AbstractLifecycleComp
 
     @Override
     protected void doStart() {
+        logger.info("Starting built-in roles synchronization executor");
         clusterService.addListener(this);
     }
 
     @Override
     protected void doStop() {
+        logger.info("Stopping built-in roles synchronization executor");
         clusterService.removeListener(this);
     }
 
     @Override
     protected void doClose() throws IOException {
-
+        logger.info("closing built-in roles synchronization executor");
     }
 
     static class MarkBuiltinRolesAsSyncedTask implements ClusterStateTaskListener {

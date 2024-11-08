@@ -33,6 +33,7 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LocalCircuitBreaker;
+import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.ValuesSourceReaderOperator;
@@ -40,6 +41,9 @@ import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.OutputOperator;
+import org.elasticsearch.compute.operator.lookup.EnrichQuerySourceOperator;
+import org.elasticsearch.compute.operator.lookup.MergePositionsOperator;
+import org.elasticsearch.compute.operator.lookup.QueryList;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
@@ -171,6 +175,19 @@ abstract class AbstractLookupService<R extends AbstractLookupService.Request, T 
      * Build a list of queries to perform inside the actual lookup.
      */
     protected abstract QueryList queryList(T request, SearchExecutionContext context, Block inputBlock, DataType inputDataType);
+
+    protected static QueryList termQueryList(
+        MappedFieldType field,
+        SearchExecutionContext searchExecutionContext,
+        Block block,
+        DataType inputDataType
+    ) {
+        return switch (inputDataType) {
+            case IP -> QueryList.ipTermQueryList(field, searchExecutionContext, (BytesRefBlock) block);
+            case DATETIME -> QueryList.dateTermQueryList(field, searchExecutionContext, (LongBlock) block);
+            default -> QueryList.rawTermQueryList(field, searchExecutionContext, block);
+        };
+    }
 
     /**
      * Perform the actual lookup.

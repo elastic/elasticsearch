@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.template.IndexTemplateConfig;
 import org.elasticsearch.xpack.core.template.IndexTemplateRegistry;
-import org.elasticsearch.xpack.core.template.JsonLifecyclePolicyConfig;
 import org.elasticsearch.xpack.core.template.LifecyclePolicyConfig;
 
 import java.util.Arrays;
@@ -264,7 +263,7 @@ public class MonitoringTemplateRegistry extends IndexTemplateRegistry {
             templateVars.put(MONITORING_POLICY_RETENTION_VARIABLE, MONITORING_POLICY_DEFAULT_RETENTION);
             templateVars.put(MONITORING_POLICY_RETENTION_REASON_VARIABLE, "the monitoring plugin default");
         }
-        JsonLifecyclePolicyConfig monitoringPolicy = new JsonLifecyclePolicyConfig(
+        LifecyclePolicyConfig monitoringPolicy = new LifecyclePolicyConfig(
             MONITORING_POLICY_NAME,
             "/monitoring-mb-ilm-policy.json",
             templateVars

@@ -9,11 +9,11 @@ package org.elasticsearch.xpack.core.template;
 
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ilm.DeleteAction;
 import org.elasticsearch.xpack.core.ilm.ForceMergeAction;
 import org.elasticsearch.xpack.core.ilm.LifecycleAction;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
+import org.elasticsearch.xpack.core.ilm.LifecyclePolicyUtils;
 import org.elasticsearch.xpack.core.ilm.LifecycleType;
 import org.elasticsearch.xpack.core.ilm.ReadOnlyAction;
 import org.elasticsearch.xpack.core.ilm.RolloverAction;
@@ -28,7 +28,7 @@ import java.util.Map;
 /**
  * Describes an index lifecycle policy to be loaded from a resource file for use with an {@link IndexTemplateRegistry}.
  */
-public abstract class LifecyclePolicyConfig {
+public class LifecyclePolicyConfig {
 
     public static final NamedXContentRegistry DEFAULT_X_CONTENT_REGISTRY = new NamedXContentRegistry(
         List.of(
@@ -83,11 +83,7 @@ public abstract class LifecyclePolicyConfig {
         return fileName;
     }
 
-    public Map<String, String> getTemplateVariables() {
-        return this.templateVariables;
+    public LifecyclePolicy load(NamedXContentRegistry xContentRegistry) {
+        return LifecyclePolicyUtils.loadPolicy(policyName, fileName, templateVariables, xContentRegistry);
     }
-
-    public abstract XContentType getXContentType();
-
-    public abstract LifecyclePolicy load(NamedXContentRegistry registry);
 }

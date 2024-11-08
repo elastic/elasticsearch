@@ -22,8 +22,10 @@ import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.yaml.YamlXContent;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
+import org.elasticsearch.xpack.core.ilm.LifecyclePolicyUtils;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -248,9 +250,18 @@ public abstract class YamlTemplateRegistry extends IndexTemplateRegistry {
     // IndexTemplateRegistry ensures that ILM lifecycle policies are not loaded
     // when in DSL only mode.
     private LifecyclePolicy loadLifecyclePolicy(String name) {
-        return new YamlLifecyclePolicyConfig(name, "/lifecycle-policies/" + name + ".yaml", this.getClass()).load(
-            LifecyclePolicyConfig.DEFAULT_X_CONTENT_REGISTRY
-        );
+        try {
+            var rawPolicy = loadResource(this.getClass(), "/lifecycle-policies/" + name + ".yaml");
+            rawPolicy = TemplateUtils.replaceVariables(rawPolicy, Collections.emptyMap());
+            return LifecyclePolicyUtils.parsePolicy(
+                rawPolicy,
+                name,
+                LifecyclePolicyConfig.DEFAULT_X_CONTENT_REGISTRY,
+                XContentType.YAML
+            );
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     @Override

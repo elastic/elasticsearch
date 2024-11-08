@@ -189,7 +189,11 @@ public final class AnalysisRegistry implements Closeable {
                 }
             });
         }
-        return analyzerProvider.get(environment, analyzer).get();
+
+        return new NamedAnalyzer(
+            (NamedAnalyzer) analyzerProvider.get(environment, analyzer).get(),
+            TextFieldMapper.Defaults.POSITION_INCREMENT_GAP
+        );
     }
 
     @Override

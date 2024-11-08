@@ -15,7 +15,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -36,7 +35,6 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.action.role.BulkRolesResponse;
@@ -80,7 +78,6 @@ public class QueryableRolesSynchronizationExecutor implements ClusterStateListen
     private final QueryableRolesProvider builtinRolesProvider;
     private final NativeRolesStore nativeRolesStore;
     private final SecurityIndexManager securityIndex;
-    private final Client client;
     private final Executor executor;
     private final FeatureService featureService;
     private final AtomicBoolean synchronizationInProgress = new AtomicBoolean(false);
@@ -91,14 +88,12 @@ public class QueryableRolesSynchronizationExecutor implements ClusterStateListen
         QueryableRolesProvider rolesProvider,
         NativeRolesStore nativeRolesStore,
         SecurityIndexManager securityIndex,
-        Client client,
         ThreadPool threadPool
     ) {
         this.featureService = featureService;
         this.builtinRolesProvider = rolesProvider;
         this.nativeRolesStore = nativeRolesStore;
         this.securityIndex = securityIndex;
-        this.client = client;
         this.executor = threadPool.generic();
         this.markRolesAsSyncedTaskQueue = clusterService.createTaskQueue(
             "mark-built-in-roles-as-synced-task-queue",
@@ -164,7 +159,7 @@ public class QueryableRolesSynchronizationExecutor implements ClusterStateListen
         }
 
         if (synchronizationInProgress.compareAndSet(false, true)) {
-            executor.execute(() -> syncBuiltinRoles(state, indexedRolesVersions, roles, ActionListener.wrap(v -> {
+            executor.execute(() -> syncBuiltinRoles(indexedRolesVersions, roles, ActionListener.wrap(v -> {
                 logger.info("Successfully synced built-in roles to security index");
                 synchronizationInProgress.set(false);
             }, e -> {
@@ -176,12 +171,7 @@ public class QueryableRolesSynchronizationExecutor implements ClusterStateListen
         }
     }
 
-    private void syncBuiltinRoles(
-        ClusterState state,
-        Map<String, String> indexedRolesVersions,
-        QueryableRoles roles,
-        ActionListener<Void> listener
-    ) {
+    private void syncBuiltinRoles(Map<String, String> indexedRolesVersions, QueryableRoles roles, ActionListener<Void> listener) {
         // This will create .security index if it does not exist and execute all migrations.
         securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
             final SecurityIndexManager frozenSecurityIndex = securityIndex.defensiveCopy();
@@ -193,9 +183,9 @@ public class QueryableRolesSynchronizationExecutor implements ClusterStateListen
                         ? Set.of()
                         : Sets.difference(indexedRolesVersions.keySet(), roles.roleVersions().keySet());
                     if (false == rolesToDelete.isEmpty()) {
-                        deleteRoles(state, rolesToDelete, roles.roleVersions(), frozenSecurityIndex, indexedRolesVersions, listener);
+                        deleteRoles(rolesToDelete, roles.roleVersions(), frozenSecurityIndex, indexedRolesVersions, listener);
                     } else {
-                        markRolesAsSynced(state, indexedRolesVersions, roles.roleVersions(), listener);
+                        markRolesAsSynced(frozenSecurityIndex.getConcreteIndexName(), indexedRolesVersions, roles.roleVersions(), listener);
                     }
                 }, listener::onFailure));
             }
@@ -204,7 +194,6 @@ public class QueryableRolesSynchronizationExecutor implements ClusterStateListen
     }
 
     private void deleteRoles(
-        ClusterState state,
         Set<String> rolesToDelete,
         Map<String, String> roleVersions,
         SecurityIndexManager frozenSecurityIndex,
@@ -222,7 +211,7 @@ public class QueryableRolesSynchronizationExecutor implements ClusterStateListen
                         new ElasticsearchStatusException("Automatic deletion of built-in roles failed", RestStatus.INTERNAL_SERVER_ERROR)
                     );
                 } else {
-                    markRolesAsSynced(state, indexedRolesVersions, roleVersions, listener);
+                    markRolesAsSynced(frozenSecurityIndex.getConcreteIndexName(), indexedRolesVersions, roleVersions, listener);
                 }
 
             }, listener::onFailure)
@@ -251,16 +240,11 @@ public class QueryableRolesSynchronizationExecutor implements ClusterStateListen
     }
 
     private void markRolesAsSynced(
-        ClusterState state,
+        String concreteSecurityIndexName,
         Map<String, String> expectedRolesVersion,
         Map<String, String> newRolesVersion,
         ActionListener<Void> listener
     ) {
-        Index concreteSecurityIndex = resolveConcreteSecurityIndex(state.metadata());
-        if (concreteSecurityIndex == null) {
-            listener.onFailure(new IndexNotFoundException("concrete security index not found"));
-            return;
-        }
         markRolesAsSyncedTaskQueue.submitTask(
             "mark built-in roles as synced task",
             new MarkBuiltinRolesAsSyncedTask(ActionListener.wrap(response -> {
@@ -269,7 +253,7 @@ public class QueryableRolesSynchronizationExecutor implements ClusterStateListen
                 } else {
                     listener.onResponse(null);
                 }
-            }, listener::onFailure), concreteSecurityIndex, expectedRolesVersion, newRolesVersion),
+            }, listener::onFailure), concreteSecurityIndexName, expectedRolesVersion, newRolesVersion),
             null
         );
     }
@@ -305,7 +289,7 @@ public class QueryableRolesSynchronizationExecutor implements ClusterStateListen
     static class MarkBuiltinRolesAsSyncedTask implements ClusterStateTaskListener {
 
         private final ActionListener<Map<String, String>> listener;
-        private final Index index;
+        private final String index;
         @Nullable
         private final Map<String, String> expected;
         @Nullable
@@ -313,7 +297,7 @@ public class QueryableRolesSynchronizationExecutor implements ClusterStateListen
 
         MarkBuiltinRolesAsSyncedTask(
             ActionListener<Map<String, String>> listener,
-            Index index,
+            String index,
             @Nullable Map<String, String> expected,
             @Nullable Map<String, String> value
         ) {
@@ -324,7 +308,7 @@ public class QueryableRolesSynchronizationExecutor implements ClusterStateListen
         }
 
         Tuple<ClusterState, Map<String, String>> execute(ClusterState state) {
-            IndexMetadata indexMetadata = state.metadata().getIndexSafe(index);
+            IndexMetadata indexMetadata = state.metadata().index(index);
             Map<String, String> existingValue = indexMetadata.getCustomData(METADATA_QUERYABLE_BUILT_IN_ROLES);
             if (Objects.equals(expected, existingValue)) {
                 IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexMetadata);
@@ -335,7 +319,7 @@ public class QueryableRolesSynchronizationExecutor implements ClusterStateListen
                 }
                 indexMetadataBuilder.version(indexMetadataBuilder.version() + 1);
                 ImmutableOpenMap.Builder<String, IndexMetadata> builder = ImmutableOpenMap.builder(state.metadata().indices());
-                builder.put(index.getName(), indexMetadataBuilder.build());
+                builder.put(index, indexMetadataBuilder.build());
                 return new Tuple<>(
                     ClusterState.builder(state).metadata(Metadata.builder(state.metadata()).indices(builder.build()).build()).build(),
                     value

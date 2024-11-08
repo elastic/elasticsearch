@@ -1182,7 +1182,6 @@ public class Security extends Plugin
             queryableRolesProvider,
             nativeRolesStore,
             systemIndices.getMainIndexManager(),
-            client,
             threadPool
         );
         clusterService.addListener(queryableRolesSynchronizationExecutor);

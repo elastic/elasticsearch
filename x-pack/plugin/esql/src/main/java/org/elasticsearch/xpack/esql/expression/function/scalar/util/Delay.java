@@ -46,7 +46,7 @@ public class Delay extends UnaryScalarFunction {
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new Delay(source(), newChildren.getFirst());
+        return new Delay(source(), newChildren.get(0));
     }
 
     @Override

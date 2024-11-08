@@ -106,7 +106,7 @@ public class RestIndexAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        ReleasableBytesReference source = request.releasableContent();
+        ReleasableBytesReference source = request.requiredReleasableContent();
         source.mustIncRef();
         IndexRequest indexRequest = new IndexRequest(request.param("index"));
         indexRequest.id(request.param("id"));

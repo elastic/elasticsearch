@@ -194,7 +194,8 @@ public enum DataType {
      */
     PARTIAL_AGG(builder().esType("partial_agg").unknownSize()),
 
-    CATEGORY(builder().typeName("CATEGORY").unknownSize());
+    // NOCOMMIT: if we keep this DataType, what should esType be?
+    CATEGORY(builder().esType("???").unknownSize());
 
     /**
      * Types that are actively being built. These types are not returned

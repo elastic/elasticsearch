@@ -37,7 +37,7 @@ public final class SearchCapabilities {
         Set<String> capabilities = Set.of(
             RANGE_REGEX_INTERVAL_QUERY_CAPABILITY,
             BIT_DENSE_VECTOR_SYNTHETIC_SOURCE_CAPABILITY,
-            BYTE_FLOAT_BIT_DOT_PRODUCT_CAPABILITY,
+            BYTE_FLOAT_BIT_DOT_PRODUCT_CAPABILITY
         );
 
         if (Build.current().isSnapshot()) {

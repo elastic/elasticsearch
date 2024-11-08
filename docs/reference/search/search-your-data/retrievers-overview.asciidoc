@@ -34,6 +34,7 @@ Used for <<semantic-reranking,semantic reranking>>.
 Requires first creating a `rerank` task using the <<put-inference-api,{es} Inference API>>.
 
 [discrete]
+[[retrievers-overview-why-are-they-useful]]
 ==== What makes retrievers useful?
 
 Here's an overview of what makes retrievers useful and how they differ from regular queries.
@@ -182,6 +183,5 @@ Refer to the {kibana-ref}/playground.html[Playground documentation] for more inf
 ==== API reference
 
 For implementation details, including notable restrictions, check out the <<retriever,reference documentation>> in the Search API docs.
-
 
 include::retrievers-examples.asciidoc[]

@@ -59,6 +59,7 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextSimilarityConf
 import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.inference.chunking.EmbeddingRequestChunker;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.validation.ModelValidatorBuilder;
 
 import java.util.ArrayList;
@@ -504,30 +505,34 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
 
     @Override
     public Model updateModelWithEmbeddingDetails(Model model, int embeddingSize) {
-        if (model instanceof CustomElandEmbeddingModel embeddingsModel) {
-            var serviceSettings = embeddingsModel.getServiceSettings();
+        if (model instanceof ElasticsearchInternalModel) {
+            if (model instanceof CustomElandEmbeddingModel embeddingsModel) {
+                var serviceSettings = embeddingsModel.getServiceSettings();
 
-            var updatedServiceSettings = new CustomElandInternalTextEmbeddingServiceSettings(
-                serviceSettings.getNumAllocations(),
-                serviceSettings.getNumThreads(),
-                serviceSettings.modelId(),
-                serviceSettings.getAdaptiveAllocationsSettings(),
-                embeddingSize,
-                serviceSettings.similarity(),
-                serviceSettings.elementType()
-            );
+                var updatedServiceSettings = new CustomElandInternalTextEmbeddingServiceSettings(
+                    serviceSettings.getNumAllocations(),
+                    serviceSettings.getNumThreads(),
+                    serviceSettings.modelId(),
+                    serviceSettings.getAdaptiveAllocationsSettings(),
+                    embeddingSize,
+                    serviceSettings.similarity(),
+                    serviceSettings.elementType()
+                );
 
-            return new CustomElandEmbeddingModel(
-                model.getInferenceEntityId(),
-                model.getTaskType(),
-                model.getConfigurations().getService(),
-                updatedServiceSettings,
-                model.getConfigurations().getChunkingSettings()
-            );
+                return new CustomElandEmbeddingModel(
+                    model.getInferenceEntityId(),
+                    model.getTaskType(),
+                    model.getConfigurations().getService(),
+                    updatedServiceSettings,
+                    model.getConfigurations().getChunkingSettings()
+                );
+            } else {
+                // TODO: This is for the E5 case which is text embedding but we didn't previously update the dimensions. Figure out if we do
+                // need to update the dimensions?
+                return model;
+            }
         } else {
-            // TODO: This is for the E5 case which is text embedding but we didn't previously update the dimensions. Figure out if we do
-            // need to update the dimensions?
-            return model;
+            throw ServiceUtils.invalidModelTypeForUpdateModelWithEmbeddingDetails(model.getClass());
         }
     }
 

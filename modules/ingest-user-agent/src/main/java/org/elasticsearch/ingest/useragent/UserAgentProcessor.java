@@ -262,6 +262,9 @@ public class UserAgentProcessor extends AbstractProcessor {
     }
 
     static boolean maybeUpgradeConfig(Map<String, Object> config) {
+        // Instances created using ES 8.x (or earlier) may have the 'ecs' config entry.
+        // This was ignored in 8.x and is unsupported in 9.0.
+        // In 9.x, we should remove it from any existing processors on startup.
         return config.remove("ecs") != null;
     }
 }

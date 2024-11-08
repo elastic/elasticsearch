@@ -322,6 +322,9 @@ tests:
 - class: org.elasticsearch.action.search.PointInTimeIT
   method: testPITTiebreak
   issue: https://github.com/elastic/elasticsearch/issues/115810
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  method: test {p0=esql/61_enrich_ip/IP strings}
+  issue: https://github.com/elastic/elasticsearch/issues/116529
 
 # Examples:
 #

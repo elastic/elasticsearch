@@ -64,7 +64,8 @@ public class KqlParserExistsQueryTests extends AbstractKqlParserTestCase {
         assertThat(
             parsedQuery.should(),
             containsInAnyOrder(
-                searchableFields(fieldNamePattern).stream().map(fieldName -> parseKqlQuery(kqlExistsQuery(fieldName))).toArray())
+                searchableFields(fieldNamePattern).stream().map(fieldName -> parseKqlQuery(kqlExistsQuery(fieldName))).toArray()
+            )
         );
     }
 

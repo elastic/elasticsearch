@@ -79,6 +79,7 @@ import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.SYS
 import static org.elasticsearch.cluster.routing.UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator.THRESHOLD_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY;
+import static org.elasticsearch.test.AnnotationTestOrdering.Order;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
@@ -1957,7 +1958,7 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
         assertThat(extractTotalHits(resp), equalTo(numHits));
     }
 
-    @AnnotationTestOrdering.Order(Integer.MIN_VALUE)
+    @Order(Integer.MIN_VALUE)
     @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED_COORDINATION) // this test is just about v8->v9 upgrades, remove it in v10
     public void testBalancedShardsAllocatorThreshold() throws Exception {
         assumeTrue("test only applies for v8->v9 upgrades", getOldClusterTestVersion().getMajor() == 8);

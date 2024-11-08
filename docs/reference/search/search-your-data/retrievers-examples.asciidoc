@@ -1,5 +1,5 @@
 [[retrievers-examples]]
-==== Retrievers examples
+=== Retrievers examples
 
 To show the full functionality, for this set of examples, we'll assume that we have access to a <<semantic-reranking-models,reranker model>> through the inference service.
 
@@ -94,8 +94,9 @@ POST /retrievers_example/_doc/5
 
 Now that we also have our documents in place, let's try to run some queries using retrievers.
 
+[discrete]
 [[retrievers-examples-combining-standard-knn-retrievers-with-rrf]]
-===== Combining query and kNN with RRF
+==== Combining query and kNN with RRF
 
 First, let's examine how to combine two different types of queries: a `kNN` query and a
 `query_string` query. While these queries may produce scores in different ranges, we can use
@@ -145,8 +146,9 @@ GET /retrievers_example/_search
 ----
 //NOTCONSOLE
 
+[discrete]
 [[retrievers-examples-collapsing-retriever-results]]
-===== Grouping results by year with `collapse`
+==== Grouping results by year with `collapse`
 
 In our result set, we have many documents with the same `year` value. We can clean this
 up using the `collapse` parameter with our retriever. This enables grouping results by
@@ -199,8 +201,9 @@ GET /retrievers_example/_search
 ----
 //NOTCONSOLE
 
+[discrete]
 [[retrievers-examples-text-similarity-reranker-on-top-of-rrf]]
-======  Rerank results of RRF retriever
+====  Rerank results of an RRF retriever
 
 Previously, we used a `text_similarity_reranker` retriever within an `rrf` retriever.
 Because retrievers support full composability, we can also rerank the results of an
@@ -253,8 +256,9 @@ GET retrievers_example/_search
 ----
 //NOTCONSOLE
 
+[discrete]
 [[retrievers-examples-rrf-ranking-on-text-similarity-reranker-results]]
-===== RRF with semantic reranker
+==== RRF with semantic reranker
 
 For this example, we'll replace our semantic query with the `my-rerank-model`
 reranker we previously configured. Since this is a reranker, it needs an initial pool of
@@ -308,8 +312,9 @@ GET /retrievers_example/_search
 ----
 //NOTCONSOLE
 
+[discrete]
 [[retrievers-examples-chaining-text-similarity-reranker-retrievers]]
-===== Chaining multiple semantic rerankers
+==== Chaining multiple semantic rerankers
 
 Full composability means we can chain together multiple retrievers of the same type. For instance, imagine we have a computationally expensive reranker that's specialized for AI content. We can rerank the results of a `text_similarity_reranker` using another `text_similarity_reranker` retriever. Each reranker can operate on different fields and/or use different inference services.
 
@@ -359,8 +364,9 @@ documents from the `knn` search using the `my-rerank-model` reranker. Then we
 pick the top 10 results and rerank them using the more fine-grained
 `my-other-more-expensive-rerank-model`.
 
+[discrete]
 [[retrievers-examples-rrf-and-aggregations]]
-===== Combine RRF with aggregations
+==== Combine RRF with aggregations
 
 Retrievers support both composability and most of the standard `_search` functionality. For instance,
 we can compute aggregations with the `rrf` retriever. When using a compound retriever,

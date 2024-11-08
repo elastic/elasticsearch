@@ -1,5 +1,5 @@
 [[retrievers-overview]]
-=== Retrievers
+== Retrievers
 
 A retriever is an abstraction that was added to the Search API in *8.14.0* and was made generally available in *8.16.0*.
 This abstraction enables the configuration of multi-stage retrieval pipelines within a single `_search` call.
@@ -11,7 +11,7 @@ For implementation details, including notable restrictions, check out the
 
 [discrete]
 [[retrievers-overview-types]]
-==== Retriever types
+=== Retriever types
 
 Retrievers come in various types, each tailored for different search operations.
 The following retrievers are currently available:
@@ -35,7 +35,7 @@ Requires first creating a `rerank` task using the <<put-inference-api,{es} Infer
 
 [discrete]
 [[retrievers-overview-why-are-they-useful]]
-==== What makes retrievers useful?
+=== What makes retrievers useful?
 
 Here's an overview of what makes retrievers useful and how they differ from regular queries.
 
@@ -67,7 +67,7 @@ When using compound retrievers, only the query element is allowed, which enforce
 
 [discrete]
 [[retrievers-overview-example]]
-==== Example
+=== Example
 
 The following example demonstrates how using retrievers simplify the composability of queries for RRF ranking.
 
@@ -150,7 +150,7 @@ For more examples on how to use retrievers, please refer to <<retrievers-example
 
 [discrete]
 [[retrievers-overview-glossary]]
-==== Glossary
+=== Glossary
 
 Here are some important terms:
 
@@ -169,7 +169,7 @@ Special compound retrievers that reorder hits and may adjust the number of hits,
 
 [discrete]
 [[retrievers-overview-play-in-search]]
-==== Retrievers in action
+=== Retrievers in action
 
 The Search Playground builds Elasticsearch queries using the retriever abstraction.
 It automatically detects the fields and types in your index and builds a retriever tree based on your selections.
@@ -180,8 +180,9 @@ Refer to the {kibana-ref}/playground.html[Playground documentation] for more inf
 
 [discrete]
 [[retrievers-overview-api-reference]]
-==== API reference
+=== API reference
 
 For implementation details, including notable restrictions, check out the <<retriever,reference documentation>> in the Search API docs.
+
 
 include::retrievers-examples.asciidoc[]

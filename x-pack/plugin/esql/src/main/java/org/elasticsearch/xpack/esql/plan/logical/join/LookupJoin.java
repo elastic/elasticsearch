@@ -40,7 +40,7 @@ public class LookupJoin extends Join implements SurrogateLogicalPlan {
     }
 
     /**
-     * Translate the expression into a regular join with a Projection on top, to deal with serialization & co.
+     * Translate the expression into a regular join with a Projection on top, to deal with serialization &amp; co.
      */
     @Override
     public LogicalPlan surrogate() {

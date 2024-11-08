@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.analysis;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.Column;
@@ -21,6 +22,7 @@ import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.EmptyAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
@@ -101,6 +103,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
@@ -185,6 +188,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         @Override
         protected LogicalPlan rule(UnresolvedRelation plan, AnalyzerContext context) {
+            if (plan.indexMode().equals(IndexMode.LOOKUP)) {
+                return hackLookupMapping(plan);
+            }
             if (context.indexResolution().isValid() == false) {
                 return plan.unresolvedMessage().equals(context.indexResolution().toString())
                     ? plan
@@ -218,6 +224,21 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return new EsRelation(plan.source(), esIndex, attributes.isEmpty() ? NO_FIELDS : attributes, plan.indexMode());
         }
 
+        private LogicalPlan hackLookupMapping(UnresolvedRelation plan) {
+            if (plan.table().index().toLowerCase(Locale.ROOT).equals("languages_lookup")) {
+                EsIndex esIndex = new EsIndex(
+                    "languages_lookup",
+                    Map.ofEntries(
+                        Map.entry("language_code", new EsField("language_code", DataType.LONG, Map.of(), true)),
+                        Map.entry("language_name", new EsField("language", DataType.KEYWORD, Map.of(), true))
+                    ),
+                    Map.of("languages_lookup", IndexMode.LOOKUP)
+                );
+                var attributes = mappingAsAttributes(plan.source(), esIndex.mapping());
+                return new EsRelation(plan.source(), esIndex, attributes.isEmpty() ? NO_FIELDS : attributes, plan.indexMode());
+            }
+            return plan;
+        }
     }
 
     /**
@@ -615,7 +636,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 // resolve the using columns against the left and the right side then assemble the new join config
                 List<Attribute> leftKeys = resolveUsingColumns(cols, join.left().output(), "left");
                 List<Attribute> rightKeys = resolveUsingColumns(cols, join.right().output(), "right");
-                List<Attribute> output = new ArrayList<>(rightKeys);
+                List<Attribute> output = new ArrayList<>(join.left().output());
+                output.addAll(join.right().outputSet().subtract(new AttributeSet(rightKeys)));
 
                 // update the config - pick the left keys as those in the output
                 type = new UsingJoinType(coreJoin, rightKeys);

@@ -171,7 +171,7 @@ public class Verifier {
             } else if (p instanceof LookupJoin lj) {
                 // expect right side to always be a lookup index
                 lj.right().forEachUp(EsRelation.class, r -> {
-                    if (r.indexMode() == IndexMode.LOOKUP) {
+                    if (r.indexMode() != IndexMode.LOOKUP) {
                         failures.add(
                             fail(
                                 r,

@@ -25,7 +25,11 @@ public class UnresolvedRelation extends LeafPlan implements Unresolvable {
     private final TableIdentifier table;
     private final boolean frozen;
     private final List<Attribute> metadataFields;
-    private final IndexMode indexMode;
+    /*
+     * IndexMode above is weird because we're deciding it based on where it is
+     * in the parsing.
+     */
+    private final IndexMode indexMode; // NOCOMMIT should we use IndexMode here or some kind of requested index mode or something?
     private final String unresolvedMsg;
 
     /**

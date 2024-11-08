@@ -6,8 +6,6 @@
  * your election, the "Elastic License 2.0", the "GNU Affero General Public
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
-import org.elasticsearch.gradle.Version
-
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.yaml-rest-compat-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
@@ -28,6 +26,12 @@ dependencies {
   compileOnly project(':modules:lang-painless:spi')
   clusterModules project(':modules:reindex')
   clusterModules project(':modules:mapper-extras')
+}
+
+tasks.named("yamlRestTest").configure { task->
+  if (BuildParams.getRuntimeJavaVersion().majorVersion.toInteger() < 21) {
+    task.skipTest("analysis-common/50_char_filters/pattern_replace error handling (too complex pattern)", "Requires Java 21 or later")
+  }
 }
 
 tasks.named("yamlRestTestV7CompatTransform").configure { task ->

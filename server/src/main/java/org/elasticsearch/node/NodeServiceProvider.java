@@ -43,6 +43,7 @@ import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.Map;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 
@@ -51,9 +52,15 @@ import java.util.function.LongSupplier;
  */
 class NodeServiceProvider {
 
-    PluginsService newPluginService(Environment environment, Settings settings) {
+    PluginsService newPluginService(Environment environment, Settings settings, Consumer<Map<Module, String>> setPluginModules) {
         // this creates a PluginsService with an empty list of classpath plugins
-        return new PluginsService(settings, environment.configFile(), environment.modulesFile(), environment.pluginsFile());
+        return new PluginsService(
+            settings,
+            environment.configFile(),
+            environment.modulesFile(),
+            environment.pluginsFile(),
+            setPluginModules
+        );
     }
 
     ScriptService newScriptService(

@@ -57,6 +57,7 @@ import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 
@@ -279,9 +280,9 @@ public class MockNode extends Node {
         final Collection<Class<? extends Plugin>> classpathPlugins,
         final boolean forbidPrivateIndexSettings
     ) {
-        super(NodeConstruction.prepareConstruction(environment, new MockServiceProvider() {
+        super(NodeConstruction.prepareConstruction(environment, null, new MockServiceProvider() {
             @Override
-            PluginsService newPluginService(Environment environment, Settings settings) {
+            PluginsService newPluginService(Environment environment, Settings settings, Consumer<Map<Module, String>> setPluginModules) {
                 return new MockPluginsService(settings, environment, classpathPlugins);
             }
         }, forbidPrivateIndexSettings));

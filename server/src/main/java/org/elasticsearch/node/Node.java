@@ -103,6 +103,7 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.function.Function;
 
 import javax.net.ssl.SNIHostName;
@@ -180,8 +181,8 @@ public class Node implements Closeable {
      *
      * @param environment         the initial environment for this node, which will be added to by plugins
      */
-    public Node(Environment environment) {
-        this(NodeConstruction.prepareConstruction(environment, new NodeServiceProvider(), true));
+    public Node(Environment environment, Consumer<Map<Module, String>> pluginModules) {
+        this(NodeConstruction.prepareConstruction(environment, pluginModules, new NodeServiceProvider(), true));
     }
 
     /**

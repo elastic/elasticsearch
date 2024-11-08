@@ -122,7 +122,13 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
      * @param pluginsDirectory The directory plugins exist in, or null if plugins should not be loaded from the filesystem
      */
     @SuppressWarnings("this-escape")
-    public PluginsService(Settings settings, Path configPath, Path modulesDirectory, Path pluginsDirectory) {
+    public PluginsService(
+        Settings settings,
+        Path configPath,
+        Path modulesDirectory,
+        Path pluginsDirectory,
+        Consumer<Map<Module, String>> setPluginModules
+    ) {
         this.settings = settings;
         this.configPath = configPath;
 
@@ -163,7 +169,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             }
         }
 
-        LinkedHashMap<String, LoadedPlugin> loadedPlugins = loadBundles(seenBundles, qualifiedExports);
+        LinkedHashMap<String, LoadedPlugin> loadedPlugins = loadBundles(seenBundles, qualifiedExports, setPluginModules);
 
         var inspector = PluginIntrospector.getInstance();
         this.info = new PluginsAndModules(getRuntimeInfos(inspector, pluginsList, loadedPlugins), modulesList);
@@ -284,7 +290,8 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
 
     private LinkedHashMap<String, LoadedPlugin> loadBundles(
         Set<PluginBundle> bundles,
-        Map<String, List<ModuleQualifiedExportsService>> qualifiedExports
+        Map<String, List<ModuleQualifiedExportsService>> qualifiedExports,
+        Consumer<Map<Module, String>> setPluginModules
     ) {
         LinkedHashMap<String, LoadedPlugin> loaded = new LinkedHashMap<>();
         Map<String, Set<URL>> transitiveUrls = new HashMap<>();

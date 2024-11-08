@@ -19,6 +19,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.NodeValidationException;
 
 import java.io.PrintStream;
+import java.util.Map;
 
 /**
  * A container for transient state during bootstrap of the Elasticsearch process.
@@ -41,6 +42,9 @@ class Bootstrap {
 
     // the loaded settings for the node, not valid until after phase 2 of initialization
     private final SetOnce<Environment> nodeEnv = new SetOnce<>();
+
+    // required by entitlements, not valid until after phase 3 of initialization (plugins loaded)
+    private final SetOnce<Map<Module, String>> pluginModules = new SetOnce<>();
 
     Bootstrap(PrintStream out, PrintStream err, ServerArgs args) {
         this.out = out;
@@ -70,6 +74,14 @@ class Bootstrap {
 
     Environment environment() {
         return nodeEnv.get();
+    }
+
+    void setPluginModules(Map<Module, String> pluginModules) {
+        this.pluginModules.set(pluginModules);
+    }
+
+    Map<Module, String> pluginModules() {
+        return pluginModules.get();
     }
 
     void exitWithNodeValidationException(NodeValidationException e) {

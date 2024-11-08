@@ -242,7 +242,7 @@ class Elasticsearch {
     private static void initPhase3(Bootstrap bootstrap) throws IOException, NodeValidationException {
         checkLucene();
 
-        Node node = new Node(bootstrap.environment()) {
+        Node node = new Node(bootstrap.environment(), bootstrap::setPluginModules) {
             @Override
             protected void validateNodeBeforeAcceptingRequests(
                 final BootstrapContext context,

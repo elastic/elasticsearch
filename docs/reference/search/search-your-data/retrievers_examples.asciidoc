@@ -1,9 +1,9 @@
-tag::basic-rrf-retriever-with-semantic-query[]
+tag::basic-rrf-retriever-with-simple-query-and-knn[]
 [discrete]
-=== Combining kNN and semantic search with RRF
+=== Combining query and kNN with RRF
 
 First, let's examine how to combine two different types of queries: a `kNN` query and a
-`semantic` query. While these queries may produce scores in different ranges, we can use
+`query_string` query. While these queries may produce scores in different ranges, we can use
 Reciprocal Rank Fusion (`rrf`) to combine the results and generate a merged final result
 list.
 
@@ -45,7 +45,7 @@ GET /retrievers_example/_search
 }
 ----
 //NOTCONSOLE
-end::basic-rrf-retriever-with-semantic-query[]
+end::basic-rrf-retriever-with-simple-query-and-knn[]
 
 tag::rrf-retriever-with-collapse[]
 [discrete]

@@ -70,8 +70,7 @@ When using compound retrievers, only the query element is allowed, which enforce
 
 The following example demonstrates the powerful queries that we can now compose, and how retrievers simplify this process.
 
-To show the full functionality, in this exercise, we'll assume that we have access to a <<semantic-reranking-models,reranker model>> through the inference service,
-as well as access to <<infer-service-elser,ELSER>>, for building semantic queries.
+To show the full functionality, in this exercise, we'll assume that we have access to a <<semantic-reranking-models,reranker model>> through the inference service.
 
 To begin with, we'll set up the necessary services and have them in place for later use.
 
@@ -89,22 +88,7 @@ PUT _inference/rerank/my-awesome-rerank-model
 ----
 //NOTCONSOLE
 
-[source,js]
-----
-// Setup ELSER as `my-elser-endpoint`
-PUT _inference/sparse_embedding/my-elser-endpoint
-{
- "service": "elser",
- "service_settings": {
-   "num_allocations": 1,
-   "num_threads": 1
- },
- "task_settings": {}
-}
-----
-//NOTCONSOLE
-
-Now that we have our services in place, lets create the `retrievers_example` index, and add some documents to it.
+Now that we have our reranking service in place, lets create the `retrievers_example` index, and add some documents to it.
 [source,js]
 ----
 PUT retrievers_example
@@ -118,18 +102,13 @@ PUT retrievers_example
                "index": true
            },
            "text": {
-               "type": "text",
-               "copy_to": "inference_field"
+               "type": "text"
            },
            "year": {
                "type": "integer"
            },
            "topic": {
                "type": "keyword"
-           },
-           "inference_field": {
-               "type": "semantic_text",
-               "inference_id": "my-elser-endpoint"
            }
        }
    }
@@ -184,7 +163,7 @@ POST /retrievers_example/_doc/5
 
 Now that we also have our documents in place, let's try to run some queries using retrievers.
 
-include::retrievers_examples.asciidoc[tag=basic-rrf-retriever-with-semantic-query]
+include::retrievers_examples.asciidoc[tag=basic-rrf-retriever-with-simple-query-and-knn]
 include::retrievers_examples.asciidoc[tag=rrf-retriever-with-collapse]
 include::retrievers_examples.asciidoc[tag=text-similarity-reranker-on-top-of-rrf]
 include::retrievers_examples.asciidoc[tag=rrf-on-top-of-semantic-reranker]

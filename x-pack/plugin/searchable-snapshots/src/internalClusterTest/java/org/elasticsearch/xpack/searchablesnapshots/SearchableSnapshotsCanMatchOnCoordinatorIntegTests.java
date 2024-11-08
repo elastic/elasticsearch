@@ -1033,6 +1033,9 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
             TermQueryBuilder termQueryBuilder = QueryBuilders.termQuery("_tier", "data_content");
             List<String> indicesToSearch = List.of(regularIndex, partiallyMountedIndex);
             SearchRequest request = new SearchRequest().indices(indicesToSearch.toArray(new String[0]))
+                // we randomise the partial search results because if shards that do NOT match the query are unavailable
+                // the search is not partial
+                .allowPartialSearchResults(randomBoolean())
                 .source(new SearchSourceBuilder().query(termQueryBuilder));
 
             assertResponse(client().search(request), searchResponse -> {
@@ -1049,6 +1052,7 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
             TermsQueryBuilder termsQueryBuilder = QueryBuilders.termsQuery("_tier", "data_hot", "data_content");
             List<String> indicesToSearch = List.of(regularIndex, partiallyMountedIndex);
             SearchRequest request = new SearchRequest().indices(indicesToSearch.toArray(new String[0]))
+                .allowPartialSearchResults(randomBoolean())
                 .source(new SearchSourceBuilder().query(termsQueryBuilder));
 
             assertResponse(client().search(request), searchResponse -> {
@@ -1065,6 +1069,7 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
             BoolQueryBuilder boolQueryBuilder = QueryBuilders.boolQuery().mustNot(QueryBuilders.termQuery("_tier", "data_frozen"));
             List<String> indicesToSearch = List.of(regularIndex, partiallyMountedIndex);
             SearchRequest request = new SearchRequest().indices(indicesToSearch.toArray(new String[0]))
+                .allowPartialSearchResults(randomBoolean())
                 .source(new SearchSourceBuilder().query(boolQueryBuilder));
 
             assertResponse(client().search(request), searchResponse -> {
@@ -1082,6 +1087,7 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
                 .mustNot(randomFrom(QueryBuilders.wildcardQuery("_tier", "dat*ozen"), QueryBuilders.prefixQuery("_tier", "data_fro")));
             List<String> indicesToSearch = List.of(regularIndex, partiallyMountedIndex);
             SearchRequest request = new SearchRequest().indices(indicesToSearch.toArray(new String[0]))
+                .allowPartialSearchResults(randomBoolean())
                 .source(new SearchSourceBuilder().query(boolQueryBuilder));
 
             assertResponse(client().search(request), searchResponse -> {

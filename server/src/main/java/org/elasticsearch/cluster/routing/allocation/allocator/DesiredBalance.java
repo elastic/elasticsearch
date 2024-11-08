@@ -26,11 +26,18 @@ import java.util.Objects;
 public record DesiredBalance(
     long lastConvergedIndex,
     Map<ShardId, ShardAssignment> assignments,
-    Map<DiscoveryNode, DesiredBalanceMetrics.NodeWeightStats> weightsPerNode
+    Map<DiscoveryNode, DesiredBalanceMetrics.NodeWeightStats> weightsPerNode,
+    ComputationFinishReason finishReason
 ) {
 
+    enum ComputationFinishReason {
+        CONVERGED,
+        YIELD_TO_NEW_INPUT,
+        STOP_EARLY
+    }
+
     public DesiredBalance(long lastConvergedIndex, Map<ShardId, ShardAssignment> assignments) {
-        this(lastConvergedIndex, assignments, Map.of());
+        this(lastConvergedIndex, assignments, Map.of(), ComputationFinishReason.CONVERGED);
     }
 
     public static final DesiredBalance INITIAL = new DesiredBalance(-1, Map.of());

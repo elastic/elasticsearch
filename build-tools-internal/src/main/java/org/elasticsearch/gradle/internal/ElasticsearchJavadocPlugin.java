@@ -87,7 +87,7 @@ public class ElasticsearchJavadocPlugin implements Plugin<Project> {
     }
 
     private void configureDependency(Project project, boolean shadowed, ProjectDependency dep) {
-        // we should use variant aware dependency management to reoslve artifacts required for javadoc here
+        // we should use variant aware dependency management to resolve artifacts required for javadoc here
         Project upstreamProject = project.project(((ProjectDependencyInternal) dep).getIdentityPath().getPath());
         if (upstreamProject == null) {
             return;

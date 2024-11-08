@@ -47,7 +47,6 @@ public class TestWithDependenciesPlugin implements Plugin<Project> {
             return;
         }
 
-        // testPluginMetadata.getAttributes().attribute(Attribute.of("artifactType", String.class), "plugin-metadata");
         Configuration testImplementationConfig = project.getConfigurations().getByName("testImplementation");
         testImplementationConfig.getDependencies().all(dep -> {
             if (dep instanceof ProjectDependency && dep.getGroup().contains("plugin")) {

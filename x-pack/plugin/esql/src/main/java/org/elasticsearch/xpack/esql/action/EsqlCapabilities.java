@@ -274,7 +274,7 @@ public class EsqlCapabilities {
         RANGEQUERY_FOR_DATETIME,
 
         /**
-         * Enforce strict type checking on ENRICH range types.
+         * Enforce strict type checking on ENRICH range types, and warnings for KEYWORD parsing at runtime. Done in #115091.
          */
         ENRICH_STRICT_RANGE_TYPES,
 

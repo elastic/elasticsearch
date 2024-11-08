@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeRes
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
@@ -73,12 +74,14 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
             request.matchField,
             request.inputPage,
             null,
-            request.extractFields
+            request.extractFields,
+            request.source
         );
     }
 
     @Override
     protected QueryList queryList(TransportRequest request, SearchExecutionContext context, Block inputBlock, DataType inputDataType) {
+        validateTypes(inputDataType, context.getFieldType(request.matchField));
         MappedFieldType fieldType = context.getFieldType(request.matchField);
         return switch (request.matchType) {
             case "match", "range" -> termQueryList(fieldType, context, inputBlock, inputDataType);
@@ -104,6 +107,10 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
     }
 
     private static boolean rangeTypesCompatible(RangeType rangeType, DataType inputDataType) {
+        if (inputDataType.noText() == DataType.KEYWORD) {
+            // We allow runtime parsing of string types to numeric types
+            return true;
+        }
         return switch (rangeType) {
             case INTEGER, LONG -> inputDataType.isWholeNumber();
             case IP -> inputDataType == DataType.IP;
@@ -123,9 +130,10 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
             String matchType,
             String matchField,
             Page inputPage,
-            List<NamedExpression> extractFields
+            List<NamedExpression> extractFields,
+            Source source
         ) {
-            super(sessionId, index, inputDataType, inputPage, extractFields);
+            super(sessionId, index, inputDataType, inputPage, extractFields, source);
             this.matchType = matchType;
             this.matchField = matchField;
         }
@@ -143,9 +151,10 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
             String matchField,
             Page inputPage,
             Page toRelease,
-            List<NamedExpression> extractFields
+            List<NamedExpression> extractFields,
+            Source source
         ) {
-            super(sessionId, shardId, inputDataType, inputPage, toRelease, extractFields);
+            super(sessionId, shardId, inputDataType, inputPage, toRelease, extractFields, source);
             this.matchType = matchType;
             this.matchField = matchField;
         }
@@ -165,6 +174,10 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
             }
             PlanStreamInput planIn = new PlanStreamInput(in, in.namedWriteableRegistry(), null);
             List<NamedExpression> extractFields = planIn.readNamedWriteableCollectionAsList(NamedExpression.class);
+            var source = Source.EMPTY;
+            if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_ENRICH_RUNTIME_WARNINGS)) {
+                source = Source.readFrom(planIn);
+            }
             TransportRequest result = new TransportRequest(
                 sessionId,
                 shardId,
@@ -173,7 +186,8 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
                 matchField,
                 inputPage,
                 inputPage,
-                extractFields
+                extractFields,
+                source
             );
             result.setParentTask(parentTaskId);
             return result;
@@ -192,6 +206,9 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
             out.writeWriteable(inputPage);
             PlanStreamOutput planOut = new PlanStreamOutput(out, null);
             planOut.writeNamedWriteableCollection(extractFields);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_ENRICH_RUNTIME_WARNINGS)) {
+                source.writeTo(planOut);
+            }
         }
 
         @Override

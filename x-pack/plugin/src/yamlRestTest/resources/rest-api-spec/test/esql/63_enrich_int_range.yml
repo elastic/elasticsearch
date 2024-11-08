@@ -91,6 +91,8 @@ setup:
           - { "index": { } }
           - { "name": "Jane Doe", "age": 31, "ak": "31", "salary": 55.55 }
           - { "index": { } }
+          - { "name": "Jane Immortal", "age": -1, "ak": "immortal", "salary": 55.55 }
+          - { "index": { } }
           - { "name": "Magic Mike", "age": 44, "ak": "44", "salary": 55.55 }
           - { "index": { } }
           - { "name": "Anon Ymous", "age": 61, "ak": "61", "salary": 55.55 }
@@ -115,16 +117,19 @@ teardown:
   - match: { columns.1.name: "description" }
   - match: { columns.1.type: "keyword" }
 
-  - length: { values: 3 }
+  - length: { values: 4 }
   - match: { values.0: [ 2, "Young Adult" ] }
   - match: { values.1: [ 1, "Middle-aged" ] }
   - match: { values.2: [ 1, "Senior" ] }
+  - match: { values.3: [ 1, null ] }
 
 ---
 "ages as typecast keywords":
   - do:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"
+        - "Line 1:29: evaluation of \\[ak::integer\\] failed, treating result as null. Only first 20 failures recorded."
+        - "Line 1:29: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number \\[immortal\\]"
       esql.query:
         body:
           query: 'FROM employees | EVAL aki = ak::integer | ENRICH ages-policy ON aki | STATS count=COUNT(*) BY description | SORT count DESC, description ASC'
@@ -134,37 +139,53 @@ teardown:
   - match: { columns.1.name: "description" }
   - match: { columns.1.type: "keyword" }
 
-  - length: { values: 3 }
+  - length: { values: 4 }
   - match: { values.0: [ 2, "Young Adult" ] }
   - match: { values.1: [ 1, "Middle-aged" ] }
   - match: { values.2: [ 1, "Senior" ] }
+  - match: { values.3: [ 1, null ] }
 
 ---
 "ages as keywords":
   - do:
-      catch: /ENRICH range and input types are incompatible. range\[INTEGER\], input\[KEYWORD\]/
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'FROM employees | ENRICH ages-policy ON ak | STATS count=COUNT(*) BY description | SORT count DESC, description ASC'
 
+  - match: { columns.0.name: "count" }
+  - match: { columns.0.type: "long" }
+  - match: { columns.1.name: "description" }
+  - match: { columns.1.type: "keyword" }
+
+  - length: { values: 4 }
+  - match: { values.0: [ 2, "Young Adult" ] }
+  - match: { values.1: [ 1, "Middle-aged" ] }
+  - match: { values.2: [ 1, "Senior" ] }
+  - match: { values.3: [ 1, null ] }
+
 ---
 "Invalid age as keyword":
-  - requires:
-      cluster_features: [ "gte_v8.14.0" ]
-      reason: "IP range ENRICH support was added in 8.14.0"
-
   - do:
-      catch: /ENRICH range and input types are incompatible. range\[INTEGER\], input\[KEYWORD\]/
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+        - "Line 1:29: evaluation of [ak::integer] failed, treating result as null. Only first 20 failures recorded."
+        - "Line 1:29: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number [immortal]"
       esql.query:
         body:
           query: 'FROM employees | ENRICH ages-policy ON name | STATS count=COUNT(*) BY description | SORT count DESC, description ASC'
 
+  - match: { columns.0.name: "count" }
+  - match: { columns.0.type: "long" }
+  - match: { columns.1.name: "description" }
+  - match: { columns.1.type: "keyword" }
+
+  - length: { values: 1 }
+  - match: { values.0: [ 5, null ] }
+
 ---
 "Invalid age as double":
-  - requires:
-      cluster_features: [ "gte_v8.14.0" ]
-      reason: "IP range ENRICH support was added in 8.14.0"
-
   - do:
       catch: /ENRICH range and input types are incompatible. range\[INTEGER\], input\[DOUBLE\]/
       esql.query:

@@ -20,7 +20,6 @@ import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestResponse;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestResponseException;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
-import org.elasticsearch.xpack.core.ml.integration.MlRestTestStateCleaner;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields;
 import org.elasticsearch.xpack.core.ml.notifications.NotificationsIndex;
@@ -115,7 +114,6 @@ public abstract class AbstractXPackRestTest extends ESClientYamlSuiteTestCase {
      */
     @After
     public void cleanup() throws Exception {
-        clearMlState();
         if (isWaitForPendingTasks()) {
             // This waits for pending tasks to complete, so must go last (otherwise
             // it could be waiting for pending tasks while monitoring is still running).
@@ -128,15 +126,6 @@ public abstract class AbstractXPackRestTest extends ESClientYamlSuiteTestCase {
             // Don't check rollup jobs because we clear them in the superclass.
             return task.contains(RollupJob.NAME);
         };
-    }
-
-    /**
-     * Delete any left over machine learning datafeeds and jobs.
-     */
-    private void clearMlState() throws Exception {
-        if (isMachineLearningTest()) {
-            new MlRestTestStateCleaner(logger, adminClient()).resetFeatures();
-        }
     }
 
     /**

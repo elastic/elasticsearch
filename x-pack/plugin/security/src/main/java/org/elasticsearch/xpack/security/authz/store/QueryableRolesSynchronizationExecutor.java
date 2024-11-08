@@ -300,7 +300,7 @@ public class QueryableRolesSynchronizationExecutor implements ClusterStateListen
 
         Tuple<ClusterState, Map<String, String>> execute(ClusterState state) {
             IndexMetadata indexMetadata = state.metadata().index(index);
-            if(indexMetadata == null) {
+            if (indexMetadata == null) {
                 throw new IndexNotFoundException(index);
             }
             Map<String, String> existingValue = indexMetadata.getCustomData(METADATA_QUERYABLE_BUILT_IN_ROLES);

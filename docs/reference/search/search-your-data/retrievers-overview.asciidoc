@@ -145,7 +145,8 @@ GET example-index/_search
 //NOTCONSOLE
 ==============
 
-For more examples on how to use retrievers, refer to <<retriever_examples,retriever examples>>.
+For more examples on how to use retrievers, please refer to <<retrievers-examples,retriever examples>>.
+
 [discrete]
 [[retrievers-overview-glossary]]
 ==== Glossary
@@ -181,3 +182,6 @@ Refer to the {kibana-ref}/playground.html[Playground documentation] for more inf
 ==== API reference
 
 For implementation details, including notable restrictions, check out the <<retriever,reference documentation>> in the Search API docs.
+
+
+include::retrievers-examples.asciidoc[]

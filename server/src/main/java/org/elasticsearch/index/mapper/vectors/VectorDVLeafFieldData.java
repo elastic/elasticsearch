@@ -13,8 +13,8 @@ import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.FloatVectorValues;
-import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.FormattedDocValues;
@@ -92,13 +92,11 @@ final class VectorDVLeafFieldData implements LeafFieldData {
             case BYTE, BIT -> new FormattedDocValues() {
                 private byte[] vector = new byte[dims];
                 private ByteVectorValues byteVectorValues; // use when indexed
-                private KnnVectorValues.DocIndexIterator iterator; // use when indexed
                 private BinaryDocValues binary; // use when not indexed
                 {
                     try {
                         if (indexed) {
                             byteVectorValues = reader.getByteVectorValues(field);
-                            iterator = (byteVectorValues == null) ? null : byteVectorValues.iterator();
                         } else {
                             binary = DocValues.getBinary(reader, field);
                         }
@@ -111,10 +109,10 @@ final class VectorDVLeafFieldData implements LeafFieldData {
                 @Override
                 public boolean advanceExact(int docId) throws IOException {
                     if (indexed) {
-                        if (iteratorAdvanceExact(iterator, docId) == false) {
+                        if (iteratorAdvanceExact(byteVectorValues, docId) == false) {
                             return false;
                         }
-                        vector = byteVectorValues.vectorValue(iterator.index());
+                        vector = byteVectorValues.vectorValue();
                     } else {
                         if (binary == null || binary.advanceExact(docId) == false) {
                             return false;
@@ -141,13 +139,11 @@ final class VectorDVLeafFieldData implements LeafFieldData {
             case FLOAT -> new FormattedDocValues() {
                 float[] vector = new float[dims];
                 private FloatVectorValues floatVectorValues; // use when indexed
-                private KnnVectorValues.DocIndexIterator iterator; // use when indexed
                 private BinaryDocValues binary; // use when not indexed
                 {
                     try {
                         if (indexed) {
                             floatVectorValues = reader.getFloatVectorValues(field);
-                            iterator = (floatVectorValues == null) ? null : floatVectorValues.iterator();
                         } else {
                             binary = DocValues.getBinary(reader, field);
                         }
@@ -160,10 +156,10 @@ final class VectorDVLeafFieldData implements LeafFieldData {
                 @Override
                 public boolean advanceExact(int docId) throws IOException {
                     if (indexed) {
-                        if (iteratorAdvanceExact(iterator, docId) == false) {
+                        if (iteratorAdvanceExact(floatVectorValues, docId) == false) {
                             return false;
                         }
-                        vector = floatVectorValues.vectorValue(iterator.index());
+                        vector = floatVectorValues.vectorValue();
                     } else {
                         if (binary == null || binary.advanceExact(docId) == false) {
                             return false;
@@ -187,7 +183,7 @@ final class VectorDVLeafFieldData implements LeafFieldData {
         };
     }
 
-    private static boolean iteratorAdvanceExact(KnnVectorValues.DocIndexIterator iterator, int docId) throws IOException {
+    private static boolean iteratorAdvanceExact(DocIdSetIterator iterator, int docId) throws IOException {
         if (iterator == null) return false;
         int currentDoc = iterator.docID();
         if (currentDoc == NO_MORE_DOCS || docId < currentDoc) {

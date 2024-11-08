@@ -105,6 +105,8 @@ public class TransportBulkActionIngestTests extends ESTestCase {
     private static final ExecutorService writeExecutor = new NamedDirectExecutorService("write");
     private static final ExecutorService systemWriteExecutor = new NamedDirectExecutorService("system_write");
 
+    private final ProjectId projectId = randomProjectId();
+
     /** Services needed by bulk action */
     TransportService transportService;
     ClusterService clusterService;
@@ -159,7 +161,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
                 TestIndexNameExpressionResolver.newInstance(),
                 new IndexingPressure(SETTINGS),
                 EmptySystemIndices.INSTANCE,
-                TestProjectResolvers.DEFAULT_PROJECT_ONLY,
+                TestProjectResolvers.singleProject(projectId),
                 FailureStoreMetrics.NOOP
             );
         }
@@ -303,7 +305,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         when(state.projectState(any(ProjectId.class))).thenCallRealMethod();
         mockFeatureService = mock(FeatureService.class);
         when(mockFeatureService.clusterHasFeature(any(), any())).thenReturn(true);
-        Metadata metadata = Metadata.builder()
+        ProjectMetadata project = ProjectMetadata.builder(projectId)
             .indices(
                 Map.of(
                     WITH_DEFAULT_PIPELINE,
@@ -332,6 +334,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
                 )
             )
             .build();
+        Metadata metadata = Metadata.builder().put(project).build();
         when(state.getMetadata()).thenReturn(metadata);
         when(state.metadata()).thenReturn(metadata);
         when(state.blocks()).thenReturn(mock(ClusterBlocks.class));
@@ -778,15 +781,9 @@ public class TransportBulkActionIngestTests extends ESTestCase {
                 .build()
         );
 
-        Metadata metadata = mock(Metadata.class);
+        Metadata metadata = Metadata.builder().put(ProjectMetadata.builder(projectId).templates(templateMetadata)).build();
         when(state.metadata()).thenReturn(metadata);
         when(state.getMetadata()).thenReturn(metadata);
-        ProjectMetadata projectMetadata = mock(ProjectMetadata.class);
-        when(metadata.projects()).thenReturn(Map.of(Metadata.DEFAULT_PROJECT_ID, projectMetadata));
-        when(metadata.getProject(eq(Metadata.DEFAULT_PROJECT_ID))).thenReturn(projectMetadata);
-        when(projectMetadata.id()).thenReturn(Metadata.DEFAULT_PROJECT_ID);
-        when(projectMetadata.templates()).thenReturn(templateMetadata);
-        when(projectMetadata.indices()).thenReturn(Map.of());
 
         IndexRequest indexRequest = new IndexRequest("missing_index").id("id");
         indexRequest.source(Collections.emptyMap());
@@ -824,7 +821,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
             .build();
 
         ClusterState state = clusterService.state();
-        Metadata metadata = Metadata.builder().put("my-template", t1).build();
+        Metadata metadata = Metadata.builder().put(ProjectMetadata.builder(projectId).put("my-template", t1)).build();
         when(state.metadata()).thenReturn(metadata);
         when(state.getMetadata()).thenReturn(metadata);
 

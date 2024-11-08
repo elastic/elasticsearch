@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.cluster.routing.allocation;
 
@@ -38,7 +39,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.util.Arrays;
@@ -1363,30 +1364,19 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
     }
 
     private void assertNoLogging(DiskThresholdMonitor monitor, Map<String, DiskUsage> diskUsages) throws IllegalAccessException {
-        MockLogAppender mockAppender = new MockLogAppender();
-        try (var ignored = mockAppender.capturing(DiskThresholdMonitor.class)) {
-            mockAppender.addExpectation(
-                new MockLogAppender.UnseenEventExpectation(
-                    "any INFO message",
-                    DiskThresholdMonitor.class.getCanonicalName(),
-                    Level.INFO,
-                    "*"
-                )
+        try (var mockLog = MockLog.capture(DiskThresholdMonitor.class)) {
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation("any INFO message", DiskThresholdMonitor.class.getCanonicalName(), Level.INFO, "*")
             );
-            mockAppender.addExpectation(
-                new MockLogAppender.UnseenEventExpectation(
-                    "any WARN message",
-                    DiskThresholdMonitor.class.getCanonicalName(),
-                    Level.WARN,
-                    "*"
-                )
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation("any WARN message", DiskThresholdMonitor.class.getCanonicalName(), Level.WARN, "*")
             );
 
             for (int i = between(1, 3); i >= 0; i--) {
                 monitor.onNewInfo(clusterInfo(diskUsages));
             }
 
-            mockAppender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 
@@ -1410,13 +1400,12 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
     }
 
     private void assertLogging(DiskThresholdMonitor monitor, Map<String, DiskUsage> diskUsages, Level level, String message) {
-        MockLogAppender mockAppender = new MockLogAppender();
-        try (var ignored = mockAppender.capturing(DiskThresholdMonitor.class)) {
-            mockAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation("expected message", DiskThresholdMonitor.class.getCanonicalName(), level, message)
+        try (var mockLog = MockLog.capture(DiskThresholdMonitor.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation("expected message", DiskThresholdMonitor.class.getCanonicalName(), level, message)
             );
-            mockAppender.addExpectation(
-                new MockLogAppender.UnseenEventExpectation(
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation(
                     "any message of another level",
                     DiskThresholdMonitor.class.getCanonicalName(),
                     level == Level.INFO ? Level.WARN : Level.INFO,
@@ -1425,7 +1414,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
             );
 
             monitor.onNewInfo(clusterInfo(diskUsages));
-            mockAppender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 

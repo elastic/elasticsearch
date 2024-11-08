@@ -97,7 +97,6 @@ teardown:
       esql.query:
         body:
           query: 'FROM *:esql*,esql_* | STATS total = sum(cost) by tag | SORT tag | LIMIT 10'
-          version: '2024.04.01'
 
   - match: {columns.0.name: "total"}
   - match: {columns.0.type: "long"}
@@ -128,7 +127,6 @@ teardown:
                 gte: "2023-01-02"
                 lte: "2023-01-03"
                 format: "yyyy-MM-dd"
-          version: '2024.04.01'
 
   - match: {columns.0.name: "_index"}
   - match: {columns.0.type: "keyword"}
@@ -200,7 +198,6 @@ teardown:
       esql.query:
         body:
           query: 'FROM *:esql*,esql_* | STATS total = sum(cost) by tag | SORT total DESC | LIMIT 3 | ENRICH suggestions | KEEP tag, total, phrase'
-          version: '2024.04.01'
 
   - match: {columns.0.name: "tag"}
   - match: {columns.0.type: "keyword"}

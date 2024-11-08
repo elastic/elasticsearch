@@ -768,7 +768,7 @@ public class ModelLoadingService implements ClusterStateListener {
         ClusterState state = event.state();
         IngestMetadata currentIngestMetadata = state.metadata().custom(IngestMetadata.TYPE);
         Set<String> allReferencedModelKeys = event.changedCustomMetadataSet().contains(IngestMetadata.TYPE)
-            ? getReferencedModelKeys(currentIngestMetadata)
+            ? countInferenceProcessors(currentIngestMetadata)
             : new HashSet<>(referencedModels);
         Set<String> referencedModelsBeforeClusterState;
         Set<String> loadingModelBeforeClusterState = null;
@@ -975,7 +975,7 @@ public class ModelLoadingService implements ClusterStateListener {
         return queue;
     }
 
-    private static Set<String> getReferencedModelKeys(IngestMetadata ingestMetadata) {
+    private static Set<String> countInferenceProcessors(IngestMetadata ingestMetadata) {
         Set<String> allReferencedModelKeys = new HashSet<>();
         if (ingestMetadata == null) {
             return allReferencedModelKeys;

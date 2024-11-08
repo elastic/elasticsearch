@@ -8,13 +8,18 @@
 package org.elasticsearch.xpack.inference.external.cohere;
 
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.xpack.core.inference.results.StreamingChatCompletionResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.retry.BaseResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseParser;
 import org.elasticsearch.xpack.inference.external.http.retry.RetryException;
 import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.external.response.cohere.CohereErrorResponseEntity;
+import org.elasticsearch.xpack.inference.external.response.streaming.NewlineDelimitedByteProcessor;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
+
+import java.util.concurrent.Flow;
 
 import static org.elasticsearch.xpack.inference.external.http.HttpUtils.checkForEmptyBody;
 
@@ -33,9 +38,11 @@ import static org.elasticsearch.xpack.inference.external.http.HttpUtils.checkFor
 public class CohereResponseHandler extends BaseResponseHandler {
     static final String TEXTS_ARRAY_TOO_LARGE_MESSAGE_MATCHER = "invalid request: total number of texts must be at most";
     static final String TEXTS_ARRAY_ERROR_MESSAGE = "Received a texts array too large response";
+    private final boolean canHandleStreamingResponse;
 
-    public CohereResponseHandler(String requestType, ResponseParser parseFunction) {
+    public CohereResponseHandler(String requestType, ResponseParser parseFunction, boolean canHandleStreamingResponse) {
         super(requestType, parseFunction, CohereErrorResponseEntity::fromResponse);
+        this.canHandleStreamingResponse = canHandleStreamingResponse;
     }
 
     @Override
@@ -43,6 +50,20 @@ public class CohereResponseHandler extends BaseResponseHandler {
         throws RetryException {
         checkForFailureStatusCode(request, result);
         checkForEmptyBody(throttlerManager, logger, request, result);
+    }
+
+    @Override
+    public boolean canHandleStreamingResponses() {
+        return canHandleStreamingResponse;
+    }
+
+    @Override
+    public InferenceServiceResults parseResult(Request request, Flow.Publisher<HttpResult> flow) {
+        var ndProcessor = new NewlineDelimitedByteProcessor();
+        var cohereProcessor = new CohereStreamingProcessor();
+        flow.subscribe(ndProcessor);
+        ndProcessor.subscribe(cohereProcessor);
+        return new StreamingChatCompletionResults(cohereProcessor);
     }
 
     /**
@@ -53,12 +74,12 @@ public class CohereResponseHandler extends BaseResponseHandler {
      * @throws RetryException Throws if status code is {@code >= 300 or < 200 }
      */
     void checkForFailureStatusCode(Request request, HttpResult result) throws RetryException {
-        int statusCode = result.response().getStatusLine().getStatusCode();
-        if (statusCode >= 200 && statusCode < 300) {
+        if (result.isSuccessfulResponse()) {
             return;
         }
 
         // handle error codes
+        int statusCode = result.response().getStatusLine().getStatusCode();
         if (statusCode == 500) {
             throw new RetryException(true, buildError(SERVER_ERROR, request, result));
         } else if (statusCode > 500) {

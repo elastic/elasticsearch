@@ -65,9 +65,16 @@ public class CheckNoDataStreamWriteIndexStepTests extends AbstractStepTestCase<C
 
     public void testStepIncompleteIfIndexIsTheDataStreamWriteIndex() {
         String dataStreamName = randomAlphaOfLength(10);
-        String indexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
+        long ts = System.currentTimeMillis();
+        String indexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1, ts);
+        String failureIndexName = DataStream.getDefaultFailureStoreName(dataStreamName, 1, ts);
         String policyName = "test-ilm-policy";
         IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
+            .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+            .numberOfShards(randomIntBetween(1, 5))
+            .numberOfReplicas(randomIntBetween(0, 5))
+            .build();
+        IndexMetadata failureIndexMetadata = IndexMetadata.builder(failureIndexName)
             .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))
@@ -75,19 +82,28 @@ public class CheckNoDataStreamWriteIndexStepTests extends AbstractStepTestCase<C
 
         ClusterState clusterState = ClusterState.builder(emptyClusterState())
             .metadata(
-                Metadata.builder().put(indexMetadata, true).put(newInstance(dataStreamName, List.of(indexMetadata.getIndex()))).build()
+                Metadata.builder()
+                    .put(indexMetadata, true)
+                    .put(failureIndexMetadata, true)
+                    .put(newInstance(dataStreamName, List.of(indexMetadata.getIndex()), List.of(failureIndexMetadata.getIndex())))
+                    .build()
             )
             .build();
 
-        ClusterStateWaitStep.Result result = createRandomInstance().isConditionMet(indexMetadata.getIndex(), clusterState);
+        boolean useFailureStore = randomBoolean();
+        IndexMetadata indexToOperateOn = useFailureStore ? failureIndexMetadata : indexMetadata;
+        String expectedIndexName = indexToOperateOn.getIndex().getName();
+        ClusterStateWaitStep.Result result = createRandomInstance().isConditionMet(indexToOperateOn.getIndex(), clusterState);
         assertThat(result.isComplete(), is(false));
         SingleMessageFieldInfo info = (SingleMessageFieldInfo) result.getInfomationContext();
         assertThat(
             info.getMessage(),
             is(
                 "index ["
-                    + indexName
-                    + "] is the write index for data stream ["
+                    + expectedIndexName
+                    + "] is the "
+                    + (useFailureStore ? "failure store " : "")
+                    + "write index for data stream ["
                     + dataStreamName
                     + "], "
                     + "pausing ILM execution of lifecycle ["
@@ -100,33 +116,51 @@ public class CheckNoDataStreamWriteIndexStepTests extends AbstractStepTestCase<C
 
     public void testStepCompleteIfPartOfDataStreamButNotWriteIndex() {
         String dataStreamName = randomAlphaOfLength(10);
-        String indexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
+        long ts = System.currentTimeMillis();
+        String indexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1, ts);
+        String failureIndexName = DataStream.getDefaultFailureStoreName(dataStreamName, 1, ts);
         String policyName = "test-ilm-policy";
         IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
             .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))
             .build();
+        IndexMetadata failureIndexMetadata = IndexMetadata.builder(failureIndexName)
+            .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+            .numberOfShards(randomIntBetween(1, 5))
+            .numberOfReplicas(randomIntBetween(0, 5))
+            .build();
 
-        String writeIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 2);
+        String writeIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 2, ts);
+        String failureStoreWriteIndexName = DataStream.getDefaultFailureStoreName(dataStreamName, 2, ts);
         IndexMetadata writeIndexMetadata = IndexMetadata.builder(writeIndexName)
+            .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+            .numberOfShards(randomIntBetween(1, 5))
+            .numberOfReplicas(randomIntBetween(0, 5))
+            .build();
+        IndexMetadata failureStoreWriteIndexMetadata = IndexMetadata.builder(failureStoreWriteIndexName)
             .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))
             .build();
 
         List<Index> backingIndices = List.of(indexMetadata.getIndex(), writeIndexMetadata.getIndex());
+        List<Index> failureIndices = List.of(failureIndexMetadata.getIndex(), failureStoreWriteIndexMetadata.getIndex());
         ClusterState clusterState = ClusterState.builder(emptyClusterState())
             .metadata(
                 Metadata.builder()
                     .put(indexMetadata, true)
                     .put(writeIndexMetadata, true)
-                    .put(newInstance(dataStreamName, backingIndices))
+                    .put(failureIndexMetadata, true)
+                    .put(failureStoreWriteIndexMetadata, true)
+                    .put(newInstance(dataStreamName, backingIndices, failureIndices))
                     .build()
             )
             .build();
 
-        ClusterStateWaitStep.Result result = createRandomInstance().isConditionMet(indexMetadata.getIndex(), clusterState);
+        boolean useFailureStore = randomBoolean();
+        IndexMetadata indexToOperateOn = useFailureStore ? failureIndexMetadata : indexMetadata;
+        ClusterStateWaitStep.Result result = createRandomInstance().isConditionMet(indexToOperateOn.getIndex(), clusterState);
         assertThat(result.isComplete(), is(true));
         assertThat(result.getInfomationContext(), is(nullValue()));
     }

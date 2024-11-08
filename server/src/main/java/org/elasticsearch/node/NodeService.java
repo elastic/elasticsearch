@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.node;
@@ -20,6 +21,7 @@ import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
@@ -138,7 +140,7 @@ public class NodeService implements Closeable {
             plugin ? (pluginService == null ? null : pluginService.info()) : null,
             ingest ? (ingestService == null ? null : ingestService.info()) : null,
             aggs ? (aggregationUsageService == null ? null : aggregationUsageService.info()) : null,
-            indices ? indicesService.getTotalIndexingBufferBytes() : null
+            indices ? ByteSizeValue.ofBytes(indicesService.getTotalIndexingBufferBytes()) : null
         );
     }
 

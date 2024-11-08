@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.rest;
@@ -15,7 +16,7 @@ import org.elasticsearch.indices.breaker.CircuitBreakerMetrics;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.rest.RestHandler.Route;
-import org.elasticsearch.telemetry.tracing.Tracer;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestChannel;
 import org.elasticsearch.test.rest.FakeRestRequest;
@@ -80,7 +81,7 @@ public class RestHttpResponseHeadersTests extends ESTestCase {
         );
 
         UsageService usageService = new UsageService();
-        RestController restController = new RestController(null, null, circuitBreakerService, usageService, Tracer.NOOP);
+        RestController restController = new RestController(null, null, circuitBreakerService, usageService, TelemetryProvider.NOOP);
 
         // A basic RestHandler handles requests to the endpoint
         RestHandler restHandler = (request, channel, client) -> channel.sendResponse(new RestResponse(RestStatus.OK, ""));

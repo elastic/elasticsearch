@@ -89,6 +89,32 @@ public final class DoubleBigArrayVector extends AbstractVector implements Double
     }
 
     @Override
+    public DoubleBlock keepMask(BooleanVector mask) {
+        if (getPositionCount() == 0) {
+            incRef();
+            return new DoubleVectorBlock(this);
+        }
+        if (mask.isConstant()) {
+            if (mask.getBoolean(0)) {
+                incRef();
+                return new DoubleVectorBlock(this);
+            }
+            return (DoubleBlock) blockFactory().newConstantNullBlock(getPositionCount());
+        }
+        try (DoubleBlock.Builder builder = blockFactory().newDoubleBlockBuilder(getPositionCount())) {
+            // TODO if X-ArrayBlock used BooleanVector for it's null mask then we could shuffle references here.
+            for (int p = 0; p < getPositionCount(); p++) {
+                if (mask.getBoolean(p)) {
+                    builder.appendDouble(getDouble(p));
+                } else {
+                    builder.appendNull();
+                }
+            }
+            return builder.build();
+        }
+    }
+
+    @Override
     public ReleasableIterator<DoubleBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
         return new DoubleLookup(asBlock(), positions, targetBlockSize);
     }

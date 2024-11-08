@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -25,7 +26,6 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.index.query.RangeQueryBuilder.GTE_FIELD;
@@ -34,7 +34,6 @@ import static org.elasticsearch.index.query.RangeQueryBuilder.LTE_FIELD;
 import static org.elasticsearch.index.query.RangeQueryBuilder.LT_FIELD;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.startsWith;
 
 public abstract class RangeFieldMapperTests extends MapperTestCase {
@@ -291,18 +290,7 @@ public abstract class RangeFieldMapperTests extends MapperTestCase {
 
             @Override
             public List<SyntheticSourceInvalidExample> invalidExample() throws IOException {
-                return List.of(
-                    new SyntheticSourceInvalidExample(
-                        equalTo(
-                            String.format(
-                                Locale.ROOT,
-                                "field [field] of type [%s] doesn't support synthetic source because it doesn't have doc values",
-                                rangeType().name
-                            )
-                        ),
-                        b -> b.field("type", rangeType().name).field("doc_values", false)
-                    )
-                );
+                return List.of();
             }
         };
     }
@@ -319,6 +307,9 @@ public abstract class RangeFieldMapperTests extends MapperTestCase {
         private final boolean includeFrom;
         private final boolean includeTo;
 
+        private final boolean skipDefaultFrom = randomBoolean();
+        private final boolean skipDefaultTo = randomBoolean();
+
         public TestRange(RangeType type, T from, T to, boolean includeFrom, boolean includeTo) {
             this.type = type;
             this.from = from;
@@ -331,7 +322,22 @@ public abstract class RangeFieldMapperTests extends MapperTestCase {
             var fromKey = includeFrom ? "gte" : "gt";
             var toKey = includeTo ? "lte" : "lt";
 
-            return (ToXContent) (builder, params) -> builder.startObject().field(fromKey, from).field(toKey, to).endObject();
+            return (ToXContent) (builder, params) -> {
+                builder.startObject();
+                if (includeFrom && from == null && skipDefaultFrom) {
+                    // skip field entirely since it is equivalent to a default value
+                } else {
+                    builder.field(fromKey, from);
+                }
+
+                if (includeTo && to == null && skipDefaultTo) {
+                    // skip field entirely since it is equivalent to a default value
+                } else {
+                    builder.field(toKey, to);
+                }
+
+                return builder.endObject();
+            };
         }
 
         Object toExpectedSyntheticSource() {
@@ -339,17 +345,25 @@ public abstract class RangeFieldMapperTests extends MapperTestCase {
             // Also, "to" field always comes first.
             Map<String, Object> output = new LinkedHashMap<>();
 
-            var fromWithDefaults = from != null ? from : rangeType().minValue();
             if (includeFrom) {
-                output.put("gte", fromWithDefaults);
+                if (from == null || from == rangeType().minValue()) {
+                    output.put("gte", null);
+                } else {
+                    output.put("gte", from);
+                }
             } else {
+                var fromWithDefaults = from != null ? from : rangeType().minValue();
                 output.put("gte", type.nextUp(fromWithDefaults));
             }
 
-            var toWithDefaults = to != null ? to : rangeType().maxValue();
             if (includeTo) {
-                output.put("lte", toWithDefaults);
+                if (to == null || to == rangeType().maxValue()) {
+                    output.put("lte", null);
+                } else {
+                    output.put("lte", to);
+                }
             } else {
+                var toWithDefaults = to != null ? to : rangeType().maxValue();
                 output.put("lte", type.nextDown(toWithDefaults));
             }
 
@@ -373,7 +387,7 @@ public abstract class RangeFieldMapperTests extends MapperTestCase {
     }
 
     protected Source getSourceFor(CheckedConsumer<XContentBuilder, IOException> mapping, List<?> inputValues) throws IOException {
-        DocumentMapper mapper = createDocumentMapper(syntheticSourceMapping(mapping));
+        DocumentMapper mapper = createSytheticSourceMapperService(mapping(mapping)).documentMapper();
 
         CheckedConsumer<XContentBuilder, IOException> input = b -> {
             b.field("field");

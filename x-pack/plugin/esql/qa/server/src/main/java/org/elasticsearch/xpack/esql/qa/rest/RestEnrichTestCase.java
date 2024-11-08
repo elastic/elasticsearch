@@ -13,7 +13,6 @@ import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.junit.After;
 import org.junit.Before;
 
@@ -25,6 +24,7 @@ import java.util.Map;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public abstract class RestEnrichTestCase extends ESRestTestCase {
 
@@ -162,16 +162,14 @@ public abstract class RestEnrichTestCase extends ESRestTestCase {
         Map<String, Object> result = runEsql("from test | enrich countries | keep number | sort number");
         var columns = List.of(Map.of("name", "number", "type", "long"));
         var values = List.of(List.of(1000), List.of(1000), List.of(5000));
-
-        assertMap(result, matchesMap().entry("columns", columns).entry("values", values));
+        assertMap(result, matchesMap().entry("columns", columns).entry("values", values).entry("took", greaterThanOrEqualTo(0)));
     }
 
     public void testMatchField_ImplicitFieldsList_WithStats() throws IOException {
         Map<String, Object> result = runEsql("from test | enrich countries | stats s = sum(number) by country_name");
         var columns = List.of(Map.of("name", "s", "type", "long"), Map.of("name", "country_name", "type", "keyword"));
         var values = List.of(List.of(2000, "United States of America"), List.of(5000, "China"));
-
-        assertMap(result, matchesMap().entry("columns", columns).entry("values", values));
+        assertMap(result, matchesMap().entry("columns", columns).entry("values", values).entry("took", greaterThanOrEqualTo(0)));
     }
 
     private Map<String, Object> runEsql(String query) throws IOException {
@@ -179,7 +177,7 @@ public abstract class RestEnrichTestCase extends ESRestTestCase {
     }
 
     private Map<String, Object> runEsql(String query, Mode mode) throws IOException {
-        var requestObject = new RestEsqlTestCase.RequestObjectBuilder().query(query).version(EsqlTestUtils.latestEsqlVersionOrSnapshot());
+        var requestObject = new RestEsqlTestCase.RequestObjectBuilder().query(query);
         if (mode == Mode.ASYNC) {
             return RestEsqlTestCase.runEsqlAsync(requestObject);
         } else {

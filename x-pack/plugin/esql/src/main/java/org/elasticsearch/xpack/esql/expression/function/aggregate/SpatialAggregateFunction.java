@@ -7,10 +7,14 @@
 
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 
+import java.io.IOException;
 import java.util.Objects;
+
+import static java.util.Collections.emptyList;
 
 /**
  * All spatial aggregate functions extend this class to enable the planning of reading from doc values for higher performance.
@@ -20,8 +24,14 @@ import java.util.Objects;
 public abstract class SpatialAggregateFunction extends AggregateFunction {
     protected final boolean useDocValues;
 
-    protected SpatialAggregateFunction(Source source, Expression field, boolean useDocValues) {
-        super(source, field);
+    protected SpatialAggregateFunction(Source source, Expression field, Expression filter, boolean useDocValues) {
+        super(source, field, filter, emptyList());
+        this.useDocValues = useDocValues;
+    }
+
+    protected SpatialAggregateFunction(StreamInput in, boolean useDocValues) throws IOException {
+        super(in);
+        // The useDocValues field is only used on data nodes local planning, and therefor never serialized
         this.useDocValues = useDocValues;
     }
 

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.metadata;
@@ -17,7 +18,6 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
-import org.elasticsearch.cluster.ack.ClusterStateUpdateRequest;
 import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService.CreateDataStreamClusterStateUpdateRequest;
 import org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -29,6 +29,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
@@ -38,6 +39,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
@@ -103,7 +105,12 @@ public class MetadataMigrateToDataStreamService {
         var delegate = new AllocationActionListener<>(listener, threadContext);
         submitUnbatchedTask(
             "migrate-to-data-stream [" + request.aliasName + "]",
-            new AckedClusterStateUpdateTask(Priority.HIGH, request, delegate.clusterStateUpdate()) {
+            new AckedClusterStateUpdateTask(
+                Priority.HIGH,
+                request.masterNodeTimeout(),
+                request.ackTimeout(),
+                delegate.clusterStateUpdate()
+            ) {
 
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
@@ -165,7 +172,9 @@ public class MetadataMigrateToDataStreamService {
             req,
             backingIndices,
             currentState.metadata().index(writeIndex),
-            listener
+            listener,
+            // No need to initialize the failure store when migrating to a data stream.
+            false
         );
     }
 
@@ -221,7 +230,7 @@ public class MetadataMigrateToDataStreamService {
         Settings nodeSettings
     ) throws IOException {
         MappingMetadata mm = im.mapping();
-        if (mm == null) {
+        if (mm == null || mm.equals(MappingMetadata.EMPTY_MAPPINGS)) {
             throw new IllegalArgumentException("backing index [" + im.getIndex().getName() + "] must have mappings for a timestamp field");
         }
 
@@ -244,6 +253,7 @@ public class MetadataMigrateToDataStreamService {
         imb.settings(settingsUpdate.build())
             .settingsVersion(im.getSettingsVersion() + 1)
             .mappingVersion(im.getMappingVersion() + 1)
+            .mappingsUpdatedVersion(IndexVersion.current())
             .putMapping(new MappingMetadata(mapper));
         b.put(imb);
     }
@@ -273,15 +283,11 @@ public class MetadataMigrateToDataStreamService {
         }
     }
 
-    @SuppressWarnings("rawtypes")
-    public static final class MigrateToDataStreamClusterStateUpdateRequest extends ClusterStateUpdateRequest {
-
-        private final String aliasName;
-
-        public MigrateToDataStreamClusterStateUpdateRequest(String aliasName, TimeValue masterNodeTimeout, TimeValue timeout) {
-            this.aliasName = aliasName;
-            masterNodeTimeout(masterNodeTimeout);
-            ackTimeout(timeout);
+    public record MigrateToDataStreamClusterStateUpdateRequest(String aliasName, TimeValue masterNodeTimeout, TimeValue ackTimeout) {
+        public MigrateToDataStreamClusterStateUpdateRequest {
+            Objects.requireNonNull(aliasName);
+            Objects.requireNonNull(masterNodeTimeout);
+            Objects.requireNonNull(ackTimeout);
         }
     }
 

@@ -55,9 +55,10 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ZeroShotClassifica
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ZeroShotClassificationConfigUpdate;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.ml.utils.InferenceProcessorConstants;
+import org.elasticsearch.xpack.core.ml.utils.InferenceProcessorInfoExtractor;
 import org.elasticsearch.xpack.ml.inference.loadingservice.LocalModel;
 import org.elasticsearch.xpack.ml.notifications.InferenceAuditor;
-import org.elasticsearch.xpack.ml.utils.InferenceProcessorInfoExtractor;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -85,15 +86,15 @@ public class InferenceProcessor extends AbstractProcessor {
         Setting.Property.NodeScope
     );
 
-    public static final String TYPE = "inference";
+    public static final String TYPE = InferenceProcessorConstants.TYPE;
     public static final String MODEL_ID = "model_id";
-    public static final String INFERENCE_CONFIG = "inference_config";
+    public static final String INFERENCE_CONFIG = InferenceProcessorConstants.INFERENCE_CONFIG;
     public static final String IGNORE_MISSING = "ignore_missing";
 
     // target field style mappings
-    public static final String TARGET_FIELD = "target_field";
+    public static final String TARGET_FIELD = InferenceProcessorConstants.TARGET_FIELD;
     public static final String FIELD_MAPPINGS = "field_mappings";
-    public static final String FIELD_MAP = "field_map";
+    public static final String FIELD_MAP = InferenceProcessorConstants.FIELD_MAP;
     private static final String DEFAULT_TARGET_FIELD = "ml.inference";
 
     // input field config

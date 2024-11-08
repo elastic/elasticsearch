@@ -19,6 +19,7 @@ import org.apache.lucene.util.UnicodeUtil;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.LevenshteinAutomata;
+import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.logging.DeprecationCategory;
@@ -74,7 +75,7 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName()).init(this);
+        return new Builder(leafName()).init(this);
     }
 
     public static class Builder extends FieldMapper.Builder {
@@ -110,8 +111,9 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
                 );
             }
             return new ConstantKeywordFieldMapper(
-                name(),
-                new ConstantKeywordFieldType(context.buildFullName(name()), value.getValue(), meta.getValue())
+                leafName(),
+                new ConstantKeywordFieldType(context.buildFullName(leafName()), value.getValue(), meta.getValue()),
+                builderParams(this, context)
             );
         }
     }
@@ -290,7 +292,10 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
                 return new MatchNoDocsQuery();
             }
 
-            final Automaton automaton = new RegExp(regexp, syntaxFlags, matchFlags).toAutomaton(maxDeterminizedStates);
+            final Automaton automaton = Operations.determinize(
+                new RegExp(regexp, syntaxFlags, matchFlags).toAutomaton(),
+                maxDeterminizedStates
+            );
             final CharacterRunAutomaton runAutomaton = new CharacterRunAutomaton(automaton);
             if (runAutomaton.run(this.value)) {
                 return new MatchAllDocsQuery();
@@ -301,8 +306,8 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
 
     }
 
-    ConstantKeywordFieldMapper(String simpleName, MappedFieldType mappedFieldType) {
-        super(simpleName, mappedFieldType, MultiFields.empty(), CopyTo.empty());
+    ConstantKeywordFieldMapper(String simpleName, MappedFieldType mappedFieldType, BuilderParams builderParams) {
+        super(simpleName, mappedFieldType, builderParams);
     }
 
     @Override
@@ -316,19 +321,19 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
         final String value = parser.textOrNull();
 
         if (value == null) {
-            throw new IllegalArgumentException("[constant_keyword] field [" + name() + "] doesn't accept [null] values");
+            throw new IllegalArgumentException("[constant_keyword] field [" + fullPath() + "] doesn't accept [null] values");
         }
 
         if (fieldType().value == null) {
             ConstantKeywordFieldType newFieldType = new ConstantKeywordFieldType(fieldType().name(), value, fieldType().meta());
-            Mapper update = new ConstantKeywordFieldMapper(simpleName(), newFieldType);
+            Mapper update = new ConstantKeywordFieldMapper(leafName(), newFieldType, builderParams);
             boolean dynamicMapperAdded = context.addDynamicMapper(update);
             // the mapper is already part of the mapping, we're just updating it with the new value
             assert dynamicMapperAdded;
         } else if (Objects.equals(fieldType().value, value) == false) {
             throw new IllegalArgumentException(
                 "[constant_keyword] field ["
-                    + name()
+                    + fullPath()
                     + "] only accepts values that are equal to the value defined in the mappings ["
                     + fieldType().value()
                     + "], but got ["
@@ -344,13 +349,14 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
     }
 
     @Override
-    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
+    protected SyntheticSourceSupport syntheticSourceSupport() {
         String value = fieldType().value();
-        ;
+
         if (value == null) {
-            return SourceLoader.SyntheticFieldLoader.NOTHING;
+            return new SyntheticSourceSupport.Native(SourceLoader.SyntheticFieldLoader.NOTHING);
         }
-        return new SourceLoader.SyntheticFieldLoader() {
+
+        var loader = new SourceLoader.SyntheticFieldLoader() {
             @Override
             public Stream<Map.Entry<String, StoredFieldLoader>> storedFieldLoaders() {
                 return Stream.of();
@@ -369,14 +375,21 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
             @Override
             public void write(XContentBuilder b) throws IOException {
                 if (fieldType().value != null) {
-                    b.field(simpleName(), fieldType().value);
+                    b.field(leafName(), fieldType().value);
                 }
             }
 
             @Override
+            public void reset() {
+                // NOOP
+            }
+
+            @Override
             public String fieldName() {
-                return name();
+                return fullPath();
             }
         };
+
+        return new SyntheticSourceSupport.Native(loader);
     }
 }

@@ -18,6 +18,9 @@ import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.core.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.core.esql.action.EsqlQueryRequestBuilder;
 import org.elasticsearch.xpack.core.esql.action.EsqlQueryResponse;
+import org.elasticsearch.xpack.core.esql.action.EsqlResponse;
+import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.junit.Before;
 
 import java.util.ArrayList;
@@ -52,11 +55,14 @@ public class CoreEsqlActionIT extends ESIntegTestCase {
     public void testRowTypesAndValues() {
         var query = "row a = 1, b = \"x\", c = 1000000000000, d = 1.1";
         var request = EsqlQueryRequestBuilder.newRequestBuilder(client()).query(query);
-        try (var queryResp = run(request)) {
+        try (EsqlQueryResponse queryResp = run(request)) {
             logger.info("response=" + queryResp);
-            var resp = queryResp.response();
+            EsqlResponse resp = queryResp.response();
             assertThat(resp.columns().stream().map(ColumnInfo::name).toList(), contains("a", "b", "c", "d"));
-            assertThat(resp.columns().stream().map(ColumnInfo::type).toList(), contains("integer", "keyword", "long", "double"));
+            assertThat(
+                resp.columns().stream().map(c -> ((ColumnInfoImpl) c).type()).toList(),
+                contains(DataType.INTEGER, DataType.KEYWORD, DataType.LONG, DataType.DOUBLE)
+            );
             assertThat(getValuesList(resp.rows()), contains(List.of(1, "x", 1000000000000L, 1.1d)));
         }
     }
@@ -68,7 +74,7 @@ public class CoreEsqlActionIT extends ESIntegTestCase {
             logger.info("response=" + queryResp);
             var resp = queryResp.response();
             assertThat(resp.columns().stream().map(ColumnInfo::name).toList(), contains("a"));
-            assertThat(resp.columns().stream().map(ColumnInfo::type).toList(), contains("integer"));
+            assertThat(resp.columns().stream().map(c -> ((ColumnInfoImpl) c).type()).toList(), contains(DataType.INTEGER));
             assertThat(getValuesList(resp.rows()), contains(List.of(1)));
         }
     }
@@ -80,7 +86,10 @@ public class CoreEsqlActionIT extends ESIntegTestCase {
             var resp = queryResp.response();
             logger.info("response=" + queryResp);
             assertThat(resp.columns().stream().map(ColumnInfo::name).toList(), contains("item", "cost", "color", "sale"));
-            assertThat(resp.columns().stream().map(ColumnInfo::type).toList(), contains("long", "double", "keyword", "date"));
+            assertThat(
+                resp.columns().stream().map(c -> ((ColumnInfoImpl) c).type()).toList(),
+                contains(DataType.LONG, DataType.DOUBLE, DataType.KEYWORD, DataType.DATETIME)
+            );
             // columnar values
             assertThat(columnValues(resp.column(0)), contains(1L, 2L, 3L, 4L));
             assertThat(columnValues(resp.column(1)), contains(1.1d, 2.1d, 3.1d, 4.1d));

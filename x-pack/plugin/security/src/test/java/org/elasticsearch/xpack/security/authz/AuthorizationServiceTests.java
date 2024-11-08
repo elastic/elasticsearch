@@ -66,6 +66,7 @@ import org.elasticsearch.action.search.SearchContextId;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.search.SearchTransportService;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.search.TransportClearScrollAction;
 import org.elasticsearch.action.search.TransportClosePointInTimeAction;
 import org.elasticsearch.action.search.TransportMultiSearchAction;
@@ -114,7 +115,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
@@ -126,6 +126,7 @@ import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
+import org.elasticsearch.transport.EmptyRequest;
 import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -202,7 +203,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
-import java.util.function.Consumer;
+import java.util.function.ObjLongConsumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
@@ -227,7 +228,6 @@ import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SEC
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -235,7 +235,6 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
-import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
@@ -286,13 +285,13 @@ public class AuthorizationServiceTests extends ESTestCase {
 
         final NativePrivilegeStore privilegesStore = mock(NativePrivilegeStore.class);
         doAnswer(i -> {
-            assertThat(i.getArguments().length, equalTo(3));
-            final Object arg2 = i.getArguments()[2];
+            assertThat(i.getArguments().length, equalTo(4));
+            final Object arg2 = i.getArguments()[3];
             assertThat(arg2, instanceOf(ActionListener.class));
             ActionListener<Collection<ApplicationPrivilege>> listener = (ActionListener<Collection<ApplicationPrivilege>>) arg2;
             listener.onResponse(Collections.emptyList());
             return null;
-        }).when(privilegesStore).getPrivileges(any(Collection.class), any(Collection.class), anyActionListener());
+        }).when(privilegesStore).getPrivileges(any(Collection.class), any(Collection.class), eq(false), anyActionListener());
 
         final Map<Set<String>, Role> roleCache = new HashMap<>();
         final AnonymousUser anonymousUser = mock(AnonymousUser.class);
@@ -1572,7 +1571,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         authorize(authentication, TransportShardBulkAction.ACTION_NAME, request);
 
         MappingUpdatePerformer mappingUpdater = (m, s, l) -> l.onResponse(null);
-        Consumer<ActionListener<Void>> waitForMappingUpdate = l -> l.onResponse(null);
+        ObjLongConsumer<ActionListener<Void>> waitForMappingUpdate = (l, mappingVersion) -> l.onResponse(null);
         PlainActionFuture<TransportReplicationAction.PrimaryResult<BulkShardRequest, BulkShardResponse>> future = new PlainActionFuture<>();
         IndexShard indexShard = mock(IndexShard.class);
         when(indexShard.getBulkOperationListener()).thenReturn(new BulkOperationListener() {
@@ -1580,7 +1579,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         TransportShardBulkAction.performOnPrimary(
             request,
             indexShard,
-            new UpdateHelper(mock(ScriptService.class), DocumentParsingProvider.EMPTY_INSTANCE),
+            new UpdateHelper(mock(ScriptService.class)),
             System::currentTimeMillis,
             mappingUpdater,
             waitForMappingUpdate,
@@ -1612,7 +1611,7 @@ public class AuthorizationServiceTests extends ESTestCase {
 
         AuditUtil.getOrGenerateRequestId(threadContext);
 
-        TransportRequest request = new ClusterHealthRequest();
+        TransportRequest request = new ClusterHealthRequest(TEST_REQUEST_TIMEOUT);
 
         ElasticsearchSecurityException securityException = expectThrows(
             ElasticsearchSecurityException.class,
@@ -2143,7 +2142,10 @@ public class AuthorizationServiceTests extends ESTestCase {
         }
 
         // we should allow waiting for the health of the index or any index if the user has this permission
-        ClusterHealthRequest request = new ClusterHealthRequest(randomFrom(SECURITY_MAIN_ALIAS, INTERNAL_SECURITY_MAIN_INDEX_7));
+        ClusterHealthRequest request = new ClusterHealthRequest(
+            TEST_REQUEST_TIMEOUT,
+            randomFrom(SECURITY_MAIN_ALIAS, INTERNAL_SECURITY_MAIN_INDEX_7)
+        );
         authorize(authentication, TransportClusterHealthAction.NAME, request);
         verify(auditTrail).accessGranted(
             eq(requestId),
@@ -2154,7 +2156,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         );
 
         // multiple indices
-        request = new ClusterHealthRequest(SECURITY_MAIN_ALIAS, INTERNAL_SECURITY_MAIN_INDEX_7, "foo", "bar");
+        request = new ClusterHealthRequest(TEST_REQUEST_TIMEOUT, SECURITY_MAIN_ALIAS, INTERNAL_SECURITY_MAIN_INDEX_7, "foo", "bar");
         authorize(authentication, TransportClusterHealthAction.NAME, request);
         verify(auditTrail).accessGranted(
             eq(requestId),
@@ -2283,13 +2285,18 @@ public class AuthorizationServiceTests extends ESTestCase {
         requests.add(
             new Tuple<>(
                 TransportClusterHealthAction.NAME,
-                new ClusterHealthRequest(randomFrom(SECURITY_MAIN_ALIAS, INTERNAL_SECURITY_MAIN_INDEX_7))
+                new ClusterHealthRequest(TEST_REQUEST_TIMEOUT, randomFrom(SECURITY_MAIN_ALIAS, INTERNAL_SECURITY_MAIN_INDEX_7))
             )
         );
         requests.add(
             new Tuple<>(
                 TransportClusterHealthAction.NAME,
-                new ClusterHealthRequest(randomFrom(SECURITY_MAIN_ALIAS, INTERNAL_SECURITY_MAIN_INDEX_7), "foo", "bar")
+                new ClusterHealthRequest(
+                    TEST_REQUEST_TIMEOUT,
+                    randomFrom(SECURITY_MAIN_ALIAS, INTERNAL_SECURITY_MAIN_INDEX_7),
+                    "foo",
+                    "bar"
+                )
             )
         );
 
@@ -3158,41 +3165,38 @@ public class AuthorizationServiceTests extends ESTestCase {
     }
 
     public void testProxyRequestFailsOnNonProxyAction() {
-        TransportRequest request = TransportRequest.Empty.INSTANCE;
+        TransportRequest request = new EmptyRequest();
         DiscoveryNode node = DiscoveryNodeUtils.create("foo");
         TransportRequest transportRequest = TransportActionProxy.wrapRequest(node, request);
-        final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
+        AuditUtil.getOrGenerateRequestId(threadContext);
         User user = new User("test user", "role");
-        ElasticsearchSecurityException ese = expectThrows(
-            ElasticsearchSecurityException.class,
-            () -> authorize(createAuthentication(user), "indices:some/action", transportRequest)
+        final var authentication = createAuthentication(user);
+        assertEquals(
+            """
+                originalRequest is a proxy request for: [org.elasticsearch.transport.EmptyRequest/unset] \
+                but action: [indices:some/action] isn't""",
+            expectThrows(
+                ElasticsearchSecurityException.class,
+                IllegalStateException.class,
+                () -> authorize(authentication, "indices:some/action", transportRequest)
+            ).getMessage()
         );
-        assertThat(ese.getCause(), instanceOf(IllegalStateException.class));
-        IllegalStateException illegalStateException = (IllegalStateException) ese.getCause();
-        assertThat(
-            illegalStateException.getMessage(),
-            startsWith("originalRequest is a proxy request for: [org.elasticsearch.transport.TransportRequest$")
-        );
-        assertThat(illegalStateException.getMessage(), endsWith("] but action: [indices:some/action] isn't"));
     }
 
     public void testProxyRequestFailsOnNonProxyRequest() {
-        TransportRequest request = TransportRequest.Empty.INSTANCE;
+        TransportRequest request = new EmptyRequest();
         User user = new User("test user", "role");
         AuditUtil.getOrGenerateRequestId(threadContext);
-        ElasticsearchSecurityException ese = expectThrows(
-            ElasticsearchSecurityException.class,
-            () -> authorize(createAuthentication(user), TransportActionProxy.getProxyAction("indices:some/action"), request)
-        );
-        assertThat(ese.getCause(), instanceOf(IllegalStateException.class));
-        IllegalStateException illegalStateException = (IllegalStateException) ese.getCause();
-        assertThat(
-            illegalStateException.getMessage(),
-            startsWith("originalRequest is not a proxy request: [org.elasticsearch.transport.TransportRequest$")
-        );
-        assertThat(
-            illegalStateException.getMessage(),
-            endsWith("] but action: [internal:transport/proxy/indices:some/action] is a proxy action")
+        final var authentication = createAuthentication(user);
+        assertEquals(
+            """
+                originalRequest is not a proxy request: [org.elasticsearch.transport.EmptyRequest/unset] \
+                but action: [internal:transport/proxy/indices:some/action] is a proxy action""",
+            expectThrows(
+                ElasticsearchSecurityException.class,
+                IllegalStateException.class,
+                () -> authorize(authentication, TransportActionProxy.getProxyAction("indices:some/action"), request)
+            ).getMessage()
         );
     }
 
@@ -3654,7 +3658,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         );
         List<SearchPhaseResult> results = new ArrayList<>();
         results.add(testSearchPhaseResult1);
-        return SearchContextId.encode(results, Collections.emptyMap(), TransportVersion.current());
+        return SearchContextId.encode(results, Collections.emptyMap(), TransportVersion.current(), ShardSearchFailure.EMPTY_ARRAY);
     }
 
     private static class RBACAuthorizationInfoRoleMatcher implements ArgumentMatcher<AuthorizationInfo> {

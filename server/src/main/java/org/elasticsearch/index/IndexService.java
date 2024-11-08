@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index;
@@ -212,6 +213,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.indexAnalyzers = indexAnalyzers;
         if (needsMapperService(indexSettings, indexCreationContext)) {
             assert indexAnalyzers != null;
+            this.bitsetFilterCache = new BitsetFilterCache(indexSettings, new BitsetCacheListener(this));
             this.mapperService = new MapperService(
                 clusterService,
                 indexSettings,
@@ -223,6 +225,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 () -> newSearchExecutionContext(0, 0, null, System::currentTimeMillis, null, emptyMap()),
                 idFieldMapper,
                 scriptService,
+                bitsetFilterCache::getBitSetProducer,
                 mapperMetrics
             );
             this.indexFieldData = new IndexFieldDataService(indexSettings, indicesFieldDataCache, circuitBreakerService);
@@ -238,7 +241,6 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 this.indexSortSupplier = () -> null;
             }
             indexFieldData.setListener(new FieldDataCacheListener(this));
-            this.bitsetFilterCache = new BitsetFilterCache(indexSettings, new BitsetCacheListener(this));
             this.warmer = new IndexWarmer(threadPool, indexFieldData, bitsetFilterCache.createListener(threadPool));
             this.indexCache = new IndexCache(queryCache, bitsetFilterCache);
         } else {
@@ -331,10 +333,18 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         if (mapperService == null) {
             return null;
         }
-        long totalCount = mapperService().mappingLookup().getTotalMapperCount();
-        long totalEstimatedOverhead = totalCount * 1024L; // 1KiB estimated per mapping
-        NodeMappingStats indexNodeMappingStats = new NodeMappingStats(totalCount, totalEstimatedOverhead);
-        return indexNodeMappingStats;
+        long numFields = mapperService().mappingLookup().getTotalMapperCount();
+        long totalEstimatedOverhead = numFields * 1024L; // 1KiB estimated per mapping
+        // Assume all segments have the same mapping; otherwise, we need to acquire searchers to count the actual fields.
+        int numLeaves = 0;
+        for (IndexShard shard : shards.values()) {
+            try {
+                numLeaves += shard.commitStats().getNumLeaves();
+            } catch (AlreadyClosedException ignored) {
+
+            }
+        }
+        return new NodeMappingStats(numFields, totalEstimatedOverhead, numLeaves, numLeaves * numFields);
     }
 
     public Set<Integer> shardIds() {
@@ -524,7 +534,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 this.indexSettings,
                 directory,
                 lock,
-                new StoreCloseListener(shardId, () -> eventListener.onStoreClosed(shardId))
+                new StoreCloseListener(shardId, () -> eventListener.onStoreClosed(shardId)),
+                this.indexSettings.getIndexSortConfig().hasIndexSort()
             );
             eventListener.onStoreCreated(shardId);
             indexShard = new IndexShard(
@@ -728,14 +739,15 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             clusterService,
             expressionResolver
         );
+        var mapperService = mapperService();
         return new SearchExecutionContext(
             shardId,
             shardRequestIndex,
             indexSettings,
             indexCache.bitsetFilterCache(),
             this::loadFielddata,
-            mapperService(),
-            mapperService().mappingLookup(),
+            mapperService,
+            mapperService.mappingLookup(),
             similarityService(),
             scriptService,
             parserConfiguration,
@@ -771,7 +783,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             expressionResolver
         );
         final MapperService mapperService = mapperService();
-        final MappingLookup mappingLookup = mapperService().mappingLookup();
+        final MappingLookup mappingLookup = mapperService.mappingLookup();
         return new QueryRewriteContext(
             parserConfiguration,
             client,
@@ -789,6 +801,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             valuesSourceRegistry,
             allowExpensiveQueries,
             scriptService,
+            null,
             null
         );
     }

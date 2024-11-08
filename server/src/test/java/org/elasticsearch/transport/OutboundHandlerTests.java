@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.transport;
@@ -34,7 +35,7 @@ import org.elasticsearch.core.Streams;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -536,10 +537,9 @@ public class OutboundHandlerTests extends ESTestCase {
     public void testSlowLogOutboundMessage() throws Exception {
         handler.setSlowLogThreshold(TimeValue.timeValueMillis(5L));
 
-        final MockLogAppender mockAppender = new MockLogAppender();
-        try (var ignored = mockAppender.capturing(OutboundHandler.class)) {
-            mockAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation("expected message", EXPECTED_LOGGER_NAME, Level.WARN, "sending transport message ")
+        try (var mockLog = MockLog.capture(OutboundHandler.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation("expected message", EXPECTED_LOGGER_NAME, Level.WARN, "sending transport message ")
             );
 
             final int length = randomIntBetween(1, 100);
@@ -556,7 +556,7 @@ public class OutboundHandlerTests extends ESTestCase {
                 }
             }, new BytesArray(randomByteArrayOfLength(length)), f);
             f.get();
-            mockAppender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 

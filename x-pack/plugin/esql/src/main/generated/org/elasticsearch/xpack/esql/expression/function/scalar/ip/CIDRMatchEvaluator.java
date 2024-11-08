@@ -17,17 +17,17 @@ import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.xpack.esql.expression.function.Warnings;
-import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link CIDRMatch}.
  * This class is generated. Do not edit it.
  */
 public final class CIDRMatchEvaluator implements EvalOperator.ExpressionEvaluator {
-  private final Warnings warnings;
+  private final Source source;
 
   private final EvalOperator.ExpressionEvaluator ip;
 
@@ -35,9 +35,11 @@ public final class CIDRMatchEvaluator implements EvalOperator.ExpressionEvaluato
 
   private final DriverContext driverContext;
 
+  private Warnings warnings;
+
   public CIDRMatchEvaluator(Source source, EvalOperator.ExpressionEvaluator ip,
       EvalOperator.ExpressionEvaluator[] cidrs, DriverContext driverContext) {
-    this.warnings = new Warnings(source);
+    this.source = source;
     this.ip = ip;
     this.cidrs = cidrs;
     this.driverContext = driverContext;
@@ -82,7 +84,7 @@ public final class CIDRMatchEvaluator implements EvalOperator.ExpressionEvaluato
         }
         if (ipBlock.getValueCount(p) != 1) {
           if (ipBlock.getValueCount(p) > 1) {
-            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
           }
           result.appendNull();
           continue position;
@@ -94,7 +96,7 @@ public final class CIDRMatchEvaluator implements EvalOperator.ExpressionEvaluato
           }
           if (cidrsBlocks[i].getValueCount(p) != 1) {
             if (cidrsBlocks[i].getValueCount(p) > 1) {
-              warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
             }
             result.appendNull();
             continue position;
@@ -113,7 +115,7 @@ public final class CIDRMatchEvaluator implements EvalOperator.ExpressionEvaluato
 
   public BooleanVector eval(int positionCount, BytesRefVector ipVector,
       BytesRefVector[] cidrsVectors) {
-    try(BooleanVector.Builder result = driverContext.blockFactory().newBooleanVectorBuilder(positionCount)) {
+    try(BooleanVector.FixedBuilder result = driverContext.blockFactory().newBooleanVectorFixedBuilder(positionCount)) {
       BytesRef ipScratch = new BytesRef();
       BytesRef[] cidrsValues = new BytesRef[cidrs.length];
       BytesRef[] cidrsScratch = new BytesRef[cidrs.length];
@@ -125,7 +127,7 @@ public final class CIDRMatchEvaluator implements EvalOperator.ExpressionEvaluato
         for (int i = 0; i < cidrsVectors.length; i++) {
           cidrsValues[i] = cidrsVectors[i].getBytesRef(p, cidrsScratch[i]);
         }
-        result.appendBoolean(CIDRMatch.process(ipVector.getBytesRef(p, ipScratch), cidrsValues));
+        result.appendBoolean(p, CIDRMatch.process(ipVector.getBytesRef(p, ipScratch), cidrsValues));
       }
       return result.build();
     }
@@ -139,6 +141,18 @@ public final class CIDRMatchEvaluator implements EvalOperator.ExpressionEvaluato
   @Override
   public void close() {
     Releasables.closeExpectNoException(ip, () -> Releasables.close(cidrs));
+  }
+
+  private Warnings warnings() {
+    if (warnings == null) {
+      this.warnings = Warnings.createWarnings(
+              driverContext.warningsMode(),
+              source.source().getLineNumber(),
+              source.source().getColumnNumber(),
+              source.text()
+          );
+    }
+    return warnings;
   }
 
   static class Factory implements EvalOperator.ExpressionEvaluator.Factory {

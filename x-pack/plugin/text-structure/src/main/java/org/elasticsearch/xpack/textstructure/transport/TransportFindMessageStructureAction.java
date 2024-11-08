@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.textstructure.transport;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -19,32 +19,38 @@ import org.elasticsearch.xpack.textstructure.structurefinder.TextStructureFinder
 import org.elasticsearch.xpack.textstructure.structurefinder.TextStructureFinderManager;
 import org.elasticsearch.xpack.textstructure.structurefinder.TextStructureOverrides;
 
+import static org.elasticsearch.threadpool.ThreadPool.Names.GENERIC;
+
 public class TransportFindMessageStructureAction extends HandledTransportAction<FindMessageStructureAction.Request, FindStructureResponse> {
 
     private final ThreadPool threadPool;
+    private final TextStructExecutor executor;
 
     @Inject
-    public TransportFindMessageStructureAction(TransportService transportService, ActionFilters actionFilters, ThreadPool threadPool) {
+    public TransportFindMessageStructureAction(
+        TransportService transportService,
+        ActionFilters actionFilters,
+        ThreadPool threadPool,
+        TextStructExecutor executor
+    ) {
         super(
             FindMessageStructureAction.NAME,
             transportService,
             actionFilters,
             FindMessageStructureAction.Request::new,
-            threadPool.generic()
+            executor.handledTransportActionExecutorService()
         );
         this.threadPool = threadPool;
+        this.executor = executor;
     }
 
     @Override
     protected void doExecute(Task task, FindMessageStructureAction.Request request, ActionListener<FindStructureResponse> listener) {
-        try {
-            listener.onResponse(buildTextStructureResponse(request));
-        } catch (Exception e) {
-            listener.onFailure(e);
-        }
+        executor.execute(listener, () -> buildTextStructureResponse(request));
     }
 
     private FindStructureResponse buildTextStructureResponse(FindMessageStructureAction.Request request) throws Exception {
+        assert ThreadPool.assertCurrentThreadPool(GENERIC);
         TextStructureFinderManager structureFinderManager = new TextStructureFinderManager(threadPool.scheduler());
         TextStructureFinder textStructureFinder = structureFinderManager.findTextStructure(
             request.getMessages(),

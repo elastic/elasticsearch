@@ -76,6 +76,42 @@ setup:
   - match: { custom_scheduling: {} }
   - match: { filtering.0.domain: DEFAULT }
 
+
+---
+'Create Connector - Check for missing keys':
+  - do:
+      connector.put:
+        connector_id: test-connector
+        body:
+          index_name: search-test
+          name: my-connector
+          language: pl
+          is_native: false
+          service_type: super-connector
+
+  - match: { result: 'created' }
+
+  - do:
+      connector.get:
+        connector_id: test-connector
+
+  - match: { id: test-connector }
+  - match: { index_name: search-test }
+  - match: { name: my-connector }
+  - match: { language: pl }
+  - match: { is_native: false }
+  - match: { service_type: super-connector }
+
+  # check keys that are not populated upon connector creation
+  - is_false: api_key_id
+  - is_false: api_key_secret_id
+  - is_false: description
+  - is_false: error
+  - is_false: features
+  - is_false: last_seen
+  - is_false: sync_cursor
+
+
 ---
 'Create Connector - Resource already exists':
   - do:
@@ -115,7 +151,40 @@ setup:
           is_native: false
           service_type: super-connector
 
+---
+'Create Connector - Id returned as part of response':
+  - do:
+      connector.put:
+        connector_id: test-connector-1
+        body:
+          index_name: search-test
 
+  - match: { result: 'created' }
+  - match: { id: test-connector-1 }
+
+---
+'Create Connector - Succeeds if body not provided':
+  - do:
+      connector.put:
+        connector_id: test-connector-1
+
+  - match: { result: 'created' }
+  - match: { id: test-connector-1 }
+
+
+---
+'Create Connector - Succeeds if body not provided and id not provided':
+  - do:
+      connector.put: { }
+
+  - set:  { id: id }
+  - match: { id: $id }
+
+  - do:
+      connector.get:
+        connector_id: $id
+
+  - match: { id: $id }
 
 ---
 'Create Connector - Index name used by another connector':

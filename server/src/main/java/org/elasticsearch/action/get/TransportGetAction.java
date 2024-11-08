@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.get;
@@ -19,6 +20,7 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.admin.indices.refresh.TransportShardRefreshAction;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.replication.BasicReplicationRequest;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
 import org.elasticsearch.client.internal.node.NodeClient;
@@ -30,7 +32,6 @@ import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.routing.PlainShardIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -42,6 +43,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -124,8 +126,9 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
         IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         IndexShard indexShard = indexService.getShard(shardId.id());
         if (indexShard.routingEntry().isPromotableToPrimary() == false) {
-            assert indexShard.indexSettings().isFastRefresh() == false
-                : "a search shard should not receive a TransportGetAction for an index with fast refresh";
+            // TODO: Re-evaluate assertion (ES-8227)
+            // assert indexShard.indexSettings().isFastRefresh() == false
+            // : "a search shard should not receive a TransportGetAction for an index with fast refresh";
             handleGetOnUnpromotableShard(request, indexShard, listener);
             return;
         }
@@ -284,11 +287,11 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
                     } else {
                         assert r.segmentGeneration() > -1L;
                         assert r.primaryTerm() > Engine.UNKNOWN_PRIMARY_TERM;
-                        indexShard.waitForPrimaryTermAndGeneration(
-                            r.primaryTerm(),
-                            r.segmentGeneration(),
-                            listener.delegateFailureAndWrap((ll, aLong) -> super.asyncShardOperation(request, shardId, ll))
+                        final ActionListener<Long> termAndGenerationListener = ContextPreservingActionListener.wrapPreservingContext(
+                            listener.delegateFailureAndWrap((ll, aLong) -> super.asyncShardOperation(request, shardId, ll)),
+                            threadPool.getThreadContext()
                         );
+                        indexShard.waitForPrimaryTermAndGeneration(r.primaryTerm(), r.segmentGeneration(), termAndGenerationListener);
                     }
                 }
             }), TransportGetFromTranslogAction.Response::new, getExecutor(request, shardId))

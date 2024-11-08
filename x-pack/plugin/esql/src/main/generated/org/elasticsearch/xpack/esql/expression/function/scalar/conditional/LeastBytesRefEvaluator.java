@@ -15,25 +15,27 @@ import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.xpack.esql.expression.function.Warnings;
-import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Least}.
  * This class is generated. Do not edit it.
  */
 public final class LeastBytesRefEvaluator implements EvalOperator.ExpressionEvaluator {
-  private final Warnings warnings;
+  private final Source source;
 
   private final EvalOperator.ExpressionEvaluator[] values;
 
   private final DriverContext driverContext;
 
+  private Warnings warnings;
+
   public LeastBytesRefEvaluator(Source source, EvalOperator.ExpressionEvaluator[] values,
       DriverContext driverContext) {
-    this.warnings = new Warnings(source);
+    this.source = source;
     this.values = values;
     this.driverContext = driverContext;
   }
@@ -71,7 +73,7 @@ public final class LeastBytesRefEvaluator implements EvalOperator.ExpressionEval
           }
           if (valuesBlocks[i].getValueCount(p) != 1) {
             if (valuesBlocks[i].getValueCount(p) > 1) {
-              warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
             }
             result.appendNull();
             continue position;
@@ -114,6 +116,18 @@ public final class LeastBytesRefEvaluator implements EvalOperator.ExpressionEval
   @Override
   public void close() {
     Releasables.closeExpectNoException(() -> Releasables.close(values));
+  }
+
+  private Warnings warnings() {
+    if (warnings == null) {
+      this.warnings = Warnings.createWarnings(
+              driverContext.warningsMode(),
+              source.source().getLineNumber(),
+              source.source().getColumnNumber(),
+              source.text()
+          );
+    }
+    return warnings;
   }
 
   static class Factory implements EvalOperator.ExpressionEvaluator.Factory {

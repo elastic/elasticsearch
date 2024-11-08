@@ -13,24 +13,26 @@ import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.xpack.esql.expression.function.Warnings;
-import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Neg}.
  * This class is generated. Do not edit it.
  */
 public final class NegDoublesEvaluator implements EvalOperator.ExpressionEvaluator {
-  private final Warnings warnings;
+  private final Source source;
 
   private final EvalOperator.ExpressionEvaluator v;
 
   private final DriverContext driverContext;
 
+  private Warnings warnings;
+
   public NegDoublesEvaluator(Source source, EvalOperator.ExpressionEvaluator v,
       DriverContext driverContext) {
-    this.warnings = new Warnings(source);
+    this.source = source;
     this.v = v;
     this.driverContext = driverContext;
   }
@@ -55,7 +57,7 @@ public final class NegDoublesEvaluator implements EvalOperator.ExpressionEvaluat
         }
         if (vBlock.getValueCount(p) != 1) {
           if (vBlock.getValueCount(p) > 1) {
-            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
           }
           result.appendNull();
           continue position;
@@ -67,9 +69,9 @@ public final class NegDoublesEvaluator implements EvalOperator.ExpressionEvaluat
   }
 
   public DoubleVector eval(int positionCount, DoubleVector vVector) {
-    try(DoubleVector.Builder result = driverContext.blockFactory().newDoubleVectorBuilder(positionCount)) {
+    try(DoubleVector.FixedBuilder result = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendDouble(Neg.processDoubles(vVector.getDouble(p)));
+        result.appendDouble(p, Neg.processDoubles(vVector.getDouble(p)));
       }
       return result.build();
     }
@@ -83,6 +85,18 @@ public final class NegDoublesEvaluator implements EvalOperator.ExpressionEvaluat
   @Override
   public void close() {
     Releasables.closeExpectNoException(v);
+  }
+
+  private Warnings warnings() {
+    if (warnings == null) {
+      this.warnings = Warnings.createWarnings(
+              driverContext.warningsMode(),
+              source.source().getLineNumber(),
+              source.source().getColumnNumber(),
+              source.text()
+          );
+    }
+    return warnings;
   }
 
   static class Factory implements EvalOperator.ExpressionEvaluator.Factory {

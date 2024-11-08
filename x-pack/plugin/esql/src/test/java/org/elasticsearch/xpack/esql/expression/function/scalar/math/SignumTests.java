@@ -10,19 +10,19 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.NumericUtils;
+import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataTypes;
-import org.elasticsearch.xpack.ql.util.NumericUtils;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
-public class SignumTests extends AbstractFunctionTestCase {
+public class SignumTests extends AbstractScalarFunctionTestCase {
     public SignumTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
@@ -34,7 +34,7 @@ public class SignumTests extends AbstractFunctionTestCase {
         TestCaseSupplier.forUnaryInt(
             suppliers,
             "SignumIntEvaluator[val=" + read + "]",
-            DataTypes.DOUBLE,
+            DataType.DOUBLE,
             i -> (double) Math.signum(i),
             Integer.MIN_VALUE,
             Integer.MAX_VALUE,
@@ -44,7 +44,7 @@ public class SignumTests extends AbstractFunctionTestCase {
         TestCaseSupplier.forUnaryLong(
             suppliers,
             "SignumLongEvaluator[val=" + read + "]",
-            DataTypes.DOUBLE,
+            DataType.DOUBLE,
             l -> (double) Math.signum(l),
             Long.MIN_VALUE,
             Long.MAX_VALUE,
@@ -54,7 +54,7 @@ public class SignumTests extends AbstractFunctionTestCase {
         TestCaseSupplier.forUnaryUnsignedLong(
             suppliers,
             "SignumUnsignedLongEvaluator[val=" + read + "]",
-            DataTypes.DOUBLE,
+            DataType.DOUBLE,
             ul -> Math.signum(NumericUtils.unsignedLongToDouble(NumericUtils.asLongUnsigned(ul))),
             BigInteger.ZERO,
             UNSIGNED_LONG_MAX,
@@ -63,7 +63,7 @@ public class SignumTests extends AbstractFunctionTestCase {
         TestCaseSupplier.forUnaryDouble(
             suppliers,
             "SignumDoubleEvaluator[val=" + read + "]",
-            DataTypes.DOUBLE,
+            DataType.DOUBLE,
             Math::signum,
             -Double.MAX_VALUE,
             Double.MAX_VALUE,
@@ -72,7 +72,7 @@ public class SignumTests extends AbstractFunctionTestCase {
 
         suppliers = anyNullIsNull(true, suppliers);
 
-        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(suppliers));
+        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(suppliers, (v, p) -> "numeric"));
     }
 
     @Override

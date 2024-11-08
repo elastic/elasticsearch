@@ -2,16 +2,11 @@
 [[get-inference-api]]
 === Get {infer} API
 
-experimental[]
-
 Retrieves {infer} endpoint information.
 
-IMPORTANT: The {infer} APIs enable you to use certain services, such as built-in
-{ml} models (ELSER, E5), models uploaded through Eland, Cohere, OpenAI, or
-Hugging Face. For built-in models and models uploaded though Eland, the {infer}
-APIs offer an alternative way to use and manage trained models. However, if you
-do not plan to use the {infer} APIs to use these models or if you want to use
-non-NLP models, use the <<ml-df-trained-models-apis>>.
+IMPORTANT: The {infer} APIs enable you to use certain services, such as built-in {ml} models (ELSER, E5), models uploaded through Eland, Cohere, OpenAI, Azure, Google AI Studio, Google Vertex AI, Anthropic, Watsonx.ai, or Hugging Face.
+For built-in models and models uploaded through Eland, the {infer} APIs offer an alternative way to use and manage trained models.
+However, if you do not plan to use the {infer} APIs to use these models or if you want to use non-NLP models, use the <<ml-df-trained-models-apis>>.
 
 
 [discrete]
@@ -65,7 +60,7 @@ The type of {infer} task that the model performs.
 [[get-inference-api-example]]
 ==== {api-examples-title}
 
-The following API call retrives information about the `my-elser-model` {infer}
+The following API call retrieves information about the `my-elser-model` {infer}
 model that can perform `sparse_embedding` tasks.
 
 

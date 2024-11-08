@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.bootstrap;
@@ -18,7 +19,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.test.AbstractBootstrapCheckTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -131,9 +132,8 @@ public class MaxMapCountCheckTests extends AbstractBootstrapCheckTestCase {
             final IOException ioException = new IOException("fatal");
             when(reader.readLine()).thenThrow(ioException);
             final Logger logger = LogManager.getLogger("testGetMaxMapCountIOException");
-            final MockLogAppender appender = new MockLogAppender();
-            try (var ignored = appender.capturing("testGetMaxMapCountIOException")) {
-                appender.addExpectation(
+            try (var mockLog = MockLog.capture("testGetMaxMapCountIOException")) {
+                mockLog.addExpectation(
                     new MessageLoggingExpectation(
                         "expected logged I/O exception",
                         "testGetMaxMapCountIOException",
@@ -143,7 +143,7 @@ public class MaxMapCountCheckTests extends AbstractBootstrapCheckTestCase {
                     )
                 );
                 assertThat(check.getMaxMapCount(logger), equalTo(-1L));
-                appender.assertAllExpectationsMatched();
+                mockLog.assertAllExpectationsMatched();
             }
             verify(reader).close();
         }
@@ -152,9 +152,8 @@ public class MaxMapCountCheckTests extends AbstractBootstrapCheckTestCase {
             reset(reader);
             when(reader.readLine()).thenReturn("eof");
             final Logger logger = LogManager.getLogger("testGetMaxMapCountNumberFormatException");
-            final MockLogAppender appender = new MockLogAppender();
-            try (var ignored = appender.capturing("testGetMaxMapCountNumberFormatException")) {
-                appender.addExpectation(
+            try (var mockLog = MockLog.capture("testGetMaxMapCountNumberFormatException")) {
+                mockLog.addExpectation(
                     new MessageLoggingExpectation(
                         "expected logged number format exception",
                         "testGetMaxMapCountNumberFormatException",
@@ -164,14 +163,14 @@ public class MaxMapCountCheckTests extends AbstractBootstrapCheckTestCase {
                     )
                 );
                 assertThat(check.getMaxMapCount(logger), equalTo(-1L));
-                appender.assertAllExpectationsMatched();
+                mockLog.assertAllExpectationsMatched();
             }
             verify(reader).close();
         }
 
     }
 
-    private static class MessageLoggingExpectation implements MockLogAppender.LoggingExpectation {
+    private static class MessageLoggingExpectation implements MockLog.LoggingExpectation {
 
         private boolean saw = false;
 

@@ -208,7 +208,7 @@ public class FieldLevelSecurityRandomTests extends SecurityIntegTestCase {
                 prepareSearch("test").addSort("id", SortOrder.ASC)
                     .setQuery(QueryBuilders.boolQuery().should(QueryBuilders.termQuery("field1", "value"))),
                 expected -> {
-                    assertThat(actual.getHits().getTotalHits().value, equalTo(expected.getHits().getTotalHits().value));
+                    assertThat(actual.getHits().getTotalHits().value(), equalTo(expected.getHits().getTotalHits().value()));
                     assertThat(actual.getHits().getHits().length, equalTo(expected.getHits().getHits().length));
                     for (int i = 0; i < actual.getHits().getHits().length; i++) {
                         assertThat(actual.getHits().getAt(i).getId(), equalTo(expected.getHits().getAt(i).getId()));
@@ -231,7 +231,7 @@ public class FieldLevelSecurityRandomTests extends SecurityIntegTestCase {
                 prepareSearch("test").addSort("id", SortOrder.ASC)
                     .setQuery(QueryBuilders.boolQuery().should(QueryBuilders.termQuery("field2", "value"))),
                 expected -> {
-                    assertThat(actual.getHits().getTotalHits().value, equalTo(expected.getHits().getTotalHits().value));
+                    assertThat(actual.getHits().getTotalHits().value(), equalTo(expected.getHits().getTotalHits().value()));
                     assertThat(actual.getHits().getHits().length, equalTo(expected.getHits().getHits().length));
                     for (int i = 0; i < actual.getHits().getHits().length; i++) {
                         assertThat(actual.getHits().getAt(i).getId(), equalTo(expected.getHits().getAt(i).getId()));
@@ -254,7 +254,7 @@ public class FieldLevelSecurityRandomTests extends SecurityIntegTestCase {
                 prepareSearch("test").addSort("id", SortOrder.ASC)
                     .setQuery(QueryBuilders.boolQuery().should(QueryBuilders.termQuery("field3", "value"))),
                 expected -> {
-                    assertThat(actual.getHits().getTotalHits().value, equalTo(expected.getHits().getTotalHits().value));
+                    assertThat(actual.getHits().getTotalHits().value(), equalTo(expected.getHits().getTotalHits().value()));
                     assertThat(actual.getHits().getHits().length, equalTo(expected.getHits().getHits().length));
                     for (int i = 0; i < actual.getHits().getHits().length; i++) {
                         assertThat(actual.getHits().getAt(i).getId(), equalTo(expected.getHits().getAt(i).getId()));

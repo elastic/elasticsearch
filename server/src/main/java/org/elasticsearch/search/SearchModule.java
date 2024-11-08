@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search;
@@ -226,12 +227,18 @@ import org.elasticsearch.search.fetch.subphase.highlight.HighlightPhase;
 import org.elasticsearch.search.fetch.subphase.highlight.Highlighter;
 import org.elasticsearch.search.fetch.subphase.highlight.PlainHighlighter;
 import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.search.rank.RankDoc;
+import org.elasticsearch.search.rank.RankShardResult;
+import org.elasticsearch.search.rank.feature.RankFeatureDoc;
+import org.elasticsearch.search.rank.feature.RankFeatureShardPhase;
+import org.elasticsearch.search.rank.feature.RankFeatureShardResult;
 import org.elasticsearch.search.rescore.QueryRescorerBuilder;
 import org.elasticsearch.search.rescore.RescorerBuilder;
 import org.elasticsearch.search.retriever.KnnRetrieverBuilder;
 import org.elasticsearch.search.retriever.RetrieverBuilder;
 import org.elasticsearch.search.retriever.RetrieverParserContext;
 import org.elasticsearch.search.retriever.StandardRetrieverBuilder;
+import org.elasticsearch.search.retriever.rankdoc.RankDocsQueryBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.GeoDistanceSortBuilder;
 import org.elasticsearch.search.sort.ScoreSortBuilder;
@@ -268,6 +275,7 @@ import java.util.function.Function;
 
 import static java.util.Collections.unmodifiableMap;
 import static java.util.Objects.requireNonNull;
+import static org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper.TS_ROUTING_HASH_DOC_VALUE_FORMAT;
 
 /**
  * Sets up things that can be done at search time like queries, aggregations, and suggesters.
@@ -288,6 +296,23 @@ public class SearchModule {
         1,
         Integer.MAX_VALUE,
         Setting.Property.NodeScope
+    );
+
+    public static final Setting<Boolean> SCRIPTED_METRICS_AGG_ONLY_ALLOWED_SCRIPTS = Setting.boolSetting(
+        "search.aggs.only_allowed_metric_scripts",
+        false,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+    public static final Setting<List<String>> SCRIPTED_METRICS_AGG_ALLOWED_INLINE_SCRIPTS = Setting.stringListSetting(
+        "search.aggs.allowed_inline_metric_scripts",
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+    public static final Setting<List<String>> SCRIPTED_METRICS_AGG_ALLOWED_STORED_SCRIPTS = Setting.stringListSetting(
+        "search.aggs.allowed_stored_metric_scripts",
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
     );
 
     /**
@@ -331,6 +356,7 @@ public class SearchModule {
         registerRetrieverParsers(plugins);
         registerQueryParsers(plugins);
         registerRescorers(plugins);
+        registerRankers();
         registerSorts();
         registerValueFormats();
         registerSignificanceHeuristics(plugins);
@@ -827,6 +853,15 @@ public class SearchModule {
         namedWriteables.add(new NamedWriteableRegistry.Entry(RescorerBuilder.class, spec.getName().getPreferredName(), spec.getReader()));
     }
 
+    private void registerRankers() {
+        namedWriteables.add(new NamedWriteableRegistry.Entry(RankDoc.class, RankDoc.NAME, RankDoc::new));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(RankDoc.class, RankFeatureDoc.NAME, RankFeatureDoc::new));
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(RankShardResult.class, RankFeatureShardResult.NAME, RankFeatureShardResult::new)
+        );
+        namedWriteables.add(new NamedWriteableRegistry.Entry(QueryBuilder.class, RankDocsQueryBuilder.NAME, RankDocsQueryBuilder::new));
+    }
+
     private void registerSorts() {
         namedWriteables.add(new NamedWriteableRegistry.Entry(SortBuilder.class, GeoDistanceSortBuilder.NAME, GeoDistanceSortBuilder::new));
         namedWriteables.add(new NamedWriteableRegistry.Entry(SortBuilder.class, ScoreSortBuilder.NAME, ScoreSortBuilder::new));
@@ -985,8 +1020,10 @@ public class SearchModule {
         registerValueFormat(DocValueFormat.IP.getWriteableName(), in -> DocValueFormat.IP);
         registerValueFormat(DocValueFormat.RAW.getWriteableName(), in -> DocValueFormat.RAW);
         registerValueFormat(DocValueFormat.BINARY.getWriteableName(), in -> DocValueFormat.BINARY);
+        registerValueFormat(DocValueFormat.DENSE_VECTOR.getWriteableName(), in -> DocValueFormat.DENSE_VECTOR);
         registerValueFormat(DocValueFormat.UNSIGNED_LONG_SHIFTED.getWriteableName(), in -> DocValueFormat.UNSIGNED_LONG_SHIFTED);
         registerValueFormat(DocValueFormat.TIME_SERIES_ID.getWriteableName(), in -> DocValueFormat.TIME_SERIES_ID);
+        registerValueFormat(TS_ROUTING_HASH_DOC_VALUE_FORMAT.getWriteableName(), in -> TS_ROUTING_HASH_DOC_VALUE_FORMAT);
     }
 
     /**
@@ -1225,6 +1262,16 @@ public class SearchModule {
                 IntervalsSourceProvider.class,
                 IntervalsSourceProvider.Fuzzy.NAME,
                 IntervalsSourceProvider.Fuzzy::new
+            ),
+            new NamedWriteableRegistry.Entry(
+                IntervalsSourceProvider.class,
+                IntervalsSourceProvider.Regexp.NAME,
+                IntervalsSourceProvider.Regexp::new
+            ),
+            new NamedWriteableRegistry.Entry(
+                IntervalsSourceProvider.class,
+                IntervalsSourceProvider.Range.NAME,
+                IntervalsSourceProvider.Range::new
             )
         );
     }
@@ -1250,6 +1297,10 @@ public class SearchModule {
                 spec.getName().getForRestApiVersion()
             )
         );
+    }
+
+    public RankFeatureShardPhase getRankFeatureShardPhase() {
+        return new RankFeatureShardPhase();
     }
 
     public FetchPhase getFetchPhase() {

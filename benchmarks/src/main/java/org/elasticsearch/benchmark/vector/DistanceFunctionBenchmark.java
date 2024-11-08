@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.benchmark.vector;
@@ -56,7 +57,7 @@ public class DistanceFunctionBenchmark {
     @Param({ "96" })
     private int dims;
 
-    @Param({ "dot", "cosine", "l1", "l2" })
+    @Param({ "dot", "cosine", "l1", "l2", "hamming" })
     private String function;
 
     @Param({ "knn", "binary" })
@@ -330,6 +331,18 @@ public class DistanceFunctionBenchmark {
         }
     }
 
+    private static class HammingKnnByteBenchmarkFunction extends KnnByteBenchmarkFunction {
+
+        private HammingKnnByteBenchmarkFunction(int dims) {
+            super(dims);
+        }
+
+        @Override
+        public void execute(Consumer<Object> consumer) {
+            new ByteKnnDenseVector(docVector).hamming(queryVector);
+        }
+    }
+
     private static class L1BinaryFloatBenchmarkFunction extends BinaryFloatBenchmarkFunction {
 
         private L1BinaryFloatBenchmarkFunction(int dims) {
@@ -351,6 +364,18 @@ public class DistanceFunctionBenchmark {
         @Override
         public void execute(Consumer<Object> consumer) {
             new ByteBinaryDenseVector(vectorValue, docVector, dims).l1Norm(queryVector);
+        }
+    }
+
+    private static class HammingBinaryByteBenchmarkFunction extends BinaryByteBenchmarkFunction {
+
+        private HammingBinaryByteBenchmarkFunction(int dims) {
+            super(dims);
+        }
+
+        @Override
+        public void execute(Consumer<Object> consumer) {
+            new ByteBinaryDenseVector(vectorValue, docVector, dims).hamming(queryVector);
         }
     }
 
@@ -452,6 +477,11 @@ public class DistanceFunctionBenchmark {
                     case "l2" -> benchmarkFunction = switch (type) {
                         case "knn" -> new L2KnnByteBenchmarkFunction(dims);
                         case "binary" -> new L2BinaryByteBenchmarkFunction(dims);
+                        default -> throw new UnsupportedOperationException("unexpected type [" + type + "]");
+                    };
+                    case "hamming" -> benchmarkFunction = switch (type) {
+                        case "knn" -> new HammingKnnByteBenchmarkFunction(dims);
+                        case "binary" -> new HammingBinaryByteBenchmarkFunction(dims);
                         default -> throw new UnsupportedOperationException("unexpected type [" + type + "]");
                     };
                     default -> throw new UnsupportedOperationException("unexpected function [" + function + "]");

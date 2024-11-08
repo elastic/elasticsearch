@@ -26,15 +26,6 @@ setup:
               my_name:
                 type: keyword
                 store: true
-          aliases:
-            my_alias:
-              filter:
-                term:
-                  my_name: v2
-            my_alias1:
-              filter:
-                term:
-                  my_name: v1
 
   - do:
       bulk:

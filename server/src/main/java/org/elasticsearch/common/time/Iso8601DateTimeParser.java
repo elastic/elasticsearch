@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.time;
@@ -14,7 +15,6 @@ import java.time.temporal.ChronoField;
 import java.time.temporal.TemporalAccessor;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 
 class Iso8601DateTimeParser implements DateTimeParser {
@@ -25,8 +25,14 @@ class Iso8601DateTimeParser implements DateTimeParser {
     // and we already account for . or , in decimals
     private final Locale locale;
 
-    Iso8601DateTimeParser(Set<ChronoField> mandatoryFields, boolean optionalTime) {
-        parser = new Iso8601Parser(mandatoryFields, optionalTime, Map.of());
+    Iso8601DateTimeParser(
+        Set<ChronoField> mandatoryFields,
+        boolean optionalTime,
+        ChronoField maxAllowedField,
+        DecimalSeparator decimalSeparator,
+        TimezonePresence timezonePresence
+    ) {
+        parser = new Iso8601Parser(mandatoryFields, optionalTime, maxAllowedField, decimalSeparator, timezonePresence, Map.of());
         timezone = null;
         locale = null;
     }
@@ -58,7 +64,18 @@ class Iso8601DateTimeParser implements DateTimeParser {
     }
 
     Iso8601DateTimeParser withDefaults(Map<ChronoField, Integer> defaults) {
-        return new Iso8601DateTimeParser(new Iso8601Parser(parser.mandatoryFields(), parser.optionalTime(), defaults), timezone, locale);
+        return new Iso8601DateTimeParser(
+            new Iso8601Parser(
+                parser.mandatoryFields(),
+                parser.optionalTime(),
+                parser.maxAllowedField(),
+                parser.decimalSeparator(),
+                parser.timezonePresence(),
+                defaults
+            ),
+            timezone,
+            locale
+        );
     }
 
     @Override
@@ -72,7 +89,7 @@ class Iso8601DateTimeParser implements DateTimeParser {
     }
 
     @Override
-    public Optional<TemporalAccessor> tryParse(CharSequence str) {
-        return Optional.ofNullable(parser.tryParse(str, timezone).result());
+    public ParseResult tryParse(CharSequence str) {
+        return parser.tryParse(str, timezone);
     }
 }

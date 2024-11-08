@@ -53,8 +53,9 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.rest.FakeRestRequest;
+import org.elasticsearch.threadpool.DefaultBuiltInExecutorBuilders;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -263,6 +264,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         threadPool = new ThreadPool(
             settings,
             MeterRegistry.NOOP,
+            new DefaultBuiltInExecutorBuilders(),
             new FixedExecutorBuilder(
                 settings,
                 THREAD_POOL_NAME,
@@ -332,7 +334,8 @@ public class AuthenticationServiceTests extends ESTestCase {
             securityIndex,
             clusterService,
             mock(CacheInvalidatorRegistry.class),
-            threadPool
+            threadPool,
+            MeterRegistry.NOOP
         );
         tokenService = new TokenService(
             settings,
@@ -417,11 +420,9 @@ public class AuthenticationServiceTests extends ESTestCase {
     }
 
     public void testTokenMissing() throws Exception {
-        final MockLogAppender mockAppender = new MockLogAppender();
-
-        try (var ignored = mockAppender.capturing(RealmsAuthenticator.class)) {
-            mockAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+        try (var mockLog = MockLog.capture(RealmsAuthenticator.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
                     "unlicensed realms",
                     RealmsAuthenticator.class.getName(),
                     Level.WARN,
@@ -456,7 +457,7 @@ public class AuthenticationServiceTests extends ESTestCase {
                     verify(auditTrail).anonymousAccessDenied(reqId.get(), "_action", transportRequest);
                 }
                 verifyNoMoreInteractions(auditTrail);
-                mockAppender.assertAllExpectationsMatched();
+                mockLog.assertAllExpectationsMatched();
                 setCompletedToTrue(completed);
             });
 
@@ -1501,7 +1502,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         final boolean throwElasticsearchSecurityException = randomBoolean();
         final boolean withAuthenticateHeader = throwElasticsearchSecurityException && randomBoolean();
         Exception throwE = new Exception("general authentication error");
-        final String basicScheme = "Basic realm=\"" + XPackField.SECURITY + "\" charset=\"UTF-8\"";
+        final String basicScheme = "Basic realm=\"" + XPackField.SECURITY + "\", charset=\"UTF-8\"";
         String selectedScheme = randomFrom(basicScheme, "Negotiate IOJoj");
         if (throwElasticsearchSecurityException) {
             throwE = new ElasticsearchSecurityException("authentication error", RestStatus.UNAUTHORIZED);
@@ -1548,7 +1549,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         when(token.principal()).thenReturn(principal);
         when(firstRealm.token(threadContext)).thenReturn(token);
         when(firstRealm.supports(token)).thenReturn(true);
-        final String basicScheme = "Basic realm=\"" + XPackField.SECURITY + "\" charset=\"UTF-8\"";
+        final String basicScheme = "Basic realm=\"" + XPackField.SECURITY + "\", charset=\"UTF-8\"";
         mockAuthenticate(firstRealm, token, null, true);
 
         ElasticsearchSecurityException e = expectThrows(
@@ -2513,11 +2514,16 @@ public class AuthenticationServiceTests extends ESTestCase {
             true,
             true,
             true,
+            true,
+            null,
+            null,
+            null,
             null,
             concreteSecurityIndexName,
             indexStatus,
             IndexMetadata.State.OPEN,
-            "my_uuid"
+            "my_uuid",
+            Set.of()
         );
     }
 

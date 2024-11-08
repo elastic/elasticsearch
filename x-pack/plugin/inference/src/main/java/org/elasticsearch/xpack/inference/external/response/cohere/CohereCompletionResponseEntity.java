@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.external.response.cohere;
 
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -84,7 +83,7 @@ public class CohereCompletionResponseEntity {
             moveToFirstToken(jsonParser);
 
             XContentParser.Token token = jsonParser.currentToken();
-            XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, token, jsonParser);
+            ensureExpectedToken(XContentParser.Token.START_OBJECT, token, jsonParser);
 
             positionParserAtTokenAfterField(jsonParser, "text", FAILED_TO_FIND_FIELD_TEMPLATE);
 

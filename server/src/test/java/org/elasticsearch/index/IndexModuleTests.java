@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index;
 
@@ -12,7 +13,6 @@ import org.apache.lucene.analysis.standard.StandardTokenizer;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FieldInvertState;
 import org.apache.lucene.index.IndexCommit;
-import org.apache.lucene.index.Term;
 import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.TermStatistics;
@@ -383,7 +383,7 @@ public class IndexModuleTests extends ESTestCase {
         assertSame(listener, indexService.getIndexOperationListeners().get(1));
 
         ParsedDocument doc = EngineTestCase.createParsedDoc("1", null);
-        Engine.Index index = new Engine.Index(new Term("_id", Uid.encodeId(doc.id())), randomNonNegativeLong(), doc);
+        Engine.Index index = new Engine.Index(Uid.encodeId(doc.id()), randomNonNegativeLong(), doc);
         ShardId shardId = new ShardId(new Index("foo", "bar"), 0);
         for (IndexingOperationListener l : indexService.getIndexOperationListeners()) {
             l.preIndex(shardId, index);

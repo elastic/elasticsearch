@@ -11,6 +11,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
@@ -80,16 +81,22 @@ public abstract class LuceneOperator extends SourceOperator {
         protected final int limit;
         protected final LuceneSliceQueue sliceQueue;
 
+        /**
+         * Build the factory.
+         *
+         * @param scoreMode the {@link ScoreMode} passed to {@link IndexSearcher#createWeight}
+         */
         protected Factory(
             List<? extends ShardContext> contexts,
             Function<ShardContext, Query> queryFunction,
             DataPartitioning dataPartitioning,
             int taskConcurrency,
-            int limit
+            int limit,
+            ScoreMode scoreMode
         ) {
             this.limit = limit;
             this.dataPartitioning = dataPartitioning;
-            var weightFunction = weightFunction(queryFunction, ScoreMode.COMPLETE_NO_SCORES);
+            var weightFunction = weightFunction(queryFunction, scoreMode);
             this.sliceQueue = LuceneSliceQueue.create(contexts, weightFunction, dataPartitioning, taskConcurrency);
             this.taskConcurrency = Math.min(sliceQueue.totalSlices(), taskConcurrency);
         }
@@ -133,7 +140,7 @@ public abstract class LuceneOperator extends SourceOperator {
             logger.trace("Starting {}", partialLeaf);
             final LeafReaderContext leaf = partialLeaf.leafReaderContext();
             if (currentScorer == null || currentScorer.leafReaderContext() != leaf) {
-                final Weight weight = currentSlice.weight().get();
+                final Weight weight = currentSlice.weight();
                 processedQueries.add(weight.getQuery());
                 currentScorer = new LuceneScorer(currentSlice.shardContext(), weight, leaf);
             }
@@ -302,7 +309,7 @@ public abstract class LuceneOperator extends SourceOperator {
                 processedQueries = Collections.emptySet();
                 processedShards = Collections.emptySet();
             }
-            processingNanos = in.getTransportVersion().onOrAfter(TransportVersions.ESQL_TIMINGS) ? in.readVLong() : 0;
+            processingNanos = in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0) ? in.readVLong() : 0;
             sliceIndex = in.readVInt();
             totalSlices = in.readVInt();
             pagesEmitted = in.readVInt();
@@ -318,7 +325,7 @@ public abstract class LuceneOperator extends SourceOperator {
                 out.writeCollection(processedQueries, StreamOutput::writeString);
                 out.writeCollection(processedShards, StreamOutput::writeString);
             }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_TIMINGS)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
                 out.writeVLong(processingNanos);
             }
             out.writeVInt(sliceIndex);

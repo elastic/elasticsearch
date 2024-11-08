@@ -8,6 +8,9 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.multivalue;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -16,36 +19,38 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
-import org.elasticsearch.xpack.ql.InvalidArgumentException;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.TypeResolutions;
-import org.elasticsearch.xpack.ql.expression.function.OptionalArgument;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
-import java.util.function.Function;
 
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.THIRD;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToInt;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.SECOND;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.THIRD;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
-import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
 
 /**
  * Returns a subset of the multivalued field using the start and end index values.
  */
 public class MvSlice extends EsqlScalarFunction implements OptionalArgument, EvaluatorMapper {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "MvSlice", MvSlice::new);
+
     private final Expression field, start, end;
 
     @FunctionInfo(
@@ -54,6 +59,7 @@ public class MvSlice extends EsqlScalarFunction implements OptionalArgument, Eva
             "cartesian_point",
             "cartesian_shape",
             "date",
+            "date_nanos",
             "double",
             "geo_point",
             "geo_shape",
@@ -61,9 +67,15 @@ public class MvSlice extends EsqlScalarFunction implements OptionalArgument, Eva
             "ip",
             "keyword",
             "long",
-            "text",
             "version" },
-        description = "Returns a subset of the multivalued field using the start and end index values.",
+        description = """
+            Returns a subset of the multivalued field using the start and end index values.
+            This is most useful when reading from a function that emits multivalued columns
+            in a known order like <<esql-split>> or <<esql-mv_sort>>.""",
+        detailedDescription = """
+            The order that <<esql-multivalued-fields, multivalued fields>> are read from
+            underlying storage is not guaranteed. It is *frequently* ascending, but don't
+            rely on that.""",
         examples = { @Example(file = "ints", tag = "mv_slice_positive"), @Example(file = "ints", tag = "mv_slice_negative") }
     )
     public MvSlice(
@@ -75,6 +87,7 @@ public class MvSlice extends EsqlScalarFunction implements OptionalArgument, Eva
                 "cartesian_point",
                 "cartesian_shape",
                 "date",
+                "date_nanos",
                 "double",
                 "geo_point",
                 "geo_shape",
@@ -103,7 +116,41 @@ public class MvSlice extends EsqlScalarFunction implements OptionalArgument, Eva
         super(source, end == null ? Arrays.asList(field, start, start) : Arrays.asList(field, start, end));
         this.field = field;
         this.start = start;
-        this.end = end == null ? start : end;
+        this.end = end;
+    }
+
+    private MvSlice(StreamInput in) throws IOException {
+        this(
+            Source.readFrom((PlanStreamInput) in),
+            in.readNamedWriteable(Expression.class),
+            in.readNamedWriteable(Expression.class),
+            in.readOptionalNamedWriteable(Expression.class)
+        );
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        Source.EMPTY.writeTo(out);
+        out.writeNamedWriteable(field);
+        out.writeNamedWriteable(start);
+        out.writeOptionalNamedWriteable(end);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
+    }
+
+    Expression field() {
+        return field;
+    }
+
+    Expression start() {
+        return start;
+    }
+
+    Expression end() {
+        return end;
     }
 
     @Override
@@ -112,7 +159,7 @@ public class MvSlice extends EsqlScalarFunction implements OptionalArgument, Eva
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution resolution = isType(field, EsqlDataTypes::isRepresentable, sourceText(), FIRST, "representable");
+        TypeResolution resolution = isType(field, DataType::isRepresentable, sourceText(), FIRST, "representable");
         if (resolution.unresolved()) {
             return resolution;
         }
@@ -138,9 +185,7 @@ public class MvSlice extends EsqlScalarFunction implements OptionalArgument, Eva
     }
 
     @Override
-    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(
-        Function<Expression, EvalOperator.ExpressionEvaluator.Factory> toEvaluator
-    ) {
+    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         if (start.foldable() && end.foldable()) {
             int startOffset = stringToInt(String.valueOf(start.fold()));
             int endOffset = stringToInt(String.valueOf(end.fold()));
@@ -194,7 +239,7 @@ public class MvSlice extends EsqlScalarFunction implements OptionalArgument, Eva
 
     @Override
     public DataType dataType() {
-        return field.dataType();
+        return field.dataType().noText();
     }
 
     static int adjustIndex(int oldOffset, int fieldValueCount, int first) {

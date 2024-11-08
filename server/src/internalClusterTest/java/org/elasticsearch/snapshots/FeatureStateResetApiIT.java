@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.snapshots;
@@ -70,7 +71,10 @@ public class FeatureStateResetApiIT extends ESIntegTestCase {
         refresh("my_index");
 
         // call the reset API
-        ResetFeatureStateResponse apiResponse = client().execute(ResetFeatureStateAction.INSTANCE, new ResetFeatureStateRequest()).get();
+        ResetFeatureStateResponse apiResponse = client().execute(
+            ResetFeatureStateAction.INSTANCE,
+            new ResetFeatureStateRequest(TEST_REQUEST_TIMEOUT)
+        ).get();
         assertThat(
             apiResponse.getFeatureStateResetStatuses(),
             containsInAnyOrder(
@@ -105,7 +109,7 @@ public class FeatureStateResetApiIT extends ESIntegTestCase {
             EvilSystemIndexTestPlugin.setBeEvil(true);
             ResetFeatureStateResponse resetFeatureStateResponse = client().execute(
                 ResetFeatureStateAction.INSTANCE,
-                new ResetFeatureStateRequest()
+                new ResetFeatureStateRequest(TEST_REQUEST_TIMEOUT)
             ).get();
 
             List<String> failedFeatures = resetFeatureStateResponse.getFeatureStateResetStatuses()

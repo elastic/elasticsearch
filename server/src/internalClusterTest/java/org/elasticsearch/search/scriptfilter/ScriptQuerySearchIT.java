@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.scriptfilter;
@@ -121,7 +122,7 @@ public class ScriptQuerySearchIT extends ESIntegTestCase {
                     new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['binaryData'].get(0).length", emptyMap())
                 ),
             response -> {
-                assertThat(response.getHits().getTotalHits().value, equalTo(1L));
+                assertThat(response.getHits().getTotalHits().value(), equalTo(1L));
                 assertThat(response.getHits().getAt(0).getId(), equalTo("2"));
                 assertThat(response.getHits().getAt(0).getFields().get("sbinaryData").getValues().get(0), equalTo(16));
             }
@@ -174,7 +175,7 @@ public class ScriptQuerySearchIT extends ESIntegTestCase {
                     new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['num1'].value", Collections.emptyMap())
                 ),
             response -> {
-                assertThat(response.getHits().getTotalHits().value, equalTo(2L));
+                assertThat(response.getHits().getTotalHits().value(), equalTo(2L));
                 assertThat(response.getHits().getAt(0).getId(), equalTo("2"));
                 assertThat(response.getHits().getAt(0).getFields().get("sNum1").getValues().get(0), equalTo(2.0));
                 assertThat(response.getHits().getAt(1).getId(), equalTo("3"));
@@ -195,7 +196,7 @@ public class ScriptQuerySearchIT extends ESIntegTestCase {
                     new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['num1'].value", Collections.emptyMap())
                 ),
             response -> {
-                assertThat(response.getHits().getTotalHits().value, equalTo(1L));
+                assertThat(response.getHits().getTotalHits().value(), equalTo(1L));
                 assertThat(response.getHits().getAt(0).getId(), equalTo("3"));
                 assertThat(response.getHits().getAt(0).getFields().get("sNum1").getValues().get(0), equalTo(3.0));
             }
@@ -213,7 +214,7 @@ public class ScriptQuerySearchIT extends ESIntegTestCase {
                     new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['num1'].value", Collections.emptyMap())
                 ),
             response -> {
-                assertThat(response.getHits().getTotalHits().value, equalTo(3L));
+                assertThat(response.getHits().getTotalHits().value(), equalTo(3L));
                 assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
                 assertThat(response.getHits().getAt(0).getFields().get("sNum1").getValues().get(0), equalTo(1.0));
                 assertThat(response.getHits().getAt(1).getId(), equalTo("2"));

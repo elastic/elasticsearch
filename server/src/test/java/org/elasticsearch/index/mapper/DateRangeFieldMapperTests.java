@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -16,8 +17,8 @@ import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.util.HashMap;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -32,7 +33,7 @@ public class DateRangeFieldMapperTests extends RangeFieldMapperTests {
 
     @Override
     protected String storedValue() {
-        return "1477872000000";
+        return "1477958399999";
     }
 
     @Override
@@ -89,11 +90,15 @@ public class DateRangeFieldMapperTests extends RangeFieldMapperTests {
             Object toExpectedSyntheticSource() {
                 Map<String, Object> expectedInMillis = (Map<String, Object>) super.toExpectedSyntheticSource();
 
-                return expectedInMillis.entrySet()
-                    .stream()
-                    .collect(
-                        Collectors.toMap(Map.Entry::getKey, e -> expectedDateFormatter.format(Instant.ofEpochMilli((long) e.getValue())))
+                Map<String, Object> expectedFormatted = new HashMap<>();
+                for (var entry : expectedInMillis.entrySet()) {
+                    expectedFormatted.put(
+                        entry.getKey(),
+                        entry.getValue() != null ? expectedDateFormatter.format(Instant.ofEpochMilli((long) entry.getValue())) : null
                     );
+                }
+
+                return expectedFormatted;
             }
         };
     }

@@ -7,18 +7,12 @@
 
 package org.elasticsearch.xpack.esql.evaluator.mapper;
 
-import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.breaker.NoopCircuitBreaker;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.planner.Layout;
-import org.elasticsearch.xpack.ql.expression.Expression;
-
-import java.util.function.Function;
 
 import static org.elasticsearch.compute.data.BlockUtils.fromArrayRow;
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
@@ -27,6 +21,10 @@ import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
  * Expressions that have a mapping to an {@link ExpressionEvaluator}.
  */
 public interface EvaluatorMapper {
+    interface ToEvaluator {
+        ExpressionEvaluator.Factory apply(Expression expression);
+    }
+
     /**
      * <p>
      * Note for implementors:
@@ -54,7 +52,7 @@ public interface EvaluatorMapper {
      * garbage. Or return an evaluator that throws when run.
      * </p>
      */
-    ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator);
+    ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator);
 
     /**
      * Fold using {@link #toEvaluator} so you don't need a "by hand"
@@ -71,12 +69,6 @@ public interface EvaluatorMapper {
 
             @Override
             public void close() {}
-        }).get(
-            new DriverContext(
-                BigArrays.NON_RECYCLING_INSTANCE,
-                // TODO maybe this should have a small fixed limit?
-                new BlockFactory(new NoopCircuitBreaker(CircuitBreaker.REQUEST), BigArrays.NON_RECYCLING_INSTANCE)
-            )
-        ).eval(new Page(1)), 0);
+        }).get(DriverContext.getLocalDriver()).eval(new Page(1)), 0);
     }
 }

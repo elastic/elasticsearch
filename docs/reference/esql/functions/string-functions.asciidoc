@@ -8,6 +8,7 @@
 {esql} supports these string functions:
 
 // tag::string_list[]
+* <<esql-bit_length>>
 * <<esql-concat>>
 * <<esql-ends_with>>
 * <<esql-from_base64>>
@@ -15,9 +16,12 @@
 * <<esql-length>>
 * <<esql-locate>>
 * <<esql-ltrim>>
+* <<esql-repeat>>
 * <<esql-replace>>
+* <<esql-reverse>>
 * <<esql-right>>
 * <<esql-rtrim>>
+* <<esql-space>>
 * <<esql-split>>
 * <<esql-starts_with>>
 * <<esql-substring>>
@@ -27,6 +31,7 @@
 * <<esql-trim>>
 // end::string_list[]
 
+include::layout/bit_length.asciidoc[]
 include::layout/concat.asciidoc[]
 include::layout/ends_with.asciidoc[]
 include::layout/from_base64.asciidoc[]
@@ -34,9 +39,12 @@ include::layout/left.asciidoc[]
 include::layout/length.asciidoc[]
 include::layout/locate.asciidoc[]
 include::layout/ltrim.asciidoc[]
+include::layout/repeat.asciidoc[]
 include::layout/replace.asciidoc[]
+include::layout/reverse.asciidoc[]
 include::layout/right.asciidoc[]
 include::layout/rtrim.asciidoc[]
+include::layout/space.asciidoc[]
 include::layout/split.asciidoc[]
 include::layout/starts_with.asciidoc[]
 include::layout/substring.asciidoc[]

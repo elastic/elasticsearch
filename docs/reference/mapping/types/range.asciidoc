@@ -247,15 +247,23 @@ any issues, but features in technical preview are not subject to the support SLA
 of official GA features.
 
 `range` fields support <<synthetic-source,synthetic `_source`>> in their default
-configuration. Synthetic `_source` cannot be used with <<doc-values,`doc_values`>> disabled.
+configuration.
 
-Synthetic source always sorts values and removes duplicates for all `range` fields except `ip_range` . Ranges are sorted by their lower bound and then by upper bound. For example:
+Synthetic source may sort `range` field values and remove duplicates for all `range` fields except `ip_range`. Ranges are sorted by their lower bound and then by upper bound. For example:
 [source,console,id=synthetic-source-range-sorting-example]
 ----
 PUT idx
 {
+  "settings": {
+    "index": {
+      "mapping": {
+        "source": {
+          "mode": "synthetic"
+        }
+      }
+    }
+  },
   "mappings": {
-    "_source": { "mode": "synthetic" },
     "properties": {
       "my_range": { "type": "long_range" }
     }
@@ -316,8 +324,16 @@ For example:
 ----
 PUT idx
 {
+  "settings": {
+    "index": {
+      "mapping": {
+        "source": {
+          "mode": "synthetic"
+        }
+      }
+    }
+  },
   "mappings": {
-    "_source": { "mode": "synthetic" },
     "properties": {
       "my_range": { "type": "ip_range" }
     }
@@ -352,13 +368,21 @@ Will become:
 // TEST[s/^/{"_source":/ s/\n$/}/]
 
 [[range-synthetic-source-inclusive]]
-Range field vales are always represented as inclusive on both sides with bounds adjusted accordingly. For example:
+Range field values are always represented as inclusive on both sides with bounds adjusted accordingly. Default values for range bounds are represented as `null`. This is true even if range bound was explicitly provided. For example:
 [source,console,id=synthetic-source-range-normalization-example]
 ----
 PUT idx
 {
+  "settings": {
+    "index": {
+      "mapping": {
+        "source": {
+          "mode": "synthetic"
+        }
+      }
+    }
+  },
   "mappings": {
-    "_source": { "mode": "synthetic" },
     "properties": {
       "my_range": { "type": "long_range" }
     }
@@ -388,13 +412,65 @@ Will become:
 ----
 // TEST[s/^/{"_source":/ s/\n$/}/]
 
+[[range-synthetic-source-default-bounds]]
+Default values for range bounds are represented as `null` in synthetic source. This is true even if range bound was explicitly provided with default value. For example:
+[source,console,id=synthetic-source-range-bounds-example]
+----
+PUT idx
+{
+  "settings": {
+    "index": {
+      "mapping": {
+        "source": {
+          "mode": "synthetic"
+        }
+      }
+    }
+  },
+  "mappings": {
+    "properties": {
+      "my_range": { "type": "integer_range" }
+    }
+  }
+}
+
+PUT idx/_doc/1
+{
+  "my_range": {
+    "lte": 2147483647
+  }
+}
+----
+// TEST[s/$/\nGET idx\/_doc\/1?filter_path=_source\n/]
+
+Will become:
+
+[source,console-result]
+----
+{
+  "my_range": {
+    "gte": null,
+    "lte": null
+  }
+}
+----
+// TEST[s/^/{"_source":/ s/\n$/}/]
+
 `date` ranges are formatted using provided `format` or by default using `yyyy-MM-dd'T'HH:mm:ss.SSSZ` format. For example:
 [source,console,id=synthetic-source-range-date-example]
 ----
 PUT idx
 {
+  "settings": {
+    "index": {
+      "mapping": {
+        "source": {
+          "mode": "synthetic"
+        }
+      }
+    }
+  },
   "mappings": {
-    "_source": { "mode": "synthetic" },
     "properties": {
       "my_range": { "type": "date_range" }
     }
@@ -429,7 +505,7 @@ Will become:
     },
     {
       "gte": "2017-09-01T00:00:00.000Z",
-      "lte": "2017-09-10T00:00:00.000Z"
+      "lte": "2017-09-10T23:59:59.999Z"
     }
   ]
 }

@@ -90,10 +90,13 @@ public class XPackSettings {
         Setting.Property.NodeScope
     );
 
-    /** Setting for enabling or disabling APM Data. Defaults to false. */
-    public static final Setting<Boolean> APM_DATA_ENABLED = Setting.boolSetting(
-        "xpack.apm_data.enabled",
-        false,
+    /** Setting for enabling or disabling APM Data. Defaults to true. */
+    public static final Setting<Boolean> APM_DATA_ENABLED = Setting.boolSetting("xpack.apm_data.enabled", true, Setting.Property.NodeScope);
+
+    /** Setting for enabling or disabling OTel Data. Defaults to true. */
+    public static final Setting<Boolean> OTEL_DATA_ENABLED = Setting.boolSetting(
+        "xpack.otel_data.enabled",
+        true,
         Setting.Property.NodeScope
     );
 
@@ -239,7 +242,7 @@ public class XPackSettings {
      * Do not allow insecure hashing algorithms to be used for password hashing
      */
     public static Setting<String> defaultStoredHashAlgorithmSetting(String key, Function<Settings, String> defaultHashingAlgorithm) {
-        return new Setting<>(new Setting.SimpleKey(key), defaultHashingAlgorithm, Function.identity(), v -> {
+        return new Setting<>(key, defaultHashingAlgorithm, Function.identity(), v -> {
             if (Hasher.getAvailableAlgoStoredHash().contains(v.toLowerCase(Locale.ROOT)) == false) {
                 throw new IllegalArgumentException(
                     "Invalid algorithm: " + v + ". Valid values for password hashing are " + Hasher.getAvailableAlgoStoredHash().toString()

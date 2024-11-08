@@ -10,43 +10,67 @@ package org.elasticsearch.xpack.esql.action;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentLocation;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.esql.parser.ContentLocation;
-import org.elasticsearch.xpack.esql.parser.TypedParamValue;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.parser.ParserUtils;
+import org.elasticsearch.xpack.esql.parser.QueryParam;
+import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
-import static org.elasticsearch.common.xcontent.XContentParserUtils.parseFieldsValue;
-import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.xcontent.ObjectParser.ValueType.VALUE_ARRAY;
+import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
+import static org.elasticsearch.xcontent.ObjectParser.ValueType.VALUE_OBJECT_ARRAY;
+import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.util.StringUtils.WILDCARD;
+import static org.elasticsearch.xpack.esql.core.util.StringUtils.isValidParamName;
+import static org.elasticsearch.xpack.esql.parser.ParserUtils.ParamClassification.IDENTIFIER;
+import static org.elasticsearch.xpack.esql.parser.ParserUtils.ParamClassification.PATTERN;
+import static org.elasticsearch.xpack.esql.parser.ParserUtils.ParamClassification.VALUE;
+import static org.elasticsearch.xpack.esql.parser.ParserUtils.paramClassifications;
 
 /** Static methods for parsing xcontent requests to transport requests. */
 final class RequestXContent {
 
-    private static final ConstructingObjectParser<TypedParamValue, Void> PARAM_PARSER = new ConstructingObjectParser<>(
-        "params",
-        true,
-        objects -> new TypedParamValue((String) objects[1], objects[0])
-    );
-    private static final ParseField VALUE = new ParseField("value");
-    private static final ParseField TYPE = new ParseField("type");
+    private static class TempObjects {
+        Map<String, Object> fields = new HashMap<>();
 
-    static {
-        PARAM_PARSER.declareField(constructorArg(), (p, c) -> parseFieldsValue(p), VALUE, ObjectParser.ValueType.VALUE);
-        PARAM_PARSER.declareString(constructorArg(), TYPE);
+        TempObjects() {}
+
+        void addField(String key, Object value) {
+            fields.put(key, value);
+        }
+
+        String fields() {
+            StringBuffer s = new StringBuffer();
+            for (Map.Entry<?, ?> entry : fields.entrySet()) {
+                if (s.length() > 0) {
+                    s.append(", ");
+                }
+                s.append("{").append(entry.getKey()).append(":").append(entry.getValue()).append("}");
+            }
+            return s.toString();
+        }
     }
 
-    static final ParseField ESQL_VERSION_FIELD = new ParseField("version");
+    private static final ObjectParser<TempObjects, Void> PARAM_PARSER = new ObjectParser<>(
+        "params",
+        TempObjects::addField,
+        TempObjects::new
+    );
+
     static final ParseField QUERY_FIELD = new ParseField("query");
     private static final ParseField COLUMNAR_FIELD = new ParseField("columnar");
     private static final ParseField FILTER_FIELD = new ParseField("filter");
@@ -54,6 +78,8 @@ final class RequestXContent {
     private static final ParseField PARAMS_FIELD = new ParseField("params");
     private static final ParseField LOCALE_FIELD = new ParseField("locale");
     private static final ParseField PROFILE_FIELD = new ParseField("profile");
+    private static final ParseField ACCEPT_PRAGMA_RISKS = new ParseField("accept_pragma_risks");
+    private static final ParseField INCLUDE_CCS_METADATA_FIELD = new ParseField("include_ccs_metadata");
     static final ParseField TABLES_FIELD = new ParseField("tables");
 
     static final ParseField WAIT_FOR_COMPLETION_TIMEOUT = new ParseField("wait_for_completion_timeout");
@@ -74,16 +100,17 @@ final class RequestXContent {
     }
 
     private static void objectParserCommon(ObjectParser<EsqlQueryRequest, ?> parser) {
-        parser.declareString(EsqlQueryRequest::esqlVersion, ESQL_VERSION_FIELD);
         parser.declareString(EsqlQueryRequest::query, QUERY_FIELD);
         parser.declareBoolean(EsqlQueryRequest::columnar, COLUMNAR_FIELD);
         parser.declareObject(EsqlQueryRequest::filter, (p, c) -> AbstractQueryBuilder.parseTopLevelQuery(p), FILTER_FIELD);
+        parser.declareBoolean(EsqlQueryRequest::acceptedPragmaRisks, ACCEPT_PRAGMA_RISKS);
+        parser.declareBoolean(EsqlQueryRequest::includeCCSMetadata, INCLUDE_CCS_METADATA_FIELD);
         parser.declareObject(
             EsqlQueryRequest::pragmas,
             (p, c) -> new QueryPragmas(Settings.builder().loadFromMap(p.map()).build()),
             PRAGMA_FIELD
         );
-        parser.declareField(EsqlQueryRequest::params, RequestXContent::parseParams, PARAMS_FIELD, VALUE_ARRAY);
+        parser.declareField(EsqlQueryRequest::params, RequestXContent::parseParams, PARAMS_FIELD, VALUE_OBJECT_ARRAY);
         parser.declareString((request, localeTag) -> request.locale(Locale.forLanguageTag(localeTag)), LOCALE_FIELD);
         parser.declareBoolean(EsqlQueryRequest::profile, PROFILE_FIELD);
         parser.declareField((p, r, c) -> new ParseTables(r, p).parseTables(), TABLES_FIELD, ObjectParser.ValueType.OBJECT);
@@ -114,82 +141,207 @@ final class RequestXContent {
         return parser;
     }
 
-    private static List<TypedParamValue> parseParams(XContentParser p) throws IOException {
-        List<TypedParamValue> result = new ArrayList<>();
+    private static QueryParams parseParams(XContentParser p) throws IOException {
+        List<QueryParam> namedParams = new ArrayList<>();
+        List<QueryParam> unNamedParams = new ArrayList<>();
+        List<XContentParseException> errors = new ArrayList<>();
         XContentParser.Token token = p.currentToken();
 
         if (token == XContentParser.Token.START_ARRAY) {
-            Object value = null;
-            String type = null;
-            TypedParamValue previousParam = null;
-            TypedParamValue currentParam;
+            Object paramValue = null;
+            DataType type = null;
+            QueryParam currentParam = null;
+            TempObjects param;
 
             while ((token = p.nextToken()) != XContentParser.Token.END_ARRAY) {
                 XContentLocation loc = p.getTokenLocation();
-
                 if (token == XContentParser.Token.START_OBJECT) {
-                    // we are at the start of a value/type pair... hopefully
-                    currentParam = PARAM_PARSER.apply(p, null);
-                    /*
-                     * Always set the xcontentlocation for the first param just in case the first one happens to not meet the parsing rules
-                     * that are checked later in validateParams method.
-                     * Also, set the xcontentlocation of the param that is different from the previous param in list when it comes to
-                     * its type being explicitly set or inferred.
-                     */
-                    if ((previousParam != null && previousParam.hasExplicitType() == false) || result.isEmpty()) {
-                        currentParam.tokenLocation(toProto(loc));
+                    param = PARAM_PARSER.apply(p, null);
+                    if (param.fields.size() > 1) {
+                        errors.add(
+                            new XContentParseException(
+                                loc,
+                                "Cannot parse more than one key:value pair as parameter, found [" + param.fields() + "]"
+                            )
+                        );
+                    }
+                    for (Map.Entry<String, Object> entry : param.fields.entrySet()) {
+                        ParserUtils.ParamClassification classification = null;
+                        paramValue = null;
+                        String paramName = entry.getKey();
+                        checkParamNameValidity(paramName, errors, loc);
+
+                        if (EsqlCapabilities.Cap.NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES_SIMPLIFIED_SYNTAX.isEnabled()
+                            && entry.getValue() instanceof Map<?, ?> value) {// parameter specified as a key:value pair
+                            checkParamValueSize(paramName, value, loc, errors);
+                            for (Object keyName : value.keySet()) {
+                                classification = getParamClassification(keyName.toString(), errors, loc);
+                                if (classification != null) {
+                                    paramValue = value.get(keyName);
+                                    checkParamValueValidity(classification, paramValue, loc, errors);
+                                }
+                            }
+                        } else {// parameter specifies as a value only
+                            paramValue = entry.getValue();
+                            classification = VALUE;
+                        }
+                        type = DataType.fromJava(paramValue);
+                        if (type == null) {
+                            errors.add(new XContentParseException(loc, entry + " is not supported as a parameter"));
+                        }
+                        currentParam = new QueryParam(
+                            paramName,
+                            paramValue,
+                            (classification == VALUE) ? type : DataType.NULL,
+                            classification
+                        );
+                        namedParams.add(currentParam);
                     }
                 } else {
+                    paramValue = null;
                     if (token == XContentParser.Token.VALUE_STRING) {
-                        value = p.text();
-                        type = "keyword";
+                        paramValue = p.text();
+                        type = DataType.KEYWORD;
                     } else if (token == XContentParser.Token.VALUE_NUMBER) {
                         XContentParser.NumberType numberType = p.numberType();
                         if (numberType == XContentParser.NumberType.INT) {
-                            value = p.intValue();
-                            type = "integer";
+                            paramValue = p.intValue();
+                            type = DataType.INTEGER;
                         } else if (numberType == XContentParser.NumberType.LONG) {
-                            value = p.longValue();
-                            type = "long";
+                            paramValue = p.longValue();
+                            type = DataType.LONG;
                         } else if (numberType == XContentParser.NumberType.DOUBLE) {
-                            value = p.doubleValue();
-                            type = "double";
+                            paramValue = p.doubleValue();
+                            type = DataType.DOUBLE;
                         }
                     } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
-                        value = p.booleanValue();
-                        type = "boolean";
+                        paramValue = p.booleanValue();
+                        type = DataType.BOOLEAN;
                     } else if (token == XContentParser.Token.VALUE_NULL) {
-                        value = null;
-                        type = "null";
+                        type = DataType.NULL;
                     } else {
-                        throw new XContentParseException(loc, "Failed to parse object: unexpected token [" + token + "] found");
+                        errors.add(new XContentParseException(loc, token + " is not supported as a parameter"));
                     }
-
-                    currentParam = new TypedParamValue(type, value, false);
-                    if ((previousParam != null && previousParam.hasExplicitType()) || result.isEmpty()) {
-                        currentParam.tokenLocation(toProto(loc));
-                    }
+                    currentParam = new QueryParam(null, paramValue, type, VALUE);
+                    unNamedParams.add(currentParam);
                 }
-
-                result.add(currentParam);
-                previousParam = currentParam;
             }
         }
-
-        return result;
+        // don't allow mixed named and unnamed parameters
+        if (namedParams.isEmpty() == false && unNamedParams.isEmpty() == false) {
+            errors.add(
+                new XContentParseException(
+                    "Params cannot contain both named and unnamed parameters; got "
+                        + Arrays.toString(namedParams.stream().map(QueryParam::nameValue).toArray())
+                        + " and "
+                        + Arrays.toString(unNamedParams.stream().map(QueryParam::nameValue).toArray())
+                )
+            );
+        }
+        if (errors.isEmpty() == false) {
+            throw new XContentParseException(
+                "Failed to parse params: "
+                    + String.join("; ", errors.stream().map(XContentParseException::getMessage).toArray(String[]::new))
+            );
+        }
+        return new QueryParams(namedParams.isEmpty() ? unNamedParams : namedParams);
     }
 
-    static ContentLocation toProto(org.elasticsearch.xcontent.XContentLocation toProto) {
-        if (toProto == null) {
-            return null;
+    private static void checkParamNameValidity(String name, List<XContentParseException> errors, XContentLocation loc) {
+        if (isValidParamName(name) == false) {
+            errors.add(
+                new XContentParseException(
+                    loc,
+                    "["
+                        + name
+                        + "] is not a valid parameter name, "
+                        + "a valid parameter name starts with a letter or underscore, "
+                        + "and contains letters, digits and underscores only"
+                )
+            );
         }
-        return new ContentLocation(toProto.lineNumber(), toProto.columnNumber());
     }
 
-    static org.elasticsearch.xcontent.XContentLocation fromProto(ContentLocation fromProto) {
-        if (fromProto == null) {
-            return null;
+    private static void checkParamValueSize(
+        String paramName,
+        Map<?, ?> paramValue,
+        XContentLocation loc,
+        List<XContentParseException> errors
+    ) {
+        if (paramValue.size() == 1) {
+            return;
         }
-        return new org.elasticsearch.xcontent.XContentLocation(fromProto.lineNumber, fromProto.columnNumber);
+        String errorMessage;
+        if (paramValue.isEmpty()) {
+            errorMessage = " has no valid param attribute";
+        } else {
+            errorMessage = " has multiple param attributes ["
+                + paramValue.keySet().stream().map(Object::toString).collect(Collectors.joining(", "))
+                + "]";
+        }
+        errors.add(
+            new XContentParseException(
+                loc,
+                "["
+                    + paramName
+                    + "]"
+                    + errorMessage
+                    + ", only one of "
+                    + Arrays.stream(ParserUtils.ParamClassification.values())
+                        .map(ParserUtils.ParamClassification::name)
+                        .collect(Collectors.joining(", "))
+                    + " can be defined in a param"
+            )
+        );
+    }
+
+    private static ParserUtils.ParamClassification getParamClassification(
+        String paramKeyName,
+        List<XContentParseException> errors,
+        XContentLocation loc
+    ) {
+        ParserUtils.ParamClassification paramType = paramClassifications.get(paramKeyName.toUpperCase(Locale.ROOT));
+        if (paramType == null) {
+            errors.add(
+                new XContentParseException(
+                    loc,
+                    "["
+                        + paramKeyName
+                        + "] is not a valid param attribute, a valid attribute is any of "
+                        + Arrays.stream(ParserUtils.ParamClassification.values())
+                            .map(ParserUtils.ParamClassification::name)
+                            .collect(Collectors.joining(", "))
+                )
+            );
+        }
+        return paramType;
+    }
+
+    private static void checkParamValueValidity(
+        ParserUtils.ParamClassification classification,
+        Object value,
+        XContentLocation loc,
+        List<XContentParseException> errors
+    ) {
+        // If a param is an "identifier" or a "pattern", validate it is a string.
+        // If a param is a "pattern", validate it contains *.
+        if (classification == IDENTIFIER || classification == PATTERN) {
+            if (DataType.fromJava(value) != KEYWORD
+                || (classification == PATTERN && value != null && value.toString().contains(WILDCARD) == false)) {
+                errors.add(
+                    new XContentParseException(
+                        loc,
+                        format(
+                            null,
+                            "[{}] is not a valid value for {} parameter, a valid value for {} parameter is a string{}",
+                            value,
+                            classification.name(),
+                            classification.name(),
+                            classification == PATTERN ? " and contains *" : ""
+                        )
+                    )
+                );
+            }
+        }
     }
 }

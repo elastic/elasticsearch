@@ -29,6 +29,38 @@ setup:
         connector_id: test-connector
 
   - match: { error: "some error" }
+  - match: { status: error }
+
+
+---
+"Reset Connector Error":
+
+  # Set error
+  - do:
+      connector.update_error:
+        connector_id: test-connector
+        body:
+          error: "some error"
+
+
+  - match: { result: updated }
+
+  # Reset error to null
+  - do:
+      connector.update_error:
+        connector_id: test-connector
+        body:
+          error: null
+
+
+  - match: { result: updated }
+
+  - do:
+      connector.get:
+        connector_id: test-connector
+
+  - match: { error: null }
+  - match: { status: connected }
 
 ---
 "Update Connector Error - 404 when connector doesn't exist":

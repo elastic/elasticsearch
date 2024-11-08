@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.http.netty4;
@@ -45,6 +46,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ElasticsearchWrapperException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.bulk.IncrementalBulkService;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.client.Request;
@@ -71,7 +73,7 @@ import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.http.NullDispatcher;
 import org.elasticsearch.http.netty4.internal.HttpHeadersAuthenticatorUtils;
 import org.elasticsearch.http.netty4.internal.HttpValidator;
-import org.elasticsearch.rest.ChunkedRestResponseBody;
+import org.elasticsearch.rest.ChunkedRestResponseBodyPart;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -418,7 +420,8 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                         handlingSettings,
                         TLSConfig.noTLS(),
                         null,
-                        randomFrom((httpPreRequest, channel, listener) -> listener.onResponse(null), null)
+                        randomFrom((httpPreRequest, channel, listener) -> listener.onResponse(null), null),
+                        new IncrementalBulkService.Enabled(clusterSettings)
                     ) {
                         @Override
                         protected void initChannel(Channel ch) throws Exception {
@@ -692,7 +695,7 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
             public void dispatchRequest(final RestRequest request, final RestChannel channel, final ThreadContext threadContext) {
                 try {
                     channel.sendResponse(
-                        RestResponse.chunked(OK, ChunkedRestResponseBody.fromXContent(ignored -> Iterators.single((builder, params) -> {
+                        RestResponse.chunked(OK, ChunkedRestResponseBodyPart.fromXContent(ignored -> Iterators.single((builder, params) -> {
                             throw new AssertionError("should not be called for HEAD REQUEST");
                         }), ToXContent.EMPTY_PARAMS, channel), null)
                     );
@@ -904,7 +907,7 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                 assertThat(channel.request().getHttpRequest().header(headerReference.get()), is(headerValueReference.get()));
                 assertThat(channel.request().getHttpRequest().method(), is(translateRequestMethod(httpMethodReference.get())));
                 // assert content is dropped
-                assertThat(channel.request().getHttpRequest().content().utf8ToString(), is(""));
+                assertThat(channel.request().getHttpRequest().body().asFull().bytes().utf8ToString(), is(""));
                 try {
                     channel.sendResponse(new RestResponse(channel, (Exception) ((ElasticsearchWrapperException) cause).getCause()));
                 } catch (IOException e) {
@@ -1048,7 +1051,7 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                 assertEquals(request.uri(), url);
                 final var response = RestResponse.chunked(
                     OK,
-                    ChunkedRestResponseBody.fromTextChunks(RestResponse.TEXT_CONTENT_TYPE, Collections.emptyIterator()),
+                    ChunkedRestResponseBodyPart.fromTextChunks(RestResponse.TEXT_CONTENT_TYPE, Collections.emptyIterator()),
                     responseReleasedLatch::countDown
                 );
                 transportClosedFuture.addListener(ActionListener.running(() -> channel.sendResponse(response)));

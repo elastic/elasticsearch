@@ -1,15 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.search;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -30,6 +32,7 @@ final class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction
 
     private final SearchPhaseResults<SearchPhaseResult> queryPhaseResultConsumer;
     private final SearchProgressListener progressListener;
+    private final Client client;
 
     SearchDfsQueryThenFetchAsyncAction(
         Logger logger,
@@ -46,7 +49,8 @@ final class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction
         TransportSearchAction.SearchTimeProvider timeProvider,
         ClusterState clusterState,
         SearchTask task,
-        SearchResponse.Clusters clusters
+        SearchResponse.Clusters clusters,
+        Client client
     ) {
         super(
             "dfs",
@@ -74,6 +78,7 @@ final class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction
         if (progressListener != SearchProgressListener.NOOP) {
             notifyListShards(progressListener, clusters, request.source());
         }
+        this.client = client;
     }
 
     @Override
@@ -82,16 +87,18 @@ final class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction
         final SearchShardTarget shard,
         final SearchActionListener<DfsSearchResult> listener
     ) {
-        getSearchTransport().sendExecuteDfs(
-            getConnection(shard.getClusterAlias(), shard.getNodeId()),
-            buildShardSearchRequest(shardIt, listener.requestIndex),
-            getTask(),
-            listener
-        );
+        final Transport.Connection connection;
+        try {
+            connection = getConnection(shard.getClusterAlias(), shard.getNodeId());
+        } catch (Exception e) {
+            listener.onFailure(e);
+            return;
+        }
+        getSearchTransport().sendExecuteDfs(connection, buildShardSearchRequest(shardIt, listener.requestIndex), getTask(), listener);
     }
 
     @Override
-    protected SearchPhase getNextPhase(final SearchPhaseResults<DfsSearchResult> results, SearchPhaseContext context) {
+    protected SearchPhase getNextPhase() {
         final List<DfsSearchResult> dfsSearchResults = results.getAtomicArray().asList();
         final AggregatedDfs aggregatedDfs = SearchPhaseController.aggregateDfs(dfsSearchResults);
         final List<DfsKnnResults> mergedKnnResults = SearchPhaseController.mergeKnnResults(getRequest(), dfsSearchResults);
@@ -100,8 +107,8 @@ final class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction
             aggregatedDfs,
             mergedKnnResults,
             queryPhaseResultConsumer,
-            (queryResults) -> new RankFeaturePhase(queryResults, aggregatedDfs, context),
-            context
+            (queryResults) -> SearchQueryThenFetchAsyncAction.nextPhase(client, this, queryResults, aggregatedDfs),
+            this
         );
     }
 

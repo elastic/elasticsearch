@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing.allocation;
@@ -23,7 +24,7 @@ import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationComman
 import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
@@ -97,12 +98,11 @@ public class DeadNodesAllocationTests extends ESAllocationTestCase {
 
         assertTrue(initialState.toString(), initialState.getRoutingNodes().unassigned().isEmpty());
 
-        final MockLogAppender appender = new MockLogAppender();
-        try (var ignored = appender.capturing(AllocationService.class)) {
+        try (var mockLog = MockLog.capture(AllocationService.class)) {
             final String dissociationReason = "node left " + randomAlphaOfLength(10);
 
-            appender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
                     "health change log message",
                     AllocationService.class.getName(),
                     Level.INFO,
@@ -118,7 +118,7 @@ public class DeadNodesAllocationTests extends ESAllocationTestCase {
                 dissociationReason
             );
 
-            appender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 

@@ -368,7 +368,7 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
                 ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE,
                 allocation.changes()
             );
-            allocation.routingNodes().startShard(logger, shardRouting, allocation.changes(), ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
+            allocation.routingNodes().startShard(shardRouting, allocation.changes(), ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
         }
     }
 

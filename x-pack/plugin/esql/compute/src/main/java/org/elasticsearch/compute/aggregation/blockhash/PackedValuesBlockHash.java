@@ -117,7 +117,7 @@ final class PackedValuesBlockHash extends BlockHash {
         }
     }
 
-    class AddWork extends AbstractAddBlock {
+    class AddWork extends AddPage {
         final Group[] groups;
         final int positionCount;
         int position;
@@ -142,28 +142,22 @@ final class PackedValuesBlockHash extends BlockHash {
                     addMultipleEntries();
                 }
             }
-            emitOrds();
+            flushRemaining();
         }
 
         private void addSingleEntry() {
             fillBytesSv(groups);
-            ords.appendInt(Math.toIntExact(hashOrdToGroup(bytesRefHash.add(bytes.get()))));
-            addedValue(position);
+            appendOrdSv(position, Math.toIntExact(hashOrdToGroup(bytesRefHash.add(bytes.get()))));
         }
 
         private void addMultipleEntries() {
-            ords.beginPositionEntry();
             int g = 0;
             do {
                 fillBytesMv(groups, g);
-
-                // emit ords
-                ords.appendInt(Math.toIntExact(hashOrdToGroup(bytesRefHash.add(bytes.get()))));
-                addedValueInMultivaluePosition(position);
-
+                appendOrdInMv(position, Math.toIntExact(hashOrdToGroup(bytesRefHash.add(bytes.get()))));
                 g = rewindKeys(groups);
             } while (g >= 0);
-            ords.endPositionEntry();
+            finishMv();
             for (Group group : groups) {
                 group.valueOffset += group.valueCount;
             }
@@ -199,8 +193,13 @@ final class PackedValuesBlockHash extends BlockHash {
 
         @Override
         public IntBlock next() {
-            int size = Math.toIntExact(Math.min(Integer.MAX_VALUE, targetByteSize / Integer.BYTES / 2));
+            int size = Math.toIntExact(Math.min(positionCount - position, targetByteSize / Integer.BYTES / 2));
             try (IntBlock.Builder ords = blockFactory.newIntBlockBuilder(size)) {
+                if (ords.estimatedBytes() > targetByteSize) {
+                    throw new IllegalStateException(
+                        "initial builder overshot target [" + ords.estimatedBytes() + "] vs [" + targetByteSize + "]"
+                    );
+                }
                 while (position < positionCount && ords.estimatedBytes() < targetByteSize) {
                     // TODO a test where targetByteSize is very small should still make a few rows.
                     boolean singleEntry = startPosition(groups);

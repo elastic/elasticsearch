@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.cluster.coordination;
 
@@ -27,6 +28,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Releasable;
@@ -47,6 +49,7 @@ import org.elasticsearch.transport.TransportResponse.Empty;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -154,7 +157,7 @@ public class JoinHelper {
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             false,
             false,
-            TransportRequest.Empty::new,
+            JoinPingRequest::new,
             (request, channel, task) -> channel.sendResponse(Empty.INSTANCE)
         );
     }
@@ -606,4 +609,12 @@ public class JoinHelper {
     static final String PENDING_JOIN_WAITING_STATE = "waiting to receive cluster state";
     static final String PENDING_JOIN_CONNECT_FAILED = "failed to connect";
     static final String PENDING_JOIN_FAILED = "failed";
+
+    static class JoinPingRequest extends TransportRequest {
+        JoinPingRequest() {}
+
+        JoinPingRequest(StreamInput in) throws IOException {
+            super(in);
+        }
+    }
 }

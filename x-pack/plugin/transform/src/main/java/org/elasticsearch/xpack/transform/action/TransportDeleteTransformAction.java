@@ -21,11 +21,11 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -73,8 +73,8 @@ public class TransportDeleteTransformAction extends AcknowledgedTransportMasterN
             indexNameExpressionResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
-        this.transformConfigManager = transformServices.getConfigManager();
-        this.auditor = transformServices.getAuditor();
+        this.transformConfigManager = transformServices.configManager();
+        this.auditor = transformServices.auditor();
         this.client = client;
     }
 

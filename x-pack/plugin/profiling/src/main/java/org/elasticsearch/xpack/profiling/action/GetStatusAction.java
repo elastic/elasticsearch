@@ -7,12 +7,14 @@
 
 package org.elasticsearch.xpack.profiling.action;
 
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.support.master.AcknowledgedRequest;
+import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -125,29 +127,39 @@ public class GetStatusAction extends ActionType<GetStatusAction.Response> {
         }
     }
 
-    public static class Request extends AcknowledgedRequest<GetStatusAction.Request> {
-        private boolean waitForResourcesCreated;
+    public static class Request extends MasterNodeRequest<Request> {
+        private final boolean waitForResourcesCreated;
+        private final TimeValue waitForResourcesCreatedTimeout;
 
         public Request(StreamInput in) throws IOException {
             super(in);
+            waitForResourcesCreatedTimeout = in.readTimeValue();
             waitForResourcesCreated = in.readBoolean();
         }
 
-        public Request() {
-            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
+        public Request(TimeValue masterNodeTimeout, boolean waitForResourcesCreated, TimeValue waitForResourcesCreatedTimeout) {
+            super(masterNodeTimeout);
+            this.waitForResourcesCreated = waitForResourcesCreated;
+            this.waitForResourcesCreatedTimeout = waitForResourcesCreatedTimeout;
         }
 
         public boolean waitForResourcesCreated() {
             return waitForResourcesCreated;
         }
 
-        public void waitForResourcesCreated(boolean waitForResourcesCreated) {
-            this.waitForResourcesCreated = waitForResourcesCreated;
+        public TimeValue waitForResourcesCreatedTimeout() {
+            return waitForResourcesCreatedTimeout;
+        }
+
+        @Override
+        public ActionRequestValidationException validate() {
+            return null;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
+            out.writeTimeValue(waitForResourcesCreatedTimeout);
             out.writeBoolean(waitForResourcesCreated);
         }
     }

@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata.AutoFollowPattern;
@@ -34,8 +35,8 @@ public class GetAutoFollowPatternAction extends ActionType<GetAutoFollowPatternA
 
         private String name;
 
-        public Request() {
-            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
+        public Request(TimeValue masterNodeTimeout) {
+            super(masterNodeTimeout);
         }
 
         public Request(StreamInput in) throws IOException {

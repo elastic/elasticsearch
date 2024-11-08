@@ -13,7 +13,9 @@ import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TopFieldCollector;
+import org.apache.lucene.search.TopFieldCollectorManager;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DocVector;
@@ -38,7 +40,6 @@ import java.util.stream.Collectors;
  */
 public final class LuceneTopNSourceOperator extends LuceneOperator {
     public static final class Factory extends LuceneOperator.Factory {
-        ;
         private final int maxPageSize;
         private final List<SortBuilder<?>> sorts;
 
@@ -51,7 +52,7 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
             int limit,
             List<SortBuilder<?>> sorts
         ) {
-            super(contexts, queryFunction, dataPartitioning, taskConcurrency, limit);
+            super(contexts, queryFunction, dataPartitioning, taskConcurrency, limit, ScoreMode.TOP_DOCS);
             this.maxPageSize = maxPageSize;
             this.sorts = sorts;
         }
@@ -230,8 +231,9 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
             if (sortAndFormats.isEmpty()) {
                 throw new IllegalStateException("sorts must not be disabled in TopN");
             }
+
             // We don't use CollectorManager here as we don't retrieve the total hits and sort by score.
-            this.topFieldCollector = TopFieldCollector.create(sortAndFormats.get().sort, limit, 0);
+            this.topFieldCollector = new TopFieldCollectorManager(sortAndFormats.get().sort, limit, null, 0, false).newCollector();
         }
 
         LeafCollector getLeafCollector(LeafReaderContext leafReaderContext) throws IOException {

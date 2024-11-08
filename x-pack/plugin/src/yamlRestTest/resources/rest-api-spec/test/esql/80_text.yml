@@ -3,7 +3,7 @@ setup:
   - requires:
       cluster_features: ["gte_v8.11.0"]
       reason: "ESQL is available in 8.11+"
-      test_runner_features: allowed_warnings_regex
+      test_runner_features: [allowed_warnings_regex, capabilities]
 
   - do:
       indices.create:
@@ -41,7 +41,6 @@ setup:
       esql.query:
         body:
           query: 'from test | sort emp_no'
-          version: 2024.04.01
 
   - match: { columns.0.name: "emp_no" }
   - match: { columns.0.type: "long" }
@@ -67,7 +66,6 @@ setup:
       esql.query:
         body:
           query: 'from test | where tag == "baz" | keep emp_no, name, job, tag'
-          version: 2024.04.01
 
   - match: { columns.0.name: "emp_no" }
   - match: { columns.0.type: "long" }
@@ -89,7 +87,6 @@ setup:
       esql.query:
         body:
           query: 'from test | where tag LIKE "*az" | keep emp_no, name, job, tag'
-          version: 2024.04.01
 
   - match: { columns.0.name: "emp_no" }
   - match: { columns.0.type: "long" }
@@ -111,7 +108,6 @@ setup:
       esql.query:
         body:
           query: 'from test | where tag RLIKE ".*az" | keep emp_no, name, job, tag'
-          version: 2024.04.01
 
   - match: { columns.0.name: "emp_no" }
   - match: { columns.0.type: "long" }
@@ -137,7 +133,6 @@ setup:
       esql.query:
         body:
           query: 'from test | where tag IN ("abc", "baz") | keep emp_no, name, job, tag'
-          version: 2024.04.01
 
   - match: { columns.0.name: "emp_no" }
   - match: { columns.0.type: "long" }
@@ -163,7 +158,6 @@ setup:
       esql.query:
         body:
           query: 'from test | where tag IN ("abc", tag) | keep emp_no, name, job, tag | sort emp_no'
-          version: 2024.04.01
 
   - match: { columns.0.name: "emp_no" }
   - match: { columns.0.type: "long" }
@@ -190,7 +184,6 @@ setup:
       esql.query:
         body:
           query: 'from test | where tag NOT IN ("abc", "baz") | keep emp_no, name, job, tag'
-          version: 2024.04.01
 
   - match: { columns.0.name: "emp_no" }
   - match: { columns.0.type: "long" }
@@ -212,7 +205,6 @@ setup:
       esql.query:
         body:
           query: 'from test | eval x = tag | where x == "baz" | keep emp_no, name, job, x'
-          version: 2024.04.01
 
   - match: { columns.0.name: "emp_no" }
   - match: { columns.0.type: "long" }
@@ -234,7 +226,6 @@ setup:
       esql.query:
         body:
           query: 'from test |  where job == "IT Director" | keep emp_no, name, job, tag'
-          version: 2024.04.01
 
   - match: { columns.0.name: "emp_no" }
   - match: { columns.0.type: "long" }
@@ -256,7 +247,6 @@ setup:
       esql.query:
         body:
           query: 'from test | where job LIKE "*Specialist" | keep emp_no, name, job, tag'
-          version: 2024.04.01
 
   - match: { columns.0.name: "emp_no" }
   - match: { columns.0.type: "long" }
@@ -278,7 +268,6 @@ setup:
       esql.query:
         body:
           query: 'from test | where job RLIKE ".*Specialist" | keep emp_no, name, job, tag'
-          version: 2024.04.01
 
   - match: { columns.0.name: "emp_no" }
   - match: { columns.0.type: "long" }
@@ -301,7 +290,6 @@ setup:
       esql.query:
         body:
           query: 'from test | sort tag | keep emp_no, name, job, tag'
-          version: 2024.04.01
 
   - match: { columns.0.name: "emp_no" }
   - match: { columns.0.type: "long" }
@@ -325,7 +313,6 @@ setup:
       esql.query:
         body:
           query: 'from test | sort job | keep emp_no, name, job, tag'
-          version: 2024.04.01
 
   - match: { columns.0.name: "emp_no" }
   - match: { columns.0.type: "long" }
@@ -348,7 +335,6 @@ setup:
       esql.query:
         body:
           query: 'from test | sort job desc | keep emp_no, name, job, tag'
-          version: 2024.04.01
 
   - match: { columns.0.name: "emp_no" }
   - match: { columns.0.type: "long" }
@@ -372,7 +358,6 @@ setup:
       esql.query:
         body:
           query: 'from test | sort name | eval description = concat(name, " - ", job) | keep description'
-          version: 2024.04.01
 
   - match: { columns.0.name: "description" }
   - match: { columns.0.type: "keyword" }
@@ -393,7 +378,6 @@ setup:
       esql.query:
         body:
           query: 'from test | sort emp_no | eval split = split(tag, " ") | keep split'
-          version: 2024.04.01
 
   - match: { columns.0.name: "split" }
   - match: { columns.0.type: "keyword" }
@@ -401,8 +385,31 @@ setup:
   - length: { values: 2 }
   - match: { values.0: [ [ "foo", "bar" ] ] }
   - match: { values.1: [ "baz" ] }
+---
+"reverse text":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [method, path, parameters, capabilities]
+          capabilities: [fn_reverse, functions_never_emit_text]
+      reason: "reverse not yet added"
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test | SORT name | EVAL job_reversed = REVERSE(job), tag_reversed = REVERSE(tag) | KEEP job_reversed, tag_reversed'
 
+  - match: { columns.0.name: "job_reversed" }
+  - match: { columns.0.type: "keyword" }
 
+  - match: { columns.1.name: "tag_reversed" }
+  - match: { columns.1.type: "keyword" }
+
+  - length: { values: 2 }
+  - match: { values.0: [ "rotceriD TI", "rab oof" ] }
+  - match: { values.1: [ "tsilaicepS lloryaP", "zab" ] }
 ---
 "stats text with raw":
   - do:
@@ -411,7 +418,6 @@ setup:
       esql.query:
         body:
           query: 'from test | stats jobs = count(job) | keep jobs'
-          version: 2024.04.01
 
   - match: { columns.0.name: "jobs" }
   - match: { columns.0.type: "long" }
@@ -428,7 +434,6 @@ setup:
       esql.query:
         body:
           query: 'from test | stats tags = count(tag) | keep tags'
-          version: 2024.04.01
 
   - match: { columns.0.name: "tags" }
   - match: { columns.0.type: "long" }
@@ -445,7 +450,6 @@ setup:
       esql.query:
         body:
           query: 'from test | stats names = count(name) by job | keep names'
-          version: 2024.04.01
 
   - match: { columns.0.name: "names" }
   - match: { columns.0.type: "long" }
@@ -463,7 +467,6 @@ setup:
       esql.query:
         body:
           query: 'from test | stats names = count(name) by tag | keep names'
-          version: 2024.04.01
 
   - match: { columns.0.name: "names" }
   - match: { columns.0.type: "long" }
@@ -474,13 +477,18 @@ setup:
 
 ---
 "text with synthetic source":
+  - requires:
+      cluster_features: [ "mapper.source.mode_from_index_setting" ]
+      reason: "Source mode configured through index setting"
+
   - do:
       indices.create:
         index: test2
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               "emp_no":
                 type: long
@@ -508,7 +516,6 @@ setup:
       esql.query:
         body:
           query: 'from test2 | sort emp_no | keep job'
-          version: 2024.04.01
 
   - match: { columns.0.name: "job" }
   - match: { columns.0.type: "text" }
@@ -520,13 +527,18 @@ setup:
 
 ---
 "stored text with synthetic source":
+  - requires:
+      cluster_features: [ "mapper.source.mode_from_index_setting" ]
+      reason: "Source mode configured through index setting"
+
   - do:
       indices.create:
         index: test2
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               "emp_no":
                 type: long
@@ -552,7 +564,6 @@ setup:
       esql.query:
         body:
           query: 'from test2 | sort emp_no | keep job'
-          version: 2024.04.01
 
   - match: { columns.0.name: "job" }
   - match: { columns.0.type: "text" }
@@ -562,7 +573,7 @@ setup:
   - match: { values.1.0: "Payroll Specialist" }
 
 ---
-values:
+"values function":
   - requires:
       cluster_features: esql.agg_values
       reason: "values is available in 8.14+"
@@ -571,9 +582,7 @@ values:
       esql.query:
         body:
           query: 'FROM test | STATS job = VALUES(job) | EVAL job = MV_SORT(job) | LIMIT 1'
-          version: 2024.04.01
   - match: { columns.0.name: "job" }
-  - match: { columns.0.type: "text" }
   - length: { values: 1 }
   - match: { values.0: [ [ "IT Director", "Payroll Specialist" ] ] }
 
@@ -589,11 +598,25 @@ values:
       esql.query:
         body:
           query: 'FROM test | STATS job = VALUES(job) BY tag | EVAL job = MV_SORT(job) | SORT tag | LIMIT 10'
-          version: 2024.04.01
   - match: { columns.0.name: "tag" }
   - match: { columns.0.type: "text" }
   - match: { columns.1.name: "job" }
-  - match: { columns.1.type: "text" }
   - length: { values: 2 }
   - match: { values.0: [ "baz", [ "Other", "Payroll Specialist" ] ] }
   - match: { values.1: [ "foo bar", "IT Director" ] }
+
+---
+"remove text typecast":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ method, path, parameters, capabilities ]
+          capabilities: [ functions_never_emit_text ]
+      reason: "Disabling ::text was done in 8.17 as part of removing all possibilities to emit text"
+
+  - do:
+      catch: /Unsupported conversion to type \[TEXT\]/
+      esql.query:
+        body:
+          query: 'FROM test | EVAL tag = name::text | KEEP name'

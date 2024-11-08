@@ -19,9 +19,9 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -127,9 +127,14 @@ public class TransportExplainLifecycleAction extends TransportClusterInfoAction<
         String policyName = indexMetadata.getLifecyclePolicyName();
         String currentPhase = lifecycleState.phase();
         String stepInfo = lifecycleState.stepInfo();
+        String previousStepInfo = lifecycleState.previousStepInfo();
         BytesArray stepInfoBytes = null;
         if (stepInfo != null) {
             stepInfoBytes = new BytesArray(stepInfo);
+        }
+        BytesArray previousStepInfoBytes = null;
+        if (previousStepInfo != null) {
+            previousStepInfoBytes = new BytesArray(previousStepInfo);
         }
         Long indexCreationDate = indexMetadata.getCreationDate();
 
@@ -182,6 +187,7 @@ public class TransportExplainLifecycleAction extends TransportClusterInfoAction<
                     lifecycleState.snapshotName(),
                     lifecycleState.shrinkIndexName(),
                     stepInfoBytes,
+                    previousStepInfoBytes,
                     phaseExecutionInfo
                 );
             } else {

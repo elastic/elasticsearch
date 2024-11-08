@@ -1,0 +1,44 @@
+{
+    "properties" : {
+        "street" : {
+            "type": "keyword"
+        },
+        "number" : {
+            "type": "keyword"
+        },
+        "zip_code": {
+            "type": "keyword"
+        },
+        "city" : {
+            "properties": {
+                "name": {
+                    "type": "keyword"
+                },
+                "country": {
+                    "properties": {
+                        "name": {
+                            "type": "keyword"
+                        },
+                        "continent": {
+                            "properties": {
+                                "name": {
+                                    "type": "keyword"
+                                },
+                                "planet": {
+                                    "properties": {
+                                        "name": {
+                                            "type": "keyword"
+                                        },
+                                        "galaxy": {
+                                            "type": "keyword"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

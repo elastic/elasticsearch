@@ -28,7 +28,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.MockUtils;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -52,9 +52,6 @@ public class TransportGetPipelineActionTests extends ESTestCase {
      * a TransportGetPipelineAction.
      */
     public void testGetPipelineMultipleIDsPartialFailure() throws Exception {
-        // Set up a log appender for detecting log messages
-        final MockLogAppender mockLogAppender = new MockLogAppender();
-
         // Set up a MultiGetResponse
         GetResponse mockResponse = mock(GetResponse.class);
         when(mockResponse.getId()).thenReturn("1");
@@ -66,9 +63,9 @@ public class TransportGetPipelineActionTests extends ESTestCase {
             new MultiGetItemResponse[] { new MultiGetItemResponse(mockResponse, null), new MultiGetItemResponse(null, failure) }
         );
 
-        try (var threadPool = createThreadPool(); var ignored = mockLogAppender.capturing(TransportGetPipelineAction.class)) {
-            mockLogAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+        try (var threadPool = createThreadPool(); var mockLog = MockLog.capture(TransportGetPipelineAction.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
                     "message",
                     "org.elasticsearch.xpack.logstash.action.TransportGetPipelineAction",
                     Level.INFO,
@@ -89,7 +86,7 @@ public class TransportGetPipelineActionTests extends ESTestCase {
                     assertThat(getPipelineResponse.pipelines().size(), equalTo(1));
 
                     // check that failed pipeline get is logged
-                    mockLogAppender.assertAllExpectationsMatched();
+                    mockLog.assertAllExpectationsMatched();
                 }
 
                 @Override

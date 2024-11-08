@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.mapper;
 
@@ -15,7 +16,7 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.suggest.document.Completion99PostingsFormat;
+import org.apache.lucene.search.suggest.document.Completion912PostingsFormat;
 import org.apache.lucene.search.suggest.document.CompletionAnalyzer;
 import org.apache.lucene.search.suggest.document.ContextSuggestField;
 import org.apache.lucene.search.suggest.document.FuzzyCompletionQuery;
@@ -150,12 +151,15 @@ public class CompletionFieldMapperTests extends MapperTestCase {
         Codec codec = codecService.codec("default");
         if (CodecService.ZSTD_STORED_FIELDS_FEATURE_FLAG.isEnabled()) {
             assertThat(codec, instanceOf(PerFieldMapperCodec.class));
-            assertThat(((PerFieldMapperCodec) codec).getPostingsFormatForField("field"), instanceOf(Completion99PostingsFormat.class));
+            assertThat(((PerFieldMapperCodec) codec).getPostingsFormatForField("field"), instanceOf(Completion912PostingsFormat.class));
         } else {
+            if (codec instanceof CodecService.DeduplicateFieldInfosCodec deduplicateFieldInfosCodec) {
+                codec = deduplicateFieldInfosCodec.delegate();
+            }
             assertThat(codec, instanceOf(LegacyPerFieldMapperCodec.class));
             assertThat(
                 ((LegacyPerFieldMapperCodec) codec).getPostingsFormatForField("field"),
-                instanceOf(Completion99PostingsFormat.class)
+                instanceOf(Completion912PostingsFormat.class)
             );
         }
     }
@@ -248,7 +252,7 @@ public class CompletionFieldMapperTests extends MapperTestCase {
         Mapper fieldMapper = defaultMapper.mappers().getMapper("field");
 
         ParsedDocument parsedDocument = defaultMapper.parse(source(b -> b.field("field", "suggestion")));
-        List<IndexableField> fields = parsedDocument.rootDoc().getFields(fieldMapper.name());
+        List<IndexableField> fields = parsedDocument.rootDoc().getFields(fieldMapper.fullPath());
         assertFieldsOfType(fields);
     }
 
@@ -495,7 +499,7 @@ public class CompletionFieldMapperTests extends MapperTestCase {
 
         ParsedDocument parsedDocument = defaultMapper.parse(source(b -> b.array("field", "suggestion1", "suggestion2")));
 
-        List<IndexableField> fields = parsedDocument.rootDoc().getFields(fieldMapper.name());
+        List<IndexableField> fields = parsedDocument.rootDoc().getFields(fieldMapper.fullPath());
         assertThat(fields, containsInAnyOrder(suggestField("suggestion1"), suggestField("suggestion2")));
     }
 
@@ -512,7 +516,7 @@ public class CompletionFieldMapperTests extends MapperTestCase {
             b.endObject();
         }));
 
-        List<IndexableField> fields = parsedDocument.rootDoc().getFields(fieldMapper.name());
+        List<IndexableField> fields = parsedDocument.rootDoc().getFields(fieldMapper.fullPath());
         assertThat(fields, containsInAnyOrder(suggestField("suggestion")));
     }
 
@@ -529,7 +533,7 @@ public class CompletionFieldMapperTests extends MapperTestCase {
             b.endObject();
         }));
 
-        List<IndexableField> fields = parsedDocument.rootDoc().getFields(fieldMapper.name());
+        List<IndexableField> fields = parsedDocument.rootDoc().getFields(fieldMapper.fullPath());
         assertThat(fields, containsInAnyOrder(suggestField("suggestion1"), suggestField("suggestion2"), suggestField("suggestion3")));
     }
 
@@ -566,7 +570,7 @@ public class CompletionFieldMapperTests extends MapperTestCase {
             b.endObject();
         }));
 
-        List<IndexableField> fields = parsedDocument.rootDoc().getFields(fieldMapper.name());
+        List<IndexableField> fields = parsedDocument.rootDoc().getFields(fieldMapper.fullPath());
         assertFieldsOfType(fields);
     }
 
@@ -584,7 +588,7 @@ public class CompletionFieldMapperTests extends MapperTestCase {
             b.endArray();
         }));
 
-        List<IndexableField> fields = parsedDocument.rootDoc().getFields(fieldMapper.name());
+        List<IndexableField> fields = parsedDocument.rootDoc().getFields(fieldMapper.fullPath());
         assertThat(fields, containsInAnyOrder(suggestField("suggestion1"), suggestField("suggestion2"), suggestField("suggestion3")));
     }
 
@@ -617,7 +621,7 @@ public class CompletionFieldMapperTests extends MapperTestCase {
             b.endArray();
         }));
 
-        List<IndexableField> fields = parsedDocument.rootDoc().getFields(fieldMapper.name());
+        List<IndexableField> fields = parsedDocument.rootDoc().getFields(fieldMapper.fullPath());
         assertThat(
             fields,
             containsInAnyOrder(

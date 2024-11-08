@@ -22,7 +22,6 @@ import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -31,6 +30,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.indices.SystemIndices;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -237,33 +237,30 @@ public class TransportMountSearchableSnapshotAction extends TransportMasterNodeA
                 dataTierAllocationSetting.get(indexSettings);
             }
 
-            client.admin()
-                .cluster()
-                .restoreSnapshot(
-                    new RestoreSnapshotRequest(repoName, snapName)
-                        // Restore the single index specified
-                        .indices(indexName)
-                        // Always rename it to the desired mounted index name
-                        .renamePattern(".+")
-                        .renameReplacement(mountedIndexName)
-                        // Pass through index settings, adding the index-level settings required to use searchable snapshots
-                        .indexSettings(indexSettings)
-                        // Pass through ignored index settings
-                        .ignoreIndexSettings(ignoreIndexSettings.toArray(new String[0]))
-                        // Don't include global state
-                        .includeGlobalState(false)
-                        // Don't include aliases
-                        .includeAliases(false)
-                        // Pass through the wait-for-completion flag
-                        .waitForCompletion(request.waitForCompletion())
-                        // Pass through the master-node timeout
-                        .masterNodeTimeout(request.masterNodeTimeout())
-                        // Fail the restore if the snapshot found above is swapped out from under us before the restore happens
-                        .snapshotUuid(snapshotId.getUUID())
-                        // Log snapshot restore at the DEBUG log level
-                        .quiet(true),
-                    delegate
-                );
+            RestoreSnapshotRequest restoreSnapshotRequest = new RestoreSnapshotRequest(request.masterNodeTimeout(), repoName, snapName)
+                // Restore the single index specified
+                .indices(indexName)
+                // Always rename it to the desired mounted index name
+                .renamePattern(".+")
+                .renameReplacement(mountedIndexName)
+                // Pass through index settings, adding the index-level settings required to use searchable snapshots
+                .indexSettings(indexSettings)
+                // Pass through ignored index settings
+                .ignoreIndexSettings(ignoreIndexSettings.toArray(new String[0]))
+                // Don't include global state
+                .includeGlobalState(false)
+                // Don't include aliases
+                .includeAliases(false)
+                // Pass through the wait-for-completion flag
+                .waitForCompletion(request.waitForCompletion())
+                // Fail the restore if the snapshot found above is swapped out from under us before the restore happens
+                .snapshotUuid(snapshotId.getUUID())
+                // Log snapshot restore at the DEBUG log level
+                .quiet(true);
+            // Specify the mount task as the parent of the refresh task
+            restoreSnapshotRequest.setParentTask(clusterService.localNode().getId(), task.getId());
+
+            client.admin().cluster().restoreSnapshot(restoreSnapshotRequest, delegate);
         }), threadPool.executor(ThreadPool.Names.SNAPSHOT_META), null);
     }
 }

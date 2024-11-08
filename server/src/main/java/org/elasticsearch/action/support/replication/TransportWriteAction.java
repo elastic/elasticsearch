@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.support.replication;
@@ -76,9 +77,10 @@ public abstract class TransportWriteAction<
         Writeable.Reader<Request> request,
         Writeable.Reader<ReplicaRequest> replicaRequest,
         BiFunction<ExecutorSelector, IndexShard, Executor> executorFunction,
-        boolean forceExecutionOnPrimary,
+        PrimaryActionExecution primaryActionExecution,
         IndexingPressure indexingPressure,
-        SystemIndices systemIndices
+        SystemIndices systemIndices,
+        ReplicaActionExecution replicaActionExecution
     ) {
         // We pass ThreadPool.Names.SAME to the super class as we control the dispatching to the
         // ThreadPool.Names.WRITE/ThreadPool.Names.SYSTEM_WRITE thread pools in this class.
@@ -94,8 +96,9 @@ public abstract class TransportWriteAction<
             request,
             replicaRequest,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            true,
-            forceExecutionOnPrimary
+            SyncGlobalCheckpointAfterOperation.AttemptAfterSuccess,
+            primaryActionExecution,
+            replicaActionExecution
         );
         this.executorFunction = executorFunction;
         this.indexingPressure = indexingPressure;

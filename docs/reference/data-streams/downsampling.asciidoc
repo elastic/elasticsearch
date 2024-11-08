@@ -18,9 +18,9 @@ Metrics solutions collect large amounts of time series data that grow over time.
 As that data ages, it becomes less relevant to the current state of the system.
 The downsampling process rolls up documents within a fixed time interval into a
 single summary document. Each summary document includes statistical
-representations of the original data: the `min`, `max`, `sum`, `value_count`,
-and `average` for each metric. Data stream <<time-series-dimension,time series
-dimensions>> are stored unchanged.
+representations of the original data: the `min`, `max`, `sum` and `value_count`
+for each metric. Data stream <<time-series-dimension,time series dimensions>>
+are stored unchanged.
 
 Downsampling, in effect, lets you to trade data resolution and precision for
 storage size. You can include it in an <<index-lifecycle-management,{ilm}

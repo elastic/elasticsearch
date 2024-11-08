@@ -1,0 +1,5 @@
+pr: 110860
+summary: Speedup `CanMatchPreFilterSearchPhase` constructor
+area: Search
+type: bug
+issues: []

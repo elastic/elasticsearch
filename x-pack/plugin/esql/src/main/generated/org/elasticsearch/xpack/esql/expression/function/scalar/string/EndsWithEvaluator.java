@@ -16,16 +16,16 @@ import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.xpack.esql.expression.function.Warnings;
-import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link EndsWith}.
  * This class is generated. Do not edit it.
  */
 public final class EndsWithEvaluator implements EvalOperator.ExpressionEvaluator {
-  private final Warnings warnings;
+  private final Source source;
 
   private final EvalOperator.ExpressionEvaluator str;
 
@@ -33,9 +33,11 @@ public final class EndsWithEvaluator implements EvalOperator.ExpressionEvaluator
 
   private final DriverContext driverContext;
 
+  private Warnings warnings;
+
   public EndsWithEvaluator(Source source, EvalOperator.ExpressionEvaluator str,
       EvalOperator.ExpressionEvaluator suffix, DriverContext driverContext) {
-    this.warnings = new Warnings(source);
+    this.source = source;
     this.str = str;
     this.suffix = suffix;
     this.driverContext = driverContext;
@@ -69,7 +71,7 @@ public final class EndsWithEvaluator implements EvalOperator.ExpressionEvaluator
         }
         if (strBlock.getValueCount(p) != 1) {
           if (strBlock.getValueCount(p) > 1) {
-            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
           }
           result.appendNull();
           continue position;
@@ -80,7 +82,7 @@ public final class EndsWithEvaluator implements EvalOperator.ExpressionEvaluator
         }
         if (suffixBlock.getValueCount(p) != 1) {
           if (suffixBlock.getValueCount(p) > 1) {
-            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
           }
           result.appendNull();
           continue position;
@@ -93,11 +95,11 @@ public final class EndsWithEvaluator implements EvalOperator.ExpressionEvaluator
 
   public BooleanVector eval(int positionCount, BytesRefVector strVector,
       BytesRefVector suffixVector) {
-    try(BooleanVector.Builder result = driverContext.blockFactory().newBooleanVectorBuilder(positionCount)) {
+    try(BooleanVector.FixedBuilder result = driverContext.blockFactory().newBooleanVectorFixedBuilder(positionCount)) {
       BytesRef strScratch = new BytesRef();
       BytesRef suffixScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendBoolean(EndsWith.process(strVector.getBytesRef(p, strScratch), suffixVector.getBytesRef(p, suffixScratch)));
+        result.appendBoolean(p, EndsWith.process(strVector.getBytesRef(p, strScratch), suffixVector.getBytesRef(p, suffixScratch)));
       }
       return result.build();
     }
@@ -111,6 +113,18 @@ public final class EndsWithEvaluator implements EvalOperator.ExpressionEvaluator
   @Override
   public void close() {
     Releasables.closeExpectNoException(str, suffix);
+  }
+
+  private Warnings warnings() {
+    if (warnings == null) {
+      this.warnings = Warnings.createWarnings(
+              driverContext.warningsMode(),
+              source.source().getLineNumber(),
+              source.source().getColumnNumber(),
+              source.text()
+          );
+    }
+    return warnings;
   }
 
   static class Factory implements EvalOperator.ExpressionEvaluator.Factory {

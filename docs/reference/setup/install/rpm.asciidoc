@@ -101,7 +101,7 @@ endif::[]
 
 ifeval::["{release-state}"=="unreleased"]
 
-WARNING: Version {version} of Elasticsearch has not yet been released.
+WARNING: Version {version} of Elasticsearch has not yet been released. The RPM might not be available.
 
 endif::[]
 

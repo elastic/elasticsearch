@@ -1,0 +1,27 @@
+{
+    "properties" : {
+        "byte" : {
+            "type" : "byte"
+        },
+        "short" : {
+            "type" : "short"
+        },
+        "integer" : {
+            "type" : "integer"
+        },
+        "long" : {
+            "type" : "long"
+        },
+        "unsigned_long" : {
+          "type" : "unsigned_long"
+        },
+        "meta_subfield" : {
+            "type" : "text",
+            "fields" : {
+                "_meta" : {
+                     "type" : "keyword"
+                }
+            }
+        }
+    }
+}

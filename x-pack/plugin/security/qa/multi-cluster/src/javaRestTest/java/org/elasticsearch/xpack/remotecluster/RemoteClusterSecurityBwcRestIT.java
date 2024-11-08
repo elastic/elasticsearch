@@ -113,6 +113,12 @@ public class RemoteClusterSecurityBwcRestIT extends AbstractRemoteClusterSecurit
                       "privileges": ["read", "read_cross_cluster"],
                       "clusters": ["my_remote_cluster"]
                     }
+                  ],
+                  "remote_cluster": [
+                    {
+                      "privileges": ["monitor_enrich"],
+                      "clusters": ["*"]
+                    }
                   ]
                 }""");
             assertOK(adminClient().performRequest(putRoleRequest));
@@ -156,6 +162,12 @@ public class RemoteClusterSecurityBwcRestIT extends AbstractRemoteClusterSecurit
                           "names": ["remote_index1", "remote_index2"],
                           "privileges": ["read", "read_cross_cluster"],
                           "clusters": ["my_remote_*", "non_existing_remote_cluster"]
+                        }
+                      ],
+                      "remote_cluster": [
+                        {
+                          "privileges": ["monitor_enrich"],
+                          "clusters": ["*"]
                         }
                       ]
                     }

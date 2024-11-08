@@ -38,14 +38,14 @@ public class CohereEmbeddingTypeTests extends ESTestCase {
 
     public void testTranslateToVersion_ReturnsByte_WhenVersionOnByteEnumAddition_WhenSpecifyingByte() {
         assertThat(
-            CohereEmbeddingType.translateToVersion(CohereEmbeddingType.BYTE, TransportVersions.ML_INFERENCE_EMBEDDING_BYTE_ADDED),
+            CohereEmbeddingType.translateToVersion(CohereEmbeddingType.BYTE, TransportVersions.V_8_14_0),
             is(CohereEmbeddingType.BYTE)
         );
     }
 
     public void testTranslateToVersion_ReturnsFloat_WhenVersionOnByteEnumAddition_WhenSpecifyingFloat() {
         assertThat(
-            CohereEmbeddingType.translateToVersion(CohereEmbeddingType.FLOAT, TransportVersions.ML_INFERENCE_EMBEDDING_BYTE_ADDED),
+            CohereEmbeddingType.translateToVersion(CohereEmbeddingType.FLOAT, TransportVersions.V_8_14_0),
             is(CohereEmbeddingType.FLOAT)
         );
     }

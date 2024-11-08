@@ -48,6 +48,7 @@ public class XPackInfoFeatureAction {
     public static final ActionType<XPackInfoFeatureResponse> ARCHIVE = xpackInfoFeatureAction(XPackField.ARCHIVE);
     public static final ActionType<XPackInfoFeatureResponse> ENTERPRISE_SEARCH = xpackInfoFeatureAction(XPackField.ENTERPRISE_SEARCH);
     public static final ActionType<XPackInfoFeatureResponse> UNIVERSAL_PROFILING = xpackInfoFeatureAction(XPackField.UNIVERSAL_PROFILING);
+    public static final ActionType<XPackInfoFeatureResponse> LOGSDB = xpackInfoFeatureAction(XPackField.LOGSDB);
 
     public static final List<ActionType<XPackInfoFeatureResponse>> ALL = List.of(
         SECURITY,
@@ -75,7 +76,8 @@ public class XPackInfoFeatureAction {
         AGGREGATE_METRIC,
         ARCHIVE,
         ENTERPRISE_SEARCH,
-        UNIVERSAL_PROFILING
+        UNIVERSAL_PROFILING,
+        LOGSDB
     );
 
     public static ActionType<XPackInfoFeatureResponse> xpackInfoFeatureAction(String suffix) {

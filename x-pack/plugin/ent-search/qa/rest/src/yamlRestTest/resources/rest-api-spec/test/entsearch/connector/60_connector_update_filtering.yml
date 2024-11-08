@@ -191,16 +191,115 @@ setup:
 ---
 "Update Connector Filtering with value literal - Empty rules":
   - do:
-      catch: "bad_request"
       connector.update_filtering:
         connector_id: test-connector
         body:
           rules: [ ]
 
+  - match: { result: updated }
+
+  - do:
+      connector.get:
+        connector_id: test-connector
+
+  - match: { filtering.0.draft.rules.0.id: "DEFAULT" }
+  - match: { filtering.0.draft.rules.0.policy: "include" }
+  - match: { filtering.0.draft.rules.0.rule: "regex" }
+  - match: { filtering.0.draft.rules.0.value: ".*" }
+  - match: { filtering.0.draft.rules.0.field: "_" }
+  - match: { filtering.0.draft.rules.0.order: 0 }
+
+---
+"Update Connector Filtering with with value literal - Only default rule":
+  - do:
+      connector.update_filtering:
+        connector_id: test-connector
+        body:
+          rules:
+            - created_at: "2023-05-25T12:30:00.000Z"
+              field: _
+              id: DEFAULT
+              order: 0
+              policy: include
+              rule: regex
+              updated_at: "2023-05-25T12:30:00.000Z"
+              value: ".*"
+
+  - match: { result: updated }
+
+  - do:
+      connector.get:
+        connector_id: test-connector
+
+  - match: { filtering.0.draft.rules.0.id: "DEFAULT" }
+  - match: { filtering.0.draft.rules.0.policy: "include" }
+  - match: { filtering.0.draft.rules.0.rule: "regex" }
+  - match: { filtering.0.draft.rules.0.value: ".*" }
+  - match: { filtering.0.draft.rules.0.field: "_" }
+  - match: { filtering.0.draft.rules.0.order: 0 }
+
+
+---
+"Update Connector Filtering - Mixed order and default value":
+  - do:
+      connector.update_filtering:
+        connector_id: test-connector
+        body:
+            rules:
+                - created_at: "2023-05-25T12:30:00.000Z"
+                  field: _
+                  id: DEFAULT
+                  order: 5
+                  policy: include
+                  rule: regex
+                  updated_at: "2023-05-25T12:30:00.000Z"
+                  value: ".*"
+                - created_at: "2023-05-25T12:30:00.000Z"
+                  field: my_field
+                  id: MY_RULE
+                  order: 3
+                  policy: exclude
+                  rule: regex
+                  updated_at: "2023-05-25T12:30:00.000Z"
+                  value: "tax-.*"
+                - created_at: "2023-05-25T12:30:00.000Z"
+                  field: my_field
+                  id: MY_RULE_2
+                  order: 0
+                  policy: include
+                  rule: regex
+                  updated_at: "2023-05-25T12:30:00.000Z"
+                  value: "fix-.*"
+  - match: { result: updated }
+
+  - do:
+      connector.get:
+        connector_id: test-connector
+
+  # rules are sorted by order and default rule is always last
+  - match: { filtering.0.draft.rules.0.id: "MY_RULE_2" }
+  - match: { filtering.0.draft.rules.0.policy: "include" }
+  - match: { filtering.0.draft.rules.0.rule: "regex" }
+  - match: { filtering.0.draft.rules.0.value: "fix-.*" }
+  - match: { filtering.0.draft.rules.0.field: "my_field" }
+  - match: { filtering.0.draft.rules.0.order: 0 }
+  - match: { filtering.0.draft.rules.1.id: "MY_RULE" }
+  - match: { filtering.0.draft.rules.1.policy: "exclude" }
+  - match: { filtering.0.draft.rules.1.rule: "regex" }
+  - match: { filtering.0.draft.rules.1.value: "tax-.*" }
+  - match: { filtering.0.draft.rules.1.field: "my_field" }
+  - match: { filtering.0.draft.rules.1.order: 3 }
+  # Make sure default rule has the highest order
+  - match: { filtering.0.draft.rules.2.id: "DEFAULT" }
+  - match: { filtering.0.draft.rules.2.policy: "include" }
+  - match: { filtering.0.draft.rules.2.rule: "regex" }
+  - match: { filtering.0.draft.rules.2.value: ".*" }
+  - match: { filtering.0.draft.rules.2.field: "_" }
+  - match: { filtering.0.draft.rules.2.order: 4 }
+
 ---
 "Update Connector Filtering with value literal - Default rule not present":
   - do:
-      catch: "bad_request"
       connector.update_filtering:
         connector_id: test-connector
         body:
@@ -213,6 +312,25 @@ setup:
               rule: regex
               updated_at: "2023-05-25T12:30:00.000Z"
               value: "hello-not-default-rule.*"
+
+  - match: { result: updated }
+
+  - do:
+      connector.get:
+        connector_id: test-connector
+
+  - match: { filtering.0.draft.rules.0.id: "MY_RULE" }
+  - match: { filtering.0.draft.rules.0.policy: "exclude" }
+  - match: { filtering.0.draft.rules.0.rule: "regex" }
+  - match: { filtering.0.draft.rules.0.value: "hello-not-default-rule.*" }
+  - match: { filtering.0.draft.rules.0.field: "my_field" }
+  - match: { filtering.0.draft.rules.0.order: 0 }
+  - match: { filtering.0.draft.rules.1.id: "DEFAULT" }
+  - match: { filtering.0.draft.rules.1.policy: "include" }
+  - match: { filtering.0.draft.rules.1.rule: "regex" }
+  - match: { filtering.0.draft.rules.1.value: ".*" }
+  - match: { filtering.0.draft.rules.1.field: "_" }
+  - match: { filtering.0.draft.rules.1.order: 1 }
 
 ---
 "Update Connector Filtering - Connector doesn't exist":

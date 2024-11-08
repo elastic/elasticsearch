@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.shard;
 
@@ -164,7 +165,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             try {
                 // the lastWriteLocaltion has a Integer.MAX_VALUE size so we have to create a new one
                 return tlog.ensureSynced(
-                    new Translog.Location(lastWriteLocation.generation, lastWriteLocation.translogLocation, 0),
+                    new Translog.Location(lastWriteLocation.generation(), lastWriteLocation.translogLocation(), 0),
                     SequenceNumbers.UNASSIGNED_SEQ_NO
                 );
             } catch (IOException e) {
@@ -389,7 +390,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             logger.info(
                 "--> translog stats [{}] gen [{}] commit_stats [{}] flush_stats [{}/{}]",
                 Strings.toString(translogStats),
-                translog.getGeneration().translogFileGeneration,
+                translog.getGeneration().translogFileGeneration(),
                 commitStats.getUserData(),
                 flushStats.getPeriodic(),
                 flushStats.getTotal()
@@ -428,7 +429,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             );
             final Translog.Location location = result.getTranslogLocation();
             shard.afterWriteOperation();
-            if (location.translogLocation + location.size > generationThreshold) {
+            if (location.translogLocation() + location.size() > generationThreshold) {
                 // wait until the roll completes
                 assertBusy(() -> assertFalse(shard.shouldRollTranslogGeneration()));
                 rolls++;

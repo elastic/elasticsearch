@@ -44,7 +44,8 @@ import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.external.http.retry.RetrySettingsTests.buildSettingsWithRetryFields;
-import static org.elasticsearch.xpack.inference.results.TextEmbeddingResultsTests.buildExpectation;
+import static org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests.createSender;
+import static org.elasticsearch.xpack.inference.results.TextEmbeddingResultsTests.buildExpectationFloat;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.elasticsearch.xpack.inference.services.azureopenai.completion.AzureOpenAiCompletionModelTests.createCompletionModel;
 import static org.elasticsearch.xpack.inference.services.azureopenai.embeddings.AzureOpenAiEmbeddingsModelTests.createModel;
@@ -82,7 +83,7 @@ public class AzureOpenAiActionCreatorTests extends ESTestCase {
     public void testCreate_AzureOpenAiEmbeddingsModel() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var sender = senderFactory.createSender("test_service")) {
+        try (var sender = createSender(senderFactory)) {
             sender.start();
 
             String responseJson = """
@@ -111,14 +112,14 @@ public class AzureOpenAiActionCreatorTests extends ESTestCase {
             model.setUri(new URI(getUrl(webServer)));
             var actionCreator = new AzureOpenAiActionCreator(sender, createWithEmptySettings(threadPool));
             var overriddenTaskSettings = createRequestTaskSettingsMap("overridden_user");
-            var action = (AzureOpenAiEmbeddingsAction) actionCreator.create(model, overriddenTaskSettings);
+            var action = actionCreator.create(model, overriddenTaskSettings);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             action.execute(new DocumentsOnlyInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
-            assertThat(result.asMap(), is(buildExpectation(List.of(List.of(0.0123F, -0.0123F)))));
+            assertThat(result.asMap(), is(buildExpectationFloat(List.of(new float[] { 0.0123F, -0.0123F }))));
             assertThat(webServer.requests(), hasSize(1));
             validateRequestWithApiKey(webServer.requests().get(0), "apikey");
 
@@ -132,7 +133,7 @@ public class AzureOpenAiActionCreatorTests extends ESTestCase {
     public void testCreate_AzureOpenAiEmbeddingsModel_WithoutUser() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var sender = senderFactory.createSender("test_service")) {
+        try (var sender = createSender(senderFactory)) {
             sender.start();
 
             String responseJson = """
@@ -161,14 +162,14 @@ public class AzureOpenAiActionCreatorTests extends ESTestCase {
             model.setUri(new URI(getUrl(webServer)));
             var actionCreator = new AzureOpenAiActionCreator(sender, createWithEmptySettings(threadPool));
             var overriddenTaskSettings = createRequestTaskSettingsMap(null);
-            var action = (AzureOpenAiEmbeddingsAction) actionCreator.create(model, overriddenTaskSettings);
+            var action = actionCreator.create(model, overriddenTaskSettings);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             action.execute(new DocumentsOnlyInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
-            assertThat(result.asMap(), is(buildExpectation(List.of(List.of(0.0123F, -0.0123F)))));
+            assertThat(result.asMap(), is(buildExpectationFloat(List.of(new float[] { 0.0123F, -0.0123F }))));
             assertThat(webServer.requests(), hasSize(1));
             validateRequestWithApiKey(webServer.requests().get(0), "apikey");
 
@@ -183,7 +184,7 @@ public class AzureOpenAiActionCreatorTests extends ESTestCase {
         // timeout as zero for no retries
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager, ZERO_TIMEOUT_SETTINGS);
 
-        try (var sender = senderFactory.createSender("test_service")) {
+        try (var sender = createSender(senderFactory)) {
             sender.start();
 
             String responseJson = """
@@ -212,7 +213,7 @@ public class AzureOpenAiActionCreatorTests extends ESTestCase {
             model.setUri(new URI(getUrl(webServer)));
             var actionCreator = new AzureOpenAiActionCreator(sender, createWithEmptySettings(threadPool));
             var overriddenTaskSettings = createRequestTaskSettingsMap("overridden_user");
-            var action = (AzureOpenAiEmbeddingsAction) actionCreator.create(model, overriddenTaskSettings);
+            var action = actionCreator.create(model, overriddenTaskSettings);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             action.execute(new DocumentsOnlyInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
@@ -237,7 +238,7 @@ public class AzureOpenAiActionCreatorTests extends ESTestCase {
     public void testExecute_ReturnsSuccessfulResponse_AfterTruncating_From413StatusCode() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var sender = senderFactory.createSender("test_service")) {
+        try (var sender = createSender(senderFactory)) {
             sender.start();
 
             // note - there is no complete documentation on Azure's error messages
@@ -284,14 +285,14 @@ public class AzureOpenAiActionCreatorTests extends ESTestCase {
             model.setUri(new URI(getUrl(webServer)));
             var actionCreator = new AzureOpenAiActionCreator(sender, createWithEmptySettings(threadPool));
             var overriddenTaskSettings = createRequestTaskSettingsMap("overridden_user");
-            var action = (AzureOpenAiEmbeddingsAction) actionCreator.create(model, overriddenTaskSettings);
+            var action = actionCreator.create(model, overriddenTaskSettings);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             action.execute(new DocumentsOnlyInput(List.of("abcd")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
-            assertThat(result.asMap(), is(buildExpectation(List.of(List.of(0.0123F, -0.0123F)))));
+            assertThat(result.asMap(), is(buildExpectationFloat(List.of(new float[] { 0.0123F, -0.0123F }))));
             assertThat(webServer.requests(), hasSize(2));
             {
                 validateRequestWithApiKey(webServer.requests().get(0), "apikey");
@@ -313,7 +314,7 @@ public class AzureOpenAiActionCreatorTests extends ESTestCase {
     public void testExecute_ReturnsSuccessfulResponse_AfterTruncating_From400StatusCode() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var sender = senderFactory.createSender("test_service")) {
+        try (var sender = createSender(senderFactory)) {
             sender.start();
 
             // note - there is no complete documentation on Azure's error messages
@@ -360,14 +361,14 @@ public class AzureOpenAiActionCreatorTests extends ESTestCase {
             model.setUri(new URI(getUrl(webServer)));
             var actionCreator = new AzureOpenAiActionCreator(sender, createWithEmptySettings(threadPool));
             var overriddenTaskSettings = createRequestTaskSettingsMap("overridden_user");
-            var action = (AzureOpenAiEmbeddingsAction) actionCreator.create(model, overriddenTaskSettings);
+            var action = actionCreator.create(model, overriddenTaskSettings);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             action.execute(new DocumentsOnlyInput(List.of("abcd")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
-            assertThat(result.asMap(), is(buildExpectation(List.of(List.of(0.0123F, -0.0123F)))));
+            assertThat(result.asMap(), is(buildExpectationFloat(List.of(new float[] { 0.0123F, -0.0123F }))));
             assertThat(webServer.requests(), hasSize(2));
             {
                 validateRequestWithApiKey(webServer.requests().get(0), "apikey");
@@ -389,7 +390,7 @@ public class AzureOpenAiActionCreatorTests extends ESTestCase {
     public void testExecute_TruncatesInputBeforeSending() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var sender = senderFactory.createSender("test_service")) {
+        try (var sender = createSender(senderFactory)) {
             sender.start();
 
             String responseJson = """
@@ -419,14 +420,14 @@ public class AzureOpenAiActionCreatorTests extends ESTestCase {
             model.setUri(new URI(getUrl(webServer)));
             var actionCreator = new AzureOpenAiActionCreator(sender, createWithEmptySettings(threadPool));
             var overriddenTaskSettings = createRequestTaskSettingsMap("overridden_user");
-            var action = (AzureOpenAiEmbeddingsAction) actionCreator.create(model, overriddenTaskSettings);
+            var action = actionCreator.create(model, overriddenTaskSettings);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             action.execute(new DocumentsOnlyInput(List.of("super long input")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
-            assertThat(result.asMap(), is(buildExpectation(List.of(List.of(0.0123F, -0.0123F)))));
+            assertThat(result.asMap(), is(buildExpectationFloat(List.of(new float[] { 0.0123F, -0.0123F }))));
             assertThat(webServer.requests(), hasSize(1));
             validateRequestWithApiKey(webServer.requests().get(0), "apikey");
 
@@ -440,7 +441,7 @@ public class AzureOpenAiActionCreatorTests extends ESTestCase {
     public void testInfer_AzureOpenAiCompletion_WithOverriddenUser() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var sender = senderFactory.createSender("test_service")) {
+        try (var sender = createSender(senderFactory)) {
             sender.start();
 
             String responseJson = """
@@ -471,7 +472,7 @@ public class AzureOpenAiActionCreatorTests extends ESTestCase {
             model.setUri(new URI(getUrl(webServer)));
             var actionCreator = new AzureOpenAiActionCreator(sender, createWithEmptySettings(threadPool));
             var taskSettingsWithUserOverride = createRequestTaskSettingsMap(overriddenUser);
-            var action = (AzureOpenAiCompletionAction) actionCreator.create(model, taskSettingsWithUserOverride);
+            var action = actionCreator.create(model, taskSettingsWithUserOverride);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             action.execute(new DocumentsOnlyInput(List.of(completionInput)), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
@@ -498,7 +499,7 @@ public class AzureOpenAiActionCreatorTests extends ESTestCase {
     public void testInfer_AzureOpenAiCompletionModel_WithoutUser() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var sender = senderFactory.createSender("test_service")) {
+        try (var sender = createSender(senderFactory)) {
             sender.start();
 
             String responseJson = """
@@ -527,7 +528,7 @@ public class AzureOpenAiActionCreatorTests extends ESTestCase {
             model.setUri(new URI(getUrl(webServer)));
             var actionCreator = new AzureOpenAiActionCreator(sender, createWithEmptySettings(threadPool));
             var requestTaskSettingsWithoutUser = createRequestTaskSettingsMap(null);
-            var action = (AzureOpenAiCompletionAction) actionCreator.create(model, requestTaskSettingsWithoutUser);
+            var action = actionCreator.create(model, requestTaskSettingsWithoutUser);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             action.execute(new DocumentsOnlyInput(List.of(completionInput)), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
@@ -554,7 +555,7 @@ public class AzureOpenAiActionCreatorTests extends ESTestCase {
         // timeout as zero for no retries
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager, ZERO_TIMEOUT_SETTINGS);
 
-        try (var sender = senderFactory.createSender("test_service")) {
+        try (var sender = createSender(senderFactory)) {
             sender.start();
 
             // "choices" missing
@@ -585,7 +586,7 @@ public class AzureOpenAiActionCreatorTests extends ESTestCase {
             model.setUri(new URI(getUrl(webServer)));
             var actionCreator = new AzureOpenAiActionCreator(sender, createWithEmptySettings(threadPool));
             var requestTaskSettingsWithoutUser = createRequestTaskSettingsMap(userOverride);
-            var action = (AzureOpenAiCompletionAction) actionCreator.create(model, requestTaskSettingsWithoutUser);
+            var action = actionCreator.create(model, requestTaskSettingsWithoutUser);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             action.execute(new DocumentsOnlyInput(List.of(completionInput)), InferenceAction.Request.DEFAULT_TIMEOUT, listener);

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.gradle.testclusters;
 
@@ -246,14 +247,12 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private void doSetVersion(String version) {
         String distroName = "testclusters" + path.replace(":", "-") + "-" + this.name + "-" + version;
         NamedDomainObjectContainer<ElasticsearchDistribution> container = DistributionDownloadPlugin.getContainer(project);
-        if (container.findByName(distroName) == null) {
-            container.create(distroName);
-        }
-        ElasticsearchDistribution distro = container.getByName(distroName);
-        distro.setVersion(version);
-        distro.setArchitecture(Architecture.current());
-        setDistributionType(distro, testDistribution);
-        distributions.add(distro);
+        // TODO Refactor test using register<> for reducing overhead
+        ElasticsearchDistribution distribution = container.maybeCreate(distroName);
+        distribution.setVersion(version);
+        distribution.setArchitecture(Architecture.current());
+        setDistributionType(distribution, testDistribution);
+        distributions.add(distribution);
     }
 
     @Internal
@@ -1141,7 +1140,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
             }
         }
         if (foundLeaks) {
-            throw new TestClustersException("Found resource leaks in node logs.");
+            throw new TestClustersException("Found resource leaks in node log: " + from);
         }
     }
 

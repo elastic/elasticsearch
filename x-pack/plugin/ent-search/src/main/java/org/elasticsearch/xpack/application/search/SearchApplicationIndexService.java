@@ -130,7 +130,6 @@ public class SearchApplicationIndexService {
             .setMappings(getIndexMappings())
             .setSettings(getIndexSettings())
             .setAliasName(SEARCH_APPLICATION_ALIAS_NAME)
-            .setVersionMetaKey("version")
             .setOrigin(ENT_SEARCH_ORIGIN)
             .setThreadPools(ExecutorNames.DEFAULT_SYSTEM_INDEX_THREAD_POOLS)
             .build();
@@ -139,7 +138,6 @@ public class SearchApplicationIndexService {
     private static Settings getIndexSettings() {
         return Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
             .put(IndexMetadata.SETTING_PRIORITY, 100)
             .put("index.refresh_interval", "1s")
@@ -417,7 +415,7 @@ public class SearchApplicationIndexService {
         final List<SearchApplicationListItem> apps = Arrays.stream(response.getHits().getHits())
             .map(SearchApplicationIndexService::hitToSearchApplicationListItem)
             .toList();
-        return new SearchApplicationResult(apps, (int) response.getHits().getTotalHits().value);
+        return new SearchApplicationResult(apps, (int) response.getHits().getTotalHits().value());
     }
 
     private static SearchApplicationListItem hitToSearchApplicationListItem(SearchHit searchHit) {

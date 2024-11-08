@@ -17,6 +17,7 @@ import org.elasticsearch.compute.aggregation.Aggregator;
 import org.elasticsearch.compute.aggregation.Aggregator.Factory;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
@@ -49,6 +50,10 @@ public class AggregationOperator implements Operator {
      * Nanoseconds this operator has spent running the aggregations.
      */
     private long aggregationNanos;
+    /**
+     * Nanoseconds this operator has spent running the aggregations final evaluation.
+     */
+    private long aggregationFinishNanos;
     /**
      * Count of pages this operator has processed.
      */
@@ -93,9 +98,9 @@ public class AggregationOperator implements Operator {
         long start = System.nanoTime();
         checkState(needsInput(), "Operator is already finishing");
         requireNonNull(page, "page is null");
-        try {
+        try (BooleanVector noMasking = driverContext.blockFactory().newConstantBooleanVector(true, page.getPositionCount())) {
             for (Aggregator aggregator : aggregators) {
-                aggregator.processPage(page);
+                aggregator.processPage(page, noMasking);
             }
         } finally {
             page.releaseBlocks();
@@ -116,6 +121,7 @@ public class AggregationOperator implements Operator {
         if (finished) {
             return;
         }
+        long start = System.nanoTime();
         finished = true;
         Block[] blocks = null;
         boolean success = false;
@@ -135,6 +141,7 @@ public class AggregationOperator implements Operator {
             if (success == false && blocks != null) {
                 Releasables.closeExpectNoException(blocks);
             }
+            aggregationFinishNanos += System.nanoTime() - start;
         }
     }
 
@@ -174,7 +181,7 @@ public class AggregationOperator implements Operator {
 
     @Override
     public Operator.Status status() {
-        return new Status(aggregationNanos, pagesProcessed);
+        return new Status(aggregationNanos, aggregationFinishNanos, pagesProcessed);
     }
 
     public static class Status implements Operator.Status {
@@ -188,6 +195,11 @@ public class AggregationOperator implements Operator {
          * Nanoseconds this operator has spent running the aggregations.
          */
         private final long aggregationNanos;
+
+        /**
+         * Nanoseconds this operator has spent running the aggregations final evaluation.
+         */
+        private final Long aggregationFinishNanos;
         /**
          * Count of pages this operator has processed.
          */
@@ -196,21 +208,31 @@ public class AggregationOperator implements Operator {
         /**
          * Build.
          * @param aggregationNanos Nanoseconds this operator has spent running the aggregations.
+         * @param aggregationFinishNanos Nanoseconds this operator has spent running the aggregations.
          * @param pagesProcessed Count of pages this operator has processed.
          */
-        public Status(long aggregationNanos, int pagesProcessed) {
+        public Status(long aggregationNanos, long aggregationFinishNanos, int pagesProcessed) {
             this.aggregationNanos = aggregationNanos;
+            this.aggregationFinishNanos = aggregationFinishNanos;
             this.pagesProcessed = pagesProcessed;
         }
 
         protected Status(StreamInput in) throws IOException {
             aggregationNanos = in.readVLong();
+            if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_AGGREGATION_OPERATOR_STATUS_FINISH_NANOS)) {
+                aggregationFinishNanos = in.readOptionalVLong();
+            } else {
+                aggregationFinishNanos = null;
+            }
             pagesProcessed = in.readVInt();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeVLong(aggregationNanos);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_AGGREGATION_OPERATOR_STATUS_FINISH_NANOS)) {
+                out.writeOptionalVLong(aggregationFinishNanos);
+            }
             out.writeVInt(pagesProcessed);
         }
 
@@ -227,6 +249,13 @@ public class AggregationOperator implements Operator {
         }
 
         /**
+         * Nanoseconds this operator has spent running the aggregations final evaluation.
+         */
+        public long aggregationFinishNanos() {
+            return aggregationFinishNanos;
+        }
+
+        /**
          * Count of pages this operator has processed.
          */
         public int pagesProcessed() {
@@ -240,6 +269,13 @@ public class AggregationOperator implements Operator {
             if (builder.humanReadable()) {
                 builder.field("aggregation_time", TimeValue.timeValueNanos(aggregationNanos));
             }
+            builder.field("aggregation_finish_nanos", aggregationFinishNanos);
+            if (builder.humanReadable()) {
+                builder.field(
+                    "aggregation_finish_time",
+                    aggregationFinishNanos == null ? null : TimeValue.timeValueNanos(aggregationFinishNanos)
+                );
+            }
             builder.field("pages_processed", pagesProcessed);
             return builder.endObject();
 
@@ -250,12 +286,14 @@ public class AggregationOperator implements Operator {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Status status = (Status) o;
-            return aggregationNanos == status.aggregationNanos && pagesProcessed == status.pagesProcessed;
+            return aggregationNanos == status.aggregationNanos
+                && pagesProcessed == status.pagesProcessed
+                && Objects.equals(aggregationFinishNanos, status.aggregationFinishNanos);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(aggregationNanos, pagesProcessed);
+            return Objects.hash(aggregationNanos, aggregationFinishNanos, pagesProcessed);
         }
 
         @Override
@@ -265,7 +303,7 @@ public class AggregationOperator implements Operator {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.ESQL_TIMINGS;
+            return TransportVersions.V_8_14_0;
         }
     }
 }

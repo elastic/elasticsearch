@@ -16,6 +16,7 @@ import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.cohere.CohereActionVisitor;
+import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.cohere.CohereModel;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
@@ -30,13 +31,14 @@ public class CohereCompletionModel extends CohereModel {
         String service,
         Map<String, Object> serviceSettings,
         Map<String, Object> taskSettings,
-        @Nullable Map<String, Object> secrets
+        @Nullable Map<String, Object> secrets,
+        ConfigurationParseContext context
     ) {
         this(
             modelId,
             taskType,
             service,
-            CohereCompletionServiceSettings.fromMap(serviceSettings),
+            CohereCompletionServiceSettings.fromMap(serviceSettings, context),
             EmptyTaskSettings.INSTANCE,
             DefaultSecretSettings.fromMap(secrets)
         );

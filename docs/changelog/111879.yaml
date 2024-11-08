@@ -1,0 +1,6 @@
+pr: 111879
+summary: "ESQL: Have BUCKET generate friendlier intervals"
+area: ES|QL
+type: enhancement
+issues:
+ - 110916

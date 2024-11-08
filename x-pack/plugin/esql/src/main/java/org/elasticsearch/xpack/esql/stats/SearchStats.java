@@ -28,7 +28,7 @@ import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
-import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.io.IOException;
 import java.util.LinkedHashMap;

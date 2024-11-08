@@ -160,7 +160,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
             + "} }";
 
         IndexMetadata simpleIndex = IndexMetadata.builder(randomAlphaOfLengthBetween(5, 10))
-            .settings(settings(IndexVersions.V_7_0_0))
+            .settings(settings(IndexVersions.MINIMUM_COMPATIBLE))
             .numberOfShards(1)
             .numberOfReplicas(1)
             .putMapping(simpleMapping)

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 import org.apache.tools.ant.filters.ReplaceTokens
@@ -42,19 +43,9 @@ import java.util.regex.Pattern
  *    dpkg -c path/to/elasticsearch.deb
  */
 
-buildscript {
-  repositories {
-    maven {
-      url 'https://jitpack.io'
-    }
-    mavenCentral()
-  }
-  dependencies {
-    classpath "com.github.breskeby:gradle-ospackage-plugin:2da19425133"
-  }
+plugins {
+  id "com.netflix.nebula.ospackage-base" version "11.9.1"
 }
-
-apply plugin: "com.netflix.nebula.ospackage-base"
 
 ['deb', 'rpm'].each { type ->
   String packagingFiles = "build/packaging/${type}"
@@ -138,7 +129,9 @@ def commonPackageConfig(String type, String architecture) {
       }
       from(rootProject.projectDir) {
         include 'README.asciidoc'
-        fileMode 0644
+        filePermissions {
+          unix 0644
+        }
       }
       into('lib') {
         with libFiles('linux', architecture)
@@ -159,9 +152,13 @@ def commonPackageConfig(String type, String architecture) {
             directory('/' + segments[0..i].join('/'), 0755)
           }
           if (segments[-2] == 'bin' || segments[-1] == 'jspawnhelper') {
-            fcp.mode = 0755
+            fcp.permissions {
+              unix(0755)
+            }
           } else {
-            fcp.mode = 0644
+            fcp.permissions {
+              unix(0644)
+            }
           }
         }
       }
@@ -171,7 +168,9 @@ def commonPackageConfig(String type, String architecture) {
     if (type == 'deb') {
       into("/usr/share/doc/${packageName}") {
         from "${packagingFiles}/copyright"
-        fileMode 0644
+        filePermissions {
+          unix(0644)
+        }
       }
     } else {
       assert type == 'rpm'
@@ -180,7 +179,9 @@ def commonPackageConfig(String type, String architecture) {
           include 'ELASTIC-LICENSE-2.0.txt'
           rename { 'LICENSE.txt' }
         }
-        fileMode 0644
+        filePermissions {
+          unix(0644)
+        }
       }
     }
 
@@ -194,7 +195,9 @@ def commonPackageConfig(String type, String architecture) {
     configurationFile '/etc/elasticsearch/users'
     configurationFile '/etc/elasticsearch/users_roles'
     from("${packagingFiles}") {
-      dirMode 02750
+      dirPermissions {
+        unix(02750)
+      }
       into('/etc')
       permissionGroup 'elasticsearch'
       setgid true
@@ -205,9 +208,13 @@ def commonPackageConfig(String type, String architecture) {
     }
     from("${packagingFiles}/etc/elasticsearch") {
       into('/etc/elasticsearch')
-      dirMode 02750
+      dirPermissions {
+        unix(02750)
+      }
       setgid = true
-      fileMode 0660
+      filePermissions {
+        unix(0660)
+      }
       permissionGroup 'elasticsearch'
       includeEmptyDirs true
       createDirectoryEntry true
@@ -218,28 +225,38 @@ def commonPackageConfig(String type, String architecture) {
     into(new File(envFile).getParent()) {
       fileType CONFIG | NOREPLACE
       permissionGroup 'elasticsearch'
-      fileMode 0660
+      filePermissions {
+        unix(0660)
+      }
       from "${packagingFiles}/env/elasticsearch"
     }
 
     // ========= systemd =========
     into('/usr/lib/tmpfiles.d') {
       from "${packagingFiles}/systemd/elasticsearch.conf"
-      fileMode 0644
+      filePermissions {
+        unix(0644)
+      }
     }
     into('/usr/lib/systemd/system') {
       fileType CONFIG | NOREPLACE
       from "${packagingFiles}/systemd/elasticsearch.service"
-      fileMode 0644
+      filePermissions {
+        unix(0644)
+      }
     }
     into('/usr/lib/sysctl.d') {
       fileType CONFIG | NOREPLACE
       from "${packagingFiles}/systemd/sysctl/elasticsearch.conf"
-      fileMode 0644
+      filePermissions {
+        unix(0644)
+      }
     }
     into('/usr/share/elasticsearch/bin') {
       from "${packagingFiles}/systemd/systemd-entrypoint"
-      fileMode 0755
+      filePermissions {
+        unix(0755)
+      }
     }
 
     // ========= empty dirs =========
@@ -253,7 +270,9 @@ def commonPackageConfig(String type, String architecture) {
         createDirectoryEntry true
         user u
         permissionGroup g
-        dirMode = mode
+        dirPermissions {
+          unix(mode)
+        }
         setgid (mode == 02750)
       }
     }
@@ -322,7 +341,9 @@ Closure commonDebConfig(String architecture) {
 
     into('/usr/share/lintian/overrides') {
       from('src/deb/lintian/elasticsearch')
-      fileMode 0644
+      filePermissions {
+        unix(0644)
+      }
     }
   }
 }
@@ -475,7 +496,7 @@ subprojects {
         (project.name.contains('deb') && dpkgExists.call(it)) || (project.name.contains('rpm') && rpmExists.call(it))
       }
       doLast {
-        final List<String> noticeLines = Arrays.asList("Elasticsearch", "Copyright 2009-2021 Elasticsearch")
+        final List<String> noticeLines = Arrays.asList("Elasticsearch", "Copyright 2009-2024 Elasticsearch")
         final Path noticePath = packageExtractionDir.toPath().resolve("usr/share/elasticsearch/NOTICE.txt")
         assertLinesInFile(noticePath, noticeLines)
       }

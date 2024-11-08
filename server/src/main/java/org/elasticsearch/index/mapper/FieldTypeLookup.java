@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -14,6 +15,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -35,12 +37,22 @@ final class FieldTypeLookup {
      * For convenience, the set of copied fields includes the field itself.
      */
     private final Map<String, Set<String>> fieldToCopiedFields;
+    /**
+     * Fields that are destinations of copy_to meaning fields that
+     * contain values copied from other fields.
+     */
+    private final Set<String> copyToDestinationFields;
 
     private final int maxParentPathDots;
+
+    FieldTypeLookup(Collection<FieldMapper> fieldMappers, Collection<FieldAliasMapper> fieldAliasMappers) {
+        this(fieldMappers, fieldAliasMappers, List.of(), List.of());
+    }
 
     FieldTypeLookup(
         Collection<FieldMapper> fieldMappers,
         Collection<FieldAliasMapper> fieldAliasMappers,
+        Collection<PassThroughObjectMapper> passThroughMappers,
         Collection<RuntimeField> runtimeFields
     ) {
 
@@ -48,20 +60,23 @@ final class FieldTypeLookup {
         final Map<String, String> fullSubfieldNameToParentPath = new HashMap<>();
         final Map<String, DynamicFieldType> dynamicFieldTypes = new HashMap<>();
         final Map<String, Set<String>> fieldToCopiedFields = new HashMap<>();
+        final Set<String> copiedFields = new HashSet<>();
         for (FieldMapper fieldMapper : fieldMappers) {
-            String fieldName = fieldMapper.name();
+            String fieldName = fieldMapper.fullPath();
             MappedFieldType fieldType = fieldMapper.fieldType();
             fullNameToFieldType.put(fieldType.name(), fieldType);
-            fieldMapper.sourcePathUsedBy().forEachRemaining(mapper -> fullSubfieldNameToParentPath.put(mapper.name(), fieldName));
+            fieldMapper.sourcePathUsedBy().forEachRemaining(mapper -> fullSubfieldNameToParentPath.put(mapper.fullPath(), fieldName));
             if (fieldType instanceof DynamicFieldType) {
                 dynamicFieldTypes.put(fieldType.name(), (DynamicFieldType) fieldType);
             }
             for (String targetField : fieldMapper.copyTo().copyToFields()) {
+                copiedFields.add(targetField);
+
                 Set<String> sourcePath = fieldToCopiedFields.get(targetField);
                 if (sourcePath == null) {
-                    Set<String> copiedFields = new HashSet<>();
-                    copiedFields.add(targetField);
-                    fieldToCopiedFields.put(targetField, copiedFields);
+                    Set<String> fieldCopiedFields = new HashSet<>();
+                    fieldCopiedFields.add(targetField);
+                    fieldToCopiedFields.put(targetField, fieldCopiedFields);
                 }
                 fieldToCopiedFields.get(targetField).add(fieldName);
             }
@@ -74,8 +89,8 @@ final class FieldTypeLookup {
         this.maxParentPathDots = maxParentPathDots;
 
         for (FieldAliasMapper fieldAliasMapper : fieldAliasMappers) {
-            String aliasName = fieldAliasMapper.name();
-            String path = fieldAliasMapper.path();
+            String aliasName = fieldAliasMapper.fullPath();
+            String path = fieldAliasMapper.targetPath();
             MappedFieldType fieldType = fullNameToFieldType.get(path);
             if (fieldType == null) {
                 continue;
@@ -83,6 +98,42 @@ final class FieldTypeLookup {
             fullNameToFieldType.put(aliasName, fieldType);
             if (fieldType instanceof DynamicFieldType) {
                 dynamicFieldTypes.put(aliasName, (DynamicFieldType) fieldType);
+            }
+        }
+
+        // Pass-though subfields can be referenced without the prefix corresponding to the
+        // PassThroughObjectMapper name. This is achieved by adding a second reference to their
+        // MappedFieldType using the remaining suffix.
+        Map<String, PassThroughObjectMapper> passThroughFieldAliases = new HashMap<>();
+        for (PassThroughObjectMapper passThroughMapper : passThroughMappers) {
+            for (Mapper subfield : passThroughMapper.mappers.values()) {
+                if (subfield instanceof FieldMapper fieldMapper) {
+                    String name = fieldMapper.leafName();
+                    // Check for conflict between PassThroughObjectMapper subfields.
+                    PassThroughObjectMapper conflict = passThroughFieldAliases.put(name, passThroughMapper);
+                    if (conflict != null) {
+                        if (conflict.priority() > passThroughMapper.priority()) {
+                            // Keep the conflicting field if it has higher priority.
+                            passThroughFieldAliases.put(name, conflict);
+                        }
+                    }
+                }
+            }
+        }
+
+        for (Map.Entry<String, PassThroughObjectMapper> entry : passThroughFieldAliases.entrySet()) {
+            String name = entry.getKey();
+            if (fullNameToFieldType.containsKey(name)) {
+                // There's an existing field or alias for the same field.
+                continue;
+            }
+            Mapper mapper = entry.getValue().getMapper(name);
+            if (mapper instanceof FieldMapper fieldMapper) {
+                MappedFieldType fieldType = fieldMapper.fieldType();
+                fullNameToFieldType.put(name, fieldType);
+                if (fieldType instanceof DynamicFieldType) {
+                    dynamicFieldTypes.put(name, (DynamicFieldType) fieldType);
+                }
             }
         }
 
@@ -97,6 +148,7 @@ final class FieldTypeLookup {
         // make values into more compact immutable sets to save memory
         fieldToCopiedFields.entrySet().forEach(e -> e.setValue(Set.copyOf(e.getValue())));
         this.fieldToCopiedFields = Map.copyOf(fieldToCopiedFields);
+        this.copyToDestinationFields = Set.copyOf(copiedFields);
     }
 
     public static int dotCount(String path) {
@@ -217,5 +269,9 @@ final class FieldTypeLookup {
      */
     public Map<String, MappedFieldType> getFullNameToFieldType() {
         return fullNameToFieldType;
+    }
+
+    public Set<String> getCopyToDestinationFields() {
+        return copyToDestinationFields;
     }
 }

@@ -1,4 +1,9 @@
 setup:
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/issues/109476"
+      known_issues:
+        - cluster_feature: "gte_v8.13.0"
+          fixed_by: "gte_v8.14.0"
   - do:
       indices.create:
         index:  test
@@ -85,7 +90,6 @@ setup:
 
 ---
 "field collapsing and from":
-
   - do:
       search:
         rest_total_hits_as_int: true

@@ -297,7 +297,7 @@ public class DataFrameAnalyticsManager {
             config,
             listener.delegateFailureAndWrap((delegate, extractedFieldsDetector) -> {
                 ExtractedFields extractedFields = extractedFieldsDetector.detect().v1();
-                InferenceRunner inferenceRunner = new InferenceRunner(
+                InferenceRunner inferenceRunner = InferenceRunner.create(
                     settings,
                     parentTaskClient,
                     modelLoadingService,
@@ -306,7 +306,8 @@ public class DataFrameAnalyticsManager {
                     config,
                     extractedFields,
                     task.getStatsHolder().getProgressTracker(),
-                    task.getStatsHolder().getDataCountsTracker()
+                    task.getStatsHolder().getDataCountsTracker(),
+                    threadPool
                 );
                 InferenceStep inferenceStep = new InferenceStep(client, task, auditor, config, threadPool, inferenceRunner);
                 delegate.onResponse(inferenceStep);

@@ -20,10 +20,10 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -83,11 +83,11 @@ public class TransportUpgradeTransformsAction extends TransportMasterNodeAction<
             Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
-        this.transformConfigManager = transformServices.getConfigManager();
+        this.transformConfigManager = transformServices.configManager();
         this.settings = settings;
 
         this.client = client;
-        this.auditor = transformServices.getAuditor();
+        this.auditor = transformServices.auditor();
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings)
             ? new SecurityContext(settings, threadPool.getThreadContext())

@@ -102,7 +102,6 @@ fetch:
       esql.query:
         body:
           query: 'from test'
-          version: 2024.04.01
 
   - length: { columns: 18 }
   - match: { columns.0.name: boolean }

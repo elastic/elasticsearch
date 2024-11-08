@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.fieldcaps;
@@ -42,6 +43,7 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
@@ -56,6 +58,7 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
@@ -599,6 +602,63 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
         }
     }
 
+    public void testFailWithSameException() throws Exception {
+        final List<String> allIndices = IntStream.rangeClosed(1, 5).mapToObj(n -> "index_" + n).toList();
+        final ClusterState clusterState;
+        {
+            DiscoveryNodes.Builder discoNodes = DiscoveryNodes.builder();
+            int numNodes = randomIntBetween(1, 10);
+            for (int i = 0; i < numNodes; i++) {
+                discoNodes.add(newNode("node_" + i, VersionUtils.randomVersion(random()), IndexVersionUtils.randomVersion()));
+            }
+            Metadata.Builder metadata = Metadata.builder();
+            for (String index : allIndices) {
+                metadata.put(
+                    IndexMetadata.builder(index).settings(indexSettings(IndexVersions.MINIMUM_COMPATIBLE, between(1, 10), between(0, 3)))
+                );
+            }
+            clusterState = newClusterState(metadata.build(), discoNodes.build());
+        }
+        try (TestTransportService transportService = TestTransportService.newTestTransportService()) {
+            final List<String> targetIndices = randomSubsetOf(between(1, allIndices.size()), allIndices);
+            final ResponseCollector responseCollector = new ResponseCollector();
+            boolean withFilter = randomBoolean();
+            final RequestDispatcher dispatcher = new RequestDispatcher(
+                mockClusterService(clusterState),
+                transportService,
+                newRandomParentTask(),
+                randomFieldCapRequest(withFilter),
+                OriginalIndices.NONE,
+                randomNonNegativeLong(),
+                targetIndices.toArray(new String[0]),
+                transportService.threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION),
+                responseCollector::addIndexResponse,
+                responseCollector::addIndexFailure,
+                responseCollector::onComplete
+            );
+            final RequestTracker requestTracker = new RequestTracker(dispatcher, clusterState.routingTable(), withFilter);
+            transportService.requestTracker.set(requestTracker);
+
+            RuntimeException ex = new RuntimeException("shared");
+            transportService.setTransportInterceptor(new TransportInterceptor.AsyncSender() {
+                @Override
+                public <T extends TransportResponse> void sendRequest(
+                    Transport.Connection connection,
+                    String action,
+                    TransportRequest request,
+                    TransportRequestOptions options,
+                    TransportResponseHandler<T> handler
+                ) {
+                    Exception failure = randomFrom(ex, new RuntimeException("second"), new IllegalStateException("third"));
+                    handler.executor().execute(() -> handler.handleException(new TransportException(failure)));
+                }
+            });
+            dispatcher.execute();
+            responseCollector.awaitCompletion();
+            assertThat(responseCollector.failures.keySet(), equalTo(Sets.newHashSet(targetIndices)));
+        }
+    }
+
     private static class NodeRequest {
         final int round;
         final DiscoveryNode node;
@@ -832,7 +892,13 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
                 indicesWithMappingHash.computeIfAbsent(index, k -> new ArrayList<>()).add(index);
             } else {
                 indexResponses.add(
-                    new FieldCapabilitiesIndexResponse(index, null, FieldCapabilitiesIndexResponseTests.randomFieldCaps(), true)
+                    new FieldCapabilitiesIndexResponse(
+                        index,
+                        null,
+                        FieldCapabilitiesIndexResponseTests.randomFieldCaps(),
+                        true,
+                        randomFrom(IndexMode.values())
+                    )
                 );
             }
         }

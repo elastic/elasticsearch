@@ -7,8 +7,7 @@
 
 package org.elasticsearch.xpack.ilm;
 
-import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainRequest;
-import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainResponse;
+import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplanationUtils;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -105,7 +104,7 @@ public class DataTiersMigrationsTests extends ESIntegTestCase {
         Phase warmPhase = new Phase("warm", TimeValue.ZERO, Collections.emptyMap());
         Phase coldPhase = new Phase("cold", TimeValue.ZERO, Collections.emptyMap());
         LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policy, Map.of("hot", hotPhase, "warm", warmPhase, "cold", coldPhase));
-        PutLifecycleRequest putLifecycleRequest = new PutLifecycleRequest(lifecyclePolicy);
+        PutLifecycleRequest putLifecycleRequest = new PutLifecycleRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, lifecyclePolicy);
         assertAcked(client().execute(ILMActions.PUT, putLifecycleRequest).get());
 
         Settings settings = Settings.builder()
@@ -166,7 +165,7 @@ public class DataTiersMigrationsTests extends ESIntegTestCase {
         Phase warmPhase = new Phase("warm", TimeValue.ZERO, Collections.emptyMap());
         Phase coldPhase = new Phase("cold", TimeValue.ZERO, Collections.emptyMap());
         LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policy, Map.of("hot", hotPhase, "warm", warmPhase, "cold", coldPhase));
-        PutLifecycleRequest putLifecycleRequest = new PutLifecycleRequest(lifecyclePolicy);
+        PutLifecycleRequest putLifecycleRequest = new PutLifecycleRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, lifecyclePolicy);
         assertAcked(client().execute(ILMActions.PUT, putLifecycleRequest).get());
 
         Settings settings = Settings.builder()
@@ -222,10 +221,9 @@ public class DataTiersMigrationsTests extends ESIntegTestCase {
     }
 
     private void assertReplicaIsUnassigned() {
-        ClusterAllocationExplainRequest explainReplicaShard = new ClusterAllocationExplainRequest().setIndex(managedIndex)
-            .setPrimary(false)
-            .setShard(0);
-        ClusterAllocationExplainResponse response = clusterAdmin().allocationExplain(explainReplicaShard).actionGet();
-        assertThat(response.getExplanation().getShardState(), is(ShardRoutingState.UNASSIGNED));
+        assertThat(
+            ClusterAllocationExplanationUtils.getClusterAllocationExplanation(client(), managedIndex, 0, false).getShardState(),
+            is(ShardRoutingState.UNASSIGNED)
+        );
     }
 }

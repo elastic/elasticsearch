@@ -14,25 +14,27 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.xpack.esql.expression.function.Warnings;
-import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Least}.
  * This class is generated. Do not edit it.
  */
 public final class LeastIntEvaluator implements EvalOperator.ExpressionEvaluator {
-  private final Warnings warnings;
+  private final Source source;
 
   private final EvalOperator.ExpressionEvaluator[] values;
 
   private final DriverContext driverContext;
 
+  private Warnings warnings;
+
   public LeastIntEvaluator(Source source, EvalOperator.ExpressionEvaluator[] values,
       DriverContext driverContext) {
-    this.warnings = new Warnings(source);
+    this.source = source;
     this.values = values;
     this.driverContext = driverContext;
   }
@@ -66,7 +68,7 @@ public final class LeastIntEvaluator implements EvalOperator.ExpressionEvaluator
           }
           if (valuesBlocks[i].getValueCount(p) != 1) {
             if (valuesBlocks[i].getValueCount(p) > 1) {
-              warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
             }
             result.appendNull();
             continue position;
@@ -84,14 +86,14 @@ public final class LeastIntEvaluator implements EvalOperator.ExpressionEvaluator
   }
 
   public IntVector eval(int positionCount, IntVector[] valuesVectors) {
-    try(IntVector.Builder result = driverContext.blockFactory().newIntVectorBuilder(positionCount)) {
+    try(IntVector.FixedBuilder result = driverContext.blockFactory().newIntVectorFixedBuilder(positionCount)) {
       int[] valuesValues = new int[values.length];
       position: for (int p = 0; p < positionCount; p++) {
         // unpack valuesVectors into valuesValues
         for (int i = 0; i < valuesVectors.length; i++) {
           valuesValues[i] = valuesVectors[i].getInt(p);
         }
-        result.appendInt(Least.process(valuesValues));
+        result.appendInt(p, Least.process(valuesValues));
       }
       return result.build();
     }
@@ -105,6 +107,18 @@ public final class LeastIntEvaluator implements EvalOperator.ExpressionEvaluator
   @Override
   public void close() {
     Releasables.closeExpectNoException(() -> Releasables.close(values));
+  }
+
+  private Warnings warnings() {
+    if (warnings == null) {
+      this.warnings = Warnings.createWarnings(
+              driverContext.warningsMode(),
+              source.source().getLineNumber(),
+              source.source().getColumnNumber(),
+              source.text()
+          );
+    }
+    return warnings;
   }
 
   static class Factory implements EvalOperator.ExpressionEvaluator.Factory {

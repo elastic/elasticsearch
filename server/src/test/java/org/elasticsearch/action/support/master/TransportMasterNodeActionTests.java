@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.action.support.master;
 
@@ -60,7 +61,7 @@ import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -154,7 +155,7 @@ public class TransportMasterNodeActionTests extends ESTestCase {
         private final RefCounted refCounted = AbstractRefCounted.of(() -> {});
 
         Request() {
-            super(TimeValue.THIRTY_SECONDS);
+            super(TEST_REQUEST_TIMEOUT);
         }
 
         Request(StreamInput in) throws IOException {
@@ -485,7 +486,7 @@ public class TransportMasterNodeActionTests extends ESTestCase {
     public void testMasterBecomesAvailable() throws ExecutionException, InterruptedException {
         Request request = new Request();
         if (randomBoolean()) {
-            request.masterNodeTimeout(TimeValue.MINUS_ONE);
+            request.masterNodeTimeout(MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT);
         }
         setState(clusterService, ClusterStateCreationUtils.state(localNode, null, allNodes));
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
@@ -495,10 +496,10 @@ public class TransportMasterNodeActionTests extends ESTestCase {
         request.decRef();
         assertTrue(request.hasReferences());
 
-        MockLogAppender.assertThatLogger(
+        MockLog.assertThatLogger(
             () -> setState(clusterService, ClusterStateCreationUtils.state(localNode, localNode, allNodes)),
             ClusterApplierService.class,
-            new MockLogAppender.SeenEventExpectation(
+            new MockLog.SeenEventExpectation(
                 "listener log",
                 ClusterApplierService.class.getCanonicalName(),
                 Level.TRACE,
@@ -524,7 +525,7 @@ public class TransportMasterNodeActionTests extends ESTestCase {
         assertThat(transport.capturedRequests().length, equalTo(1));
         CapturingTransport.CapturedRequest capturedRequest = transport.capturedRequests()[0];
         assertTrue(capturedRequest.node().isMasterNode());
-        assertThat(capturedRequest.request(), equalTo(request));
+        assertThat(asInstanceOf(TermOverridingMasterNodeRequest.class, capturedRequest.request()).request, equalTo(request));
         assertThat(capturedRequest.action(), equalTo("internal:testAction"));
 
         Response response = new Response();
@@ -552,7 +553,7 @@ public class TransportMasterNodeActionTests extends ESTestCase {
         assertThat(capturedRequests.length, equalTo(1));
         CapturingTransport.CapturedRequest capturedRequest = capturedRequests[0];
         assertTrue(capturedRequest.node().isMasterNode());
-        assertThat(capturedRequest.request(), equalTo(request));
+        assertThat(asInstanceOf(TermOverridingMasterNodeRequest.class, capturedRequest.request()).request, equalTo(request));
         assertThat(capturedRequest.action(), equalTo("internal:testAction"));
 
         if (rejoinSameMaster) {
@@ -586,7 +587,7 @@ public class TransportMasterNodeActionTests extends ESTestCase {
             assertThat(capturedRequests.length, equalTo(1));
             capturedRequest = capturedRequests[0];
             assertTrue(capturedRequest.node().isMasterNode());
-            assertThat(capturedRequest.request(), equalTo(request));
+            assertThat(asInstanceOf(TermOverridingMasterNodeRequest.class, capturedRequest.request()).request, equalTo(request));
             assertThat(capturedRequest.action(), equalTo("internal:testAction"));
         } else if (failsWithConnectTransportException) {
             transport.handleRemoteError(capturedRequest.requestId(), new ConnectTransportException(masterNode, "Fake error"));
@@ -639,7 +640,7 @@ public class TransportMasterNodeActionTests extends ESTestCase {
         assertThat(transport.capturedRequests().length, equalTo(1));
         CapturingTransport.CapturedRequest capturedRequest = transport.capturedRequests()[0];
         assertTrue(capturedRequest.node().isMasterNode());
-        assertThat(capturedRequest.request(), equalTo(request));
+        assertThat(asInstanceOf(TermOverridingMasterNodeRequest.class, capturedRequest.request()).request, equalTo(request));
         assertThat(capturedRequest.action(), equalTo("internal:testAction"));
 
         transport.handleResponse(capturedRequest.requestId(), response);
@@ -840,9 +841,9 @@ public class TransportMasterNodeActionTests extends ESTestCase {
         // nothing should happen here, since the request doesn't touch any of the immutable state keys
         noHandler.validateForReservedState(new Request(), clusterState);
 
-        ClusterUpdateSettingsRequest request = new ClusterUpdateSettingsRequest().persistentSettings(
-            Settings.builder().put("a", "a value").build()
-        ).transientSettings(Settings.builder().put("e", "e value").build());
+        ClusterUpdateSettingsRequest request = new ClusterUpdateSettingsRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+            .persistentSettings(Settings.builder().put("a", "a value").build())
+            .transientSettings(Settings.builder().put("e", "e value").build());
 
         FakeClusterStateUpdateAction action = new FakeClusterStateUpdateAction(
             "internal:testClusterSettings",
@@ -859,9 +860,9 @@ public class TransportMasterNodeActionTests extends ESTestCase {
                 .contains("with errors: [[a] set as read-only by [namespace_one], " + "[e] set as read-only by [namespace_two]")
         );
 
-        ClusterUpdateSettingsRequest okRequest = new ClusterUpdateSettingsRequest().persistentSettings(
-            Settings.builder().put("m", "m value").build()
-        ).transientSettings(Settings.builder().put("n", "n value").build());
+        ClusterUpdateSettingsRequest okRequest = new ClusterUpdateSettingsRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+            .persistentSettings(Settings.builder().put("m", "m value").build())
+            .transientSettings(Settings.builder().put("n", "n value").build());
 
         // this should just work, no conflicts
         action.validateForReservedState(okRequest, clusterState);

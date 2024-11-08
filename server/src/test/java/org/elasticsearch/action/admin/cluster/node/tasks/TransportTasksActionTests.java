@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.action.admin.cluster.node.tasks;
 
@@ -106,23 +107,12 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         }
     }
 
-    public static class NodesRequest extends BaseNodesRequest<NodesRequest> {
+    public static class NodesRequest extends BaseNodesRequest {
         private final String requestName;
-
-        NodesRequest(StreamInput in) throws IOException {
-            super(in);
-            requestName = in.readString();
-        }
 
         public NodesRequest(String requestName, String... nodesIds) {
             super(nodesIds);
             this.requestName = requestName;
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeString(requestName);
         }
 
         @Override
@@ -142,7 +132,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
     abstract class TestNodesAction extends AbstractTestNodesAction<NodesRequest, NodeRequest> {
 
         TestNodesAction(String actionName, ThreadPool threadPool, ClusterService clusterService, TransportService transportService) {
-            super(actionName, threadPool, clusterService, transportService, NodesRequest::new, NodeRequest::new);
+            super(actionName, threadPool, clusterService, transportService, NodeRequest::new);
         }
 
         @Override
@@ -752,10 +742,8 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         }
         reachabilityChecker.checkReachable();
 
-        PlainActionFuture.<Void, RuntimeException>get(
-            fut -> testNodes[0].transportService.getTaskManager().cancelTaskAndDescendants(task, "test", false, fut),
-            10,
-            TimeUnit.SECONDS
+        safeAwait(
+            (ActionListener<Void> l) -> testNodes[0].transportService.getTaskManager().cancelTaskAndDescendants(task, "test", false, l)
         );
 
         reachabilityChecker.ensureUnreachable();
@@ -828,10 +816,8 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
             reachabilityChecker.checkReachable();
         }
 
-        PlainActionFuture.<Void, RuntimeException>get(
-            fut -> testNodes[0].transportService.getTaskManager().cancelTaskAndDescendants(task, "test", false, fut),
-            10,
-            TimeUnit.SECONDS
+        safeAwait(
+            (ActionListener<Void> l) -> testNodes[0].transportService.getTaskManager().cancelTaskAndDescendants(task, "test", false, l)
         );
 
         reachabilityChecker.ensureUnreachable();

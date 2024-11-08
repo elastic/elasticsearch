@@ -14,25 +14,27 @@ import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.xpack.esql.expression.function.Warnings;
-import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Least}.
  * This class is generated. Do not edit it.
  */
 public final class LeastBooleanEvaluator implements EvalOperator.ExpressionEvaluator {
-  private final Warnings warnings;
+  private final Source source;
 
   private final EvalOperator.ExpressionEvaluator[] values;
 
   private final DriverContext driverContext;
 
+  private Warnings warnings;
+
   public LeastBooleanEvaluator(Source source, EvalOperator.ExpressionEvaluator[] values,
       DriverContext driverContext) {
-    this.warnings = new Warnings(source);
+    this.source = source;
     this.values = values;
     this.driverContext = driverContext;
   }
@@ -66,7 +68,7 @@ public final class LeastBooleanEvaluator implements EvalOperator.ExpressionEvalu
           }
           if (valuesBlocks[i].getValueCount(p) != 1) {
             if (valuesBlocks[i].getValueCount(p) > 1) {
-              warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
             }
             result.appendNull();
             continue position;
@@ -84,14 +86,14 @@ public final class LeastBooleanEvaluator implements EvalOperator.ExpressionEvalu
   }
 
   public BooleanVector eval(int positionCount, BooleanVector[] valuesVectors) {
-    try(BooleanVector.Builder result = driverContext.blockFactory().newBooleanVectorBuilder(positionCount)) {
+    try(BooleanVector.FixedBuilder result = driverContext.blockFactory().newBooleanVectorFixedBuilder(positionCount)) {
       boolean[] valuesValues = new boolean[values.length];
       position: for (int p = 0; p < positionCount; p++) {
         // unpack valuesVectors into valuesValues
         for (int i = 0; i < valuesVectors.length; i++) {
           valuesValues[i] = valuesVectors[i].getBoolean(p);
         }
-        result.appendBoolean(Least.process(valuesValues));
+        result.appendBoolean(p, Least.process(valuesValues));
       }
       return result.build();
     }
@@ -105,6 +107,18 @@ public final class LeastBooleanEvaluator implements EvalOperator.ExpressionEvalu
   @Override
   public void close() {
     Releasables.closeExpectNoException(() -> Releasables.close(values));
+  }
+
+  private Warnings warnings() {
+    if (warnings == null) {
+      this.warnings = Warnings.createWarnings(
+              driverContext.warningsMode(),
+              source.source().getLineNumber(),
+              source.source().getColumnNumber(),
+              source.text()
+          );
+    }
+    return warnings;
   }
 
   static class Factory implements EvalOperator.ExpressionEvaluator.Factory {

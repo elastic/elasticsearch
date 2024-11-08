@@ -1,5 +1,0 @@
-pr: 106053
-summary: Speed up serialization of `BytesRefArray`
-area: ES|QL
-type: enhancement
-issues: []

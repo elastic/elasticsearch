@@ -30,6 +30,9 @@ public sealed interface LongVector extends Vector permits ConstantLongVector, Lo
     LongVector filter(int... positions);
 
     @Override
+    LongBlock keepMask(BooleanVector mask);
+
+    @Override
     ReleasableIterator<? extends LongBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize);
 
     /**
@@ -102,10 +105,10 @@ public sealed interface LongVector extends Vector permits ConstantLongVector, Lo
         if (isConstant() && positions > 0) {
             out.writeByte(SERIALIZE_VECTOR_CONSTANT);
             out.writeLong(getLong(0));
-        } else if (version.onOrAfter(TransportVersions.ESQL_SERIALIZE_ARRAY_VECTOR) && this instanceof LongArrayVector v) {
+        } else if (version.onOrAfter(TransportVersions.V_8_14_0) && this instanceof LongArrayVector v) {
             out.writeByte(SERIALIZE_VECTOR_ARRAY);
             v.writeArrayVector(positions, out);
-        } else if (version.onOrAfter(TransportVersions.ESQL_SERIALIZE_BIG_VECTOR) && this instanceof LongBigArrayVector v) {
+        } else if (version.onOrAfter(TransportVersions.V_8_14_0) && this instanceof LongBigArrayVector v) {
             out.writeByte(SERIALIZE_VECTOR_BIG_ARRAY);
             v.writeArrayVector(positions, out);
         } else {
@@ -117,7 +120,7 @@ public sealed interface LongVector extends Vector permits ConstantLongVector, Lo
     private static LongVector readValues(int positions, StreamInput in, BlockFactory blockFactory) throws IOException {
         try (var builder = blockFactory.newLongVectorFixedBuilder(positions)) {
             for (int i = 0; i < positions; i++) {
-                builder.appendLong(in.readLong());
+                builder.appendLong(i, in.readLong());
             }
             return builder.build();
         }
@@ -151,5 +154,8 @@ public sealed interface LongVector extends Vector permits ConstantLongVector, Lo
          */
         @Override
         FixedBuilder appendLong(long value);
+
+        FixedBuilder appendLong(int index, long value);
+
     }
 }

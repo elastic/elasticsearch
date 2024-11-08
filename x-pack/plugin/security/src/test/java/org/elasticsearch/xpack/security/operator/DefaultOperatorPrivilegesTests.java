@@ -21,7 +21,7 @@ import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
@@ -89,7 +89,7 @@ public class DefaultOperatorPrivilegesTests extends ESTestCase {
         verifyNoMoreInteractions(operatorOnlyRegistry);
     }
 
-    public void testMarkOperatorUser() throws IllegalAccessException {
+    public void testMarkOperatorUser() {
         final Settings settings = Settings.builder().put("xpack.security.operator_privileges.enabled", true).build();
         when(xPackLicenseState.isAllowed(Security.OPERATOR_PRIVILEGES_FEATURE)).thenReturn(true);
         final User operatorUser = new User("operator_user");
@@ -101,12 +101,11 @@ public class DefaultOperatorPrivilegesTests extends ESTestCase {
 
         // Will mark for the operator user
         final Logger logger = LogManager.getLogger(OperatorPrivileges.class);
-        final MockLogAppender appender = new MockLogAppender();
         Loggers.setLevel(logger, Level.DEBUG);
 
-        try (var ignored = appender.capturing(OperatorPrivileges.class)) {
-            appender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+        try (var mockLog = MockLog.capture(OperatorPrivileges.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
                     "marking",
                     logger.getName(),
                     Level.DEBUG,
@@ -118,7 +117,7 @@ public class DefaultOperatorPrivilegesTests extends ESTestCase {
                 AuthenticationField.PRIVILEGE_CATEGORY_VALUE_OPERATOR,
                 threadContext.getHeader(AuthenticationField.PRIVILEGE_CATEGORY_KEY)
             );
-            appender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         } finally {
             Loggers.setLevel(logger, (Level) null);
         }
@@ -205,18 +204,17 @@ public class DefaultOperatorPrivilegesTests extends ESTestCase {
         verify(operatorOnlyRegistry, never()).check(anyString(), any());
     }
 
-    public void testMaybeInterceptRequest() throws IllegalAccessException {
+    public void testMaybeInterceptRequest() {
         final boolean licensed = randomBoolean();
         when(xPackLicenseState.isAllowed(Security.OPERATOR_PRIVILEGES_FEATURE)).thenReturn(licensed);
 
         final Logger logger = LogManager.getLogger(OperatorPrivileges.class);
-        final MockLogAppender appender = new MockLogAppender();
         Loggers.setLevel(logger, Level.DEBUG);
 
-        try (var ignored = appender.capturing(OperatorPrivileges.class)) {
+        try (var mockLog = MockLog.capture(OperatorPrivileges.class)) {
             final RestoreSnapshotRequest restoreSnapshotRequest = mock(RestoreSnapshotRequest.class);
-            appender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
                     "intercepting",
                     logger.getName(),
                     Level.DEBUG,
@@ -225,7 +223,7 @@ public class DefaultOperatorPrivilegesTests extends ESTestCase {
             );
             operatorPrivilegesService.maybeInterceptRequest(new ThreadContext(Settings.EMPTY), restoreSnapshotRequest);
             verify(restoreSnapshotRequest).skipOperatorOnlyState(licensed);
-            appender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         } finally {
             Loggers.setLevel(logger, (Level) null);
         }
@@ -281,11 +279,16 @@ public class DefaultOperatorPrivilegesTests extends ESTestCase {
         );
         assertThat(ex, instanceOf(ElasticsearchSecurityException.class));
         assertThat(ex, throwableWithMessage("violation!"));
+        verify(restRequest, never()).markAsOperatorRequest();
         Mockito.clearInvocations(operatorOnlyRegistry);
+        Mockito.clearInvocations(restRequest);
 
         // is an operator
         threadContext.putHeader(AuthenticationField.PRIVILEGE_CATEGORY_KEY, AuthenticationField.PRIVILEGE_CATEGORY_VALUE_OPERATOR);
         verifyNoInteractions(operatorOnlyRegistry);
         assertTrue(operatorPrivilegesService.checkRest(restHandler, restRequest, restChannel, threadContext));
+        verify(restRequest, times(1)).markAsOperatorRequest();
+        Mockito.clearInvocations(operatorOnlyRegistry);
+        Mockito.clearInvocations(restRequest);
     }
 }

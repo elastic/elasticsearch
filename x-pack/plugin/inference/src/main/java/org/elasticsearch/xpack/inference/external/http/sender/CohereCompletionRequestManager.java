@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.external.http.sender;
 
-import org.apache.http.client.protocol.HttpClientContext;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
@@ -20,7 +19,6 @@ import org.elasticsearch.xpack.inference.external.request.cohere.completion.Cohe
 import org.elasticsearch.xpack.inference.external.response.cohere.CohereCompletionResponseEntity;
 import org.elasticsearch.xpack.inference.services.cohere.completion.CohereCompletionModel;
 
-import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
 
@@ -31,7 +29,7 @@ public class CohereCompletionRequestManager extends CohereRequestManager {
     private static final ResponseHandler HANDLER = createCompletionHandler();
 
     private static ResponseHandler createCompletionHandler() {
-        return new CohereResponseHandler("cohere completion", CohereCompletionResponseEntity::fromResponse);
+        return new CohereResponseHandler("cohere completion", CohereCompletionResponseEntity::fromResponse, true);
     }
 
     public static CohereCompletionRequestManager of(CohereCompletionModel model, ThreadPool threadPool) {
@@ -46,16 +44,17 @@ public class CohereCompletionRequestManager extends CohereRequestManager {
     }
 
     @Override
-    public Runnable create(
-        String query,
-        List<String> input,
+    public void execute(
+        InferenceInputs inferenceInputs,
         RequestSender requestSender,
         Supplier<Boolean> hasRequestCompletedFunction,
-        HttpClientContext context,
         ActionListener<InferenceServiceResults> listener
     ) {
-        CohereCompletionRequest request = new CohereCompletionRequest(input, model);
+        var docsOnly = DocumentsOnlyInput.of(inferenceInputs);
+        var docsInput = docsOnly.getInputs();
+        var stream = docsOnly.stream();
+        CohereCompletionRequest request = new CohereCompletionRequest(docsInput, model, stream);
 
-        return new ExecutableInferenceRequest(requestSender, logger, request, context, HANDLER, hasRequestCompletedFunction, listener);
+        execute(new ExecutableInferenceRequest(requestSender, logger, request, HANDLER, hasRequestCompletedFunction, listener));
     }
 }

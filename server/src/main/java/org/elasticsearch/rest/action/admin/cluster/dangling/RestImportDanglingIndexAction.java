@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.rest.action.admin.cluster.dangling;
@@ -20,6 +21,7 @@ import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestStatus.ACCEPTED;
+import static org.elasticsearch.rest.RestUtils.getAckTimeout;
 import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 public class RestImportDanglingIndexAction extends BaseRestHandler {
@@ -40,7 +42,7 @@ public class RestImportDanglingIndexAction extends BaseRestHandler {
             request.paramAsBoolean("accept_data_loss", false)
         );
 
-        importRequest.ackTimeout(request.paramAsTime("timeout", importRequest.ackTimeout()));
+        importRequest.ackTimeout(getAckTimeout(request));
         importRequest.masterNodeTimeout(getMasterNodeTimeout(request));
 
         return channel -> client.execute(

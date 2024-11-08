@@ -24,7 +24,7 @@ DELETE _application/analytics/my_analytics_collection2
 // TEARDOWN
 ////
 
-Returns information about Analytics Collections.
+Returns information about <<behavioral-analytics-overview,Behavioral Analytics>> Collections.
 
 [[list-analytics-collection-request]]
 ==== {api-request-title}

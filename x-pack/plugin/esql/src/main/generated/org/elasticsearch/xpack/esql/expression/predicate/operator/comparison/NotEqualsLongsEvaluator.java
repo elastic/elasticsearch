@@ -15,16 +15,16 @@ import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.xpack.esql.expression.function.Warnings;
-import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link NotEquals}.
  * This class is generated. Do not edit it.
  */
 public final class NotEqualsLongsEvaluator implements EvalOperator.ExpressionEvaluator {
-  private final Warnings warnings;
+  private final Source source;
 
   private final EvalOperator.ExpressionEvaluator lhs;
 
@@ -32,9 +32,11 @@ public final class NotEqualsLongsEvaluator implements EvalOperator.ExpressionEva
 
   private final DriverContext driverContext;
 
+  private Warnings warnings;
+
   public NotEqualsLongsEvaluator(Source source, EvalOperator.ExpressionEvaluator lhs,
       EvalOperator.ExpressionEvaluator rhs, DriverContext driverContext) {
-    this.warnings = new Warnings(source);
+    this.source = source;
     this.lhs = lhs;
     this.rhs = rhs;
     this.driverContext = driverContext;
@@ -66,7 +68,7 @@ public final class NotEqualsLongsEvaluator implements EvalOperator.ExpressionEva
         }
         if (lhsBlock.getValueCount(p) != 1) {
           if (lhsBlock.getValueCount(p) > 1) {
-            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
           }
           result.appendNull();
           continue position;
@@ -77,7 +79,7 @@ public final class NotEqualsLongsEvaluator implements EvalOperator.ExpressionEva
         }
         if (rhsBlock.getValueCount(p) != 1) {
           if (rhsBlock.getValueCount(p) > 1) {
-            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
           }
           result.appendNull();
           continue position;
@@ -89,9 +91,9 @@ public final class NotEqualsLongsEvaluator implements EvalOperator.ExpressionEva
   }
 
   public BooleanVector eval(int positionCount, LongVector lhsVector, LongVector rhsVector) {
-    try(BooleanVector.Builder result = driverContext.blockFactory().newBooleanVectorBuilder(positionCount)) {
+    try(BooleanVector.FixedBuilder result = driverContext.blockFactory().newBooleanVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendBoolean(NotEquals.processLongs(lhsVector.getLong(p), rhsVector.getLong(p)));
+        result.appendBoolean(p, NotEquals.processLongs(lhsVector.getLong(p), rhsVector.getLong(p)));
       }
       return result.build();
     }
@@ -105,6 +107,18 @@ public final class NotEqualsLongsEvaluator implements EvalOperator.ExpressionEva
   @Override
   public void close() {
     Releasables.closeExpectNoException(lhs, rhs);
+  }
+
+  private Warnings warnings() {
+    if (warnings == null) {
+      this.warnings = Warnings.createWarnings(
+              driverContext.warningsMode(),
+              source.source().getLineNumber(),
+              source.source().getColumnNumber(),
+              source.text()
+          );
+    }
+    return warnings;
   }
 
   static class Factory implements EvalOperator.ExpressionEvaluator.Factory {

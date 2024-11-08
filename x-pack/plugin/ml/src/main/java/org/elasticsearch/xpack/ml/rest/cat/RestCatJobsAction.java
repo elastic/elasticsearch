@@ -14,6 +14,7 @@ import org.elasticsearch.common.Table;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.Scope;
@@ -56,6 +57,7 @@ public class RestCatJobsAction extends AbstractCatAction {
         if (Strings.isNullOrEmpty(jobId)) {
             jobId = Metadata.ALL;
         }
+        @UpdateForV9(owner = UpdateForV9.Owner.MACHINE_LEARNING) // v7 REST API no longer exists: eliminate ref to RestApiVersion.V_7
         Request request = new Request(jobId);
         checkAndSetDeprecatedParam(
             DEPRECATED_ALLOW_NO_JOBS_PARAM,
@@ -211,6 +213,12 @@ public class RestCatJobsAction extends AbstractCatAction {
             "model.bucket_allocation_failures",
             TableColumnAttributeBuilder.builder("number of bucket allocation failures", false)
                 .setAliases("mbaf", "modelBucketAllocationFailures")
+                .build()
+        );
+        table.addCell(
+            "model.output_memory_allocator_bytes",
+            TableColumnAttributeBuilder.builder("how many bytes have been used to output the model documents", false)
+                .setAliases("momab", "modelOutputMemoryAllocatorBytes")
                 .build()
         );
         table.addCell(
@@ -416,6 +424,11 @@ public class RestCatJobsAction extends AbstractCatAction {
             table.addCell(modelSizeStats == null ? null : modelSizeStats.getTotalPartitionFieldCount());
             table.addCell(modelSizeStats == null ? null : modelSizeStats.getBucketAllocationFailuresCount());
             table.addCell(modelSizeStats == null ? null : modelSizeStats.getCategorizationStatus().toString());
+            table.addCell(
+                modelSizeStats == null || modelSizeStats.getOutputMemmoryAllocatorBytes() == null
+                    ? null
+                    : ByteSizeValue.ofBytes(modelSizeStats.getOutputMemmoryAllocatorBytes())
+            );
             table.addCell(modelSizeStats == null ? null : modelSizeStats.getCategorizedDocCount());
             table.addCell(modelSizeStats == null ? null : modelSizeStats.getTotalCategoryCount());
             table.addCell(modelSizeStats == null ? null : modelSizeStats.getFrequentCategoryCount());

@@ -211,6 +211,7 @@ public class Methods {
             case "INT" -> "getInt";
             case "LONG" -> "getLong";
             case "DOUBLE" -> "getDouble";
+            case "FLOAT" -> "getFloat";
             case "BYTES_REF" -> "getBytesRef";
             default -> throw new IllegalArgumentException(
                 "don't know how to fetch primitive values from " + elementTypeName + ". define combineIntermediate."

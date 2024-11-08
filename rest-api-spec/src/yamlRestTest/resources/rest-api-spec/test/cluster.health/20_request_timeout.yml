@@ -1,5 +1,12 @@
 ---
 "cluster health request timeout on waiting for nodes":
+  - requires:
+      capabilities:
+        - method: GET
+          path: /_cluster/health
+          capabilities: [ unassigned_pri_shard_count ]
+      test_runner_features: capabilities
+      reason: Capability required to run test
   - do:
       catch: request_timeout
       cluster.health:
@@ -8,17 +15,25 @@
 
   - is_true:   cluster_name
   - is_true:   timed_out
-  - gte:       { number_of_nodes:         1 }
-  - gte:       { number_of_data_nodes:    1 }
-  - match:     { active_primary_shards:   0 }
-  - match:     { active_shards:           0 }
-  - match:     { relocating_shards:       0 }
-  - match:     { initializing_shards:     0 }
-  - match:     { unassigned_shards:       0 }
-  - gte:       { number_of_pending_tasks: 0 }
+  - gte:       { number_of_nodes:           1 }
+  - gte:       { number_of_data_nodes:      1 }
+  - match:     { active_primary_shards:     0 }
+  - match:     { active_shards:             0 }
+  - match:     { relocating_shards:         0 }
+  - match:     { initializing_shards:       0 }
+  - match:     { unassigned_shards:         0 }
+  - match:     { unassigned_primary_shards: 0 }
+  - gte:       { number_of_pending_tasks:   0 }
 
 ---
 "cluster health request timeout waiting for active shards":
+  - requires:
+      capabilities:
+        - method: GET
+          path: /_cluster/health
+          capabilities: [ unassigned_pri_shard_count ]
+      test_runner_features: capabilities
+      reason: Capability required to run test
   - do:
       catch: request_timeout
       cluster.health:
@@ -27,11 +42,12 @@
 
   - is_true:   cluster_name
   - is_true:   timed_out
-  - gte:       { number_of_nodes:         1 }
-  - gte:       { number_of_data_nodes:    1 }
-  - match:     { active_primary_shards:   0 }
-  - match:     { active_shards:           0 }
-  - match:     { relocating_shards:       0 }
-  - match:     { initializing_shards:     0 }
-  - match:     { unassigned_shards:       0 }
-  - gte:       { number_of_pending_tasks: 0 }
+  - gte:       { number_of_nodes:           1 }
+  - gte:       { number_of_data_nodes:      1 }
+  - match:     { active_primary_shards:     0 }
+  - match:     { active_shards:             0 }
+  - match:     { relocating_shards:         0 }
+  - match:     { initializing_shards:       0 }
+  - match:     { unassigned_shards:         0 }
+  - match:     { unassigned_primary_shards: 0 }
+  - gte:       { number_of_pending_tasks:   0 }

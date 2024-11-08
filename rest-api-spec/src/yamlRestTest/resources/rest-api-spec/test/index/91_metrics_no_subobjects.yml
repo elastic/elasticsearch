@@ -1,25 +1,28 @@
 ---
 "Metrics object indexing":
   - requires:
-      test_runner_features: allowed_warnings_regex
+      test_runner_features: [ "allowed_warnings", "allowed_warnings_regex" ]
       cluster_features: ["gte_v8.3.0"]
       reason: added in 8.3.0
 
   - do:
-      indices.put_template:
+      allowed_warnings:
+        - "index template [test] has index patterns [test-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [test] will take precedence during new index creation"
+      indices.put_index_template:
         name: test
         body:
           index_patterns: test-*
-          mappings:
-            dynamic_templates:
-              - no_subobjects:
-                  match: metrics
-                  mapping:
-                    type: object
-                    subobjects: false
-                    properties:
-                      host.name:
-                        type: keyword
+          template:
+            mappings:
+              dynamic_templates:
+                - no_subobjects:
+                    match: metrics
+                    mapping:
+                      type: object
+                      subobjects: false
+                      properties:
+                        host.name:
+                          type: keyword
 
   - do:
       allowed_warnings_regex:
@@ -65,20 +68,23 @@
 ---
 "Root without subobjects":
   - requires:
-      test_runner_features: allowed_warnings_regex
+      test_runner_features: [ "allowed_warnings", "allowed_warnings_regex" ]
       cluster_features: ["gte_v8.3.0"]
       reason: added in 8.3.0
 
   - do:
-      indices.put_template:
+      allowed_warnings:
+        - "index template [test] has index patterns [test-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [test] will take precedence during new index creation"
+      indices.put_index_template:
         name: test
         body:
           index_patterns: test-*
-          mappings:
-            subobjects: false
-            properties:
-              host.name:
-                type: keyword
+          template:
+            mappings:
+              subobjects: false
+              properties:
+                host.name:
+                  type: keyword
 
   - do:
       allowed_warnings_regex:
@@ -124,27 +130,30 @@
 ---
 "Metrics object indexing with synthetic source":
   - requires:
-      test_runner_features: allowed_warnings_regex
+      test_runner_features: [ "allowed_warnings", "allowed_warnings_regex" ]
       cluster_features: ["gte_v8.4.0"]
       reason: added in 8.4.0
 
   - do:
-      indices.put_template:
+      allowed_warnings:
+        - "index template [test] has index patterns [test-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [test] will take precedence during new index creation"
+      indices.put_index_template:
         name: test
         body:
           index_patterns: test-*
-          mappings:
-            _source:
-              mode: synthetic
-            dynamic_templates:
-              - no_subobjects:
-                  match: metrics
-                  mapping:
-                    type: object
-                    subobjects: false
-                    properties:
-                      host.name:
-                        type: keyword
+          template:
+            mappings:
+              _source:
+                mode: synthetic
+              dynamic_templates:
+                - no_subobjects:
+                    match: metrics
+                    mapping:
+                      type: object
+                      subobjects: false
+                      properties:
+                        host.name:
+                          type: keyword
 
   - do:
       allowed_warnings_regex:
@@ -191,22 +200,25 @@
 ---
 "Root without subobjects with synthetic source":
   - requires:
-      test_runner_features: allowed_warnings_regex
+      test_runner_features: [ "allowed_warnings", "allowed_warnings_regex" ]
       cluster_features: ["gte_v8.4.0"]
       reason: added in 8.4.0
 
   - do:
-      indices.put_template:
+      allowed_warnings:
+        - "index template [test] has index patterns [test-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [test] will take precedence during new index creation"
+      indices.put_index_template:
         name: test
         body:
           index_patterns: test-*
-          mappings:
-            _source:
-              mode: synthetic
-            subobjects: false
-            properties:
-              host.name:
-                type: keyword
+          template:
+            mappings:
+              _source:
+                mode: synthetic
+              subobjects: false
+              properties:
+                host.name:
+                  type: keyword
 
   - do:
       allowed_warnings_regex:

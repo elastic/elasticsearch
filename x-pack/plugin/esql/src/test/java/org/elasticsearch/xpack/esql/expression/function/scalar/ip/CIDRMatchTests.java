@@ -11,13 +11,13 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.FunctionName;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.List;
 import java.util.function.Supplier;
@@ -25,7 +25,7 @@ import java.util.function.Supplier;
 import static org.hamcrest.Matchers.equalTo;
 
 @FunctionName("cidr_match")
-public class CIDRMatchTests extends AbstractFunctionTestCase {
+public class CIDRMatchTests extends AbstractScalarFunctionTestCase {
     public CIDRMatchTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
@@ -35,56 +35,60 @@ public class CIDRMatchTests extends AbstractFunctionTestCase {
 
         var suppliers = List.of(
             new TestCaseSupplier(
-                List.of(DataTypes.IP, DataTypes.KEYWORD),
+                List.of(DataType.IP, DataType.KEYWORD),
                 () -> new TestCaseSupplier.TestCase(
                     List.of(
-                        new TestCaseSupplier.TypedData(EsqlDataTypeConverter.stringToIP("192.168.0.10"), DataTypes.IP, "ip"),
-                        new TestCaseSupplier.TypedData(new BytesRef("192.168.0.0/16"), DataTypes.KEYWORD, "cidrs")
+                        new TestCaseSupplier.TypedData(EsqlDataTypeConverter.stringToIP("192.168.0.10"), DataType.IP, "ip"),
+                        new TestCaseSupplier.TypedData(new BytesRef("192.168.0.0/16"), DataType.KEYWORD, "cidrs")
                     ),
                     "CIDRMatchEvaluator[ip=Attribute[channel=0], cidrs=[Attribute[channel=1]]]",
-                    DataTypes.BOOLEAN,
+                    DataType.BOOLEAN,
                     equalTo(true)
                 )
             ),
             new TestCaseSupplier(
-                List.of(DataTypes.IP, DataTypes.TEXT),
+                List.of(DataType.IP, DataType.TEXT),
                 () -> new TestCaseSupplier.TestCase(
                     List.of(
-                        new TestCaseSupplier.TypedData(EsqlDataTypeConverter.stringToIP("192.168.0.10"), DataTypes.IP, "ip"),
-                        new TestCaseSupplier.TypedData(new BytesRef("192.168.0.0/16"), DataTypes.TEXT, "cidrs")
+                        new TestCaseSupplier.TypedData(EsqlDataTypeConverter.stringToIP("192.168.0.10"), DataType.IP, "ip"),
+                        new TestCaseSupplier.TypedData(new BytesRef("192.168.0.0/16"), DataType.TEXT, "cidrs")
                     ),
                     "CIDRMatchEvaluator[ip=Attribute[channel=0], cidrs=[Attribute[channel=1]]]",
-                    DataTypes.BOOLEAN,
+                    DataType.BOOLEAN,
                     equalTo(true)
                 )
             ),
             new TestCaseSupplier(
-                List.of(DataTypes.IP, DataTypes.KEYWORD),
+                List.of(DataType.IP, DataType.KEYWORD),
                 () -> new TestCaseSupplier.TestCase(
                     List.of(
-                        new TestCaseSupplier.TypedData(EsqlDataTypeConverter.stringToIP("192.168.0.10"), DataTypes.IP, "ip"),
-                        new TestCaseSupplier.TypedData(new BytesRef("10.0.0.0/16"), DataTypes.KEYWORD, "cidrs")
+                        new TestCaseSupplier.TypedData(EsqlDataTypeConverter.stringToIP("192.168.0.10"), DataType.IP, "ip"),
+                        new TestCaseSupplier.TypedData(new BytesRef("10.0.0.0/16"), DataType.KEYWORD, "cidrs")
                     ),
                     "CIDRMatchEvaluator[ip=Attribute[channel=0], cidrs=[Attribute[channel=1]]]",
-                    DataTypes.BOOLEAN,
+                    DataType.BOOLEAN,
                     equalTo(false)
                 )
             ),
             new TestCaseSupplier(
-                List.of(DataTypes.IP, DataTypes.TEXT),
+                List.of(DataType.IP, DataType.TEXT),
                 () -> new TestCaseSupplier.TestCase(
                     List.of(
-                        new TestCaseSupplier.TypedData(EsqlDataTypeConverter.stringToIP("192.168.0.10"), DataTypes.IP, "ip"),
-                        new TestCaseSupplier.TypedData(new BytesRef("10.0.0.0/16"), DataTypes.TEXT, "cidrs")
+                        new TestCaseSupplier.TypedData(EsqlDataTypeConverter.stringToIP("192.168.0.10"), DataType.IP, "ip"),
+                        new TestCaseSupplier.TypedData(new BytesRef("10.0.0.0/16"), DataType.TEXT, "cidrs")
                     ),
                     "CIDRMatchEvaluator[ip=Attribute[channel=0], cidrs=[Attribute[channel=1]]]",
-                    DataTypes.BOOLEAN,
+                    DataType.BOOLEAN,
                     equalTo(false)
                 )
             )
         );
 
-        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers)));
+        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers, (v, p) -> switch (p) {
+            case 0 -> "ip";
+            case 1 -> "string";
+            default -> "";
+        });
     }
 
     @Override

@@ -431,7 +431,7 @@ The update by query operation skips updating the document and increments the  `n
 Set `ctx.op = "delete"` if your script decides that the document should be deleted.
 The update by query operation deletes the document and increments the  `deleted` counter.
 
-Update by query only supports `update`, `noop`, and `delete`.
+Update by query only supports `index`, `noop`, and `delete`.
 Setting `ctx.op` to anything else is an error. Setting any other field in `ctx` is an error.
 This API only enables you to modify the source of matching documents, you cannot move them.
 

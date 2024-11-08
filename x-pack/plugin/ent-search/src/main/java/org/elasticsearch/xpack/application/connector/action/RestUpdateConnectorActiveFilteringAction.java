@@ -22,6 +22,8 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 @ServerlessScope(Scope.PUBLIC)
 public class RestUpdateConnectorActiveFilteringAction extends BaseRestHandler {
 
+    private static final String CONNECTOR_ID_PARAM = "connector_id";
+
     @Override
     public String getName() {
         return "connector_update_active_filtering_action";
@@ -29,13 +31,15 @@ public class RestUpdateConnectorActiveFilteringAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(PUT, "/" + EnterpriseSearch.CONNECTOR_API_ENDPOINT + "/{connector_id}/_filtering/_activate"));
+        return List.of(
+            new Route(PUT, "/" + EnterpriseSearch.CONNECTOR_API_ENDPOINT + "/{" + CONNECTOR_ID_PARAM + "}/_filtering/_activate")
+        );
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) {
         UpdateConnectorActiveFilteringAction.Request request = new UpdateConnectorActiveFilteringAction.Request(
-            restRequest.param("connector_id")
+            restRequest.param(CONNECTOR_ID_PARAM)
         );
         return channel -> client.execute(
             UpdateConnectorActiveFilteringAction.INSTANCE,

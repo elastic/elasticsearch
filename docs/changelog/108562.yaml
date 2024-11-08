@@ -1,6 +1,0 @@
-pr: 108562
-summary: Add `internalClusterTest` for and fix leak in `ExpandSearchPhase`
-area: Search
-type: bug
-issues:
- - 108369

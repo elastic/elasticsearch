@@ -70,7 +70,7 @@ public class ClientHelperTests extends ESTestCase {
             latch.countDown();
         });
 
-        final ClusterHealthRequest request = new ClusterHealthRequest();
+        final ClusterHealthRequest request = new ClusterHealthRequest(TEST_REQUEST_TIMEOUT);
         threadContext.putHeader(headerName, headerValue);
 
         ClientHelper.executeAsyncWithOrigin(threadContext, origin, request, listener, (req, listener1) -> {
@@ -110,7 +110,13 @@ public class ClientHelperTests extends ESTestCase {
         }).when(client).execute(any(), any(), any());
 
         threadContext.putHeader(headerName, headerValue);
-        ClientHelper.executeAsyncWithOrigin(client, origin, TransportClusterHealthAction.TYPE, new ClusterHealthRequest(), listener);
+        ClientHelper.executeAsyncWithOrigin(
+            client,
+            origin,
+            TransportClusterHealthAction.TYPE,
+            new ClusterHealthRequest(TEST_REQUEST_TIMEOUT),
+            listener
+        );
 
         latch.await();
     }

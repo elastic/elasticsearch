@@ -1,26 +1,28 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.util.BytesRef;
-import org.hamcrest.Matcher;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Locale;
 import java.util.function.Function;
 
 import static org.elasticsearch.test.ESTestCase.between;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
+import static org.elasticsearch.test.ESTestCase.randomAlphaOfLengthBetween;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
-import static org.hamcrest.Matchers.equalTo;
 
 /**
  * Provides functionality needed to test synthetic source support in text and text-like fields (e.g. "text", "annotated_text").
@@ -49,22 +51,7 @@ public final class TextFieldFamilySyntheticSourceTestSetup {
     }
 
     public static Function<Object, Object> loadBlockExpected(MapperTestCase.BlockReaderSupport blockReaderSupport, boolean columnReader) {
-        if (nullLoaderExpected(blockReaderSupport.mapper(), blockReaderSupport.loaderFieldName())) {
-            return null;
-        }
         return v -> ((BytesRef) v).utf8ToString();
-    }
-
-    private static boolean nullLoaderExpected(MapperService mapper, String fieldName) {
-        MappedFieldType type = mapper.fieldType(fieldName);
-        if (type instanceof TextFieldMapper.TextFieldType t) {
-            if (t.isSyntheticSource() == false || t.canUseSyntheticSourceDelegateForQuerying() || t.isStored()) {
-                return false;
-            }
-            String parentField = mapper.mappingLookup().parentField(fieldName);
-            return parentField == null || nullLoaderExpected(mapper, parentField);
-        }
-        return false;
     }
 
     public static void validateRoundTripReader(String syntheticSource, DirectoryReader reader, DirectoryReader roundTripReader) {
@@ -78,48 +65,55 @@ public final class TextFieldFamilySyntheticSourceTestSetup {
 
     private static class TextFieldFamilySyntheticSourceSupport implements MapperTestCase.SyntheticSourceSupport {
         private final String fieldType;
-        private final boolean storeTextField;
-        private final boolean storedKeywordField;
-        private final boolean indexText;
+        private final boolean store;
+        private final boolean index;
         private final Integer ignoreAbove;
-        private final KeywordFieldSyntheticSourceSupport keywordSupport;
+        private final KeywordFieldSyntheticSourceSupport keywordMultiFieldSyntheticSourceSupport;
 
         TextFieldFamilySyntheticSourceSupport(String fieldType, boolean supportsCustomIndexConfiguration) {
             this.fieldType = fieldType;
-            this.storeTextField = randomBoolean();
-            this.storedKeywordField = storeTextField || randomBoolean();
-            this.indexText = supportsCustomIndexConfiguration ? randomBoolean() : true;
+            this.store = randomBoolean();
+            this.index = supportsCustomIndexConfiguration == false || randomBoolean();
             this.ignoreAbove = randomBoolean() ? null : between(10, 100);
-            this.keywordSupport = new KeywordFieldSyntheticSourceSupport(ignoreAbove, storedKeywordField, null, false == storeTextField);
+            this.keywordMultiFieldSyntheticSourceSupport = new KeywordFieldSyntheticSourceSupport(
+                ignoreAbove,
+                randomBoolean(),
+                null,
+                false
+            );
+        }
+
+        @Override
+        public boolean ignoreAbove() {
+            return keywordMultiFieldSyntheticSourceSupport.ignoreAbove();
         }
 
         @Override
         public MapperTestCase.SyntheticSourceExample example(int maxValues) {
-            if (storeTextField) {
-                MapperTestCase.SyntheticSourceExample delegate = keywordSupport.example(maxValues, true);
-                return new MapperTestCase.SyntheticSourceExample(
-                    delegate.inputValue(),
-                    delegate.expectedForSyntheticSource(),
-                    delegate.expectedForBlockLoader(),
-                    b -> {
-                        b.field("type", fieldType);
-                        b.field("store", true);
-                        if (indexText == false) {
-                            b.field("index", false);
-                        }
+            if (store) {
+                CheckedConsumer<XContentBuilder, IOException> mapping = b -> {
+                    b.field("type", fieldType);
+                    b.field("store", true);
+                    if (index == false) {
+                        b.field("index", false);
                     }
-                );
+                };
+
+                return storedFieldExample(maxValues, mapping);
             }
-            // We'll load from _source if ignore_above is defined, otherwise we load from the keyword field.
+
+            // Block loader will not use keyword multi-field if it has ignore_above configured.
+            // And in this case it will use values from source.
             boolean loadingFromSource = ignoreAbove != null;
-            MapperTestCase.SyntheticSourceExample delegate = keywordSupport.example(maxValues, loadingFromSource);
+            MapperTestCase.SyntheticSourceExample delegate = keywordMultiFieldSyntheticSourceSupport.example(maxValues, loadingFromSource);
+
             return new MapperTestCase.SyntheticSourceExample(
                 delegate.inputValue(),
                 delegate.expectedForSyntheticSource(),
                 delegate.expectedForBlockLoader(),
                 b -> {
                     b.field("type", fieldType);
-                    if (indexText == false) {
+                    if (index == false) {
                         b.field("index", false);
                     }
                     b.startObject("fields");
@@ -133,75 +127,28 @@ public final class TextFieldFamilySyntheticSourceTestSetup {
             );
         }
 
+        private MapperTestCase.SyntheticSourceExample storedFieldExample(
+            int maxValues,
+            CheckedConsumer<XContentBuilder, IOException> mapping
+        ) {
+            if (randomBoolean()) {
+                var randomString = randomString();
+                return new MapperTestCase.SyntheticSourceExample(randomString, randomString, randomString, mapping);
+            }
+
+            var list = ESTestCase.randomList(1, maxValues, this::randomString);
+            var output = list.size() == 1 ? list.get(0) : list;
+
+            return new MapperTestCase.SyntheticSourceExample(list, output, output, mapping);
+        }
+
+        private String randomString() {
+            return randomAlphaOfLengthBetween(0, 10);
+        }
+
         @Override
         public List<MapperTestCase.SyntheticSourceInvalidExample> invalidExample() throws IOException {
-            Matcher<String> err = equalTo(
-                String.format(
-                    Locale.ROOT,
-                    "field [field] of type [%s] doesn't support synthetic source unless it is stored or"
-                        + " has a sub-field of type [keyword] with doc values or stored and without a normalizer",
-                    fieldType
-                )
-            );
-            return List.of(
-                new MapperTestCase.SyntheticSourceInvalidExample(err, b -> b.field("type", fieldType)),
-                new MapperTestCase.SyntheticSourceInvalidExample(err, b -> {
-                    b.field("type", fieldType);
-                    b.startObject("fields");
-                    {
-                        b.startObject("l");
-                        b.field("type", "long");
-                        b.endObject();
-                    }
-                    b.endObject();
-                }),
-                new MapperTestCase.SyntheticSourceInvalidExample(err, b -> {
-                    b.field("type", fieldType);
-                    b.startObject("fields");
-                    {
-                        b.startObject("kwd");
-                        b.field("type", "keyword");
-                        b.field("normalizer", "lowercase");
-                        b.endObject();
-                    }
-                    b.endObject();
-                }),
-                new MapperTestCase.SyntheticSourceInvalidExample(err, b -> {
-                    b.field("type", fieldType);
-                    b.startObject("fields");
-                    {
-                        b.startObject("kwd");
-                        b.field("type", "keyword");
-                        b.field("doc_values", "false");
-                        b.endObject();
-                    }
-                    b.endObject();
-                }),
-                new MapperTestCase.SyntheticSourceInvalidExample(err, b -> {
-                    b.field("type", fieldType);
-                    b.field("store", "false");
-                    b.startObject("fields");
-                    {
-                        b.startObject("kwd");
-                        b.field("type", "keyword");
-                        b.field("doc_values", "false");
-                        b.endObject();
-                    }
-                    b.endObject();
-                }),
-                new MapperTestCase.SyntheticSourceInvalidExample(err, b -> {
-                    b.field("type", fieldType);
-                    b.startObject("fields");
-                    {
-                        b.startObject("kwd");
-                        b.field("type", "keyword");
-                        b.field("doc_values", "false");
-                        b.field("store", "false");
-                        b.endObject();
-                    }
-                    b.endObject();
-                })
-            );
+            return List.of();
         }
     }
 }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.engine;
 
@@ -15,10 +16,12 @@ import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.suggest.document.CompletionTerms;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.UnsafePlainActionFuture;
 import org.elasticsearch.common.FieldMemoryStats;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -42,7 +45,7 @@ public class CompletionStatsCache implements ReferenceManager.RefreshListener {
     }
 
     public CompletionStats get(String... fieldNamePatterns) {
-        final PlainActionFuture<CompletionStats> newFuture = new PlainActionFuture<>();
+        final PlainActionFuture<CompletionStats> newFuture = new UnsafePlainActionFuture<>(ThreadPool.Names.MANAGEMENT);
         final PlainActionFuture<CompletionStats> oldFuture = completionStatsFutureRef.compareAndExchange(null, newFuture);
 
         if (oldFuture != null) {

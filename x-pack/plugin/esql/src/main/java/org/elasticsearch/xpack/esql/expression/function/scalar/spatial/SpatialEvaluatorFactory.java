@@ -10,12 +10,12 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.spatial;
 import org.apache.lucene.geo.Component2D;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 
 import java.util.Map;
-import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils.asLuceneComponent2D;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils.asLuceneComponent2Ds;
@@ -34,15 +34,12 @@ abstract class SpatialEvaluatorFactory<V, T> {
         this.factoryCreator = factoryCreator;
     }
 
-    public abstract EvalOperator.ExpressionEvaluator.Factory get(
-        SpatialSourceSupplier function,
-        Function<Expression, EvalOperator.ExpressionEvaluator.Factory> toEvaluator
-    );
+    public abstract EvalOperator.ExpressionEvaluator.Factory get(SpatialSourceSupplier function, EvaluatorMapper.ToEvaluator toEvaluator);
 
     static EvalOperator.ExpressionEvaluator.Factory makeSpatialEvaluator(
         SpatialSourceSupplier s,
         Map<SpatialEvaluatorKey, SpatialEvaluatorFactory<?, ?>> evaluatorRules,
-        Function<Expression, EvalOperator.ExpressionEvaluator.Factory> toEvaluator
+        EvaluatorMapper.ToEvaluator toEvaluator
     ) {
         var evaluatorKey = new SpatialEvaluatorKey(
             s.crsType(),
@@ -79,11 +76,18 @@ abstract class SpatialEvaluatorFactory<V, T> {
 
         Expression right();
 
-        SpatialRelatesFunction.SpatialCrsType crsType();
+        BinarySpatialFunction.SpatialCrsType crsType();
 
         boolean leftDocValues();
 
         boolean rightDocValues();
+    }
+
+    /**
+     * When performing type resolution we need also write access to the SpatialSourceSupplier for setting the CRS
+     */
+    interface SpatialSourceResolution extends SpatialSourceSupplier {
+        void setCrsType(DataType dataType);
     }
 
     protected static class SwappedSpatialSourceSupplier implements SpatialSourceSupplier {
@@ -99,7 +103,7 @@ abstract class SpatialEvaluatorFactory<V, T> {
         }
 
         @Override
-        public SpatialRelatesFunction.SpatialCrsType crsType() {
+        public BinarySpatialFunction.SpatialCrsType crsType() {
             return delegate.crsType();
         }
 
@@ -142,10 +146,7 @@ abstract class SpatialEvaluatorFactory<V, T> {
         }
 
         @Override
-        public EvalOperator.ExpressionEvaluator.Factory get(
-            SpatialSourceSupplier s,
-            Function<Expression, EvalOperator.ExpressionEvaluator.Factory> toEvaluator
-        ) {
+        public EvalOperator.ExpressionEvaluator.Factory get(SpatialSourceSupplier s, EvaluatorMapper.ToEvaluator toEvaluator) {
             return factoryCreator.apply(s.source(), toEvaluator.apply(s.left()), toEvaluator.apply(s.right()));
         }
     }
@@ -169,10 +170,7 @@ abstract class SpatialEvaluatorFactory<V, T> {
         }
 
         @Override
-        public EvalOperator.ExpressionEvaluator.Factory get(
-            SpatialSourceSupplier s,
-            Function<Expression, EvalOperator.ExpressionEvaluator.Factory> toEvaluator
-        ) {
+        public EvalOperator.ExpressionEvaluator.Factory get(SpatialSourceSupplier s, EvaluatorMapper.ToEvaluator toEvaluator) {
             return factoryCreator.apply(s.source(), toEvaluator.apply(s.left()), asLuceneComponent2D(s.crsType(), s.right()));
         }
     }
@@ -198,10 +196,7 @@ abstract class SpatialEvaluatorFactory<V, T> {
         }
 
         @Override
-        public EvalOperator.ExpressionEvaluator.Factory get(
-            SpatialSourceSupplier s,
-            Function<Expression, EvalOperator.ExpressionEvaluator.Factory> toEvaluator
-        ) {
+        public EvalOperator.ExpressionEvaluator.Factory get(SpatialSourceSupplier s, EvaluatorMapper.ToEvaluator toEvaluator) {
             return factoryCreator.apply(s.source(), toEvaluator.apply(s.left()), asLuceneComponent2Ds(s.crsType(), s.right()));
         }
     }
@@ -209,13 +204,13 @@ abstract class SpatialEvaluatorFactory<V, T> {
     protected record SpatialEvaluatorFieldKey(DataType dataType, boolean isConstant) {}
 
     record SpatialEvaluatorKey(
-        SpatialRelatesFunction.SpatialCrsType crsType,
+        BinarySpatialFunction.SpatialCrsType crsType,
         boolean leftDocValues,
         boolean rightDocValues,
         SpatialEvaluatorFieldKey left,
         SpatialEvaluatorFieldKey right
     ) {
-        SpatialEvaluatorKey(SpatialRelatesFunction.SpatialCrsType crsType, SpatialEvaluatorFieldKey left, SpatialEvaluatorFieldKey right) {
+        SpatialEvaluatorKey(BinarySpatialFunction.SpatialCrsType crsType, SpatialEvaluatorFieldKey left, SpatialEvaluatorFieldKey right) {
             this(crsType, false, false, left, right);
         }
 
@@ -229,7 +224,7 @@ abstract class SpatialEvaluatorFactory<V, T> {
 
         static SpatialEvaluatorKey fromSourceAndConstant(DataType left, DataType right) {
             return new SpatialEvaluatorKey(
-                SpatialRelatesFunction.SpatialCrsType.fromDataType(left),
+                BinarySpatialFunction.SpatialCrsType.fromDataType(left),
                 new SpatialEvaluatorFieldKey(left, false),
                 new SpatialEvaluatorFieldKey(right, true)
             );
@@ -237,7 +232,7 @@ abstract class SpatialEvaluatorFactory<V, T> {
 
         static SpatialEvaluatorKey fromSources(DataType left, DataType right) {
             return new SpatialEvaluatorKey(
-                SpatialRelatesFunction.SpatialCrsType.fromDataType(left),
+                BinarySpatialFunction.SpatialCrsType.fromDataType(left),
                 new SpatialEvaluatorFieldKey(left, false),
                 new SpatialEvaluatorFieldKey(right, false)
             );

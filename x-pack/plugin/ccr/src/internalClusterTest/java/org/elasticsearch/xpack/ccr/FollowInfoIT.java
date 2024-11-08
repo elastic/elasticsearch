@@ -39,7 +39,7 @@ public class FollowInfoIT extends CcrSingleNodeTestCase {
         followRequest = getPutFollowRequest("leader2", "follower2");
         client().execute(PutFollowAction.INSTANCE, followRequest).get();
 
-        FollowInfoAction.Request request = new FollowInfoAction.Request();
+        FollowInfoAction.Request request = new FollowInfoAction.Request(TEST_REQUEST_TIMEOUT);
         request.setFollowerIndices("follower1");
         FollowInfoAction.Response response = client().execute(FollowInfoAction.INSTANCE, request).actionGet();
         assertThat(response.getFollowInfos().size(), equalTo(1));
@@ -48,7 +48,7 @@ public class FollowInfoIT extends CcrSingleNodeTestCase {
         assertThat(response.getFollowInfos().get(0).getStatus(), equalTo(Status.ACTIVE));
         assertThat(response.getFollowInfos().get(0).getParameters(), notNullValue());
 
-        request = new FollowInfoAction.Request();
+        request = new FollowInfoAction.Request(TEST_REQUEST_TIMEOUT);
         request.setFollowerIndices("follower2");
         response = client().execute(FollowInfoAction.INSTANCE, request).actionGet();
         assertThat(response.getFollowInfos().size(), equalTo(1));
@@ -57,7 +57,7 @@ public class FollowInfoIT extends CcrSingleNodeTestCase {
         assertThat(response.getFollowInfos().get(0).getStatus(), equalTo(Status.ACTIVE));
         assertThat(response.getFollowInfos().get(0).getParameters(), notNullValue());
 
-        request = new FollowInfoAction.Request();
+        request = new FollowInfoAction.Request(TEST_REQUEST_TIMEOUT);
         request.setFollowerIndices("_all");
         response = client().execute(FollowInfoAction.INSTANCE, request).actionGet();
         response.getFollowInfos().sort(Comparator.comparing(FollowInfoAction.Response.FollowerInfo::getFollowerIndex));
@@ -72,9 +72,11 @@ public class FollowInfoIT extends CcrSingleNodeTestCase {
         assertThat(response.getFollowInfos().get(1).getParameters(), notNullValue());
 
         // Pause follower1 index and check the follower info api:
-        assertAcked(client().execute(PauseFollowAction.INSTANCE, new PauseFollowAction.Request("follower1")).actionGet());
+        assertAcked(
+            client().execute(PauseFollowAction.INSTANCE, new PauseFollowAction.Request(TEST_REQUEST_TIMEOUT, "follower1")).actionGet()
+        );
 
-        request = new FollowInfoAction.Request();
+        request = new FollowInfoAction.Request(TEST_REQUEST_TIMEOUT);
         request.setFollowerIndices("follower1");
         response = client().execute(FollowInfoAction.INSTANCE, request).actionGet();
         assertThat(response.getFollowInfos().size(), equalTo(1));
@@ -83,7 +85,7 @@ public class FollowInfoIT extends CcrSingleNodeTestCase {
         assertThat(response.getFollowInfos().get(0).getStatus(), equalTo(Status.PAUSED));
         assertThat(response.getFollowInfos().get(0).getParameters(), nullValue());
 
-        request = new FollowInfoAction.Request();
+        request = new FollowInfoAction.Request(TEST_REQUEST_TIMEOUT);
         request.setFollowerIndices("follower2");
         response = client().execute(FollowInfoAction.INSTANCE, request).actionGet();
         assertThat(response.getFollowInfos().size(), equalTo(1));
@@ -92,7 +94,7 @@ public class FollowInfoIT extends CcrSingleNodeTestCase {
         assertThat(response.getFollowInfos().get(0).getStatus(), equalTo(Status.ACTIVE));
         assertThat(response.getFollowInfos().get(0).getParameters(), notNullValue());
 
-        request = new FollowInfoAction.Request();
+        request = new FollowInfoAction.Request(TEST_REQUEST_TIMEOUT);
         request.setFollowerIndices("_all");
         response = client().execute(FollowInfoAction.INSTANCE, request).actionGet();
         response.getFollowInfos().sort(Comparator.comparing(FollowInfoAction.Response.FollowerInfo::getFollowerIndex));
@@ -106,7 +108,9 @@ public class FollowInfoIT extends CcrSingleNodeTestCase {
         assertThat(response.getFollowInfos().get(1).getStatus(), equalTo(Status.ACTIVE));
         assertThat(response.getFollowInfos().get(1).getParameters(), notNullValue());
 
-        assertAcked(client().execute(PauseFollowAction.INSTANCE, new PauseFollowAction.Request("follower2")).actionGet());
+        assertAcked(
+            client().execute(PauseFollowAction.INSTANCE, new PauseFollowAction.Request(TEST_REQUEST_TIMEOUT, "follower2")).actionGet()
+        );
     }
 
     public void testFollowInfoApiIndexMissing() throws Exception {
@@ -122,16 +126,20 @@ public class FollowInfoIT extends CcrSingleNodeTestCase {
         followRequest = getPutFollowRequest("leader2", "follower2");
         client().execute(PutFollowAction.INSTANCE, followRequest).get();
 
-        FollowInfoAction.Request request1 = new FollowInfoAction.Request();
+        FollowInfoAction.Request request1 = new FollowInfoAction.Request(TEST_REQUEST_TIMEOUT);
         request1.setFollowerIndices("follower3");
         expectThrows(IndexNotFoundException.class, () -> client().execute(FollowInfoAction.INSTANCE, request1).actionGet());
 
-        FollowInfoAction.Request request2 = new FollowInfoAction.Request();
+        FollowInfoAction.Request request2 = new FollowInfoAction.Request(TEST_REQUEST_TIMEOUT);
         request2.setFollowerIndices("follower2", "follower3");
         expectThrows(IndexNotFoundException.class, () -> client().execute(FollowInfoAction.INSTANCE, request2).actionGet());
 
-        assertAcked(client().execute(PauseFollowAction.INSTANCE, new PauseFollowAction.Request("follower1")).actionGet());
-        assertAcked(client().execute(PauseFollowAction.INSTANCE, new PauseFollowAction.Request("follower2")).actionGet());
+        assertAcked(
+            client().execute(PauseFollowAction.INSTANCE, new PauseFollowAction.Request(TEST_REQUEST_TIMEOUT, "follower1")).actionGet()
+        );
+        assertAcked(
+            client().execute(PauseFollowAction.INSTANCE, new PauseFollowAction.Request(TEST_REQUEST_TIMEOUT, "follower2")).actionGet()
+        );
     }
 
 }

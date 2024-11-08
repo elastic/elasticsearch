@@ -190,6 +190,19 @@ s:double
 25976.0
 ;
 
+exp#[skip:-8.15.99,reason:new scalar function added in 8.16]
+// tag::exp[]
+ROW d = 5.0
+| EVAL s = EXP(d)
+// end::exp[]
+;
+
+// tag::exp-result[]
+d: double | s:double
+5.0   | 148.413159102576603
+// end::exp-result[]
+;
+
 powHeightSquared
 from employees | sort height asc | limit 20 | eval s = round(pow(height, 2) - 2, 2) | keep height, s | sort s desc | limit 4;
 
@@ -443,8 +456,8 @@ from employees
 | keep emp_no, languages, salary, avg_worked_seconds, l1, l2, l3
 | limit 5;
 
-warning:Line 2:13: evaluation of [LOG(languages, salary)] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 2:13: java.lang.ArithmeticException: Log of base 1
+warningRegex:evaluation of \[LOG\(languages, salary\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.ArithmeticException: Log of base 1
 
 emp_no:integer | languages:integer | salary:integer | avg_worked_seconds:long | l1:double          | l2:double          | l3:double
 10001          | 2                 | 57305          | 268728049               | 15.806373402659007 | 19.409210455930772 | 35.21558385858978
@@ -481,8 +494,8 @@ from employees
 | keep l1, l2, emp_no, languages, salary, avg_worked_seconds, l3
 | limit 5;
 
-warning:Line 2:13: evaluation of [LOG(languages, salary)] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 2:13: java.lang.ArithmeticException: Log of base 1
+warningRegex:evaluation of \[LOG\(languages, salary\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.ArithmeticException: Log of base 1
 
 l1:double         | l2:double          | emp_no:integer | languages:integer | salary:integer | avg_worked_seconds:long | l3:double
 6.300030441266983 | 19.782340222815456 | 10015          | 5                 | 25324          | 390266432               | 26.08237066408244
@@ -502,8 +515,8 @@ from employees
 | keep l1, l2, emp_no, base1, salary, avg_worked_seconds, l3
 | limit 5;
 
-warning:Line 3:13: evaluation of [LOG(base1, salary)] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 3:13: java.lang.ArithmeticException: Log of base 1
+warningRegex:evaluation of \[LOG\(base1, salary\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.ArithmeticException: Log of base 1
 
 l1:double | l2:double          | emp_no:integer | base1:integer | salary:integer | avg_worked_seconds:long | l3:double
 null      | 19.774989878141827 | 10044          | 1             | 39728          | 387408356               | null
@@ -1364,6 +1377,63 @@ row d = -0.0 | eval c = cbrt(d);
 
 d:double | c:double
 -0.0     | -0.0
+;
+
+hypot
+required_capability: fn_hypot
+// tag::hypot[]
+ROW a = 3.0, b = 4.0
+| EVAL c = HYPOT(a, b)
+// end::hypot[]
+;
+
+// tag::hypot-result[]
+a:double | b:double | c:double
+3.0      | 4.0      | 5.0
+// end::hypot-result[]
+;
+
+hypotWithFrom
+required_capability: fn_hypot
+FROM ul_logs
+| WHERE id > 95
+| EVAL bytes_hypot = HYPOT(bytes_in, bytes_out)
+| SORT id ASC
+| LIMIT 5
+| KEEP id, bytes_in, bytes_out, bytes_hypot
+;
+
+id:integer | bytes_in:unsigned_long | bytes_out:unsigned_long | bytes_hypot:double
+96         | 9932469097722733505    | 14925592145374204307    | 1.792839209932874E19
+97         | 11620953158540412267   | 3809712277266935082     | 1.2229491401875583E19
+98         | 3448205404634246112    | 5409549730889481641     | 6.415087591258227E18
+99         | 1957665857956635540    | 352442273299370793      | 1.9891382977102218E18
+100        | 16462768484251021236   | 15616395223975497926    | 2.2691287886707827E19
+;
+
+hypotBothNull
+required_capability: fn_hypot
+FROM ul_logs
+| WHERE bytes_in IS NULL and bytes_out IS NULL
+| LIMIT 1
+| EVAL bytes_hypot = HYPOT(bytes_in, bytes_out)
+| KEEP bytes_in, bytes_out, bytes_hypot
+;
+
+bytes_in:unsigned_long | bytes_out:unsigned_long | bytes_hypot:double
+null                   | null                    | null
+;
+
+hypotOneNull
+required_capability: fn_hypot
+FROM ul_logs
+| WHERE id == 41
+| EVAL confused_hypot = HYPOT(id, bytes_in)
+| KEEP id, bytes_in, confused_hypot
+;
+
+id:integer | bytes_in:unsigned_long | confused_hypot:double
+41         | null                   | null
 ;
 
 least

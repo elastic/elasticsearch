@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.core.slm.action.GetSLMStatusAction;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestUtils.getAckTimeout;
 import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 @ServerlessScope(Scope.INTERNAL)
@@ -36,9 +37,7 @@ public class RestGetSLMStatusAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) {
-        AcknowledgedRequest.Plain request = new AcknowledgedRequest.Plain();
-        request.ackTimeout(restRequest.paramAsTime("timeout", request.ackTimeout()));
-        request.masterNodeTimeout(getMasterNodeTimeout(restRequest));
+        final var request = new AcknowledgedRequest.Plain(getMasterNodeTimeout(restRequest), getAckTimeout(restRequest));
         return channel -> client.execute(GetSLMStatusAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 }

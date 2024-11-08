@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing;
@@ -240,7 +241,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
     }
 
     /**
-     * Returns <code>true</code> iff the this shard is currently relocating to
+     * Returns <code>true</code> iff this shard is currently relocating to
      * another node. Otherwise <code>false</code>
      *
      * @see ShardRoutingState#RELOCATING
@@ -342,7 +343,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
         } else {
             recoverySource = null;
         }
-        unassignedInfo = in.readOptionalWriteable(UnassignedInfo::new);
+        unassignedInfo = in.readOptionalWriteable(UnassignedInfo::fromStreamInput);
         if (in.getTransportVersion().onOrAfter(RELOCATION_FAILURE_INFO_VERSION)) {
             relocationFailureInfo = RelocationFailureInfo.readFrom(in);
         } else {
@@ -410,7 +411,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
 
     public ShardRouting updateUnassigned(UnassignedInfo unassignedInfo, RecoverySource recoverySource) {
         assert this.unassignedInfo != null : "can only update unassigned info if it is already set";
-        assert this.unassignedInfo.isDelayed() || (unassignedInfo.isDelayed() == false) : "cannot transition from non-delayed to delayed";
+        assert this.unassignedInfo.delayed() || (unassignedInfo.delayed() == false) : "cannot transition from non-delayed to delayed";
         return new ShardRouting(
             shardId,
             currentNodeId,

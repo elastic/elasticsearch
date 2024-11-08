@@ -35,6 +35,7 @@ import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
+import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.core.inference.results.ErrorChunkedInferenceResults;
@@ -79,12 +80,6 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
         this.inferenceServiceRegistry = inferenceServiceRegistry;
         this.modelRegistry = modelRegistry;
         this.batchSize = batchSize;
-    }
-
-    @Override
-    public int order() {
-        // must execute last (after the security action filter)
-        return Integer.MAX_VALUE;
     }
 
     @Override
@@ -217,9 +212,9 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
             final Releasable onFinish
         ) {
             if (inferenceProvider == null) {
-                ActionListener<ModelRegistry.UnparsedModel> modelLoadingListener = new ActionListener<>() {
+                ActionListener<UnparsedModel> modelLoadingListener = new ActionListener<>() {
                     @Override
-                    public void onResponse(ModelRegistry.UnparsedModel unparsedModel) {
+                    public void onResponse(UnparsedModel unparsedModel) {
                         var service = inferenceServiceRegistry.getService(unparsedModel.service());
                         if (service.isEmpty() == false) {
                             var provider = new InferenceProvider(
@@ -398,11 +393,11 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                     new SemanticTextField.InferenceResult(
                         model.getInferenceEntityId(),
                         new SemanticTextField.ModelSettings(model),
-                        toSemanticTextFieldChunks(fieldName, model.getInferenceEntityId(), results, indexRequest.getContentType())
+                        toSemanticTextFieldChunks(results, indexRequest.getContentType())
                     ),
                     indexRequest.getContentType()
                 );
-                newDocMap.put(fieldName, result);
+                SemanticTextFieldMapper.insertValue(fieldName, newDocMap, result);
             }
             indexRequest.source(newDocMap, indexRequest.getContentType());
         }
@@ -498,12 +493,16 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
      * If {@code valueObj} is not a string or a collection of strings, it throws an ElasticsearchStatusException.
      */
     private static List<String> nodeStringValues(String field, Object valueObj) {
-        if (valueObj instanceof String value) {
+        if (valueObj instanceof Number || valueObj instanceof Boolean) {
+            return List.of(valueObj.toString());
+        } else if (valueObj instanceof String value) {
             return List.of(value);
         } else if (valueObj instanceof Collection<?> values) {
             List<String> valuesString = new ArrayList<>();
             for (var v : values) {
-                if (v instanceof String value) {
+                if (v instanceof Number || v instanceof Boolean) {
+                    valuesString.add(v.toString());
+                } else if (v instanceof String value) {
                     valuesString.add(value);
                 } else {
                     throw new ElasticsearchStatusException(

@@ -16,24 +16,26 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.xpack.esql.expression.function.Warnings;
-import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Length}.
  * This class is generated. Do not edit it.
  */
 public final class LengthEvaluator implements EvalOperator.ExpressionEvaluator {
-  private final Warnings warnings;
+  private final Source source;
 
   private final EvalOperator.ExpressionEvaluator val;
 
   private final DriverContext driverContext;
 
+  private Warnings warnings;
+
   public LengthEvaluator(Source source, EvalOperator.ExpressionEvaluator val,
       DriverContext driverContext) {
-    this.warnings = new Warnings(source);
+    this.source = source;
     this.val = val;
     this.driverContext = driverContext;
   }
@@ -59,7 +61,7 @@ public final class LengthEvaluator implements EvalOperator.ExpressionEvaluator {
         }
         if (valBlock.getValueCount(p) != 1) {
           if (valBlock.getValueCount(p) > 1) {
-            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
           }
           result.appendNull();
           continue position;
@@ -71,10 +73,10 @@ public final class LengthEvaluator implements EvalOperator.ExpressionEvaluator {
   }
 
   public IntVector eval(int positionCount, BytesRefVector valVector) {
-    try(IntVector.Builder result = driverContext.blockFactory().newIntVectorBuilder(positionCount)) {
+    try(IntVector.FixedBuilder result = driverContext.blockFactory().newIntVectorFixedBuilder(positionCount)) {
       BytesRef valScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendInt(Length.process(valVector.getBytesRef(p, valScratch)));
+        result.appendInt(p, Length.process(valVector.getBytesRef(p, valScratch)));
       }
       return result.build();
     }
@@ -88,6 +90,18 @@ public final class LengthEvaluator implements EvalOperator.ExpressionEvaluator {
   @Override
   public void close() {
     Releasables.closeExpectNoException(val);
+  }
+
+  private Warnings warnings() {
+    if (warnings == null) {
+      this.warnings = Warnings.createWarnings(
+              driverContext.warningsMode(),
+              source.source().getLineNumber(),
+              source.source().getColumnNumber(),
+              source.text()
+          );
+    }
+    return warnings;
   }
 
   static class Factory implements EvalOperator.ExpressionEvaluator.Factory {

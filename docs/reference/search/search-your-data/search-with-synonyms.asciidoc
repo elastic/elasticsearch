@@ -82,6 +82,19 @@ If an index is created referencing a nonexistent synonyms set, the index will re
 The only way to recover from this scenario is to ensure the synonyms set exists then either delete and re-create the index, or close and re-open the index.
 ======
 
+[WARNING]
+====
+Invalid synonym rules can cause errors when applying analyzer changes.
+For reloadable analyzers, this prevents reloading and applying changes.
+You must correct errors in the synonym rules and reload the analyzer.
+
+An index with invalid synonym rules cannot be reopened, making it inoperable when:
+
+* A node containing the index starts
+* The index is opened from a closed state
+* A node restart occurs (which reopens the node assigned shards)
+====
+
 {es} uses synonyms as part of the <<analysis-overview,analysis process>>.
 You can use two types of <<analysis-tokenfilters,token filter>> to include synonyms:
 

@@ -59,7 +59,10 @@ public class TransportDeleteAutoscalingPolicyActionTests extends AutoscalingTest
             )
             .build();
         final ClusterState state = ClusterState.builder(new ClusterName(randomAlphaOfLength(8))).blocks(blocks).build();
-        final ClusterBlockException e = action.checkBlock(new DeleteAutoscalingPolicyAction.Request(randomAlphaOfLength(8)), state);
+        final ClusterBlockException e = action.checkBlock(
+            new DeleteAutoscalingPolicyAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, randomAlphaOfLength(8)),
+            state
+        );
         assertThat(e, not(nullValue()));
     }
 
@@ -75,7 +78,10 @@ public class TransportDeleteAutoscalingPolicyActionTests extends AutoscalingTest
         );
         final ClusterBlocks blocks = ClusterBlocks.builder().build();
         final ClusterState state = ClusterState.builder(new ClusterName(randomAlphaOfLength(8))).blocks(blocks).build();
-        final ClusterBlockException e = action.checkBlock(new DeleteAutoscalingPolicyAction.Request(randomAlphaOfLength(8)), state);
+        final ClusterBlockException e = action.checkBlock(
+            new DeleteAutoscalingPolicyAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, randomAlphaOfLength(8)),
+            state
+        );
         assertThat(e, nullValue());
     }
 

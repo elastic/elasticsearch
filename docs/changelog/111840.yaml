@@ -1,0 +1,5 @@
+pr: 111840
+summary: "ESQL: Add async ID and `is_running` headers to ESQL async query"
+area: ES|QL
+type: feature
+issues: []

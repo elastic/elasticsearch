@@ -20,7 +20,6 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.indices.SystemIndexDescriptor;
@@ -297,7 +296,7 @@ public class ElasticsearchMappingsTests extends ESTestCase {
                 {"_doc":{"properties":{"some-field":{"type":"long"}}}}""",
             client,
             clusterState,
-            TimeValue.THIRTY_SECONDS,
+            TEST_REQUEST_TIMEOUT,
             ActionTestUtils.assertNoFailureListener(Assert::assertTrue),
             1
         );

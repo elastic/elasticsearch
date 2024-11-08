@@ -18,10 +18,6 @@ final class $Type$State implements AggregatorState {
     private $type$ value;
     private boolean seen;
 
-    $Type$State() {
-        this(0);
-    }
-
     $Type$State($type$ init) {
         this.value = init;
     }

@@ -11,6 +11,7 @@ import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.TransportListTasksAction;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -25,43 +26,33 @@ import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
-import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.plugin.TransportEsqlQueryAction;
 import org.junit.After;
 
 import java.util.Collection;
+import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.hamcrest.Matchers.equalTo;
 
 @TestLogging(value = "org.elasticsearch.xpack.esql.session:DEBUG", reason = "to better understand planning")
 public abstract class AbstractEsqlIntegTestCase extends ESIntegTestCase {
-    public static EsqlQueryRequest asyncSyncRequestOnLatestVersion() {
-        EsqlQueryRequest request = EsqlQueryRequest.asyncEsqlQueryRequest();
-        applyLatestVersion(request);
-        return request;
-    }
-
-    public static EsqlQueryRequest syncRequestOnLatestVersion() {
-        EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest();
-        applyLatestVersion(request);
-        return request;
-    }
-
-    private static void applyLatestVersion(EsqlQueryRequest request) {
-        request.esqlVersion(EsqlTestUtils.latestEsqlVersionOrSnapshot());
-    }
-
     @After
     public void ensureExchangesAreReleased() throws Exception {
         for (String node : internalCluster().getNodeNames()) {
             TransportEsqlQueryAction esqlQueryAction = internalCluster().getInstance(TransportEsqlQueryAction.class, node);
             ExchangeService exchangeService = esqlQueryAction.exchangeService();
-            assertBusy(() -> assertTrue("Leftover exchanges " + exchangeService + " on node " + node, exchangeService.isEmpty()));
+            assertBusy(() -> {
+                if (exchangeService.lifecycleState() == Lifecycle.State.STARTED) {
+                    assertTrue("Leftover exchanges " + exchangeService + " on node " + node, exchangeService.isEmpty());
+                }
+            });
         }
     }
 
@@ -130,14 +121,14 @@ public abstract class AbstractEsqlIntegTestCase extends ESIntegTestCase {
     protected void setRequestCircuitBreakerLimit(ByteSizeValue limit) {
         if (limit != null) {
             assertAcked(
-                clusterAdmin().prepareUpdateSettings()
+                clusterAdmin().prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
                     .setPersistentSettings(
                         Settings.builder().put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), limit).build()
                     )
             );
         } else {
             assertAcked(
-                clusterAdmin().prepareUpdateSettings()
+                clusterAdmin().prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
                     .setPersistentSettings(
                         Settings.builder().putNull(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey()).build()
                     )
@@ -145,23 +136,16 @@ public abstract class AbstractEsqlIntegTestCase extends ESIntegTestCase {
         }
     }
 
-    protected EsqlQueryResponse run(String esqlCommands) {
+    protected final EsqlQueryResponse run(String esqlCommands) {
         return run(esqlCommands, randomPragmas());
     }
 
-    protected EsqlQueryResponse run(String esqlCommands, QueryPragmas pragmas) {
+    protected final EsqlQueryResponse run(String esqlCommands, QueryPragmas pragmas) {
         return run(esqlCommands, pragmas, null);
     }
 
     protected EsqlQueryResponse run(String esqlCommands, QueryPragmas pragmas, QueryBuilder filter) {
-        return run(esqlCommands, pragmas, filter, null);
-    }
-
-    protected EsqlQueryResponse run(String esqlCommands, QueryPragmas pragmas, QueryBuilder filter, String version) {
-        EsqlQueryRequest request = syncRequestOnLatestVersion();
-        if (version != null) {
-            request.esqlVersion(version);
-        }
+        EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest();
         request.query(esqlCommands);
         if (pragmas != null) {
             request.pragmas(pragmas);
@@ -222,5 +206,17 @@ public abstract class AbstractEsqlIntegTestCase extends ESIntegTestCase {
 
     protected static boolean canUseQueryPragmas() {
         return Build.current().isSnapshot();
+    }
+
+    protected static void assertColumnNames(List<? extends ColumnInfo> actualColumns, List<String> expectedNames) {
+        assertThat(actualColumns.stream().map(ColumnInfo::name).toList(), equalTo(expectedNames));
+    }
+
+    protected static void assertColumnTypes(List<? extends ColumnInfo> actualColumns, List<String> expectedTypes) {
+        assertThat(actualColumns.stream().map(ColumnInfo::outputType).toList(), equalTo(expectedTypes));
+    }
+
+    protected static void assertValues(Iterator<Iterator<Object>> actualValues, Iterable<Iterable<Object>> expectedValues) {
+        assertThat(getValuesList(actualValues), equalTo(getValuesList(expectedValues)));
     }
 }

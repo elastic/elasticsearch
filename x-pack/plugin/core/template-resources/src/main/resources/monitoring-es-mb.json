@@ -2466,6 +2466,104 @@
             }
           }
         },
+        "indexing_pressure": {
+          "properties": {
+            "memory": {
+              "properties": {
+                "current": {
+                  "properties": {
+                    "all": {
+                      "properties": {
+                        "bytes": {
+                          "type": "long"
+                        }
+                      }
+                    },
+                    "combined_coordinating_and_primary": {
+                      "properties": {
+                        "bytes": {
+                          "type": "long"
+                        }
+                      }
+                    },
+                    "coordinating": {
+                      "properties": {
+                        "bytes": {
+                          "type": "long"
+                        }
+                      }
+                    },
+                    "primary": {
+                      "properties": {
+                        "bytes": {
+                          "type": "long"
+                        }
+                      }
+                    },
+                    "replica": {
+                      "properties": {
+                        "bytes": {
+                          "type": "long"
+                        }
+                      }
+                    }
+                  }
+                },
+                "limit_in_bytes": {
+                  "type": "long"
+                },
+                "total": {
+                  "properties": {
+                    "all": {
+                      "properties": {
+                        "bytes": {
+                          "type": "long"
+                        }
+                      }
+                    },
+                    "combined_coordinating_and_primary": {
+                      "properties": {
+                        "bytes": {
+                          "type": "long"
+                        }
+                      }
+                    },
+                    "coordinating": {
+                      "properties": {
+                        "bytes": {
+                          "type": "long"
+                        },
+                        "rejections": {
+                          "type": "long"
+                        }
+                      }
+                    },
+                    "primary": {
+                      "properties": {
+                        "bytes": {
+                          "type": "long"
+                        },
+                        "rejections": {
+                          "type": "long"
+                        }
+                      }
+                    },
+                    "replica": {
+                      "properties": {
+                        "bytes": {
+                          "type": "long"
+                        },
+                        "rejections": {
+                          "type": "long"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
         "indices_stats": {
           "properties": {
             "_all": {

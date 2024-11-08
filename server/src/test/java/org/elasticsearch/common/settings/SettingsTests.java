@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.settings;
@@ -470,13 +471,6 @@ public class SettingsTests extends ESTestCase {
             assertSame(before, diff.apply(before));
             assertSame(before, diffRead.apply(before));
         }
-    }
-
-    public void testSecureSettingConflict() {
-        Setting<SecureString> setting = SecureSetting.secureString("something.secure", null);
-        Settings settings = Settings.builder().put("something.secure", "notreallysecure").build();
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> setting.get(settings));
-        assertTrue(e.getMessage().contains("must be stored inside the Elasticsearch keystore"));
     }
 
     public void testSecureSettingIllegalName() {

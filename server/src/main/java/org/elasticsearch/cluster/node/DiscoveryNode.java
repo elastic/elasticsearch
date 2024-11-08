@@ -358,7 +358,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
             o.writeString(role.roleNameAbbreviation());
             o.writeBoolean(role.canContainData());
         });
-        versionInfo.buildVersion().writeTo(out);
+        Version.writeVersion(versionInfo.nodeVersion(), out);
         IndexVersion.writeVersion(versionInfo.minIndexVersion(), out);
         IndexVersion.writeVersion(versionInfo.maxIndexVersion(), out);
         if (out.getTransportVersion().onOrAfter(EXTERNAL_ID_VERSION)) {

@@ -293,9 +293,6 @@ tests:
 - class: org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsCanMatchOnCoordinatorIntegTests
   method: testSearchableSnapshotShardsAreSkippedBySearchRequestWithoutQueryingAnyNodeWhenTheyAreOutsideOfTheQueryRange
   issue: https://github.com/elastic/elasticsearch/issues/116523
-- class: org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissionsTests
-  method: testCollapseAndRemoveUnsupportedPrivileges
-  issue: https://github.com/elastic/elasticsearch/issues/116520
 
 # Examples:
 #

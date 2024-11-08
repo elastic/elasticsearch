@@ -438,6 +438,11 @@ public class EsqlFunctionRegistry {
     }
 
     public record ArgSignature(String name, String[] type, String description, boolean optional, DataType targetDataType) {
+
+        public ArgSignature(String name, String[] type, String description, boolean optional) {
+            this(name, type, description, optional, UNSUPPORTED);
+        }
+
         @Override
         public String toString() {
             return "ArgSignature{"
@@ -481,13 +486,13 @@ public class EsqlFunctionRegistry {
     /**
      * Build a list target data types, which is used by ImplicitCasting to convert string literals to a target data type.
      */
-    public static DataType getTargetType(String[] names) {
+    private static DataType getTargetType(String[] names) {
         List<DataType> types = new ArrayList<>();
         for (String name : names) {
             DataType type = DataType.fromTypeName(name);
             if (type != null && type != UNSUPPORTED) { // A type should not be null or UNSUPPORTED, just a sanity check here
                 // If the function takes strings as input, there is no need to cast a string literal to it.
-                // Return UNSUPPORTED, so that ImplicitCasting doesn't process it.
+                // Return UNSUPPORTED means that ImplicitCasting doesn't support this argument, and it will be skipped by ImplicitCasting.
                 if (isString(type)) {
                     return UNSUPPORTED;
                 }

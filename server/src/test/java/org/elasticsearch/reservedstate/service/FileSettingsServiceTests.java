@@ -40,8 +40,6 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
-import org.hamcrest.FeatureMatcher;
-import org.hamcrest.Matcher;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.stubbing.Answer;
@@ -444,15 +442,6 @@ public class FileSettingsServiceTests extends ESTestCase {
             Thread.currentThread().interrupt();
             fail(e, "longAwait: interrupted waiting for CountDownLatch to reach zero");
         }
-    }
-
-    public static Matcher<Object> hasCauseThat(Matcher<? super Throwable> causeMatcher) {
-        return new FeatureMatcher<Object, Throwable>(causeMatcher, "an exception with cause that", "cause") {
-            @Override
-            protected Throwable featureValueOf(Object obj) {
-                return ((Throwable) obj).getCause();
-            }
-        };
     }
 
 }

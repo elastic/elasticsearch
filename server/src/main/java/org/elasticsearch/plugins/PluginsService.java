@@ -50,7 +50,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -80,9 +79,9 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
      * @param loader   The classloader for the plugin
      * @param layer   The module layer for the plugin
      */
-    record LoadedPlugin(PluginDescriptor descriptor, Plugin instance, ClassLoader loader, ModuleLayer layer) {
+    public record LoadedPlugin(PluginDescriptor descriptor, Plugin instance, ClassLoader loader, ModuleLayer layer) {
 
-        LoadedPlugin {
+        public LoadedPlugin {
             Objects.requireNonNull(descriptor);
             Objects.requireNonNull(instance);
             Objects.requireNonNull(loader);
@@ -114,56 +113,98 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
 
     public static final Setting<List<String>> MANDATORY_SETTING = Setting.stringListSetting("plugin.mandatory", Property.NodeScope);
 
-    /**
-     * Constructs a new PluginService
-     *
-     * @param settings         The settings of the system
-     * @param modulesDirectory The directory modules exist in, or null if modules should not be loaded from the filesystem
-     * @param pluginsDirectory The directory plugins exist in, or null if plugins should not be loaded from the filesystem
-     */
-    @SuppressWarnings("this-escape")
-    public PluginsService(Settings settings, Path configPath, Path modulesDirectory, Path pluginsDirectory) {
-        this.settings = settings;
-        this.configPath = configPath;
 
-        Map<String, List<ModuleQualifiedExportsService>> qualifiedExports = new HashMap<>(ModuleQualifiedExportsService.getBootServices());
-        addServerExportsService(qualifiedExports);
+    public static PluginsService create(Settings settings,
+                                        Path configPath,
+                                        Path modulesDirectory,
+                                        Path pluginsDirectory,
+                                        ClassLoader parentClassLoader) {
 
-        Set<PluginBundle> seenBundles = new LinkedHashSet<>();
+        // This bit should already be in Elasticsearch#initPhase2 and passed down to Node construction
+        Set<PluginBundle> modules = loadModulesBundles(modulesDirectory);
+        Set<PluginBundle> plugins = loadPluginBundles(pluginsDirectory);
 
-        // load modules
-        List<PluginDescriptor> modulesList = new ArrayList<>();
-        Set<String> moduleNameList = new HashSet<>();
-        if (modulesDirectory != null) {
-            try {
-                Set<PluginBundle> modules = PluginsUtils.getModuleBundles(modulesDirectory);
-                modules.stream().map(PluginBundle::pluginDescriptor).forEach(m -> {
-                    modulesList.add(m);
-                    moduleNameList.add(m.getName());
-                });
-                seenBundles.addAll(modules);
-            } catch (IOException ex) {
-                throw new IllegalStateException("Unable to initialize modules", ex);
-            }
-        }
+        // Prepare data
+        Set<PluginBundle> seenBundles = Sets.union(modules, plugins);
+        List<PluginBundle> sortedBundles = PluginsUtils.sortBundles(seenBundles);
 
-        // load plugins
-        List<PluginDescriptor> pluginsList = new ArrayList<>();
+        // Step 1
+        LinkedHashMap<String, PluginModuleAndLayer> pluginModuleAndLayers =
+            createPluginModulesAndLayers(sortedBundles, PluginsService::addServerExportsService, parentClassLoader);
+
+        // Now we can notify whoever is interested!
+
+        // Step 2
+        StablePluginsRegistry stablePluginsRegistry = new StablePluginsRegistry();
+        LinkedHashMap<String, LoadedPlugin> loadedPlugins = loadBundles(sortedBundles, pluginModuleAndLayers,
+            settings, configPath,
+            stablePluginsRegistry);
+
+        return new PluginsService(settings, configPath, modules, plugins, loadedPlugins);
+    }
+
+    private static Set<PluginBundle> loadPluginBundles(Path pluginsDirectory) {
+        Set<PluginBundle> plugins = Set.of();
         if (pluginsDirectory != null) {
             try {
                 // TODO: remove this leniency, but tests bogusly rely on it
                 if (isAccessibleDirectory(pluginsDirectory, logger)) {
                     PluginsUtils.checkForFailedPluginRemovals(pluginsDirectory);
-                    Set<PluginBundle> plugins = PluginsUtils.getPluginBundles(pluginsDirectory);
-                    plugins.stream().map(PluginBundle::pluginDescriptor).forEach(pluginsList::add);
-                    seenBundles.addAll(plugins);
+                    plugins = PluginsUtils.getPluginBundles(pluginsDirectory);
                 }
             } catch (IOException ex) {
                 throw new IllegalStateException("Unable to initialize plugins", ex);
             }
         }
+        return plugins;
+    }
 
-        LinkedHashMap<String, LoadedPlugin> loadedPlugins = loadBundles(seenBundles, qualifiedExports);
+    private static Set<PluginBundle> loadModulesBundles(Path modulesDirectory) {
+        Set<PluginBundle> modules = Set.of();
+        if (modulesDirectory != null) {
+            try {
+                modules = PluginsUtils.getModuleBundles(modulesDirectory);
+            } catch (IOException ex) {
+                throw new IllegalStateException("Unable to initialize modules", ex);
+            }
+        }
+        return modules;
+    }
+
+    public static LinkedHashMap<String, PluginModuleAndLayer> createPluginModulesAndLayers(
+        List<PluginBundle> sortedBundles,
+        ServerExportsService serverExportsService,
+        ClassLoader parentClassLoader
+    ) {
+        Map<String, List<ModuleQualifiedExportsService>> qualifiedExports = new HashMap<>(ModuleQualifiedExportsService.getBootServices());
+        serverExportsService.add(qualifiedExports);
+        return createBundlesModules(sortedBundles, qualifiedExports, parentClassLoader);
+    }
+
+    /**
+     * Constructs a new PluginService
+     *
+     * @param settings  The settings of the system
+     * @param modules   The installed modules descriptors in, empty if modules should not be loaded from the filesystem
+     * @param plugins   The installed plugins descriptors, empty if plugins should not be loaded from the filesystem
+     */
+    @SuppressWarnings("this-escape")
+    public PluginsService(Settings settings, Path configPath, Set<PluginBundle> modules, Set<PluginBundle> plugins,
+                          Map<String, LoadedPlugin> loadedPlugins) {
+        this.settings = settings;
+        this.configPath = configPath;
+
+        // load modules
+        List<PluginDescriptor> modulesList = new ArrayList<>();
+        Set<String> moduleNameList = new HashSet<>();
+        modules.stream().map(PluginBundle::pluginDescriptor).forEach(m -> {
+            modulesList.add(m);
+            moduleNameList.add(m.getName());
+        });
+
+        // load plugins
+        List<PluginDescriptor> pluginsList = new ArrayList<>();
+        plugins.stream().map(PluginBundle::pluginDescriptor).forEach(pluginsList::add);
 
         var inspector = PluginIntrospector.getInstance();
         this.info = new PluginsAndModules(getRuntimeInfos(inspector, pluginsList, loadedPlugins), modulesList);
@@ -282,18 +323,35 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         return this.plugins;
     }
 
-    private LinkedHashMap<String, LoadedPlugin> loadBundles(
-        Set<PluginBundle> bundles,
-        Map<String, List<ModuleQualifiedExportsService>> qualifiedExports
+    private static LinkedHashMap<String, PluginModuleAndLayer> createBundlesModules(
+        List<PluginBundle> sortedBundles,
+        Map<String, List<ModuleQualifiedExportsService>> qualifiedExports,
+        ClassLoader parentClassLoader
     ) {
-        LinkedHashMap<String, LoadedPlugin> loaded = new LinkedHashMap<>();
+        LinkedHashMap<String, PluginModuleAndLayer> loaded = new LinkedHashMap<>();
         Map<String, Set<URL>> transitiveUrls = new HashMap<>();
-        List<PluginBundle> sortedBundles = PluginsUtils.sortBundles(bundles);
         if (sortedBundles.isEmpty() == false) {
             Set<URL> systemLoaderURLs = JarHell.parseModulesAndClassPath();
             for (PluginBundle bundle : sortedBundles) {
                 PluginsUtils.checkBundleJarHell(systemLoaderURLs, bundle, transitiveUrls);
-                loadBundle(bundle, loaded, qualifiedExports);
+                createPluginModules(bundle, loaded, qualifiedExports, parentClassLoader);
+            }
+        }
+        return loaded;
+    }
+
+    private static LinkedHashMap<String, LoadedPlugin> loadBundles(
+        List<PluginBundle> sortedBundles,
+        Map<String, PluginModuleAndLayer> pluginModules,
+        Settings settings,
+        Path configPath,
+        StablePluginsRegistry stablePluginsRegistry
+    ) {
+        LinkedHashMap<String, LoadedPlugin> loaded = new LinkedHashMap<>();
+        if (sortedBundles.isEmpty() == false) {
+            for (PluginBundle bundle : sortedBundles) {
+                String name = bundle.plugin.getName();
+                loaded.put(name, loadPlugin(bundle, pluginModules.get(name), settings, configPath, stablePluginsRegistry));
             }
         }
 
@@ -443,10 +501,13 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         return "constructor for extension [" + extensionClass.getName() + "] of type [" + extensionPointType.getName() + "]";
     }
 
-    private void loadBundle(
+    record PluginModuleAndLayer(PluginDescriptor descriptor, LayerAndLoader spiLayerAndLoader, LayerAndLoader pluginLayerAndLoader) {}
+
+    private static void createPluginModules(
         PluginBundle bundle,
-        Map<String, LoadedPlugin> loaded,
-        Map<String, List<ModuleQualifiedExportsService>> qualifiedExports
+        Map<String, PluginModuleAndLayer> loaded,
+        Map<String, List<ModuleQualifiedExportsService>> qualifiedExports,
+        ClassLoader parentClassLoader
     ) {
         String name = bundle.plugin.getName();
         logger.debug(() -> "Loading bundle: " + name);
@@ -454,14 +515,16 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         PluginsUtils.verifyCompatibility(bundle.plugin);
 
         // collect the list of extended plugins
-        List<LoadedPlugin> extendedPlugins = new ArrayList<>();
+        List<PluginModuleAndLayer> extendedPlugins = new ArrayList<>();
         for (String extendedPluginName : bundle.plugin.getExtendedPlugins()) {
-            LoadedPlugin extendedPlugin = loaded.get(extendedPluginName);
+            PluginModuleAndLayer extendedPlugin = loaded.get(extendedPluginName);
             assert extendedPlugin != null;
-            if (ExtensiblePlugin.class.isInstance(extendedPlugin.instance()) == false) {
-                throw new IllegalStateException("Plugin [" + name + "] cannot extend non-extensible plugin [" + extendedPluginName + "]");
-            }
-            assert extendedPlugin.loader() != null : "All non-classpath plugins should be loaded with a classloader";
+            // TODO: move this check
+//            if (ExtensiblePlugin.class.isInstance(extendedPlugin.instance()) == false) {
+//                throw new IllegalStateException("Plugin [" + name + "] cannot extend non-extensible plugin [" + extendedPluginName + "]");
+//            }
+            assert extendedPlugin.spiLayerAndLoader() != null && extendedPlugin.spiLayerAndLoader().loader() != null :
+                "All non-classpath plugins should be loaded with a classloader";
             extendedPlugins.add(extendedPlugin);
             logger.debug(
                 () -> "Loading bundle: " + name + ", ext plugins: " + extendedPlugins.stream().map(lp -> lp.descriptor().getName()).toList()
@@ -469,8 +532,8 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         }
 
         final ClassLoader parentLoader = ExtendedPluginsClassLoader.create(
-            getClass().getClassLoader(),
-            extendedPlugins.stream().map(LoadedPlugin::loader).toList()
+            parentClassLoader,
+            extendedPlugins.stream().map(l -> l.spiLayerAndLoader.loader()).toList()
         );
         LayerAndLoader spiLayerAndLoader = null;
         if (bundle.hasSPI()) {
@@ -485,12 +548,26 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             spiLayerAndLoader,
             qualifiedExports
         );
-        final ClassLoader pluginClassLoader = pluginLayerAndLoader.loader();
 
         if (spiLayerAndLoader == null) {
             // use full implementation for plugins extending this one
             spiLayerAndLoader = pluginLayerAndLoader;
         }
+
+        loaded.put(name, new PluginModuleAndLayer(bundle.plugin, spiLayerAndLoader, pluginLayerAndLoader));
+    }
+
+    private static LoadedPlugin loadPlugin(
+        PluginBundle bundle,
+        PluginModuleAndLayer pluginModule,
+        Settings settings,
+        Path configPath,
+        StablePluginsRegistry stablePluginsRegistry
+    ) {
+        String name = bundle.plugin.getName();
+
+        final ClassLoader pluginClassLoader = pluginModule.pluginLayerAndLoader().loader();
+        var spiLayerAndLoader = pluginModule.spiLayerAndLoader();
 
         // reload SPI with any new services from the plugin
         reloadLuceneSPI(pluginClassLoader);
@@ -531,7 +608,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
                 }
                 plugin = loadPlugin(pluginClass, settings, configPath);
             }
-            loaded.put(name, new LoadedPlugin(bundle.plugin, plugin, spiLayerAndLoader.loader(), spiLayerAndLoader.layer()));
+            return new LoadedPlugin(bundle.plugin, plugin, spiLayerAndLoader.loader(), spiLayerAndLoader.layer());
         } finally {
             privilegedSetContextClassLoader(cl);
         }
@@ -540,7 +617,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
     static LayerAndLoader createSPI(
         PluginBundle bundle,
         ClassLoader parentLoader,
-        List<LoadedPlugin> extendedPlugins,
+        List<PluginModuleAndLayer> extendedPlugins,
         Map<String, List<ModuleQualifiedExportsService>> qualifiedExports
     ) {
         final PluginDescriptor plugin = bundle.plugin;
@@ -549,7 +626,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             return createSpiModuleLayer(
                 bundle.spiUrls,
                 parentLoader,
-                extendedPlugins.stream().map(LoadedPlugin::layer).toList(),
+                extendedPlugins.stream().map(l -> l.spiLayerAndLoader().layer()).toList(),
                 qualifiedExports
             );
         } else {
@@ -561,7 +638,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
     static LayerAndLoader createPlugin(
         PluginBundle bundle,
         ClassLoader pluginParentLoader,
-        List<LoadedPlugin> extendedPlugins,
+        List<PluginModuleAndLayer> extendedPlugins,
         LayerAndLoader spiLayerAndLoader,
         Map<String, List<ModuleQualifiedExportsService>> qualifiedExports
     ) {
@@ -570,7 +647,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             logger.debug(() -> "Loading bundle: " + plugin.getName() + ", modular");
             var parentLayers = Stream.concat(
                 Stream.ofNullable(spiLayerAndLoader != null ? spiLayerAndLoader.layer() : null),
-                extendedPlugins.stream().map(LoadedPlugin::layer)
+                extendedPlugins.stream().map(l -> l.spiLayerAndLoader().layer())
             ).toList();
             return createPluginModuleLayer(bundle, pluginParentLoader, parentLayers, qualifiedExports);
         } else if (plugin.isStable()) {
@@ -793,7 +870,12 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         }
     }
 
-    protected void addServerExportsService(Map<String, List<ModuleQualifiedExportsService>> qualifiedExports) {
+    @FunctionalInterface
+    public interface ServerExportsService {
+        void add(Map<String, List<ModuleQualifiedExportsService>> qualifiedExports);
+    }
+
+    private static void addServerExportsService(Map<String, List<ModuleQualifiedExportsService>> qualifiedExports) {
         final Module serverModule = PluginsService.class.getModule();
         var exportsService = new ModuleQualifiedExportsService(serverModule) {
             @Override

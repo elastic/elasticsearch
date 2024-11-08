@@ -16,7 +16,6 @@ import java.lang.annotation.Inherited;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
-import java.lang.reflect.Method;
 import java.util.Comparator;
 
 /**
@@ -26,11 +25,10 @@ import java.util.Comparator;
 public class AnnotationTestOrdering implements Comparator<TestMethodAndParams> {
     @Override
     public int compare(TestMethodAndParams o1, TestMethodAndParams o2) {
-        return Integer.compare(getOrderValue(o1.getTestMethod()), getOrderValue(o2.getTestMethod()));
-    }
-
-    private int getOrderValue(Method method) {
-        return method.isAnnotationPresent(Order.class) ? method.getAnnotation(Order.class).value() : Integer.MAX_VALUE;
+        return Integer.compare(
+            o1.getTestMethod().getAnnotation(Order.class).value(),
+            o2.getTestMethod().getAnnotation(Order.class).value()
+        );
     }
 
     @Retention(RetentionPolicy.RUNTIME)

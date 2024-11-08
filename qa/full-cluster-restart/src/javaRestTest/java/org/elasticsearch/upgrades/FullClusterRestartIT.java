@@ -12,7 +12,6 @@ package org.elasticsearch.upgrades;
 import io.netty.handler.codec.http.HttpMethod;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
-import com.carrotsearch.randomizedtesting.annotations.TestCaseOrdering;
 
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Build;
@@ -37,7 +36,6 @@ import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.rest.action.admin.indices.RestPutIndexTemplateAction;
 import org.elasticsearch.search.SearchFeatures;
-import org.elasticsearch.test.AnnotationTestOrdering;
 import org.elasticsearch.test.NotEqualMessageBuilder;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
@@ -101,7 +99,6 @@ import static org.hamcrest.Matchers.nullValue;
  * version is started with the same data directories and then this is rerun
  * with {@code tests.is_old_cluster} set to {@code false}.
  */
-@TestCaseOrdering(AnnotationTestOrdering.class)
 public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCase {
 
     private static TemporaryFolder repoDirectory = new TemporaryFolder();

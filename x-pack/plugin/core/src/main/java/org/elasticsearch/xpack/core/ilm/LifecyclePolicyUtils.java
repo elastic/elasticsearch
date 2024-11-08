@@ -56,17 +56,24 @@ public class LifecyclePolicyUtils {
         }
     }
 
+    /**
+     * Parses lifecycle policy based on the provided content type without doing any variable substitution.
+     * It is caller's responsibility to do any variable substitution if required.
+     */
     public static LifecyclePolicy parsePolicy(
         String rawPolicy,
         String name,
         NamedXContentRegistry xContentRegistry,
         XContentType contentType
     ) throws IOException {
-        XContentParser parser = contentType.xContent()
-            .createParser(XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry), rawPolicy);
-        LifecyclePolicy policy = LifecyclePolicy.parse(parser, name);
-        policy.validate();
-        return policy;
+        try (
+            XContentParser parser = contentType.xContent()
+                .createParser(XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry), rawPolicy)
+        ) {
+            LifecyclePolicy policy = LifecyclePolicy.parse(parser, name);
+            policy.validate();
+            return policy;
+        }
     }
 
     private static String replaceVariables(String template, Map<String, String> variables) {

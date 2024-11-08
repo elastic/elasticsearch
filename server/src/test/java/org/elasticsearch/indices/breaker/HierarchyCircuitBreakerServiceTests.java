@@ -723,7 +723,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
 
     public void testAllocationBucketsBreaker() {
         Settings clusterSettings = Settings.builder()
-             // the memory used by the test should be bigger than this value
+            // the memory used by the test should be bigger than this value
             .put(HierarchyCircuitBreakerService.TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "100b")
             .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), "true")
             .build();

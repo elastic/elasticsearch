@@ -28,7 +28,7 @@ import static org.elasticsearch.xpack.esql.ccq.Clusters.REMOTE_CLUSTER_NAME;
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class EsqlRestValidationIT extends EsqlRestValidationTestCase {
     static ElasticsearchCluster remoteCluster = Clusters.remoteCluster();
-    static ElasticsearchCluster localCluster = Clusters.localCluster(remoteCluster);
+    static ElasticsearchCluster localCluster = Clusters.localCluster(remoteCluster, false);
 
     @ClassRule
     public static TestRule clusterRule = RuleChain.outerRule(remoteCluster).around(localCluster);

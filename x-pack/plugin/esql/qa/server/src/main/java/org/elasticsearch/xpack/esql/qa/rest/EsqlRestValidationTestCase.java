@@ -87,7 +87,7 @@ public abstract class EsqlRestValidationTestCase extends ESRestTestCase {
 
     public void testExistentIndexWithoutWildcard() throws IOException {
         for (String indexName : existentIndexWithoutWildcard) {
-            assertErrorMessage(indexName, "\"reason\" : \"no such index [inexistent]\"", 404);
+            assertErrorMessageMaybe(indexName, "\"reason\" : \"no such index [inexistent]\"", 404);
         }
     }
 
@@ -95,18 +95,22 @@ public abstract class EsqlRestValidationTestCase extends ESRestTestCase {
         assertValidRequestOnIndices(existentIndexWithWildcard);
     }
 
+    protected void assertErrorMessageMaybe(String indexName, String errorMessage, int statusCode) throws IOException {
+        assertErrorMessage(indexName, errorMessage, statusCode);
+    }
+
     public void testAlias() throws IOException {
         createAlias();
 
         for (String indexName : existentAliasWithoutWildcard) {
-            assertErrorMessage(indexName, "\"reason\" : \"no such index [inexistent]\"", 404);
+            assertErrorMessageMaybe(indexName, "\"reason\" : \"no such index [inexistent]\"", 404);
         }
         assertValidRequestOnIndices(existentAliasWithWildcard);
 
         deleteAlias();
     }
 
-    private void assertErrorMessages(String[] indices, String errorMessage, int statusCode) throws IOException {
+    protected void assertErrorMessages(String[] indices, String errorMessage, int statusCode) throws IOException {
         for (String indexName : indices) {
             assertErrorMessage(indexName, errorMessage + "[" + clusterSpecificIndexName(indexName) + "]", statusCode);
         }
@@ -116,7 +120,7 @@ public abstract class EsqlRestValidationTestCase extends ESRestTestCase {
         return indexName;
     }
 
-    private void assertErrorMessage(String indexName, String errorMessage, int statusCode) throws IOException {
+    protected void assertErrorMessage(String indexName, String errorMessage, int statusCode) throws IOException {
         var specificName = clusterSpecificIndexName(indexName);
         final var request = createRequest(specificName);
         ResponseException exc = expectThrows(ResponseException.class, () -> client().performRequest(request));
@@ -138,7 +142,7 @@ public abstract class EsqlRestValidationTestCase extends ESRestTestCase {
         return request;
     }
 
-    private void assertValidRequestOnIndices(String[] indices) throws IOException {
+    protected void assertValidRequestOnIndices(String[] indices) throws IOException {
         for (String indexName : indices) {
             final var request = createRequest(clusterSpecificIndexName(indexName));
             Response response = client().performRequest(request);

@@ -31,7 +31,7 @@ public class Clusters {
     }
 
     public static ElasticsearchCluster localCluster(ElasticsearchCluster remoteCluster) {
-        return localCluster(remoteCluster, false);
+        return localCluster(remoteCluster, true);
     }
 
     public static ElasticsearchCluster localCluster(ElasticsearchCluster remoteCluster, Boolean skipUnavailable) {

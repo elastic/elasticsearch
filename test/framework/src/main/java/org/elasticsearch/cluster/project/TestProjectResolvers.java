@@ -47,6 +47,11 @@ public final class TestProjectResolvers {
             public <E extends Exception> void executeOnProject(ProjectId projectId, CheckedRunnable<E> body) throws E {
                 throw new UnsupportedOperationException("Cannot execute on a specific project when using the 'allProjects' resolver");
             }
+
+            @Override
+            public boolean supportsMultipleProjects() {
+                return true;
+            }
         };
     }
 
@@ -86,6 +91,11 @@ public final class TestProjectResolvers {
                 } finally {
                     enforceProjectId = null;
                 }
+            }
+
+            @Override
+            public boolean supportsMultipleProjects() {
+                return true;
             }
         };
     }
@@ -131,6 +141,11 @@ public final class TestProjectResolvers {
                     throw new IllegalArgumentException("Cannot set project id to " + otherProjectId);
                 }
             }
+
+            @Override
+            public boolean supportsMultipleProjects() {
+                return true;
+            }
         };
     }
 
@@ -159,6 +174,11 @@ public final class TestProjectResolvers {
                     threadContext.putHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER, projectId.id());
                     body.run();
                 }
+            }
+
+            @Override
+            public boolean supportsMultipleProjects() {
+                return true;
             }
         };
     }

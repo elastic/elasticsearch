@@ -167,6 +167,10 @@ public class MultiProjectResolverTests extends ESTestCase {
         assertThat(threadContext.getHeader(randomHeaderName), equalTo(randomHeaderValue));
     }
 
+    public void testShouldSupportsMultipleProjects() {
+        assertThat(resolver.supportsMultipleProjects(), equalTo(true));
+    }
+
     private static Map<ProjectId, ProjectMetadata> createProjects() {
         return randomMap(0, 5, () -> {
             var id = new ProjectId(randomUUID());

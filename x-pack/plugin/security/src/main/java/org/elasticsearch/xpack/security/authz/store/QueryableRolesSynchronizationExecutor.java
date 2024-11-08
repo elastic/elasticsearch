@@ -9,8 +9,6 @@ package org.elasticsearch.xpack.security.authz.store;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.UnavailableShardsException;
@@ -35,7 +33,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.action.role.BulkRolesResponse;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
@@ -152,18 +150,18 @@ public class QueryableRolesSynchronizationExecutor implements ClusterStateListen
         }
 
         final QueryableRoles roles = builtinRolesProvider.roles();
-        final Map<String, String> indexedRolesVersions = readIndexedRolesVersion(state);
-        if (roles.roleVersions().equals(indexedRolesVersions)) {
+        final Map<String, String> currentRolesVersions = readIndexedRolesVersion(state);
+        if (roles.roleVersions().equals(currentRolesVersions)) {
             logger.info("Security index already contains the latest built-in roles indexed, skipping synchronization");
             return;
         }
 
         if (synchronizationInProgress.compareAndSet(false, true)) {
-            executor.execute(() -> syncBuiltinRoles(indexedRolesVersions, roles, ActionListener.wrap(v -> {
+            executor.execute(() -> syncBuiltinRoles(currentRolesVersions, roles, ActionListener.wrap(v -> {
                 logger.info("Successfully synced built-in roles to security index");
                 synchronizationInProgress.set(false);
             }, e -> {
-                if (false == e instanceof UnavailableShardsException) {
+                if (false == e instanceof UnavailableShardsException && false == e instanceof IndexNotFoundException) {
                     logger.warn("Failed to sync built-in roles to security index", e);
                 }
                 synchronizationInProgress.set(false);
@@ -171,7 +169,7 @@ public class QueryableRolesSynchronizationExecutor implements ClusterStateListen
         }
     }
 
-    private void syncBuiltinRoles(Map<String, String> indexedRolesVersions, QueryableRoles roles, ActionListener<Void> listener) {
+    private void syncBuiltinRoles(Map<String, String> currentRolesVersions, QueryableRoles roles, ActionListener<Void> listener) {
         // This will create .security index if it does not exist and execute all migrations.
         securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
             final SecurityIndexManager frozenSecurityIndex = securityIndex.defensiveCopy();
@@ -179,13 +177,13 @@ public class QueryableRolesSynchronizationExecutor implements ClusterStateListen
                 listener.onFailure(frozenSecurityIndex.getUnavailableReason(PRIMARY_SHARDS));
             } else {
                 indexRoles(roles.roleDescriptors().values(), frozenSecurityIndex, ActionListener.wrap(onResponse -> {
-                    Set<String> rolesToDelete = indexedRolesVersions == null
+                    Set<String> rolesToDelete = currentRolesVersions == null
                         ? Set.of()
-                        : Sets.difference(indexedRolesVersions.keySet(), roles.roleVersions().keySet());
+                        : Sets.difference(currentRolesVersions.keySet(), roles.roleVersions().keySet());
                     if (false == rolesToDelete.isEmpty()) {
-                        deleteRoles(rolesToDelete, roles.roleVersions(), frozenSecurityIndex, indexedRolesVersions, listener);
+                        deleteRoles(rolesToDelete, roles.roleVersions(), frozenSecurityIndex, currentRolesVersions, listener);
                     } else {
-                        markRolesAsSynced(frozenSecurityIndex.getConcreteIndexName(), indexedRolesVersions, roles.roleVersions(), listener);
+                        markRolesAsSynced(frozenSecurityIndex.getConcreteIndexName(), currentRolesVersions, roles.roleVersions(), listener);
                     }
                 }, listener::onFailure));
             }
@@ -195,43 +193,37 @@ public class QueryableRolesSynchronizationExecutor implements ClusterStateListen
 
     private void deleteRoles(
         Set<String> rolesToDelete,
-        Map<String, String> roleVersions,
-        SecurityIndexManager frozenSecurityIndex,
-        Map<String, String> indexedRolesVersions,
+        Map<String, String> newRoleVersions,
+        SecurityIndexManager securityIndex,
+        Map<String, String> currentRolesVersions,
         ActionListener<Void> listener
     ) {
         nativeRolesStore.deleteRoles(
-            frozenSecurityIndex,
+            securityIndex,
             rolesToDelete,
             WriteRequest.RefreshPolicy.IMMEDIATE,
             false,
             ActionListener.wrap(deleteResponse -> {
                 if (deleteResponse.getItems().stream().anyMatch(BulkRolesResponse.Item::isFailed)) {
-                    listener.onFailure(
-                        new ElasticsearchStatusException("Automatic deletion of built-in roles failed", RestStatus.INTERNAL_SERVER_ERROR)
-                    );
+                    logger.warn("Automatic deletion of built-in roles failed: {}", deleteResponse);
+                    listener.onFailure(new IllegalStateException("Automatic deletion of built-in roles failed"));
                 } else {
-                    markRolesAsSynced(frozenSecurityIndex.getConcreteIndexName(), indexedRolesVersions, roleVersions, listener);
+                    markRolesAsSynced(securityIndex.getConcreteIndexName(), currentRolesVersions, newRoleVersions, listener);
                 }
-
             }, listener::onFailure)
         );
     }
 
-    private void indexRoles(
-        Collection<RoleDescriptor> roleDescriptors,
-        SecurityIndexManager frozenSecurityIndex,
-        ActionListener<Void> listener
-    ) {
+    private void indexRoles(Collection<RoleDescriptor> rolesToIndex, SecurityIndexManager securityIndex, ActionListener<Void> listener) {
         nativeRolesStore.putRoles(
-            frozenSecurityIndex,
+            securityIndex,
             WriteRequest.RefreshPolicy.IMMEDIATE,
-            roleDescriptors,
+            rolesToIndex,
             false,
             ActionListener.wrap(response -> {
                 if (response.getItems().stream().anyMatch(BulkRolesResponse.Item::isFailed)) {
                     logger.warn("Automatic indexing of built-in roles failed: {}", response);
-                    listener.onFailure(new ElasticsearchException("Automatic indexing of built-in roles failed"));
+                    listener.onFailure(new IllegalStateException("Automatic indexing of built-in roles failed"));
                 } else {
                     listener.onResponse(null);
                 }

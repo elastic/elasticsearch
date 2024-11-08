@@ -1184,7 +1184,6 @@ public class Security extends Plugin
             systemIndices.getMainIndexManager(),
             threadPool
         );
-        clusterService.addListener(queryableRolesSynchronizationExecutor);
         components.add(queryableRolesSynchronizationExecutor);
         securityInterceptor.set(
             new SecurityServerTransportInterceptor(

@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
@@ -40,6 +41,7 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.security.authz.store.QueryableRolesProvider.QueryableRoles;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
+import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -51,7 +53,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.Availability.PRIMARY_SHARDS;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
 
-public class QueryableRolesSynchronizationExecutor implements ClusterStateListener {
+public class QueryableRolesSynchronizationExecutor extends AbstractLifecycleComponent implements ClusterStateListener {
 
     private static final Logger logger = LogManager.getLogger(QueryableRolesSynchronizationExecutor.class);
 
@@ -73,11 +75,12 @@ public class QueryableRolesSynchronizationExecutor implements ClusterStateListen
 
     private final MasterServiceTaskQueue<MarkBuiltinRolesAsSyncedTask> markRolesAsSyncedTaskQueue;
 
-    private final QueryableRolesProvider builtinRolesProvider;
-    private final NativeRolesStore nativeRolesStore;
-    private final SecurityIndexManager securityIndex;
-    private final Executor executor;
+    private final ClusterService clusterService;
     private final FeatureService featureService;
+    private final QueryableRolesProvider builtinRolesProvider;
+    private final SecurityIndexManager securityIndex;
+    private final NativeRolesStore nativeRolesStore;
+    private final Executor executor;
     private final AtomicBoolean synchronizationInProgress = new AtomicBoolean(false);
 
     public QueryableRolesSynchronizationExecutor(
@@ -88,6 +91,7 @@ public class QueryableRolesSynchronizationExecutor implements ClusterStateListen
         SecurityIndexManager securityIndex,
         ThreadPool threadPool
     ) {
+        this.clusterService = clusterService;
         this.featureService = featureService;
         this.builtinRolesProvider = rolesProvider;
         this.nativeRolesStore = nativeRolesStore;
@@ -148,7 +152,6 @@ public class QueryableRolesSynchronizationExecutor implements ClusterStateListen
         if (false == shouldSyncBuiltInRoles(state)) {
             return;
         }
-
         final QueryableRoles roles = builtinRolesProvider.roles();
         final Map<String, String> currentRolesVersions = readIndexedRolesVersion(state);
         if (roles.roleVersions().equals(currentRolesVersions)) {
@@ -275,6 +278,21 @@ public class QueryableRolesSynchronizationExecutor implements ClusterStateListen
             return indices.get(0);
         }
         return null;
+    }
+
+    @Override
+    protected void doStart() {
+        clusterService.addListener(this);
+    }
+
+    @Override
+    protected void doStop() {
+        clusterService.removeListener(this);
+    }
+
+    @Override
+    protected void doClose() throws IOException {
+
     }
 
     static class MarkBuiltinRolesAsSyncedTask implements ClusterStateTaskListener {

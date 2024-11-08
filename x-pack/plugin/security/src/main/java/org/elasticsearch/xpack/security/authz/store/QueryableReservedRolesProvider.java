@@ -51,6 +51,7 @@ public class QueryableReservedRolesProvider implements QueryableRolesProvider {
             final MessageDigest hash = MessageDigests.sha256();
             try (XContentBuilder jsonBuilder = XContentFactory.jsonBuilder()) {
                 // sorting the roles by name to ensure we generate a consistent hash version
+                // TODO: This is still not enough to guarantee a consistent hash version across nodes.
                 roleDescriptors.stream().sorted(Comparator.comparing(RoleDescriptor::getName)).forEach(role -> {
                     try {
                         role.toXContent(jsonBuilder, EMPTY_PARAMS);

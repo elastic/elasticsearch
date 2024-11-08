@@ -132,7 +132,7 @@ public class IndexVersions {
     public static final IndexVersion LOGSDB_DEFAULT_IGNORE_DYNAMIC_BEYOND_LIMIT_BACKPORT = def(8_519_00_0, Version.LUCENE_9_12_0);
     public static final IndexVersion UPGRADE_TO_LUCENE_10_0_0 = def(9_000_00_0, Version.LUCENE_10_0_0);
     public static final IndexVersion LOGSDB_DEFAULT_IGNORE_DYNAMIC_BEYOND_LIMIT = def(9_001_00_0, Version.LUCENE_10_0_0);
-    public static final IndexVersion UPGRADE_TO_LUCENE_10_0_1 = def(9_002_00_0, Version.LUCENE_10_0_1);
+    public static final IndexVersion UPGRADE_TO_LUCENE_10_1_0 = def(9_002_00_0, Version.LUCENE_10_1_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

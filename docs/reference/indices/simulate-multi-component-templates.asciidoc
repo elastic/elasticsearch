@@ -1,6 +1,6 @@
 [[simulate-multi-component-templates]]
 == Simulate multi-component templates
-
+ 
 Since templates can be composed not only of multiple component templates, but also the index
 template itself, there are two simulation APIs to determine what the resulting index settings will
 be.

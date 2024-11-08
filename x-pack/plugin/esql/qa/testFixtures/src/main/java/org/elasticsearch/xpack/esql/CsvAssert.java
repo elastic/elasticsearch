@@ -33,6 +33,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.ExpectedResults;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.Type;
+import static org.elasticsearch.xpack.esql.CsvTestUtils.Type.CATEGORY;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.Type.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.logMetaData;
 import static org.elasticsearch.xpack.esql.core.util.DateUtils.UTC_DATE_TIME_FORMATTER;
@@ -134,7 +135,7 @@ public final class CsvAssert {
                         || expectedType == UNSIGNED_LONG)) {
                     continue;
                 }
-                if (blockType == Type.KEYWORD && (expectedType == Type.IP || expectedType == Type.VERSION || expectedType == Type.TEXT)) {
+                if (blockType == Type.KEYWORD && (expectedType == Type.IP || expectedType == Type.VERSION || expectedType == Type.TEXT || expectedType == CATEGORY)) {
                     // Type.asType translates all bytes references into keywords
                     continue;
                 }

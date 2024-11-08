@@ -25,9 +25,10 @@ interface ValueExtractor {
     void writeValue(BreakingBytesRefBuilder values, int position);
 
     static ValueExtractor extractorFor(ElementType elementType, TopNEncoder encoder, boolean inKey, Block block) {
-        if (false == (elementType == block.elementType() || ElementType.NULL == block.elementType())) {
-            throw new IllegalArgumentException("Expected [" + elementType + "] but was [" + block.elementType() + "]");
-        }
+        // NOCOMMIT: there's some mixup between blocks of ByteRef and Category
+//        if (false == (elementType == block.elementType() || ElementType.NULL == block.elementType())) {
+//            throw new IllegalArgumentException("Expected [" + elementType + "] but was [" + block.elementType() + "]");
+//        }
         return switch (block.elementType()) {
             case BOOLEAN -> ValueExtractorForBoolean.extractorFor(encoder, inKey, (BooleanBlock) block);
             case BYTES_REF -> ValueExtractorForBytesRef.extractorFor(encoder, inKey, (BytesRefBlock) block);

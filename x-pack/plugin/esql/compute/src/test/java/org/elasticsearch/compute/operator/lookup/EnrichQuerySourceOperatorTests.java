@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.enrich;
+package org.elasticsearch.compute.operator.lookup;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
@@ -46,7 +46,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.mockito.Mockito.mock;
@@ -105,7 +104,7 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
             inputTerms = termBuilder.build();
         }
         MappedFieldType uidField = new KeywordFieldMapper.KeywordFieldType("uid");
-        QueryList queryList = QueryList.termQueryList(uidField, mock(SearchExecutionContext.class), inputTerms, KEYWORD);
+        QueryList queryList = QueryList.rawTermQueryList(uidField, mock(SearchExecutionContext.class), inputTerms);
         assertThat(queryList.getPositionCount(), equalTo(6));
         assertThat(queryList.getQuery(0), equalTo(new TermQuery(new Term("uid", new BytesRef("b2")))));
         assertThat(queryList.getQuery(1), equalTo(new TermInSetQuery("uid", List.of(new BytesRef("c1"), new BytesRef("a2")))));
@@ -186,7 +185,7 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
             inputTerms = builder.build();
         }
         MappedFieldType uidField = new KeywordFieldMapper.KeywordFieldType("uid");
-        var queryList = QueryList.termQueryList(uidField, mock(SearchExecutionContext.class), inputTerms, KEYWORD);
+        var queryList = QueryList.rawTermQueryList(uidField, mock(SearchExecutionContext.class), inputTerms);
         int maxPageSize = between(1, 256);
         EnrichQuerySourceOperator queryOperator = new EnrichQuerySourceOperator(blockFactory, maxPageSize, queryList, reader);
         Map<Integer, Set<Integer>> actualPositions = new HashMap<>();

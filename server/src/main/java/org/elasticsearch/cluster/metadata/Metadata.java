@@ -457,10 +457,11 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
         return projectMetadata.containsKey(projectId);
     }
 
-    @FixForMultiProject(description = "We should throw for null metadata for production")
     public ProjectMetadata getProject(ProjectId projectId) {
         ProjectMetadata metadata = projectMetadata.get(projectId);
-        assert metadata != null : "Project " + projectId.id() + " not found in " + projectMetadata.keySet();
+        if (metadata == null) {
+            throw new IllegalArgumentException("project [" + projectId + "] not found");
+        }
         return metadata;
     }
 

@@ -518,6 +518,9 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
     }
 
     public ProjectState projectState(ProjectId projectId) {
+        if (metadata().hasProject(projectId) == false) {
+            throw new IllegalArgumentException("project [" + projectId + "] not found");
+        }
         return new ProjectState(this, projectId);
     }
 

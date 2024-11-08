@@ -1578,6 +1578,14 @@ public class MetadataTests extends ESTestCase {
         assertTrue(Metadata.isGlobalStateEquals(meta2, applied));
     }
 
+    public void testGetNonExistingProjectThrows() {
+        final List<ProjectMetadata> projects = IntStream.range(0, between(1, 3))
+            .mapToObj(i -> randomProject(new ProjectId("p_" + i), between(0, 5)))
+            .toList();
+        final Metadata metadata = randomMetadata(projects);
+        expectThrows(IllegalArgumentException.class, () -> metadata.getProject(randomProjectId()));
+    }
+
     public void testValidateDataStreamsNoConflicts() {
         Metadata metadata = createIndices(5, 10, "foo-datastream").metadata;
         // don't expect any exception when validating a system without indices that would conflict with future backing indices
@@ -2985,7 +2993,7 @@ public class MetadataTests extends ESTestCase {
         return randomMetadata(List.of(project));
     }
 
-    private static Metadata randomMetadata(Collection<ProjectMetadata> projects) {
+    public static Metadata randomMetadata(Collection<ProjectMetadata> projects) {
         final Metadata.Builder md = Metadata.builder()
             .persistentSettings(Settings.builder().put("setting" + randomAlphaOfLength(3), randomAlphaOfLength(4)).build())
             .transientSettings(Settings.builder().put("other_setting" + randomAlphaOfLength(3), randomAlphaOfLength(4)).build())
@@ -2998,7 +3006,7 @@ public class MetadataTests extends ESTestCase {
         return md.build();
     }
 
-    private static ProjectMetadata randomProject(ProjectId id, int numDataStreams) {
+    public static ProjectMetadata randomProject(ProjectId id, int numDataStreams) {
         ProjectMetadata.Builder project = ProjectMetadata.builder(id)
             .put(buildIndexMetadata("index", "alias", randomBoolean() ? null : randomBoolean()).build(), randomBoolean())
             .put(

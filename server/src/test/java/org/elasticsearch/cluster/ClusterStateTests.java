@@ -76,6 +76,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.stream.IntStream;
 
 import static java.util.Collections.emptySet;
 import static java.util.Collections.singletonMap;
@@ -146,6 +147,15 @@ public class ClusterStateTests extends ESTestCase {
 
         assertThat(copy, not(sameInstance(state)));
         assertThat(copy.metadata().clusterUUID(), equalTo(newClusterUuid));
+    }
+
+    public void testGetNonExistingProjectStateThrows() {
+        final List<ProjectMetadata> projects = IntStream.range(0, between(1, 3))
+            .mapToObj(i -> MetadataTests.randomProject(new ProjectId("p_" + i), between(0, 5)))
+            .toList();
+        final Metadata metadata = MetadataTests.randomMetadata(projects);
+        final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).build();
+        expectThrows(IllegalArgumentException.class, () -> clusterState.projectState(randomProjectId()));
     }
 
     public void testToStringWithMultipleProjects() throws IOException {

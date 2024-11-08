@@ -24,9 +24,11 @@ public final class ProjectState {
     private final ClusterState cluster;
     private final ProjectId project;
 
-    ProjectState(ClusterState clusterState, ProjectId project) {
+    ProjectState(ClusterState clusterState, ProjectId projectId) {
+        assert clusterState.metadata().hasProject(projectId)
+            : "project-id [" + projectId + "] not found in " + clusterState.metadata().projects().keySet();
         this.cluster = clusterState;
-        this.project = project;
+        this.project = projectId;
     }
 
     public ProjectId projectId() {

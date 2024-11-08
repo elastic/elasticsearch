@@ -100,9 +100,6 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
     private static final Logger logger = LogManager.getLogger(PluginsService.class);
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(PluginsService.class);
 
-    private final Settings settings;
-    private final Path configPath;
-
     /**
      * We keep around a list of plugins and modules. The order of
      * this list is that which the plugins and modules were loaded in.
@@ -113,34 +110,35 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
 
     public static final Setting<List<String>> MANDATORY_SETTING = Setting.stringListSetting("plugin.mandatory", Property.NodeScope);
 
+    public PluginsService(
+        Settings settings,
+        Path configPath,
+        Path modulesDirectory,
+        Path pluginsDirectory,
+        ServerExportsService serverExportsService
+    ) {
+        this(settings, configPath, loadModulesBundles(modulesDirectory), loadPluginBundles(pluginsDirectory), serverExportsService);
+    }
 
-    public static PluginsService create(Settings settings,
-                                        Path configPath,
-                                        Path modulesDirectory,
-                                        Path pluginsDirectory,
-                                        ClassLoader parentClassLoader) {
+    private PluginsService(
+        Settings settings,
+        Path configPath,
+        Set<PluginBundle> modules,
+        Set<PluginBundle> plugins,
+        ServerExportsService serverExportsService
+    ) {
+        this(settings, configPath, modules, plugins, PluginsUtils.sortBundles(Sets.union(modules, plugins)), serverExportsService);
+    }
 
-        // This bit should already be in Elasticsearch#initPhase2 and passed down to Node construction
-        Set<PluginBundle> modules = loadModulesBundles(modulesDirectory);
-        Set<PluginBundle> plugins = loadPluginBundles(pluginsDirectory);
-
-        // Prepare data
-        Set<PluginBundle> seenBundles = Sets.union(modules, plugins);
-        List<PluginBundle> sortedBundles = PluginsUtils.sortBundles(seenBundles);
-
-        // Step 1
-        LinkedHashMap<String, PluginModuleAndLayer> pluginModuleAndLayers =
-            createPluginModulesAndLayers(sortedBundles, PluginsService::addServerExportsService, parentClassLoader);
-
-        // Now we can notify whoever is interested!
-
-        // Step 2
-        StablePluginsRegistry stablePluginsRegistry = new StablePluginsRegistry();
-        LinkedHashMap<String, LoadedPlugin> loadedPlugins = loadBundles(sortedBundles, pluginModuleAndLayers,
-            settings, configPath,
-            stablePluginsRegistry);
-
-        return new PluginsService(settings, configPath, modules, plugins, loadedPlugins);
+    private PluginsService(
+        Settings settings,
+        Path configPath,
+        Set<PluginBundle> modules,
+        Set<PluginBundle> plugins,
+        List<PluginBundle> sortedBundles,
+        ServerExportsService serverExportsService
+    ) {
+        this(settings, configPath, modules, plugins, sortedBundles, createPluginModulesAndLayers(sortedBundles, serverExportsService));
     }
 
     private static Set<PluginBundle> loadPluginBundles(Path pluginsDirectory) {
@@ -173,12 +171,11 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
 
     public static LinkedHashMap<String, PluginModuleAndLayer> createPluginModulesAndLayers(
         List<PluginBundle> sortedBundles,
-        ServerExportsService serverExportsService,
-        ClassLoader parentClassLoader
+        ServerExportsService serverExportsService
     ) {
         Map<String, List<ModuleQualifiedExportsService>> qualifiedExports = new HashMap<>(ModuleQualifiedExportsService.getBootServices());
         serverExportsService.add(qualifiedExports);
-        return createBundlesModules(sortedBundles, qualifiedExports, parentClassLoader);
+        return createBundlesModules(sortedBundles, qualifiedExports, PluginsService.serverModule.getClassLoader());
     }
 
     /**
@@ -189,10 +186,17 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
      * @param plugins   The installed plugins descriptors, empty if plugins should not be loaded from the filesystem
      */
     @SuppressWarnings("this-escape")
-    public PluginsService(Settings settings, Path configPath, Set<PluginBundle> modules, Set<PluginBundle> plugins,
-                          Map<String, LoadedPlugin> loadedPlugins) {
-        this.settings = settings;
-        this.configPath = configPath;
+    public PluginsService(
+        Settings settings,
+        Path configPath,
+        Set<PluginBundle> modules,
+        Set<PluginBundle> plugins,
+        List<PluginBundle> sortedBundles,
+        Map<String, PluginModuleAndLayer> pluginModuleAndLayers
+    ) {
+        // Step 2
+        StablePluginsRegistry stablePluginsRegistry = new StablePluginsRegistry();
+        var loadedPlugins = loadBundles(sortedBundles, pluginModuleAndLayers, settings, configPath, stablePluginsRegistry);
 
         // load modules
         List<PluginDescriptor> modulesList = new ArrayList<>();
@@ -501,7 +505,11 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         return "constructor for extension [" + extensionClass.getName() + "] of type [" + extensionPointType.getName() + "]";
     }
 
-    record PluginModuleAndLayer(PluginDescriptor descriptor, LayerAndLoader spiLayerAndLoader, LayerAndLoader pluginLayerAndLoader) {}
+    public record PluginModuleAndLayer(
+        PluginDescriptor descriptor,
+        LayerAndLoader spiLayerAndLoader,
+        LayerAndLoader pluginLayerAndLoader
+    ) {}
 
     private static void createPluginModules(
         PluginBundle bundle,
@@ -520,11 +528,11 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             PluginModuleAndLayer extendedPlugin = loaded.get(extendedPluginName);
             assert extendedPlugin != null;
             // TODO: move this check
-//            if (ExtensiblePlugin.class.isInstance(extendedPlugin.instance()) == false) {
-//                throw new IllegalStateException("Plugin [" + name + "] cannot extend non-extensible plugin [" + extendedPluginName + "]");
-//            }
-            assert extendedPlugin.spiLayerAndLoader() != null && extendedPlugin.spiLayerAndLoader().loader() != null :
-                "All non-classpath plugins should be loaded with a classloader";
+            // if (ExtensiblePlugin.class.isInstance(extendedPlugin.instance()) == false) {
+            // throw new IllegalStateException("Plugin [" + name + "] cannot extend non-extensible plugin [" + extendedPluginName + "]");
+            // }
+            assert extendedPlugin.spiLayerAndLoader() != null && extendedPlugin.spiLayerAndLoader().loader() != null
+                : "All non-classpath plugins should be loaded with a classloader";
             extendedPlugins.add(extendedPlugin);
             logger.debug(
                 () -> "Loading bundle: " + name + ", ext plugins: " + extendedPlugins.stream().map(lp -> lp.descriptor().getName()).toList()
@@ -875,7 +883,9 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         void add(Map<String, List<ModuleQualifiedExportsService>> qualifiedExports);
     }
 
-    private static void addServerExportsService(Map<String, List<ModuleQualifiedExportsService>> qualifiedExports) {
+    public static void noServerExportsService(Map<String, List<ModuleQualifiedExportsService>> qualifiedExports) {}
+
+    public static void defaultServerExportsService(Map<String, List<ModuleQualifiedExportsService>> qualifiedExports) {
         final Module serverModule = PluginsService.class.getModule();
         var exportsService = new ModuleQualifiedExportsService(serverModule) {
             @Override

@@ -27,6 +27,7 @@ import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.util.concurrent.RunOnce;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
@@ -41,6 +42,9 @@ import org.elasticsearch.monitor.process.ProcessProbe;
 import org.elasticsearch.nativeaccess.NativeAccess;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeValidationException;
+import org.elasticsearch.plugins.PluginBundle;
+import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.plugins.PluginsUtils;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -50,12 +54,15 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.Permission;
 import java.security.Security;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.bootstrap.BootstrapSettings.SECURITY_FILTER_BAD_DEFAULTS_SETTING;
+import static org.elasticsearch.common.io.FileSystemUtils.isAccessibleDirectory;
 import static org.elasticsearch.nativeaccess.WindowsFunctions.ConsoleCtrlHandler.CTRL_CLOSE_EVENT;
 
 /**
@@ -145,6 +152,34 @@ class Elasticsearch {
         return new Bootstrap(out, err, args);
     }
 
+    private static Set<PluginBundle> loadPluginBundles(Path pluginsDirectory, Logger logger) {
+        Set<PluginBundle> plugins = Set.of();
+        if (pluginsDirectory != null) {
+            try {
+                // TODO: remove this leniency, but tests bogusly rely on it
+                if (isAccessibleDirectory(pluginsDirectory, logger)) {
+                    PluginsUtils.checkForFailedPluginRemovals(pluginsDirectory);
+                    plugins = PluginsUtils.getPluginBundles(pluginsDirectory);
+                }
+            } catch (IOException ex) {
+                throw new IllegalStateException("Unable to initialize plugins", ex);
+            }
+        }
+        return plugins;
+    }
+
+    private static Set<PluginBundle> loadModulesBundles(Path modulesDirectory) {
+        Set<PluginBundle> modules = Set.of();
+        if (modulesDirectory != null) {
+            try {
+                modules = PluginsUtils.getModuleBundles(modulesDirectory);
+            } catch (IOException ex) {
+                throw new IllegalStateException("Unable to initialize modules", ex);
+            }
+        }
+        return modules;
+    }
+
     /**
      * Second phase of process initialization.
      *
@@ -198,6 +233,30 @@ class Elasticsearch {
             // We eagerly initialize to work around log4j permissions & JDK-8309727
             VectorUtil.class
         );
+
+        Set<PluginBundle> modules = loadModulesBundles(nodeEnv.modulesFile());
+        Set<PluginBundle> plugins = loadPluginBundles(nodeEnv.pluginsFile(), logger);
+
+        // Prepare data
+        Set<PluginBundle> seenBundles = Sets.union(modules, plugins);
+        List<PluginBundle> sortedBundles = PluginsUtils.sortBundles(seenBundles);
+
+        // Step 1
+        LinkedHashMap<String, PluginsService.PluginModuleAndLayer> pluginModuleAndLayers = PluginsService.createPluginModulesAndLayers(
+            sortedBundles,
+            PluginsService::defaultServerExportsService
+        );
+
+        // TODO: pass this to both EntitlementBootstrap and Node down (as a new "PluginsEnvironment" class, so it can use it to initialize
+        // PluginsService via the new ctor
+        // PluginsService(
+        // Settings settings,
+        // Path configPath,
+        // Set<PluginBundle> modules,
+        // Set<PluginBundle> plugins,
+        // List<PluginBundle> sortedBundles,
+        // Map<String, PluginModuleAndLayer> pluginModuleAndLayers
+        // )
 
         if (Boolean.parseBoolean(System.getProperty("es.entitlements.enabled"))) {
             EntitlementBootstrap.bootstrap();

@@ -88,7 +88,7 @@ fieldQueryValue
     ;
 
 fieldName
-    : value=UNQUOTED_LITERAL+
+    : value=UNQUOTED_LITERAL
     | value=QUOTED_STRING
     | value=WILDCARD
     ;

@@ -27,6 +27,12 @@ import java.util.Set;
  */
 public class EsqlCapabilities {
     public enum Cap {
+
+        /**
+         * Support for function {@code BIT_LENGTH}. Done in #115792
+         */
+        FN_BIT_LENGTH,
+
         /**
          * Support for function {@code REVERSE}.
          */
@@ -314,9 +320,19 @@ public class EsqlCapabilities {
         TO_DATE_NANOS(EsqlCorePlugin.DATE_NANOS_FEATURE_FLAG),
 
         /**
+         * Support for date nanos type in binary comparisons
+         */
+        DATE_NANOS_BINARY_COMPARISON(EsqlCorePlugin.DATE_NANOS_FEATURE_FLAG),
+
+        /**
          * Support Least and Greatest functions on Date Nanos type
          */
         LEAST_GREATEST_FOR_DATENANOS(EsqlCorePlugin.DATE_NANOS_FEATURE_FLAG),
+
+        /**
+         * Support for date_trunc function on date nanos type
+         */
+        DATE_TRUNC_DATE_NANOS(EsqlCorePlugin.DATE_NANOS_FEATURE_FLAG),
 
         /**
          * support aggregations on date nanos
@@ -454,6 +470,7 @@ public class EsqlCapabilities {
          */
         ADD_LIMIT_INSIDE_MV_EXPAND,
 
+        DELAY_DEBUG_FN(Build.current().isSnapshot()),
         /**
          * WIP on Join planning
          * - Introduce BinaryPlan and co

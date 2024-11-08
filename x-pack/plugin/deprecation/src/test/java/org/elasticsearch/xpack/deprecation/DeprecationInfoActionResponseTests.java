@@ -37,6 +37,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -106,7 +107,9 @@ public class DeprecationInfoActionResponseTests extends AbstractWireSerializingT
         boolean indexIssueFound = randomBoolean();
         DeprecationIssue foundIssue = createTestDeprecationIssue();
         List<Function<ClusterState, DeprecationIssue>> clusterSettingsChecks = List.of((s) -> clusterIssueFound ? foundIssue : null);
-        List<Function<IndexMetadata, DeprecationIssue>> indexSettingsChecks = List.of((idx) -> indexIssueFound ? foundIssue : null);
+        List<BiFunction<IndexMetadata, ClusterState, DeprecationIssue>> indexSettingsChecks = List.of(
+            (idx, cs) -> indexIssueFound ? foundIssue : null
+        );
 
         NodesDeprecationCheckResponse nodeDeprecationIssues = new NodesDeprecationCheckResponse(
             new ClusterName(randomAlphaOfLength(5)),
@@ -196,7 +199,7 @@ public class DeprecationInfoActionResponseTests extends AbstractWireSerializingT
         DeprecationIssue foundIssue1 = createTestDeprecationIssue(metaMap1);
         DeprecationIssue foundIssue2 = createTestDeprecationIssue(foundIssue1, metaMap2);
         List<Function<ClusterState, DeprecationIssue>> clusterSettingsChecks = Collections.emptyList();
-        List<Function<IndexMetadata, DeprecationIssue>> indexSettingsChecks = List.of((idx) -> null);
+        List<BiFunction<IndexMetadata, ClusterState, DeprecationIssue>> indexSettingsChecks = List.of((idx, cs) -> null);
 
         NodesDeprecationCheckResponse nodeDeprecationIssues = new NodesDeprecationCheckResponse(
             new ClusterName(randomAlphaOfLength(5)),
@@ -252,10 +255,12 @@ public class DeprecationInfoActionResponseTests extends AbstractWireSerializingT
             return null;
         }));
         AtomicReference<Settings> visibleIndexSettings = new AtomicReference<>();
-        List<Function<IndexMetadata, DeprecationIssue>> indexSettingsChecks = Collections.unmodifiableList(Arrays.asList((idx) -> {
-            visibleIndexSettings.set(idx.getSettings());
-            return null;
-        }));
+        List<BiFunction<IndexMetadata, ClusterState, DeprecationIssue>> indexSettingsChecks = Collections.unmodifiableList(
+            Arrays.asList((idx, cs) -> {
+                visibleIndexSettings.set(idx.getSettings());
+                return null;
+            })
+        );
 
         NodesDeprecationCheckResponse nodeDeprecationIssues = new NodesDeprecationCheckResponse(
             new ClusterName(randomAlphaOfLength(5)),

@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
 import java.util.List;
 import java.util.Objects;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -88,7 +89,7 @@ public class DeprecationChecks {
                 NodeDeprecationChecks::checkWatcherBulkConcurrentRequestsSetting
             );
 
-    static List<Function<IndexMetadata, DeprecationIssue>> INDEX_SETTINGS_CHECKS = List.of(
+    static List<BiFunction<IndexMetadata, ClusterState, DeprecationIssue>> INDEX_SETTINGS_CHECKS = List.of(
         IndexDeprecationChecks::oldIndicesCheck,
         IndexDeprecationChecks::translogRetentionSettingCheck,
         IndexDeprecationChecks::checkIndexDataPath,

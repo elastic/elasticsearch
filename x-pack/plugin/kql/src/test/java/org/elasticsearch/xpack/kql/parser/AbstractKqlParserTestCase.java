@@ -47,6 +47,43 @@ import static org.hamcrest.Matchers.equalTo;
 
 public abstract class AbstractKqlParserTestCase extends AbstractBuilderTestCase {
 
+    protected static final String NESTED_FIELD_NAME = "mapped_nested";
+
+    @Override
+    protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
+        XContentBuilder mapping = jsonBuilder().startObject().startObject("_doc").startObject("properties");
+
+        mapping.startObject(TEXT_FIELD_NAME).field("type", "text").endObject();
+        mapping.startObject(NESTED_FIELD_NAME);
+        {
+            mapping.field("type", "nested");
+            mapping.startObject("properties");
+            {
+                mapping.startObject(TEXT_FIELD_NAME).field("type", "text").endObject();
+                mapping.startObject(KEYWORD_FIELD_NAME).field("type", "keyword").endObject();
+                mapping.startObject(INT_FIELD_NAME).field("type", "integer").endObject();
+                mapping.startObject(NESTED_FIELD_NAME);
+                {
+                    mapping.field("type", "nested");
+                    mapping.startObject("properties");
+                    {
+                        mapping.startObject(TEXT_FIELD_NAME).field("type", "text").endObject();
+                        mapping.startObject(KEYWORD_FIELD_NAME).field("type", "keyword").endObject();
+                        mapping.startObject(INT_FIELD_NAME).field("type", "integer").endObject();
+                    }
+                    mapping.endObject();
+                }
+                mapping.endObject();
+            }
+            mapping.endObject();
+        }
+        mapping.endObject();
+
+        mapping.endObject().endObject().endObject();
+
+        mapperService.merge("_doc", new CompressedXContent(Strings.toString(mapping)), MapperService.MergeReason.MAPPING_UPDATE);
+    }
+
     protected static final String SUPPORTED_QUERY_FILE_PATH = "/supported-queries";
     protected static final String UNSUPPORTED_QUERY_FILE_PATH = "/unsupported-queries";
     protected static final Predicate<String> BOOLEAN_QUERY_FILTER = (q) -> q.matches("(?i)[^{]*[^\\\\]*(NOT|AND|OR)[^}]*");

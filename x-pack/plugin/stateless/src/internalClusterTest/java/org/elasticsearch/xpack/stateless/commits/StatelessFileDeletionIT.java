@@ -923,7 +923,7 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
     )
     public void testDeleteIndexWhileNodeStopping() {
         var indexNode = startMasterAndIndexNode();
-        startSearchNode();
+        var searchNode = startSearchNode();
         var indexName = randomIdentifier();
         createIndex(indexName, 1, 1);
         ensureGreen(indexName);
@@ -934,10 +934,11 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
 
         final var startBarrier = new CyclicBarrier(3);
 
+        var client = client(searchNode);
         final var indexDocsAndFlushThread = new Thread(() -> {
             try {
                 safeAwait(startBarrier);
-                var bulkRequest = client().prepareBulk();
+                var bulkRequest = client.prepareBulk();
                 IntStream.rangeClosed(0, randomIntBetween(10, 20))
                     .mapToObj(ignored -> new IndexRequest(indexName).source("field", randomUnicodeOfCodepointLengthBetween(1, 25)))
                     .forEach(bulkRequest::add);
@@ -957,7 +958,7 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
         final var forceMergeThread = new Thread(() -> {
             try {
                 safeAwait(startBarrier);
-                indicesAdmin().prepareForceMerge(indexName).setMaxNumSegments(1).get();
+                client.admin().indices().prepareForceMerge(indexName).setMaxNumSegments(1).get();
             } catch (ClusterBlockException | MasterNotDiscoveredException e) {
                 // can happen while node is stopped
                 assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));

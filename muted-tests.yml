@@ -282,6 +282,9 @@ tests:
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=esql/60_usage/Basic ESQL usage output (telemetry) non-snapshot version}
   issue: https://github.com/elastic/elasticsearch/issues/116448
+- class: org.elasticsearch.xpack.downsample.ILMDownsampleDisruptionIT
+  method: testILMDownsampleRollingRestart
+  issue: https://github.com/elastic/elasticsearch/issues/114233
 
 # Examples:
 #

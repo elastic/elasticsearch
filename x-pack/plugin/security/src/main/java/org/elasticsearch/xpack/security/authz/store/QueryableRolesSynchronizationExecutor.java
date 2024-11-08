@@ -56,7 +56,7 @@ public class QueryableRolesSynchronizationExecutor implements ClusterStateListen
     private static final Logger logger = LogManager.getLogger(QueryableRolesSynchronizationExecutor.class);
 
     public static final NodeFeature QUERYABLE_BUILT_IN_ROLES_FEATURE = new NodeFeature("security.queryable_built_in_roles");
-    private static final String METADATA_QUERYABLE_BUILT_IN_ROLES = "queryable_built_in_roles";
+    public static final String METADATA_QUERYABLE_BUILT_IN_ROLES = "queryable_built_in_roles";
 
     private static final SimpleBatchedExecutor<MarkBuiltinRolesAsSyncedTask, Map<String, String>> MARK_ROLES_AS_SYNCED_TASK_EXECUTOR =
         new SimpleBatchedExecutor<>() {
@@ -102,29 +102,29 @@ public class QueryableRolesSynchronizationExecutor implements ClusterStateListen
 
     private boolean shouldSyncBuiltInRoles(ClusterState state) {
         if (nativeRolesStore.isEnabled() == false) {
-            logger.info("Native role management is not enabled, skipping built-in roles synchronization");
+            logger.debug("Native role management is not enabled, skipping built-in roles synchronization");
             return false;
         }
         if (false == state.clusterRecovered()) {
-            logger.info("Cluster state has not recovered yet, skipping built-in roles synchronization");
+            logger.trace("Cluster state has not recovered yet, skipping built-in roles synchronization");
             return false;
         }
         if (false == state.nodes().isLocalNodeElectedMaster()) {
-            logger.info("Local node is not the master, skipping built-in roles synchronization");
+            logger.trace("Local node is not the master, skipping built-in roles synchronization");
             return false;
         }
         if (state.nodes().getDataNodes().isEmpty()) {
-            logger.info("No data nodes in the cluster, skipping built-in roles synchronization");
+            logger.trace("No data nodes in the cluster, skipping built-in roles synchronization");
             return false;
         }
         // to keep things simple and avoid potential overwrites with an older version of built-in roles,
         // we only sync built-in roles if all nodes are on the same version
         if (isMixedVersionCluster(state.nodes())) {
-            logger.info("Not all nodes are on the same version, skipping built-in roles synchronization");
+            logger.debug("Not all nodes are on the same version, skipping built-in roles synchronization");
             return false;
         }
         if (false == featureService.clusterHasFeature(state, QUERYABLE_BUILT_IN_ROLES_FEATURE)) {
-            logger.info("Not all nodes support queryable built-in roles, skipping built-in roles synchronization");
+            logger.debug("Not all nodes support queryable built-in roles, skipping built-in roles synchronization");
             return false;
         }
         return true;
@@ -152,7 +152,7 @@ public class QueryableRolesSynchronizationExecutor implements ClusterStateListen
         final QueryableRoles roles = builtinRolesProvider.roles();
         final Map<String, String> currentRolesVersions = readIndexedRolesVersion(state);
         if (roles.roleVersions().equals(currentRolesVersions)) {
-            logger.info("Security index already contains the latest built-in roles indexed, skipping synchronization");
+            logger.debug("Security index already contains the latest built-in roles indexed, skipping synchronization");
             return;
         }
 
@@ -205,7 +205,6 @@ public class QueryableRolesSynchronizationExecutor implements ClusterStateListen
             false,
             ActionListener.wrap(deleteResponse -> {
                 if (deleteResponse.getItems().stream().anyMatch(BulkRolesResponse.Item::isFailed)) {
-                    logger.warn("Automatic deletion of built-in roles failed: {}", deleteResponse);
                     listener.onFailure(new IllegalStateException("Automatic deletion of built-in roles failed"));
                 } else {
                     markRolesAsSynced(securityIndex.getConcreteIndexName(), currentRolesVersions, newRoleVersions, listener);
@@ -222,7 +221,6 @@ public class QueryableRolesSynchronizationExecutor implements ClusterStateListen
             false,
             ActionListener.wrap(response -> {
                 if (response.getItems().stream().anyMatch(BulkRolesResponse.Item::isFailed)) {
-                    logger.warn("Automatic indexing of built-in roles failed: {}", response);
                     listener.onFailure(new IllegalStateException("Automatic indexing of built-in roles failed"));
                 } else {
                     listener.onResponse(null);
@@ -241,7 +239,8 @@ public class QueryableRolesSynchronizationExecutor implements ClusterStateListen
             "mark built-in roles as synced task",
             new MarkBuiltinRolesAsSyncedTask(ActionListener.wrap(response -> {
                 if (newRolesVersion.equals(response) == false) {
-                    listener.onFailure(new IllegalStateException("Failed to mark built-in roles as synced"));
+                    // TODO: This should be expected and can happen if other node have already marked the roles as synced
+                    listener.onFailure(new IllegalStateException("Failed to mark built-in roles as synced. Version not expected."));
                 } else {
                     listener.onResponse(null);
                 }
@@ -301,6 +300,9 @@ public class QueryableRolesSynchronizationExecutor implements ClusterStateListen
 
         Tuple<ClusterState, Map<String, String>> execute(ClusterState state) {
             IndexMetadata indexMetadata = state.metadata().index(index);
+            if(indexMetadata == null) {
+                throw new IndexNotFoundException(index);
+            }
             Map<String, String> existingValue = indexMetadata.getCustomData(METADATA_QUERYABLE_BUILT_IN_ROLES);
             if (Objects.equals(expected, existingValue)) {
                 IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexMetadata);

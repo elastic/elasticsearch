@@ -44,7 +44,6 @@ public class StdDeviation$Type$Aggregator {
         state.combine(mean, m2, count);
     }
 
-
     public static void evaluateIntermediate(StdDeviation$Type$State state, DriverContext driverContext, Block[] blocks, int offset) {
         assert blocks.length >= offset + 3;
         BlockFactory blockFactory = driverContext.blockFactory();
@@ -82,13 +81,7 @@ public class StdDeviation$Type$Aggregator {
         }
     }
 
-    public static void combineIntermediate(
-        GroupingStdDeviation$Type$State state,
-        int groupId,
-        double mean,
-        double m2,
-        long count
-    ) {
+    public static void combineIntermediate(GroupingStdDeviation$Type$State state, int groupId, double mean, double m2, long count) {
         state.combine(groupId, mean, m2, count);
     }
 

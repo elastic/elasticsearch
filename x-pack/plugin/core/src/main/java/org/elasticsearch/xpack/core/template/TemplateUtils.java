@@ -64,12 +64,7 @@ public class TemplateUtils {
     }
 
     public static String replaceVariables(String input, String version, String versionProperty, Map<String, String> variables) {
-        String template = replaceVariables(input, variables);
-        return replaceVariable(template, versionProperty, version);
-    }
-
-    public static String replaceVariables(String input, Map<String, String> variables) {
-        String template = input;
+        String template = replaceVariable(input, versionProperty, version);
         for (Map.Entry<String, String> variable : variables.entrySet()) {
             template = replaceVariable(template, variable.getKey(), variable.getValue());
         }

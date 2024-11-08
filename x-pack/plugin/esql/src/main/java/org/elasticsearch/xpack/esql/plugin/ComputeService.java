@@ -307,11 +307,7 @@ public class ComputeService {
                 return reductionNode == null ? f : f.withReducer(reductionNode);
             });
 
-        // The lambda is to say if a TEXT field has an identical exact subfield
-        // We cannot use SearchContext because we don't have it yet.
-        // Since it's used only for @timestamp, it is relatively safe to assume it's not needed
-        // but it would be better to have a proper impl.
-        QueryBuilder requestFilter = PlannerUtils.requestFilter(planWithReducer, x -> true);
+        QueryBuilder requestFilter = PlannerUtils.requestTimestampFilter(planWithReducer);
         var lookupListener = ActionListener.releaseAfter(computeListener.acquireAvoid(), exchangeSource.addEmptySink());
         // SearchShards API can_match is done in lookupDataNodes
         lookupDataNodes(parentTask, clusterAlias, requestFilter, concreteIndices, originalIndices, ActionListener.wrap(dataNodeResult -> {

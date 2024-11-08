@@ -1,0 +1,7 @@
+pr: 114638
+summary: "ES|QL: Restrict sorting for `_source` and counter field types"
+area: ES|QL
+type: bug
+issues:
+ - 114423
+ - 111976

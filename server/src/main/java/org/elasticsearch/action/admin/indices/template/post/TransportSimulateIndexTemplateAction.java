@@ -16,7 +16,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
-import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
@@ -49,6 +48,7 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.time.Instant;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -157,8 +157,7 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
             xContentRegistry,
             indicesService,
             systemIndices,
-            indexSettingProviders,
-            Map.of()
+            indexSettingProviders
         );
 
         final Map<String, List<String>> overlapping = new HashMap<>();
@@ -235,8 +234,7 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
         final NamedXContentRegistry xContentRegistry,
         final IndicesService indicesService,
         final SystemIndices systemIndices,
-        Set<IndexSettingProvider> indexSettingProviders,
-        Map<String, ComponentTemplate> componentTemplateSubstitutions
+        Set<IndexSettingProvider> indexSettingProviders
     ) throws Exception {
         var metadata = simulatedState.getMetadata();
         Settings templateSettings = resolveSettings(simulatedState.metadata(), matchingTemplate);
@@ -266,7 +264,6 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
             null, // empty request mapping as the user can't specify any explicit mappings via the simulate api
             simulatedState,
             matchingTemplate,
-            componentTemplateSubstitutions,
             xContentRegistry,
             simulatedIndexName
         );
@@ -274,20 +271,35 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
         // First apply settings sourced from index settings providers
         final var now = Instant.now();
         Settings.Builder additionalSettings = Settings.builder();
+        Set<String> overrulingSettings = new HashSet<>();
         for (var provider : indexSettingProviders) {
             Settings result = provider.getAdditionalIndexSettings(
                 indexName,
                 template.getDataStreamTemplate() != null ? indexName : null,
-                template.getDataStreamTemplate() != null && metadata.isTimeSeriesTemplate(template),
+                metadata.retrieveIndexModeFromTemplate(template),
                 simulatedState.getMetadata(),
                 now,
                 templateSettings,
                 mappings
             );
+            MetadataCreateIndexService.validateAdditionalSettings(provider, result, additionalSettings);
             dummySettings.put(result);
             additionalSettings.put(result);
+            if (provider.overrulesTemplateAndRequestSettings()) {
+                overrulingSettings.addAll(result.keySet());
+            }
         }
-        // Then apply settings resolved from templates:
+
+        if (overrulingSettings.isEmpty() == false) {
+            // Filter any conflicting settings from overruling providers, to avoid overwriting their values from templates.
+            final Settings.Builder filtered = Settings.builder().put(templateSettings);
+            for (String setting : overrulingSettings) {
+                filtered.remove(setting);
+            }
+            templateSettings = filtered.build();
+        }
+
+        // Apply settings resolved from templates.
         dummySettings.put(templateSettings);
 
         final IndexMetadata indexMetadata = IndexMetadata.builder(indexName)

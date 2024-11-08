@@ -13,30 +13,62 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Comparator;
+import java.util.Objects;
+
+import static org.elasticsearch.TransportVersions.RRF_QUERY_REWRITE;
 
 public class RankDocsQueryBuilder extends AbstractQueryBuilder<RankDocsQueryBuilder> {
 
     public static final String NAME = "rank_docs_query";
 
     private final RankDoc[] rankDocs;
+    private final QueryBuilder[] queryBuilders;
+    private final boolean onlyRankDocs;
 
-    public RankDocsQueryBuilder(RankDoc[] rankDocs) {
+    public RankDocsQueryBuilder(RankDoc[] rankDocs, QueryBuilder[] queryBuilders, boolean onlyRankDocs) {
         this.rankDocs = rankDocs;
+        this.queryBuilders = queryBuilders;
+        this.onlyRankDocs = onlyRankDocs;
     }
 
     public RankDocsQueryBuilder(StreamInput in) throws IOException {
         super(in);
         this.rankDocs = in.readArray(c -> c.readNamedWriteable(RankDoc.class), RankDoc[]::new);
+        if (in.getTransportVersion().onOrAfter(RRF_QUERY_REWRITE)) {
+            this.queryBuilders = in.readOptionalArray(c -> c.readNamedWriteable(QueryBuilder.class), QueryBuilder[]::new);
+            this.onlyRankDocs = in.readBoolean();
+        } else {
+            this.queryBuilders = null;
+            this.onlyRankDocs = false;
+        }
+    }
+
+    @Override
+    protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+        if (queryBuilders != null) {
+            QueryBuilder[] newQueryBuilders = new QueryBuilder[queryBuilders.length];
+            boolean changed = false;
+            for (int i = 0; i < newQueryBuilders.length; i++) {
+                newQueryBuilders[i] = queryBuilders[i].rewrite(queryRewriteContext);
+                changed |= newQueryBuilders[i] != queryBuilders[i];
+            }
+            if (changed) {
+                return new RankDocsQueryBuilder(rankDocs, newQueryBuilders, onlyRankDocs);
+            }
+        }
+        return super.doRewrite(queryRewriteContext);
     }
 
     RankDoc[] rankDocs() {
@@ -46,6 +78,10 @@ public class RankDocsQueryBuilder extends AbstractQueryBuilder<RankDocsQueryBuil
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeArray(StreamOutput::writeNamedWriteable, rankDocs);
+        if (out.getTransportVersion().onOrAfter(RRF_QUERY_REWRITE)) {
+            out.writeOptionalArray(StreamOutput::writeNamedWriteable, queryBuilders);
+            out.writeBoolean(onlyRankDocs);
+        }
     }
 
     @Override
@@ -57,29 +93,22 @@ public class RankDocsQueryBuilder extends AbstractQueryBuilder<RankDocsQueryBuil
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
         RankDoc[] shardRankDocs = Arrays.stream(rankDocs)
             .filter(r -> r.shardIndex == context.getShardRequestIndex())
-            .sorted(Comparator.comparingInt(r -> r.doc))
             .toArray(RankDoc[]::new);
         IndexReader reader = context.getIndexReader();
-        int[] segmentStarts = findSegmentStarts(reader, shardRankDocs);
-        return new RankDocsQuery(shardRankDocs, segmentStarts, reader.getContext().id());
-    }
-
-    private static int[] findSegmentStarts(IndexReader reader, RankDoc[] docs) {
-        int[] starts = new int[reader.leaves().size() + 1];
-        starts[starts.length - 1] = docs.length;
-        if (starts.length == 2) {
-            return starts;
-        }
-        int resultIndex = 0;
-        for (int i = 1; i < starts.length - 1; i++) {
-            int upper = reader.leaves().get(i).docBase;
-            resultIndex = Arrays.binarySearch(docs, resultIndex, docs.length, upper, (a, b) -> Integer.compare(((RankDoc) a).doc, (int) b));
-            if (resultIndex < 0) {
-                resultIndex = -1 - resultIndex;
+        final Query[] queries;
+        final String[] queryNames;
+        if (queryBuilders != null) {
+            queries = new Query[queryBuilders.length];
+            queryNames = new String[queryBuilders.length];
+            for (int i = 0; i < queryBuilders.length; i++) {
+                queries[i] = queryBuilders[i].toQuery(context);
+                queryNames[i] = queryBuilders[i].queryName();
             }
-            starts[i] = resultIndex;
+        } else {
+            queries = new Query[0];
+            queryNames = Strings.EMPTY_ARRAY;
         }
-        return starts;
+        return new RankDocsQuery(reader, shardRankDocs, queries, queryNames, onlyRankDocs);
     }
 
     @Override
@@ -97,12 +126,14 @@ public class RankDocsQueryBuilder extends AbstractQueryBuilder<RankDocsQueryBuil
 
     @Override
     protected boolean doEquals(RankDocsQueryBuilder other) {
-        return Arrays.equals(rankDocs, other.rankDocs);
+        return Arrays.equals(rankDocs, other.rankDocs)
+            && Arrays.equals(queryBuilders, other.queryBuilders)
+            && onlyRankDocs == other.onlyRankDocs;
     }
 
     @Override
     protected int doHashCode() {
-        return Arrays.hashCode(rankDocs);
+        return Objects.hash(Arrays.hashCode(rankDocs), Arrays.hashCode(queryBuilders), onlyRankDocs);
     }
 
     @Override

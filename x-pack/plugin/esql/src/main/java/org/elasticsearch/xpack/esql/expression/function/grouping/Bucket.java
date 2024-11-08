@@ -39,7 +39,6 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.Function;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
@@ -241,7 +240,7 @@ public class Bucket extends GroupingFunction implements Validatable, TwoOptional
     }
 
     @Override
-    public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         if (field.dataType() == DataType.DATETIME) {
             Rounding.Prepared preparedRounding;
             if (buckets.dataType().isWholeNumber()) {
@@ -253,7 +252,7 @@ public class Bucket extends GroupingFunction implements Validatable, TwoOptional
                 assert DataType.isTemporalAmount(buckets.dataType()) : "Unexpected span data type [" + buckets.dataType() + "]";
                 preparedRounding = DateTrunc.createRounding(buckets.fold(), DEFAULT_TZ);
             }
-            return DateTrunc.evaluator(source(), toEvaluator.apply(field), preparedRounding);
+            return DateTrunc.evaluator(field.dataType(), source(), toEvaluator.apply(field), preparedRounding);
         }
         if (field.dataType().isNumeric()) {
             double roundTo;

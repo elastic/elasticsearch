@@ -504,3 +504,52 @@ double nested declared in mapping:
 
   # The `nested` field is not visible, nor are any of it's subfields.
   - match: { columns: [{name: name, type: keyword}] }
+
+---
+semantic_text declared in mapping:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ semantic_text_type ]
+      reason: "support for semantic_text type"
+  - do:
+      indices.create:
+        index: test_semantic_text
+        body:
+          settings:
+            number_of_shards: 5
+          mappings:
+            properties:
+              semantic_text_field:
+                type: semantic_text
+                inference_id: my_inference_id
+  - do:
+      bulk:
+        index: test_semantic_text
+        refresh: true
+        body:
+          - { "index": { } }
+          - {
+              "semantic_text_field": {
+                "text": "be excellent to each other",
+                "inference": {
+                  "inference_id": "my_inference_id",
+                  "model_settings": {
+                    "task_type": "sparse_embedding"
+                  },
+                  "chunks": [{ "text": "be excellent to each other", "embeddings": { "a": 1,"b": 2 } }]
+              }
+            }
+          }
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test_semantic_text'
+  - match: { columns: [{name: semantic_text_field, type: semantic_text}] }
+  - length: { values: 1 }
+  - match: { values.0: ["be excellent to each other"] }

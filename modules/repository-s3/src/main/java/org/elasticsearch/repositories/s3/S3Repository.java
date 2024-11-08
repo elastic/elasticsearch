@@ -16,6 +16,7 @@ import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -141,6 +142,11 @@ class S3Repository extends MeteredBlobStoreRepository {
     );
 
     /**
+     * Maximum parts number for multipart upload. (see https://docs.aws.amazon.com/AmazonS3/latest/userguide/qfacts.html)
+     */
+    static final Setting<Integer> MAX_MULTIPART_PARTS = Setting.intSetting("max_multipart_parts", 10_000, 1, 10_000);
+
+    /**
      * Sets the S3 storage class type for the backup files. Values may be standard, reduced_redundancy,
      * standard_ia, onezone_ia and intelligent_tiering. Defaults to standard.
      */
@@ -194,6 +200,36 @@ class S3Repository extends MeteredBlobStoreRepository {
         "max_multipart_upload_cleanup_size",
         1000,
         0,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * We will retry deletes that fail due to throttling. We use an {@link BackoffPolicy#linearBackoff(TimeValue, int, TimeValue)}
+     * with the following parameters
+     */
+    static final Setting<TimeValue> RETRY_THROTTLED_DELETE_DELAY_INCREMENT = Setting.timeSetting(
+        "throttled_delete_retry.delay_increment",
+        TimeValue.timeValueMillis(50),
+        TimeValue.ZERO
+    );
+    static final Setting<TimeValue> RETRY_THROTTLED_DELETE_MAXIMUM_DELAY = Setting.timeSetting(
+        "throttled_delete_retry.maximum_delay",
+        TimeValue.timeValueSeconds(5),
+        TimeValue.ZERO
+    );
+    static final Setting<Integer> RETRY_THROTTLED_DELETE_MAX_NUMBER_OF_RETRIES = Setting.intSetting(
+        "throttled_delete_retry.maximum_number_of_retries",
+        10,
+        0
+    );
+
+    /**
+     * Time to wait before trying again if getRegister fails.
+     */
+    static final Setting<TimeValue> GET_REGISTER_RETRY_DELAY = Setting.timeSetting(
+        "get_register_retry_delay",
+        new TimeValue(5, TimeUnit.SECONDS),
+        new TimeValue(0, TimeUnit.MILLISECONDS),
         Setting.Property.Dynamic
     );
 
@@ -253,7 +289,9 @@ class S3Repository extends MeteredBlobStoreRepository {
         }
 
         this.bufferSize = BUFFER_SIZE_SETTING.get(metadata.settings());
-        this.chunkSize = CHUNK_SIZE_SETTING.get(metadata.settings());
+        var maxChunkSize = CHUNK_SIZE_SETTING.get(metadata.settings());
+        var maxPartsNum = MAX_MULTIPART_PARTS.get(metadata.settings());
+        this.chunkSize = objectSizeLimit(maxChunkSize, bufferSize, maxPartsNum);
 
         // We make sure that chunkSize is bigger or equal than/to bufferSize
         if (this.chunkSize.getBytes() < bufferSize.getBytes()) {
@@ -300,6 +338,20 @@ class S3Repository extends MeteredBlobStoreRepository {
 
     private static Map<String, String> buildLocation(RepositoryMetadata metadata) {
         return Map.of("base_path", BASE_PATH_SETTING.get(metadata.settings()), "bucket", BUCKET_SETTING.get(metadata.settings()));
+    }
+
+    /**
+     * Calculates S3 object size limit based on 2 constraints: maximum object(chunk) size
+     * and maximum number of parts for multipart upload.
+     * https://docs.aws.amazon.com/AmazonS3/latest/userguide/qfacts.html
+     *
+     * @param chunkSize s3 object size
+     * @param bufferSize s3 multipart upload part size
+     * @param maxPartsNum s3 multipart upload max parts number
+     */
+    private static ByteSizeValue objectSizeLimit(ByteSizeValue chunkSize, ByteSizeValue bufferSize, int maxPartsNum) {
+        var bytes = Math.min(chunkSize.getBytes(), bufferSize.getBytes() * maxPartsNum);
+        return ByteSizeValue.ofBytes(bytes);
     }
 
     /**
@@ -403,7 +455,12 @@ class S3Repository extends MeteredBlobStoreRepository {
             metadata,
             bigArrays,
             threadPool,
-            s3RepositoriesMetrics
+            s3RepositoriesMetrics,
+            BackoffPolicy.linearBackoff(
+                RETRY_THROTTLED_DELETE_DELAY_INCREMENT.get(metadata.settings()),
+                RETRY_THROTTLED_DELETE_MAX_NUMBER_OF_RETRIES.get(metadata.settings()),
+                RETRY_THROTTLED_DELETE_MAXIMUM_DELAY.get(metadata.settings())
+            )
         );
     }
 

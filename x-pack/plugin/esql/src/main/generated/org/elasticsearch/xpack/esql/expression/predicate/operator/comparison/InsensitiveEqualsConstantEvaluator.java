@@ -17,16 +17,16 @@ import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.expression.function.Warnings;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link InsensitiveEquals}.
  * This class is generated. Do not edit it.
  */
 public final class InsensitiveEqualsConstantEvaluator implements EvalOperator.ExpressionEvaluator {
-  private final Warnings warnings;
+  private final Source source;
 
   private final EvalOperator.ExpressionEvaluator lhs;
 
@@ -34,12 +34,14 @@ public final class InsensitiveEqualsConstantEvaluator implements EvalOperator.Ex
 
   private final DriverContext driverContext;
 
+  private Warnings warnings;
+
   public InsensitiveEqualsConstantEvaluator(Source source, EvalOperator.ExpressionEvaluator lhs,
       ByteRunAutomaton rhs, DriverContext driverContext) {
+    this.source = source;
     this.lhs = lhs;
     this.rhs = rhs;
     this.driverContext = driverContext;
-    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override
@@ -63,7 +65,7 @@ public final class InsensitiveEqualsConstantEvaluator implements EvalOperator.Ex
         }
         if (lhsBlock.getValueCount(p) != 1) {
           if (lhsBlock.getValueCount(p) > 1) {
-            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
           }
           result.appendNull();
           continue position;
@@ -92,6 +94,18 @@ public final class InsensitiveEqualsConstantEvaluator implements EvalOperator.Ex
   @Override
   public void close() {
     Releasables.closeExpectNoException(lhs);
+  }
+
+  private Warnings warnings() {
+    if (warnings == null) {
+      this.warnings = Warnings.createWarnings(
+              driverContext.warningsMode(),
+              source.source().getLineNumber(),
+              source.source().getColumnNumber(),
+              source.text()
+          );
+    }
+    return warnings;
   }
 
   static class Factory implements EvalOperator.ExpressionEvaluator.Factory {

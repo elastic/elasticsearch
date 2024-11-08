@@ -19,11 +19,14 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.anEmptyMap;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 
 public class OpenAIServiceMixedIT extends BaseMixedTestCase {
 
@@ -118,14 +121,13 @@ public class OpenAIServiceMixedIT extends BaseMixedTestCase {
         put(inferenceId, chatCompletionsConfig(getUrl(openAiChatCompletionsServer)), TaskType.COMPLETION);
 
         var configsMap = get(TaskType.COMPLETION, inferenceId);
-        logger.warn("Configs: {}", configsMap);
         var configs = (List<Map<String, Object>>) configsMap.get("endpoints");
         assertThat(configs, hasSize(1));
         assertEquals("openai", configs.get(0).get("service"));
         var serviceSettings = (Map<String, Object>) configs.get(0).get("service_settings");
         assertThat(serviceSettings, hasEntry("model_id", "gpt-4"));
         var taskSettings = (Map<String, Object>) configs.get(0).get("task_settings");
-        assertThat(taskSettings.keySet(), empty());
+        assertThat(taskSettings, anyOf(nullValue(), anEmptyMap()));
 
         assertCompletionInference(inferenceId);
     }

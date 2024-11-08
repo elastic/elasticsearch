@@ -100,7 +100,7 @@ public class CancellableTasksTests extends TaskManagerTestCase {
         }
     }
 
-    public static class CancellableNodesRequest extends BaseNodesRequest<CancellableNodesRequest> {
+    public static class CancellableNodesRequest extends BaseNodesRequest {
         private final String requestName;
 
         public CancellableNodesRequest(String requestName, String... nodesIds) {

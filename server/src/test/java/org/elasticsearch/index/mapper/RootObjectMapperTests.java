@@ -362,6 +362,19 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
         assertThat(e.getMessage(), containsString("type cannot be an empty string"));
     }
 
+    public void testSyntheticSourceKeepAllThrows() throws IOException {
+        String mapping = Strings.toString(
+            XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject(MapperService.SINGLE_MAPPING_NAME)
+                .field("synthetic_source_keep", "all")
+                .endObject()
+                .endObject()
+        );
+        Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(mapping));
+        assertThat(e.getMessage(), containsString("root object can't be configured with [synthetic_source_keep:all]"));
+    }
+
     public void testWithoutMappers() throws IOException {
         RootObjectMapper shallowRoot = createRootObjectMapperWithAllParametersSet(b -> {}, b -> {});
         RootObjectMapper root = createRootObjectMapperWithAllParametersSet(b -> {

@@ -10,9 +10,6 @@
 package org.elasticsearch.search.retriever;
 
 import org.elasticsearch.index.query.BoolQueryBuilder;
-import org.elasticsearch.index.query.DisMaxQueryBuilder;
-import org.elasticsearch.index.query.MatchAllQueryBuilder;
-import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.RandomQueryBuilder;
@@ -21,8 +18,6 @@ import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilde
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.retriever.rankdoc.RankDocsQueryBuilder;
-import org.elasticsearch.search.retriever.rankdoc.RankDocsSortBuilder;
-import org.elasticsearch.search.sort.ScoreSortBuilder;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -33,10 +28,8 @@ import java.util.function.Supplier;
 import static org.elasticsearch.search.vectors.KnnSearchBuilderTests.randomVector;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.mockito.Mockito.mock;
 
 public class RankDocsRetrieverBuilderTests extends ESTestCase {
 
@@ -53,7 +46,7 @@ public class RankDocsRetrieverBuilderTests extends ESTestCase {
         return () -> rankDocs;
     }
 
-    private List<RetrieverBuilder> innerRetrievers() {
+    private List<RetrieverBuilder> innerRetrievers(QueryRewriteContext queryRewriteContext) throws IOException {
         List<RetrieverBuilder> retrievers = new ArrayList<>();
         int numRetrievers = randomIntBetween(1, 10);
         for (int i = 0; i < numRetrievers; i++) {
@@ -61,9 +54,14 @@ public class RankDocsRetrieverBuilderTests extends ESTestCase {
                 StandardRetrieverBuilder standardRetrieverBuilder = new StandardRetrieverBuilder();
                 standardRetrieverBuilder.queryBuilder = RandomQueryBuilder.createQuery(random());
                 if (randomBoolean()) {
-                    standardRetrieverBuilder.preFilterQueryBuilders = preFilters();
+                    standardRetrieverBuilder.preFilterQueryBuilders = preFilters(queryRewriteContext);
                 }
-                retrievers.add(standardRetrieverBuilder);
+                // RankDocsRetrieverBuilder assumes that the inner retrievers are already rewritten
+                StandardRetrieverBuilder rewritten = (StandardRetrieverBuilder) Rewriteable.rewrite(
+                    standardRetrieverBuilder,
+                    queryRewriteContext
+                );
+                retrievers.add(rewritten);
             } else {
                 KnnRetrieverBuilder knnRetrieverBuilder = new KnnRetrieverBuilder(
                     randomAlphaOfLength(10),
@@ -74,64 +72,74 @@ public class RankDocsRetrieverBuilderTests extends ESTestCase {
                     randomFloat()
                 );
                 if (randomBoolean()) {
-                    knnRetrieverBuilder.preFilterQueryBuilders = preFilters();
+                    knnRetrieverBuilder.preFilterQueryBuilders = preFilters(queryRewriteContext);
                 }
                 knnRetrieverBuilder.rankDocs = rankDocsSupplier().get();
-                retrievers.add(knnRetrieverBuilder);
+                // RankDocsRetrieverBuilder assumes that the inner retrievers are already rewritten
+                KnnRetrieverBuilder rewritten = (KnnRetrieverBuilder) Rewriteable.rewrite(knnRetrieverBuilder, queryRewriteContext);
+                retrievers.add(rewritten);
             }
         }
         return retrievers;
     }
 
-    private List<QueryBuilder> preFilters() {
+    private List<QueryBuilder> preFilters(QueryRewriteContext queryRewriteContext) throws IOException {
         List<QueryBuilder> preFilters = new ArrayList<>();
         int numPreFilters = randomInt(10);
         for (int i = 0; i < numPreFilters; i++) {
-            preFilters.add(RandomQueryBuilder.createQuery(random()));
+            QueryBuilder filter = RandomQueryBuilder.createQuery(random());
+            QueryBuilder rewritten = Rewriteable.rewrite(filter, queryRewriteContext);
+            preFilters.add(rewritten);
         }
         return preFilters;
     }
 
-    private RankDocsRetrieverBuilder createRandomRankDocsRetrieverBuilder() {
-        return new RankDocsRetrieverBuilder(randomInt(100), innerRetrievers(), rankDocsSupplier(), preFilters());
+    private RankDocsRetrieverBuilder createRandomRankDocsRetrieverBuilder(QueryRewriteContext queryRewriteContext) throws IOException {
+        return new RankDocsRetrieverBuilder(
+            randomIntBetween(1, 100),
+            innerRetrievers(queryRewriteContext),
+            rankDocsSupplier(),
+            preFilters(queryRewriteContext)
+        );
     }
 
-    public void testExtractToSearchSourceBuilder() {
-        RankDocsRetrieverBuilder retriever = createRandomRankDocsRetrieverBuilder();
+    public void testExtractToSearchSourceBuilder() throws IOException {
+        QueryRewriteContext queryRewriteContext = new QueryRewriteContext(parserConfig(), null, () -> 0L);
+        RankDocsRetrieverBuilder retriever = createRandomRankDocsRetrieverBuilder(queryRewriteContext);
         SearchSourceBuilder source = new SearchSourceBuilder();
         if (randomBoolean()) {
             source.aggregation(new TermsAggregationBuilder("name").field("field"));
         }
+        source.explain(randomBoolean());
+        source.profile(randomBoolean());
+        source.trackTotalHits(randomBoolean());
+        final int preFilters = retriever.preFilterQueryBuilders.size();
         retriever.extractToSearchSourceBuilder(source, randomBoolean());
-        assertThat(source.sorts().size(), equalTo(2));
-        assertThat(source.sorts().get(0), instanceOf(RankDocsSortBuilder.class));
-        assertThat(source.sorts().get(1), instanceOf(ScoreSortBuilder.class));
-        assertThat(source.query(), instanceOf(BoolQueryBuilder.class));
-        BoolQueryBuilder bq = (BoolQueryBuilder) source.query();
-        if (source.aggregations() != null) {
-            assertThat(bq.must().size(), equalTo(0));
-            assertThat(bq.should().size(), greaterThanOrEqualTo(1));
-            assertThat(bq.should().get(0), instanceOf(RankDocsQueryBuilder.class));
-            assertNotNull(source.postFilter());
-            assertThat(source.postFilter(), instanceOf(RankDocsQueryBuilder.class));
-        } else {
+        assertNull(source.sorts());
+        assertThat(source.query(), anyOf(instanceOf(BoolQueryBuilder.class), instanceOf(RankDocsQueryBuilder.class)));
+        if (source.query() instanceof BoolQueryBuilder bq) {
             assertThat(bq.must().size(), equalTo(1));
             assertThat(bq.must().get(0), instanceOf(RankDocsQueryBuilder.class));
-            assertNull(source.postFilter());
+            assertThat(bq.filter().size(), equalTo(preFilters));
+            for (int i = 0; i < preFilters; i++) {
+                assertThat(bq.filter().get(i), instanceOf(retriever.preFilterQueryBuilders.get(i).getClass()));
+            }
         }
-        assertThat(bq.filter().size(), equalTo(retriever.preFilterQueryBuilders.size()));
+        assertNull(source.postFilter());
     }
 
-    public void testTopDocsQuery() {
-        RankDocsRetrieverBuilder retriever = createRandomRankDocsRetrieverBuilder();
+    public void testTopDocsQuery() throws IOException {
+        QueryRewriteContext queryRewriteContext = new QueryRewriteContext(parserConfig(), null, () -> 0L);
+        RankDocsRetrieverBuilder retriever = createRandomRankDocsRetrieverBuilder(queryRewriteContext);
         QueryBuilder topDocs = retriever.topDocsQuery();
         assertNotNull(topDocs);
-        assertThat(topDocs, instanceOf(DisMaxQueryBuilder.class));
-        assertThat(((DisMaxQueryBuilder) topDocs).innerQueries(), hasSize(retriever.sources.size()));
+        assertThat(topDocs, instanceOf(BoolQueryBuilder.class));
+        assertThat(((BoolQueryBuilder) topDocs).should(), hasSize(retriever.sources.size()));
     }
 
     public void testRewrite() throws IOException {
-        RankDocsRetrieverBuilder retriever = createRandomRankDocsRetrieverBuilder();
+        QueryRewriteContext queryRewriteContext = new QueryRewriteContext(parserConfig(), null, () -> 0L);
+        RankDocsRetrieverBuilder retriever = createRandomRankDocsRetrieverBuilder(queryRewriteContext);
         boolean compoundAdded = false;
         if (randomBoolean()) {
             compoundAdded = true;
@@ -143,24 +151,13 @@ public class RankDocsRetrieverBuilderTests extends ESTestCase {
             });
         }
         SearchSourceBuilder source = new SearchSourceBuilder().retriever(retriever);
-        QueryRewriteContext queryRewriteContext = mock(QueryRewriteContext.class);
         if (compoundAdded) {
             expectThrows(AssertionError.class, () -> Rewriteable.rewrite(source, queryRewriteContext));
         } else {
             SearchSourceBuilder rewrittenSource = Rewriteable.rewrite(source, queryRewriteContext);
             assertNull(rewrittenSource.retriever());
             assertTrue(rewrittenSource.knnSearch().isEmpty());
-            assertThat(
-                rewrittenSource.query(),
-                anyOf(instanceOf(BoolQueryBuilder.class), instanceOf(MatchAllQueryBuilder.class), instanceOf(MatchNoneQueryBuilder.class))
-            );
-            if (rewrittenSource.query() instanceof BoolQueryBuilder) {
-                BoolQueryBuilder bq = (BoolQueryBuilder) rewrittenSource.query();
-                assertThat(bq.filter().size(), equalTo(retriever.preFilterQueryBuilders.size()));
-                // we don't have any aggregations so the RankDocs query is set as a must clause
-                assertThat(bq.must().size(), equalTo(1));
-                assertThat(bq.must().get(0), instanceOf(RankDocsQueryBuilder.class));
-            }
+            assertThat(rewrittenSource.query(), instanceOf(RankDocsQueryBuilder.class));
         }
     }
 }

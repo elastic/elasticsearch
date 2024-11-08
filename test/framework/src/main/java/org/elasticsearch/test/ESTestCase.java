@@ -33,6 +33,8 @@ import org.apache.logging.log4j.core.layout.PatternLayout;
 import org.apache.logging.log4j.status.StatusConsoleListener;
 import org.apache.logging.log4j.status.StatusData;
 import org.apache.logging.log4j.status.StatusLogger;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.tests.util.LuceneTestCase.SuppressCodecs;
 import org.apache.lucene.tests.util.TestRuleMarkFailure;
@@ -63,6 +65,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.DelayableWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -378,7 +381,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         JAVA_ZONE_IDS = ZoneId.getAvailableZoneIds().stream().filter(unsupportedZoneIdsPredicate.negate()).sorted().toList();
     }
 
-    static Random initTestSeed() {
+    protected static Random initTestSeed() {
         String inputSeed = System.getProperty("tests.seed");
         long seed;
         if (inputSeed == null) {
@@ -900,10 +903,11 @@ public abstract class ESTestCase extends LuceneTestCase {
      * @return a random instant between a min and a max value with a random nanosecond precision
      */
     public static Instant randomInstantBetween(Instant minInstant, Instant maxInstant) {
-        return Instant.ofEpochSecond(
-            randomLongBetween(minInstant.getEpochSecond(), maxInstant.getEpochSecond()),
-            randomLongBetween(0, 999999999)
-        );
+        long epochSecond = randomLongBetween(minInstant.getEpochSecond(), maxInstant.getEpochSecond());
+        long minNanos = epochSecond == minInstant.getEpochSecond() ? minInstant.getNano() : 0;
+        long maxNanos = epochSecond == maxInstant.getEpochSecond() ? maxInstant.getNano() : 999999999;
+        long nanos = randomLongBetween(minNanos, maxNanos);
+        return Instant.ofEpochSecond(epochSecond, nanos);
     }
 
     /**
@@ -1027,6 +1031,13 @@ public abstract class ESTestCase extends LuceneTestCase {
      */
     public static long randomNonNegativeLong() {
         return randomLong() & Long.MAX_VALUE;
+    }
+
+    /**
+     * @return a <code>long</code> between <code>Long.MIN_VALUE</code> and <code>-1</code>  (inclusive) chosen uniformly at random.
+     */
+    public static long randomNegativeLong() {
+        return randomLong() | Long.MIN_VALUE;
     }
 
     /**
@@ -1839,7 +1850,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         );
     }
 
-    protected static <T> T copyInstance(
+    protected static <T extends Writeable> T copyInstance(
         T original,
         NamedWriteableRegistry namedWriteableRegistry,
         Writeable.Writer<T> writer,
@@ -1849,9 +1860,20 @@ public abstract class ESTestCase extends LuceneTestCase {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             output.setTransportVersion(version);
             writer.write(output, original);
-            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
-                in.setTransportVersion(version);
-                return reader.read(in);
+            if (randomBoolean()) {
+                try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
+                    in.setTransportVersion(version);
+                    return reader.read(in);
+                }
+            } else {
+                BytesReference bytesReference = output.copyBytes();
+                output.reset();
+                output.writeBytesReference(bytesReference);
+                try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
+                    in.setTransportVersion(version);
+                    DelayableWriteable<T> delayableWriteable = DelayableWriteable.delayed(reader, in);
+                    return delayableWriteable.expand();
+                }
             }
         }
     }
@@ -2635,5 +2657,44 @@ public abstract class ESTestCase extends LuceneTestCase {
         } catch (Exception e) {
             throw new AssertionError("Failed to verify search contexts", e);
         }
+    }
+
+    /**
+     * Create a new searcher over the reader. This searcher might randomly use threads.
+     * Provides the same functionality as {@link LuceneTestCase#newSearcher(IndexReader)},
+     * with the only difference that concurrency will only ever be inter-segment and never intra-segment.
+     */
+    public static IndexSearcher newSearcher(IndexReader r) {
+        return newSearcher(r, true);
+    }
+
+    /**
+     * Create a new searcher over the reader. This searcher might randomly use threads.
+     * Provides the same functionality as {@link LuceneTestCase#newSearcher(IndexReader, boolean)},
+     * with the only difference that concurrency will only ever be inter-segment and never intra-segment.
+     */
+    public static IndexSearcher newSearcher(IndexReader r, boolean maybeWrap) {
+        return newSearcher(r, maybeWrap, true);
+    }
+
+    /**
+     * Create a new searcher over the reader. This searcher might randomly use threads.
+     * Provides the same functionality as {@link LuceneTestCase#newSearcher(IndexReader, boolean, boolean)},
+     * with the only difference that concurrency will only ever be inter-segment and never intra-segment.
+     */
+    public static IndexSearcher newSearcher(IndexReader r, boolean maybeWrap, boolean wrapWithAssertions) {
+        return newSearcher(r, maybeWrap, wrapWithAssertions, randomBoolean());
+    }
+
+    /**
+     * Create a new searcher over the reader.
+     * Provides the same functionality as {@link LuceneTestCase#newSearcher(IndexReader, boolean, boolean, boolean)},
+     * with the only difference that concurrency will only ever be inter-segment and never intra-segment.
+     */
+    public static IndexSearcher newSearcher(IndexReader r, boolean maybeWrap, boolean wrapWithAssertions, boolean useThreads) {
+        if (useThreads) {
+            return newSearcher(r, maybeWrap, wrapWithAssertions, Concurrency.INTER_SEGMENT);
+        }
+        return newSearcher(r, maybeWrap, wrapWithAssertions, Concurrency.NONE);
     }
 }

@@ -26,7 +26,7 @@ import java.util.function.LongSupplier;
  * cost of deserialization for each lookup (cached or not). This comes at slight expense of higher memory usage, but significant
  * reduction of CPU usage.
  */
-final class GeoIpCache {
+public final class GeoIpCache {
 
     /**
      * Internal-only sentinel object for recording that a result from the geoip database was null (i.e. there was no result). By caching

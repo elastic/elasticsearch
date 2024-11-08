@@ -15,20 +15,20 @@ import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.expression.function.Warnings;
 
 import java.util.Arrays;
 import java.util.BitSet;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link In}.
- * This class is generated. Edit {@code InEvaluator.java.st} instead.
+ * This class is generated. Edit {@code X-InEvaluator.java.st} instead.
  */
 public class InBytesRefEvaluator implements EvalOperator.ExpressionEvaluator {
-    private final Warnings warnings;
+    private final Source source;
 
     private final EvalOperator.ExpressionEvaluator lhs;
 
@@ -36,16 +36,18 @@ public class InBytesRefEvaluator implements EvalOperator.ExpressionEvaluator {
 
     private final DriverContext driverContext;
 
+    private Warnings warnings;
+
     public InBytesRefEvaluator(
         Source source,
         EvalOperator.ExpressionEvaluator lhs,
         EvalOperator.ExpressionEvaluator[] rhs,
         DriverContext driverContext
     ) {
+        this.source = source;
         this.lhs = lhs;
         this.rhs = rhs;
         this.driverContext = driverContext;
-        this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
     }
 
     @Override
@@ -90,7 +92,7 @@ public class InBytesRefEvaluator implements EvalOperator.ExpressionEvaluator {
                 }
                 if (lhsBlock.getValueCount(p) != 1) {
                     if (lhsBlock.getValueCount(p) > 1) {
-                        warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+                        warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
                     }
                     result.appendNull();
                     continue;
@@ -105,7 +107,7 @@ public class InBytesRefEvaluator implements EvalOperator.ExpressionEvaluator {
                     }
                     if (rhsBlocks[i].getValueCount(p) > 1) {
                         mvs.set(i);
-                        warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+                        warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
                         continue;
                     }
                     int o = rhsBlocks[i].getFirstValueIndex(p);
@@ -157,6 +159,18 @@ public class InBytesRefEvaluator implements EvalOperator.ExpressionEvaluator {
     @Override
     public void close() {
         Releasables.closeExpectNoException(lhs, () -> Releasables.close(rhs));
+    }
+
+    private Warnings warnings() {
+        if (warnings == null) {
+            this.warnings = Warnings.createWarnings(
+                driverContext.warningsMode(),
+                source.source().getLineNumber(),
+                source.source().getColumnNumber(),
+                source.text()
+            );
+        }
+        return warnings;
     }
 
     static class Factory implements EvalOperator.ExpressionEvaluator.Factory {

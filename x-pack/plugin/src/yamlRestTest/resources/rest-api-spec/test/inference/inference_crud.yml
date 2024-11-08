@@ -39,20 +39,4 @@
           }
   - match: { error.reason: "Unknown task_type [bad]" }
 
----
-"Test get all":
-  - do:
-      inference.get:
-        inference_id: "*"
-  - length: { endpoints: 0}
-
-  - do:
-      inference.get:
-        inference_id: _all
-  - length: { endpoints: 0}
-
-  - do:
-      inference.get:
-        inference_id: ""
-  - length: { endpoints: 0}
 

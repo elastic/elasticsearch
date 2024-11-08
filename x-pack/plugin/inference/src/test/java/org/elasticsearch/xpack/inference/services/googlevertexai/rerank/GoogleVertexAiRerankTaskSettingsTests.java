@@ -18,6 +18,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -26,6 +27,29 @@ import static org.elasticsearch.xpack.inference.services.googlevertexai.rerank.G
 import static org.hamcrest.Matchers.is;
 
 public class GoogleVertexAiRerankTaskSettingsTests extends AbstractBWCWireSerializationTestCase<GoogleVertexAiRerankTaskSettings> {
+
+    public void testIsEmpty() {
+        var randomSettings = createRandom();
+        var stringRep = Strings.toString(randomSettings);
+        assertEquals(stringRep, randomSettings.isEmpty(), stringRep.equals("{}"));
+    }
+
+    public void testUpdatedTaskSettings() {
+        var initialSettings = createRandom();
+        var newSettings = createRandom();
+        Map<String, Object> newSettingsMap = new HashMap<>();
+        if (newSettings.topN() != null) {
+            newSettingsMap.put(GoogleVertexAiRerankTaskSettings.TOP_N, newSettings.topN());
+        }
+        GoogleVertexAiRerankTaskSettings updatedSettings = (GoogleVertexAiRerankTaskSettings) initialSettings.updatedTaskSettings(
+            Collections.unmodifiableMap(newSettingsMap)
+        );
+        if (newSettings.topN() == null) {
+            assertEquals(initialSettings.topN(), updatedSettings.topN());
+        } else {
+            assertEquals(newSettings.topN(), updatedSettings.topN());
+        }
+    }
 
     public void testFromMap_TopNIsSet() {
         var topN = 1;

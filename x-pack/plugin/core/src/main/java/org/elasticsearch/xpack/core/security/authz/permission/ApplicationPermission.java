@@ -53,7 +53,7 @@ public final class ApplicationPermission {
                 return new PermissionEntry(
                     appPriv,
                     Sets.union(existing.resourceNames, resourceNames),
-                    Automatons.unionAndMinimize(Arrays.asList(existing.resourceAutomaton, patterns))
+                    Automatons.unionAndDeterminize(Arrays.asList(existing.resourceAutomaton, patterns))
                 );
             }
         }));
@@ -187,7 +187,7 @@ public final class ApplicationPermission {
         }
 
         private boolean grants(ApplicationPrivilege other, Automaton resource) {
-            return matchesPrivilege(other) && Operations.subsetOf(resource, this.resourceAutomaton);
+            return matchesPrivilege(other) && Automatons.subsetOf(resource, this.resourceAutomaton);
         }
 
         private boolean matchesPrivilege(ApplicationPrivilege other) {
@@ -202,7 +202,7 @@ public final class ApplicationPermission {
             }
             return Operations.isEmpty(privilege.getAutomaton()) == false
                 && Operations.isEmpty(other.getAutomaton()) == false
-                && Operations.subsetOf(other.getAutomaton(), privilege.getAutomaton());
+                && Automatons.subsetOf(other.getAutomaton(), privilege.getAutomaton());
         }
 
         @Override

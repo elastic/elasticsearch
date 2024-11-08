@@ -50,7 +50,7 @@ public class RestNodesUsageAction extends BaseRestHandler {
         Set<String> metrics = Strings.tokenizeByCommaToSet(request.param("metric", "_all"));
 
         NodesUsageRequest nodesUsageRequest = new NodesUsageRequest(nodesIds);
-        nodesUsageRequest.timeout(getTimeout(request));
+        nodesUsageRequest.setTimeout(getTimeout(request));
 
         if (metrics.size() == 1 && metrics.contains("_all")) {
             nodesUsageRequest.all();

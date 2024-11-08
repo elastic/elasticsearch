@@ -25,7 +25,7 @@ public class AVLTreeDigestTests extends TDigestTests {
 
     protected DigestFactory factory(final double compression) {
         return () -> {
-            AVLTreeDigest digest = new AVLTreeDigest(arrays(), compression);
+            AVLTreeDigest digest = AVLTreeDigest.create(arrays(), compression);
             digest.setRandomSeed(randomLong());
             return digest;
         };

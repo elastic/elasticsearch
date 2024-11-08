@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndices;
@@ -48,7 +49,9 @@ public class TransportSimulateIndexTemplateActionTests extends ESTestCase {
                             matchingTemplate,
                             ComposableIndexTemplate.builder()
                                 .indexPatterns(List.of("test_index*"))
-                                .template(new Template(Settings.builder().put("test-setting", 1).build(), null, null))
+                                .template(
+                                    new Template(Settings.builder().put("test-setting", 1).put("test-setting-2", 2).build(), null, null)
+                                )
                                 .build()
                         )
                     )
@@ -69,13 +72,31 @@ public class TransportSimulateIndexTemplateActionTests extends ESTestCase {
             public Settings getAdditionalIndexSettings(
                 String indexName,
                 String dataStreamName,
-                boolean timeSeries,
+                IndexMode templateIndexMode,
                 Metadata metadata,
                 Instant resolvedAt,
                 Settings allSettings,
                 List<CompressedXContent> combinedTemplateMappings
             ) {
                 return Settings.builder().put("test-setting", 0).build();
+            }
+        }, new IndexSettingProvider() {
+            @Override
+            public Settings getAdditionalIndexSettings(
+                String indexName,
+                String dataStreamName,
+                IndexMode templateIndexMode,
+                Metadata metadata,
+                Instant resolvedAt,
+                Settings indexTemplateAndCreateRequestSettings,
+                List<CompressedXContent> combinedTemplateMappings
+            ) {
+                return Settings.builder().put("test-setting-2", 10).build();
+            }
+
+            @Override
+            public boolean overrulesTemplateAndRequestSettings() {
+                return true;
             }
         });
 
@@ -87,10 +108,10 @@ public class TransportSimulateIndexTemplateActionTests extends ESTestCase {
             xContentRegistry(),
             indicesService,
             systemIndices,
-            indexSettingsProviders,
-            Map.of()
+            indexSettingsProviders
         );
 
         assertThat(resolvedTemplate.settings().getAsInt("test-setting", -1), is(1));
+        assertThat(resolvedTemplate.settings().getAsInt("test-setting-2", -1), is(10));
     }
 }

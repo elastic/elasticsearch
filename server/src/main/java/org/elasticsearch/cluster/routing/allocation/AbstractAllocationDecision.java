@@ -12,6 +12,7 @@ package org.elasticsearch.cluster.routing.allocation;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision.Type;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -140,7 +141,11 @@ public abstract class AbstractAllocationDecision implements ChunkedToXContentObj
             return Collections.emptyIterator();
         }
 
-        return ChunkedToXContentHelper.array("node_allocation_decisions", nodeDecisions.iterator());
+        return Iterators.concat(
+            ChunkedToXContentHelper.startArray("node_allocation_decisions"),
+            nodeDecisions.iterator(),
+            ChunkedToXContentHelper.endArray()
+        );
     }
 
     /**

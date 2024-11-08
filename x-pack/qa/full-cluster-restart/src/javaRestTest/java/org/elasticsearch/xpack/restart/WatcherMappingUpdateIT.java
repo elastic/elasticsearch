@@ -76,12 +76,7 @@ public class WatcherMappingUpdateIT extends AbstractXpackFullClusterRestartTestC
                 """);
             client().performRequest(putWatchRequest);
 
-            if (clusterHasFeature(RestTestLegacyFeatures.WATCHES_VERSION_IN_META)) {
-                assertMappingVersion(".watches", getOldClusterVersion());
-            } else {
-                // watches indices from before 7.10 do not have mapping versions in _meta
-                assertNoMappingVersion(".watches");
-            }
+            assertMappingVersion(".watches", getOldClusterVersion());
         } else {
             assertMappingVersion(".watches", Build.current().version());
         }
@@ -101,9 +96,7 @@ public class WatcherMappingUpdateIT extends AbstractXpackFullClusterRestartTestC
         assertBusy(() -> {
             Request mappingRequest = new Request("GET", index + "/_mappings");
             assert isRunningAgainstOldCluster();
-            if (clusterHasFeature(RestTestLegacyFeatures.SYSTEM_INDICES_REST_ACCESS_DEPRECATED)) {
-                mappingRequest.setOptions(getWarningHandlerOptions(index));
-            }
+            mappingRequest.setOptions(getWarningHandlerOptions(index));
             Response response = client().performRequest(mappingRequest);
             String responseBody = EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8);
             assertThat(responseBody, not(containsString("\"version\":\"")));

@@ -38,9 +38,10 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryTask;
 import org.elasticsearch.xpack.esql.core.async.AsyncTaskManagementService;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
+import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
-import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.session.Configuration;
+import org.elasticsearch.xpack.esql.session.EsqlSession.PlanRunner;
 import org.elasticsearch.xpack.esql.session.Result;
 
 import java.io.IOException;
@@ -49,7 +50,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.Executor;
-import java.util.function.BiConsumer;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
 
@@ -65,6 +65,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     private final Executor requestExecutor;
     private final EnrichPolicyResolver enrichPolicyResolver;
     private final EnrichLookupService enrichLookupService;
+    private final LookupFromIndexService lookupFromIndexService;
     private final AsyncTaskManagementService<EsqlQueryRequest, EsqlQueryResponse, EsqlQueryTask> asyncTaskManagementService;
     private final RemoteClusterService remoteClusterService;
 
@@ -94,6 +95,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         this.exchangeService = exchangeService;
         this.enrichPolicyResolver = new EnrichPolicyResolver(clusterService, transportService, planExecutor.indexResolver());
         this.enrichLookupService = new EnrichLookupService(clusterService, searchService, transportService, bigArrays, blockFactory);
+        this.lookupFromIndexService = new LookupFromIndexService(clusterService, searchService, transportService, bigArrays, blockFactory);
         this.computeService = new ComputeService(
             searchService,
             transportService,
@@ -167,11 +169,14 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             System.nanoTime()
         );
         String sessionId = sessionID(task);
-        EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(clusterAlias -> remoteClusterService.isSkipUnavailable(clusterAlias));
-        BiConsumer<PhysicalPlan, ActionListener<Result>> runPhase = (physicalPlan, resultListener) -> computeService.execute(
+        EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(
+            clusterAlias -> remoteClusterService.isSkipUnavailable(clusterAlias),
+            request.includeCCSMetadata()
+        );
+        PlanRunner planRunner = (plan, resultListener) -> computeService.execute(
             sessionId,
             (CancellableTask) task,
-            physicalPlan,
+            plan,
             configuration,
             executionInfo,
             resultListener
@@ -183,7 +188,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             enrichPolicyResolver,
             executionInfo,
             remoteClusterService,
-            runPhase,
+            planRunner,
             listener.map(result -> toResponse(task, request, configuration, result))
         );
     }
@@ -274,5 +279,9 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
 
     private static boolean requestIsAsync(EsqlQueryRequest request) {
         return request.async();
+    }
+
+    public LookupFromIndexService getLookupFromIndexService() {
+        return lookupFromIndexService;
     }
 }

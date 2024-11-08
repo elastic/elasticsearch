@@ -9,12 +9,12 @@
 
 package org.elasticsearch.index.codec;
 
+import org.apache.lucene.backward_codecs.lucene912.Lucene912Codec;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.codecs.StoredFieldsFormat;
 import org.apache.lucene.codecs.lucene90.Lucene90DocValuesFormat;
-import org.apache.lucene.codecs.lucene912.Lucene912Codec;
 import org.apache.lucene.codecs.lucene912.Lucene912PostingsFormat;
 import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat;
 import org.apache.lucene.codecs.perfield.PerFieldDocValuesFormat;
@@ -28,9 +28,13 @@ import org.elasticsearch.index.codec.zstd.Zstd814StoredFieldsFormat;
  */
 public class Elasticsearch816Codec extends CodecService.DeduplicateFieldInfosCodec {
 
+    private static final Lucene912Codec LUCENE_912_CODEC = new Lucene912Codec();
+    private static final PostingsFormat defaultPostingsFormat = new Lucene912PostingsFormat();
+    private static final DocValuesFormat defaultDVFormat = new Lucene90DocValuesFormat();
+    private static final KnnVectorsFormat defaultKnnVectorsFormat = new Lucene99HnswVectorsFormat();
+
     private final StoredFieldsFormat storedFieldsFormat;
 
-    private final PostingsFormat defaultPostingsFormat;
     private final PostingsFormat postingsFormat = new PerFieldPostingsFormat() {
         @Override
         public PostingsFormat getPostingsFormatForField(String field) {
@@ -38,7 +42,6 @@ public class Elasticsearch816Codec extends CodecService.DeduplicateFieldInfosCod
         }
     };
 
-    private final DocValuesFormat defaultDVFormat;
     private final DocValuesFormat docValuesFormat = new PerFieldDocValuesFormat() {
         @Override
         public DocValuesFormat getDocValuesFormatForField(String field) {
@@ -46,7 +49,6 @@ public class Elasticsearch816Codec extends CodecService.DeduplicateFieldInfosCod
         }
     };
 
-    private final KnnVectorsFormat defaultKnnVectorsFormat;
     private final KnnVectorsFormat knnVectorsFormat = new PerFieldKnnVectorsFormat() {
         @Override
         public KnnVectorsFormat getKnnVectorsFormatForField(String field) {
@@ -64,11 +66,8 @@ public class Elasticsearch816Codec extends CodecService.DeduplicateFieldInfosCod
      * worse space-efficiency or vice-versa.
      */
     public Elasticsearch816Codec(Zstd814StoredFieldsFormat.Mode mode) {
-        super("Elasticsearch816", new Lucene912Codec());
-        this.storedFieldsFormat = new Zstd814StoredFieldsFormat(mode);
-        this.defaultPostingsFormat = new Lucene912PostingsFormat();
-        this.defaultDVFormat = new Lucene90DocValuesFormat();
-        this.defaultKnnVectorsFormat = new Lucene99HnswVectorsFormat();
+        super("Elasticsearch816", LUCENE_912_CODEC);
+        this.storedFieldsFormat = mode.getFormat();
     }
 
     @Override

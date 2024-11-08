@@ -21,6 +21,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
@@ -226,7 +227,7 @@ public class DataTier {
         public Settings getAdditionalIndexSettings(
             String indexName,
             @Nullable String dataStreamName,
-            boolean isTimeSeries,
+            IndexMode templateIndexMode,
             Metadata metadata,
             Instant resolvedAt,
             Settings indexTemplateAndCreateRequestSettings,

@@ -1,0 +1,1063 @@
+---
+create logsdb data stream with host.name as keyword:
+  - requires:
+      test_runner_features: [ "allowed_warnings" ]
+  - requires:
+      cluster_features: [ "mapper.keyword_normalizer_synthetic_source" ]
+      reason: support for normalizer on keyword fields
+
+  - do:
+      cluster.put_component_template:
+        name: "logsdb-mappings"
+        body:
+          template:
+            settings:
+              mode: "logsdb"
+            mappings:
+              properties:
+                host.name:
+                  type: "keyword"
+
+  - do:
+      indices.put_index_template:
+        name: "logsdb-index-template"
+        body:
+          index_patterns: ["logsdb"]
+          data_stream: {}
+          composed_of: ["logsdb-mappings"]
+      allowed_warnings:
+        - "index template [logsdb-index-template] has index patterns [logsdb] matching patterns from existing older templates [global] with patterns (global => [*]); this template [logsdb-index-template] will take precedence during new index creation"
+
+  - do:
+      indices.create_data_stream:
+        name: "logsdb"
+
+  - is_true: acknowledged
+
+---
+create logsdb data stream with host.name as keyword and timestamp as date:
+  - requires:
+      test_runner_features: [ "allowed_warnings" ]
+  - requires:
+      cluster_features: [ "mapper.keyword_normalizer_synthetic_source" ]
+      reason: support for normalizer on keyword fields
+
+  - do:
+      cluster.put_component_template:
+        name: "logsdb-mappings"
+        body:
+          template:
+            settings:
+              mode: "logsdb"
+            mappings:
+              properties:
+                host.name:
+                  type: "keyword"
+                "@timestamp":
+                  type: "date"
+
+  - do:
+      indices.put_index_template:
+        name: "logsdb-index-template"
+        body:
+          index_patterns: ["logsdb"]
+          data_stream: {}
+          composed_of: ["logsdb-mappings"]
+      allowed_warnings:
+        - "index template [logsdb-index-template] has index patterns [logsdb] matching patterns from existing older templates [global] with patterns (global => [*]); this template [logsdb-index-template] will take precedence during new index creation"
+
+  - do:
+      indices.create_data_stream:
+        name: "logsdb"
+
+  - is_true: acknowledged
+
+---
+create logsdb data stream with host as keyword:
+  - requires:
+      test_runner_features: [ "allowed_warnings" ]
+  - requires:
+      cluster_features: [ "mapper.keyword_normalizer_synthetic_source" ]
+      reason: support for normalizer on keyword fields
+
+  - do:
+      cluster.put_component_template:
+        name: "logsdb-mappings"
+        body:
+          template:
+            settings:
+              mode: "logsdb"
+            mappings:
+              properties:
+                host:
+                  type: "keyword"
+
+  - do:
+      indices.put_index_template:
+        name: "logsdb-index-template"
+        body:
+          index_patterns: ["logsdb"]
+          data_stream: {}
+          composed_of: ["logsdb-mappings"]
+      allowed_warnings:
+        - "index template [logsdb-index-template] has index patterns [logsdb] matching patterns from existing older templates [global] with patterns (global => [*]); this template [logsdb-index-template] will take precedence during new index creation"
+
+  - do:
+      catch: bad_request
+      indices.create_data_stream:
+        name: "logsdb"
+
+  - match: { error.type: "mapper_parsing_exception" }
+  - match: { error.reason: "Failed to parse mapping: can't merge a non object mapping [host] with an object mapping" }
+
+---
+create logsdb data stream with host as text and multi fields:
+  - requires:
+      test_runner_features: [ "allowed_warnings" ]
+  - requires:
+      cluster_features: [ "mapper.keyword_normalizer_synthetic_source" ]
+      reason: support for normalizer on keyword fields
+
+  - do:
+      cluster.put_component_template:
+        name: "logsdb-mappings"
+        body:
+          template:
+            settings:
+              mode: "logsdb"
+            mappings:
+              properties:
+                host:
+                  type: "text"
+                  fields:
+                    keyword:
+                      ignore_above: 256
+                      type: "keyword"
+                "@timestamp":
+                  type: "date"
+                  format: "strict_date_optional_time"
+
+  - do:
+      indices.put_index_template:
+        name: "logsdb-index-template"
+        body:
+          index_patterns: ["logsdb"]
+          data_stream: {}
+          composed_of: ["logsdb-mappings"]
+      allowed_warnings:
+        - "index template [logsdb-index-template] has index patterns [logsdb] matching patterns from existing older templates [global] with patterns (global => [*]); this template [logsdb-index-template] will take precedence during new index creation"
+
+  - do:
+      catch: bad_request
+      indices.create_data_stream:
+        name: "logsdb"
+
+  - match: { error.type: "mapper_parsing_exception" }
+  - match: { error.reason: "Failed to parse mapping: can't merge a non object mapping [host] with an object mapping" }
+
+---
+create logsdb data stream with host as text:
+  - requires:
+      test_runner_features: [ "allowed_warnings" ]
+  - requires:
+      cluster_features: ["mapper.keyword_normalizer_synthetic_source"]
+      reason: "Support for normalizer on keyword fields"
+
+  - do:
+      cluster.put_component_template:
+        name: "logsdb-mappings"
+        body:
+          template:
+            settings:
+              mode: "logsdb"
+            mappings:
+              properties:
+                host:
+                  type: "text"
+                "@timestamp":
+                  type: "date"
+                  format: "strict_date_optional_time"
+
+  - do:
+      indices.put_index_template:
+        name: "logsdb-index-template"
+        body:
+          index_patterns: ["logsdb"]
+          data_stream: {}
+          composed_of: ["logsdb-mappings"]
+      allowed_warnings:
+        - "index template [logsdb-index-template] has index patterns [logsdb] matching patterns from existing older templates [global] with patterns (global => [*]); this template [logsdb-index-template] will take precedence during new index creation"
+
+  - do:
+      catch: bad_request
+      indices.create_data_stream:
+        name: "logsdb"
+
+  - match: { error.type: "mapper_parsing_exception" }
+  - match: { error.reason: "Failed to parse mapping: can't merge a non object mapping [host] with an object mapping" }
+
+---
+create logsdb data stream with host as text and name as double:
+  - requires:
+      test_runner_features: [ "allowed_warnings" ]
+  - requires:
+      cluster_features: ["mapper.keyword_normalizer_synthetic_source"]
+      reason: "Support for normalizer on keyword fields"
+
+  - do:
+      cluster.put_component_template:
+        name: "logsdb-mappings"
+        body:
+          template:
+            settings:
+              mode: "logsdb"
+            mappings:
+              properties:
+                host:
+                  type: "text"
+                  fields:
+                    name:
+                      type: "double"
+                "@timestamp":
+                  type: "date"
+                  format: "strict_date_optional_time"
+
+  - do:
+      indices.put_index_template:
+        name: "logsdb-index-template"
+        body:
+          index_patterns: ["logsdb"]
+          data_stream: {}
+          composed_of: ["logsdb-mappings"]
+      allowed_warnings:
+        - "index template [logsdb-index-template] has index patterns [logsdb] matching patterns from existing older templates [global] with patterns (global => [*]); this template [logsdb-index-template] will take precedence during new index creation"
+
+  - do:
+      catch: bad_request
+      indices.create_data_stream:
+        name: "logsdb"
+
+  - match: { error.type: "mapper_parsing_exception" }
+  - match: { error.reason: "Failed to parse mapping: can't merge a non object mapping [host] with an object mapping" }
+
+---
+create logsdb data stream with timestamp object mapping:
+  - requires:
+      test_runner_features: [ "allowed_warnings" ]
+  - requires:
+      cluster_features: ["mapper.keyword_normalizer_synthetic_source"]
+      reason: "Support for normalizer on keyword fields"
+
+  - do:
+      cluster.put_component_template:
+        name: "logsdb-mappings"
+        body:
+          template:
+            settings:
+              mode: "logsdb"
+            mappings:
+              properties:
+                host:
+                  properties:
+                    name:
+                      type: "keyword"
+                "@timestamp":
+                  properties:
+                    date:
+                      type: "date"
+                      format: "strict_date_optional_time"
+
+  - do:
+      catch: bad_request
+      indices.put_index_template:
+        name: "logsdb-index-template"
+        body:
+          index_patterns: ["logsdb"]
+          data_stream: {}
+          composed_of: ["logsdb-mappings"]
+      allowed_warnings:
+        - "index template [logsdb-index-template] has index patterns [logsdb] matching patterns from existing older templates [global] with patterns (global => [*]); this template [logsdb-index-template] will take precedence during new index creation"
+
+  - match: { error.type: "illegal_argument_exception" }
+  - match: { error.reason: "composable template [logsdb-index-template] template after composition with component templates [logsdb-mappings] is invalid" }
+
+---
+create logsdb data stream with custom sorting without host.name:
+  - skip:
+      features: [ "allowed_warnings" ]
+  - requires:
+      cluster_features: [ "mapper.keyword_normalizer_synthetic_source" ]
+      reason: support for normalizer on keyword fields
+
+  - do:
+      allowed_warnings:
+        - "index template [logs-template] has index patterns [logs-http-prod] matching patterns from existing older templates [global] with patterns (global => [*]); this template [logs-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: logs-template
+        body:
+          index_patterns: [ logs-http-prod ]
+          priority: 10000
+          template:
+            settings:
+              index:
+                sort.field: [ agent.id ]
+                sort.order: [ desc ]
+                mode: logsdb
+            mappings:
+              properties:
+                agent.id:
+                  type: keyword
+                host.hostname:
+                  type: keyword
+          data_stream: { }
+  - is_true: acknowledged
+
+  - do:
+      indices.create_data_stream:
+        name: logs-http-prod
+  - is_true: acknowledged
+
+  - do:
+      indices.get_data_stream:
+        name: logs-http-prod
+
+  - set: { data_streams.0.indices.0.index_name: backing_index }
+  - do:
+      indices.get_mapping:
+        index: $backing_index
+
+  - match: { .$backing_index.mappings.properties.@timestamp.type: date }
+  - match: { .$backing_index.mappings.properties.agent.properties.id.type: keyword }
+  - match: { .$backing_index.mappings.properties.host.properties.hostname.type: keyword }
+  - match: { .$backing_index.mappings.properties.host.properties.name.type: null }
+
+---
+create logsdb data stream with custom sorting and host object:
+  - skip:
+      features: [ "allowed_warnings" ]
+  - requires:
+      cluster_features: [ "mapper.keyword_normalizer_synthetic_source" ]
+      reason: support for normalizer on keyword fields
+
+  - do:
+      allowed_warnings:
+        - "index template [logs-template] has index patterns [logs-nginx-prod] matching patterns from existing older templates [global] with patterns (global => [*]); this template [logs-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: logs-template
+        body:
+          index_patterns: [ logs-nginx-prod ]
+          priority: 10000
+          template:
+            settings:
+              index:
+                sort.field: [ host.hostname, host.region ]
+                sort.order: [ desc, desc ]
+                mode: logsdb
+            mappings:
+              properties:
+                host:
+                  type: object
+                  properties:
+                    ip:
+                      type: ip
+                    hostname:
+                      type: keyword
+                    region:
+                      type: keyword
+                    name:
+                      type: integer
+
+          data_stream: { }
+  - is_true: acknowledged
+
+  - do:
+      indices.create_data_stream:
+        name: logs-nginx-prod
+  - is_true: acknowledged
+
+  - do:
+      indices.get_data_stream:
+        name: logs-nginx-prod
+
+  - set: { data_streams.0.indices.0.index_name: backing_index }
+  - do:
+      indices.get_mapping:
+        index: $backing_index
+
+  - match: { .$backing_index.mappings.properties.@timestamp.type: date }
+  - match: { .$backing_index.mappings.properties.host.properties.ip.type: ip }
+  - match: { .$backing_index.mappings.properties.host.properties.hostname.type: keyword }
+  - match: { .$backing_index.mappings.properties.host.properties.region.type: keyword }
+  - match: { .$backing_index.mappings.properties.host.properties.name.type: integer } # Overrides LogsDB injected
+
+---
+create logsdb data stream with custom sorting and dynamically mapped host.name:
+  - skip:
+      features: [ "allowed_warnings" ]
+  - requires:
+      cluster_features: [ "mapper.keyword_normalizer_synthetic_source" ]
+      reason: support for normalizer on keyword fields
+
+  - do:
+      allowed_warnings:
+        - "index template [logs-template] has index patterns [logs-kafka-qa] matching patterns from existing older templates [global] with patterns (global => [*]); this template [logs-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: logs-template
+        body:
+          index_patterns: [ logs-kafka-qa ]
+          priority: 10000
+          template:
+            settings:
+              index:
+                sort.field: [ "agent.id", "@timestamp" ]
+                sort.order: [ desc, asc ]
+                mode: logsdb
+            mappings:
+              properties:
+                agent:
+                  type: object
+                  properties:
+                    name:
+                      type: keyword
+                    id:
+                      type: keyword
+
+          data_stream: { }
+  - is_true: acknowledged
+
+  - do:
+      indices.create_data_stream:
+        name: logs-kafka-qa
+  - is_true: acknowledged
+
+  - do:
+      bulk:
+        index: logs-kafka-qa
+        refresh: true
+        body:
+          - { "create": { } }
+          - { "@timestamp": "2022-01-01T00:00:00", agent.name: "foo", agent.id: "foo-568", host: { id: "db8fdcf1-b1e2-444b-8c6a-0466c61dcce4" } }
+          - { "create": { } }
+          - { "@timestamp": "2022-01-01T00:01:00", agent.name: "bar", agent.id: "foo-309", host: { id: "35e1ed10-961e-46c7-83ea-4109c913a1d6" } }
+
+  - do:
+      indices.get_data_stream:
+        name: logs-kafka-qa
+
+  - set: { data_streams.0.indices.0.index_name: backing_index }
+  - do:
+      indices.get_mapping:
+        index: $backing_index
+
+  - match: { .$backing_index.mappings.properties.@timestamp.type: date }
+  - match: { .$backing_index.mappings.properties.agent.properties.name.type: keyword }
+  - match: { .$backing_index.mappings.properties.agent.properties.id.type: keyword }
+  - match: { .$backing_index.mappings.properties.host.properties.name: null }
+  - match: { .$backing_index.mappings.properties.host.properties.id.type: text }
+
+---
+create logsdb data stream with custom sorting and host.name object:
+  - skip:
+      features: [ "allowed_warnings" ]
+  - requires:
+      cluster_features: [ "mapper.keyword_normalizer_synthetic_source" ]
+      reason: support for normalizer on keyword fields
+
+  - do:
+      allowed_warnings:
+        - "index template [logs-template] has index patterns [logs-nginx-qa] matching patterns from existing older templates [global] with patterns (global => [*]); this template [logs-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: logs-template
+        body:
+          index_patterns: [ logs-nginx-qa ]
+          priority: 10000
+          template:
+            settings:
+              index:
+                sort.field: [ "host.name.value", "@timestamp" ]
+                sort.order: [ desc, desc ]
+                mode: logsdb
+            mappings:
+              properties:
+                host:
+                  type: object
+                  properties:
+                    name:
+                      type: object
+                      properties:
+                        value:
+                          type: keyword
+                        alias:
+                          type: keyword
+
+          data_stream: { }
+  - is_true: acknowledged
+
+  - do:
+      indices.create_data_stream:
+        name: logs-nginx-qa
+  - is_true: acknowledged
+
+  - do:
+      indices.get_data_stream:
+        name: logs-nginx-qa
+
+  - set: { data_streams.0.indices.0.index_name: backing_index }
+  - do:
+      indices.get_mapping:
+        index: $backing_index
+
+  - match: { .$backing_index.mappings.properties.@timestamp.type: date }
+  - match: { .$backing_index.mappings.properties.host.properties.name.properties.value.type: keyword }
+  - match: { .$backing_index.mappings.properties.host.properties.name.properties.alias.type: keyword }
+
+---
+create logsdb data stream with default sorting on malformed host.name:
+  - skip:
+      features: [ "allowed_warnings" ]
+  - requires:
+      cluster_features: [ "mapper.keyword_normalizer_synthetic_source" ]
+      reason: support for normalizer on keyword fields
+
+  - do:
+      allowed_warnings:
+        - "index template [logs-template] has index patterns [logs-win-prod] matching patterns from existing older templates [global] with patterns (global => [*]); this template [logs-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: logs-template
+        body:
+          index_patterns: [ logs-win-prod ]
+          priority: 10000
+          template:
+            settings:
+              index:
+                mode: logsdb
+            mappings:
+              properties:
+                agent:
+                  type: object
+                  properties:
+                    name:
+                      type: keyword
+                    id:
+                      type: keyword
+
+          data_stream: { }
+  - is_true: acknowledged
+
+  - do:
+      indices.create_data_stream:
+        name: logs-win-prod
+  - is_true: acknowledged
+
+  - do:
+      bulk:
+        index: logs-win-prod
+        refresh: true
+        body:
+          - { "create": { } }
+          - { "@timestamp": "2022-01-01T00:00:00", agent.name: "foo", agent.id: "foo-568", host: { name: 192.168.10.12, id: "e70e91cd-bb3f-43f0-909c-2748e7fdfd54" } }
+          - { "create": { } }
+          - { "@timestamp": "2022-01-01T00:01:00", agent.name: "bar", agent.id: "foo-309", host: { name: 192.168.15.17, id: "ad2e3edb-2c4b-4f12-83dd-255691ed614c" } }
+
+  - do:
+      indices.get_data_stream:
+        name: logs-win-prod
+
+  - set: { data_streams.0.indices.0.index_name: backing_index }
+  - do:
+      indices.get_mapping:
+        index: $backing_index
+
+  - match: { .$backing_index.mappings.properties.@timestamp.type: date }
+  - match: { .$backing_index.mappings.properties.agent.properties.name.type: keyword }
+  - match: { .$backing_index.mappings.properties.agent.properties.id.type: keyword }
+  - match: { .$backing_index.mappings.properties.host.properties.name.type: keyword } # LogsDB injected
+  - match: { .$backing_index.mappings.properties.host.properties.name.ignore_above: 1024 } # LogsDB injected
+  - match: { .$backing_index.mappings.properties.host.properties.id.type: text }
+
+---
+create logsdb data stream with custom sorting and host.name date field:
+  - skip:
+      features: [ "allowed_warnings" ]
+  - requires:
+      cluster_features: [ "mapper.keyword_normalizer_synthetic_source" ]
+      reason: support for normalizer on keyword fields
+
+  - do:
+      allowed_warnings:
+        - "index template [logs-template] has index patterns [logs-http-prod] matching patterns from existing older templates [global] with patterns (global => [*]); this template [logs-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: logs-template
+        body:
+          index_patterns: [ logs-http-prod ]
+          priority: 10000
+          template:
+            settings:
+              index:
+                sort.field: [ host.name, host.hostname ]
+                sort.order: [ desc, desc ]
+                mode: logsdb
+            mappings:
+              properties:
+                host:
+                  type: object
+                  properties:
+                    hostname:
+                      type: keyword
+                    name:
+                      type: date
+
+          data_stream: { }
+  - is_true: acknowledged
+
+  - do:
+      indices.create_data_stream:
+        name: logs-http-prod
+  - is_true: acknowledged
+
+  - do:
+      indices.get_data_stream:
+        name: logs-http-prod
+
+  - set: { data_streams.0.indices.0.index_name: backing_index }
+  - do:
+      indices.get_mapping:
+        index: $backing_index
+
+  - match: { .$backing_index.mappings.properties.@timestamp.type: date }
+  - match: { .$backing_index.mappings.properties.host.properties.hostname.type: keyword }
+  - match: { .$backing_index.mappings.properties.host.properties.name.type: date }
+
+---
+create logsdb data stream with custom sorting and missing host.name field mapping:
+  - skip:
+      features: [ "allowed_warnings" ]
+  - requires:
+      cluster_features: [ "mapper.keyword_normalizer_synthetic_source" ]
+      reason: support for normalizer on keyword fields
+
+  - do:
+      allowed_warnings:
+        - "index template [logs-template] has index patterns [logs-http-qa] matching patterns from existing older templates [global] with patterns (global => [*]); this template [logs-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: logs-template
+        body:
+          index_patterns: [ logs-http-qa ]
+          priority: 10000
+          template:
+            settings:
+              index:
+                sort.field: [ host.name, host.hostname ]
+                sort.order: [ desc, desc ]
+                mode: logsdb
+            mappings:
+              properties:
+                host:
+                  type: object
+                  properties:
+                    hostname:
+                      type: keyword
+
+          data_stream: { }
+  - is_true: acknowledged
+
+  - do:
+      indices.create_data_stream:
+        name: logs-http-qa
+  - is_true: acknowledged
+
+  - do:
+      indices.get_data_stream:
+        name: logs-http-qa
+
+  - set: { data_streams.0.indices.0.index_name: backing_index }
+  - do:
+      indices.get_mapping:
+        index: $backing_index
+
+  - match: { .$backing_index.mappings.properties.@timestamp.type: date }
+  - match: { .$backing_index.mappings.properties.host.properties.hostname.type: keyword }
+  - match: { .$backing_index.mappings.properties.host.properties.name.type: keyword }
+  - match: { .$backing_index.mappings.properties.host.properties.name.ignore_above: 1024 }
+
+---
+create logsdb data stream with custom sorting and host.name field without doc values:
+  - skip:
+      features: [ "allowed_warnings" ]
+  - requires:
+      cluster_features: [ "mapper.keyword_normalizer_synthetic_source" ]
+      reason: support for normalizer on keyword fields
+
+  - do:
+      allowed_warnings:
+        - "index template [logs-template] has index patterns [logs-http-dev] matching patterns from existing older templates [global] with patterns (global => [*]); this template [logs-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: logs-template
+        body:
+          index_patterns: [ logs-http-dev ]
+          priority: 10000
+          template:
+            settings:
+              index:
+                sort.field: [ "host.name", "@timestamp" ]
+                sort.order: [ desc, desc ]
+                mode: logsdb
+            mappings:
+              properties:
+                host:
+                  type: object
+                  properties:
+                    name:
+                      type: keyword
+                      doc_values: false
+
+          data_stream: { }
+  - is_true: acknowledged
+
+  - do:
+      catch: bad_request
+      indices.create_data_stream:
+        name: logs-http-dev
+
+  - match: { error.type: "illegal_argument_exception" }
+  - match: { error.reason: "docvalues not found for index sort field:[host.name]" }
+
+---
+create logsdb data stream with incompatible ignore_above on host.name:
+  - skip:
+      features: [ "allowed_warnings" ]
+  - requires:
+      cluster_features: [ "mapper.keyword_normalizer_synthetic_source" ]
+      reason: support for normalizer on keyword fields
+
+  - do:
+      allowed_warnings:
+        - "index template [logsdb-index-template-ignore-above] has index patterns [logsdb-ignore-above] matching patterns from existing older templates [global] with patterns (global => [*]); this template [logsdb-index-template-ignore-above] will take precedence during new index creation"
+      indices.put_index_template:
+        name: logsdb-index-template-ignore-above
+        body:
+          index_patterns: [ logsdb-ignore-above ]
+          priority: 10000
+          template:
+            settings:
+              index:
+                sort.field: [ host.name ]
+                sort.order: [ desc ]
+                mode: logsdb
+            mappings:
+              properties:
+                host.name:
+                  type: keyword
+                  ignore_above: 128
+          data_stream: {}
+  - is_true: acknowledged
+
+  - do:
+      indices.create_data_stream:
+        name: logsdb-ignore-above
+  - is_true: acknowledged
+
+  - do:
+      indices.get_data_stream:
+        name: logsdb-ignore-above
+
+  - set: { data_streams.0.indices.0.index_name: backing_index }
+  - do:
+      indices.get_mapping:
+        index: $backing_index
+
+  - match: { .$backing_index.mappings.properties.@timestamp.type: date }
+  - match: { .$backing_index.mappings.properties.host.properties.name.type: keyword }
+  - match: { .$backing_index.mappings.properties.host.properties.name.ignore_above: 128 }
+
+---
+create logsdb data stream with no sorting and host.name as text:
+  - skip:
+      features: [ "allowed_warnings" ]
+  - requires:
+      cluster_features: [ "mapper.keyword_normalizer_synthetic_source" ]
+      reason: support for normalizer on keyword fields
+
+  - do:
+      allowed_warnings:
+        - "index template [logsdb-index-template-non-keyword] has index patterns [logsdb-non-keyword] matching patterns from existing older templates [global] with patterns (global => [*]); this template [logsdb-index-template-non-keyword] will take precedence during new index creation"
+      indices.put_index_template:
+        name: logsdb-index-template-non-keyword
+        body:
+          index_patterns: [ logsdb-non-keyword ]
+          priority: 10000
+          template:
+            settings:
+              mode: logsdb
+            mappings:
+              properties:
+                host.name:
+                  type: text
+          data_stream: {}
+  - is_true: acknowledged
+
+  - do:
+      catch: bad_request
+      indices.create_data_stream:
+        name: logsdb-non-keyword
+
+  - match: { error.type: "illegal_argument_exception" }
+  - match: { error.reason: "docvalues not found for index sort field:[host.name]" }
+
+---
+create logsdb data stream without index sorting and ignore_above on host.name:
+  - skip:
+      features: [ "allowed_warnings" ]
+  - requires:
+      cluster_features: [ "mapper.keyword_normalizer_synthetic_source" ]
+      reason: support for normalizer on keyword fields
+
+  - do:
+      allowed_warnings:
+        - "index template [logsdb-index-template-ignore-above-override] has index patterns [logsdb-ignore-above-override] matching patterns from existing older templates [global] with patterns (global => [*]); this template [logsdb-index-template-ignore-above-override] will take precedence during new index creation"
+      indices.put_index_template:
+        name: logsdb-index-template-ignore-above-override
+        body:
+          index_patterns: [ logsdb-ignore-above-override ]
+          priority: 10000
+          template:
+            settings:
+              index:
+                mode: logsdb
+            mappings:
+              properties:
+                host.name:
+                  type: keyword
+                  ignore_above: 128
+          data_stream: {}
+  - is_true: acknowledged
+
+  - do:
+      indices.create_data_stream:
+        name: logsdb-ignore-above-override
+  - is_true: acknowledged
+
+  - do:
+      indices.get_data_stream:
+        name: logsdb-ignore-above-override
+
+  - set: { data_streams.0.indices.0.index_name: backing_index }
+  - do:
+      indices.get_mapping:
+        index: $backing_index
+
+  - match: { .$backing_index.mappings.properties.@timestamp.type: date }
+  - match: { .$backing_index.mappings.properties.host.properties.name.type: keyword }
+  - match: { .$backing_index.mappings.properties.host.properties.name.ignore_above: 128 }
+
+---
+create logsdb data stream with host.name as alias and sorting on it:
+  - skip:
+      features: [ "allowed_warnings" ]
+  - requires:
+      cluster_features: [ "mapper.keyword_normalizer_synthetic_source" ]
+      reason: support for normalizer on keyword fields
+
+  - do:
+      allowed_warnings:
+        - "index template [logsdb-index-template-alias] has index patterns [logsdb-alias] matching patterns from existing older templates [global] with patterns (global => [*]); this template [logsdb-index-template-alias] will take precedence during new index creation"
+      indices.put_index_template:
+        name: logsdb-index-template-alias
+        body:
+          index_patterns: [ logsdb-alias ]
+          template:
+            settings:
+              index:
+                sort.field: [ host.name ]
+                sort.order: [ desc ]
+                mode: logsdb
+            mappings:
+              properties:
+                host.name:
+                  type: alias
+                  path: host.hostname
+                host.hostname:
+                  type:
+                    keyword
+          data_stream: {}
+  - do:
+      catch: bad_request
+      indices.create_data_stream:
+        name: logsdb-alias
+
+  - match: { error.type: "illegal_argument_exception" }
+  - match: { error.reason: "Cannot use alias [host.name] as an index sort field" }
+
+---
+create logsdb data stream with multi-fields on host.name:
+  - skip:
+      features: [ "allowed_warnings" ]
+  - requires:
+      cluster_features: [ "mapper.keyword_normalizer_synthetic_source" ]
+      reason: support for normalizer on keyword fields
+
+  - do:
+      allowed_warnings:
+        - "index template [logsdb-index-template-multi-fields] has index patterns [logsdb-multi-fields] matching patterns from existing older templates [global] with patterns (global => [*]); this template [logsdb-index-template-multi-fields] will take precedence during new index creation"
+      indices.put_index_template:
+        name: logsdb-index-template-multi-fields
+        body:
+          index_patterns: [ logsdb-multi-fields ]
+          template:
+            settings:
+              index:
+                sort.field: [ host.name.keyword ]
+                sort.order: [ asc ]
+                mode: logsdb
+            mappings:
+              properties:
+                host.name:
+                  type: "text"
+                  fields:
+                    keyword:
+                      type: "keyword"
+          data_stream: {}
+
+  - do:
+      indices.create_data_stream:
+        name: logsdb-multi-fields
+  - is_true: acknowledged
+
+  - do:
+      indices.get_data_stream:
+        name: logsdb-multi-fields
+
+  - set: { data_streams.0.indices.0.index_name: backing_index }
+  - do:
+      indices.get_mapping:
+        index: $backing_index
+
+  - match: { .$backing_index.mappings.properties.@timestamp.type: date }
+  - match: { .$backing_index.mappings.properties.host.properties.name.fields.keyword.type: keyword }
+
+---
+create logsdb data stream with multi-fields on host.name and no sorting:
+  - skip:
+      features: [ "allowed_warnings" ]
+  - requires:
+      cluster_features: [ "mapper.keyword_normalizer_synthetic_source" ]
+      reason: support for normalizer on keyword fields
+
+  - do:
+      allowed_warnings:
+        - "index template [logsdb-no-sort-multi-fields-template] has index patterns [logsdb-no-sort-multi-fields] matching patterns from existing older templates [global] with patterns (global => [*]); this template [logsdb-no-sort-multi-fields-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: logsdb-no-sort-multi-fields-template
+        body:
+          index_patterns: [ logsdb-no-sort-multi-fields ]
+          template:
+            settings:
+              mode: logsdb
+            mappings:
+              properties:
+                host.name:
+                  type: text
+                  fields:
+                    keyword:
+                      type: keyword
+          data_stream: {}
+
+  - do:
+      catch: bad_request
+      indices.create_data_stream:
+        name: logsdb-no-sort-multi-fields
+
+  - match: { error.type: "illegal_argument_exception" }
+  - match: { error.reason: "docvalues not found for index sort field:[host.name]" }
+
+---
+create logsdb data stream with custom empty sorting:
+  - skip:
+      features: [ "allowed_warnings" ]
+  - requires:
+      cluster_features: [ "mapper.keyword_normalizer_synthetic_source" ]
+      reason: support for normalizer on keyword fields
+
+  - do:
+      allowed_warnings:
+        - "index template [logs-template] has index patterns [logs-http-empty] matching patterns from existing older templates [global] with patterns (global => [*]); this template [logs-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: logs-template
+        body:
+          index_patterns: [ logs-http-empty ]
+          priority: 10000
+          template:
+            settings:
+              index:
+                sort.field: [ ]
+                sort.order: [ ]
+                mode: logsdb
+            mappings:
+              properties:
+                hostname:
+                  type: keyword
+          data_stream: { }
+  - is_true: acknowledged
+
+  - do:
+      indices.create_data_stream:
+        name: logs-http-empty
+  - is_true: acknowledged
+
+  - do:
+      indices.get_data_stream:
+        name: logs-http-empty
+
+  - set: { data_streams.0.indices.0.index_name: backing_index }
+  - do:
+      indices.get_mapping:
+        index: $backing_index
+
+  - match: { .$backing_index.mappings.properties.@timestamp.type: date }
+  - match: { .$backing_index.mappings.properties.host.properties.name.type: keyword }
+  - match: { .$backing_index.mappings.properties.host.properties.name.ignore_above: 1024 }
+
+---
+create logsdb data stream with custom sorting on timestamp:
+  - skip:
+      features: [ "allowed_warnings" ]
+  - requires:
+      cluster_features: [ "mapper.keyword_normalizer_synthetic_source" ]
+      reason: support for normalizer on keyword fields
+
+  - do:
+      allowed_warnings:
+        - "index template [logs-template] has index patterns [logs-http-dev] matching patterns from existing older templates [global] with patterns (global => [*]); this template [logs-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: logs-template
+        body:
+          index_patterns: [ logs-http-dev ]
+          priority: 10000
+          template:
+            settings:
+              index:
+                sort.field: [ "@timestamp" ]
+                sort.order: [ "asc" ]
+                mode: logsdb
+            mappings:
+              properties:
+                hostname:
+                  type: keyword
+          data_stream: { }
+  - is_true: acknowledged
+
+  - do:
+      indices.create_data_stream:
+        name: logs-http-dev
+  - is_true: acknowledged
+
+  - do:
+      indices.get_data_stream:
+        name: logs-http-dev
+
+  - set: { data_streams.0.indices.0.index_name: backing_index }
+  - do:
+      indices.get_mapping:
+        index: $backing_index
+
+  - match: { .$backing_index.mappings.properties.@timestamp.type: date }

@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.inference.external.response.amazonbedrock.completion;
 
-import com.amazonaws.services.bedrockruntime.model.ConverseResult;
+import software.amazon.awssdk.services.bedrockruntime.model.ConverseResponse;
 
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
@@ -18,7 +18,7 @@ import org.elasticsearch.xpack.inference.external.response.amazonbedrock.AmazonB
 
 public class AmazonBedrockChatCompletionResponseHandler extends AmazonBedrockResponseHandler {
 
-    private ConverseResult responseResult;
+    private ConverseResponse responseResult;
 
     public AmazonBedrockChatCompletionResponseHandler() {}
 
@@ -33,7 +33,7 @@ public class AmazonBedrockChatCompletionResponseHandler extends AmazonBedrockRes
         return "Amazon Bedrock Chat Completion";
     }
 
-    public void acceptChatCompletionResponseObject(ConverseResult response) {
+    public void acceptChatCompletionResponseObject(ConverseResponse response) {
         this.responseResult = response;
     }
 }

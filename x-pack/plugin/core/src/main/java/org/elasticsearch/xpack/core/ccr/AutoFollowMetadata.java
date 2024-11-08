@@ -150,9 +150,9 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<Metadata.Custom> i
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
         return ChunkedToXContent.builder(params)
-            .object(PATTERNS_FIELD.getPreferredName(), b -> b.appendXContentObjects(patterns))
-            .object(FOLLOWED_LEADER_INDICES_FIELD.getPreferredName(), b -> b.appendEntries(followedLeaderIndexUUIDs))
-            .object(HEADERS.getPreferredName(), b -> b.appendEntries(headers));
+            .xContentObjectFieldObjects(PATTERNS_FIELD.getPreferredName(), patterns)
+            .object(FOLLOWED_LEADER_INDICES_FIELD.getPreferredName(), followedLeaderIndexUUIDs)
+            .object(HEADERS.getPreferredName(), headers);
     }
 
     @Override

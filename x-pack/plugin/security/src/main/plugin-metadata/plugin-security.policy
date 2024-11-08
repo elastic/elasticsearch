@@ -6,6 +6,10 @@ grant {
   permission org.elasticsearch.SecuredConfigFileAccessPermission "x-pack/users";
   // other security files specified by settings
   permission org.elasticsearch.SecuredConfigFileSettingAccessPermission "xpack.security.authc.realms.ldap.*.files.role_mapping";
+  permission org.elasticsearch.SecuredConfigFileSettingAccessPermission "xpack.security.authc.realms.pki.*.files.role_mapping";
+  permission org.elasticsearch.SecuredConfigFileSettingAccessPermission "xpack.security.authc.realms.jwt.*.pkc_jwkset_path";
+  permission org.elasticsearch.SecuredConfigFileSettingAccessPermission "xpack.security.authc.realms.saml.*.idp.metadata.path";
+  permission org.elasticsearch.SecuredConfigFileSettingAccessPermission "xpack.security.authc.realms.kerberos.*.keytab.path";
 
   // needed for SAML
   permission java.util.PropertyPermission "org.apache.xml.security.ignoreLineBreaks", "read,write";

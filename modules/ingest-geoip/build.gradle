@@ -88,3 +88,8 @@ tasks.named("dependencyLicenses").configure {
 artifacts {
   restTests(new File(projectDir, "src/yamlRestTest/resources/rest-api-spec/test"))
 }
+
+tasks.named("yamlRestCompatTestTransform").configure({ task ->
+  task.skipTest("ingest_geoip/40_geoip_databases/Test adding, getting, and removing geoip databases",
+    "get databases behavior began returning more results in 8.16")
+})

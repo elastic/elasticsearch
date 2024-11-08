@@ -45,7 +45,6 @@ import static org.elasticsearch.compute.gen.Types.BOOLEAN_VECTOR;
 import static org.elasticsearch.compute.gen.Types.BYTES_REF;
 import static org.elasticsearch.compute.gen.Types.BYTES_REF_BLOCK;
 import static org.elasticsearch.compute.gen.Types.BYTES_REF_VECTOR;
-import static org.elasticsearch.compute.gen.Types.COMPUTE_WARNINGS;
 import static org.elasticsearch.compute.gen.Types.DOUBLE_BLOCK;
 import static org.elasticsearch.compute.gen.Types.DOUBLE_VECTOR;
 import static org.elasticsearch.compute.gen.Types.DRIVER_CONTEXT;
@@ -60,6 +59,7 @@ import static org.elasticsearch.compute.gen.Types.LIST_INTEGER;
 import static org.elasticsearch.compute.gen.Types.LONG_BLOCK;
 import static org.elasticsearch.compute.gen.Types.LONG_VECTOR;
 import static org.elasticsearch.compute.gen.Types.PAGE;
+import static org.elasticsearch.compute.gen.Types.WARNINGS;
 import static org.elasticsearch.compute.gen.Types.blockType;
 import static org.elasticsearch.compute.gen.Types.vectorType;
 
@@ -224,7 +224,7 @@ public class AggregatorImplementer {
         );
 
         if (warnExceptions.isEmpty() == false) {
-            builder.addField(COMPUTE_WARNINGS, "warnings", Modifier.PRIVATE, Modifier.FINAL);
+            builder.addField(WARNINGS, "warnings", Modifier.PRIVATE, Modifier.FINAL);
         }
 
         builder.addField(DRIVER_CONTEXT, "driverContext", Modifier.PRIVATE, Modifier.FINAL);
@@ -256,7 +256,7 @@ public class AggregatorImplementer {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("create");
         builder.addModifiers(Modifier.PUBLIC, Modifier.STATIC).returns(implementation);
         if (warnExceptions.isEmpty() == false) {
-            builder.addParameter(COMPUTE_WARNINGS, "warnings");
+            builder.addParameter(WARNINGS, "warnings");
         }
         builder.addParameter(DRIVER_CONTEXT, "driverContext");
         builder.addParameter(LIST_INTEGER, "channels");
@@ -312,7 +312,7 @@ public class AggregatorImplementer {
     private MethodSpec ctor() {
         MethodSpec.Builder builder = MethodSpec.constructorBuilder().addModifiers(Modifier.PUBLIC);
         if (warnExceptions.isEmpty() == false) {
-            builder.addParameter(COMPUTE_WARNINGS, "warnings");
+            builder.addParameter(WARNINGS, "warnings");
         }
         builder.addParameter(DRIVER_CONTEXT, "driverContext");
         builder.addParameter(LIST_INTEGER, "channels");
@@ -353,14 +353,14 @@ public class AggregatorImplementer {
             builder.addStatement("return");
             builder.endControlFlow();
         }
-        builder.beginControlFlow("if (mask.isConstant())");
+        builder.beginControlFlow("if (mask.allFalse())");
         {
-            builder.beginControlFlow("if (mask.getBoolean(0) == false)");
-            {
-                builder.addComment("Entire page masked away");
-                builder.addStatement("return");
-            }
-            builder.endControlFlow();
+            builder.addComment("Entire page masked away");
+            builder.addStatement("return");
+        }
+        builder.endControlFlow();
+        builder.beginControlFlow("if (mask.allTrue())");
+        {
             builder.addComment("No masking");
             builder.addStatement("$T block = page.getBlock(channels.get(0))", valueBlockType(init, combine));
             builder.addStatement("$T vector = block.asVector()", valueVectorType(init, combine));
@@ -372,6 +372,7 @@ public class AggregatorImplementer {
             builder.addStatement("return");
         }
         builder.endControlFlow();
+
         builder.addComment("Some positions masked away, others kept");
         builder.addStatement("$T block = page.getBlock(channels.get(0))", valueBlockType(init, combine));
         builder.addStatement("$T vector = block.asVector()", valueVectorType(init, combine));

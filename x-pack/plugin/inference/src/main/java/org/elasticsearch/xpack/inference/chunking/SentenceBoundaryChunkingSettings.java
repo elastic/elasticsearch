@@ -13,6 +13,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.ChunkingStrategy;
 import org.elasticsearch.inference.ModelConfigurations;
@@ -28,18 +29,29 @@ import java.util.Set;
 public class SentenceBoundaryChunkingSettings implements ChunkingSettings {
     public static final String NAME = "SentenceBoundaryChunkingSettings";
     private static final ChunkingStrategy STRATEGY = ChunkingStrategy.SENTENCE;
+    private static final int MAX_CHUNK_SIZE_LOWER_LIMIT = 20;
+    private static final int MAX_CHUNK_SIZE_UPPER_LIMIT = 300;
     private static final Set<String> VALID_KEYS = Set.of(
         ChunkingSettingsOptions.STRATEGY.toString(),
-        ChunkingSettingsOptions.MAX_CHUNK_SIZE.toString()
+        ChunkingSettingsOptions.MAX_CHUNK_SIZE.toString(),
+        ChunkingSettingsOptions.SENTENCE_OVERLAP.toString()
     );
-    protected final int maxChunkSize;
 
-    public SentenceBoundaryChunkingSettings(Integer maxChunkSize) {
+    private static int DEFAULT_OVERLAP = 1;
+
+    protected final int maxChunkSize;
+    protected int sentenceOverlap = DEFAULT_OVERLAP;
+
+    public SentenceBoundaryChunkingSettings(Integer maxChunkSize, @Nullable Integer sentenceOverlap) {
         this.maxChunkSize = maxChunkSize;
+        this.sentenceOverlap = sentenceOverlap == null ? DEFAULT_OVERLAP : sentenceOverlap;
     }
 
     public SentenceBoundaryChunkingSettings(StreamInput in) throws IOException {
         maxChunkSize = in.readInt();
+        if (in.getTransportVersion().onOrAfter(TransportVersions.CHUNK_SENTENCE_OVERLAP_SETTING_ADDED)) {
+            sentenceOverlap = in.readVInt();
+        }
     }
 
     public static SentenceBoundaryChunkingSettings fromMap(Map<String, Object> map) {
@@ -52,18 +64,34 @@ public class SentenceBoundaryChunkingSettings implements ChunkingSettings {
             );
         }
 
-        Integer maxChunkSize = ServiceUtils.extractRequiredPositiveInteger(
+        Integer maxChunkSize = ServiceUtils.extractRequiredPositiveIntegerBetween(
             map,
             ChunkingSettingsOptions.MAX_CHUNK_SIZE.toString(),
+            MAX_CHUNK_SIZE_LOWER_LIMIT,
+            MAX_CHUNK_SIZE_UPPER_LIMIT,
             ModelConfigurations.CHUNKING_SETTINGS,
             validationException
         );
+
+        Integer sentenceOverlap = ServiceUtils.removeAsType(
+            map,
+            ChunkingSettingsOptions.SENTENCE_OVERLAP.toString(),
+            Integer.class,
+            validationException
+        );
+        if (sentenceOverlap == null) {
+            sentenceOverlap = DEFAULT_OVERLAP;
+        } else if (sentenceOverlap > 1 || sentenceOverlap < 0) {
+            validationException.addValidationError(
+                ChunkingSettingsOptions.SENTENCE_OVERLAP + "[" + sentenceOverlap + "] must be either 0 or 1"
+            );
+        }
 
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;
         }
 
-        return new SentenceBoundaryChunkingSettings(maxChunkSize);
+        return new SentenceBoundaryChunkingSettings(maxChunkSize, sentenceOverlap);
     }
 
     @Override
@@ -72,6 +100,7 @@ public class SentenceBoundaryChunkingSettings implements ChunkingSettings {
         {
             builder.field(ChunkingSettingsOptions.STRATEGY.toString(), STRATEGY);
             builder.field(ChunkingSettingsOptions.MAX_CHUNK_SIZE.toString(), maxChunkSize);
+            builder.field(ChunkingSettingsOptions.SENTENCE_OVERLAP.toString(), sentenceOverlap);
         }
         builder.endObject();
         return builder;
@@ -90,6 +119,9 @@ public class SentenceBoundaryChunkingSettings implements ChunkingSettings {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeInt(maxChunkSize);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.CHUNK_SENTENCE_OVERLAP_SETTING_ADDED)) {
+            out.writeVInt(sentenceOverlap);
+        }
     }
 
     @Override

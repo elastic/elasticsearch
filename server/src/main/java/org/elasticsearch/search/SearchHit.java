@@ -27,9 +27,9 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.SimpleRefCounted;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
+import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -816,9 +816,6 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
         if (index != null) {
             builder.field(Fields._INDEX, RemoteClusterAware.buildRemoteIndexName(clusterAlias, index));
         }
-        if (builder.getRestApiVersion() == RestApiVersion.V_7 && metaFields.containsKey(MapperService.TYPE_FIELD_NAME) == false) {
-            builder.field(MapperService.TYPE_FIELD_NAME, MapperService.SINGLE_MAPPING_NAME);
-        }
         if (id != null) {
             builder.field(Fields._ID, id);
         }
@@ -851,7 +848,7 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
             }
             // _ignored is the only multi-valued meta field
             // TODO: can we avoid having an exception here?
-            if (field.getName().equals(IgnoredFieldMapper.NAME)) {
+            if (IgnoredFieldMapper.NAME.equals(field.getName()) || IgnoredSourceFieldMapper.NAME.equals(field.getName())) {
                 builder.field(field.getName(), field.getValues());
             } else {
                 builder.field(field.getName(), field.<Object>getValue());

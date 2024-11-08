@@ -19,6 +19,7 @@ import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateMathParser;
+import org.elasticsearch.common.util.LocaleUtils;
 import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
@@ -167,6 +168,31 @@ public interface DocValueFormat extends NamedWriteable {
         }
     };
 
+    DocValueFormat DENSE_VECTOR = DenseVectorDocValueFormat.INSTANCE;
+
+    /**
+     * Singleton, stateless formatter, for dense vector values, no need to actually format anything
+     */
+    class DenseVectorDocValueFormat implements DocValueFormat {
+
+        public static final DocValueFormat INSTANCE = new DenseVectorDocValueFormat();
+
+        private DenseVectorDocValueFormat() {}
+
+        @Override
+        public String getWriteableName() {
+            return "dense_vector";
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) {}
+
+        @Override
+        public String toString() {
+            return "dense_vector";
+        }
+    };
+
     DocValueFormat BINARY = BinaryDocValueFormat.INSTANCE;
 
     /**
@@ -236,9 +262,12 @@ public interface DocValueFormat extends NamedWriteable {
 
         public DateTime(StreamInput in) throws IOException {
             String formatterPattern = in.readString();
+            Locale locale = in.getTransportVersion().onOrAfter(TransportVersions.DATE_TIME_DOC_VALUES_LOCALES)
+                ? LocaleUtils.parse(in.readString())
+                : DateFieldMapper.DEFAULT_LOCALE;
             String zoneId = in.readString();
             this.timeZone = ZoneId.of(zoneId);
-            this.formatter = DateFormatter.forPattern(formatterPattern).withZone(this.timeZone);
+            this.formatter = DateFormatter.forPattern(formatterPattern).withZone(this.timeZone).withLocale(locale);
             this.parser = formatter.toDateMathParser();
             this.resolution = DateFieldMapper.Resolution.ofOrdinal(in.readVInt());
             if (in.getTransportVersion().between(TransportVersions.V_7_7_0, TransportVersions.V_8_0_0)) {
@@ -259,6 +288,9 @@ public interface DocValueFormat extends NamedWriteable {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(formatter.pattern());
+            if (out.getTransportVersion().onOrAfter(TransportVersions.DATE_TIME_DOC_VALUES_LOCALES)) {
+                out.writeString(formatter.locale().toString());
+            }
             out.writeString(timeZone.getId());
             out.writeVInt(resolution.ordinal());
             if (out.getTransportVersion().between(TransportVersions.V_7_7_0, TransportVersions.V_8_0_0)) {

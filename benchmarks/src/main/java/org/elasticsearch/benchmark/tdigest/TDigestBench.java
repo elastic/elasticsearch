@@ -23,7 +23,6 @@ package org.elasticsearch.benchmark.tdigest;
 
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.search.aggregations.metrics.MemoryTrackingTDigestArrays;
-import org.elasticsearch.tdigest.MergingDigest;
 import org.elasticsearch.tdigest.TDigest;
 import org.elasticsearch.tdigest.arrays.TDigestArrays;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -64,7 +63,7 @@ public class TDigestBench {
         MERGE {
             @Override
             TDigest create(double compression) {
-                return new MergingDigest(arrays, compression, (int) (10 * compression));
+                return TDigest.createMergingDigest(arrays, compression);
             }
         },
         AVL_TREE {

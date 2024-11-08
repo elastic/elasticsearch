@@ -231,7 +231,7 @@ public abstract class AbstractPageMappingToIteratorOperator implements Operator 
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.ESQL_PAGE_MAPPING_TO_ITERATOR;
+            return TransportVersions.V_8_15_0;
         }
     }
 

@@ -62,6 +62,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.RTrim;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Space;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Trim;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.WildcardLike;
+import org.elasticsearch.xpack.esql.expression.function.scalar.util.Delay;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Neg;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
@@ -123,6 +124,7 @@ public abstract class UnaryScalarFunction extends EsqlScalarFunction {
         entries.add(ToVersion.ENTRY);
         entries.add(Trim.ENTRY);
         entries.add(WildcardLike.ENTRY);
+        entries.add(Delay.ENTRY);
         entries.addAll(AbstractMultivalueFunction.getNamedWriteables());
         return entries;
     }
@@ -164,6 +166,6 @@ public abstract class UnaryScalarFunction extends EsqlScalarFunction {
 
     @Override
     public DataType dataType() {
-        return field.dataType();
+        return field.dataType().noText();
     }
 }

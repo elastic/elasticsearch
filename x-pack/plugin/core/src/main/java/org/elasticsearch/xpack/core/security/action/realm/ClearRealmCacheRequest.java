@@ -13,7 +13,7 @@ import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
 
-public class ClearRealmCacheRequest extends BaseNodesRequest<ClearRealmCacheRequest> {
+public class ClearRealmCacheRequest extends BaseNodesRequest {
 
     String[] realms;
     String[] usernames;

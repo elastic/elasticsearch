@@ -17,10 +17,13 @@ template:
         type: constant_keyword
       data_stream.namespace:
         type: constant_keyword
+      event.dataset:
+        type: alias
+        path: data_stream.dataset
       attributes:
         type: passthrough
         dynamic: true
-        priority: 10
+        priority: 20
         time_series_dimension: true
       dropped_attributes_count:
         type: long
@@ -39,7 +42,7 @@ template:
           attributes:
             type: passthrough
             dynamic: true
-            priority: 20
+            priority: 30
             time_series_dimension: true
       resource:
         properties:
@@ -51,7 +54,7 @@ template:
           attributes:
             type: passthrough
             dynamic: true
-            priority: 30
+            priority: 40
             time_series_dimension: true
     dynamic_templates:
       - complex_attributes:

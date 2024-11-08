@@ -20,9 +20,12 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.anEmptyMap;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 
 public class HuggingFaceServiceUpgradeIT extends InferenceUpgradeTestCase {
 
@@ -132,7 +135,7 @@ public class HuggingFaceServiceUpgradeIT extends InferenceUpgradeTestCase {
             var configs = (List<Map<String, Object>>) get(testTaskType, oldClusterId).get("endpoints");
             assertEquals("hugging_face", configs.get(0).get("service"));
             var taskSettings = (Map<String, Object>) configs.get(0).get("task_settings");
-            assertThat(taskSettings.keySet(), empty());
+            assertThat(taskSettings, anyOf(nullValue(), anEmptyMap()));
 
             assertElser(oldClusterId);
 

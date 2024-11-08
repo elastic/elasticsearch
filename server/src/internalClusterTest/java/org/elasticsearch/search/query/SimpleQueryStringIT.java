@@ -582,8 +582,34 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
         });
     }
 
+    public void testSimpleQueryStringWithAnalysisStopWords() throws Exception {
+        String mapping = Strings.toString(
+            XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("properties")
+                .startObject("body")
+                .field("type", "text")
+                .field("analyzer", "stop")
+                .endObject()
+                .endObject()
+                .endObject()
+        );
+
+        CreateIndexRequestBuilder mappingRequest = indicesAdmin().prepareCreate("test1").setMapping(mapping);
+        mappingRequest.get();
+        indexRandom(true, prepareIndex("test1").setId("1").setSource("body", "Some Text"));
+        refresh();
+
+        assertHitCount(
+            prepareSearch().setQuery(
+                simpleQueryStringQuery("the* text*").analyzeWildcard(true).defaultOperator(Operator.AND).field("body")
+            ),
+            1
+        );
+    }
+
     private void assertHits(SearchHits hits, String... ids) {
-        assertThat(hits.getTotalHits().value, equalTo((long) ids.length));
+        assertThat(hits.getTotalHits().value(), equalTo((long) ids.length));
         Set<String> hitIds = new HashSet<>();
         for (SearchHit hit : hits.getHits()) {
             hitIds.add(hit.getId());

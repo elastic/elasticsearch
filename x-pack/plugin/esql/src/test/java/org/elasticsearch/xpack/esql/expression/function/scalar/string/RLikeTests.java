@@ -69,7 +69,7 @@ public class RLikeTests extends AbstractScalarFunctionTestCase {
         casesForString(cases, "6 bytes, 2 code points", () -> "❗️", false, escapeString, optionalPattern);
         casesForString(cases, "100 random code points", () -> randomUnicodeOfCodepointLength(100), true, escapeString, optionalPattern);
         for (DataType type : DataType.types()) {
-            if (type == DataType.KEYWORD || type == DataType.TEXT || type == DataType.NULL) {
+            if (DataType.isString(type) || type == DataType.NULL) {
                 continue;
             }
             if (DataType.isRepresentable(type) == false) {
@@ -125,7 +125,7 @@ public class RLikeTests extends AbstractScalarFunctionTestCase {
     }
 
     private static void cases(List<TestCaseSupplier> cases, String title, Supplier<TextAndPattern> textAndPattern, boolean expected) {
-        for (DataType type : new DataType[] { DataType.KEYWORD, DataType.TEXT }) {
+        for (DataType type : DataType.stringTypes()) {
             cases.add(new TestCaseSupplier(title + " with " + type.esType(), List.of(type, type, DataType.BOOLEAN), () -> {
                 TextAndPattern v = textAndPattern.get();
                 return new TestCaseSupplier.TestCase(
